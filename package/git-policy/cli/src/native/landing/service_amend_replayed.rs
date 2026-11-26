@@ -28,15 +28,26 @@
 //! const oid = await amended.rebuiltOnto({ context, cwd, scratch, signing }, tree, parent);
 //! ```
 
-use crate::commit_transaction::{CommitInvocation, TransactionStop, failed};
+use crate::commit_transaction::{
+    CommitInvocation,
+    TransactionStop,
+    failed,
+};
 use crate::diagnostic_log::warn;
 use crate::private_index_request::indexed_request;
-use crate::service_commit_input_notes_and_embedded_commit::Embedded;
-use crate::service_prepare_ready_shapes::{NativeInputs, Ready};
-use crate::service_protocol::CommitRequest;
 use crate::private_storage::write_private_file;
 use crate::service_amend::split_author;
-use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::service_commit_input_notes_and_embedded_commit::Embedded;
+use crate::service_prepare_ready_shapes::{
+    NativeInputs,
+    Ready,
+};
+use crate::service_protocol::CommitRequest;
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git_checked,
+};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -101,7 +112,10 @@ fn begins_with_a_signature(line: &str) -> bool {
 /// the tree and the parents are the replay's,
 /// the identities and the signature are made again.
 fn is_replaced_header(line: &str) -> bool {
-    return line.starts_with("tree ") || line.starts_with("parent ") || line.starts_with("author ") || line.starts_with("committer ");
+    return line.starts_with("tree ")
+        || line.starts_with("parent ")
+        || line.starts_with("author ")
+        || line.starts_with("committer ");
 }
 
 /// What:
@@ -320,10 +334,17 @@ pub(crate) fn stored_commit_fields(raw: &[u8]) -> Option<AmendedCommit> {
 /// # Errors
 ///
 /// `TransactionStop::Message` when the message cannot be written or Git cannot write the commit.
-pub(crate) fn rebuilt_onto(amended: &AmendedCommit, site: &BuildSite<'_>, tree: &str, parent: &str) -> Result<String, TransactionStop> {
+pub(crate) fn rebuilt_onto(
+    amended: &AmendedCommit,
+    site: &BuildSite<'_>,
+    tree: &str,
+    parent: &str,
+) -> Result<String, TransactionStop> {
     let message_file = site.scratch.join(MESSAGE_FILE_NAME);
     if let Err(error) = write_private_file(message_file.as_path(), amended.message.as_slice()) {
-        return Err(failed(format!("writing the message of the amended commit failed: {error}")));
+        return Err(failed(format!(
+            "writing the message of the amended commit failed: {error}"
+        )));
     }
     if amended.signed {
         return signed_commit(amended, site, tree, parent, message_file.as_path());
@@ -348,7 +369,12 @@ fn reply_name(stdout: &[u8]) -> String {
 /// ```ts
 /// git('hash-object', '-t', 'commit', '-w', '--stdin', { input: headerAndMessage })
 /// ```
-fn whole_commit(amended: &AmendedCommit, site: &BuildSite<'_>, tree: &str, parent: &str) -> Result<String, TransactionStop> {
+fn whole_commit(
+    amended: &AmendedCommit,
+    site: &BuildSite<'_>,
+    tree: &str,
+    parent: &str,
+) -> Result<String, TransactionStop> {
     let mut raw: String = String::new();
     raw.push_str(format!("tree {tree}\n").as_str());
     raw.push_str(format!("parent {parent}\n").as_str());
@@ -361,7 +387,8 @@ fn whole_commit(amended: &AmendedCommit, site: &BuildSite<'_>, tree: &str, paren
     raw.push('\n');
     let mut object: Vec<u8> = raw.into_bytes();
     object.extend_from_slice(amended.message.as_slice());
-    let mut request: GitRequest = GitRequest::new(site.cwd, &["hash-object", "-t", "commit", "-w", "--stdin"]);
+    let mut request: GitRequest =
+        GitRequest::new(site.cwd, &["hash-object", "-t", "commit", "-w", "--stdin"]);
     request.input = Some(object);
     let written = run_git_checked(site.context, &request)?;
     return Ok(reply_name(written.stdout.as_slice()));
@@ -380,7 +407,13 @@ fn whole_commit(amended: &AmendedCommit, site: &BuildSite<'_>, tree: &str, paren
 /// ```ts
 /// git('commit-tree', signing, '-p', parent, '-F', messageFile, tree, { env: identities })
 /// ```
-fn signed_commit(amended: &AmendedCommit, site: &BuildSite<'_>, tree: &str, parent: &str, message_file: &Path) -> Result<String, TransactionStop> {
+fn signed_commit(
+    amended: &AmendedCommit,
+    site: &BuildSite<'_>,
+    tree: &str,
+    parent: &str,
+    message_file: &Path,
+) -> Result<String, TransactionStop> {
     if !amended.extra_headers.is_empty() {
         warn(
             "serviceCommit",
@@ -392,13 +425,21 @@ fn signed_commit(amended: &AmendedCommit, site: &BuildSite<'_>, tree: &str, pare
         );
     }
     let mut request: GitRequest = GitRequest::new(site.cwd, &["commit-tree"]);
-    request.arguments.push(OsString::from(site.signing.unwrap_or("-S")));
+    request
+        .arguments
+        .push(OsString::from(site.signing.unwrap_or("-S")));
     request.arguments.push(OsString::from("-p"));
     request.arguments.push(OsString::from(parent));
     request.arguments.push(OsString::from("-F"));
-    request.arguments.push(message_file.as_os_str().to_os_string());
+    request
+        .arguments
+        .push(message_file.as_os_str().to_os_string());
     request.arguments.push(OsString::from(tree));
-    identity_variables(amended.author.as_str(), amended.committer.as_str(), &mut request);
+    identity_variables(
+        amended.author.as_str(),
+        amended.committer.as_str(),
+        &mut request,
+    );
     let written = run_git_checked(site.context, &request)?;
     return Ok(reply_name(written.stdout.as_slice()));
 }
@@ -413,17 +454,36 @@ fn signed_commit(amended: &AmendedCommit, site: &BuildSite<'_>, tree: &str, pare
 /// ```ts
 /// request.env.push(...identityVariables(author), ...identityVariables(committer))
 /// ```
-fn identity_variables(author: &str, committer: &str, request: &mut GitRequest) {
+fn identity_variables(
+    author: &str,
+    committer: &str,
+    request: &mut GitRequest,
+) {
     variables_of(author, "GIT_AUTHOR", request);
     variables_of(committer, "GIT_COMMITTER", request);
 }
 
 /// Adds the three variables of one identity line.
-fn variables_of(line: &str, prefix: &str, request: &mut GitRequest) {
-    let Some((name, email, date)) = split_author(line) else { return };
-    request.environment.push((OsString::from(format!("{prefix}_NAME")), OsString::from(name)));
-    request.environment.push((OsString::from(format!("{prefix}_EMAIL")), OsString::from(email)));
-    request.environment.push((OsString::from(format!("{prefix}_DATE")), OsString::from(date)));
+fn variables_of(
+    line: &str,
+    prefix: &str,
+    request: &mut GitRequest,
+) {
+    let Some((name, email, date)) = split_author(line) else {
+        return;
+    };
+    request.environment.push((
+        OsString::from(format!("{prefix}_NAME")),
+        OsString::from(name),
+    ));
+    request.environment.push((
+        OsString::from(format!("{prefix}_EMAIL")),
+        OsString::from(email),
+    ));
+    request.environment.push((
+        OsString::from(format!("{prefix}_DATE")),
+        OsString::from(date),
+    ));
 }
 
 impl AmendedCommit {
@@ -436,7 +496,9 @@ impl AmendedCommit {
     /// The subject of the message,
     /// as the summary line names the commit.
     pub(crate) fn subject(&self) -> String {
-        return crate::landed_summary::subject_of(String::from_utf8_lossy(self.message.as_slice()).as_ref());
+        return crate::landed_summary::subject_of(
+            String::from_utf8_lossy(self.message.as_slice()).as_ref(),
+        );
     }
 
     /// The author line,
@@ -518,7 +580,9 @@ pub(crate) fn the_amends_tree(
     if lands_as_new || ready.needs_native {
         return Ok(AmendsTree::Nothing);
     }
-    let Some(source) = source_of(embedded) else { return Ok(AmendsTree::Nothing) };
+    let Some(source) = source_of(embedded) else {
+        return Ok(AmendsTree::Nothing);
+    };
     let written = run_git_checked(
         invocation.context,
         &indexed_request(
@@ -529,8 +593,13 @@ pub(crate) fn the_amends_tree(
             Some(native_inputs.capture.layout.object_directory.as_path()),
         ),
     )?;
-    let written_tree: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
-    let against: &str = source.parent_tree.as_deref().unwrap_or(native_inputs.capture.layout.empty_tree_oid.as_str());
+    let written_tree: String = String::from_utf8_lossy(written.stdout.as_slice())
+        .trim()
+        .to_string();
+    let against: &str = source
+        .parent_tree
+        .as_deref()
+        .unwrap_or(native_inputs.capture.layout.empty_tree_oid.as_str());
     if source.parents.len() < 2 && !invocation.region.allow_empty && written_tree == against {
         return Ok(AmendsTree::EmptyAgainstTheParent);
     }
@@ -571,7 +640,12 @@ pub(crate) fn the_amendment_lands_as_new(
         native_inputs.commit_index.as_path(),
         native_inputs.capture.layout.object_directory.as_path(),
     )?;
-    let site: BuildSite<'_> = BuildSite { context: invocation.context, cwd: invocation.cwd, scratch: ready.scratch.0.as_path(), signing: signing_option(arguments) };
+    let site: BuildSite<'_> = BuildSite {
+        context: invocation.context,
+        cwd: invocation.cwd,
+        scratch: ready.scratch.0.as_path(),
+        signing: signing_option(arguments),
+    };
     let made: String = rebuilt_onto(fields, &site, settled.as_str(), ready.base.as_str())?;
     let subject: String = fields.subject();
     let sent: CommitRequest = // The amendment is built from the replay of this command's own change, never in a shadow the service drew, so it names
@@ -595,17 +669,28 @@ pub(crate) fn the_amendment_lands_as_new(
 /// # Errors
 ///
 /// `TransactionStop` when the prepared commit cannot be read back.
-pub(crate) fn amended_fields(invocation: &CommitInvocation<'_>, sent: &CommitRequest, embedded: Option<&Embedded>) -> Result<AmendedCommit, TransactionStop> {
+pub(crate) fn amended_fields(
+    invocation: &CommitInvocation<'_>,
+    sent: &CommitRequest,
+    embedded: Option<&Embedded>,
+) -> Result<AmendedCommit, TransactionStop> {
     if let Some(made) = embedded_with_a_source(embedded) {
         return Ok(amended_from_embedded(made));
     }
     let Some(commit) = sent.commit.as_deref() else {
-        return Err(failed(String::from("the amend prepared no commit whose message and authorship a later tip could keep")));
+        return Err(failed(String::from(
+            "the amend prepared no commit whose message and authorship a later tip could keep",
+        )));
     };
-    let read = run_git_checked(invocation.context, &GitRequest::new(invocation.cwd, &["cat-file", "commit", commit]))?;
+    let read = run_git_checked(
+        invocation.context,
+        &GitRequest::new(invocation.cwd, &["cat-file", "commit", commit]),
+    )?;
     return match stored_commit_fields(read.stdout.as_slice()) {
         Some(fields) => Ok(fields),
-        None => Err(failed(String::from("the commit this amend prepared could not be read back, so it cannot be made on the branch as it is now"))),
+        None => Err(failed(String::from(
+            "the commit this amend prepared could not be read back, so it cannot be made on the branch as it is now",
+        ))),
     };
 }
 

@@ -16,17 +16,30 @@
 
 /// The stage under test,
 ///  its result and the scripted facts.
-use super::{COMMIT_ONLY_CORE, TransformResult, apply_fixed_transforms};
+use super::{
+    COMMIT_ONLY_CORE,
+    TransformResult,
+    apply_fixed_transforms,
+};
 use crate::command_test_support::os_arguments;
 use crate::diagnostics::EngineFailureCode;
 use crate::policy_events::PolicyEvent;
-use crate::policy_test_support::{ScriptedFacts, scripted_facts};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    scripted_facts,
+};
 use crate::rule_commit_index::IndexVsHead;
-use crate::rule_commit_only_message::{ALL_FLAG_MESSAGE, NO_PATHSPEC_MESSAGE};
+use crate::rule_commit_only_message::{
+    ALL_FLAG_MESSAGE,
+    NO_PATHSPEC_MESSAGE,
+};
 use crate::rule_commit_sequencer::SequencerState;
 
 /// Apply the transforms without the commit hatch and return the result with the facts asked for.
-fn transform(values: &[&str], facts: ScriptedFacts) -> (TransformResult, Vec<String>) {
+fn transform(
+    values: &[&str],
+    facts: ScriptedFacts,
+) -> (TransformResult, Vec<String>) {
     let mut scripted: ScriptedFacts = facts;
     let result: TransformResult =
         apply_fixed_transforms(os_arguments(values).as_slice(), false, false, &mut scripted);
@@ -44,7 +57,11 @@ fn forwards(values: &[&str]) -> TransformResult {
 }
 
 /// A complete result that keeps the input and carries one commit-only rejection.
-fn rejects(values: &[&str], code: &'static str, message: &str) -> TransformResult {
+fn rejects(
+    values: &[&str],
+    code: &'static str,
+    message: &str,
+) -> TransformResult {
     return TransformResult {
         arguments: os_arguments(values),
         events: vec![PolicyEvent::CoreFinding {
@@ -269,7 +286,12 @@ fn the_commit_hatch_skips_the_transform() {
     ] {
         let mut facts: ScriptedFacts = unanswerable();
         assert_eq!(
-            apply_fixed_transforms(os_arguments(values.as_slice()).as_slice(), true, false, &mut facts),
+            apply_fixed_transforms(
+                os_arguments(values.as_slice()).as_slice(),
+                true,
+                false,
+                &mut facts
+            ),
             forwards(values.as_slice()),
             "{values:?}"
         );
@@ -282,7 +304,12 @@ fn the_commit_hatch_skips_the_transform() {
         forwards(&["push", "--atomic"])
     );
     assert_eq!(
-        apply_fixed_transforms(os_arguments(&["status"]).as_slice(), true, false, &mut facts),
+        apply_fixed_transforms(
+            os_arguments(&["status"]).as_slice(),
+            true,
+            false,
+            &mut facts
+        ),
         forwards(&["-c", "advice.statusHints=false", "status"])
     );
 }

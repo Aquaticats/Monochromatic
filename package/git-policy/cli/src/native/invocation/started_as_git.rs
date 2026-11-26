@@ -37,8 +37,6 @@
 //! // if (marker && (marker.starts > MOST_STARTS_IN_ONE_CHAIN || marker.pid === process.ppid && sameBirth(marker))) { stop('started as Git by a monochromatic-git-policy-cli process'); }
 //! ```
 
-/// The one lookup of a named variable in an injected environment.
-use crate::child_environment::{FORWARD_TARGET_VARIABLE, environment_value};
 /// What:
 ///  The start a chain's descendants still see through the descriptor they inherit,
 /// which a launcher that clears
@@ -48,6 +46,21 @@ use crate::child_environment::{FORWARD_TARGET_VARIABLE, environment_value};
 /// destroy;
 /// an open descriptor survives `exec` and every environment clearing.
 use crate::chain_starts_record::ChainRecord;
+/// The one lookup of a named variable in an injected environment.
+use crate::child_environment::{
+    FORWARD_TARGET_VARIABLE,
+    environment_value,
+};
+/// What:
+///  The birth identity of a process,
+/// which changes when its number is reused.
+/// Why:
+///   A process number alone could name a later process after the first one ended;
+/// the identity cannot.
+use crate::process_identity::{
+    current_birth_identity,
+    process_birth_identity,
+};
 /// What:
 ///  The marker's own format and the one lookup of it in an environment,
 /// kept in a module both this guard and the chain record
@@ -56,20 +69,23 @@ use crate::chain_starts_record::ChainRecord;
 ///   A record a launcher cannot erase and the guard that reads it speak the same text,
 /// and neither may own it alone.
 pub use crate::start_marker::{
-    FIELD_SEPARATOR, MOST_STARTS_IN_ONE_CHAIN, StartMarker, StartMode, STARTED_AS_GIT_VARIABLE, marker_of, marker_value, parse_marker,
+    FIELD_SEPARATOR,
+    MOST_STARTS_IN_ONE_CHAIN,
+    STARTED_AS_GIT_VARIABLE,
+    StartMarker,
+    StartMode,
+    marker_of,
+    marker_value,
+    parse_marker,
 };
-/// What:
-///  The birth identity of a process,
-/// which changes when its number is reused.
-/// Why:
-///   A process number alone could name a later process after the first one ended;
-/// the identity cannot.
-use crate::process_identity::{current_birth_identity, process_birth_identity};
 /// What:
 ///  `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes (siblings `&str`/`String` must be UTF-8).
 /// Why:
 ///   Environment values and paths need not be UTF-8.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `Path` is a borrowed filesystem path of raw bytes (owned sibling `PathBuf`).
 use std::path::Path;
 /// The child-process builder that receives the marker.
@@ -150,7 +166,10 @@ fn own_identity() -> String {
 /// ```ts
 /// command.env.CLI_GIT_STARTED_AS_GIT = markerValue(mode, process.pid, ownIdentity());
 /// ```
-pub fn mark_real_git_start(command: &mut Command, mode: StartMode) {
+pub fn mark_real_git_start(
+    command: &mut Command,
+    mode: StartMode,
+) {
     let starts: u32 = own_start_count().saturating_add(1);
     let marker: OsString = marker_value(mode, std::process::id(), own_identity().as_str(), starts);
     // The record keeps what this start is, so a launcher that clears the environment of the wrapper it starts cannot
@@ -336,7 +355,10 @@ fn chain_ancestors() -> Vec<u32> {
 /// ```ts
 /// function recordContinues(marker, processes) { return processes.includes(marker.starterPid) && identityAgrees(marker.starterPid, marker); }
 /// ```
-fn record_continues(marker: &StartMarker, processes: &[u32]) -> bool {
+fn record_continues(
+    marker: &StartMarker,
+    processes: &[u32],
+) -> bool {
     if !processes.contains(&marker.starter_pid) {
         return false;
     }
@@ -378,7 +400,10 @@ fn with_the_chosen_file(environment: &[(OsString, OsString)]) -> Vec<(OsString, 
     let mut said_in: Vec<(OsString, OsString)> = environment.to_vec();
     let chosen: Option<&str> = crate::chain_starts_record::this_chain().and_then(chosen_file);
     if let Some(target) = chosen {
-        said_in.push((OsString::from(FORWARD_TARGET_VARIABLE), OsString::from(target)));
+        said_in.push((
+            OsString::from(FORWARD_TARGET_VARIABLE),
+            OsString::from(target),
+        ));
     }
     return said_in;
 }
@@ -412,7 +437,9 @@ fn ancestor_marker() -> Option<StartMarker> {
 /// ```ts
 /// function firstMarkerAbove(environmentOf): [StartMarker, [string, string][]] | undefined;
 /// ```
-fn first_marker_above(environment_of: impl Fn(u32) -> Option<Vec<(OsString, OsString)>>) -> Option<(StartMarker, Vec<(OsString, OsString)>)> {
+fn first_marker_above(
+    environment_of: impl Fn(u32) -> Option<Vec<(OsString, OsString)>>
+) -> Option<(StartMarker, Vec<(OsString, OsString)>)> {
     let mut pid: u32 = parent_pid();
     for _level in 0..ANCESTORS_ASKED_FOR_THE_CHAIN {
         if pid == 0 {
@@ -453,7 +480,9 @@ fn ancestor_environments() -> Vec<Vec<(OsString, OsString)>> {
         if pid == 0 {
             break;
         }
-        let Some(environment) = environment_of(pid) else { break };
+        let Some(environment) = environment_of(pid) else {
+            break;
+        };
         found.push(environment);
         let Some(parent) = parent_of(pid) else { break };
         pid = parent;
@@ -500,7 +529,9 @@ fn environment_of(pid: u32) -> Option<Vec<(OsString, OsString)>> {
         if entry.is_empty() {
             continue;
         }
-        let Some(equals) = entry.iter().position(is_equals_sign) else { continue };
+        let Some(equals) = entry.iter().position(is_equals_sign) else {
+            continue;
+        };
         let name: OsString = OsString::from(OsStr::from_bytes(&entry[..equals]));
         let value: OsString = OsString::from(OsStr::from_bytes(&entry[equals + 1..]));
         environment.push((name, value));
@@ -547,7 +578,11 @@ fn parent_of(pid: u32) -> Option<u32> {
 /// ```ts
 /// function refusalText(marker, ownExecutable, environment): string;
 /// ```
-pub fn refusal_text(marker: &StartMarker, own_executable: &Path, environment: &[(OsString, OsString)]) -> String {
+pub fn refusal_text(
+    marker: &StartMarker,
+    own_executable: &Path,
+    environment: &[(OsString, OsString)],
+) -> String {
     let how: String = if marker.mode == StartMode::Query {
         format!(
             "this is the program that a monochromatic-git-policy-cli wrapper that runs as process {} started as Git to read the repository itself, so the `git` that wrapper chose leads back to monochromatic-git-policy-cli",
@@ -559,12 +594,21 @@ pub fn refusal_text(marker: &StartMarker, own_executable: &Path, environment: &[
             marker.starts
         )
     } else if marker.mode == StartMode::Replace {
-        format!("this is process {}, which a monochromatic-git-policy-cli wrapper replaced with this program", marker.starter_pid)
+        format!(
+            "this is process {}, which a monochromatic-git-policy-cli wrapper replaced with this program",
+            marker.starter_pid
+        )
     } else {
-        format!("this is a child of the monochromatic-git-policy-cli wrapper that runs as process {} and waits for its answer", marker.starter_pid)
+        format!(
+            "this is a child of the monochromatic-git-policy-cli wrapper that runs as process {} and waits for its answer",
+            marker.starter_pid
+        )
     };
     let chosen: String = match environment_value(environment, FORWARD_TARGET_VARIABLE) {
-        Some(target) => format!(" The file that process chose as Git is {}.", Path::new(&target).display()),
+        Some(target) => format!(
+            " The file that process chose as Git is {}.",
+            Path::new(&target).display()
+        ),
         None => String::new(),
     };
     let search_path: String = match environment_value(environment, "PATH") {
@@ -592,8 +636,7 @@ pub fn refusal_text(marker: &StartMarker, own_executable: &Path, environment: &[
 /// ```ts
 /// const WAYS_OUT_TEXT = 'A monochromatic-git-policy-cli wrapper never runs itself as Git, ...';
 /// ```
-const WAYS_OUT_TEXT: &str =
-    "A monochromatic-git-policy-cli wrapper never runs itself as Git, so it stops here instead of starting one more wrapper, which would \
+const WAYS_OUT_TEXT: &str = "A monochromatic-git-policy-cli wrapper never runs itself as Git, so it stops here instead of starting one more wrapper, which would \
      repeat without end. This happens when the first `git` that PATH offers after the wrapper leads back to monochromatic-git-policy-cli: \
      a link to it, a copy of it, its toolchain launcher, or another release of it. To fix it, put the directory of the \
      real Git (for example /usr/bin) on the PATH of the program that started the first monochromatic-git-policy-cli, or remove the entry that \
@@ -635,8 +678,15 @@ fn live_identity_of(pid: u32) -> Option<String> {
 /// ```ts
 /// function refusalWhenStartedAsGit(environment, ownExecutable): string | undefined;
 /// ```
-pub fn refusal_when_started_as_git(environment: &[(OsString, OsString)], own_executable: &Path) -> Option<String> {
-    return refusal_when_started_as_git_among(environment, own_executable, ancestor_environments().as_slice());
+pub fn refusal_when_started_as_git(
+    environment: &[(OsString, OsString)],
+    own_executable: &Path,
+) -> Option<String> {
+    return refusal_when_started_as_git_among(
+        environment,
+        own_executable,
+        ancestor_environments().as_slice(),
+    );
 }
 
 /// What:
@@ -659,7 +709,11 @@ pub fn refusal_when_started_as_git_among(
     own_executable: &Path,
     ancestors: &[Vec<(OsString, OsString)>],
 ) -> Option<String> {
-    let facts: ProcessFacts<'_> = ProcessFacts { own_pid: std::process::id(), parent_pid: parent_pid(), identity_of: &live_identity_of };
+    let facts: ProcessFacts<'_> = ProcessFacts {
+        own_pid: std::process::id(),
+        parent_pid: parent_pid(),
+        identity_of: &live_identity_of,
+    };
     if let Some((marker, said_in)) = chain_marker_and_where(environment, ancestors)
         && started_as_git(&marker, &facts)
     {
@@ -678,7 +732,11 @@ pub fn refusal_when_started_as_git_among(
         return None;
     }
     // The record also names the file that start chose as Git, which is the one a person can remove from PATH.
-    return Some(refusal_text(&marker, own_executable, with_the_chosen_file(environment).as_slice()));
+    return Some(refusal_text(
+        &marker,
+        own_executable,
+        with_the_chosen_file(environment).as_slice(),
+    ));
 }
 
 /// What:
@@ -783,7 +841,10 @@ pub struct ProcessFacts<'a> {
 ///   return marker.starts > MOST_STARTS_IN_ONE_CHAIN || sameStarter(marker, facts);
 /// }
 /// ```
-pub fn started_as_git(marker: &StartMarker, facts: &ProcessFacts<'_>) -> bool {
+pub fn started_as_git(
+    marker: &StartMarker,
+    facts: &ProcessFacts<'_>,
+) -> bool {
     // A start the wrapper made to read the repository runs nothing of the person's, so whatever stands between it and this
     //  process, a wrapper here came from the file that start chose as Git.
     if marker.mode == StartMode::Query {
@@ -792,7 +853,11 @@ pub fn started_as_git(marker: &StartMarker, facts: &ProcessFacts<'_>) -> bool {
     if marker.starts > MOST_STARTS_IN_ONE_CHAIN {
         return true;
     }
-    let candidate: u32 = if marker.mode == StartMode::Replace { facts.own_pid } else { facts.parent_pid };
+    let candidate: u32 = if marker.mode == StartMode::Replace {
+        facts.own_pid
+    } else {
+        facts.parent_pid
+    };
     if candidate != marker.starter_pid {
         return false;
     }

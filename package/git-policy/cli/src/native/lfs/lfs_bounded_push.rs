@@ -24,24 +24,49 @@
 
 /// The attempt record,
 /// the coordinator's Git and its error type.
-use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, git_command, run_query, run_query_awaiting};
-/// The patience,
-/// the grace and the two faces of the push itself.
-use crate::bounded_push::{STOP_GRACE, push_patience, run_bounded_push, run_bounded_push_awaiting, strip_one_line_break};
-/// The check that the program can start.
-use crate::lfs_push_precheck::lfs_refusal;
-/// Narrows the plan to the objects the push introduces.
-use crate::lfs_object_plan::narrow_plan;
+use crate::auto_push_single_flight::{
+    PushAttempt,
+    PushGit,
+    SingleFlightError,
+    git_command,
+    run_query,
+    run_query_awaiting,
+};
 /// What to upload and the bounded run of it.
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
-use crate::lfs_upload::{refused_job, run_upload_bounded, run_upload_bounded_awaiting};
+/// The patience,
+/// the grace and the two faces of the push itself.
+use crate::bounded_push::{
+    STOP_GRACE,
+    push_patience,
+    run_bounded_push,
+    run_bounded_push_awaiting,
+    strip_one_line_break,
+};
 /// The repository found from the files.
 use crate::git_system_config::with_real_git;
-use crate::repo_read_layout::read_layout_after_success;
+/// Narrows the plan to the objects the push introduces.
+use crate::lfs_object_plan::narrow_plan;
 use crate::lfs_pre_push::plan_failed_message;
-use crate::lfs_upload_plan::{
-    GitQuery, GitQueryAwaiting, PlanError, Settings, UploadPlan, plan_upload, plan_upload_awaiting, read_settings, read_settings_awaiting,
+/// The check that the program can start.
+use crate::lfs_push_precheck::lfs_refusal;
+use crate::lfs_upload::{
+    refused_job,
+    run_upload_bounded,
+    run_upload_bounded_awaiting,
 };
+use crate::lfs_upload_plan::{
+    GitQuery,
+    GitQueryAwaiting,
+    PlanError,
+    Settings,
+    UploadPlan,
+    plan_upload,
+    plan_upload_awaiting,
+    read_settings,
+    read_settings_awaiting,
+};
+use crate::repo_read_layout::read_layout_after_success;
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 /// The directory the worktree's layout is read from.
@@ -73,17 +98,25 @@ struct PushQuery<'a> {
 }
 
 impl GitQuery for PushQuery<'_> {
-    fn ask(&mut self, query_arguments: &[&str]) -> Result<String, String> {
+    fn ask(
+        &mut self,
+        query_arguments: &[&str],
+    ) -> Result<String, String> {
         let owned: Vec<OsString> = query_arguments.iter().map(OsString::from).collect();
         let output = match run_query(self.git, owned.as_slice()) {
             Ok(done) => done,
             Err(error) => return Err(error.to_string()),
         };
-        let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+        let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_owned();
         return match output.code {
             Some(0) => Ok(text),
             Some(1) if text.is_empty() => Ok(text),
-            code => Err(format!("exited with {code:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
+            code => Err(format!(
+                "exited with {code:?}: {}",
+                String::from_utf8_lossy(output.stderr.as_slice()).trim()
+            )),
         };
     }
 }
@@ -110,18 +143,27 @@ struct PushQueryAwaiting<'a> {
 }
 
 impl GitQueryAwaiting for PushQueryAwaiting<'_> {
-    fn ask<'a>(&'a mut self, query_arguments: &'a [&'a str]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send + 'a>> {
+    fn ask<'a>(
+        &'a mut self,
+        query_arguments: &'a [&'a str],
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send + 'a>>
+    {
         return Box::pin(async move {
             let owned: Vec<OsString> = query_arguments.iter().map(OsString::from).collect();
             let output = match run_query_awaiting(self.git, owned.as_slice()).await {
                 Ok(done) => done,
                 Err(error) => return Err(error.to_string()),
             };
-            let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+            let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+                .trim()
+                .to_owned();
             return match output.code {
                 Some(0) => Ok(text),
                 Some(1) if text.is_empty() => Ok(text),
-                code => Err(format!("exited with {code:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
+                code => Err(format!(
+                    "exited with {code:?}: {}",
+                    String::from_utf8_lossy(output.stderr.as_slice()).trim()
+                )),
             };
         });
     }
@@ -139,20 +181,35 @@ impl GitQueryAwaiting for PushQueryAwaiting<'_> {
 /// ```ts
 /// async function runLfsAwarePush(git: PushGit, args: string[]): Promise<PushAttempt>;
 /// ```
-pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, SingleFlightError> {
+pub fn run_push(
+    git: &PushGit,
+    arguments: &[OsString],
+) -> Result<PushAttempt, SingleFlightError> {
     let region: &[OsString] = arguments.get(1..).unwrap_or_default();
     if git.lfs {
-        if let Some(refusal) = lfs_refusal(&[], region, git.environment.as_slice(), git.cwd.as_path()) {
+        if let Some(refusal) =
+            lfs_refusal(&[], region, git.environment.as_slice(), git.cwd.as_path())
+        {
             return Ok(PushAttempt {
                 exit_code: REFUSED_EXIT_CODE,
                 signal: None,
                 output: strip_one_line_break(refusal.as_str()).to_owned(),
             });
         }
-        let mut query: PushQuery<'_> = PushQuery { git };
+        let mut query: PushQuery<'_> = PushQuery {
+            git,
+        };
         let read: Result<Settings, PlanError> = read_settings(&mut query);
         let planned: Result<Option<UploadPlan>, PlanError> = match read {
-            Ok(settings) => plan_upload(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), None, &mut query),
+            Ok(settings) => plan_upload(
+                &[],
+                region,
+                git.environment.as_slice(),
+                git.cwd.as_path(),
+                settings.as_slice(),
+                None,
+                &mut query,
+            ),
             Err(error) => Err(error),
         };
         match planned {
@@ -161,9 +218,13 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
                 // so Git had its say about the values it consults;
                 // the files are read again,
                 // and a plan that cannot be narrowed is still pushed by `git-lfs` and Git.
-                let layout = read_layout_after_success(git.cwd.as_path(), with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice());
+                let layout = read_layout_after_success(
+                    git.cwd.as_path(),
+                    with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice(),
+                );
                 if let Some(narrowed) = narrow_plan(plan, layout.as_ref())
-                    && let Some(failed) = run_upload_bounded(git, &narrowed)? {
+                    && let Some(failed) = run_upload_bounded(git, &narrowed)?
+                {
                     return Ok(failed);
                 }
             }
@@ -172,7 +233,8 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
                 return Ok(PushAttempt {
                     exit_code: REFUSED_EXIT_CODE,
                     signal: None,
-                    output: strip_one_line_break(plan_failed_message(error.0.as_str()).as_str()).to_owned(),
+                    output: strip_one_line_break(plan_failed_message(error.0.as_str()).as_str())
+                        .to_owned(),
                 });
             }
         }
@@ -181,7 +243,12 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
     //  its connection is open. A limit and time the person set in the environment or in `http.lowSpeedLimit` and
     //  `http.lowSpeedTime` still reach Git (`http.c`, lines 453 to 460 and 1477 to 1478) and still apply.
     let command = git_command(git, arguments);
-    return run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice());
+    return run_bounded_push(
+        command,
+        push_patience(git.environment.as_slice()),
+        STOP_GRACE,
+        git.environment.as_slice(),
+    );
 }
 
 /// What:
@@ -202,7 +269,10 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
 /// ```ts
 /// const failed = plan && await uploadBoundedAwaiting(plan); if (failed) return failed; return await runBoundedPushAwaiting(gitCommand(git, args));
 /// ```
-pub async fn run_push_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, SingleFlightError> {
+pub async fn run_push_awaiting(
+    git: &PushGit,
+    arguments: &[OsString],
+) -> Result<PushAttempt, SingleFlightError> {
     let region: &[OsString] = arguments.get(1..).unwrap_or_default();
     if git.lfs {
         // The pre-check looks `git-lfs` up on the caller's `PATH`, which asks the filesystem, so it is a job of the
@@ -210,17 +280,39 @@ pub async fn run_push_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<
         let looked_up: PushGit = git.clone();
         let region_owned: Vec<OsString> = region.to_vec();
         let refusal: Option<String> = run_blocking_job_within_the_budget(move || {
-            return lfs_refusal(&[], region_owned.as_slice(), looked_up.environment.as_slice(), looked_up.cwd.as_path());
+            return lfs_refusal(
+                &[],
+                region_owned.as_slice(),
+                looked_up.environment.as_slice(),
+                looked_up.cwd.as_path(),
+            );
         })
         .await
         .map_err(refused_job)?;
         if let Some(refused) = refusal {
-            return Ok(PushAttempt { exit_code: REFUSED_EXIT_CODE, signal: None, output: strip_one_line_break(refused.as_str()).to_owned() });
+            return Ok(PushAttempt {
+                exit_code: REFUSED_EXIT_CODE,
+                signal: None,
+                output: strip_one_line_break(refused.as_str()).to_owned(),
+            });
         }
-        let mut query: PushQueryAwaiting<'_> = PushQueryAwaiting { git };
+        let mut query: PushQueryAwaiting<'_> = PushQueryAwaiting {
+            git,
+        };
         let read: Result<Settings, PlanError> = read_settings_awaiting(&mut query).await;
         let planned: Result<Option<UploadPlan>, PlanError> = match read {
-            Ok(settings) => plan_upload_awaiting(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), None, &mut query).await,
+            Ok(settings) => {
+                plan_upload_awaiting(
+                    &[],
+                    region,
+                    git.environment.as_slice(),
+                    git.cwd.as_path(),
+                    settings.as_slice(),
+                    None,
+                    &mut query,
+                )
+                .await
+            }
             Err(error) => Err(error),
         };
         match planned {
@@ -230,12 +322,16 @@ pub async fn run_push_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<
                 // The reading of the worktree's layout asks the filesystem, so it is a job of the blocking pool and never
                 //  the task that other work of the round shares.
                 let directory: PathBuf = git.cwd.clone();
-                let config: Vec<(OsString, OsString)> = with_real_git(git.environment.as_slice(), git.real_git.as_path());
-                let layout = run_blocking_job_within_the_budget(move || { return read_layout_after_success(directory.as_path(), config.as_slice()); })
-                    .await
-                    .map_err(refused_job)?;
+                let config: Vec<(OsString, OsString)> =
+                    with_real_git(git.environment.as_slice(), git.real_git.as_path());
+                let layout = run_blocking_job_within_the_budget(move || {
+                    return read_layout_after_success(directory.as_path(), config.as_slice());
+                })
+                .await
+                .map_err(refused_job)?;
                 if let Some(narrowed) = narrow_plan(plan, layout.as_ref())
-                    && let Some(failed) = run_upload_bounded_awaiting(git, &narrowed).await? {
+                    && let Some(failed) = run_upload_bounded_awaiting(git, &narrowed).await?
+                {
                     return Ok(failed);
                 }
             }
@@ -244,7 +340,8 @@ pub async fn run_push_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<
                 return Ok(PushAttempt {
                     exit_code: REFUSED_EXIT_CODE,
                     signal: None,
-                    output: strip_one_line_break(plan_failed_message(error.0.as_str()).as_str()).to_owned(),
+                    output: strip_one_line_break(plan_failed_message(error.0.as_str()).as_str())
+                        .to_owned(),
                 });
             }
         }
@@ -253,5 +350,11 @@ pub async fn run_push_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<
     //  its connection is open. A limit and time the person set in the environment or in `http.lowSpeedLimit` and
     //  `http.lowSpeedTime` still reach Git (`http.c`, lines 453 to 460 and 1477 to 1478) and still apply.
     let command = git_command(git, arguments);
-    return run_bounded_push_awaiting(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()).await;
+    return run_bounded_push_awaiting(
+        command,
+        push_patience(git.environment.as_slice()),
+        STOP_GRACE,
+        git.environment.as_slice(),
+    )
+    .await;
 }

@@ -13,9 +13,19 @@
 
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_binding_record::binding_words::Phase;
-use crate::worktree_clone_move_refusal::managed_move_refusal::{ManagedMoveRefusal, ManagedMoveRefusalCause, refuse_move_of_a_bound_slot};
-use crate::worktree_clone_slot_state::slot_state_test_records::{publish, record_at};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_move_refusal::managed_move_refusal::{
+    ManagedMoveRefusal,
+    ManagedMoveRefusalCause,
+    refuse_move_of_a_bound_slot,
+};
+use crate::worktree_clone_slot_state::slot_state_test_records::{
+    publish,
+    record_at,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The fixture's slot path.
 fn slot_path() -> PathBuf {
@@ -23,10 +33,17 @@ fn slot_path() -> PathBuf {
 }
 
 /// One fixture common directory with the slot's record already published.
-fn with_record(name: &str, phase: Phase) -> PathBuf {
+fn with_record(
+    name: &str,
+    phase: Phase,
+) -> PathBuf {
     let root: PathBuf = fixture(name);
     let common: PathBuf = root.join(".git");
-    publish(common.as_path(), &record_at(phase, slot_path().as_path()), "topic");
+    publish(
+        common.as_path(),
+        &record_at(phase, slot_path().as_path()),
+        "topic",
+    );
     return common;
 }
 
@@ -34,22 +51,55 @@ fn with_record(name: &str, phase: Phase) -> PathBuf {
 /// which is the mounted and the unmounted arm alike.
 #[test]
 fn a_bound_slot_refuses_at_every_phase() {
-    let phases: [Phase; 8] = [Phase::Claimed, Phase::Slot, Phase::Registered, Phase::Snapshotted, Phase::Cloned, Phase::Mounted, Phase::Filled, Phase::Settling];
+    let phases: [Phase; 8] = [
+        Phase::Claimed,
+        Phase::Slot,
+        Phase::Registered,
+        Phase::Snapshotted,
+        Phase::Cloned,
+        Phase::Mounted,
+        Phase::Filled,
+        Phase::Settling,
+    ];
     for phase in phases {
         let common: PathBuf = with_record("move-refusal-bound", phase);
-        let refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path()).unwrap_or_else(|| panic!("phase `{}` must refuse", phase.word()));
+        let refusal: ManagedMoveRefusal =
+            refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path())
+                .unwrap_or_else(|| panic!("phase `{}` must refuse", phase.word()));
         assert_eq!(refusal.slot, "topic");
         match refusal.cause {
-            ManagedMoveRefusalCause::Bound { phase: found, clone_dataset } => {
+            ManagedMoveRefusalCause::Bound {
+                phase: found,
+                clone_dataset,
+            } => {
                 assert_eq!(found, phase, "phase `{}`", phase.word());
                 assert!(clone_dataset.contains("topic"), "{clone_dataset}");
             }
-            found => panic!("phase `{}` refused for another cause: {found:?}", phase.word()),
+            found => panic!(
+                "phase `{}` refused for another cause: {found:?}",
+                phase.word()
+            ),
         }
-        assert!(refusal.sentence.contains("is refused"), "{}", refusal.sentence);
-        assert!(refusal.sentence.contains("is fixed"), "{}", refusal.sentence);
-        assert!(refusal.sentence.contains("does not move the clone"), "{}", refusal.sentence);
-        assert!(refusal.sentence.contains("Nothing was moved"), "{}", refusal.sentence);
+        assert!(
+            refusal.sentence.contains("is refused"),
+            "{}",
+            refusal.sentence
+        );
+        assert!(
+            refusal.sentence.contains("is fixed"),
+            "{}",
+            refusal.sentence
+        );
+        assert!(
+            refusal.sentence.contains("does not move the clone"),
+            "{}",
+            refusal.sentence
+        );
+        assert!(
+            refusal.sentence.contains("Nothing was moved"),
+            "{}",
+            refusal.sentence
+        );
     }
 }
 
@@ -59,7 +109,10 @@ fn a_slot_with_no_record_is_left_to_git() {
     let root: PathBuf = fixture("move-refusal-absent");
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(common.as_path()).expect("the fixture common directory");
-    assert_eq!(refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path()), None);
+    assert_eq!(
+        refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path()),
+        None
+    );
 }
 
 /// A record no reader may act on refuses,
@@ -68,15 +121,24 @@ fn a_slot_with_no_record_is_left_to_git() {
 fn an_unreadable_record_refuses_with_its_reason() {
     let root: PathBuf = fixture("move-refusal-unreadable");
     let common: PathBuf = root.join(".git");
-    let home: PathBuf = crate::worktree_clone_binding_record::registration_home::home_folder(common.as_path());
+    let home: PathBuf =
+        crate::worktree_clone_binding_record::registration_home::home_folder(common.as_path());
     std::fs::create_dir_all(home.as_path()).expect("the fixture home");
     std::fs::write(home.join("topic.binding"), b"not a record\n").expect("the foreign file writes");
-    let refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path()).expect("an unreadable record refuses");
+    let refusal: ManagedMoveRefusal =
+        refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path())
+            .expect("an unreadable record refuses");
     match &refusal.cause {
-        ManagedMoveRefusalCause::Unreadable { reason } => assert!(reason.contains("topic.binding"), "{reason}"),
+        ManagedMoveRefusalCause::Unreadable {
+            reason,
+        } => assert!(reason.contains("topic.binding"), "{reason}"),
         found => panic!("expected the unreadable cause, got {found:?}"),
     }
-    assert!(refusal.sentence.contains("cannot be read"), "{}", refusal.sentence);
+    assert!(
+        refusal.sentence.contains("cannot be read"),
+        "{}",
+        refusal.sentence
+    );
 }
 
 /// A record filed under the same leaf name for another path refuses too,
@@ -87,13 +149,27 @@ fn a_record_naming_another_path_refuses() {
     let root: PathBuf = fixture("move-refusal-another-path");
     let common: PathBuf = root.join(".git");
     let recorded: PathBuf = PathBuf::from("/other/repo/.claude/worktrees/topic");
-    publish(common.as_path(), &record_at(Phase::Filled, recorded.as_path()), "topic");
-    let refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path()).expect("a disagreeing record refuses");
+    publish(
+        common.as_path(),
+        &record_at(Phase::Filled, recorded.as_path()),
+        "topic",
+    );
+    let refusal: ManagedMoveRefusal =
+        refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path())
+            .expect("a disagreeing record refuses");
     match &refusal.cause {
-        ManagedMoveRefusalCause::NamesAnotherPath { recorded: found } => assert_eq!(found, &recorded),
+        ManagedMoveRefusalCause::NamesAnotherPath {
+            recorded: found,
+        } => assert_eq!(found, &recorded),
         found => panic!("expected the other-path cause, got {found:?}"),
     }
-    assert!(refusal.sentence.contains("/other/repo/.claude/worktrees/topic"), "{}", refusal.sentence);
+    assert!(
+        refusal
+            .sentence
+            .contains("/other/repo/.claude/worktrees/topic"),
+        "{}",
+        refusal.sentence
+    );
 }
 
 /// What:
@@ -114,9 +190,18 @@ fn a_record_naming_the_slot_through_a_link_still_refuses_as_the_slot() {
     std::fs::create_dir_all(real.as_path()).expect("the slot folder");
     let linked: PathBuf = root.join("linked-topic");
     std::os::unix::fs::symlink(real.as_path(), linked.as_path()).expect("the link");
-    publish(common.as_path(), &record_at(Phase::Filled, linked.as_path()), "topic");
-    let refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common.as_path(), real.as_path()).expect("the slot's own move refuses");
-    assert!(matches!(refusal.cause, ManagedMoveRefusalCause::Bound { .. }), "the other spelling is still the slot: {:?}", refusal.cause);
+    publish(
+        common.as_path(),
+        &record_at(Phase::Filled, linked.as_path()),
+        "topic",
+    );
+    let refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common.as_path(), real.as_path())
+        .expect("the slot's own move refuses");
+    assert!(
+        matches!(refusal.cause, ManagedMoveRefusalCause::Bound { .. }),
+        "the other spelling is still the slot: {:?}",
+        refusal.cause
+    );
 }
 
 /// A source whose last component is no plain slot name cannot hold a record,
@@ -138,8 +223,10 @@ fn a_path_no_record_can_be_keyed_by_is_left_to_git() {
 #[test]
 fn the_refusal_never_reads_a_mount() {
     let common: PathBuf = with_record("move-refusal-same-code", Phase::Filled);
-    let first: Option<ManagedMoveRefusal> = refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path());
-    let second: Option<ManagedMoveRefusal> = refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path());
+    let first: Option<ManagedMoveRefusal> =
+        refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path());
+    let second: Option<ManagedMoveRefusal> =
+        refuse_move_of_a_bound_slot(common.as_path(), slot_path().as_path());
     assert_eq!(first, second);
     assert!(first.is_some());
 }

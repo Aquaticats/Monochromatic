@@ -16,9 +16,21 @@
 /// The scan,
 /// the state reader and the in-memory workspace.
 use super::bundled_development_edges;
-use crate::dependent_version_content::{ContentUnavailable, TrackedPath, WorkspaceContent};
-use crate::dependent_version_states::{ManifestState, read_manifest_states};
-use crate::dependent_version_test_support::{MemoryWorkspace, Read, unchanged, workspace};
+use crate::dependent_version_content::{
+    ContentUnavailable,
+    TrackedPath,
+    WorkspaceContent,
+};
+use crate::dependent_version_states::{
+    ManifestState,
+    read_manifest_states,
+};
+use crate::dependent_version_test_support::{
+    MemoryWorkspace,
+    Read,
+    unchanged,
+    workspace,
+};
 
 /// Scan a workspace for the given raised names,
 /// returning the edges and the source reads.

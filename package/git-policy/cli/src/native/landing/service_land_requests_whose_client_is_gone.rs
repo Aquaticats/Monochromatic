@@ -46,7 +46,10 @@ pub(crate) enum Wanted {
 /// ```ts
 /// landing.filter(([place]) => !gone.includes(place))
 /// ```
-pub(crate) fn places_still_wanted<'a>(landing: Vec<(usize, &'a CommitRequest)>, gone: &[usize]) -> Vec<(usize, &'a CommitRequest)> {
+pub(crate) fn places_still_wanted<'a>(
+    landing: Vec<(usize, &'a CommitRequest)>,
+    gone: &[usize],
+) -> Vec<(usize, &'a CommitRequest)> {
     let mut wanted: Vec<(usize, &CommitRequest)> = Vec::new();
     for (place, request) in landing {
         if !gone.contains(&place) {
@@ -69,7 +72,13 @@ pub(crate) fn places_still_wanted<'a>(landing: Vec<(usize, &'a CommitRequest)>, 
 /// ```ts
 /// const went = landing.filter(([place]) => announce.clientIsGone(place)); went.forEach(([place]) => { gone.push(place); outcomes[place] = CLIENT_GONE }); ...
 /// ```
-pub(crate) fn take(outcomes: &mut [Outcome], gone: &mut Vec<usize>, landing: &[(usize, &CommitRequest)], announce: &dyn Announcer, requests: usize) -> Wanted {
+pub(crate) fn take(
+    outcomes: &mut [Outcome],
+    gone: &mut Vec<usize>,
+    landing: &[(usize, &CommitRequest)],
+    announce: &dyn Announcer,
+    requests: usize,
+) -> Wanted {
     let mut went: bool = false;
     for (place, _request) in landing {
         if !announce.client_is_gone(*place) {
@@ -86,5 +95,9 @@ pub(crate) fn take(outcomes: &mut [Outcome], gone: &mut Vec<usize>, landing: &[(
     if !went {
         return Wanted::All;
     }
-    return if gone.len() == requests { Wanted::None } else { Wanted::Some };
+    return if gone.len() == requests {
+        Wanted::None
+    } else {
+        Wanted::Some
+    };
 }

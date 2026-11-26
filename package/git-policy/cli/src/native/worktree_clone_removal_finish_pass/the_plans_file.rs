@@ -20,7 +20,10 @@
 
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The plan's file removed and proved gone,
@@ -33,7 +36,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const gone = removeThePlan(commonDir, plan);
 /// ```
-pub fn remove_the_plan(common_dir: &Path, plan: &DestructionPlan) -> Result<(), String> {
+pub fn remove_the_plan(
+    common_dir: &Path,
+    plan: &DestructionPlan,
+) -> Result<(), String> {
     let path: PathBuf = plans_folder(common_dir).join(plan.facts.clone_guid.file_name());
     return match std::fs::remove_file(path.as_path()) {
         Ok(()) => prove_the_plan_is_gone(path.as_path()),
@@ -57,8 +63,12 @@ pub fn remove_the_plan(common_dir: &Path, plan: &DestructionPlan) -> Result<(), 
 fn prove_the_plan_is_gone(path: &Path) -> Result<(), String> {
     return match std::fs::symlink_metadata(path) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!("the plan's own path could not be read back ({error})")),
-        Ok(_) => Err(String::from("the plan's own path still answers after its removal")),
+        Err(error) => Err(format!(
+            "the plan's own path could not be read back ({error})"
+        )),
+        Ok(_) => Err(String::from(
+            "the plan's own path still answers after its removal",
+        )),
     };
 }
 

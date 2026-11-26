@@ -98,7 +98,10 @@ fn is_test_gate(predicate: &str) -> bool {
     }
     // `if let Some(inner) = ...` runs the block only when the value is `Some`, binding the inside to `inner`.
     // `.and_then(...)` continues only when the previous step gave `Some`.
-    if let Some(inner) = trimmed.strip_prefix("all(").and_then(|rest| return rest.strip_suffix(')')) {
+    if let Some(inner) = trimmed
+        .strip_prefix("all(")
+        .and_then(|rest| return rest.strip_suffix(')'))
+    {
         for condition in split_top_level(inner) {
             if is_test_gate(condition) {
                 return true;
@@ -130,7 +133,11 @@ pub(crate) fn module_name(line: &str) -> Option<&str> {
     }
     let after_keyword: &str = rest.strip_prefix("mod ")?;
     let name: &str = after_keyword.strip_suffix(';')?;
-    if name.is_empty() || !name.chars().all(|character| return character.is_alphanumeric() || character == '_') {
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|character| return character.is_alphanumeric() || character == '_')
+    {
         return None;
     }
     // `Some(name)` is the present variant of `Option`, wrapping the borrowed name; it is the returned tail.
@@ -171,26 +178,40 @@ pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String> {
             continue;
         };
         if line.starts_with(char::is_whitespace) {
-            return Err(format!("`mod {name};` is indented; a module declared inside an inline module is not resolved"));
+            return Err(format!(
+                "`mod {name};` is indented; a module declared inside an inline module is not resolved"
+            ));
         }
         let mut path_attribute: Option<String> = None;
         let mut test_only: bool = false;
         for attribute in attributes.drain(..) {
             if attribute.starts_with("#[path") {
                 // `#[path = "x.rs"]` is the only spelling read; `strip_prefix` and `strip_suffix` cut the wrapper off.
-                let value: Option<&str> =
-                    attribute.strip_prefix("#[path = \"").and_then(|rest| return rest.strip_suffix("\"]"));
+                let value: Option<&str> = attribute
+                    .strip_prefix("#[path = \"")
+                    .and_then(|rest| return rest.strip_suffix("\"]"));
                 let Some(written) = value else {
-                    return Err(format!("`{attribute}` above `mod {name};` is not in the `#[path = \"...\"]` form"));
+                    return Err(format!(
+                        "`{attribute}` above `mod {name};` is not in the `#[path = \"...\"]` form"
+                    ));
                 };
                 path_attribute = Some(written.to_owned());
             } else if attribute.starts_with("#[cfg_attr(") && attribute.contains("path") {
-                return Err(format!("`{attribute}` above `mod {name};` chooses a file by condition; not resolved"));
-            } else if let Some(predicate) = attribute.strip_prefix("#[cfg(").and_then(|rest| return rest.strip_suffix(")]")) {
+                return Err(format!(
+                    "`{attribute}` above `mod {name};` chooses a file by condition; not resolved"
+                ));
+            } else if let Some(predicate) = attribute
+                .strip_prefix("#[cfg(")
+                .and_then(|rest| return rest.strip_suffix(")]"))
+            {
                 test_only = test_only || is_test_gate(predicate);
             }
         }
-        found.push(Declaration { name: name.to_owned(), path_attribute, test_only });
+        found.push(Declaration {
+            name: name.to_owned(),
+            path_attribute,
+            test_only,
+        });
     }
     // `Ok(found)` is the success variant of `Result`; the tail expression is the return value.
     return Ok(found);

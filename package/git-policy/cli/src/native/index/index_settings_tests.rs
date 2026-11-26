@@ -4,8 +4,19 @@ use super::*;
 use crate::repo_read_config_text::ConfigEntry;
 
 /// One listed entry from a global file.
-fn entry(key: &str, value: Option<&str>) -> ListedEntry {
-    return ListedEntry { scope: "global", entry: ConfigEntry { key: key.to_string(), value: value.map(|text| { return text.as_bytes().to_vec(); }) } };
+fn entry(
+    key: &str,
+    value: Option<&str>,
+) -> ListedEntry {
+    return ListedEntry {
+        scope: "global",
+        entry: ConfigEntry {
+            key: key.to_string(),
+            value: value.map(|text| {
+                return text.as_bytes().to_vec();
+            }),
+        },
+    };
 }
 
 /// No configuration:
@@ -13,7 +24,15 @@ fn entry(key: &str, value: Option<&str>) -> ListedEntry {
 /// the untracked cache is kept and the trailing hash is written.
 #[test]
 fn an_empty_configuration_keeps_the_extensions_and_has_no_monitor() {
-    assert_eq!(read_settings(&[]), Some(IndexSettings { monitor: false, untracked: UntrackedMode::Keep, shared_repository: 0, skip_hash: false }));
+    assert_eq!(
+        read_settings(&[]),
+        Some(IndexSettings {
+            monitor: false,
+            untracked: UntrackedMode::Keep,
+            shared_repository: 0,
+            skip_hash: false
+        })
+    );
 }
 
 /// `core.fsmonitor` as a true value,
@@ -23,11 +42,23 @@ fn an_empty_configuration_keeps_the_extensions_and_has_no_monitor() {
 /// entry wins.
 #[test]
 fn core_fsmonitor_is_read_as_git_reads_it() {
-    for (value, expected) in [(Some("true"), true), (None, true), (Some("/hooks/watchman"), true), (Some("false"), false), (Some(""), false), (Some("no"), false)] {
-        let settings: IndexSettings = read_settings(&[entry("core.fsmonitor", value)]).expect("read");
+    for (value, expected) in [
+        (Some("true"), true),
+        (None, true),
+        (Some("/hooks/watchman"), true),
+        (Some("false"), false),
+        (Some(""), false),
+        (Some("no"), false),
+    ] {
+        let settings: IndexSettings =
+            read_settings(&[entry("core.fsmonitor", value)]).expect("read");
         assert_eq!(settings.monitor, expected, "{value:?}");
     }
-    let last: IndexSettings = read_settings(&[entry("core.fsmonitor", Some("true")), entry("core.fsmonitor", Some("false"))]).expect("read");
+    let last: IndexSettings = read_settings(&[
+        entry("core.fsmonitor", Some("true")),
+        entry("core.fsmonitor", Some("false")),
+    ])
+    .expect("read");
     assert!(!last.monitor);
 }
 
@@ -38,8 +69,16 @@ fn core_fsmonitor_is_read_as_git_reads_it() {
 /// and anything else is left to Git.
 #[test]
 fn core_untrackedcache_is_read_as_git_reads_it() {
-    for (value, expected) in [("true", Some(UntrackedMode::Write)), ("false", Some(UntrackedMode::Remove)), ("keep", Some(UntrackedMode::Keep)), ("maybe", None)] {
-        let found: Option<UntrackedMode> = read_settings(&[entry("core.untrackedcache", Some(value))]).map(|settings| { return settings.untracked; });
+    for (value, expected) in [
+        ("true", Some(UntrackedMode::Write)),
+        ("false", Some(UntrackedMode::Remove)),
+        ("keep", Some(UntrackedMode::Keep)),
+        ("maybe", None),
+    ] {
+        let found: Option<UntrackedMode> =
+            read_settings(&[entry("core.untrackedcache", Some(value))]).map(|settings| {
+                return settings.untracked;
+            });
         assert_eq!(found, expected, "{value}");
     }
 }
@@ -48,12 +87,27 @@ fn core_untrackedcache_is_read_as_git_reads_it() {
 /// boolean ones decline only when true.
 #[test]
 fn keys_the_update_does_not_reproduce_decline() {
-    for key in ["core.splitindex", "index.sparse", "index.threads", "index.recordoffsettable", "index.recordendofindexentries", "core.hookspath", "core.worktree"] {
+    for key in [
+        "core.splitindex",
+        "index.sparse",
+        "index.threads",
+        "index.recordoffsettable",
+        "index.recordendofindexentries",
+        "core.hookspath",
+        "core.worktree",
+    ] {
         assert_eq!(read_settings(&[entry(key, Some("1"))]), None, "{key}");
     }
     for key in ["core.sparsecheckout", "core.ignorecase"] {
-        assert_eq!(read_settings(&[entry(key, Some("true"))]), None, "{key} true");
-        assert!(read_settings(&[entry(key, Some("false"))]).is_some(), "{key} false");
+        assert_eq!(
+            read_settings(&[entry(key, Some("true"))]),
+            None,
+            "{key} true"
+        );
+        assert!(
+            read_settings(&[entry(key, Some("false"))]).is_some(),
+            "{key} false"
+        );
     }
 }
 
@@ -75,16 +129,24 @@ fn keys_the_update_does_not_reproduce_decline() {
 ///  so an explicit boolean there always wins.
 #[test]
 fn feature_manyfiles_sets_git_s_defaults_and_a_boolean_beside_it_wins() {
-    let defaults: IndexSettings = read_settings(&[entry("feature.manyfiles", Some("true"))]).expect("feature.manyFiles is a configuration the update reproduces");
-    assert_eq!((defaults.monitor, defaults.untracked, defaults.skip_hash), (false, UntrackedMode::Write, true));
+    let defaults: IndexSettings = read_settings(&[entry("feature.manyfiles", Some("true"))])
+        .expect("feature.manyFiles is a configuration the update reproduces");
+    assert_eq!(
+        (defaults.monitor, defaults.untracked, defaults.skip_hash),
+        (false, UntrackedMode::Write, true)
+    );
     let overridden: IndexSettings = read_settings(&[
         entry("feature.manyfiles", Some("true")),
         entry("core.untrackedcache", Some("keep")),
         entry("index.skiphash", Some("false")),
     ])
     .expect("read");
-    assert_eq!((overridden.untracked, overridden.skip_hash), (UntrackedMode::Write, false));
-    let off: IndexSettings = read_settings(&[entry("feature.manyfiles", Some("false"))]).expect("read");
+    assert_eq!(
+        (overridden.untracked, overridden.skip_hash),
+        (UntrackedMode::Write, false)
+    );
+    let off: IndexSettings =
+        read_settings(&[entry("feature.manyfiles", Some("false"))]).expect("read");
     assert_eq!((off.untracked, off.skip_hash), (UntrackedMode::Keep, false));
 }
 
@@ -97,10 +159,17 @@ fn feature_manyfiles_sets_git_s_defaults_and_a_boolean_beside_it_wins() {
 ///  so the in-process write must know which of the two files it is writing.
 #[test]
 fn index_skiphash_is_read_as_git_reads_it() {
-    for (value, expected) in [(Some("true"), Some(true)), (Some("false"), Some(false)), (Some("1"), Some(true)), (None, Some(true)), (Some("maybe"), None)] {
-        let found: Option<bool> = read_settings(&[entry("index.skiphash", value)]).map(|settings| {
-            return settings.skip_hash;
-        });
+    for (value, expected) in [
+        (Some("true"), Some(true)),
+        (Some("false"), Some(false)),
+        (Some("1"), Some(true)),
+        (None, Some(true)),
+        (Some("maybe"), None),
+    ] {
+        let found: Option<bool> =
+            read_settings(&[entry("index.skiphash", value)]).map(|settings| {
+                return settings.skip_hash;
+            });
         assert_eq!(found, expected, "{value:?}");
     }
 }
@@ -126,8 +195,13 @@ fn core_sharedrepository_is_read_as_git_reads_it() {
         (Some("0477"), None),
         (Some("sometimes"), None),
     ] {
-        assert_eq!(shared_permission(value.map(str::as_bytes)), expected, "{value:?}");
+        assert_eq!(
+            shared_permission(value.map(str::as_bytes)),
+            expected,
+            "{value:?}"
+        );
     }
-    let settings: IndexSettings = read_settings(&[entry("core.sharedrepository", Some("group"))]).expect("read");
+    let settings: IndexSettings =
+        read_settings(&[entry("core.sharedrepository", Some("group"))]).expect("read");
     assert_eq!(settings.shared_repository, 0o660);
 }

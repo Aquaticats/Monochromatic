@@ -31,24 +31,42 @@
 //! if (about) await stopUnitsAfterRemoval(about, folders, manager);
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::service_instance::try_instance_of;
 use crate::service_provision_host_and_manager::Manager;
 use crate::service_units_of_removed_worktrees::{
-    JournalAfterStop, UnitFolders, forget_stopped_instance, has_units, journal_of_the_instance, remove_journal_of_a_stopped_instance, stop_units,
+    JournalAfterStop,
+    UnitFolders,
+    forget_stopped_instance,
+    has_units,
+    journal_of_the_instance,
+    remove_journal_of_a_stopped_instance,
+    stop_units,
     worktree_is_gone,
 };
-use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, session_bus_path};
+use crate::systemd_dbus::{
+    Bus,
+    CallError,
+    EXCHANGE_WAIT,
+    session_bus_path,
+};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_remove_registry::registered_worktree;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemovalStopsUnits";
 
 /// The command that clears the journals of removed worktrees,
 /// named in every line that keeps one.
-const STOP_UNITS_OF_REMOVED_WORKTREES: &str = "git monochromatic-git-policy-cli service stop-units-of-removed-worktrees";
+const STOP_UNITS_OF_REMOVED_WORKTREES: &str =
+    "git monochromatic-git-policy-cli service stop-units-of-removed-worktrees";
 
 /// The worktree a removal is about to remove,
 /// as its units know it.
@@ -77,11 +95,21 @@ pub struct WorktreeAboutToGo {
 /// ```ts
 /// const about = beforeRemoval(commonDir, plan); // undefined when Git decides which worktree goes
 /// ```
-pub fn before_removal(common_dir: &Path, plan: &RemovePlan) -> Option<WorktreeAboutToGo> {
+pub fn before_removal(
+    common_dir: &Path,
+    plan: &RemovePlan,
+) -> Option<WorktreeAboutToGo> {
     let registration = match registered_worktree(common_dir, plan.target.as_path()) {
         Ok(found) => found,
         Err(reason) => {
-            debug(TAG, format!("{} has no registration to name units by ({reason})", plan.target.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "{} has no registration to name units by ({reason})",
+                    plan.target.display()
+                )
+                .as_str(),
+            );
             return None;
         }
     };
@@ -92,7 +120,11 @@ pub fn before_removal(common_dir: &Path, plan: &RemovePlan) -> Option<WorktreeAb
             return None;
         }
     };
-    return Some(WorktreeAboutToGo { instance, git_dir: registration.admin, common_dir: common_dir.to_path_buf() });
+    return Some(WorktreeAboutToGo {
+        instance,
+        git_dir: registration.admin,
+        common_dir: common_dir.to_path_buf(),
+    });
 }
 
 /// What:
@@ -115,9 +147,16 @@ pub fn before_removal(common_dir: &Path, plan: &RemovePlan) -> Option<WorktreeAb
 /// ```ts
 /// await stopUnitsAfterRemoval(about, folders, manager) // false: nothing to stop
 /// ```
-pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders<'_>, manager: &mut dyn Manager) -> Result<bool, CallError> {
+pub fn stop_units_after_removal(
+    about: &WorktreeAboutToGo,
+    folders: &UnitFolders<'_>,
+    manager: &mut dyn Manager,
+) -> Result<bool, CallError> {
     if !worktree_is_gone(about.git_dir.as_path()) {
-        debug(TAG, format!("{} is still there; its units stay", about.git_dir.display()).as_str());
+        debug(
+            TAG,
+            format!("{} is still there; its units stay", about.git_dir.display()).as_str(),
+        );
         return Ok(false);
     }
     if !has_units(folders, about.instance.as_str()) {
@@ -127,7 +166,8 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
     stop_units(manager, about.instance.as_str())?;
     // A stop answers when the manager queued the job, so one question more says the service's processes are gone,
     //  and only then may the journal it writes be removed.
-    let quiet: bool = crate::service_is_gone_after_a_stop::service_is_gone(manager, about.instance.as_str());
+    let quiet: bool =
+        crate::service_is_gone_after_a_stop::service_is_gone(manager, about.instance.as_str());
     match remove_journal_of_a_stopped_instance(folders.state_dir, about.instance.as_str(), quiet) {
         Some(JournalAfterStop::HoldsWork(kept)) => {
             forget_stopped_instance(folders.runtime_dir, about.instance.as_str());
@@ -189,18 +229,30 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
 /// await stopUnitsOfRemovedWorktree(about, env); // never throws
 /// ```
 pub fn stop_units_of_removed_worktree(about: &WorktreeAboutToGo) {
-    let Some(runtime) = non_empty_variable("XDG_RUNTIME_DIR") else { return };
+    let Some(runtime) = non_empty_variable("XDG_RUNTIME_DIR") else {
+        return;
+    };
     let runtime_dir: PathBuf = PathBuf::from(runtime);
     // The journal's state directory, which the units' `StateDirectory=` names and the sweep reads back: without it a
     // removed worktree's journal outlives its units.
     let state_dir: Option<PathBuf> = state_dir_of_the_user();
-    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state_dir.as_deref() };
+    let folders: UnitFolders<'_> = UnitFolders {
+        runtime_dir: runtime_dir.as_path(),
+        state_dir: state_dir.as_deref(),
+    };
     if !worktree_is_gone(about.git_dir.as_path()) || !has_units(&folders, about.instance.as_str()) {
         return;
     }
     let address: Option<String> = non_empty_variable("DBUS_SESSION_BUS_ADDRESS");
     let Some(socket) = session_bus_path(address.as_deref(), Some(runtime_dir.as_path())) else {
-        warn(TAG, format!("no session bus was found, so the units of the removed worktree {} keep running", about.git_dir.display()).as_str());
+        warn(
+            TAG,
+            format!(
+                "no session bus was found, so the units of the removed worktree {} keep running",
+                about.git_dir.display()
+            )
+            .as_str(),
+        );
         return;
     };
     let mut bus: Bus = match Bus::connect(socket.as_path(), EXCHANGE_WAIT) {

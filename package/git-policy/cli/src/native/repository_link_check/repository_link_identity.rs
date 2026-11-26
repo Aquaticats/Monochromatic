@@ -17,7 +17,10 @@
 //! ```
 
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The identity file below the home directory.
 pub const IDENTITY_RELATIVE_PATH: &str = ".config/monochromatic-dev/repository-link.json";
@@ -107,7 +110,10 @@ pub fn identity_path_in(home: &Path) -> PathBuf {
 
 /// The text of one field,
 /// or the empty text when it is missing or not text.
-fn text_of(parsed: &Value, key: &str) -> String {
+fn text_of(
+    parsed: &Value,
+    key: &str,
+) -> String {
     return match parsed.get(key) {
         Some(Value::String(text)) => text.clone(),
         _ => String::new(),
@@ -137,7 +143,11 @@ pub fn identity_from_text(text: &str) -> Result<LinkIdentity, String> {
         drive_uuid: text_of(&parsed, "driveUuid"),
         nvme_uuid: text_of(&parsed, "nvmeUuid"),
         root_commit: text_of(&parsed, "rootCommit"),
-        phase: if text_of(&parsed, "phase") == "after" { LinkPhase::After } else { LinkPhase::Before },
+        phase: if text_of(&parsed, "phase") == "after" {
+            LinkPhase::After
+        } else {
+            LinkPhase::Before
+        },
     });
 }
 
@@ -157,10 +167,14 @@ pub fn read_identity(home: &Path) -> IdentityRead {
     let bytes: Vec<u8> = match std::fs::read(path.as_path()) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return IdentityRead::Absent,
-        Err(error) => return IdentityRead::Unreadable(format!("cannot read {}: {error}", path.display())),
+        Err(error) => {
+            return IdentityRead::Unreadable(format!("cannot read {}: {error}", path.display()));
+        }
     };
     return match identity_from_text(String::from_utf8_lossy(bytes.as_slice()).as_ref()) {
         Ok(identity) => IdentityRead::Found(identity),
-        Err(why) => IdentityRead::Unreadable(format!("{} is not valid JSON: {why}", path.display())),
+        Err(why) => {
+            IdentityRead::Unreadable(format!("{} is not valid JSON: {why}", path.display()))
+        }
     };
 }

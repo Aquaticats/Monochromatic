@@ -27,7 +27,12 @@
 /// ```ts
 /// theRemovalWasFinished(plan, slot, files, settled);
 /// ```
-pub fn the_removal_was_finished(plan: &std::path::Path, slot: &str, files: &[String], settlement: &str) -> String {
+pub fn the_removal_was_finished(
+    plan: &std::path::Path,
+    slot: &str,
+    files: &[String],
+    settlement: &str,
+) -> String {
     let removed: String = match files.is_empty() {
         true => String::from("no record of the binding stood"),
         false => format!("then removed {}", files.join(", ")),
@@ -53,7 +58,13 @@ pub fn the_removal_was_finished(plan: &std::path::Path, slot: &str, files: &[Str
 /// ```ts
 /// thePlanWasRemovedAfterAReuse(plan, clone, recorded, live);
 /// ```
-pub fn the_plan_was_removed_after_a_reuse(plan: &std::path::Path, slot: &str, clone: &str, recorded_guid: &str, live_guid: &str) -> String {
+pub fn the_plan_was_removed_after_a_reuse(
+    plan: &std::path::Path,
+    slot: &str,
+    clone: &str,
+    recorded_guid: &str,
+    live_guid: &str,
+) -> String {
     return format!(
         "Removed the last removal plan of the slot `{slot}` ({}): `{clone}` now answers GUID {live_guid} and this plan's clone GUID {recorded_guid} is gone, no registration of this plan stands, and the binding at this slot names that other clone, so the plan was the only record left. Its binding, its shared registration and everything at the slot were left untouched.",
         plan.display()
@@ -72,16 +83,24 @@ pub fn the_plan_was_removed_after_a_reuse(plan: &std::path::Path, slot: &str, cl
 /// ```ts
 /// const settlement = theSettlementOf(answer);
 /// ```
-pub fn the_settlement_of(answer: &crate::worktree_clone_removal_proof_and_plan::removal_settle::SettleAnswer) -> String {
+pub fn the_settlement_of(
+    answer: &crate::worktree_clone_removal_proof_and_plan::removal_settle::SettleAnswer
+) -> String {
     if answer.removed_the_registration {
         return match (answer.wrote_the_lost_lock, answer.released_the_lock) {
-            (true, _) => String::from("the managed lock was written again and released, and the registration and the slot's pointer were settled"),
-            (false, true) => String::from("the managed lock was released, and the registration and the slot's pointer were settled"),
+            (true, _) => String::from(
+                "the managed lock was written again and released, and the registration and the slot's pointer were settled",
+            ),
+            (false, true) => String::from(
+                "the managed lock was released, and the registration and the slot's pointer were settled",
+            ),
             (false, false) => String::from("the registration and the slot's pointer were settled"),
         };
     }
     return match answer.released_the_lock {
-        true => String::from("the managed lock was released and no registration of this plan stood"),
+        true => {
+            String::from("the managed lock was released and no registration of this plan stood")
+        }
         false => String::from("no registration of this plan stood under its own registration name"),
     };
 }
@@ -96,7 +115,10 @@ pub fn the_settlement_of(answer: &crate::worktree_clone_removal_proof_and_plan::
 /// ```ts
 /// thePlanWasRemovedBesideANewBinding(plan, slot);
 /// ```
-pub fn the_plan_was_removed_beside_a_new_binding(plan: &std::path::Path, slot: &str) -> String {
+pub fn the_plan_was_removed_beside_a_new_binding(
+    plan: &std::path::Path,
+    slot: &str,
+) -> String {
     return format!(
         "Removed the last removal plan of the slot `{slot}` ({}): the binding at the slot names another clone and this plan's clone is gone by its GUID, so the binding was left with the new clone it describes and only the plan went.",
         plan.display()

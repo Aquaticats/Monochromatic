@@ -1,8 +1,8 @@
 //! The child helper under a descriptor limit:
-//! each sweep lowers the soft `RLIMIT_NOFILE` of the test's own process (nextest runs
-//! every test in a process of its own),
+//! each sweep lowers the soft `RLIMIT_NOFILE` of a child process of this test's own,
 //! so the limit reaches `pidfd_open`,
-//! the pipes of a start and the files of a capture in turn.
+//! the pipes of a start and the files of a capture in turn,
+//! and never another test of the run (which `cargo test` runs as threads of one process).
 //! The invariants are the plan's ("A child is started twice,
 //! or a started child is reported as failed"):
 //! a start the limit refuses
@@ -14,9 +14,21 @@
 //! no child).
 
 use super::*;
+use crate::descriptor_limit_child_test_support::{
+    started_this_test_in_a_child,
+    this_process_is_the_child,
+};
 use crate::lazy_runtime::run_on_runtime;
-use crate::test_support::{leave_free, open_descriptors, restore_limit, set_soft_limit};
-use std::process::{Command, Stdio};
+use crate::test_support::{
+    leave_free,
+    open_descriptors,
+    restore_limit,
+    set_soft_limit,
+};
+use std::process::{
+    Command,
+    Stdio,
+};
 
 /// The most descriptors a start needs beyond the process's baseline:
 /// the standard library's error-report pipe,
@@ -35,7 +47,13 @@ fn describe_descriptors() -> Vec<String> {
     return std::fs::read_dir("/proc/self/fd")
         .expect("the descriptor listing")
         .flatten()
-        .map(|entry| { return format!("{} -> {:?}", entry.file_name().to_string_lossy(), std::fs::read_link(entry.path())); })
+        .map(|entry| {
+            return format!(
+                "{} -> {:?}",
+                entry.file_name().to_string_lossy(),
+                std::fs::read_link(entry.path())
+            );
+        })
         .collect();
 }
 
@@ -60,7 +78,12 @@ fn warm_runtime() {
 /// and owned by the test thread's fixtures so a started child is ended however the test ends.
 fn quick_child(code: i32) -> std::io::Result<std::process::Child> {
     let mut command: Command = Command::new("/bin/sh");
-    command.arg("-c").arg(format!("sleep 0.05; exit {code}")).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .arg("-c")
+        .arg(format!("sleep 0.05; exit {code}"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     return crate::test_support::spawn_owned(&mut command);
 }
 
@@ -75,6 +98,14 @@ fn quick_child(code: i32) -> std::io::Result<std::process::Child> {
 /// whose every run used the pidfd would test nothing).
 #[test]
 fn a_limit_that_refuses_the_pidfd_changes_the_wait_and_nothing_else() {
+    if !this_process_is_the_child() {
+        started_this_test_in_a_child(
+            module_path!(),
+            "a_limit_that_refuses_the_pidfd_changes_the_wait_and_nothing_else",
+            None,
+        );
+        return;
+    }
     warm_runtime();
     let baseline: usize = open_descriptors();
     let mut seen: Vec<(usize, bool)> = Vec::new();
@@ -91,13 +122,28 @@ fn a_limit_that_refuses_the_pidfd_changes_the_wait_and_nothing_else() {
         .expect("the runtime");
         seen.push((free, used_the_pidfd));
         let status = waited.expect("the wait");
-        assert_eq!(status.code(), Some(3), "{free} free: the status of the child that started");
+        assert_eq!(
+            status.code(),
+            Some(3),
+            "{free} free: the status of the child that started"
+        );
         drop(held);
         restore_limit(before);
-        assert_eq!(open_descriptors(), baseline, "{free} free: no descriptor stays open");
-        assert!(!has_unreaped_child(), "{free} free: the child was reaped by the wait");
+        assert_eq!(
+            open_descriptors(),
+            baseline,
+            "{free} free: no descriptor stays open"
+        );
+        assert!(
+            !has_unreaped_child(),
+            "{free} free: the child was reaped by the wait"
+        );
     }
-    assert_eq!(seen, vec![(0, false), (1, true)], "the limit reached `pidfd_open` exactly when it left none");
+    assert_eq!(
+        seen,
+        vec![(0, false), (1, true)],
+        "the limit reached `pidfd_open` exactly when it left none"
+    );
 }
 
 /// A start the limit refuses is an error of the start and leaves no child;
@@ -108,6 +154,14 @@ fn a_limit_that_refuses_the_pidfd_changes_the_wait_and_nothing_else() {
 /// The limit sweeps from one that refuses the start to one with room.
 #[test]
 fn a_descriptor_limit_never_leaves_a_child_or_a_descriptor() {
+    if !this_process_is_the_child() {
+        started_this_test_in_a_child(
+            module_path!(),
+            "a_descriptor_limit_never_leaves_a_child_or_a_descriptor",
+            None,
+        );
+        return;
+    }
     warm_runtime();
     let baseline: usize = open_descriptors();
     let mut refused: usize = 0;
@@ -118,19 +172,41 @@ fn a_descriptor_limit_never_leaves_a_child_or_a_descriptor() {
         match started {
             Err(error) => {
                 refused += 1;
-                assert_eq!(error.raw_os_error(), Some(libc::EMFILE), "room {room}: the limit is the reason: {error}");
+                assert_eq!(
+                    error.raw_os_error(),
+                    Some(libc::EMFILE),
+                    "room {room}: the limit is the reason: {error}"
+                );
             }
             Ok(child) => {
                 finished += 1;
-                let status = run_on_runtime(async { return adopt(child).wait().await; }).expect("the runtime").expect("the wait");
-                assert_eq!(status.code(), Some(5), "room {room}: a start that worked is awaited to its status");
+                let status = run_on_runtime(async {
+                    return adopt(child).wait().await;
+                })
+                .expect("the runtime")
+                .expect("the wait");
+                assert_eq!(
+                    status.code(),
+                    Some(5),
+                    "room {room}: a start that worked is awaited to its status"
+                );
             }
         }
         restore_limit(before);
-        assert_eq!(open_descriptors(), baseline, "room {room}: no descriptor stays open");
-        assert!(!has_unreaped_child(), "room {room}: no child stays, whether the start was refused or worked");
+        assert_eq!(
+            open_descriptors(),
+            baseline,
+            "room {room}: no descriptor stays open"
+        );
+        assert!(
+            !has_unreaped_child(),
+            "room {room}: no child stays, whether the start was refused or worked"
+        );
     }
-    assert!(refused > 0 && finished > 0, "the sweep must cross the limit: {refused} refused, {finished} finished");
+    assert!(
+        refused > 0 && finished > 0,
+        "the sweep must cross the limit: {refused} refused, {finished} finished"
+    );
 }
 
 /// The captured run,
@@ -141,6 +217,14 @@ fn a_descriptor_limit_never_leaves_a_child_or_a_descriptor() {
 /// no descriptor and no child stays either way.
 #[test]
 fn a_captured_run_under_a_descriptor_limit_is_whole_or_a_plain_error_and_leaves_nothing() {
+    if !this_process_is_the_child() {
+        started_this_test_in_a_child(
+            module_path!(),
+            "a_captured_run_under_a_descriptor_limit_is_whole_or_a_plain_error_and_leaves_nothing",
+            None,
+        );
+        return;
+    }
     warm_runtime();
     let baseline: usize = open_descriptors();
     let mut refused: usize = 0;
@@ -148,14 +232,24 @@ fn a_captured_run_under_a_descriptor_limit_is_whole_or_a_plain_error_and_leaves_
     for room in 0..=ROOM_SWEPT + ROOM_SWEPT {
         let before = set_soft_limit(u64::try_from(baseline + room).expect("a count"));
         let mut command: Command = Command::new("/bin/sh");
-        command.arg("-c").arg("printf out; printf err >&2; exit 4").stdin(Stdio::null());
-        let outcome = run_on_runtime(crate::captured_child_run_to_its_end::output_of(&mut command)).expect("the runtime");
+        command
+            .arg("-c")
+            .arg("printf out; printf err >&2; exit 4")
+            .stdin(Stdio::null());
+        let outcome = run_on_runtime(crate::captured_child_run_to_its_end::output_of(
+            &mut command,
+        ))
+        .expect("the runtime");
         // The command holds the streams it was given until it is dropped, so the descriptor count is taken after that.
         drop(command);
         match outcome {
             Err(error) => {
                 refused += 1;
-                assert_eq!(error.raw_os_error(), Some(libc::EMFILE), "room {room}: the limit is the reason: {error}");
+                assert_eq!(
+                    error.raw_os_error(),
+                    Some(libc::EMFILE),
+                    "room {room}: the limit is the reason: {error}"
+                );
             }
             Ok(output) => {
                 whole += 1;
@@ -165,8 +259,16 @@ fn a_captured_run_under_a_descriptor_limit_is_whole_or_a_plain_error_and_leaves_
             }
         }
         restore_limit(before);
-        assert_eq!(open_descriptors(), baseline, "room {room}: no descriptor stays open: {:?}", describe_descriptors());
+        assert_eq!(
+            open_descriptors(),
+            baseline,
+            "room {room}: no descriptor stays open: {:?}",
+            describe_descriptors()
+        );
         assert!(!has_unreaped_child(), "room {room}: no child stays");
     }
-    assert!(refused > 0 && whole > 0, "the sweep must cross the limit: {refused} refused, {whole} whole");
+    assert!(
+        refused > 0 && whole > 0,
+        "the sweep must cross the limit: {refused} refused, {whole} whole"
+    );
 }

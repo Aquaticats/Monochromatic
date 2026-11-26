@@ -155,7 +155,10 @@ pub fn is_native_header(header: &[u8]) -> bool {
 /// ```ts
 /// function containsBytes(haystack: Buffer, needle: Buffer): boolean { return haystack.includes(needle); }
 /// ```
-fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
+fn contains_bytes(
+    haystack: &[u8],
+    needle: &[u8],
+) -> bool {
     if needle.len() > haystack.len() {
         return false;
     }
@@ -237,7 +240,10 @@ pub fn is_executable(metadata: &std::fs::Metadata) -> bool {
 /// ```ts
 /// function sameInode(a: Stats, b: Stats): boolean { return process.platform !== 'win32' && a.dev === b.dev && a.ino === b.ino; }
 /// ```
-fn same_inode(first: &std::fs::Metadata, second: &std::fs::Metadata) -> bool {
+fn same_inode(
+    first: &std::fs::Metadata,
+    second: &std::fs::Metadata,
+) -> bool {
     #[cfg(unix)]
     {
         // The trait adds `.dev()` and `.ino()` to metadata on Unix.
@@ -268,7 +274,10 @@ fn same_inode(first: &std::fs::Metadata, second: &std::fs::Metadata) -> bool {
 /// ```ts
 /// async function sameFile(first: string, second: string): Promise<boolean>;
 /// ```
-pub fn same_file(first: &Path, second: &Path) -> bool {
+pub fn same_file(
+    first: &Path,
+    second: &Path,
+) -> bool {
     // What: `if let (Ok(a), Ok(b)) = (x, y) && cond` runs only when both results
     //       succeeded and the extra condition holds.
     //       `std::fs::metadata` follows symbolic links to the final file.
@@ -307,7 +316,10 @@ pub fn same_file(first: &Path, second: &Path) -> bool {
 /// ```ts
 /// async function identicalContent(first: string, second: string): Promise<boolean>;
 /// ```
-pub fn identical_content(first: &Path, second: &Path) -> bool {
+pub fn identical_content(
+    first: &Path,
+    second: &Path,
+) -> bool {
     let (Ok(first_metadata), Ok(second_metadata)) =
         (std::fs::metadata(first), std::fs::metadata(second))
     else {
@@ -339,7 +351,10 @@ pub fn identical_content(first: &Path, second: &Path) -> bool {
 /// ```ts
 /// async function readUpTo(file: FileHandle, limit: number): Promise<Buffer | undefined>;
 /// ```
-fn read_up_to(file: &mut std::fs::File, limit: usize) -> Option<Vec<u8>> {
+fn read_up_to(
+    file: &mut std::fs::File,
+    limit: usize,
+) -> Option<Vec<u8>> {
     // `Vec::<u8>::new()` is an empty owned byte list that grows as bytes arrive.
     let mut buffer: Vec<u8> = Vec::<u8>::new();
     // What: `.take(n)` wraps the lent file in a reader that ends after `n` bytes;
@@ -403,7 +418,10 @@ pub const LAUNCH_RECORD_SUFFIX: &str = ".launch";
 ///   return toolId.split(':').at(-1) === 'monochromatic-git-policy-cli' || (own !== undefined && sameFile(real, own));
 /// }
 /// ```
-pub fn record_names_this_wrapper(record: &[u8], own_executable: Option<&Path>) -> bool {
+pub fn record_names_this_wrapper(
+    record: &[u8],
+    own_executable: Option<&Path>,
+) -> bool {
     // `let Ok(x) = ... else { return ...; };` unwraps a success or leaves the function; a record that is not JSON is no record.
     let Ok(parsed) = serde_json::from_slice::<serde_json::Value>(record) else {
         return false;
@@ -465,7 +483,10 @@ fn read_launch_record(record: &Path) -> Option<Vec<u8>> {
 ///   return [candidate, realpathOrUndefined(candidate)].some((p) => p && recordNamesThisWrapper(readOrUndefined(p + '.launch'), own));
 /// }
 /// ```
-pub fn is_wrapper_launcher(candidate: &Path, own_executable: Option<&Path>) -> bool {
+pub fn is_wrapper_launcher(
+    candidate: &Path,
+    own_executable: Option<&Path>,
+) -> bool {
     let mut spellings: Vec<std::path::PathBuf> = vec![candidate.to_path_buf()];
     // `if let Ok(x) = ...` runs only when the links could be resolved; a dangling link has no record to read.
     if let Ok(canonical) = std::fs::canonicalize(candidate)
@@ -503,7 +524,10 @@ pub fn is_wrapper_launcher(candidate: &Path, own_executable: Option<&Path>) -> b
 /// ```ts
 /// async function classifyCandidate(candidate: string, ownExecutable: string): Promise<CandidateKind>;
 /// ```
-pub fn classify_candidate(candidate: &Path, own_executable: &Path) -> CandidateKind {
+pub fn classify_candidate(
+    candidate: &Path,
+    own_executable: &Path,
+) -> CandidateKind {
     // What: `let Ok(x) = ... else { return ... };` unwraps success or exits.
     //       `std::fs::metadata` inspects the file a symbolic link finally points at.
     // Why:  The file type is checked before opening, because opening a named pipe

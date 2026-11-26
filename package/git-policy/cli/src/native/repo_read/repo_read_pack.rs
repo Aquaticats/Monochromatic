@@ -21,7 +21,12 @@
 
 #![cfg(unix)]
 
-use crate::repo_read_object::{ObjectKind, OBJECT_SIZE_LIMIT, RawObject, inflate_exact};
+use crate::repo_read_object::{
+    OBJECT_SIZE_LIMIT,
+    ObjectKind,
+    RawObject,
+    inflate_exact,
+};
 use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::path::Path;
@@ -44,7 +49,8 @@ const FANOUT_END: u64 = 8 + 256 * 4;
 /// How many pack entries every pack of this process decoded,
 /// for a control that compares the work of two ways to answer.
 #[cfg(test)]
-pub(crate) static DECODED_TOTAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub(crate) static DECODED_TOTAL: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
 
 /// One open pack and its version 2 index.
 #[derive(Debug)]
@@ -86,7 +92,11 @@ pub struct Pack {
 
 /// Read exactly `length` bytes at `position`,
 /// or `None`.
-fn read_at(file: &File, position: u64, length: usize) -> Option<Vec<u8>> {
+fn read_at(
+    file: &File,
+    position: u64,
+    length: usize,
+) -> Option<Vec<u8>> {
     let mut buffer: Vec<u8> = vec![0; length];
     file.read_exact_at(buffer.as_mut_slice(), position).ok()?;
     return Some(buffer);
@@ -95,7 +105,10 @@ fn read_at(file: &File, position: u64, length: usize) -> Option<Vec<u8>> {
 /// One delta size varint at `cursor`:
 /// seven bits per byte,
 /// low first.
-fn delta_size(delta: &[u8], cursor: &mut usize) -> Option<usize> {
+fn delta_size(
+    delta: &[u8],
+    cursor: &mut usize,
+) -> Option<usize> {
     let mut size: usize = 0;
     let mut shift: u32 = 0;
     loop {
@@ -124,7 +137,10 @@ fn delta_size(delta: &[u8], cursor: &mut usize) -> Option<usize> {
 /// ```ts
 /// function applyDelta(base: Uint8Array, delta: Uint8Array): Uint8Array | undefined;
 /// ```
-pub fn apply_delta(base: &[u8], delta: &[u8]) -> Option<Vec<u8>> {
+pub fn apply_delta(
+    base: &[u8],
+    delta: &[u8],
+) -> Option<Vec<u8>> {
     let mut cursor: usize = 0;
     if delta_size(delta, &mut cursor)? != base.len() {
         return None;
@@ -191,14 +207,20 @@ pub fn apply_delta(base: &[u8], delta: &[u8]) -> Option<Vec<u8>> {
 pub trait BaseByName {
     /// The object named `name`,
     /// or nothing when it cannot be read.
-    fn base_named(&self, name: &[u8]) -> Option<RawObject>;
+    fn base_named(
+        &self,
+        name: &[u8],
+    ) -> Option<RawObject>;
 }
 
 impl Pack {
     /// Open the pack whose index is at `index_path` (the pack is the same name ending `.pack`);
     /// `None` unless the index
     /// is version 2 and its size agrees with its own count.
-    pub fn open(index_path: &Path, hash_length: usize) -> Option<Pack> {
+    pub fn open(
+        index_path: &Path,
+        hash_length: usize,
+    ) -> Option<Pack> {
         let index: File = File::open(index_path).ok()?;
         let data: File = File::open(index_path.with_extension("pack")).ok()?;
         // The header and the table of counts that follows it are one stretch of the file, read at once.
@@ -225,11 +247,33 @@ impl Pack {
         let data_length: u64 = data.metadata().ok()?.len();
         // The pack states its own version and object count; they must agree with the index.
         let pack_header: Vec<u8> = read_at(&data, 0, 12)?;
-        let pack_count: u32 = u32::from_be_bytes([pack_header[8], pack_header[9], pack_header[10], pack_header[11]]);
-        if &pack_header[..4] != b"PACK" || !matches!(pack_header[7], 2 | 3) || pack_header[4..7] != [0, 0, 0] || u64::from(pack_count) != count {
+        let pack_count: u32 = u32::from_be_bytes([
+            pack_header[8],
+            pack_header[9],
+            pack_header[10],
+            pack_header[11],
+        ]);
+        if &pack_header[..4] != b"PACK"
+            || !matches!(pack_header[7], 2 | 3)
+            || pack_header[4..7] != [0, 0, 0]
+            || u64::from(pack_count) != count
+        {
             return None;
         }
-        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0), cache: std::cell::RefCell::default(), cached_bytes: std::cell::Cell::new(0), index_reads: std::cell::Cell::new(reads), buckets: std::cell::RefCell::default(), bucket_bytes: std::cell::Cell::new(0) });
+        return Some(Pack {
+            index,
+            data,
+            hash_length,
+            count,
+            data_length,
+            fanout,
+            decoded: std::cell::Cell::new(0),
+            cache: std::cell::RefCell::default(),
+            cached_bytes: std::cell::Cell::new(0),
+            index_reads: std::cell::Cell::new(reads),
+            buckets: std::cell::RefCell::default(),
+            bucket_bytes: std::cell::Cell::new(0),
+        });
     }
 
     /// How many entries of this pack were decoded (inflated,
@@ -245,19 +289,30 @@ impl Pack {
 
     /// `length` bytes of the index at `position`,
     /// counted as one read.
-    fn read_index(&self, position: u64, length: usize) -> Option<Vec<u8>> {
+    fn read_index(
+        &self,
+        position: u64,
+        length: usize,
+    ) -> Option<Vec<u8>> {
         self.index_reads.set(self.index_reads.get() + 1);
         return read_at(&self.index, position, length);
     }
 
     /// The pack offset of the object named `name`,
     /// or `None` when this pack does not hold it.
-    pub fn find(&self, name: &[u8]) -> Option<u64> {
+    pub fn find(
+        &self,
+        name: &[u8],
+    ) -> Option<u64> {
         if name.len() != self.hash_length {
             return None;
         }
         let first: usize = usize::from(name[0]);
-        let low: u64 = if first == 0 { 0 } else { u64::from(self.fanout[first - 1]) };
+        let low: u64 = if first == 0 {
+            0
+        } else {
+            u64::from(self.fanout[first - 1])
+        };
         let high: u64 = u64::from(self.fanout[first]);
         if low >= high {
             return None;
@@ -265,14 +320,20 @@ impl Pack {
         // The names that share the first byte lie side by side, so one read brings all of them and the search below
         //  runs in memory; probing name by name cost a system call for each step of the search. The bucket is kept, because
         //  the next lookup of the commit lands in one of 256 buckets and the same one again soon.
-        let kept: Option<std::rc::Rc<Vec<u8>>> = self.buckets.borrow().get(&name[0]).map(std::rc::Rc::clone);
+        let kept: Option<std::rc::Rc<Vec<u8>>> =
+            self.buckets.borrow().get(&name[0]).map(std::rc::Rc::clone);
         let bucket: std::rc::Rc<Vec<u8>> = match kept {
             Some(found) => found,
             None => {
-                let read: std::rc::Rc<Vec<u8>> = std::rc::Rc::new(self.read_index(FANOUT_END + low * self.hash_length as u64, ((high - low) as usize) * self.hash_length)?);
+                let read: std::rc::Rc<Vec<u8>> = std::rc::Rc::new(self.read_index(
+                    FANOUT_END + low * self.hash_length as u64,
+                    ((high - low) as usize) * self.hash_length,
+                )?);
                 if self.bucket_bytes.get() + read.len() <= CACHE_BYTE_LIMIT {
                     self.bucket_bytes.set(self.bucket_bytes.get() + read.len());
-                    self.buckets.borrow_mut().insert(name[0], std::rc::Rc::clone(&read));
+                    self.buckets
+                        .borrow_mut()
+                        .insert(name[0], std::rc::Rc::clone(&read));
                 }
                 read
             }
@@ -281,7 +342,8 @@ impl Pack {
         let mut right: usize = bucket.len() / self.hash_length;
         while left < right {
             let middle: usize = left + (right - left) / 2;
-            let candidate: &[u8] = &bucket[middle * self.hash_length..(middle + 1) * self.hash_length];
+            let candidate: &[u8] =
+                &bucket[middle * self.hash_length..(middle + 1) * self.hash_length];
             match candidate.cmp(name) {
                 std::cmp::Ordering::Equal => return self.offset_of(low + middle as u64),
                 std::cmp::Ordering::Less => left = middle + 1,
@@ -293,10 +355,14 @@ impl Pack {
 
     /// The pack offset stored for the `position`th name,
     /// following the large-offset table.
-    fn offset_of(&self, position: u64) -> Option<u64> {
+    fn offset_of(
+        &self,
+        position: u64,
+    ) -> Option<u64> {
         let offsets_at: u64 = FANOUT_END + self.count * (self.hash_length as u64 + 4);
         let bytes_word: Vec<u8> = self.read_index(offsets_at + position * 4, 4)?;
-        let word: u32 = u32::from_be_bytes([bytes_word[0], bytes_word[1], bytes_word[2], bytes_word[3]]);
+        let word: u32 =
+            u32::from_be_bytes([bytes_word[0], bytes_word[1], bytes_word[2], bytes_word[3]]);
         if word & 0x8000_0000 == 0 {
             return Some(u64::from(word));
         }
@@ -318,13 +384,19 @@ impl Pack {
     /// ```ts
     /// read(offset: number, byName: BaseByName, depth = 0): RawObject | undefined;
     /// ```
-    pub fn read(&self, offset: u64, by_name: &dyn BaseByName, depth: usize) -> Option<RawObject> {
+    pub fn read(
+        &self,
+        offset: u64,
+        by_name: &dyn BaseByName,
+        depth: usize,
+    ) -> Option<RawObject> {
         if let Some(kept) = self.cache.borrow().get(&offset) {
             return Some(kept.clone());
         }
         let object: RawObject = self.decode(offset, by_name, depth)?;
         if self.cached_bytes.get() + object.bytes.len() <= CACHE_BYTE_LIMIT {
-            self.cached_bytes.set(self.cached_bytes.get() + object.bytes.len());
+            self.cached_bytes
+                .set(self.cached_bytes.get() + object.bytes.len());
             self.cache.borrow_mut().insert(offset, object.clone());
         }
         return Some(object);
@@ -332,7 +404,12 @@ impl Pack {
 
     /// The entry at `offset` rebuilt from the pack file,
     /// as `read` does it when the entry is not kept.
-    fn decode(&self, offset: u64, by_name: &dyn BaseByName, depth: usize) -> Option<RawObject> {
+    fn decode(
+        &self,
+        offset: u64,
+        by_name: &dyn BaseByName,
+        depth: usize,
+    ) -> Option<RawObject> {
         if depth > DELTA_DEPTH_LIMIT || offset < 12 || offset >= self.data_length {
             return None;
         }
@@ -340,7 +417,11 @@ impl Pack {
         #[cfg(test)]
         DECODED_TOTAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         // Room for the size and distance varints and, for a `REF_DELTA`, the base name that follows them.
-        let head: Vec<u8> = read_at(&self.data, offset, (32 + self.hash_length).min((self.data_length - offset) as usize))?;
+        let head: Vec<u8> = read_at(
+            &self.data,
+            offset,
+            (32 + self.hash_length).min((self.data_length - offset) as usize),
+        )?;
         let mut cursor: usize = 0;
         let first: u8 = head[0];
         cursor += 1;
@@ -371,7 +452,8 @@ impl Pack {
                     cursor += 1;
                     distance = distance.checked_add(1)?.checked_shl(7)? | u64::from(c & 0x7f);
                 }
-                let base: RawObject = self.read(offset.checked_sub(distance)?, by_name, depth + 1)?;
+                let base: RawObject =
+                    self.read(offset.checked_sub(distance)?, by_name, depth + 1)?;
                 return self.apply(base, offset + cursor as u64, size);
             }
             7 => {
@@ -385,12 +467,19 @@ impl Pack {
     }
 
     /// Inflate the stream at `start` that must be `size` bytes.
-    fn inflated(&self, start: u64, size: usize) -> Option<Vec<u8>> {
+    fn inflated(
+        &self,
+        start: u64,
+        size: usize,
+    ) -> Option<Vec<u8>> {
         // The size comes from the pack; it is checked before any window is allocated for it.
         if size > OBJECT_SIZE_LIMIT {
             return None;
         }
-        let remaining: u64 = self.data_length.checked_sub(start)?.checked_sub(self.hash_length as u64)?;
+        let remaining: u64 = self
+            .data_length
+            .checked_sub(start)?
+            .checked_sub(self.hash_length as u64)?;
         for slack in [size / 4 + 4096, size * 2 + 65536] {
             let want: usize = usize::try_from(remaining).ok()?.min(size + slack);
             let window: Vec<u8> = read_at(&self.data, start, want)?;
@@ -405,14 +494,30 @@ impl Pack {
     }
 
     /// A non-delta entry.
-    fn base_object(&self, kind: ObjectKind, start: u64, size: usize) -> Option<RawObject> {
-        return Some(RawObject { kind, bytes: self.inflated(start, size)? });
+    fn base_object(
+        &self,
+        kind: ObjectKind,
+        start: u64,
+        size: usize,
+    ) -> Option<RawObject> {
+        return Some(RawObject {
+            kind,
+            bytes: self.inflated(start, size)?,
+        });
     }
 
     /// A delta entry over `base`.
-    fn apply(&self, base: RawObject, start: u64, delta_length: usize) -> Option<RawObject> {
+    fn apply(
+        &self,
+        base: RawObject,
+        start: u64,
+        delta_length: usize,
+    ) -> Option<RawObject> {
         let delta: Vec<u8> = self.inflated(start, delta_length)?;
-        return Some(RawObject { kind: base.kind, bytes: apply_delta(base.bytes.as_slice(), delta.as_slice())? });
+        return Some(RawObject {
+            kind: base.kind,
+            bytes: apply_delta(base.bytes.as_slice(), delta.as_slice())?,
+        });
     }
 }
 

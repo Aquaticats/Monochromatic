@@ -14,7 +14,14 @@
 //! ```
 
 use super::*;
-use crate::test_support::{age, fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    age,
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// A repository of one tracked file and one ignored name,
@@ -27,7 +34,17 @@ fn a_repository_with_a_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     git(repo.as_path(), &["add", "--", "tracked.txt", ".gitignore"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
     let worktree: PathBuf = root.join("topic");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", worktree.to_str().expect("a UTF-8 fixture path")]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            worktree.to_str().expect("a UTF-8 fixture path"),
+        ],
+    );
     age(worktree.join("tracked.txt").as_path());
     git(worktree.as_path(), &["update-index", "--refresh"]);
     return (root, repo, worktree);
@@ -36,8 +53,12 @@ fn a_repository_with_a_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
 /// The administrative directory of the worktree in a repository,
 /// which Git's status of that worktree is asked with.
 fn admin_of(worktree: &Path) -> PathBuf {
-    let pointer: String = std::fs::read_to_string(worktree.join(".git")).expect("the worktree's pointer");
-    let named: &str = pointer.trim_end().strip_prefix("gitdir: ").expect("a pointer names a Git directory");
+    let pointer: String =
+        std::fs::read_to_string(worktree.join(".git")).expect("the worktree's pointer");
+    let named: &str = pointer
+        .trim_end()
+        .strip_prefix("gitdir: ")
+        .expect("a pointer names a Git directory");
     return std::fs::canonicalize(worktree.join(named)).expect("the administrative directory");
 }
 
@@ -53,7 +74,14 @@ fn admin_of(worktree: &Path) -> PathBuf {
 fn a_tree_with_only_a_missing_tracked_entry_answers_yes() {
     let (root, _repo, worktree) = a_repository_with_a_worktree("only-deletions-missing");
     std::fs::remove_file(worktree.join("tracked.txt")).expect("remove the tracked file");
-    assert!(only_deletions(&git_context(), worktree.as_path(), admin_of(worktree.as_path()).as_path()), "a missing tracked entry is a deletion");
+    assert!(
+        only_deletions(
+            &git_context(),
+            worktree.as_path(),
+            admin_of(worktree.as_path()).as_path()
+        ),
+        "a missing tracked entry is a deletion"
+    );
     remove(root.as_path());
 }
 
@@ -68,11 +96,35 @@ fn a_tree_with_only_a_missing_tracked_entry_answers_yes() {
 fn a_changed_file_answers_no_and_a_staged_deletion_answers_yes() {
     let (root, _repo, worktree) = a_repository_with_a_worktree("only-deletions-changed");
     std::fs::write(worktree.join("tracked.txt"), b"mine\n").expect("change the tracked file");
-    assert!(!only_deletions(&git_context(), worktree.as_path(), admin_of(worktree.as_path()).as_path()), "a changed file is not a deletion");
+    assert!(
+        !only_deletions(
+            &git_context(),
+            worktree.as_path(),
+            admin_of(worktree.as_path()).as_path()
+        ),
+        "a changed file is not a deletion"
+    );
     git(worktree.as_path(), &["add", "--", "tracked.txt"]);
-    assert!(!only_deletions(&git_context(), worktree.as_path(), admin_of(worktree.as_path()).as_path()), "a staged change is not a deletion");
-    git(worktree.as_path(), &["rm", "--quiet", "--force", "tracked.txt"]);
-    assert!(only_deletions(&git_context(), worktree.as_path(), admin_of(worktree.as_path()).as_path()), "a staged deletion is a deletion");
+    assert!(
+        !only_deletions(
+            &git_context(),
+            worktree.as_path(),
+            admin_of(worktree.as_path()).as_path()
+        ),
+        "a staged change is not a deletion"
+    );
+    git(
+        worktree.as_path(),
+        &["rm", "--quiet", "--force", "tracked.txt"],
+    );
+    assert!(
+        only_deletions(
+            &git_context(),
+            worktree.as_path(),
+            admin_of(worktree.as_path()).as_path()
+        ),
+        "a staged deletion is a deletion"
+    );
     remove(root.as_path());
 }
 
@@ -90,15 +142,29 @@ fn a_changed_file_answers_no_and_a_staged_deletion_answers_yes() {
 fn an_untracked_file_answers_no_and_a_clean_tree_names_nothing() {
     let (root, _repo, worktree) = a_repository_with_a_worktree("only-deletions-untracked");
     let admin: PathBuf = admin_of(worktree.as_path());
-    assert!(!only_deletions(&git_context(), worktree.as_path(), admin.as_path()), "a clean tree is not a report of deletions");
-    assert_eq!(reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]), Reported::Nothing, "it names nothing at all");
+    assert!(
+        !only_deletions(&git_context(), worktree.as_path(), admin.as_path()),
+        "a clean tree is not a report of deletions"
+    );
+    assert_eq!(
+        reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]),
+        Reported::Nothing,
+        "it names nothing at all"
+    );
     std::fs::write(worktree.join("notes.txt"), b"mine\n").expect("an untracked file");
-    assert!(!only_deletions(&git_context(), worktree.as_path(), admin.as_path()), "an untracked file is not a deletion");
+    assert!(
+        !only_deletions(&git_context(), worktree.as_path(), admin.as_path()),
+        "an untracked file is not a deletion"
+    );
     // An ignored file is not named by Git at all, so only its own entry's absence is reported.
     std::fs::create_dir_all(worktree.join("ignored")).expect("an ignored directory");
     std::fs::write(worktree.join("ignored/state.txt"), b"build state\n").expect("an ignored file");
     std::fs::remove_file(worktree.join("notes.txt")).expect("remove the untracked file");
-    assert_eq!(reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]), Reported::Nothing, "an ignored file is no change Git reports");
+    assert_eq!(
+        reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]),
+        Reported::Nothing,
+        "an ignored file is no change Git reports"
+    );
     remove(root.as_path());
 }
 
@@ -120,10 +186,33 @@ fn an_untracked_entry_inside_a_volume_is_left_out_of_the_question() {
     std::fs::remove_file(worktree.join("tracked.txt")).expect("the entry the pass removed");
     std::fs::remove_file(worktree.join(".gitignore")).expect("the ignore rule the pass removed");
     let admin: PathBuf = admin_of(worktree.as_path());
-    assert_eq!(reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[volume.as_path()]), Reported::OnlyDeletions, "the volume's own entries are not the worktree's");
-    assert_eq!(reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]), Reported::Something, "and they are what a strict reading refuses");
-    std::fs::write(worktree.join("notes.txt"), b"mine\n").expect("an untracked file of the person's");
-    assert_eq!(reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[volume.as_path()]), Reported::Something, "an entry outside the volume still keeps the tree");
+    assert_eq!(
+        reported_outside(
+            &git_context(),
+            worktree.as_path(),
+            admin.as_path(),
+            &[volume.as_path()]
+        ),
+        Reported::OnlyDeletions,
+        "the volume's own entries are not the worktree's"
+    );
+    assert_eq!(
+        reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]),
+        Reported::Something,
+        "and they are what a strict reading refuses"
+    );
+    std::fs::write(worktree.join("notes.txt"), b"mine\n")
+        .expect("an untracked file of the person's");
+    assert_eq!(
+        reported_outside(
+            &git_context(),
+            worktree.as_path(),
+            admin.as_path(),
+            &[volume.as_path()]
+        ),
+        Reported::Something,
+        "an entry outside the volume still keeps the tree"
+    );
     remove(root.as_path());
 }
 
@@ -145,13 +234,19 @@ fn an_empty_report_is_told_apart_from_a_report_of_deletions() {
         Reported::Nothing,
         "a tree Git names nothing in is no half-emptied tree"
     );
-    assert!(!only_deletions(&git_context(), worktree.as_path(), admin.as_path()), "and nothing may read it as a report of deletions");
+    assert!(
+        !only_deletions(&git_context(), worktree.as_path(), admin.as_path()),
+        "and nothing may read it as a report of deletions"
+    );
     std::fs::remove_file(worktree.join("tracked.txt")).expect("remove the tracked file");
     assert_eq!(
         reported_outside(&git_context(), worktree.as_path(), admin.as_path(), &[]),
         Reported::OnlyDeletions,
         "an entry missing from the tree is the shape a killed pass leaves"
     );
-    assert!(only_deletions(&git_context(), worktree.as_path(), admin.as_path()), "and that one is a report of deletions");
+    assert!(
+        only_deletions(&git_context(), worktree.as_path(), admin.as_path()),
+        "and that one is a report of deletions"
+    );
     remove(root.as_path());
 }

@@ -16,7 +16,11 @@
 use crate::index_byte_search::first_index_of_byte;
 use crate::repo_read_layout::ObjectFormat;
 use miniz_oxide::inflate::TINFLStatus;
-use miniz_oxide::inflate::core::{DecompressorOxide, decompress, inflate_flags};
+use miniz_oxide::inflate::core::{
+    DecompressorOxide,
+    decompress,
+    inflate_flags,
+};
 
 /// The largest object this family inflates;
 /// anything bigger is left to Git.
@@ -90,7 +94,10 @@ pub fn to_hex(name: &[u8]) -> String {
 }
 
 /// The raw object name a hexadecimal spelling of the right length stands for.
-pub fn from_hex(text: &[u8], format: ObjectFormat) -> Option<Vec<u8>> {
+pub fn from_hex(
+    text: &[u8],
+    format: ObjectFormat,
+) -> Option<Vec<u8>> {
     if text.len() != format.hex_length() {
         return None;
     }
@@ -147,15 +154,20 @@ const FIRST_OUTPUT_BYTES: usize = 64;
 /// ```ts
 /// const { output, consumed } = inflateZlib(input, limit); // undefined: bad, short or longer than the limit
 /// ```
-pub fn inflate_zlib(whole_input: &[u8], limit: usize) -> Option<(Vec<u8>, usize)> {
+pub fn inflate_zlib(
+    whole_input: &[u8],
+    limit: usize,
+) -> Option<(Vec<u8>, usize)> {
     let input: &[u8] = &whole_input[..whole_input.len().min(INFLATE_INPUT_LIMIT)];
-    let flags: u32 = inflate_flags::TINFL_FLAG_PARSE_ZLIB_HEADER | inflate_flags::TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
+    let flags: u32 = inflate_flags::TINFL_FLAG_PARSE_ZLIB_HEADER
+        | inflate_flags::TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
     let mut output: Vec<u8> = vec![0; input.len().saturating_mul(2).min(limit)];
     let mut state: Box<DecompressorOxide> = Box::<DecompressorOxide>::default();
     let mut produced: usize = 0;
     let mut used: usize = 0;
     loop {
-        let (status, consumed, written) = decompress(&mut state, input.get(used..)?, &mut output, produced, flags);
+        let (status, consumed, written) =
+            decompress(&mut state, input.get(used..)?, &mut output, produced, flags);
         used = used.checked_add(consumed)?;
         produced = produced.checked_add(written)?;
         match status {
@@ -167,7 +179,11 @@ pub fn inflate_zlib(whole_input: &[u8], limit: usize) -> Option<(Vec<u8>, usize)
                 if output.len() >= limit {
                     return None;
                 }
-                let grown: usize = output.len().saturating_mul(2).max(FIRST_OUTPUT_BYTES).min(limit);
+                let grown: usize = output
+                    .len()
+                    .saturating_mul(2)
+                    .max(FIRST_OUTPUT_BYTES)
+                    .min(limit);
                 output.resize(grown, 0);
             }
             _ => return None,
@@ -199,7 +215,10 @@ pub fn parse_loose(file_bytes: &[u8]) -> Option<RawObject> {
     let space: usize = first_index_of_byte(header, b' ')?;
     let kind: ObjectKind = ObjectKind::from_word(&header[..space])?;
     let size_text: &str = std::str::from_utf8(&header[space + 1..]).ok()?;
-    if size_text.is_empty() || (size_text.len() > 1 && size_text.starts_with('0')) || !size_text.bytes().all(is_digit_byte) {
+    if size_text.is_empty()
+        || (size_text.len() > 1 && size_text.starts_with('0'))
+        || !size_text.bytes().all(is_digit_byte)
+    {
         return None;
     }
     let size: usize = size_text.parse::<usize>().ok()?;
@@ -207,7 +226,10 @@ pub fn parse_loose(file_bytes: &[u8]) -> Option<RawObject> {
     if content.len() != size {
         return None;
     }
-    return Some(RawObject { kind, bytes: content.to_vec() });
+    return Some(RawObject {
+        kind,
+        bytes: content.to_vec(),
+    });
 }
 
 /// What:
@@ -221,7 +243,10 @@ pub fn parse_loose(file_bytes: &[u8]) -> Option<RawObject> {
 /// ```ts
 /// const out = inflateZlib(window, expected); // undefined when the stream is bad, short or too long
 /// ```
-pub fn inflate_exact(window: &[u8], expected: usize) -> Option<Vec<u8>> {
+pub fn inflate_exact(
+    window: &[u8],
+    expected: usize,
+) -> Option<Vec<u8>> {
     if expected > OBJECT_SIZE_LIMIT {
         return None;
     }

@@ -29,7 +29,10 @@
 
 use crate::worktree_registration_proof::read_record_here;
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// One registration of the repository,
 /// as the sweep needs it.
@@ -89,7 +92,11 @@ pub(crate) fn registrations_of(common_dir: &Path) -> Result<Vec<Registration>, S
     let mut found: Vec<Registration> = Vec::new();
     for one in registered_worktrees(common_dir)? {
         let Some(branch) = one.branch else { continue };
-        found.push(Registration { admin: one.admin, worktree: one.worktree, branch });
+        found.push(Registration {
+            admin: one.admin,
+            worktree: one.worktree,
+            branch,
+        });
     }
     return Ok(found);
 }
@@ -114,7 +121,12 @@ fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, St
     let listing = match std::fs::read_dir(folder.as_path()) {
         Ok(listing) => listing,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", folder.display())),
+        Err(error) => {
+            return Err(format!(
+                "the registrations in {} cannot be listed ({error})",
+                folder.display()
+            ));
+        }
     };
     let mut found: Vec<RegisteredWorktree> = Vec::new();
     for entry in listing.flatten() {
@@ -123,7 +135,11 @@ fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, St
             continue;
         };
         let branch: Option<String> = head_branch(admin.as_path());
-        found.push(RegisteredWorktree { admin, worktree, branch });
+        found.push(RegisteredWorktree {
+            admin,
+            worktree,
+            branch,
+        });
     }
     return Ok(found);
 }
@@ -131,9 +147,18 @@ fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, St
 /// The worktree root a registration's `gitdir` file names,
 /// when that root is still a directory.
 fn registered_worktree(admin: &Path) -> Option<PathBuf> {
-    let text: Vec<u8> = read_record_here(admin.join("gitdir").as_path(), "the record that names its worktree").ok()?;
-    let recorded: PathBuf = PathBuf::from(String::from_utf8_lossy(text.trim_ascii_end()).into_owned());
-    let pointer: PathBuf = if recorded.is_absolute() { recorded } else { admin.join(recorded) };
+    let text: Vec<u8> = read_record_here(
+        admin.join("gitdir").as_path(),
+        "the record that names its worktree",
+    )
+    .ok()?;
+    let recorded: PathBuf =
+        PathBuf::from(String::from_utf8_lossy(text.trim_ascii_end()).into_owned());
+    let pointer: PathBuf = if recorded.is_absolute() {
+        recorded
+    } else {
+        admin.join(recorded)
+    };
     let root: PathBuf = std::fs::canonicalize(pointer.parent()?).ok()?;
     return root.is_dir().then_some(root);
 }
@@ -159,7 +184,11 @@ pub(crate) fn branch_of_registration(admin: &Path) -> Option<String> {
 /// as a full ref name,
 /// or nothing for a detached `HEAD`.
 fn head_branch(admin: &Path) -> Option<String> {
-    let recorded: Vec<u8> = read_record_here(admin.join("HEAD").as_path(), "the record that names its branch").ok()?;
+    let recorded: Vec<u8> = read_record_here(
+        admin.join("HEAD").as_path(),
+        "the record that names its branch",
+    )
+    .ok()?;
     let text: String = String::from_utf8(recorded).ok()?;
     let line: &str = text.trim_end();
     let branch: &str = line.strip_prefix("ref: ")?;
@@ -184,7 +213,10 @@ impl RegisteredBefore {
     /// ```ts
     /// before.holds(registration) // boolean
     /// ```
-    pub(crate) fn holds(&self, one: &Registration) -> bool {
+    pub(crate) fn holds(
+        &self,
+        one: &Registration,
+    ) -> bool {
         return self.admins.contains(&one.admin);
     }
 }
@@ -214,12 +246,21 @@ pub(crate) fn registered_before(common_dir: &Path) -> Result<RegisteredBefore, S
     let folder: PathBuf = common_dir.join("worktrees");
     let listing = match std::fs::read_dir(folder.as_path()) {
         Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(RegisteredBefore::default()),
-        Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", folder.display())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(RegisteredBefore::default());
+        }
+        Err(error) => {
+            return Err(format!(
+                "the registrations in {} cannot be listed ({error})",
+                folder.display()
+            ));
+        }
     };
     let mut admins: HashSet<PathBuf> = HashSet::new();
     for entry in listing.flatten() {
         admins.insert(entry.path());
     }
-    return Ok(RegisteredBefore { admins });
+    return Ok(RegisteredBefore {
+        admins,
+    });
 }

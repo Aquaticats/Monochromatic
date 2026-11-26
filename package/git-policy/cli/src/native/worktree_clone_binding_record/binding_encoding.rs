@@ -20,7 +20,10 @@
 //! const encoded = { path: hexOf(bytes), identity: `${inode}:${seconds}:${nanos}`, request: `${form} ${hexArg}`, pointer: hexOf(bytes) };
 //! ```
 
-use super::binding_words::{NO_REQUEST_ARGUMENT, RequestForm};
+use super::binding_words::{
+    NO_REQUEST_ARGUMENT,
+    RequestForm,
+};
 use std::path::Path;
 
 /// The base of the hexadecimal digits this module writes.
@@ -127,9 +130,15 @@ impl FolderIdentity {
     pub fn of_open_folder(folder: &std::fs::File) -> std::io::Result<FolderIdentity> {
         let object: crate::fs_beneath::ObjectId = crate::fs_beneath::identity_of(folder)?;
         if object.inode == 0 {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, String::from("the folder's inode is zero, which no live folder answers")));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                String::from("the folder's inode is zero, which no live folder answers"),
+            ));
         }
-        return Ok(FolderIdentity { inode: object.inode, birth: object.birth });
+        return Ok(FolderIdentity {
+            inode: object.inode,
+            birth: object.birth,
+        });
     }
 
     /// The inode the identity names.
@@ -164,14 +173,20 @@ impl FolderIdentity {
             return None;
         }
         if seconds == "-" && nanos == "-" {
-            return Some(FolderIdentity { inode, birth: None });
+            return Some(FolderIdentity {
+                inode,
+                birth: None,
+            });
         }
         if seconds == "-" || nanos == "-" {
             return None;
         }
         let birth_seconds: i64 = decimal_part(seconds, 20)? as i64;
         let birth_nanos: u32 = decimal_part(nanos, 10)? as u32;
-        return Some(FolderIdentity { inode, birth: Some((birth_seconds, birth_nanos)) });
+        return Some(FolderIdentity {
+            inode,
+            birth: Some((birth_seconds, birth_nanos)),
+        });
     }
 }
 
@@ -179,8 +194,14 @@ impl FolderIdentity {
 /// refused when it is empty,
 /// holds a non-digit,
 /// or runs past its widest form.
-fn decimal_part(text: &str, widest: usize) -> Option<u64> {
-    if text.is_empty() || text.len() > widest || !text.bytes().all(|byte| return byte.is_ascii_digit()) {
+fn decimal_part(
+    text: &str,
+    widest: usize,
+) -> Option<u64> {
+    if text.is_empty()
+        || text.len() > widest
+        || !text.bytes().all(|byte| return byte.is_ascii_digit())
+    {
         return None;
     }
     return text.parse().ok();
@@ -211,13 +232,22 @@ pub struct Request {
 
 impl Request {
     /// A request with an argument.
-    pub fn with_argument(form: RequestForm, argument: &[u8]) -> Request {
-        return Request { form, argument: Some(argument.to_vec()) };
+    pub fn with_argument(
+        form: RequestForm,
+        argument: &[u8],
+    ) -> Request {
+        return Request {
+            form,
+            argument: Some(argument.to_vec()),
+        };
     }
 
     /// A detached request with no commit-ish.
     pub fn detached() -> Request {
-        return Request { form: RequestForm::Detach, argument: None };
+        return Request {
+            form: RequestForm::Detach,
+            argument: None,
+        };
     }
 
     /// The form the add was given.
@@ -246,10 +276,17 @@ impl Request {
         let (word, argument): (&str, &str) = value.split_once(' ')?;
         let form: RequestForm = RequestForm::parse(word)?;
         if argument == NO_REQUEST_ARGUMENT {
-            return if form == RequestForm::Detach { Some(Request::detached()) } else { None };
+            return if form == RequestForm::Detach {
+                Some(Request::detached())
+            } else {
+                None
+            };
         }
         let bytes: Vec<u8> = hexadecimal_as_bytes(argument)?;
-        return Some(Request { form, argument: Some(bytes) });
+        return Some(Request {
+            form,
+            argument: Some(bytes),
+        });
     }
 }
 

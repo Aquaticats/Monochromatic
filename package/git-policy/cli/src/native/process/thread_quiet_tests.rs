@@ -6,7 +6,10 @@
 #![cfg(target_os = "linux")]
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 use std::sync::mpsc::channel;
 
@@ -35,17 +38,26 @@ fn the_calling_thread_has_a_number() {
 fn a_sleeping_thread_is_judged_quiet_after_the_window() {
     let (sender, receiver) = channel::<i32>();
     let sleeper = std::thread::spawn(move || {
-        sender.send(current_thread_id().expect("a thread number")).expect("tell the control");
+        sender
+            .send(current_thread_id().expect("a thread number"))
+            .expect("tell the control");
         std::thread::sleep(QUIET_FIXTURE);
     });
     let tid: i32 = receiver.recv().expect("the sleeper's number");
     let mut clock: ThreadClock = ThreadClock::start(tid, WINDOW, false);
     let began: Instant = Instant::now();
     while !clock.quiet() {
-        assert!(began.elapsed() < PATIENCE, "a sleeping thread was never judged quiet");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "a sleeping thread was never judged quiet"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
-    assert!(clock.longest_quiet() >= WINDOW, "{:?}", clock.longest_quiet());
+    assert!(
+        clock.longest_quiet() >= WINDOW,
+        "{:?}",
+        clock.longest_quiet()
+    );
     sleeper.join().expect("the sleeper ends");
 }
 
@@ -58,7 +70,9 @@ fn a_writing_thread_is_never_judged_quiet() {
     let (sender, receiver) = channel::<i32>();
     let rounds: u32 = 15;
     let writer = std::thread::spawn(move || {
-        sender.send(current_thread_id().expect("a thread number")).expect("tell the control");
+        sender
+            .send(current_thread_id().expect("a thread number"))
+            .expect("tell the control");
         for round in 0..rounds {
             std::fs::write(&target, round.to_string()).expect("write");
             std::thread::sleep(Duration::from_millis(200));
@@ -98,6 +112,11 @@ fn a_measured_job_leaves_its_gap_in_the_ledger() {
     std::thread::sleep(pause);
     measurement.finish();
     let figures = crate::quiet_ledger::drain();
-    let kept = figures.iter().find(|(step, _)| { return step == "measured fixture"; }).expect("the step is in the ledger");
+    let kept = figures
+        .iter()
+        .find(|(step, _)| {
+            return step == "measured fixture";
+        })
+        .expect("the step is in the ledger");
     assert!(kept.1 >= pause / 2 && kept.1 <= pause * 4, "{kept:?}");
 }

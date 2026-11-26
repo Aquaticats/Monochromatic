@@ -54,12 +54,20 @@
 
 /// The bounded queue, its thread and its control hooks,
 /// which this file gives the service's log words and rules.
-use crate::lines_written_by_a_thread::{QueuePolicy, SharedQueue, hand as queue_hand, start_the_queue, write_what_waits as queue_write_what_waits};
+use crate::lines_written_by_a_thread::{
+    QueuePolicy,
+    SharedQueue,
+    hand as queue_hand,
+    start_the_queue,
+    write_what_waits as queue_write_what_waits,
+};
 /// The queue's control hooks,
 /// which only a control reads.
 #[cfg(test)]
 use crate::lines_written_by_a_thread::{
-    dropped_so_far as queue_dropped_so_far, give_the_thread as queue_give_the_thread, queued as queue_queued,
+    dropped_so_far as queue_dropped_so_far,
+    give_the_thread as queue_give_the_thread,
+    queued as queue_queued,
 };
 /// Writing one line into the stream,
 /// which a control of the queue gives the thread.
@@ -82,7 +90,8 @@ pub const QUEUED_LINES: usize = 256;
 const DROPPED_NOTICE_HEAD: &str = "monochromatic-git-policy-cli-service: ";
 
 /// What it says after the count.
-const DROPPED_NOTICE_TAIL: &str = " log entries were dropped before this one because the log stream had no room\n";
+const DROPPED_NOTICE_TAIL: &str =
+    " log entries were dropped before this one because the log stream had no room\n";
 
 /// How long the end of a process waits for the lines it handed over.
 ///
@@ -262,7 +271,9 @@ pub fn dropped_so_far() -> u64 {
 pub fn write_what_waits(within: std::time::Duration) -> bool {
     // No line was ever handed over, so no thread exists to wait for, and starting one here would be the cost this
     //  function exists to avoid.
-    let Some(queue) = QUEUE.get() else { return true };
+    let Some(queue) = QUEUE.get() else {
+        return true;
+    };
     return queue_write_what_waits(queue, within);
 }
 

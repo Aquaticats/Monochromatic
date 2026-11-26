@@ -26,13 +26,21 @@ use crate::testing::test_support::fixture;
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::Phase;
-use crate::worktree_clone_binding_record::registration_home::open_or_create_home;
 use crate::worktree_clone_binding_record::record_publication::write_binding;
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ListedChild, ReadFailure};
+use crate::worktree_clone_binding_record::registration_home::open_or_create_home;
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ListedChild,
+    ReadFailure,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_slot_state::slot_state_test_records::record_at;
 use crate::worktree_removal_deferred_origin_check::fixtures::stats;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DmuObjsetStats, NvList};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    DmuObjsetStats,
+    NvList,
+};
 use std::cell::RefCell;
 use std::path::PathBuf;
 
@@ -85,10 +93,21 @@ pub(crate) fn the_fixture(name: &str) -> TheFixture {
     std::fs::create_dir_all(slot_path.as_path()).expect("the slot");
     let registration: PathBuf = common.join("worktrees").join(SLOT);
     std::fs::create_dir_all(registration.as_path()).expect("the registration");
-    std::fs::write(registration.join("HEAD"), b"ref: refs/heads/main\n").expect("the registration's HEAD");
-    std::fs::write(registration.join("commondir"), b"../..\n").expect("the registration's commondir");
-    std::fs::write(registration.join("gitdir"), format!("{}/.git\n", slot_path.display())).expect("the registration's gitdir");
-    return TheFixture { root, common, slot_path, registration };
+    std::fs::write(registration.join("HEAD"), b"ref: refs/heads/main\n")
+        .expect("the registration's HEAD");
+    std::fs::write(registration.join("commondir"), b"../..\n")
+        .expect("the registration's commondir");
+    std::fs::write(
+        registration.join("gitdir"),
+        format!("{}/.git\n", slot_path.display()),
+    )
+    .expect("the registration's gitdir");
+    return TheFixture {
+        root,
+        common,
+        slot_path,
+        registration,
+    };
 }
 
 /// What:
@@ -103,12 +122,19 @@ pub(crate) fn the_fixture(name: &str) -> TheFixture {
 /// ```ts
 /// const record = theRecord(made, Phase.Filled);
 /// ```
-pub(crate) fn the_record(made: &TheFixture, phase: Phase) -> BindingRecord {
+pub(crate) fn the_record(
+    made: &TheFixture,
+    phase: Phase,
+) -> BindingRecord {
     let mut record: BindingRecord = record_at(phase, made.slot_path.as_path());
     record.slot = made.slot_path.as_os_str().as_encoded_bytes().to_vec();
-    record.slot_identity = Some(FolderIdentity::of_folder(made.slot_path.as_path()).expect("the slot's identity"));
+    record.slot_identity =
+        Some(FolderIdentity::of_folder(made.slot_path.as_path()).expect("the slot's identity"));
     record.registration = Some(made.registration.as_os_str().as_encoded_bytes().to_vec());
-    record.registration_identity = Some(FolderIdentity::of_folder(made.registration.as_path()).expect("the registration's identity"));
+    record.registration_identity = Some(
+        FolderIdentity::of_folder(made.registration.as_path())
+            .expect("the registration's identity"),
+    );
     return record;
 }
 
@@ -122,8 +148,12 @@ pub(crate) fn the_record(made: &TheFixture, phase: Phase) -> BindingRecord {
 /// ```ts
 /// publishTheRecord(made, Phase.Filled);
 /// ```
-pub(crate) fn publish_the_record(made: &TheFixture, phase: Phase) {
-    let home: std::fs::File = open_or_create_home(made.common.as_path()).expect("the record home opens");
+pub(crate) fn publish_the_record(
+    made: &TheFixture,
+    phase: Phase,
+) {
+    let home: std::fs::File =
+        open_or_create_home(made.common.as_path()).expect("the record home opens");
     write_binding(&home, SLOT, &the_record(made, phase)).expect("the record writes");
 }
 
@@ -139,7 +169,11 @@ pub(crate) fn publish_the_record(made: &TheFixture, phase: Phase) {
 /// writeThePointer(made);
 /// ```
 pub(crate) fn write_the_pointer(made: &TheFixture) {
-    std::fs::write(made.slot_path.join(".git"), format!("gitdir: {}\n", made.registration.display())).expect("the pointer writes");
+    std::fs::write(
+        made.slot_path.join(".git"),
+        format!("gitdir: {}\n", made.registration.display()),
+    )
+    .expect("the pointer writes");
 }
 
 /// What:
@@ -152,8 +186,14 @@ pub(crate) fn write_the_pointer(made: &TheFixture) {
 /// ```ts
 /// const identity = anIdentity(CLONE_GUID, 7);
 /// ```
-pub(crate) fn an_identity(guid: u64, createtxg: u64) -> DatasetIdentity {
-    return DatasetIdentity { stats: stats(guid, false, createtxg, 0, ""), properties: NvList::new() };
+pub(crate) fn an_identity(
+    guid: u64,
+    createtxg: u64,
+) -> DatasetIdentity {
+    return DatasetIdentity {
+        stats: stats(guid, false, createtxg, 0, ""),
+        properties: NvList::new(),
+    };
 }
 
 /// What:
@@ -202,7 +242,10 @@ impl ScriptedProbe {
     /// lists no children and refuses nothing.
     pub(crate) fn answering(answers: Vec<(&str, DatasetIdentity)>) -> ScriptedProbe {
         return ScriptedProbe {
-            answers: answers.into_iter().map(|(name, identity)| return (String::from(name), Ok(identity.stats))).collect(),
+            answers: answers
+                .into_iter()
+                .map(|(name, identity)| return (String::from(name), Ok(identity.stats)))
+                .collect(),
             children: Vec::new(),
             listing: Ok(()),
             reads: RefCell::new(Vec::new()),
@@ -212,43 +255,79 @@ impl ScriptedProbe {
     /// A pool that answers nothing,
     /// so every name it is asked about is absent.
     pub(crate) fn empty() -> ScriptedProbe {
-        return ScriptedProbe { answers: Vec::new(), children: Vec::new(), listing: Ok(()), reads: RefCell::new(Vec::new()) };
+        return ScriptedProbe {
+            answers: Vec::new(),
+            children: Vec::new(),
+            listing: Ok(()),
+            reads: RefCell::new(Vec::new()),
+        };
     }
 
     /// The same pool listing these children.
-    pub(crate) fn listing_children(mut self, children: &[&str]) -> ScriptedProbe {
-        self.children = children.iter().map(|name| return String::from(*name)).collect();
+    pub(crate) fn listing_children(
+        mut self,
+        children: &[&str],
+    ) -> ScriptedProbe {
+        self.children = children
+            .iter()
+            .map(|name| return String::from(*name))
+            .collect();
         return self;
     }
 
     /// The same pool answering one name with one identity.
-    pub(crate) fn answering_one(mut self, name: &str, identity: DatasetIdentity) -> ScriptedProbe {
+    pub(crate) fn answering_one(
+        mut self,
+        name: &str,
+        identity: DatasetIdentity,
+    ) -> ScriptedProbe {
         self.answers.push((String::from(name), Ok(identity.stats)));
         return self;
     }
 
     /// The same pool refusing the child listing,
     /// which is the absence a person must confirm.
-    pub(crate) fn refusing_the_listing(mut self, said: &str) -> ScriptedProbe {
+    pub(crate) fn refusing_the_listing(
+        mut self,
+        said: &str,
+    ) -> ScriptedProbe {
         self.listing = Err(String::from(said));
         return self;
     }
 }
 
 impl DatasetReader for ScriptedProbe {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure> {
         self.reads.borrow_mut().push(String::from(dataset));
         return match self.answers.iter().find(|(name, _)| return name == dataset) {
-            Some((_name, Ok(found))) => Ok(DatasetIdentity { stats: *found, properties: NvList::new() }),
+            Some((_name, Ok(found))) => Ok(DatasetIdentity {
+                stats: *found,
+                properties: NvList::new(),
+            }),
             Some((_name, Err(failure))) => Err(failure.clone()),
-            None => Err(ReadFailure { said: format!("this scripted pool holds no `{dataset}`"), errno: Some(libc::ENOENT) }),
+            None => Err(ReadFailure {
+                said: format!("this scripted pool holds no `{dataset}`"),
+                errno: Some(libc::ENOENT),
+            }),
         };
     }
 
-    fn next_child(&self, _parent: &str, cursor: u64) -> Result<Option<ListedChild>, String> {
+    fn next_child(
+        &self,
+        _parent: &str,
+        cursor: u64,
+    ) -> Result<Option<ListedChild>, String> {
         self.listing.as_ref().map_err(|said| return said.clone())?;
-        let Some(name) = self.children.get(cursor as usize) else { return Ok(None) };
-        return Ok(Some(ListedChild { name: name.clone(), cursor: cursor + 1 }));
+        let Some(name) = self.children.get(cursor as usize) else {
+            return Ok(None);
+        };
+        return Ok(Some(ListedChild {
+            name: name.clone(),
+            cursor: cursor + 1,
+        }));
     }
 }
 
@@ -263,5 +342,10 @@ impl DatasetReader for ScriptedProbe {
 /// const path = bindingPath(made);
 /// ```
 pub(crate) fn binding_path(made: &TheFixture) -> PathBuf {
-    return made.common.join("monochromatic-git-policy-cli").join("worktree-clones").join("v1").join(format!("{SLOT}.binding"));
+    return made
+        .common
+        .join("monochromatic-git-policy-cli")
+        .join("worktree-clones")
+        .join("v1")
+        .join(format!("{SLOT}.binding"));
 }

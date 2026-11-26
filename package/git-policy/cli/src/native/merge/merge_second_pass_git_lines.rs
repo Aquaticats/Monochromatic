@@ -34,9 +34,24 @@
 //! async function mergeWithGitLines(runner, conflict, [base, ours, theirs]): Promise<WordMerge>;
 //! ```
 
-use crate::merge_second_pass::{Conflict, GitReply, GitRunner};
-use crate::merge_second_pass_line_regions::{Cut, MarkerLabels, Region, cut, lines_between};
-use crate::word_merge::{LineSpan, MergedPart, WordMerge, merge_by_word};
+use crate::merge_second_pass::{
+    Conflict,
+    GitReply,
+    GitRunner,
+};
+use crate::merge_second_pass_line_regions::{
+    Cut,
+    MarkerLabels,
+    Region,
+    cut,
+    lines_between,
+};
+use crate::word_merge::{
+    LineSpan,
+    MergedPart,
+    WordMerge,
+    merge_by_word,
+};
 
 /// How many conflicts Git counts in its exit status at most:
 /// a merge with more conflicts exits with this status as well,
@@ -73,21 +88,38 @@ const CONFLICT_STATUS_CEILING: i32 = 127;
 /// ```ts
 /// async function mergeWithGitLines(runner, conflict, [base, ours, theirs]): Promise<WordMerge>;
 /// ```
-pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conflict, sides: [&[u8]; 3]) -> Result<WordMerge, String> {
-    let (Some(base_stage), Some(ours_stage), Some(theirs_stage)) = (&conflict.base, &conflict.ours, &conflict.theirs) else {
-        return Ok(WordMerge::Conflict { unresolved: 1 });
+pub(super) async fn merge_with_git_lines(
+    runner: &dyn GitRunner,
+    conflict: &Conflict,
+    sides: [&[u8]; 3],
+) -> Result<WordMerge, String> {
+    let (Some(base_stage), Some(ours_stage), Some(theirs_stage)) =
+        (&conflict.base, &conflict.ours, &conflict.theirs)
+    else {
+        return Ok(WordMerge::Conflict {
+            unresolved: 1,
+        });
     };
     // The labels are made unguessable for every merge, because Git does not escape the markers it writes: a line of the
     // file that looks like a marker of its own cannot be told from a region by the count alone, and Git's status stops
     // counting at `CONFLICT_STATUS_CEILING`.
     let nonce: String = match crate::random_id::random_uuid() {
         Ok(made) => made,
-        Err(error) => return Err(format!("no label for the line merge of this file: {}", error.0)),
+        Err(error) => {
+            return Err(format!(
+                "no label for the line merge of this file: {}",
+                error.0
+            ));
+        }
     };
     let ours_label: String = format!("ours-{nonce}");
     let base_label: String = format!("base-{nonce}");
     let theirs_label: String = format!("theirs-{nonce}");
-    let labels: MarkerLabels<'_> = MarkerLabels { ours: ours_label.as_bytes(), base: base_label.as_bytes(), theirs: theirs_label.as_bytes() };
+    let labels: MarkerLabels<'_> = MarkerLabels {
+        ours: ours_label.as_bytes(),
+        base: base_label.as_bytes(),
+        theirs: theirs_label.as_bytes(),
+    };
     let reply: GitReply = runner
         .run(
             &[
@@ -111,26 +143,47 @@ pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conf
         .await?;
     let conflicts: usize = match reply.code {
         // A merge with no conflict left is Git's clean answer, and there is no region to word-merge.
-        Some(0) => return Ok(WordMerge::Resolved { merged: reply.stdout, parts: Vec::new() }),
+        Some(0) => {
+            return Ok(WordMerge::Resolved {
+                merged: reply.stdout,
+                parts: Vec::new(),
+            });
+        }
         // The exit status of `git merge-file` is the number of conflicts, truncated to 127.
-        Some(count) if (1..=CONFLICT_STATUS_CEILING).contains(&count) => usize::try_from(count).expect("a conflict count is positive"),
-        other => return Err(format!("git merge-file answered with {other:?}: {}", String::from_utf8_lossy(&reply.stderr).trim())),
+        Some(count) if (1..=CONFLICT_STATUS_CEILING).contains(&count) => {
+            usize::try_from(count).expect("a conflict count is positive")
+        }
+        other => {
+            return Err(format!(
+                "git merge-file answered with {other:?}: {}",
+                String::from_utf8_lossy(&reply.stderr).trim()
+            ));
+        }
     };
     let cut: Cut = cut(reply.stdout.as_slice(), &labels)?;
-    let ceiling: usize = usize::try_from(CONFLICT_STATUS_CEILING).expect("the conflict status ceiling is positive");
+    let ceiling: usize =
+        usize::try_from(CONFLICT_STATUS_CEILING).expect("the conflict status ceiling is positive");
     // Git reports the number of conflicts as its exit status, so a cut that finds another number read the answer wrongly.
     // The status stops counting at its ceiling, so at that count the answer may hold more regions than Git counted, never
     // fewer.
     if conflicts < ceiling && cut.regions.len() != conflicts {
-        return Err(format!("git merge-file reported {conflicts} conflicts and its answer holds {}", cut.regions.len()));
+        return Err(format!(
+            "git merge-file reported {conflicts} conflicts and its answer holds {}",
+            cut.regions.len()
+        ));
     }
     if conflicts == ceiling && cut.regions.len() < conflicts {
-        return Err(format!("git merge-file reported {conflicts} or more conflicts and its answer holds {}", cut.regions.len()));
+        return Err(format!(
+            "git merge-file reported {conflicts} or more conflicts and its answer holds {}",
+            cut.regions.len()
+        ));
     }
     // The split of each region is chosen by the stages, and a region no single split explains is still a region the
     // person must judge; the refusal names it by the region count rather than by a wrong line.
     let Some(regions): Option<Vec<Region>> = cut.place(sides) else {
-        return Ok(WordMerge::Conflict { unresolved: cut.regions.len() });
+        return Ok(WordMerge::Conflict {
+            unresolved: cut.regions.len(),
+        });
     };
     let mut merged: Vec<u8> = Vec::new();
     let mut parts: Vec<MergedPart> = Vec::new();
@@ -145,13 +198,38 @@ pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conf
     let mut counted_lines: [usize; 3] = [0, 0, 0];
     for (at, region) in regions.iter().enumerate() {
         merged.extend_from_slice(cut.settled[at].as_slice());
-        let WordMerge::Resolved { merged: text, parts: inner } = merge_by_word(region.base.as_slice(), region.ours.as_slice(), region.theirs.as_slice()) else {
-            return Ok(WordMerge::Conflict { unresolved: cut.regions.len() });
+        let WordMerge::Resolved {
+            merged: text,
+            parts: inner,
+        } = merge_by_word(
+            region.base.as_slice(),
+            region.ours.as_slice(),
+            region.theirs.as_slice(),
+        )
+        else {
+            return Ok(WordMerge::Conflict {
+                unresolved: cut.regions.len(),
+            });
         };
         merged.extend_from_slice(text.as_slice());
-        let base_above: usize = count_lines_to(&mut counted_to[0], &mut counted_lines[0], sides[0], region.starts[0]);
-        let ours_above: usize = count_lines_to(&mut counted_to[1], &mut counted_lines[1], sides[1], region.starts[1]);
-        let theirs_above: usize = count_lines_to(&mut counted_to[2], &mut counted_lines[2], sides[2], region.starts[2]);
+        let base_above: usize = count_lines_to(
+            &mut counted_to[0],
+            &mut counted_lines[0],
+            sides[0],
+            region.starts[0],
+        );
+        let ours_above: usize = count_lines_to(
+            &mut counted_to[1],
+            &mut counted_lines[1],
+            sides[1],
+            region.starts[1],
+        );
+        let theirs_above: usize = count_lines_to(
+            &mut counted_to[2],
+            &mut counted_lines[2],
+            sides[2],
+            region.starts[2],
+        );
         for part in inner {
             parts.push(MergedPart {
                 base: span_in_the_file(part.base, base_above),
@@ -161,8 +239,16 @@ pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conf
             });
         }
     }
-    merged.extend_from_slice(cut.settled.last().expect("a piece after the last region").as_slice());
-    return Ok(WordMerge::Resolved { merged, parts });
+    merged.extend_from_slice(
+        cut.settled
+            .last()
+            .expect("a piece after the last region")
+            .as_slice(),
+    );
+    return Ok(WordMerge::Resolved {
+        merged,
+        parts,
+    });
 }
 
 /// What:
@@ -176,7 +262,12 @@ pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conf
 /// ```ts
 /// const countLinesTo = (reached, counted, text, place) => { counted.value += linesBetween(text, reached.at, place); reached.at = place; return counted.value; };
 /// ```
-fn count_lines_to(reached: &mut usize, counted: &mut usize, text: &[u8], place: usize) -> usize {
+fn count_lines_to(
+    reached: &mut usize,
+    counted: &mut usize,
+    text: &[u8],
+    place: usize,
+) -> usize {
     *counted += lines_between(text, *reached, place);
     *reached = place;
     return *counted;
@@ -193,6 +284,12 @@ fn count_lines_to(reached: &mut usize, counted: &mut usize, text: &[u8], place: 
 /// ```ts
 /// const spanInTheFile = (span, linesAbove) => ({ first: span.first + linesAbove, count: span.count });
 /// ```
-fn span_in_the_file(span: LineSpan, lines_above: usize) -> LineSpan {
-    return LineSpan { first: span.first + lines_above, count: span.count };
+fn span_in_the_file(
+    span: LineSpan,
+    lines_above: usize,
+) -> LineSpan {
+    return LineSpan {
+        first: span.first + lines_above,
+        count: span.count,
+    };
 }

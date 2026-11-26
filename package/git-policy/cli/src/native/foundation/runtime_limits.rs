@@ -19,7 +19,10 @@
 //! const limits = RuntimeLimits.read(); // { addressSpaceLeft?: number; threadsLeft?: number }
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Where the kernel lists the size of this process's mappings and its thread count.
 const SELF_STATUS: &str = "/proc/self/status";
@@ -87,7 +90,10 @@ pub fn control_group_path(text: &str) -> Option<String> {
 }
 
 /// What is left of a limit that is `limit` (nothing when unlimited) with `used` already taken.
-pub fn left_under(limit: Option<u64>, used: u64) -> Option<u64> {
+pub fn left_under(
+    limit: Option<u64>,
+    used: u64,
+) -> Option<u64> {
     let bound: u64 = limit?;
     return Some(bound.saturating_sub(used));
 }
@@ -95,14 +101,20 @@ pub fn left_under(limit: Option<u64>, used: u64) -> Option<u64> {
 /// The threads a control group can still hold:
 /// its `pids.max` minus its `pids.current`,
 /// nothing when `pids.max` is `max`.
-pub fn group_threads_left_from(max: &str, current: &str) -> Option<u64> {
+pub fn group_threads_left_from(
+    max: &str,
+    current: &str,
+) -> Option<u64> {
     let limit: u64 = max.trim().parse().ok()?;
     let used: u64 = current.trim().parse().ok()?;
     return Some(limit.saturating_sub(used));
 }
 
 /// The least of two optional figures where nothing means unlimited.
-pub fn least_of(left: Option<u64>, right: Option<u64>) -> Option<u64> {
+pub fn least_of(
+    left: Option<u64>,
+    right: Option<u64>,
+) -> Option<u64> {
     return match (left, right) {
         (Some(first), Some(second)) => Some(first.min(second)),
         (first, second) => first.or(second),
@@ -111,14 +123,20 @@ pub fn least_of(left: Option<u64>, right: Option<u64>) -> Option<u64> {
 
 /// The threads left under the group at `path` below `root` and every group above it,
 /// nothing when none has a limit.
-pub fn group_threads_left(root: &Path, path: &str) -> Option<u64> {
+pub fn group_threads_left(
+    root: &Path,
+    path: &str,
+) -> Option<u64> {
     let mut least: Option<u64> = None;
     let mut directory: PathBuf = root.join(path.trim_start_matches('/'));
     loop {
         let limit: Option<String> = std::fs::read_to_string(directory.join("pids.max")).ok();
         let current: Option<String> = std::fs::read_to_string(directory.join("pids.current")).ok();
         if let (Some(max_text), Some(current_text)) = (limit, current) {
-            least = least_of(least, group_threads_left_from(max_text.as_str(), current_text.as_str()));
+            least = least_of(
+                least,
+                group_threads_left_from(max_text.as_str(), current_text.as_str()),
+            );
         }
         if directory == root || !directory.pop() || !directory.starts_with(root) {
             break;
@@ -174,15 +192,20 @@ impl RuntimeLimits {
     /// ```
     #[cfg(unix)]
     pub fn read() -> RuntimeLimits {
-        let address_space: rustix::process::Rlimit = rustix::process::getrlimit(rustix::process::Resource::As);
+        let address_space: rustix::process::Rlimit =
+            rustix::process::getrlimit(rustix::process::Resource::As);
         let mapped: u64 = mapped_bytes_of_this_process();
         let address_space_left: Option<u64> = left_under(address_space.current, mapped);
         // Counting the user's threads is a scan of every process, so one read of the system total stands in for it.
-        let processes: rustix::process::Rlimit = rustix::process::getrlimit(rustix::process::Resource::Nproc);
+        let processes: rustix::process::Rlimit =
+            rustix::process::getrlimit(rustix::process::Resource::Nproc);
         let system_threads: u64 = system_threads_in_use();
         let by_process_limit: Option<u64> = left_under(processes.current, system_threads);
         let by_group: Option<u64> = threads_left_in_this_control_group();
-        return RuntimeLimits { address_space_left, threads_left: least_of(by_process_limit, by_group) };
+        return RuntimeLimits {
+            address_space_left,
+            threads_left: least_of(by_process_limit, by_group),
+        };
     }
 }
 

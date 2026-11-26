@@ -2,7 +2,10 @@
 
 use super::*;
 use crate::scratch_step_held_by_the_kernel::HeldProgram;
-use crate::scratch_step_stall_decided_once::{TheStallItWaitsThrough, WhyTheStepWasWaitedFor};
+use crate::scratch_step_stall_decided_once::{
+    TheStallItWaitsThrough,
+    WhyTheStepWasWaitedFor,
+};
 use crate::scratch_step_stop_words::stop_words;
 
 /// The usual ceiling a control gives a commit.
@@ -15,13 +18,24 @@ fn stood_aside() -> TheStallItWaitsThrough {
     return TheStallItWaitsThrough {
         stood_aside_after: THE_USUAL_CEILING,
         bound: A_STALL_BOUND,
-        why: WhyTheStepWasWaitedFor::TheKernelHeldIt(HeldProgram { number: 4242, name: String::from("gpg") }),
+        why: WhyTheStepWasWaitedFor::TheKernelHeldIt(HeldProgram {
+            number: 4242,
+            name: String::from("gpg"),
+        }),
     };
 }
 
 /// A stop the wait that owns the child answered.
-fn the_waits_stop(waited: Duration, stall: Option<TheStallItWaitsThrough>) -> CeilingStop {
-    return CeilingStop { waited, below_listed: true, below_unended: 0, stall };
+fn the_waits_stop(
+    waited: Duration,
+    stall: Option<TheStallItWaitsThrough>,
+) -> CeilingStop {
+    return CeilingStop {
+        waited,
+        below_listed: true,
+        below_unended: 0,
+        stall,
+    };
 }
 
 /// What:
@@ -57,14 +71,20 @@ fn a_stop_the_wait_ended_at_the_usual_ceiling_names_the_usual_bound() {
         signs: false,
     })
     .expect("the wait ended the step");
-    assert_eq!(the_stop.waited, THE_USUAL_CEILING, "the words say how long the step lasted");
+    assert_eq!(
+        the_stop.waited, THE_USUAL_CEILING,
+        "the words say how long the step lasted"
+    );
     assert_eq!(
         the_stop.bound_that_ended_it,
         TheBoundThatEndedACommit::TheUsualCeiling(THE_USUAL_CEILING),
         "the words name the bound that ended it and never one a ceiling stood aside for"
     );
     let said: String = stop_words(the_stop);
-    assert!(!said.contains("waited for to that bound"), "a step killed at the usual ceiling was not waited for: {said}");
+    assert!(
+        !said.contains("waited for to that bound"),
+        "a step killed at the usual ceiling was not waited for: {said}"
+    );
     assert!(!said.contains("(300 seconds)"), "{said}");
 }
 
@@ -95,11 +115,17 @@ fn a_stop_the_wait_ended_at_the_bound_it_waited_for_names_that_bound() {
     .expect("the wait ended the step");
     assert_eq!(
         the_stop.bound_that_ended_it,
-        TheBoundThatEndedACommit::TheStallBound { bound: A_STALL_BOUND, why: stood.why },
+        TheBoundThatEndedACommit::TheStallBound {
+            bound: A_STALL_BOUND,
+            why: stood.why
+        },
         "the words name the bound the step ran under and why it was waited for"
     );
     let said: String = stop_words(the_stop);
-    assert!(said.contains("held it in a disk wait") && said.contains("(300 seconds)"), "{said}");
+    assert!(
+        said.contains("held it in a disk wait") && said.contains("(300 seconds)"),
+        "{said}"
+    );
 }
 
 /// What:
@@ -130,7 +156,10 @@ fn a_stop_the_notices_thread_ended_is_the_notices_record() {
     })
     .expect("the notice's thread ended the step");
     assert_eq!(the_stop.waited, THE_USUAL_CEILING);
-    assert!(the_stop.below_unlisted && the_stop.below_unended == 2, "a program that may still run is named");
+    assert!(
+        the_stop.below_unlisted && the_stop.below_unended == 2,
+        "a program that may still run is named"
+    );
     assert!(the_stop.signs, "the words name the signing program");
 }
 
@@ -148,7 +177,13 @@ fn a_stop_the_notices_thread_ended_is_the_notices_record() {
 fn a_step_nothing_stopped_has_no_words() {
     let facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(THE_USUAL_CEILING));
     assert_eq!(
-        the_stop_of_the_step(TheEnforcersOfAStep { facts: &facts, the_waits_stop: None, the_stall: &TheStall::Undecided, the_usual_ceiling: THE_USUAL_CEILING, signs: false }),
+        the_stop_of_the_step(TheEnforcersOfAStep {
+            facts: &facts,
+            the_waits_stop: None,
+            the_stall: &TheStall::Undecided,
+            the_usual_ceiling: THE_USUAL_CEILING,
+            signs: false
+        }),
         None
     );
 }

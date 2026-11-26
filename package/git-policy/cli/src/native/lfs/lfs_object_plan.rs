@@ -43,7 +43,10 @@ use crate::repo_read_layout::RepoLayout;
 /// ```ts
 /// function narrowPlan(plan: UploadPlan, layout?: RepoLayout): UploadPlan | undefined;
 /// ```
-pub fn narrow_plan(plan: UploadPlan, layout: Option<&RepoLayout>) -> Option<UploadPlan> {
+pub fn narrow_plan(
+    plan: UploadPlan,
+    layout: Option<&RepoLayout>,
+) -> Option<UploadPlan> {
     #[cfg(unix)]
     {
         let Some(found) = layout else {
@@ -52,7 +55,10 @@ pub fn narrow_plan(plan: UploadPlan, layout: Option<&RepoLayout>) -> Option<Uplo
         return match unix::scan(&plan, found) {
             None => Some(plan),
             Some(objects) if objects.is_empty() => None,
-            Some(objects) => Some(UploadPlan { objects: Some(objects), ..plan }),
+            Some(objects) => Some(UploadPlan {
+                objects: Some(objects),
+                ..plan
+            }),
         };
     }
     #[cfg(not(unix))]
@@ -66,12 +72,25 @@ pub fn narrow_plan(plan: UploadPlan, layout: Option<&RepoLayout>) -> Option<Uplo
 #[cfg(unix)]
 mod unix {
     use crate::diagnostic_log::debug;
-    use crate::lfs_pointer_scan::{SCAN_BUDGET, new_pointer_objects};
+    use crate::lfs_pointer_scan::{
+        SCAN_BUDGET,
+        new_pointer_objects,
+    };
     use crate::lfs_upload_plan::UploadPlan;
     use crate::repo_read_layout::RepoLayout;
-    use crate::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
+    use crate::repo_read_object::{
+        ObjectKind,
+        from_hex,
+        name_length,
+        to_hex,
+    };
     use crate::repo_read_odb::ObjectDatabase;
-    use crate::repo_read_refs::{Lookup, RefValue, Refs, is_listable_ref_name};
+    use crate::repo_read_refs::{
+        Lookup,
+        RefValue,
+        Refs,
+        is_listable_ref_name,
+    };
 
     /// The tag of the decision lines.
     const TAG: &str = "monochromatic-git-policy-cli lfs-object-plan";
@@ -111,7 +130,11 @@ mod unix {
     /// The commit a name stands for,
     /// through annotated tags;
     /// `None` for anything else.
-    fn peel(database: &ObjectDatabase, layout: &RepoLayout, hex: &str) -> Option<Vec<u8>> {
+    fn peel(
+        database: &ObjectDatabase,
+        layout: &RepoLayout,
+        hex: &str,
+    ) -> Option<Vec<u8>> {
         let mut name: Vec<u8> = from_hex(hex.as_bytes(), layout.object_format)?;
         for _ in 0..PEEL_LIMIT {
             let object = database.read(name.as_slice())?;
@@ -132,7 +155,12 @@ mod unix {
     /// `HEAD`,
     /// a full object name) stands for,
     /// by Git's order.
-    fn tip_of(database: &ObjectDatabase, layout: &RepoLayout, refs: &Refs, typed: &str) -> Option<String> {
+    fn tip_of(
+        database: &ObjectDatabase,
+        layout: &RepoLayout,
+        refs: &Refs,
+        typed: &str,
+    ) -> Option<String> {
         if typed == "HEAD" {
             return match refs.lookup_head(layout.git_dir.as_path())? {
                 RefValue::Direct(hex) => Some(hex),
@@ -169,9 +197,16 @@ mod unix {
 
     /// The names of the LFS objects the plan's push introduces;
     /// `None` when the readers decline.
-    pub(super) fn scan(plan: &UploadPlan, layout: &RepoLayout) -> Option<Vec<String>> {
-        let database: ObjectDatabase = ObjectDatabase::open_where_the_layout_proved_the_store(layout, None)?;
-        let refs: Refs = Refs::new(layout.common_dir.as_path(), layout.object_format.hex_length());
+    pub(super) fn scan(
+        plan: &UploadPlan,
+        layout: &RepoLayout,
+    ) -> Option<Vec<String>> {
+        let database: ObjectDatabase =
+            ObjectDatabase::open_where_the_layout_proved_the_store(layout, None)?;
+        let refs: Refs = Refs::new(
+            layout.common_dir.as_path(),
+            layout.object_format.hex_length(),
+        );
         let listing = refs.list()?;
         let mut tips: Vec<String> = Vec::new();
         if plan.everything {
@@ -191,18 +226,34 @@ mod unix {
         }
         let mut stop: Vec<Vec<u8>> = Vec::new();
         for (name, value) in &listing {
-            if !plan.confirmed_tracking_refs.iter().any(|confirmed| { return confirmed == name; }) {
+            if !plan.confirmed_tracking_refs.iter().any(|confirmed| {
+                return confirmed == name;
+            }) {
                 continue;
             }
             if let RefValue::Direct(hex) = value {
                 stop.push(from_hex(hex.as_bytes(), layout.object_format)?);
             }
         }
-        let objects: Vec<String> = new_pointer_objects(&database, layout.object_format, include.as_slice(), stop.as_slice(), SCAN_BUDGET)?;
+        let objects: Vec<String> = new_pointer_objects(
+            &database,
+            layout.object_format,
+            include.as_slice(),
+            stop.as_slice(),
+            SCAN_BUDGET,
+        )?;
         for name in &objects {
-            let stored = layout.common_dir.join("lfs/objects").join(&name[..2]).join(&name[2..4]).join(name);
+            let stored = layout
+                .common_dir
+                .join("lfs/objects")
+                .join(&name[..2])
+                .join(&name[2..4])
+                .join(name);
             if !stored.is_file() {
-                debug(TAG, &format!("object {name} is not in the local LFS storage; asking git-lfs"));
+                debug(
+                    TAG,
+                    &format!("object {name} is not in the local LFS storage; asking git-lfs"),
+                );
                 return None;
             }
         }

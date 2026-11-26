@@ -40,13 +40,20 @@ pub const PERSON_LOCK_WORDS: [&[u8]; 4] = [b"--lock", b"--reason", b"--checkout"
 /// `--reason`,
 /// `--checkout` or `--no-checkout`,
 /// or the insertion point is outside the argument list.
-pub fn the_locked_add_words(arguments: &[OsString], insert_at: usize, nonce: &RequestNonce) -> Result<Vec<OsString>, String> {
+pub fn the_locked_add_words(
+    arguments: &[OsString],
+    insert_at: usize,
+    nonce: &RequestNonce,
+) -> Result<Vec<OsString>, String> {
     if insert_at == 0 || insert_at > arguments.len() {
-        return Err(String::from("the add's insertion point is outside the argument list, so the managed lock cannot be taken"));
+        return Err(String::from(
+            "the add's insertion point is outside the argument list, so the managed lock cannot be taken",
+        ));
     }
     if let Some(word) = person_lock_word(arguments) {
         return Err(format!(
-            "the add names `{}`, and the ZFS clone route takes the managed lock itself. Ways forward: run the add without `--lock`, `--reason` or `--checkout`, and release the lock you made if you want the wrapper's", word.to_string_lossy()
+            "the add names `{}`, and the ZFS clone route takes the managed lock itself. Ways forward: run the add without `--lock`, `--reason` or `--checkout`, and release the lock you made if you want the wrapper's",
+            word.to_string_lossy()
         ));
     }
     let mut words: Vec<OsString> = Vec::with_capacity(arguments.len() + ROUTE_OPTIONS.len() + 2);
@@ -68,7 +75,12 @@ pub fn the_locked_add_words(arguments: &[OsString], insert_at: usize, nonce: &Re
 pub fn person_lock_word(arguments: &[OsString]) -> Option<&OsString> {
     return arguments.iter().find(|word| {
         let bytes: &[u8] = word.as_bytes();
-        return PERSON_LOCK_WORDS.iter().any(|wanted| return bytes == *wanted || bytes.strip_prefix(*wanted).is_some_and(|rest| return rest.starts_with(b"=")));
+        return PERSON_LOCK_WORDS.iter().any(|wanted| {
+            return bytes == *wanted
+                || bytes
+                    .strip_prefix(*wanted)
+                    .is_some_and(|rest| return rest.starts_with(b"="));
+        });
     });
 }
 

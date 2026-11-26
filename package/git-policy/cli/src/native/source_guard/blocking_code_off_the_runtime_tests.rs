@@ -52,9 +52,20 @@ use std::path::Path;
 /// The forbidden work and the justified exceptions.
 #[path = "blocking_code_off_the_runtime_rules_tests.rs"]
 mod rules;
-use rules::{ALLOWED, Allowed, Place, RULES, Rule};
+use rules::{
+    ALLOWED,
+    Allowed,
+    Place,
+    RULES,
+    Rule,
+};
 
-use crate::source_scan_tests::{CrateRoot, classified_sources, real_roots, source_root};
+use crate::source_scan_tests::{
+    CrateRoot,
+    classified_sources,
+    real_roots,
+    source_root,
+};
 
 /// Controls of this scan on fixture trees.
 #[path = "blocking_code_off_the_runtime_fixture_tests.rs"]
@@ -103,7 +114,10 @@ struct Function {
 /// as `/`-separated paths relative to it:
 /// every file the module tree reaches from a crate root through
 ///  declarations that no `cfg(test)` gates.
-fn release_sources_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<String>, String> {
+fn release_sources_in(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<String>, String> {
     let mut found: Vec<String> = Vec::new();
     for file in classified_sources(root, roots)? {
         if !file.test_only {
@@ -194,7 +208,10 @@ pub(super) struct ReadCode {
 /// ```ts
 /// function blank(masked: string[], count: number): void
 /// ```
-fn blank(masked: &mut Vec<char>, count: usize) {
+fn blank(
+    masked: &mut Vec<char>,
+    count: usize,
+) {
     for _ in 0..count {
         masked.push(' ');
     }
@@ -267,7 +284,11 @@ pub(super) fn read_the_code_of(text: &str) -> Result<ReadCode, String> {
                     }
                     match characters.get(cursor) {
                         Some('"') => {
-                            scanner = if character == 'r' { Scanner::Raw(hashes) } else { Scanner::Text };
+                            scanner = if character == 'r' {
+                                Scanner::Raw(hashes)
+                            } else {
+                                Scanner::Text
+                            };
                             blank(&mut masked, cursor + 1 - index);
                             index = cursor + 1;
                         }
@@ -287,7 +308,9 @@ pub(super) fn read_the_code_of(text: &str) -> Result<ReadCode, String> {
                     // neither, and the escape `\u{8}` carries braces of its own.
                     let mut cursor: usize = index + 1;
                     let mut closed: bool = false;
-                    if characters.get(cursor) != Some(&'\\') && characters.get(cursor + 1) == Some(&'\'') {
+                    if characters.get(cursor) != Some(&'\\')
+                        && characters.get(cursor + 1) == Some(&'\'')
+                    {
                         cursor += 2;
                         closed = true;
                     } else if characters.get(cursor) == Some(&'\\') {
@@ -392,7 +415,11 @@ pub(super) fn read_the_code_of(text: &str) -> Result<ReadCode, String> {
             }
             Scanner::BlockComment(depth) => {
                 if character == '*' && next == Some('/') {
-                    scanner = if depth <= 1 { Scanner::Code } else { Scanner::BlockComment(depth - 1) };
+                    scanner = if depth <= 1 {
+                        Scanner::Code
+                    } else {
+                        Scanner::BlockComment(depth - 1)
+                    };
                     blank(&mut masked, 2);
                     index += 2;
                 } else if character == '/' && next == Some('*') {
@@ -407,11 +434,16 @@ pub(super) fn read_the_code_of(text: &str) -> Result<ReadCode, String> {
         }
     }
     if scanner != Scanner::Code && scanner != Scanner::LineComment {
-        return Err(String::from("a literal or a block comment is not closed, so this file cannot be read"));
+        return Err(String::from(
+            "a literal or a block comment is not closed, so this file cannot be read",
+        ));
     }
     let read_text: String = masked.into_iter().collect();
     let masked_lines: Vec<String> = read_text.split('\n').map(String::from).collect();
-    return Ok(ReadCode { masked: masked_lines, braces: counts });
+    return Ok(ReadCode {
+        masked: masked_lines,
+        braces: counts,
+    });
 }
 
 /// The braces of each line of `text` that are code rather than comment or literal text.
@@ -489,19 +521,25 @@ fn functions_in(text: &str) -> Result<Vec<Function>, String> {
         let line: &str = read.masked.get(index).map_or("", |masked| {
             return masked.as_str();
         });
-        let signature: Option<(String, bool)> = if building.is_none() { signature_of(line) } else { None };
+        let signature: Option<(String, bool)> = if building.is_none() {
+            signature_of(line)
+        } else {
+            None
+        };
         if let Some((name, is_async)) = signature {
             building = Some((name, is_async, depth, false, number));
         }
         depth += opened;
         depth = depth.saturating_sub(*closed);
-        let Some((_name, _is_async, starts_at, opened_body, _first_line)) = building.as_mut() else {
+        let Some((_name, _is_async, starts_at, opened_body, _first_line)) = building.as_mut()
+        else {
             continue;
         };
         if depth > *starts_at || *opened > 0 {
             *opened_body = true;
         }
-        let ended: bool = (*opened_body && depth == *starts_at) || (line.trim_end().ends_with(';') && depth == *starts_at);
+        let ended: bool = (*opened_body && depth == *starts_at)
+            || (line.trim_end().ends_with(';') && depth == *starts_at);
         if !ended {
             continue;
         }
@@ -516,7 +554,9 @@ fn functions_in(text: &str) -> Result<Vec<Function>, String> {
         found.push(function_of(name, is_async, inside)?);
     }
     if building.is_some() || depth != 0 {
-        return Err(String::from("the braces of this file do not balance, so its functions cannot be read"));
+        return Err(String::from(
+            "the braces of this file do not balance, so its functions cannot be read",
+        ));
     }
     return Ok(found);
 }
@@ -533,7 +573,11 @@ fn functions_in(text: &str) -> Result<Vec<Function>, String> {
 /// ```ts
 /// function functionOf(name: string, isAsync: boolean, inside: BodyLines): Function
 /// ```
-fn function_of(name: String, is_async: bool, inside: BodyLines) -> Result<Function, String> {
+fn function_of(
+    name: String,
+    is_async: bool,
+    inside: BodyLines,
+) -> Result<Function, String> {
     let joined_text: String = inside
         .iter()
         .map(|(_, line, _)| {
@@ -571,17 +615,27 @@ fn function_of(name: String, is_async: bool, inside: BodyLines) -> Result<Functi
     let holds_a_command: bool = inside.iter().any(|(_, _, joined)| {
         return joined.contains("Command");
     });
-    return Ok(Function { name, is_async, holds_a_command, task_lines });
+    return Ok(Function {
+        name,
+        is_async,
+        holds_a_command,
+        task_lines,
+    });
 }
 
 /// Every `(relative path, rule id, line number)` the rules find in the release sources of `root`.
-fn findings_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<Finding>, String> {
+fn findings_in(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<Finding>, String> {
     let mut found: Vec<Finding> = Vec::new();
     for name in release_sources_in(root, roots)? {
         let text: String = std::fs::read_to_string(root.join(name.as_str()))
             .map_err(|error| return format!("cannot read {name}: {error}"))?;
-        let read: ReadCode = read_the_code_of(text.as_str()).map_err(|error| return format!("{name}: {error}"))?;
-        let functions: Vec<Function> = functions_in(text.as_str()).map_err(|error| return format!("{name}: {error}"))?;
+        let read: ReadCode =
+            read_the_code_of(text.as_str()).map_err(|error| return format!("{name}: {error}"))?;
+        let functions: Vec<Function> =
+            functions_in(text.as_str()).map_err(|error| return format!("{name}: {error}"))?;
         let mut places: Vec<(Place, BodyLines)> = Vec::new();
         places.push((Place::Everywhere, code_lines(&read)));
         let command_lines: BodyLines = functions
@@ -627,7 +681,10 @@ fn findings() -> Vec<Finding> {
 
 /// The findings no `allowed` entry excuses,
 /// each as a `file:line [rule] reason` text.
-fn unexplained(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
+fn unexplained(
+    found: &[Finding],
+    allowed: &[Allowed],
+) -> Vec<String> {
     return found
         .iter()
         .filter(|(file, rule, _)| {
@@ -651,7 +708,10 @@ fn unexplained(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
 
 /// The `allowed` entries no finding matches,
 /// each as a `file [rule]: why` text.
-fn stale(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
+fn stale(
+    found: &[Finding],
+    allowed: &[Allowed],
+) -> Vec<String> {
     return allowed
         .iter()
         .filter(|entry| {
@@ -686,7 +746,11 @@ fn the_release_code_keeps_blocking_work_off_the_runtime() {
 #[test]
 fn every_listed_exception_still_matches_code() {
     let stale: Vec<String> = stale(findings().as_slice(), ALLOWED);
-    assert!(stale.is_empty(), "remove these entries from ALLOWED, their code is gone:\n{}", stale.join("\n"));
+    assert!(
+        stale.is_empty(),
+        "remove these entries from ALLOWED, their code is gone:\n{}",
+        stale.join("\n")
+    );
 }
 
 /// The rules fire on the text they exist for,
@@ -694,14 +758,32 @@ fn every_listed_exception_still_matches_code() {
 #[test]
 fn each_rule_fires_on_its_own_forbidden_text() {
     let samples: [(&str, &str); 8] = [
-        ("thread-start", "let started = std::thread::Builder::new().spawn(move || work());"),
+        (
+            "thread-start",
+            "let started = std::thread::Builder::new().spawn(move || work());",
+        ),
         ("blocking-sleep", "std::thread::sleep(POLL_PAUSE);"),
         ("unretried-start", "let output = command.output();"),
-        ("unretried-built-start", "let output = git_command(real_git, arguments, overlay).output();"),
-        ("storage-read-on-a-task", "let head = std::fs::read_to_string(git_dir.join(\"HEAD\"));"),
-        ("blocking-wait-on-a-task", "let answered = replies.recv_timeout(ceiling);"),
-        ("plain-tokio-fs", "let metadata = tokio::fs::metadata(path).await;"),
-        ("block-in-place", "let value = tokio::task::block_in_place(|| read_it());"),
+        (
+            "unretried-built-start",
+            "let output = git_command(real_git, arguments, overlay).output();",
+        ),
+        (
+            "storage-read-on-a-task",
+            "let head = std::fs::read_to_string(git_dir.join(\"HEAD\"));",
+        ),
+        (
+            "blocking-wait-on-a-task",
+            "let answered = replies.recv_timeout(ceiling);",
+        ),
+        (
+            "plain-tokio-fs",
+            "let metadata = tokio::fs::metadata(path).await;",
+        ),
+        (
+            "block-in-place",
+            "let value = tokio::task::block_in_place(|| read_it());",
+        ),
     ];
     for (id, sample) in samples {
         let rule: &Rule = RULES
@@ -710,7 +792,10 @@ fn each_rule_fires_on_its_own_forbidden_text() {
                 return candidate.id == id;
             })
             .expect("rule exists");
-        assert!((rule.matches)(sample, sample), "{id} did not match {sample}");
+        assert!(
+            (rule.matches)(sample, sample),
+            "{id} did not match {sample}"
+        );
     }
     assert_eq!(RULES.len(), samples.len());
 }
@@ -720,22 +805,33 @@ fn each_rule_fires_on_its_own_forbidden_text() {
 #[test]
 fn the_scan_reads_the_release_sources_and_their_functions() {
     let root = source_root();
-    let sources: Vec<String> = release_sources_in(&root, &real_roots()).expect("the crate's release sources");
+    let sources: Vec<String> =
+        release_sources_in(&root, &real_roots()).expect("the crate's release sources");
     assert!(sources.iter().any(|path| {
         return Path::new(path).ends_with("start_retry.rs");
     }));
     assert!(sources.iter().all(|path| {
         return !path.ends_with("_tests.rs");
     }));
-    let text: String = std::fs::read_to_string(root.join("foundation/blocking_job.rs")).expect("a release file");
-    let functions: Vec<Function> = functions_in(text.as_str()).expect("the functions of a release file");
+    let text: String =
+        std::fs::read_to_string(root.join("foundation/blocking_job.rs")).expect("a release file");
+    let functions: Vec<Function> =
+        functions_in(text.as_str()).expect("the functions of a release file");
     let awaiting: Vec<&Function> = functions
         .iter()
         .filter(|function| {
             return function.is_async;
         })
         .collect();
-    assert_eq!(awaiting.len(), 1, "{:?}", awaiting.iter().map(|function| return function.name.as_str()).collect::<Vec<&str>>());
+    assert_eq!(
+        awaiting.len(),
+        1,
+        "{:?}",
+        awaiting
+            .iter()
+            .map(|function| return function.name.as_str())
+            .collect::<Vec<&str>>()
+    );
     assert_eq!(awaiting[0].name, "run_blocking_job");
 }
 
@@ -745,8 +841,12 @@ fn the_scan_reads_the_release_sources_and_their_functions() {
 #[test]
 fn a_file_with_braces_in_its_literals_still_splits_into_functions() {
     let root = source_root();
-    let files: [&str; 4] =
-        ["command/branch_delete_audit.rs", "policy/diagnostics.rs", "policy/policy_events.rs", "repo_read/repo_read_refs.rs"];
+    let files: [&str; 4] = [
+        "command/branch_delete_audit.rs",
+        "policy/diagnostics.rs",
+        "policy/policy_events.rs",
+        "repo_read/repo_read_refs.rs",
+    ];
     for file in files {
         let text: String = std::fs::read_to_string(root.join(file)).expect("a release file");
         let functions: Vec<Function> = functions_in(text.as_str()).unwrap_or_else(|error| {
@@ -777,7 +877,10 @@ fn a_file_with_an_unterminated_literal_is_an_error() {
 #[test]
 fn the_scan_of_the_real_crate_answers_findings_and_never_an_empty_pass() {
     let found: Vec<Finding> = findings();
-    assert!(!found.is_empty(), "the crate still holds blocking work the move has not converted");
+    assert!(
+        !found.is_empty(),
+        "the crate still holds blocking work the move has not converted"
+    );
     assert!(found.iter().all(|(file, rule, number)| {
         return !file.is_empty() && !rule.is_empty() && *number > 0;
     }));

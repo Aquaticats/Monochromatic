@@ -17,8 +17,15 @@
 //! ```
 
 use crate::worktree_copy_error::WorktreeCopyError;
-use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
-use std::path::{Path, PathBuf};
+use crate::worktree_copy_owner::{
+    CopyOwner,
+    current_copy_owner,
+    token_owner_is_dead,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The marker one command writes in the journal root before it stages a copy,
@@ -61,7 +68,10 @@ const TAKING_SUFFIX: &str = ".taking";
 /// ```ts
 /// const marks = takingMarksOf(root, id);
 /// ```
-fn taking_marks_of(root: &Path, identifier: &str) -> Result<Vec<PathBuf>, WorktreeCopyError> {
+fn taking_marks_of(
+    root: &Path,
+    identifier: &str,
+) -> Result<Vec<PathBuf>, WorktreeCopyError> {
     let listing = match std::fs::read_dir(root) {
         Ok(listing) => listing,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -71,7 +81,11 @@ fn taking_marks_of(root: &Path, identifier: &str) -> Result<Vec<PathBuf>, Worktr
     let mut marks: Vec<PathBuf> = Vec::new();
     let mut names: Vec<String> = Vec::new();
     for listed in listing {
-        let name: String = listed.map_err(crate::worktree_copy_error::raw_failure_of)?.file_name().to_string_lossy().into_owned();
+        let name: String = listed
+            .map_err(crate::worktree_copy_error::raw_failure_of)?
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
         if name.starts_with(prefix.as_str()) && name.ends_with(TAKING_SUFFIX) {
             names.push(name);
         }
@@ -92,7 +106,10 @@ fn taking_marks_of(root: &Path, identifier: &str) -> Result<Vec<PathBuf>, Worktr
 /// ```ts
 /// marks.sort(([left], [right]) => compareJs(left, right))
 /// ```
-fn by_mark_name(left: &str, right: &str) -> std::cmp::Ordering {
+fn by_mark_name(
+    left: &str,
+    right: &str,
+) -> std::cmp::Ordering {
     return crate::worktree_copy_selection::js_order(left, right);
 }
 
@@ -111,8 +128,13 @@ fn by_mark_name(left: &str, right: &str) -> std::cmp::Ordering {
 /// ```ts
 /// const taking = await takeTheCopy(root, claim);
 /// ```
-pub(crate) fn take_the_copy(root: &Path, claim: &Path) -> Result<Option<Taking>, WorktreeCopyError> {
-    let Some(stem) = claim.file_stem() else { return Ok(None) };
+pub(crate) fn take_the_copy(
+    root: &Path,
+    claim: &Path,
+) -> Result<Option<Taking>, WorktreeCopyError> {
+    let Some(stem) = claim.file_stem() else {
+        return Ok(None);
+    };
     let identifier: String = stem.to_string_lossy().into_owned();
     let owner: CopyOwner = current_copy_owner()?;
     // A marker whose owner is proven dead holds nothing, so it is removed; one whose owner lives keeps the copy.
@@ -135,12 +157,22 @@ pub(crate) fn take_the_copy(root: &Path, claim: &Path) -> Result<Option<Taking>,
     let path: PathBuf = root.join(format!("{identifier}.{}{TAKING_SUFFIX}", owner.token()));
     // `match` on the exclusive create: the one command that made the file copies, and the rest read it as another's, so no
     // second attempt is needed, not even when two commands removed the same dead marker.
-    return match std::fs::OpenOptions::new().write(true).create_new(true).open(path.as_path()) {
+    return match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path.as_path())
+    {
         Ok(mut written) => {
             use std::io::Write as _;
-            written.write_all(owner.token().as_bytes()).map_err(crate::worktree_copy_error::raw_failure_of)?;
-            written.sync_all().map_err(crate::worktree_copy_error::raw_failure_of)?;
-            Ok(Some(Taking { path }))
+            written
+                .write_all(owner.token().as_bytes())
+                .map_err(crate::worktree_copy_error::raw_failure_of)?;
+            written
+                .sync_all()
+                .map_err(crate::worktree_copy_error::raw_failure_of)?;
+            Ok(Some(Taking {
+                path,
+            }))
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(None),
         Err(error) => Err(crate::worktree_copy_error::raw_failure(&error)),
@@ -169,14 +201,22 @@ pub(crate) fn remove_dead_taking_marks(root: &Path) -> Result<(), WorktreeCopyEr
         Err(error) => return Err(crate::worktree_copy_error::raw_failure(&error)),
     };
     for listed in listing {
-        let path: PathBuf = listed.map_err(crate::worktree_copy_error::raw_failure_of)?.path();
-        let name: String = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let path: PathBuf = listed
+            .map_err(crate::worktree_copy_error::raw_failure_of)?
+            .path();
+        let name: String = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
         if !name.ends_with(TAKING_SUFFIX) {
             continue;
         }
         // The name is `<identifier>.<owner>.taking`, and the owner field is the one before the suffix.
         let token: Option<String> = match name.strip_suffix(TAKING_SUFFIX) {
-            Some(stem) => stem.rsplit_once('.').map(|(_item, owner)| { return owner.to_string(); }),
+            Some(stem) => stem.rsplit_once('.').map(|(_item, owner)| {
+                return owner.to_string();
+            }),
             None => None,
         };
         if token_owner_is_dead(token.as_deref(), path.as_path())? {

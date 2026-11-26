@@ -4,14 +4,29 @@
 //! and resumption from the log.
 
 use super::*;
-use crate::worktree_copy_journal::create_journal;
-use crate::worktree_copy_selection::CopySelection;
-use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
-use crate::test_support::{fixture, git, git_context, remove, repository};
-use std::os::unix::ffi::OsStrExt;
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::worktree_copy_install_entry::capture_installed_path;
-use crate::worktree_copy_install_log::{INSTALL_LOG_NAME, open_install_log};
-use crate::worktree_copy_journal::{ensure_journal_root, read_pending_journals};
+use crate::worktree_copy_install_log::{
+    INSTALL_LOG_NAME,
+    open_install_log,
+};
+use crate::worktree_copy_journal::create_journal;
+use crate::worktree_copy_journal::{
+    ensure_journal_root,
+    read_pending_journals,
+};
+use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_stage::{
+    new_stage_container,
+    stage_ignored_snapshot,
+};
+use std::os::unix::ffi::OsStrExt;
 
 /// A source repository whose ignored `cache` holds one nested file,
 /// and a destination directory beside it.
@@ -35,8 +50,20 @@ fn common_of(source: &Path) -> PathBuf {
 
 /// A staged snapshot of the source,
 /// as the copy would produce it.
-fn stage(source: &Path, destination: &Path) -> StagedSnapshot {
-    return stage_ignored_snapshot(&git_context(), source, new_stage_container(destination).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
+fn stage(
+    source: &Path,
+    destination: &Path,
+) -> StagedSnapshot {
+    return stage_ignored_snapshot(
+        &git_context(),
+        source,
+        new_stage_container(destination)
+            .expect("container")
+            .as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("staged");
 }
 
 /// Entries of the destination with their content,
@@ -66,7 +93,6 @@ fn tree_names(root: &Path) -> Vec<Vec<u8>> {
     return found;
 }
 
-
 /// Recording claims writes only the ones no earlier record holds.
 #[cfg(unix)]
 #[test]
@@ -87,9 +113,7 @@ fn recorder_claims_each_path_once() {
     state
         .record_intents(&[b"cache".to_vec(), b"cache/top".to_vec()])
         .expect("first");
-    state
-        .record_intents(&[b"cache".to_vec()])
-        .expect("repeat");
+    state.record_intents(&[b"cache".to_vec()]).expect("repeat");
     state
         .record_creations(&[InstalledPath {
             device: 1,
@@ -120,8 +144,12 @@ fn failed_installation_never_stays_pending() {
     let pending: PendingJournal =
         create_journal(common.as_path(), destination.as_path(), &snapshot).expect("journal");
     let staged: StagedSnapshot = snapshot.clone();
-    let outcome: Outcome = complete_journal(pending, &SnapshotSource::Staged(&staged), &crate::worktree_copy_ceiling::CopyCeiling::unbounded())
-        .expect("journal fault-free");
+    let outcome: Outcome = complete_journal(
+        pending,
+        &SnapshotSource::Staged(&staged),
+        &crate::worktree_copy_ceiling::CopyCeiling::unbounded(),
+    )
+    .expect("journal fault-free");
     match outcome {
         Outcome::Ended(failure) => assert!(
             failure
@@ -189,7 +217,11 @@ fn interrupted_installation_resumes_from_its_log() {
     let rebuilt_from: PendingJournal = read_pending_journals(common.as_path())
         .expect("pending")
         .remove(0);
-    let outcome: Outcome = complete_journal(resumable, &SnapshotSource::FromJournal(&rebuilt_from), &crate::worktree_copy_ceiling::CopyCeiling::unbounded())
+    let outcome: Outcome = complete_journal(
+        resumable,
+        &SnapshotSource::FromJournal(&rebuilt_from),
+        &crate::worktree_copy_ceiling::CopyCeiling::unbounded(),
+    )
     .expect("completed");
     match outcome {
         // The claimed directory counts as created by the interrupted owner, so all four selected entries are counted.
@@ -228,9 +260,9 @@ fn stage_missing_a_claim_cannot_be_recovered() {
     let failure: WorktreeCopyError =
         snapshot_from_journal(&pending, &claims).expect_err("claim absent");
     assert!(
-        failure
-            .0
-            .starts_with("monochromatic-git-policy-cli: could not recover staged ignored state at "),
+        failure.0.starts_with(
+            "monochromatic-git-policy-cli: could not recover staged ignored state at "
+        ),
         "{}",
         failure.0
     );
@@ -278,23 +310,59 @@ fn beginning_the_installation_persists_the_installing_phase() {
 #[cfg(unix)]
 #[test]
 fn a_destination_replaced_after_the_check_is_not_installed_into() {
-    use crate::worktree_add_binding::{bind_registration, path_identity};
+    use crate::worktree_add_binding::{
+        bind_registration,
+        path_identity,
+    };
     use crate::worktree_copy_stage_binding::record_stage_binding;
     let root: PathBuf = fixture("transaction-destination-replaced");
     let (source, destination) = ignored_source(root.as_path());
-    git(source.as_path(), &["worktree", "add", "--quiet", "-b", "topic", destination.to_str().expect("utf8")]);
-    let destination_canonical: PathBuf = std::fs::canonicalize(&destination).expect("canonical destination");
-    let common: PathBuf = common_of(source.as_path());
-    let binding = bind_registration(common.as_path(), destination_canonical.as_path()).expect("binding").binding;
-    let snapshot: StagedSnapshot = stage(source.as_path(), destination_canonical.as_path());
-    record_stage_binding(snapshot.stage_container.as_path(), &binding).expect("recorded");
-    let pending: PendingJournal = create_journal(common.as_path(), destination_canonical.as_path(), &snapshot).expect("journal");
-    // Another command moves this worktree away and registers a different one at the same path.
-    let moved: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("moved");
-    git(source.as_path(), &["worktree", "move", destination_canonical.to_str().expect("utf8"), moved.to_str().expect("utf8")]);
     git(
         source.as_path(),
-        &["worktree", "add", "--quiet", "--no-checkout", "-b", "replacement", destination_canonical.to_str().expect("utf8")],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            destination.to_str().expect("utf8"),
+        ],
+    );
+    let destination_canonical: PathBuf =
+        std::fs::canonicalize(&destination).expect("canonical destination");
+    let common: PathBuf = common_of(source.as_path());
+    let binding = bind_registration(common.as_path(), destination_canonical.as_path())
+        .expect("binding")
+        .binding;
+    let snapshot: StagedSnapshot = stage(source.as_path(), destination_canonical.as_path());
+    record_stage_binding(snapshot.stage_container.as_path(), &binding).expect("recorded");
+    let pending: PendingJournal =
+        create_journal(common.as_path(), destination_canonical.as_path(), &snapshot)
+            .expect("journal");
+    // Another command moves this worktree away and registers a different one at the same path.
+    let moved: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical root")
+        .join("moved");
+    git(
+        source.as_path(),
+        &[
+            "worktree",
+            "move",
+            destination_canonical.to_str().expect("utf8"),
+            moved.to_str().expect("utf8"),
+        ],
+    );
+    git(
+        source.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "-b",
+            "replacement",
+            destination_canonical.to_str().expect("utf8"),
+        ],
     );
     assert_ne!(
         path_identity(destination_canonical.as_path()),
@@ -307,7 +375,16 @@ fn a_destination_replaced_after_the_check_is_not_installed_into() {
         &crate::worktree_copy_ceiling::CopyCeiling::unbounded(),
     )
     .expect_err("the registration is gone");
-    assert!(failure.0.contains("no longer the registration the copy was made for"), "{}", failure.0);
-    assert!(!destination_canonical.join("cache").exists(), "the replacement registration received nothing");
+    assert!(
+        failure
+            .0
+            .contains("no longer the registration the copy was made for"),
+        "{}",
+        failure.0
+    );
+    assert!(
+        !destination_canonical.join("cache").exists(),
+        "the replacement registration received nothing"
+    );
     remove(root.as_path());
 }

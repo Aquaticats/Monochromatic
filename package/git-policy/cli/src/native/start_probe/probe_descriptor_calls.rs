@@ -20,9 +20,16 @@
 //! const mount = fsmount(context); moveMount(mount, slotDescriptor);
 //! ```
 
-use super::probe_call_error::{CallError, failed};
+use super::probe_call_error::{
+    CallError,
+    failed,
+};
 use std::ffi::CString;
-use std::os::fd::{FromRawFd, OwnedFd, RawFd};
+use std::os::fd::{
+    FromRawFd,
+    OwnedFd,
+    RawFd,
+};
 
 /// The `fsopen` flag that keeps the context out of a started child.
 pub const FSOPEN_CLOEXEC: libc::c_uint = libc::FSOPEN_CLOEXEC;
@@ -31,7 +38,8 @@ pub const FSMOUNT_CLOEXEC: libc::c_uint = libc::FSMOUNT_CLOEXEC;
 /// The flags the attach asks for:
 /// read-only,
 /// no set-user-ID execution and no device nodes.
-pub const PROBE_MOUNT_ATTRIBUTES: u64 = libc::MOUNT_ATTR_RDONLY | libc::MOUNT_ATTR_NOSUID | libc::MOUNT_ATTR_NODEV;
+pub const PROBE_MOUNT_ATTRIBUTES: u64 =
+    libc::MOUNT_ATTR_RDONLY | libc::MOUNT_ATTR_NOSUID | libc::MOUNT_ATTR_NODEV;
 
 /// The filesystem type the probe's source is mounted as.
 pub const ZFS_FILESYSTEM: &str = "zfs";
@@ -55,7 +63,9 @@ pub const NODEV_OPTION: &str = "nodev";
 pub fn fsopen(filesystem: &str) -> Result<OwnedFd, CallError> {
     let type_name: CString = CString::new(filesystem).expect("no NUL in a filesystem type");
     // SAFETY: the type string is this call's own and outlives it; the descriptor it returns is checked before it is owned.
-    let context: libc::c_int = unsafe { libc::syscall(libc::SYS_fsopen, type_name.as_ptr(), FSOPEN_CLOEXEC) as libc::c_int };
+    let context: libc::c_int = unsafe {
+        libc::syscall(libc::SYS_fsopen, type_name.as_ptr(), FSOPEN_CLOEXEC) as libc::c_int
+    };
     if context < 0 {
         return Err(failed("fsopen"));
     }
@@ -71,12 +81,29 @@ pub fn fsopen(filesystem: &str) -> Result<OwnedFd, CallError> {
 ///
 /// # Errors
 /// The call refused.
-pub fn fsconfig_text(context: RawFd, key: &str, value: &str) -> Result<(), CallError> {
+pub fn fsconfig_text(
+    context: RawFd,
+    key: &str,
+    value: &str,
+) -> Result<(), CallError> {
     let key_name: CString = CString::new(key).expect("no NUL in an option name");
     let option_value: CString = CString::new(value).expect("no NUL in an option value");
     // SAFETY: the context descriptor is the caller's, and both strings outlive the call.
-    let set: libc::c_int = unsafe { libc::syscall(libc::SYS_fsconfig, context, libc::FSCONFIG_SET_STRING, key_name.as_ptr(), option_value.as_ptr(), 0) as libc::c_int };
-    return if set == 0 { Ok(()) } else { Err(failed("fsconfig")) };
+    let set: libc::c_int = unsafe {
+        libc::syscall(
+            libc::SYS_fsconfig,
+            context,
+            libc::FSCONFIG_SET_STRING,
+            key_name.as_ptr(),
+            option_value.as_ptr(),
+            0,
+        ) as libc::c_int
+    };
+    return if set == 0 {
+        Ok(())
+    } else {
+        Err(failed("fsconfig"))
+    };
 }
 
 /// What:
@@ -88,11 +115,27 @@ pub fn fsconfig_text(context: RawFd, key: &str, value: &str) -> Result<(), CallE
 ///
 /// # Errors
 /// The call refused.
-pub fn fsconfig_flag(context: RawFd, key: &str) -> Result<(), CallError> {
+pub fn fsconfig_flag(
+    context: RawFd,
+    key: &str,
+) -> Result<(), CallError> {
     let key_name: CString = CString::new(key).expect("no NUL in an option name");
     // SAFETY: the context descriptor is the caller's and the key outlives the call.
-    let set: libc::c_int = unsafe { libc::syscall(libc::SYS_fsconfig, context, libc::FSCONFIG_SET_FLAG, key_name.as_ptr(), std::ptr::null::<libc::c_char>(), 0) as libc::c_int };
-    return if set == 0 { Ok(()) } else { Err(failed("fsconfig")) };
+    let set: libc::c_int = unsafe {
+        libc::syscall(
+            libc::SYS_fsconfig,
+            context,
+            libc::FSCONFIG_SET_FLAG,
+            key_name.as_ptr(),
+            std::ptr::null::<libc::c_char>(),
+            0,
+        ) as libc::c_int
+    };
+    return if set == 0 {
+        Ok(())
+    } else {
+        Err(failed("fsconfig"))
+    };
 }
 
 /// What:
@@ -105,11 +148,31 @@ pub fn fsconfig_flag(context: RawFd, key: &str) -> Result<(), CallError> {
 ///
 /// # Errors
 /// The call refused.
-pub fn fsconfig_create(context: RawFd, exclusive: bool) -> Result<(), CallError> {
-    let command: libc::c_uint = if exclusive { libc::FSCONFIG_CMD_CREATE_EXCL } else { libc::FSCONFIG_CMD_CREATE };
+pub fn fsconfig_create(
+    context: RawFd,
+    exclusive: bool,
+) -> Result<(), CallError> {
+    let command: libc::c_uint = if exclusive {
+        libc::FSCONFIG_CMD_CREATE_EXCL
+    } else {
+        libc::FSCONFIG_CMD_CREATE
+    };
     // SAFETY: the context descriptor is the caller's and the call reads no pointer here.
-    let created: libc::c_int = unsafe { libc::syscall(libc::SYS_fsconfig, context, command, std::ptr::null::<libc::c_char>(), std::ptr::null::<libc::c_char>(), 0) as libc::c_int };
-    return if created == 0 { Ok(()) } else { Err(failed("fsconfig create")) };
+    let created: libc::c_int = unsafe {
+        libc::syscall(
+            libc::SYS_fsconfig,
+            context,
+            command,
+            std::ptr::null::<libc::c_char>(),
+            std::ptr::null::<libc::c_char>(),
+            0,
+        ) as libc::c_int
+    };
+    return if created == 0 {
+        Ok(())
+    } else {
+        Err(failed("fsconfig create"))
+    };
 }
 
 /// What:
@@ -123,7 +186,14 @@ pub fn fsconfig_create(context: RawFd, exclusive: bool) -> Result<(), CallError>
 /// The call refused.
 pub fn fsmount(context: RawFd) -> Result<OwnedFd, CallError> {
     // SAFETY: the context descriptor is the caller's and has been created; the returned descriptor is owned once.
-    let mount: libc::c_int = unsafe { libc::syscall(libc::SYS_fsmount, context, FSMOUNT_CLOEXEC, PROBE_MOUNT_ATTRIBUTES) as libc::c_int };
+    let mount: libc::c_int = unsafe {
+        libc::syscall(
+            libc::SYS_fsmount,
+            context,
+            FSMOUNT_CLOEXEC,
+            PROBE_MOUNT_ATTRIBUTES,
+        ) as libc::c_int
+    };
     if mount < 0 {
         return Err(failed("fsmount"));
     }
@@ -139,13 +209,27 @@ pub fn fsmount(context: RawFd) -> Result<OwnedFd, CallError> {
 ///
 /// # Errors
 /// The call refused.
-pub fn move_mount_onto_descriptor(mount: RawFd, target: RawFd) -> Result<(), CallError> {
+pub fn move_mount_onto_descriptor(
+    mount: RawFd,
+    target: RawFd,
+) -> Result<(), CallError> {
     let empty: CString = CString::new("").expect("no NUL in an empty path");
     // SAFETY: both descriptors are the caller's, and the two empty paths are NUL-terminated strings the flags read.
     let moved: libc::c_int = unsafe {
-        libc::syscall(libc::SYS_move_mount, mount, empty.as_ptr(), target, empty.as_ptr(), libc::MOVE_MOUNT_F_EMPTY_PATH | libc::MOVE_MOUNT_T_EMPTY_PATH) as libc::c_int
+        libc::syscall(
+            libc::SYS_move_mount,
+            mount,
+            empty.as_ptr(),
+            target,
+            empty.as_ptr(),
+            libc::MOVE_MOUNT_F_EMPTY_PATH | libc::MOVE_MOUNT_T_EMPTY_PATH,
+        ) as libc::c_int
     };
-    return if moved == 0 { Ok(()) } else { Err(failed("move_mount")) };
+    return if moved == 0 {
+        Ok(())
+    } else {
+        Err(failed("move_mount"))
+    };
 }
 
 /// What:
@@ -157,13 +241,29 @@ pub fn move_mount_onto_descriptor(mount: RawFd, target: RawFd) -> Result<(), Cal
 ///
 /// # Errors
 /// The call refused.
-pub fn move_mount_between_paths(from: &std::path::Path, to: &std::path::Path) -> Result<(), CallError> {
+pub fn move_mount_between_paths(
+    from: &std::path::Path,
+    to: &std::path::Path,
+) -> Result<(), CallError> {
     use std::os::unix::ffi::OsStrExt;
     let from_path: CString = CString::new(from.as_os_str().as_bytes()).expect("no NUL in a path");
     let to_path: CString = CString::new(to.as_os_str().as_bytes()).expect("no NUL in a path");
     // SAFETY: both paths are this call's own and outlive it, and it reads no other pointer.
-    let moved: libc::c_int = unsafe { libc::syscall(libc::SYS_move_mount, libc::AT_FDCWD, from_path.as_ptr(), libc::AT_FDCWD, to_path.as_ptr(), 0) as libc::c_int };
-    return if moved == 0 { Ok(()) } else { Err(failed("move_mount")) };
+    let moved: libc::c_int = unsafe {
+        libc::syscall(
+            libc::SYS_move_mount,
+            libc::AT_FDCWD,
+            from_path.as_ptr(),
+            libc::AT_FDCWD,
+            to_path.as_ptr(),
+            0,
+        ) as libc::c_int
+    };
+    return if moved == 0 {
+        Ok(())
+    } else {
+        Err(failed("move_mount"))
+    };
 }
 
 /// Controls stay out of the release executable.

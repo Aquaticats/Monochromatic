@@ -51,7 +51,10 @@ fn split_nul(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
 impl ResolveUndo {
     /// The recorded paths of an extension's bytes,
     /// or `None` when Git reports invalid resolve-undo information.
-    pub fn read(bytes: &[u8], hash_length: usize) -> Option<ResolveUndo> {
+    pub fn read(
+        bytes: &[u8],
+        hash_length: usize,
+    ) -> Option<ResolveUndo> {
         let mut paths: BTreeMap<Vec<u8>, Sides> = BTreeMap::new();
         let mut rest: &[u8] = bytes;
         while !rest.is_empty() {
@@ -76,12 +79,20 @@ impl ResolveUndo {
             }
             paths.insert(path.to_vec(), sides);
         }
-        return Some(ResolveUndo { paths });
+        return Some(ResolveUndo {
+            paths,
+        });
     }
 
     /// Remember one unmerged entry that is leaving the index (`record_resolve_undo`);
     /// a resolved entry is ignored.
-    pub fn record(&mut self, path: &[u8], stage: u8, mode: u32, id: &[u8]) {
+    pub fn record(
+        &mut self,
+        path: &[u8],
+        stage: u8,
+        mode: u32,
+        id: &[u8],
+    ) {
         if stage == 0 {
             return;
         }

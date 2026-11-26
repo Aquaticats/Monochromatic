@@ -25,16 +25,45 @@
 //! which ended it naming no state.
 
 use super::commit::remove_settled;
-use super::service_commit::{Running, start};
+use super::service_commit::{
+    Running,
+    start,
+};
 use super::service_landing_selection::base_repository;
-use super::service_landing_support::{Case, case, compare, copy_beside, finished, run_native, run_served, text_of_within};
-use super::support::{Fixture, NATIVE_GIT_BOUND_SECONDS, executable, fixture, git, native_git_output};
+use super::service_landing_support::{
+    Case,
+    case,
+    compare,
+    copy_beside,
+    finished,
+    run_native,
+    run_served,
+    text_of_within,
+};
 use super::support::in_a_fixture_root_taking_any_name;
-use std::path::{Path, PathBuf};
+use super::support::{
+    Fixture,
+    NATIVE_GIT_BOUND_SECONDS,
+    executable,
+    fixture,
+    git,
+    native_git_output,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
-fn write(repo: &Path, name: &str, text: &str) {
+fn write(
+    repo: &Path,
+    name: &str,
+    text: &str,
+) {
     std::fs::write(repo.join(name), text).expect("write");
 }
 
@@ -42,7 +71,11 @@ fn write(repo: &Path, name: &str, text: &str) {
 /// The run is a control's fixture step and not its oracle,
 /// but a Git waiting on a lock or a hook here would still hold the control,
 /// so it carries the same bound as every other native Git command.
-fn attempt(fixture: &Fixture, repo: &Path, arguments: &[&str]) {
+fn attempt(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+) {
     let mut command: Command = super::support::direct(fixture);
     command.args(arguments).env("GIT_EDITOR", "true");
     let _output = native_git_output(fixture, &mut command, repo, NATIVE_GIT_BOUND_SECONDS);
@@ -50,26 +83,46 @@ fn attempt(fixture: &Fixture, repo: &Path, arguments: &[&str]) {
 
 /// A side branch and the main branch both changed `b.txt`;
 /// the main branch is checked out.
-fn diverged(fixture: &Fixture, repo: &Path) -> (String, String) {
+fn diverged(
+    fixture: &Fixture,
+    repo: &Path,
+) -> (String, String) {
     git(fixture, repo, &["checkout", "--quiet", "-b", "side"]);
     write(repo, "b.txt", "side\n");
     write(repo, "s.txt", "side only\n");
     git(fixture, repo, &["add", "b.txt", "s.txt"]);
-    git(fixture, repo, &["commit", "--quiet", "--message=side change"]);
+    git(
+        fixture,
+        repo,
+        &["commit", "--quiet", "--message=side change"],
+    );
     let side: String = text(fixture, repo, &["rev-parse", "HEAD"]);
     git(fixture, repo, &["checkout", "--quiet", "main"]);
     write(repo, "b.txt", "main\n");
     git(fixture, repo, &["add", "b.txt"]);
-    git(fixture, repo, &["commit", "--quiet", "--message=main change"]);
+    git(
+        fixture,
+        repo,
+        &["commit", "--quiet", "--message=main change"],
+    );
     let main: String = text(fixture, repo, &["rev-parse", "HEAD"]);
     return (side, main);
 }
 
-fn text(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
-    return super::service_landing_support::text_of(fixture, repo, arguments).trim().to_string();
+fn text(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+) -> String {
+    return super::service_landing_support::text_of(fixture, repo, arguments)
+        .trim()
+        .to_string();
 }
 
-fn resolve(fixture: &Fixture, repo: &Path) {
+fn resolve(
+    fixture: &Fixture,
+    repo: &Path,
+) {
     write(repo, "b.txt", "resolved\n");
     git(fixture, repo, &["add", "b.txt"]);
 }
@@ -114,29 +167,65 @@ fn a_native_git_read_that_never_answers_ends_at_the_harness_bound_and_names_it()
     let fixture: Fixture = fixture("landing-never-answers");
     let repo: PathBuf = base_repository(&fixture);
     let hook: PathBuf = fixture.root.join("never-answering-fsmonitor");
-    executable(hook.as_path(), format!("#!/bin/sh\nexec sleep {NEVER_ANSWERS_DELAY_SECONDS} </dev/null >/dev/null 2>&1\n").as_bytes());
+    executable(
+        hook.as_path(),
+        format!("#!/bin/sh\nexec sleep {NEVER_ANSWERS_DELAY_SECONDS} </dev/null >/dev/null 2>&1\n")
+            .as_bytes(),
+    );
     let setting: String = format!("core.fsmonitor={}", hook.display());
-    let arguments: [&str; 5] = ["-c", setting.as_str(), "status", "--short", "--untracked-files=all"];
+    let arguments: [&str; 5] = [
+        "-c",
+        setting.as_str(),
+        "status",
+        "--short",
+        "--untracked-files=all",
+    ];
     let began: Instant = Instant::now();
     // The panic a read that was ended at its bound raises is the control's subject, so its message is read, not printed.
     let printed = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let ended = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        return text_of_within(&fixture, &repo, arguments.as_slice(), NEVER_ANSWERS_BOUND_SECONDS);
+        return text_of_within(
+            &fixture,
+            &repo,
+            arguments.as_slice(),
+            NEVER_ANSWERS_BOUND_SECONDS,
+        );
     }));
     std::panic::set_hook(printed);
     let took: Duration = began.elapsed();
     let message: String = match ended {
-        Ok(text) => panic!("a Git read that never answers must end at the harness's bound instead of answering after {took:?}: {text}"),
+        Ok(text) => panic!(
+            "a Git read that never answers must end at the harness's bound instead of answering after {took:?}: {text}"
+        ),
         Err(payload) => match payload.downcast_ref::<String>() {
             Some(text) => text.clone(),
-            None => payload.downcast_ref::<&str>().map_or_else(|| { return String::from("(a panic with no text)"); }, |text| { return (*text).to_string(); }),
+            None => payload.downcast_ref::<&str>().map_or_else(
+                || {
+                    return String::from("(a panic with no text)");
+                },
+                |text| {
+                    return (*text).to_string();
+                },
+            ),
         },
     };
-    assert!(message.contains("status"), "the failure names the command it waited for: {message}");
-    assert!(message.contains(repo.display().to_string().as_str()), "the failure names the repository: {message}");
-    assert!(message.contains(NEVER_ANSWERS_BOUND_SECONDS), "the failure names the bound: {message}");
-    assert!(took < Duration::from_secs(CONTROL_LIMIT_SECONDS), "the read was ended at its bound, not when the delay ran out ({took:?} against a {NEVER_ANSWERS_DELAY_SECONDS} s delay): {message}");
+    assert!(
+        message.contains("status"),
+        "the failure names the command it waited for: {message}"
+    );
+    assert!(
+        message.contains(repo.display().to_string().as_str()),
+        "the failure names the repository: {message}"
+    );
+    assert!(
+        message.contains(NEVER_ANSWERS_BOUND_SECONDS),
+        "the failure names the bound: {message}"
+    );
+    assert!(
+        took < Duration::from_secs(CONTROL_LIMIT_SECONDS),
+        "the read was ended at its bound, not when the delay ran out ({took:?} against a {NEVER_ANSWERS_DELAY_SECONDS} s delay): {message}"
+    );
     remove_settled(&fixture);
 }
 
@@ -151,7 +240,12 @@ fn a_native_git_read_that_never_answers_ends_at_the_harness_bound_and_names_it()
 /// and a control carrying every state took 284.9 s of such comparisons in one run (2026-11-11),
 /// 300.0 s in another,
 /// which the runner's five-minute stop then ended without naming a state.
-fn conclusion_repository(fixture: &Fixture, template: &Path, name: &str, number: usize) -> PathBuf {
+fn conclusion_repository(
+    fixture: &Fixture,
+    template: &Path,
+    name: &str,
+    number: usize,
+) -> PathBuf {
     let repo: PathBuf = copy_beside(fixture, template, name);
     let (side, main) = diverged(fixture, &repo);
     match number {
@@ -160,18 +254,34 @@ fn conclusion_repository(fixture: &Fixture, template: &Path, name: &str, number:
             resolve(fixture, &repo);
         }
         1 => {
-            git(fixture, &repo, &["checkout", "--quiet", "-b", "clean-side", "HEAD~1"]);
+            git(
+                fixture,
+                &repo,
+                &["checkout", "--quiet", "-b", "clean-side", "HEAD~1"],
+            );
             write(&repo, "n.txt", "new\n");
             git(fixture, &repo, &["add", "n.txt"]);
             git(fixture, &repo, &["commit", "--quiet", "--message=new file"]);
             git(fixture, &repo, &["checkout", "--quiet", "main"]);
-            attempt(fixture, &repo, &["merge", "--no-commit", "--no-ff", "clean-side"]);
+            attempt(
+                fixture,
+                &repo,
+                &["merge", "--no-commit", "--no-ff", "clean-side"],
+            );
         }
         2 => {
-            git(fixture, &repo, &["checkout", "--quiet", "-b", "clean-squash", "HEAD~1"]);
+            git(
+                fixture,
+                &repo,
+                &["checkout", "--quiet", "-b", "clean-squash", "HEAD~1"],
+            );
             write(&repo, "q.txt", "squashed\n");
             git(fixture, &repo, &["add", "q.txt"]);
-            git(fixture, &repo, &["commit", "--quiet", "--message=for squash"]);
+            git(
+                fixture,
+                &repo,
+                &["commit", "--quiet", "--message=for squash"],
+            );
             git(fixture, &repo, &["checkout", "--quiet", "main"]);
             attempt(fixture, &repo, &["merge", "--squash", "clean-squash"]);
         }
@@ -188,14 +298,26 @@ fn conclusion_repository(fixture: &Fixture, template: &Path, name: &str, number:
             git(fixture, &repo, &["checkout", "--quiet", "side"]);
             write(&repo, "t.txt", "second pick\n");
             git(fixture, &repo, &["add", "t.txt"]);
-            git(fixture, &repo, &["commit", "--quiet", "--message=second pick"]);
+            git(
+                fixture,
+                &repo,
+                &["commit", "--quiet", "--message=second pick"],
+            );
             let second: String = text(fixture, &repo, &["rev-parse", "HEAD"]);
             git(fixture, &repo, &["checkout", "--quiet", "main"]);
-            attempt(fixture, &repo, &["cherry-pick", side.as_str(), second.as_str()]);
+            attempt(
+                fixture,
+                &repo,
+                &["cherry-pick", side.as_str(), second.as_str()],
+            );
             resolve(fixture, &repo);
         }
         _ => {
-            git(fixture, &repo, &["checkout", "--quiet", "-b", "tidy", "HEAD~1"]);
+            git(
+                fixture,
+                &repo,
+                &["checkout", "--quiet", "-b", "tidy", "HEAD~1"],
+            );
             write(&repo, "u.txt", "tidy\n");
             git(fixture, &repo, &["add", "u.txt"]);
             git(fixture, &repo, &["commit", "--quiet", "--message=tidy"]);
@@ -211,15 +333,30 @@ fn conclusion_repository(fixture: &Fixture, template: &Path, name: &str, number:
 /// The command lines every conclusion state is compared by.
 fn conclusion_cases(label: &'static str) -> Vec<Case> {
     let lines: [Case; 4] = [
-        Case { index_commit: true, ..case("no-edit message", &["commit", "--no-edit"]) },
-        Case { index_commit: true, ..case("typed message", &["commit", "-m", "typed"]) },
-        Case { index_commit: true, ..case("editor that accepts the prepared message", &["commit"]) },
-        Case { index_commit: true, ..case("commit all", &["commit", "-a", "-m", "all"]) },
+        Case {
+            index_commit: true,
+            ..case("no-edit message", &["commit", "--no-edit"])
+        },
+        Case {
+            index_commit: true,
+            ..case("typed message", &["commit", "-m", "typed"])
+        },
+        Case {
+            index_commit: true,
+            ..case("editor that accepts the prepared message", &["commit"])
+        },
+        Case {
+            index_commit: true,
+            ..case("commit all", &["commit", "-a", "-m", "all"])
+        },
     ];
     return lines
         .into_iter()
         .map(|line| {
-            return Case { name: Box::leak(format!("{label}: {}", line.name).into_boxed_str()), ..line };
+            return Case {
+                name: Box::leak(format!("{label}: {}", line.name).into_boxed_str()),
+                ..line
+            };
         })
         .collect();
 }
@@ -233,7 +370,11 @@ fn conclusion_cases(label: &'static str) -> Vec<Case> {
 /// and the person must find the commit,
 /// the head,
 ///  the index and Git's own words as native Git leaves them.
-fn a_conclusion_state_lands_as_native_git_leaves_it(fixture_name: &str, number: usize, label: &'static str) {
+fn a_conclusion_state_lands_as_native_git_leaves_it(
+    fixture_name: &str,
+    number: usize,
+    label: &'static str,
+) {
     let fixture: Fixture = fixture(fixture_name);
     let name: String = format!("{fixture_name}-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
@@ -243,8 +384,21 @@ fn a_conclusion_state_lands_as_native_git_leaves_it(fixture_name: &str, number: 
         let (native, served) = compare(&fixture, &repo, name.as_str(), line);
         // A conclusion removes its own markers: in the states that make a commit, none is left in either copy.
         if native.code == Some(0) {
-            for (state, value) in served.left.iter().filter(|(entry, _)| { return ["state MERGE_HEAD", "state CHERRY_PICK_HEAD", "state REVERT_HEAD", "state MERGE_MSG", "state MERGE_MODE", "state SQUASH_MSG"].contains(&entry.as_str()); }) {
-                assert_eq!(value, "(absent)", "{label}: {state} is removed by the landing");
+            for (state, value) in served.left.iter().filter(|(entry, _)| {
+                return [
+                    "state MERGE_HEAD",
+                    "state CHERRY_PICK_HEAD",
+                    "state REVERT_HEAD",
+                    "state MERGE_MSG",
+                    "state MERGE_MODE",
+                    "state SQUASH_MSG",
+                ]
+                .contains(&entry.as_str());
+            }) {
+                assert_eq!(
+                    value, "(absent)",
+                    "{label}: {state} is removed by the landing"
+                );
             }
         }
     }
@@ -255,47 +409,76 @@ fn a_conclusion_state_lands_as_native_git_leaves_it(fixture_name: &str, number: 
 
 /// A conflicted merge is resolved and concluded by each of the four command lines.
 #[test]
-fn a_conflicted_merge_conclusion_lands_through_the_service_and_removes_the_state_native_git_removes() {
-    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-merge", 0, "conflicted merge, resolved");
+fn a_conflicted_merge_conclusion_lands_through_the_service_and_removes_the_state_native_git_removes()
+ {
+    return a_conclusion_state_lands_as_native_git_leaves_it(
+        "landing-conclusion-merge",
+        0,
+        "conflicted merge, resolved",
+    );
 }
 
 /// A merge Git left without a commit (`--no-commit`) is concluded by each of the four command lines.
 #[test]
 fn a_merge_left_for_its_commit_lands_through_the_service_as_native_git_lands_it() {
-    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-merge-no-commit", 1, "merge without a commit");
+    return a_conclusion_state_lands_as_native_git_leaves_it(
+        "landing-conclusion-merge-no-commit",
+        1,
+        "merge without a commit",
+    );
 }
 
 /// A squash merge is concluded by each of the four command lines,
 /// and its squash state is removed as native Git removes it.
 #[test]
 fn a_squash_merge_conclusion_lands_through_the_service_and_removes_its_squash_state() {
-    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-squash", 2, "squash merge");
+    return a_conclusion_state_lands_as_native_git_leaves_it(
+        "landing-conclusion-squash",
+        2,
+        "squash merge",
+    );
 }
 
 /// A conflicted cherry-pick is resolved and concluded by each of the four command lines.
 #[test]
 fn a_conflicted_cherry_pick_conclusion_lands_through_the_service_and_removes_its_state() {
-    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-cherry-pick", 3, "conflicted cherry-pick, resolved");
+    return a_conclusion_state_lands_as_native_git_leaves_it(
+        "landing-conclusion-cherry-pick",
+        3,
+        "conflicted cherry-pick, resolved",
+    );
 }
 
 /// A conflicted revert is resolved and concluded by each of the four command lines.
 #[test]
 fn a_conflicted_revert_conclusion_lands_through_the_service_and_removes_its_state() {
-    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-revert", 4, "conflicted revert, resolved");
+    return a_conclusion_state_lands_as_native_git_leaves_it(
+        "landing-conclusion-revert",
+        4,
+        "conflicted revert, resolved",
+    );
 }
 
 /// A cherry-pick of two commits whose first conflicted is concluded by each of the four command lines,
 /// with the sequencer the second pick left.
 #[test]
 fn a_sequencer_left_by_two_cherry_picks_lands_through_the_service_as_native_git_lands_it() {
-    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-two-picks", 5, "two picks, first resolved");
+    return a_conclusion_state_lands_as_native_git_leaves_it(
+        "landing-conclusion-two-picks",
+        5,
+        "two picks, first resolved",
+    );
 }
 
 /// A merge of a side branch that brings a new file is concluded by each of the four command lines,
 /// including the edit of the new file that `commit all` stages.
 #[test]
 fn a_merge_bringing_a_new_file_lands_through_the_service_as_native_git_lands_it() {
-    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-new-file", 6, "merge of a side branch with a new file");
+    return a_conclusion_state_lands_as_native_git_leaves_it(
+        "landing-conclusion-new-file",
+        6,
+        "merge of a side branch with a new file",
+    );
 }
 
 /// A detached head is moved as `HEAD` itself:
@@ -314,14 +497,36 @@ fn a_commit_on_a_detached_head_moves_head_and_no_branch() {
     let mut service: Running = start(&fixture, name.as_str());
     for entry in [
         case("named path", &["commit", "-m", "detached", "--", "a.txt"]),
-        Case { index_commit: true, ..case("index", &["commit", "-m", "detached"]) },
-        Case { index_commit: true, ..case("all", &["commit", "-a", "-m", "detached"]) },
-        Case { index_commit: true, ..case("amend", &["commit", "--amend", "--no-edit"]) },
+        Case {
+            index_commit: true,
+            ..case("index", &["commit", "-m", "detached"])
+        },
+        Case {
+            index_commit: true,
+            ..case("all", &["commit", "-a", "-m", "detached"])
+        },
+        Case {
+            index_commit: true,
+            ..case("amend", &["commit", "--amend", "--no-edit"])
+        },
     ] {
         let (native, served) = compare(&fixture, &base, name.as_str(), &entry);
         assert_eq!(native.code, Some(0), "{}", entry.name);
-        let symbolic = served.left.iter().find(|(label, _)| { return label == "symbolic head"; }).map(|(_, value)| { return value.clone(); });
-        assert_eq!(symbolic.as_deref(), Some(""), "{}: the head is still detached", entry.name);
+        let symbolic = served
+            .left
+            .iter()
+            .find(|(label, _)| {
+                return label == "symbolic head";
+            })
+            .map(|(_, value)| {
+                return value.clone();
+            });
+        assert_eq!(
+            symbolic.as_deref(),
+            Some(""),
+            "{}: the head is still detached",
+            entry.name
+        );
     }
     let _killed = service.kill();
     let _waited = service.wait();
@@ -334,8 +539,16 @@ fn the_first_commit_of_a_branch_lands_through_the_service() {
     let fixture: Fixture = fixture("landing-unborn");
     let base: PathBuf = fixture.root.join("unborn");
     std::fs::create_dir(&base).expect("directory");
-    git(&fixture, &base, &["init", "--quiet", "--initial-branch=main"]);
-    git(&fixture, &base, &["config", "maintenance.autoDetach", "false"]);
+    git(
+        &fixture,
+        &base,
+        &["init", "--quiet", "--initial-branch=main"],
+    );
+    git(
+        &fixture,
+        &base,
+        &["config", "maintenance.autoDetach", "false"],
+    );
     write(&base, "a.txt", "first\n");
     write(&base, "b.txt", "second\n");
     write(&base, "c.txt", "untracked\n");
@@ -343,11 +556,24 @@ fn the_first_commit_of_a_branch_lands_through_the_service() {
     let name: String = format!("landing-unborn-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
     for entry in [
-        Case { index_commit: true, ..case("index", &["commit", "-m", "first"]) },
+        Case {
+            index_commit: true,
+            ..case("index", &["commit", "-m", "first"])
+        },
         case("named path", &["commit", "-m", "first", "--", "a.txt"]),
-        Case { index_commit: true, ..case("empty commit", &["commit", "--allow-empty", "-m", "first"]) },
-        Case { index_commit: true, ..case("nothing to amend", &["commit", "--amend", "-m", "first"]) },
-        Case { index_commit: true, full_output: true, ..case("editor-free message", &["commit", "--no-edit"]) },
+        Case {
+            index_commit: true,
+            ..case("empty commit", &["commit", "--allow-empty", "-m", "first"])
+        },
+        Case {
+            index_commit: true,
+            ..case("nothing to amend", &["commit", "--amend", "-m", "first"])
+        },
+        Case {
+            index_commit: true,
+            full_output: true,
+            ..case("editor-free message", &["commit", "--no-edit"])
+        },
     ] {
         compare(&fixture, &base, name.as_str(), &entry);
     }
@@ -376,9 +602,16 @@ fn a_commit_with_all_staged_resolves_an_unmerged_file_as_native_git_does() {
     let name: String = format!("landing-unmerged-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
     // `-a` stages the working copy of the conflicted file, which is a resolution, so native Git commits it and so must the service.
-    let resolved = Case { index_commit: true, ..case("all", &["commit", "-a", "-m", "x"]) };
+    let resolved = Case {
+        index_commit: true,
+        ..case("all", &["commit", "-a", "-m", "x"])
+    };
     let (native, _served) = compare(&fixture, &base, name.as_str(), &resolved);
-    assert_eq!(native.code, Some(0), "native Git commits the staged working copy");
+    assert_eq!(
+        native.code,
+        Some(0),
+        "native Git commits the staged working copy"
+    );
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);
@@ -394,15 +627,38 @@ fn nothing_to_commit_is_said_in_the_words_of_native_git() {
     let name: String = format!("landing-nothing-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
     for entry in [
-        Case { index_commit: true, full_output: true, ..case("index, only untracked files", &["commit", "-m", "x"]) },
-        Case { index_commit: true, full_output: true, ..case("all, only untracked files", &["commit", "-a", "-m", "x"]) },
-        Case { full_output: true, ..case("a tracked path with no change", &["commit", "-m", "x", "--", "c.txt"]) },
+        Case {
+            index_commit: true,
+            full_output: true,
+            ..case("index, only untracked files", &["commit", "-m", "x"])
+        },
+        Case {
+            index_commit: true,
+            full_output: true,
+            ..case("all, only untracked files", &["commit", "-a", "-m", "x"])
+        },
+        Case {
+            full_output: true,
+            ..case(
+                "a tracked path with no change",
+                &["commit", "-m", "x", "--", "c.txt"],
+            )
+        },
     ] {
         let (native, _served) = compare(&fixture, &base, name.as_str(), &entry);
-        assert_ne!(native.code, Some(0), "{}: native Git has nothing to commit", entry.name);
+        assert_ne!(
+            native.code,
+            Some(0),
+            "{}: native Git has nothing to commit",
+            entry.name
+        );
     }
     git(&fixture, &base, &["clean", "--force", "--quiet", "-d"]);
-    let clean = Case { index_commit: true, full_output: true, ..case("a clean tree", &["commit", "-m", "x"]) };
+    let clean = Case {
+        index_commit: true,
+        full_output: true,
+        ..case("a clean tree", &["commit", "-m", "x"])
+    };
     compare(&fixture, &base, name.as_str(), &clean);
     let _killed = service.kill();
     let _waited = service.wait();
@@ -423,7 +679,10 @@ fn a_policy_rewrite_lands_and_reaches_the_worktree() {
     // Native Git is given the corrected file; the policy corrects the other copy.
     write(&base, "a.txt", "changed\n");
     write(&served_repo, "a.txt", "changed");
-    let entry: Case = case("a missing final newline", &["commit", "-m", "corrected", "--", "a.txt"]);
+    let entry: Case = case(
+        "a missing final newline",
+        &["commit", "-m", "corrected", "--", "a.txt"],
+    );
     let before: usize = finished(&fixture);
     let native = run_native(&fixture, &base, &entry);
     let served = run_served(&fixture, &served_repo, name.as_str(), &entry);
@@ -431,7 +690,10 @@ fn a_policy_rewrite_lands_and_reaches_the_worktree() {
     for ((label, expected), (_, found)) in native.left.iter().zip(&served.left) {
         assert_eq!(found, expected, "{label}");
     }
-    assert_eq!(std::fs::read(served_repo.join("a.txt")).expect("worktree copy"), b"changed\n");
+    assert_eq!(
+        std::fs::read(served_repo.join("a.txt")).expect("worktree copy"),
+        b"changed\n"
+    );
     assert_eq!(finished(&fixture), before + 1, "the service landed it");
     let _killed = service.kill();
     let _waited = service.wait();
@@ -448,7 +710,9 @@ fn a_policy_rewrite_lands_and_reaches_the_worktree() {
 /// and a file replaced by a directory.
 #[test]
 fn awkward_change_lists_land_as_native_git_commits_them() {
-    if !in_a_fixture_root_taking_any_name("service_landing_state::awkward_change_lists_land_as_native_git_commits_them") {
+    if !in_a_fixture_root_taking_any_name(
+        "service_landing_state::awkward_change_lists_land_as_native_git_commits_them",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStrExt;
@@ -459,13 +723,31 @@ fn awkward_change_lists_land_as_native_git_commits_them() {
     for number in 0..git_policy_cli::service_protocol::MAX_CHANGES + 100 {
         std::fs::write(many.join(format!("f{number}.txt")), format!("{number}\n")).expect("file");
     }
-    std::fs::write(base.join(std::ffi::OsStr::from_bytes(b"caf\xe9.txt")), "not text\n").expect("non-UTF-8 name");
+    std::fs::write(
+        base.join(std::ffi::OsStr::from_bytes(b"caf\xe9.txt")),
+        "not text\n",
+    )
+    .expect("non-UTF-8 name");
     std::fs::write(base.join("run.sh"), "#!/bin/sh\n").expect("script");
-    let mut permissions = std::fs::metadata(base.join("run.sh")).expect("metadata").permissions();
+    let mut permissions = std::fs::metadata(base.join("run.sh"))
+        .expect("metadata")
+        .permissions();
     std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o755);
     std::fs::set_permissions(base.join("run.sh"), permissions).expect("mode");
     std::os::unix::fs::symlink("a.txt", base.join("link")).expect("link");
-    git(&fixture, &base, &["update-index", "--add", "--cacheinfo", &format!("160000,{},sub", text(&fixture, &base, &["rev-parse", "HEAD"]))]);
+    git(
+        &fixture,
+        &base,
+        &[
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            &format!(
+                "160000,{},sub",
+                text(&fixture, &base, &["rev-parse", "HEAD"])
+            ),
+        ],
+    );
     std::fs::remove_file(base.join("c.txt")).expect("remove");
     std::fs::create_dir(base.join("c.txt")).expect("directory in place of the file");
     std::fs::write(base.join("c.txt/inner.txt"), "inside\n").expect("inner");
@@ -473,8 +755,17 @@ fn awkward_change_lists_land_as_native_git_commits_them() {
     let name: String = format!("landing-odd-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
     for entry in [
-        Case { index_commit: true, ..case("everything staged", &["commit", "-m", "awkward"]) },
-        Case { index_commit: true, ..case("everything staged, with a message from a file", &["commit", "-F", "../message.txt"]) },
+        Case {
+            index_commit: true,
+            ..case("everything staged", &["commit", "-m", "awkward"])
+        },
+        Case {
+            index_commit: true,
+            ..case(
+                "everything staged, with a message from a file",
+                &["commit", "-F", "../message.txt"],
+            )
+        },
     ] {
         std::fs::write(fixture.root.join("message.txt"), "from a file\n").expect("message");
         compare(&fixture, &base, name.as_str(), &entry);

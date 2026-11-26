@@ -28,8 +28,15 @@
 /// import { parseOptions, row } from './command_options.ts';
 /// ```
 use crate::command_options::{
-    Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, UNREAD, WrapperOccurrence,
-    parse_options, row,
+    Arity,
+    DEFAULT_MODE,
+    OptionError,
+    OptionSpec,
+    ParsedOptions,
+    UNREAD,
+    WrapperOccurrence,
+    parse_options,
+    row,
 };
 use crate::command_options_query::is_enabled;
 use crate::global_arguments::VALUE_OPTIONS;
@@ -202,7 +209,10 @@ fn is_advice_key(key: &[u8]) -> bool {
 /// ```ts
 /// const at = last ? text.lastIndexOf('=') : text.indexOf('=');
 /// ```
-fn equals_index(bytes: &[u8], last: bool) -> Option<usize> {
+fn equals_index(
+    bytes: &[u8],
+    last: bool,
+) -> Option<usize> {
     let mut found: Option<usize> = None;
     let mut index: usize = 0;
     while index < bytes.len() {
@@ -231,7 +241,10 @@ fn equals_index(bytes: &[u8], last: bool) -> Option<usize> {
 /// ```ts
 /// const key = parameter.split('=')[0]; return key.toLowerCase() === 'advice.statushints';
 /// ```
-fn sets_advice_key(parameter: &[u8], from_environment: bool) -> bool {
+fn sets_advice_key(
+    parameter: &[u8],
+    from_environment: bool,
+) -> bool {
     // `if let Some(at) = ...` runs only when the parameter contains `=`.
     if let Some(at) = equals_index(parameter, from_environment) {
         // `&parameter[..at]` borrows the bytes before the `=`.

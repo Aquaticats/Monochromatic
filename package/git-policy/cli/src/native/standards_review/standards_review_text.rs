@@ -48,7 +48,10 @@ pub fn utf16_length(text: &str) -> usize {
 /// ```ts
 /// text.slice(0, limit)
 /// ```
-pub fn utf16_prefix(text: &str, limit: usize) -> String {
+pub fn utf16_prefix(
+    text: &str,
+    limit: usize,
+) -> String {
     let mut kept: String = String::new();
     let mut used: usize = 0;
     for character in text.chars() {
@@ -84,19 +87,27 @@ pub fn js_number_text(value: f64) -> String {
     let sign: &str = if value < 0.0 { "-" } else { "" };
     // Rust's `{:e}` prints the shortest digits that round-trip, as `d.ddde-5`.
     let scientific: String = format!("{:e}", value.abs());
-    let (mantissa, exponent_text) = scientific.split_once('e').unwrap_or((scientific.as_str(), "0"));
+    let (mantissa, exponent_text) = scientific
+        .split_once('e')
+        .unwrap_or((scientific.as_str(), "0"));
     let digits: String = mantissa.replace('.', "");
     let exponent: i32 = exponent_text.parse::<i32>().unwrap_or(0);
     let count: i32 = i32::try_from(digits.len()).unwrap_or(i32::MAX);
     // ECMAScript's `n`: the decimal point sits after the first `n` digits.
     let point: i32 = exponent + 1;
     let body: String = if count <= point && point <= 21 {
-        format!("{digits}{}", "0".repeat(usize::try_from(point - count).unwrap_or(0)))
+        format!(
+            "{digits}{}",
+            "0".repeat(usize::try_from(point - count).unwrap_or(0))
+        )
     } else if 0 < point && point <= 21 {
         let split: usize = usize::try_from(point).unwrap_or(0);
         format!("{}.{}", &digits[..split], &digits[split..])
     } else if -6 < point && point <= 0 {
-        format!("0.{}{digits}", "0".repeat(usize::try_from(-point).unwrap_or(0)))
+        format!(
+            "0.{}{digits}",
+            "0".repeat(usize::try_from(-point).unwrap_or(0))
+        )
     } else {
         let power: i32 = point - 1;
         let power_sign: &str = if power < 0 { "-" } else { "+" };

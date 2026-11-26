@@ -80,17 +80,41 @@
 //! const answer = board.withdrawEarly(id);                                      // a connection thread
 //! ```
 
-pub use crate::service_busy_answers_and_name_checks::{EarlyAnswer, GroupAdmission};
-use crate::service_busy_answers_and_name_checks::{CANCELLED_EXTENSION, Decision, Naming, WITHDRAWN, is_confirmation, is_plain, modified_and_path, withdrawal_token};
+use crate::private_storage::write_private_file_unsynced;
+use crate::service_busy_answers_and_name_checks::{
+    CANCELLED_EXTENSION,
+    Decision,
+    Naming,
+    WITHDRAWN,
+    is_confirmation,
+    is_plain,
+    modified_and_path,
+    withdrawal_token,
+};
+pub use crate::service_busy_answers_and_name_checks::{
+    EarlyAnswer,
+    GroupAdmission,
+};
+use crate::service_journal::{
+    DONE_EXTENSION,
+    DONE_RETAINED,
+    OPEN_EXTENSION,
+    parse_intent,
+};
+use crate::service_messages::RESTART_COMMAND;
 #[cfg(test)]
 use std::cell::RefCell;
-use crate::service_journal::{DONE_EXTENSION, DONE_RETAINED, OPEN_EXTENSION, parse_intent};
-use crate::service_messages::RESTART_COMMAND;
-use crate::private_storage::write_private_file_unsynced;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// The directory of the record inside the journal.
 const DIRECTORY: &str = "busy";
@@ -144,7 +168,12 @@ static TEMPORARY_NUMBER: AtomicU64 = AtomicU64::new(0);
 /// made of letters,
 /// digits and hyphens so it can stand in a file name.
 fn new_token() -> String {
-    return format!("{}-{}-{}", std::process::id(), TEMPORARY_NUMBER.fetch_add(1, Ordering::Relaxed), now_millis());
+    return format!(
+        "{}-{}-{}",
+        std::process::id(),
+        TEMPORARY_NUMBER.fetch_add(1, Ordering::Relaxed),
+        now_millis()
+    );
 }
 
 /// What:
@@ -204,21 +233,37 @@ impl LandingBoard {
     /// none of it describes a running thread,
     /// and a normal withdrawal's memory
     ///  does not outlive the service either.
-    pub fn new(journal: PathBuf, slow_after: Duration) -> Arc<Self> {
+    pub fn new(
+        journal: PathBuf,
+        slow_after: Duration,
+    ) -> Arc<Self> {
         let directory: PathBuf = journal.join(DIRECTORY);
         let _removed = std::fs::remove_dir_all(directory.as_path());
         let _made = std::fs::create_dir_all(directory.as_path());
-        return Arc::new(Self { slow_after, journal, directory });
+        return Arc::new(Self {
+            slow_after,
+            journal,
+            directory,
+        });
     }
 
     /// The decision file of a request.
-    pub(crate) fn decision_path(&self, id: &str) -> PathBuf {
+    pub(crate) fn decision_path(
+        &self,
+        id: &str,
+    ) -> PathBuf {
         return self.directory.join(format!("{id}.{DECISION_EXTENSION}"));
     }
 
     /// The file that confirms the withdrawal of a request that carries `token`.
-    fn cancelled_path(&self, id: &str, token: &str) -> PathBuf {
-        return self.directory.join(format!("{id}.{token}.{CANCELLED_EXTENSION}"));
+    fn cancelled_path(
+        &self,
+        id: &str,
+        token: &str,
+    ) -> PathBuf {
+        return self
+            .directory
+            .join(format!("{id}.{token}.{CANCELLED_EXTENSION}"));
     }
 
     /// What:
@@ -244,13 +289,19 @@ impl LandingBoard {
     /// ```ts
     /// try { publishWithoutReplacing(temporary, decisionPath); return 'won'; } catch (exists) { return { lost: read(decisionPath) }; }
     /// ```
-    fn decide(&self, id: &str, outcome: &str) -> std::io::Result<Decision> {
+    fn decide(
+        &self,
+        id: &str,
+        outcome: &str,
+    ) -> std::io::Result<Decision> {
         let decision: PathBuf = self.decision_path(id);
         // Written whole beside its name and published without replacing (`private_storage`: the exclusive publish of the `tempfile`
         //  crate, the checked rename where the filesystem has neither that nor hard links), removed whichever way it ends.
         return match write_private_file_unsynced(decision.as_path(), outcome.as_bytes()) {
             Ok(()) => Ok(Decision::Won),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(Decision::Lost(record_text(decision.as_path()).ok_or_else(decision_read_failure)?)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(Decision::Lost(
+                record_text(decision.as_path()).ok_or_else(decision_read_failure)?,
+            )),
             Err(error) => Err(error),
         };
     }
@@ -258,13 +309,18 @@ impl LandingBoard {
     /// What the journal says about `id`:
     /// read whole,
     /// and `Unknown` for anything that cannot be read or understood.
-    fn naming(&self, id: &str) -> Naming {
+    fn naming(
+        &self,
+        id: &str,
+    ) -> Naming {
         let Ok(entries) = std::fs::read_dir(self.journal.as_path()) else {
             return Naming::Unknown;
         };
         let mut open: bool = false;
         for entry in entries {
-            let Ok(found) = entry else { return Naming::Unknown };
+            let Ok(found) = entry else {
+                return Naming::Unknown;
+            };
             let path: PathBuf = found.path();
             let extension: Option<&str> = path.extension().and_then(std::ffi::OsStr::to_str);
             if extension != Some(OPEN_EXTENSION) && extension != Some(DONE_EXTENSION) {
@@ -312,7 +368,10 @@ impl LandingBoard {
     /// ```ts
     /// for (const id of ids) { const d = decide(id, 'landing'); if (d.error) unavailable.push(id); else if (d.lost === 'withdrawn') dropped.push(id); }
     /// ```
-    pub fn begin_group(&self, ids: &[String]) -> GroupAdmission {
+    pub fn begin_group(
+        &self,
+        ids: &[String],
+    ) -> GroupAdmission {
         let mut admission: GroupAdmission = GroupAdmission::default();
         for id in ids {
             if !is_plain(id.as_str()) {
@@ -321,7 +380,9 @@ impl LandingBoard {
             match self.decide(id.as_str(), LANDING) {
                 Ok(Decision::Won) => {}
                 Ok(Decision::Lost(content)) if content == LANDING => {}
-                Ok(Decision::Lost(content)) if withdrawal_token(content.as_str()).is_some() => admission.dropped.push(id.clone()),
+                Ok(Decision::Lost(content)) if withdrawal_token(content.as_str()).is_some() => {
+                    admission.dropped.push(id.clone())
+                }
                 Ok(Decision::Lost(_)) | Err(_) => admission.unavailable.push(id.clone()),
             }
         }
@@ -332,21 +393,29 @@ impl LandingBoard {
     /// its requests are the landing thread's no more,
     /// and each is in the journal if it landed.
     ///  A tombstone of a withdrawal stays.
-    pub fn end_group(&self, ids: &[String]) {
+    pub fn end_group(
+        &self,
+        ids: &[String],
+    ) {
         self.prune_withdrawals();
         for id in ids {
             if !is_plain(id.as_str()) {
                 continue;
             }
-            if matches!(record_text(self.decision_path(id.as_str()).as_path()), Some(content) if content == LANDING) {
+            if matches!(record_text(self.decision_path(id.as_str()).as_path()), Some(content) if content == LANDING)
+            {
                 let _removed = std::fs::remove_file(self.decision_path(id.as_str()));
             }
         }
     }
 
     /// Whether the request of this identity is in the group the landing thread is landing.
-    pub fn is_in_flight(&self, id: &str) -> bool {
-        return is_plain(id) && matches!(record_text(self.decision_path(id).as_path()), Some(content) if content == LANDING);
+    pub fn is_in_flight(
+        &self,
+        id: &str,
+    ) -> bool {
+        return is_plain(id)
+            && matches!(record_text(self.decision_path(id).as_path()), Some(content) if content == LANDING);
     }
 
     /// The write the landing thread is inside,
@@ -405,7 +474,10 @@ impl LandingBoard {
     /// ```ts
     /// inFlight(id) && running ? { key: [began, minutes], text } : undefined
     /// ```
-    pub fn inside_notice(&self, id: &str) -> Option<(String, String)> {
+    pub fn inside_notice(
+        &self,
+        id: &str,
+    ) -> Option<(String, String)> {
         let (began, command, found, running) = self.running()?;
         if !self.is_in_flight(id) {
             return None;
@@ -417,10 +489,13 @@ impl LandingBoard {
             Some(text) => format!(" ({text})"),
             None => String::new(),
         };
-        return Some((format!("{began}:start"), format!(
-            "monochromatic-git-policy-cli: this commit is inside a write of the commit service, `{command}`{detail}. The service never ends a write \
+        return Some((
+            format!("{began}:start"),
+            format!(
+                "monochromatic-git-policy-cli: this commit is inside a write of the commit service, `{command}`{detail}. The service never ends a write \
              in the middle, so if it does not return this command reports that the result is not known after its wait.\n"
-        )));
+            ),
+        ));
     }
 
     /// What:
@@ -441,7 +516,10 @@ impl LandingBoard {
     /// ```ts
     /// stuck && journal(id) === 'no' && won(decide(id, 'withdrawn')) && journal(id) === 'no' ? 'withdrawn' : (landed ?? 'queued')
     /// ```
-    pub fn withdraw_early(&self, id: &str) -> EarlyAnswer {
+    pub fn withdraw_early(
+        &self,
+        id: &str,
+    ) -> EarlyAnswer {
         if !is_plain(id) {
             return EarlyAnswer::Queued;
         }
@@ -468,12 +546,20 @@ impl LandingBoard {
                     Some(theirs) => self.cancelled_path(id, theirs).exists(),
                     None => false,
                 };
-                return if confirmed { EarlyAnswer::Withdrawn(words) } else { EarlyAnswer::Queued };
+                return if confirmed {
+                    EarlyAnswer::Withdrawn(words)
+                } else {
+                    EarlyAnswer::Queued
+                };
             }
             Ok(Decision::Won) => {}
         }
         #[cfg(test)]
-        AFTER_THE_DECISION_IS_WON.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
+        AFTER_THE_DECISION_IS_WON.with(|hook| {
+            if let Some(pause) = hook.borrow().as_ref() {
+                pause();
+            }
+        });
         // The decision is ours, so the request cannot be admitted any more; what could have happened is that it was admitted,
         // landed and let go of before the decision was tried.
         match self.naming(id) {
@@ -503,11 +589,10 @@ impl LandingBoard {
     /// so that a record that
     ///  cannot be counted is not grown.
     fn confirmed_withdrawals(&self) -> usize {
-        let Ok(entries) = std::fs::read_dir(self.directory.as_path()) else { return usize::MAX };
-        return entries
-            .flatten()
-            .filter(is_confirmation)
-            .count();
+        let Ok(entries) = std::fs::read_dir(self.directory.as_path()) else {
+            return usize::MAX;
+        };
+        return entries.flatten().filter(is_confirmation).count();
     }
 
     /// What:
@@ -529,7 +614,9 @@ impl LandingBoard {
     /// for (const [id, token] of oldestConfirmations(surplus)) { if (read(decision(id)) === `withdrawn:${token}`) rm(decision(id)); rm(confirmation(id, token)); }
     /// ```
     fn prune_withdrawals(&self) {
-        let Ok(entries) = std::fs::read_dir(self.directory.as_path()) else { return };
+        let Ok(entries) = std::fs::read_dir(self.directory.as_path()) else {
+            return;
+        };
         let mut remembered: Vec<(SystemTime, PathBuf)> = entries
             .flatten()
             .filter(is_confirmation)
@@ -541,10 +628,18 @@ impl LandingBoard {
         remembered.sort();
         let surplus: usize = remembered.len() - WITHDRAWALS_RETAINED;
         #[cfg(test)]
-        AFTER_THE_LISTING.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
+        AFTER_THE_LISTING.with(|hook| {
+            if let Some(pause) = hook.borrow().as_ref() {
+                pause();
+            }
+        });
         for (_, confirmation) in remembered.into_iter().take(surplus) {
-            let Some(name) = confirmation.file_stem().and_then(std::ffi::OsStr::to_str) else { continue };
-            let Some((id, token)) = name.split_once('.') else { continue };
+            let Some(name) = confirmation.file_stem().and_then(std::ffi::OsStr::to_str) else {
+                continue;
+            };
+            let Some((id, token)) = name.split_once('.') else {
+                continue;
+            };
             let decision: PathBuf = self.decision_path(id);
             let names_this_token: bool = match record_text(decision.as_path()) {
                 Some(content) => withdrawal_token(content.as_str()) == Some(token),

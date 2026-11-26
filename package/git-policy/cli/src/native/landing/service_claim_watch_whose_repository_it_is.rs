@@ -30,7 +30,10 @@ use std::path::Path;
 /// ```ts
 /// const ofAnotherInstance = (instance, gitDir) => instance !== undefined && instanceOf(gitDir) !== instance;
 /// ```
-pub fn of_another_instance(instance: Option<&str>, git_dir: &Path) -> bool {
+pub fn of_another_instance(
+    instance: Option<&str>,
+    git_dir: &Path,
+) -> bool {
     return match instance {
         Some(mine) => instance_of(git_dir) != mine,
         None => false,
@@ -53,10 +56,16 @@ pub fn of_another_instance(instance: Option<&str>, git_dir: &Path) -> bool {
 /// ```ts
 /// if (refusedForAnotherInstance(instance, gitDir)) return; // said once, and nothing is written or owed
 /// ```
-pub fn refused_for_another_instance(instance: Option<&str>, git_dir: &Path) -> bool {
+pub fn refused_for_another_instance(
+    instance: Option<&str>,
+    git_dir: &Path,
+) -> bool {
     if !of_another_instance(instance, git_dir) {
         return false;
     }
-    crate::service_warn!("{} belongs to another instance and is not kept for a restart", git_dir.display());
+    crate::service_warn!(
+        "{} belongs to another instance and is not kept for a restart",
+        git_dir.display()
+    );
     return true;
 }

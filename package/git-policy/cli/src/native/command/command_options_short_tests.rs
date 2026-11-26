@@ -16,17 +16,36 @@
 /// Tokenizer result types,
 ///  queries and the shared synthetic table.
 use crate::command_options::{
-    Arity, DEFAULT_MODE, Occurrence, OptionError, OptionErrorKind, OptionSpec, OptionValue,
-    ParsedOptions, parse_options, row,
+    Arity,
+    DEFAULT_MODE,
+    Occurrence,
+    OptionError,
+    OptionErrorKind,
+    OptionSpec,
+    OptionValue,
+    ParsedOptions,
+    parse_options,
+    row,
 };
-use crate::command_options_query::{is_enabled, is_stated};
+use crate::command_options_query::{
+    is_enabled,
+    is_stated,
+};
 use crate::command_test_support::{
-    ALL, MESSAGE, NO_VERIFY, UNTRACKED, os_arguments, parse_synthetic,
+    ALL,
+    MESSAGE,
+    NO_VERIFY,
+    UNTRACKED,
+    os_arguments,
+    parse_synthetic,
 };
 
 /// Shorthand for an expected refusal at token 0.
 fn refusal(kind: OptionErrorKind) -> Result<ParsedOptions, OptionError> {
-    return Err(OptionError { kind, token: 0 });
+    return Err(OptionError {
+        kind,
+        token: 0,
+    });
 }
 
 /// A value-taking letter ends the cluster and takes the next token when nothing is attached.
@@ -45,7 +64,9 @@ fn a_required_value_letter_takes_the_rest_or_the_next_token() {
             Occurrence {
                 id: MESSAGE,
                 negated: false,
-                value: Some(OptionValue::Detached { token: 1 }),
+                value: Some(OptionValue::Detached {
+                    token: 1
+                }),
                 token: 0
             },
         ]

@@ -14,16 +14,37 @@
 
 /// The failure a case may end in,
 /// and the modes a fixture names.
-use crate::dependent_version_content::{PlanError, TrackedMode};
+use crate::dependent_version_content::{
+    PlanError,
+    TrackedMode,
+};
 /// The fixture reader.
 use crate::dependent_version_fixture_json::{
-    array, elements, field, hex, is_null, is_true, object, quote, text, texts, units,
+    array,
+    elements,
+    field,
+    hex,
+    is_null,
+    is_true,
+    object,
+    quote,
+    text,
+    texts,
+    units,
 };
 /// The canonical renderings of failures,
 /// plans and findings.
-use crate::dependent_version_fixture_output::{failed, plan_output, policy_output};
+use crate::dependent_version_fixture_output::{
+    failed,
+    plan_output,
+    policy_output,
+};
 /// The dependency walk under test.
-use crate::dependent_version_graph::{PlannedBump, WorkspaceNode, plan_dependent_bumps};
+use crate::dependent_version_graph::{
+    PlannedBump,
+    WorkspaceNode,
+    plan_dependent_bumps,
+};
 /// The specifier scan under test.
 use crate::dependent_version_imports::imports_package;
 /// The manifest reader under test.
@@ -34,14 +55,24 @@ use crate::dependent_version_paths::is_non_test_source_path;
 use crate::dependent_version_plan::plan_workspace_bumps;
 /// The policy under test and its request.
 use crate::dependent_version_policy::{
-    Candidate, CandidateChange, DependentRequest, find_dependent_bumps,
+    Candidate,
+    CandidateChange,
+    DependentRequest,
+    find_dependent_bumps,
 };
 /// The configuration reader under test.
 use crate::dependent_version_publishable::read_publishable_names;
 /// The release bump under test and the incumbent's quoting.
-use crate::dependent_version_release::{json_quote_units, patch_bump_version, unsupported_message};
+use crate::dependent_version_release::{
+    json_quote_units,
+    patch_bump_version,
+    unsupported_message,
+};
 /// The in-memory workspace the cases read.
-use crate::dependent_version_test_support::{MemoryFile, MemoryWorkspace};
+use crate::dependent_version_test_support::{
+    MemoryFile,
+    MemoryWorkspace,
+};
 /// The version rewrite under test.
 use crate::dependent_version_text::replace_manifest_version;
 /// The lifecycle point a workspace case names.
@@ -65,7 +96,10 @@ fn mode(value: &JsoncValue) -> TrackedMode {
 /// A file whose
 /// `current` is `null` was not provided,
 /// and any read of it fails.
-pub fn load_files(files: &[JsoncValue], memory: &mut MemoryWorkspace) {
+pub fn load_files(
+    files: &[JsoncValue],
+    memory: &mut MemoryWorkspace,
+) {
     for file in files {
         let path: Vec<u8> = hex(field(file, "path"));
         let current: &JsoncValue = field(file, "current");
@@ -121,7 +155,10 @@ fn memory_workspace(
 
 /// A workspace case:
 /// the plan and the policy findings over the same content.
-fn workspace_case(input: &JsoncValue, shared: &mut dyn FnMut(&str) -> MemoryWorkspace) -> String {
+fn workspace_case(
+    input: &JsoncValue,
+    shared: &mut dyn FnMut(&str) -> MemoryWorkspace,
+) -> String {
     let memory: MemoryWorkspace = memory_workspace(input, shared);
     let candidates: Vec<Candidate> = elements(field(input, "candidates"))
         .iter()
@@ -215,7 +252,10 @@ fn boolean(value: bool) -> String {
 }
 
 /// Evaluate one case of any kind.
-pub fn evaluate(case: &JsoncValue, shared: &mut dyn FnMut(&str) -> MemoryWorkspace) -> String {
+pub fn evaluate(
+    case: &JsoncValue,
+    shared: &mut dyn FnMut(&str) -> MemoryWorkspace,
+) -> String {
     let input: &JsoncValue = field(case, "input");
     let string = |key: &str| return text(field(input, key));
     match string_kind(case).as_str() {
@@ -299,10 +339,9 @@ pub fn evaluate(case: &JsoncValue, shared: &mut dyn FnMut(&str) -> MemoryWorkspa
                         ),
                     ),
                 ]),
-                Err(problem) => object(&[
-                    ("kind", quote("publish-set")),
-                    ("problem", quote(&problem)),
-                ]),
+                Err(problem) => {
+                    object(&[("kind", quote("publish-set")), ("problem", quote(&problem))])
+                }
             };
         }
         other => panic!("unknown case kind {other}"),

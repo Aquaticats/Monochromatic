@@ -23,9 +23,18 @@
 /// import { takeValue } from './command_options_value.ts';
 /// ```
 use crate::command_options::{
-    Occurrence, OptionError, OptionErrorKind, OptionSpec, OptionValue, ParseMode, ParsedOptions,
+    Occurrence,
+    OptionError,
+    OptionErrorKind,
+    OptionSpec,
+    OptionValue,
+    ParseMode,
+    ParsedOptions,
 };
-use crate::command_options_value::{Spelling, take_value};
+use crate::command_options_value::{
+    Spelling,
+    take_value,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
@@ -44,7 +53,10 @@ use std::ffi::OsString;
 /// ```ts
 /// const spec = table.find(row => row.short === letter);
 /// ```
-fn find_short(table: &[OptionSpec], letter: u8) -> Option<OptionSpec> {
+fn find_short(
+    table: &[OptionSpec],
+    letter: u8,
+) -> Option<OptionSpec> {
     // `for spec in table` borrows each row in table order.
     for spec in table {
         if spec.short == Some(letter) {
@@ -66,7 +78,10 @@ fn find_short(table: &[OptionSpec], letter: u8) -> Option<OptionSpec> {
 /// ```ts
 /// const typo = cluster.length >= 3 && (cluster.startsWith('no-') || table.some(r => r.long?.startsWith(cluster)));
 /// ```
-fn spells_long_option(table: &[OptionSpec], cluster: &[u8]) -> bool {
+fn spells_long_option(
+    table: &[OptionSpec],
+    cluster: &[u8],
+) -> bool {
     if cluster.len() < 3 {
         return false;
     }

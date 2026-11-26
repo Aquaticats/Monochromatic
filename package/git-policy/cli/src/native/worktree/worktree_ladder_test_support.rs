@@ -18,16 +18,34 @@
 
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::subvolume_index::walk_entries;
-use crate::subvolume_sha::{sha1, sha256};
-use crate::test_support::{age, git, git_output};
+use crate::subvolume_sha::{
+    sha1,
+    sha256,
+};
+use crate::test_support::{
+    age,
+    git,
+    git_output,
+};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_identity::WorktreeIdentity;
-use std::path::{Path, PathBuf};
 use std::os::unix::fs::MetadataExt;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// Write a tracked file with its parents and age it.
-pub(crate) fn tracked(repo: &Path, relative: &str, content: &[u8]) {
+pub(crate) fn tracked(
+    repo: &Path,
+    relative: &str,
+    content: &[u8],
+) {
     let path: PathBuf = repo.join(relative);
     std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
     std::fs::write(path.as_path(), content).expect("tracked file");
@@ -49,7 +67,11 @@ pub(crate) fn tracked(repo: &Path, relative: &str, content: &[u8]) {
 /// ```ts
 /// const file = createFile(repo + '/' + name); file.truncate(bytes);
 /// ```
-pub(crate) fn tracked_sparse(repo: &Path, name: &str, bytes: u64) {
+pub(crate) fn tracked_sparse(
+    repo: &Path,
+    name: &str,
+    bytes: u64,
+) {
     let path: PathBuf = repo.join(name);
     std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
     let file: std::fs::File = std::fs::File::create(path.as_path()).expect("the sparse file");
@@ -74,7 +96,11 @@ pub(crate) fn tracked_sparse(repo: &Path, name: &str, bytes: u64) {
 /// ```ts
 /// const file = createFile(repo + '/' + name); file.truncate(Math.ceil(edge * 1.1) * (paths + 1));
 /// ```
-pub(crate) fn tracked_above_the_mean_edge(repo: &Path, name: &str, paths: u64) {
+pub(crate) fn tracked_above_the_mean_edge(
+    repo: &Path,
+    name: &str,
+    paths: u64,
+) {
     let edge: u64 = crate::worktree_clone_rung_limits::the_safest_mean_tracked_file();
     let per_path: u64 = edge + edge / 10;
     tracked_sparse(repo, name, per_path.saturating_mul(paths + 1));
@@ -83,9 +109,15 @@ pub(crate) fn tracked_above_the_mean_edge(repo: &Path, name: &str, paths: u64) {
 }
 
 /// Commit everything and refresh the index so every entry is provably unchanged.
-pub(crate) fn commit_all(repo: &Path, message: &str) {
+pub(crate) fn commit_all(
+    repo: &Path,
+    message: &str,
+) {
     git(repo, &["add", "--all"]);
-    git(repo, &["commit", "--quiet", format!("--message={message}").as_str()]);
+    git(
+        repo,
+        &["commit", "--quiet", format!("--message={message}").as_str()],
+    );
     git(repo, &["update-index", "--refresh"]);
 }
 
@@ -98,7 +130,10 @@ pub(crate) fn commit_all(repo: &Path, message: &str) {
 pub(crate) fn subvolume_repository(root: &Path) -> PathBuf {
     let repo: PathBuf = root.join("repo");
     subvolume_create_at(repo.as_path()).expect("repository subvolume");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     tracked(repo.as_path(), ".gitignore", b"ignored/\n");
     tracked(repo.as_path(), "old.txt", b"old\n");
     tracked(repo.as_path(), "shared.txt", b"first\n");
@@ -109,13 +144,18 @@ pub(crate) fn subvolume_repository(root: &Path) -> PathBuf {
     tracked(repo.as_path(), "new/added.txt", b"added\n");
     commit_all(repo.as_path(), "second");
     std::fs::create_dir_all(repo.join("ignored/pkg")).expect("ignored directory");
-    std::fs::write(repo.join("ignored/pkg/index.js"), b"module.exports = 1;\n").expect("ignored file");
+    std::fs::write(repo.join("ignored/pkg/index.js"), b"module.exports = 1;\n")
+        .expect("ignored file");
     return std::fs::canonicalize(repo).expect("canonical");
 }
 
 /// The identity of the main worktree at `repo`.
 pub(crate) fn main_identity(repo: &Path) -> WorktreeIdentity {
-    return WorktreeIdentity::MainWorktree { common_dir: repo.join(".git"), git_dir: repo.join(".git"), worktree_root: repo.to_path_buf() };
+    return WorktreeIdentity::MainWorktree {
+        common_dir: repo.join(".git"),
+        git_dir: repo.join(".git"),
+        worktree_root: repo.to_path_buf(),
+    };
 }
 
 /// A plan for a destination,
@@ -132,7 +172,10 @@ pub(crate) fn plan_to(destination: PathBuf) -> AddPlan {
 /// The plan says `-b` too,
 /// because that is the add the fixture's own Git run makes:
 /// `git worktree add --no-checkout -b topic ../topic <commit-ish>`.
-pub(crate) fn plan_to_at(destination: PathBuf, target: Option<&str>) -> AddPlan {
+pub(crate) fn plan_to_at(
+    destination: PathBuf,
+    target: Option<&str>,
+) -> AddPlan {
     return AddPlan {
         destination,
         insert_at: 2,
@@ -148,13 +191,22 @@ pub(crate) fn plan_to_at(destination: PathBuf, target: Option<&str>) -> AddPlan 
 /// so Git checks out the branch the destination is named after when that branch exists,
 /// and starts at `HEAD` when it does not.
 pub(crate) fn plan_naming_no_commit(destination: PathBuf) -> AddPlan {
-    return AddPlan { destination, insert_at: 2, quiet: false, target: None, checks_out_a_branch: true };
+    return AddPlan {
+        destination,
+        insert_at: 2,
+        quiet: false,
+        target: None,
+        checks_out_a_branch: true,
+    };
 }
 
 /// A plan for the add Git reads as `git worktree add <destination> <commit-ish>`:
 /// no `-b` and no `--detach`,
 /// so a local branch the commit-ish names is the branch Git checks out.
-pub(crate) fn plan_naming_a_commit(destination: PathBuf, commit_ish: &str) -> AddPlan {
+pub(crate) fn plan_naming_a_commit(
+    destination: PathBuf,
+    commit_ish: &str,
+) -> AddPlan {
     return AddPlan {
         destination,
         insert_at: 2,
@@ -181,10 +233,16 @@ pub(crate) const HIDDEN_EDIT_SECONDS: u64 = 1_577_934_245;
 /// ```ts
 /// const seconds = 1_577_934_245; const when = new Date(seconds * 1000); utimesSync(path, when, when);
 /// ```
-fn set_modified(path: &Path, seconds: u64) {
+fn set_modified(
+    path: &Path,
+    seconds: u64,
+) {
     let when: SystemTime = UNIX_EPOCH + Duration::from_secs(seconds);
     let times: std::fs::FileTimes = std::fs::FileTimes::new().set_modified(when);
-    std::fs::File::open(path).expect("the file whose times are put back").set_times(times).expect("the modification time");
+    std::fs::File::open(path)
+        .expect("the file whose times are put back")
+        .set_times(times)
+        .expect("the modification time");
 }
 
 /// Wait until a new whole second of the wall clock has begun.
@@ -192,8 +250,13 @@ fn set_modified(path: &Path, seconds: u64) {
 ///  a file as new as the index proves nothing about its bytes,
 ///  so a fixture whose Git run rewrote its files refreshes the index only after the second has passed.
 pub(crate) fn wait_for_a_new_second() {
-    let now: Duration = SystemTime::now().duration_since(UNIX_EPOCH).expect("a clock after 1970");
-    std::thread::sleep(Duration::from_secs(1) - Duration::from_nanos(u64::from(now.subsec_nanos())) + Duration::from_millis(2));
+    let now: Duration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("a clock after 1970");
+    std::thread::sleep(
+        Duration::from_secs(1) - Duration::from_nanos(u64::from(now.subsec_nanos()))
+            + Duration::from_millis(2),
+    );
 }
 
 /// What:
@@ -219,19 +282,34 @@ pub(crate) fn wait_for_a_new_second() {
 /// ```ts
 /// function hideAnEdit(repo, relative, original, edited) { ...; return git(repo, ['diff-files', '--quiet']).status === 0 }
 /// ```
-pub(crate) fn hide_an_edit(repo: &Path, relative: &str, original: &[u8], edited: &[u8]) -> bool {
-    assert_eq!(original.len(), edited.len(), "an edit the stat check cannot see keeps the length of the file it replaces");
+pub(crate) fn hide_an_edit(
+    repo: &Path,
+    relative: &str,
+    original: &[u8],
+    edited: &[u8],
+) -> bool {
+    assert_eq!(
+        original.len(),
+        edited.len(),
+        "an edit the stat check cannot see keeps the length of the file it replaces"
+    );
     let path: PathBuf = repo.join(relative);
     for _attempt in 0..5 {
         std::fs::write(path.as_path(), original).expect("the file before the edit");
         wait_for_a_new_second();
         set_modified(path.as_path(), HIDDEN_EDIT_SECONDS);
         git(repo, &["add", "--", relative]);
-        let recorded: std::fs::Metadata = std::fs::metadata(path.as_path()).expect("the file's stat when the index recorded it");
+        let recorded: std::fs::Metadata =
+            std::fs::metadata(path.as_path()).expect("the file's stat when the index recorded it");
         std::fs::write(path.as_path(), edited).expect("the edit");
         set_modified(path.as_path(), HIDDEN_EDIT_SECONDS);
-        let hidden: bool = git_output(repo, &["diff-files", "--quiet"]).status.success();
-        let same_second: bool = std::fs::metadata(path.as_path()).expect("the file's stat after the edit").ctime() == recorded.ctime();
+        let hidden: bool = git_output(repo, &["diff-files", "--quiet"])
+            .status
+            .success();
+        let same_second: bool = std::fs::metadata(path.as_path())
+            .expect("the file's stat after the edit")
+            .ctime()
+            == recorded.ctime();
         if hidden && same_second {
             return true;
         }
@@ -258,23 +336,38 @@ pub(crate) const OLDER_TARGET_OLD_PATHS: usize = 40;
 /// ```ts
 /// pathsBelow(root, new Set(['.git'])); // sorted relative names
 /// ```
-pub(crate) fn paths_below(root: &Path, left_out: &[&str]) -> Vec<String> {
+pub(crate) fn paths_below(
+    root: &Path,
+    left_out: &[&str],
+) -> Vec<String> {
     // The directories still to read, each as the relative name of its own contents' parent.
     let mut pending: Vec<String> = vec![String::new()];
     let mut found: Vec<String> = Vec::new();
     while let Some(parent) = pending.pop() {
-        let directory: PathBuf = if parent.is_empty() { root.to_path_buf() } else { root.join(parent.as_str()) };
+        let directory: PathBuf = if parent.is_empty() {
+            root.to_path_buf()
+        } else {
+            root.join(parent.as_str())
+        };
         let listing = match std::fs::read_dir(directory.as_path()) {
             Ok(read) => read,
             Err(_unreadable) => continue,
         };
         for entry in listing.flatten() {
             let name: String = entry.file_name().to_string_lossy().into_owned();
-            let relative: String = if parent.is_empty() { name.clone() } else { format!("{parent}/{name}") };
+            let relative: String = if parent.is_empty() {
+                name.clone()
+            } else {
+                format!("{parent}/{name}")
+            };
             if parent.is_empty() && left_out.contains(&name.as_str()) {
                 continue;
             }
-            if entry.file_type().map(|kind: std::fs::FileType| return kind.is_dir()).unwrap_or(false) {
+            if entry
+                .file_type()
+                .map(|kind: std::fs::FileType| return kind.is_dir())
+                .unwrap_or(false)
+            {
                 pending.push(relative.clone());
             }
             found.push(relative);
@@ -301,9 +394,16 @@ pub(crate) fn paths_below(root: &Path, left_out: &[&str]) -> Vec<String> {
 /// ```ts
 /// asAGitWithoutNanosecondsWroteIt(readFileSync(index), 20); // the counts zero, the checksum over the new bytes
 /// ```
-pub(crate) fn as_a_git_without_nanoseconds_wrote_it(index: &[u8], hash_length: usize) -> Vec<u8> {
-    let Some((entries, _end)) = walk_entries(index, hash_length) else { panic!("the fixture's index has a layout the walk knows") };
-    let Some(checksum_at) = index.len().checked_sub(hash_length) else { panic!("the fixture's index is longer than its checksum") };
+pub(crate) fn as_a_git_without_nanoseconds_wrote_it(
+    index: &[u8],
+    hash_length: usize,
+) -> Vec<u8> {
+    let Some((entries, _end)) = walk_entries(index, hash_length) else {
+        panic!("the fixture's index has a layout the walk knows")
+    };
+    let Some(checksum_at) = index.len().checked_sub(hash_length) else {
+        panic!("the fixture's index is longer than its checksum")
+    };
     let mut zeroed: Vec<u8> = index.to_vec();
     for entry in &entries {
         zeroed[entry.start + 4..entry.start + 8].fill(0);

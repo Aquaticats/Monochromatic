@@ -15,26 +15,57 @@
 //! expect(isSnapshotName('tank/wt@a=b')).toBe(false);
 //! ```
 
-use super::{is_a_snapshot_of, is_dataset_name, is_snapshot_name};
+use super::{
+    is_a_snapshot_of,
+    is_dataset_name,
+    is_snapshot_name,
+};
 
 #[test]
 fn a_dataset_name_holds_no_newline_no_equals_and_no_empty_component() {
     assert!(is_dataset_name("tank"));
     assert!(is_dataset_name("tank/wt/fix-flaky-test"));
     assert!(is_dataset_name("tank/mono checkout"));
-    for refused in ["", "tank/", "/tank", "tank//wt", "tank/../wt", "tank/.", "tank/wt=x", "tank/wt\nx", "tank/wt@origin"] {
-        assert!(!is_dataset_name(refused), "`{refused}` is not a dataset name");
+    for refused in [
+        "",
+        "tank/",
+        "/tank",
+        "tank//wt",
+        "tank/../wt",
+        "tank/.",
+        "tank/wt=x",
+        "tank/wt\nx",
+        "tank/wt@origin",
+    ] {
+        assert!(
+            !is_dataset_name(refused),
+            "`{refused}` is not a dataset name"
+        );
     }
     let too_long: String = "a".repeat(256);
-    assert!(!is_dataset_name(too_long.as_str()), "a name longer than the kernel's bound is refused");
+    assert!(
+        !is_dataset_name(too_long.as_str()),
+        "a name longer than the kernel's bound is refused"
+    );
 }
 
 #[test]
 fn a_snapshot_name_is_one_dataset_and_one_snapshot() {
     assert!(is_snapshot_name("tank/wt/fix-flaky-test@worktree-own"));
     assert!(is_snapshot_name("tank/mono-checkout@origin"));
-    for refused in ["tank/wt", "@origin", "tank/wt@", "tank/wt@a@b", "tank//wt@a", "tank/wt@a=b", "tank/wt@a\nb"] {
-        assert!(!is_snapshot_name(refused), "`{refused}` is not a snapshot name");
+    for refused in [
+        "tank/wt",
+        "@origin",
+        "tank/wt@",
+        "tank/wt@a@b",
+        "tank//wt@a",
+        "tank/wt@a=b",
+        "tank/wt@a\nb",
+    ] {
+        assert!(
+            !is_snapshot_name(refused),
+            "`{refused}` is not a snapshot name"
+        );
     }
 }
 

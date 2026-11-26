@@ -28,11 +28,23 @@
 
 use crate::child_environment::environment_with_overlay;
 use crate::held_commit_record::Held;
-use crate::merge_second_pass::conflicts_of_merge_tree;
 use crate::merge_second_pass::ContextRunner;
-use crate::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables_on_the_runtime};
-use crate::service_amend_replayed::{BuildSite, rebuilt_onto, stored_commit_fields};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::merge_second_pass::conflicts_of_merge_tree;
+use crate::merge_second_pass_tree::{
+    AttributeProbe,
+    attribute_tree_variables_on_the_runtime,
+};
+use crate::service_amend_replayed::{
+    BuildSite,
+    rebuilt_onto,
+    stored_commit_fields,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -85,19 +97,40 @@ pub enum Replay {
 /// ```ts
 /// revParseQuiet(reference) // '' when the ref is missing, undefined when Git gave no answer
 /// ```
-fn current_value(git: &GitContext, held: &Held) -> Option<String> {
-    let request: GitRequest = GitRequest::new(held.repository.as_path(), held.reference.value_question().as_slice());
+fn current_value(
+    git: &GitContext,
+    held: &Held,
+) -> Option<String> {
+    let request: GitRequest = GitRequest::new(
+        held.repository.as_path(),
+        held.reference.value_question().as_slice(),
+    );
     let output: GitOutput = run_git(git, &request).ok()?;
     if output.succeeded() {
-        return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+        return Some(
+            String::from_utf8_lossy(output.stdout.as_slice())
+                .trim()
+                .to_string(),
+        );
     }
-    return if output.code == Some(NAME_IS_NO_OBJECT) && output.stderr.is_empty() { Some(String::new()) } else { None };
+    return if output.code == Some(NAME_IS_NO_OBJECT) && output.stderr.is_empty() {
+        Some(String::new())
+    } else {
+        None
+    };
 }
 
 /// The parents of a commit,
 /// as the object store names them.
-fn parents_of(git: &GitContext, repository: &Path, commit: &str) -> Option<Vec<String>> {
-    let request: GitRequest = GitRequest::new(repository, &["rev-list", "--parents", "--max-count=1", commit]);
+fn parents_of(
+    git: &GitContext,
+    repository: &Path,
+    commit: &str,
+) -> Option<Vec<String>> {
+    let request: GitRequest = GitRequest::new(
+        repository,
+        &["rev-list", "--parents", "--max-count=1", commit],
+    );
     let output: GitOutput = run_git(git, &request).ok()?;
     if !output.succeeded() {
         return None;
@@ -124,19 +157,51 @@ fn parents_of(git: &GitContext, repository: &Path, commit: &str) -> Option<Vec<S
 /// ```ts
 /// const merged = await mergeTree({ base, head, prepared }); // { tree } | { paths } | { because }
 /// ```
-fn merged_tree(git: &GitContext, held: &Held, base: &str, head: &str, prepared: &str) -> Result<Result<String, Vec<Vec<u8>>>, String> {
+fn merged_tree(
+    git: &GitContext,
+    held: &Held,
+    base: &str,
+    head: &str,
+    prepared: &str,
+) -> Result<Result<String, Vec<Vec<u8>>>, String> {
     let merge_base: String = format!("--merge-base={base}");
-    let mut request: GitRequest = GitRequest::new(held.repository.as_path(), &["merge-tree", "--write-tree", "-z", merge_base.as_str(), head, prepared]);
+    let mut request: GitRequest = GitRequest::new(
+        held.repository.as_path(),
+        &[
+            "merge-tree",
+            "--write-tree",
+            "-z",
+            merge_base.as_str(),
+            head,
+            prepared,
+        ],
+    );
     // No worktree is read, so the landed tip's `.gitattributes` is the one the merge applies.
     let process_environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    let variables: Vec<(OsString, OsString)> = environment_with_overlay(process_environment.as_slice(), git.overlay.as_slice());
+    let variables: Vec<(OsString, OsString)> =
+        environment_with_overlay(process_environment.as_slice(), git.overlay.as_slice());
     // The probe keeps none of the caller's options, so the repository the record names is carried here: a Git directory beside
     //  the work tree is found only when it is named, and a plain layout needs no argument at all
     //  (`repository_selection.rs`, `of_paths`).
-    let repository: Vec<OsString> = crate::repository_selection::of_paths(held.git_dir.as_path(), held.repository.as_path());
-    let probing: ContextRunner = ContextRunner { context: git, cwd: held.repository.as_path(), without_prefix: true, repository, object_directory: None, environment: Vec::new() };
-    let probe: AttributeProbe = AttributeProbe { directory: held.repository.as_path(), global_prefix: &[], variables: variables.as_slice(), runner: &probing };
-    request.environment.extend(attribute_tree_variables_on_the_runtime(head, &probe));
+    let repository: Vec<OsString> =
+        crate::repository_selection::of_paths(held.git_dir.as_path(), held.repository.as_path());
+    let probing: ContextRunner = ContextRunner {
+        context: git,
+        cwd: held.repository.as_path(),
+        without_prefix: true,
+        repository,
+        object_directory: None,
+        environment: Vec::new(),
+    };
+    let probe: AttributeProbe = AttributeProbe {
+        directory: held.repository.as_path(),
+        global_prefix: &[],
+        variables: variables.as_slice(),
+        runner: &probing,
+    };
+    request
+        .environment
+        .extend(attribute_tree_variables_on_the_runtime(head, &probe));
     let output: GitOutput = run_git(git, &request).map_err(git_did_not_start)?;
     let (tree, conflicts) = conflicts_of_merge_tree(output.stdout.as_slice());
     return match output.code {
@@ -150,7 +215,10 @@ fn merged_tree(git: &GitContext, held: &Held, base: &str, head: &str, prepared: 
             paths.dedup();
             Ok(Err(paths))
         }
-        other => Err(format!("Git could not merge {prepared} onto {head} (exit {other:?}): {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
+        other => Err(format!(
+            "Git could not merge {prepared} onto {head} (exit {other:?}): {}",
+            String::from_utf8_lossy(output.stderr.as_slice()).trim()
+        )),
     };
 }
 
@@ -165,10 +233,18 @@ fn merged_tree(git: &GitContext, held: &Held, base: &str, head: &str, prepared: 
 /// ```ts
 /// git('cat-file', 'commit', commit).stdout
 /// ```
-fn raw_commit(git: &GitContext, repository: &Path, commit: &str) -> Option<Vec<u8>> {
+fn raw_commit(
+    git: &GitContext,
+    repository: &Path,
+    commit: &str,
+) -> Option<Vec<u8>> {
     let request: GitRequest = GitRequest::new(repository, &["cat-file", "commit", commit]);
     let output: GitOutput = run_git(git, &request).ok()?;
-    return if output.succeeded() { Some(output.stdout) } else { None };
+    return if output.succeeded() {
+        Some(output.stdout)
+    } else {
+        None
+    };
 }
 
 /// What:
@@ -185,41 +261,86 @@ fn raw_commit(git: &GitContext, repository: &Path, commit: &str) -> Option<Vec<u
 /// let head = current; let base = held.old;
 /// for (const prepared of held.commits) { head = await carryOne(prepared, base, head); base = prepared }
 /// ```
-pub fn onto(git: &GitContext, held: &Held, current: &str, common_dir: &Path) -> Replay {
+pub fn onto(
+    git: &GitContext,
+    held: &Held,
+    current: &str,
+    common_dir: &Path,
+) -> Replay {
     let Ok(scratch) = crate::scratch_location::prepare_repository_scratch(common_dir) else {
-        return Replay::Cannot { because: String::from("the repository's scratch directory cannot be written") };
+        return Replay::Cannot {
+            because: String::from("the repository's scratch directory cannot be written"),
+        };
     };
     let Ok(message_folder) = tempfile::tempdir_in(scratch.as_path()) else {
-        return Replay::Cannot { because: String::from("a temporary directory cannot be made in the repository's scratch directory") };
+        return Replay::Cannot {
+            because: String::from(
+                "a temporary directory cannot be made in the repository's scratch directory",
+            ),
+        };
     };
-    let site: BuildSite<'_> = BuildSite { context: git, cwd: held.repository.as_path(), scratch: message_folder.path(), signing: None };
+    let site: BuildSite<'_> = BuildSite {
+        context: git,
+        cwd: held.repository.as_path(),
+        scratch: message_folder.path(),
+        signing: None,
+    };
     let mut head: String = current.to_string();
     let mut base: String = held.old.clone();
     let mut written: Vec<String> = Vec::new();
     for prepared in &held.commits {
         let Some(parents) = parents_of(git, held.repository.as_path(), prepared.as_str()) else {
-            return Replay::Cannot { because: format!("the commit {prepared} cannot be read") };
+            return Replay::Cannot {
+                because: format!("the commit {prepared} cannot be read"),
+            };
         };
         match parents.len() {
             1 => {}
-            0 => return Replay::Cannot { because: format!("the commit {prepared} has no parent, so the branch it was made on was created while the lock stood") },
+            0 => {
+                return Replay::Cannot {
+                    because: format!(
+                        "the commit {prepared} has no parent, so the branch it was made on was created while the lock stood"
+                    ),
+                };
+            }
             many => {
-                return Replay::Cannot { because: format!("the commit {prepared} has {many} parents, and a commit that concludes a merge cannot be carried onto another head") };
+                return Replay::Cannot {
+                    because: format!(
+                        "the commit {prepared} has {many} parents, and a commit that concludes a merge cannot be carried onto another head"
+                    ),
+                };
             }
         }
-        let merged: String = match merged_tree(git, held, base.as_str(), head.as_str(), prepared.as_str()) {
-            Err(because) => return Replay::Cannot { because },
-            Ok(Ok(merged)) => merged,
-            Ok(Err(paths)) => return Replay::Conflict { paths },
-        };
+        let merged: String =
+            match merged_tree(git, held, base.as_str(), head.as_str(), prepared.as_str()) {
+                Err(because) => {
+                    return Replay::Cannot {
+                        because,
+                    };
+                }
+                Ok(Ok(merged)) => merged,
+                Ok(Err(paths)) => {
+                    return Replay::Conflict {
+                        paths,
+                    };
+                }
+            };
         let Some(raw) = raw_commit(git, held.repository.as_path(), prepared.as_str()) else {
-            return Replay::Cannot { because: format!("the commit {prepared} cannot be read") };
+            return Replay::Cannot {
+                because: format!("the commit {prepared} cannot be read"),
+            };
         };
         let Some(fields) = stored_commit_fields(raw.as_slice()) else {
-            return Replay::Cannot { because: format!("the commit {prepared} cannot be read as a commit") };
+            return Replay::Cannot {
+                because: format!("the commit {prepared} cannot be read as a commit"),
+            };
         };
         if fields.is_signed() {
-            return Replay::Cannot { because: format!("the commit {prepared} is signed, and a commit made again would have to be signed again by a program that may ask for a key") };
+            return Replay::Cannot {
+                because: format!(
+                    "the commit {prepared} is signed, and a commit made again would have to be signed again by a program that may ask for a key"
+                ),
+            };
         }
         match rebuilt_onto(&fields, &site, merged.as_str(), head.as_str()) {
             Ok(rebuilt) => {
@@ -227,14 +348,23 @@ pub fn onto(git: &GitContext, held: &Held, current: &str, common_dir: &Path) -> 
                 head = rebuilt;
                 base = prepared.clone();
             }
-            Err(_stop) => return Replay::Cannot { because: format!("the commit made from {prepared} could not be written") },
+            Err(_stop) => {
+                return Replay::Cannot {
+                    because: format!("the commit made from {prepared} could not be written"),
+                };
+            }
         }
     }
-    return Replay::Replayed { commits: written };
+    return Replay::Replayed {
+        commits: written,
+    };
 }
 
 /// The branch value the held commit expects,
 /// for the caller that compares it.
-pub(crate) fn value_now(git: &GitContext, held: &Held) -> Option<String> {
+pub(crate) fn value_now(
+    git: &GitContext,
+    held: &Held,
+) -> Option<String> {
     return current_value(git, held);
 }

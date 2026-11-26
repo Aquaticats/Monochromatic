@@ -152,7 +152,9 @@ pub fn parse_object_id(bytes: &[u8]) -> Option<ObjectId> {
         hex.push(char::from(*byte));
     }
     // `Some(...)` is the "present" variant.
-    return Some(ObjectId { hex });
+    return Some(ObjectId {
+        hex,
+    });
 }
 
 /// What:

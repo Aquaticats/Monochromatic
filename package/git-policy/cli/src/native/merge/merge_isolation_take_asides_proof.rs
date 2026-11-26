@@ -14,19 +14,22 @@
 //! const proof = theProofThatNothingCanWriteInto(aside, scanned); // a read lease, or the scan's answer
 //! ```
 
-/// Every process this platform can read,
-///  as one scan of the file's holders found them.
-use crate::index_lock_holders::HolderEvidence;
 /// One file call of a removal handed to the blocking pool,
 ///  so a disk that makes it wait holds no worker of the runtime.
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+/// Every process this platform can read,
+///  as one scan of the file's holders found them.
+use crate::index_lock_holders::HolderEvidence;
 /// The scan's reason for a process another account owns,
 ///  which a platform without leases acts through.
 #[cfg(not(target_os = "linux"))]
 use crate::index_lock_holders_accounts::OTHER_ACCOUNTS_PROCESS_REASON;
 /// `Path` is a borrowed filesystem path of raw OS bytes,
 /// and `PathBuf` is the owned one a job of the pool can carry.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The proof that nothing but this command can write into one file,
@@ -69,7 +72,10 @@ impl ProofNothingCanWrite {
     /// ```ts
     /// remove(aside) { const outcome = rm(aside); close(this.lease); return outcome; }
     /// ```
-    pub(crate) fn remove(self, aside: &Path) -> std::io::Result<()> {
+    pub(crate) fn remove(
+        self,
+        aside: &Path,
+    ) -> std::io::Result<()> {
         let outcome: std::io::Result<()> = std::fs::remove_file(aside);
         #[cfg(target_os = "linux")]
         if let Self::KernelLease(lease) = self {
@@ -95,9 +101,14 @@ impl ProofNothingCanWrite {
     /// ```ts
     /// const outcome = await proof.removeOnTheBlockingPool(aside); // rm(aside) with this.lease held in the job
     /// ```
-    pub(crate) async fn remove_on_the_blocking_pool(self, aside: &Path) -> std::io::Result<()> {
+    pub(crate) async fn remove_on_the_blocking_pool(
+        self,
+        aside: &Path,
+    ) -> std::io::Result<()> {
         let named: PathBuf = aside.to_path_buf();
-        return match run_blocking_job_within_the_budget(move || return self.remove(named.as_path())).await {
+        return match run_blocking_job_within_the_budget(move || return self.remove(named.as_path()))
+            .await
+        {
             Ok(outcome) => outcome,
             // The system gave the pool no thread: the name was not removed here, and the queued job may remove it later.
             Err(refused) => Err(std::io::Error::other(refused.to_string())),
@@ -158,7 +169,10 @@ fn ignore_the_lease_break_notice_once() {
 /// ```ts
 /// const theProofThatNothingCanWriteInto = (aside, scanned) => lstat(aside).isSymbolicLink() ? (scanProved(scanned) ? { kind: 'scan' } : undefined) : leaseOrUndefined(aside);
 /// ```
-pub(crate) fn the_proof_that_nothing_can_write_into(aside: &Path, scanned: &HolderEvidence) -> Option<ProofNothingCanWrite> {
+pub(crate) fn the_proof_that_nothing_can_write_into(
+    aside: &Path,
+    scanned: &HolderEvidence,
+) -> Option<ProofNothingCanWrite> {
     #[cfg(target_os = "linux")]
     {
         let _ = scanned;
@@ -171,7 +185,8 @@ pub(crate) fn the_proof_that_nothing_can_write_into(aside: &Path, scanned: &Hold
         use std::os::fd::AsRawFd;
         let lease: std::fs::File = std::fs::File::open(aside).ok()?;
         // SAFETY: the descriptor is open for the call, and this command holds the only claim on it.
-        let refused: libc::c_int = unsafe { libc::fcntl(lease.as_raw_fd(), libc::F_SETLEASE, libc::F_RDLCK) };
+        let refused: libc::c_int =
+            unsafe { libc::fcntl(lease.as_raw_fd(), libc::F_SETLEASE, libc::F_RDLCK) };
         if refused != 0 {
             return None;
         }
@@ -183,7 +198,10 @@ pub(crate) fn the_proof_that_nothing_can_write_into(aside: &Path, scanned: &Hold
         let _ = aside;
         // A process another account owns cannot write into a file of this account's, and the scan of a platform without leases
         //  cannot see its descriptors: those reasons are the limit a removal acts through.
-        let unruled_out: bool = scanned.partial.iter().any(|reason| !reason.starts_with(OTHER_ACCOUNTS_PROCESS_REASON));
+        let unruled_out: bool = scanned
+            .partial
+            .iter()
+            .any(|reason| !reason.starts_with(OTHER_ACCOUNTS_PROCESS_REASON));
         if scanned.holders.is_empty() && !unruled_out && !scanned.unresolved() {
             return Some(ProofNothingCanWrite::Scan);
         }

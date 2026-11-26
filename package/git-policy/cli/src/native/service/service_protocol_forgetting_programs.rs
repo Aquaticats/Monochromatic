@@ -36,17 +36,29 @@ pub(crate) fn forgetting_programs(value: &Value) -> Result<ClientMessage, String
     if !git_dir.is_absolute() || git_dir.to_string_lossy().contains('\0') {
         return Err(String::from("forget request is not acceptable"));
     }
-    let named: &Vec<Value> = value.get("records").and_then(Value::as_array).ok_or("records is missing")?;
+    let named: &Vec<Value> = value
+        .get("records")
+        .and_then(Value::as_array)
+        .ok_or("records is missing")?;
     if named.len() > MAX_FORGOTTEN_RECORDS {
         return Err(String::from("number of records is not acceptable"));
     }
     let mut records: Vec<String> = Vec::new();
     for entry in named {
-        let Some(id) = entry.as_str() else { return Err(String::from("a forget request names a record that is not text")) };
+        let Some(id) = entry.as_str() else {
+            return Err(String::from(
+                "a forget request names a record that is not text",
+            ));
+        };
         if !crate::work_item_ids_and_names::is_valid_id(id) {
-            return Err(String::from("a forget request names a record that is no work record"));
+            return Err(String::from(
+                "a forget request names a record that is no work record",
+            ));
         }
         records.push(id.to_string());
     }
-    return Ok(ClientMessage::ForgetPrograms { git_dir, records });
+    return Ok(ClientMessage::ForgetPrograms {
+        git_dir,
+        records,
+    });
 }

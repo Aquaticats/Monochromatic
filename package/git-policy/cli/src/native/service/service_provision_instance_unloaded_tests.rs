@@ -17,11 +17,17 @@
 //! so none of these reach the account's own manager.
 
 use super::*;
-use crate::service_instance::{program_link, service_unit_instance};
-use crate::service_server_socket_binding::Bind;
-use std::path::PathBuf;
+use crate::service_instance::{
+    program_link,
+    service_unit_instance,
+};
 use crate::service_provision::unit_texts;
-use crate::test_support::{fixture, remove};
+use crate::service_server_socket_binding::Bind;
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use std::path::PathBuf;
 use std::time::Duration;
 
 /// The instance the fixture worktree has.
@@ -77,13 +83,27 @@ struct Scripted {
 impl Scripted {
     /// A manager holding a running service and its socket,
     /// whatever happens after.
-    fn new(service: Vec<Answer>, socket: Vec<Answer>) -> Self {
-        return Self { service, socket, service_asked: 0, socket_asked: 0, stops: Vec::new(), service_state_at_the_stop: None, after_the_socket_stop: None };
+    fn new(
+        service: Vec<Answer>,
+        socket: Vec<Answer>,
+    ) -> Self {
+        return Self {
+            service,
+            socket,
+            service_asked: 0,
+            socket_asked: 0,
+            stops: Vec::new(),
+            service_state_at_the_stop: None,
+            after_the_socket_stop: None,
+        };
     }
 
     /// Makes the service answer `answer` from the socket's stop onwards,
     /// which is a concurrent commit starting it inside the unload's window.
-    fn started_again_after_the_socket_stop(mut self, answer: Answer) -> Self {
+    fn started_again_after_the_socket_stop(
+        mut self,
+        answer: Answer,
+    ) -> Self {
         self.after_the_socket_stop = Some(answer);
         return self;
     }
@@ -105,7 +125,10 @@ impl Scripted {
 
     /// What the script says the service does now,
     /// which every question after the socket's stop is answered from when a control set that.
-    fn state_of(&mut self, unit: &str) -> Answer {
+    fn state_of(
+        &mut self,
+        unit: &str,
+    ) -> Answer {
         // What: The service a concurrent commit starts is there from the moment the first stop job is sent, and from then on.
         // Why:  That start is what the look could not see, and the stop's job runs after it.
         let window_opened: bool = !self.stops.is_empty();
@@ -127,25 +150,47 @@ impl Scripted {
 
     /// The next answer of one script,
     /// the last one repeating so a poll loop runs out inside it.
-    fn next(answers: &[Answer], asked: &mut usize) -> Answer {
-        let answer: Answer = answers.get(*asked).or_else(|| { return answers.last(); }).cloned().unwrap_or(Answer::Gone);
+    fn next(
+        answers: &[Answer],
+        asked: &mut usize,
+    ) -> Answer {
+        let answer: Answer = answers
+            .get(*asked)
+            .or_else(|| {
+                return answers.last();
+            })
+            .cloned()
+            .unwrap_or(Answer::Gone);
         *asked += 1;
         return answer;
     }
 }
 
 impl Manager for Scripted {
-    fn within(&mut self, _wait: Duration) {}
+    fn within(
+        &mut self,
+        _wait: Duration,
+    ) {
+    }
 
-    fn reset_failed(&mut self, _unit: &str) -> Result<(), CallError> {
+    fn reset_failed(
+        &mut self,
+        _unit: &str,
+    ) -> Result<(), CallError> {
         return Ok(());
     }
 
-    fn start(&mut self, _unit: &str) -> Result<(), CallError> {
+    fn start(
+        &mut self,
+        _unit: &str,
+    ) -> Result<(), CallError> {
         return Ok(());
     }
 
-    fn stop(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         // What: A stop in the mode that carries through `Requires=`, which no control here may see for a service.
         // Why:  That mode is what ends a service another command started inside the unload's window, and the repair may not
         //       use it (`service_provision_instance_unloaded.rs`).
@@ -154,13 +199,19 @@ impl Manager for Scripted {
         return Ok(());
     }
 
-    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop_alone(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         self.service_state_at_the_stop = self.state_when_the_stop_runs();
         self.stops.push(format!("stop-alone {unit}"));
         return Ok(());
     }
 
-    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
+    fn active_state(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<String>, CallError> {
         let answer: Answer = Self::state_of(self, unit);
         return match answer {
             Answer::State(text) => Ok(Some(String::from(text))),
@@ -169,7 +220,10 @@ impl Manager for Scripted {
         };
     }
 
-    fn listen(&mut self, _unit: &str) -> Result<Option<Vec<String>>, CallError> {
+    fn listen(
+        &mut self,
+        _unit: &str,
+    ) -> Result<Option<Vec<String>>, CallError> {
         return Ok(None);
     }
 }
@@ -199,13 +253,17 @@ struct Machine {
 /// ```ts
 /// const machine = machine('unload-silent-lib', 100); // a 100 ms retirement wait
 /// ```
-fn machine(name: &str, retirement_wait: Duration) -> Machine {
+fn machine(
+    name: &str,
+    retirement_wait: Duration,
+) -> Machine {
     let root: PathBuf = fixture(name);
     // What: The runtime directory stands under the agent scratch directory, not under the fixture root.
     // Why:  A socket address is the runtime directory plus 66 bytes and the kernel holds at most 107, so the build
     //       directory's depth cannot be part of it.
     let count: usize = RUNTIME_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let scratch: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
+    let scratch: PathBuf =
+        PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
     let runtime: PathBuf = scratch.join(format!("unload-{}-{count}", std::process::id()));
     let _removed = std::fs::remove_dir_all(&runtime);
     std::fs::create_dir_all(&runtime).expect("runtime directory");
@@ -220,12 +278,19 @@ fn machine(name: &str, retirement_wait: Duration) -> Machine {
         git_dir: root.join("repository/.git/worktrees/topic"),
         retirement_wait,
     };
-    return Machine { root, host };
+    return Machine {
+        root,
+        host,
+    };
 }
 
 /// Whether the record of what the manager read says it read these texts for this instance.
 fn record_says_read(machine: &Machine) -> bool {
-    return crate::service_provision_loaded_unit_texts::remembers(machine.host.runtime_dir.as_path(), INSTANCE, unit_texts(&machine.host).as_slice());
+    return crate::service_provision_loaded_unit_texts::remembers(
+        machine.host.runtime_dir.as_path(),
+        INSTANCE,
+        unit_texts(&machine.host).as_slice(),
+    );
 }
 
 /// What:
@@ -247,20 +312,41 @@ fn record_says_read(machine: &Machine) -> bool {
 fn a_manager_that_stops_answering_after_the_stop_leaves_the_commit_to_go_on() {
     let machine: Machine = machine("unload-silent-manager-lib", Duration::from_secs(10));
     let mut manager: Scripted = Scripted::new(
-        vec![Answer::State("active"), Answer::State("inactive"), Answer::Silent],
+        vec![
+            Answer::State("active"),
+            Answer::State("inactive"),
+            Answer::Silent,
+        ],
         vec![Answer::State("active"), Answer::Silent],
     );
     let said: Vec<String> = crate::service_timing::capture::entries_of(|| {
-        crate::service_provision::provision_with(&machine.host, &mut manager).expect("a manager that answered the stop and then went quiet does not fail the commit");
+        crate::service_provision::provision_with(&machine.host, &mut manager).expect(
+            "a manager that answered the stop and then went quiet does not fail the commit",
+        );
     })
     .iter()
-    .map(|entry| { return entry.message.clone(); })
+    .map(|entry| {
+        return entry.message.clone();
+    })
     .collect();
     // What: No line may name a missing user service manager: one answered the stop a moment before.
     // Why:  That diagnosis sends the person to `loginctl enable-linger`, which cannot make a busy manager answer.
-    assert!(!said.iter().any(|line| { return line.contains("no user service manager") || line.contains("loginctl"); }), "{said:?}");
-    assert!(said.iter().any(|line| { return line.contains(instance_service().as_str()); }), "a line names this worktree's own unit: {said:?}");
-    assert!(!record_says_read(&machine), "nothing was dropped, so the record stays unwritten and the next commit asks again");
+    assert!(
+        !said.iter().any(|line| {
+            return line.contains("no user service manager") || line.contains("loginctl");
+        }),
+        "{said:?}"
+    );
+    assert!(
+        said.iter().any(|line| {
+            return line.contains(instance_service().as_str());
+        }),
+        "a line names this worktree's own unit: {said:?}"
+    );
+    assert!(
+        !record_says_read(&machine),
+        "nothing was dropped, so the record stays unwritten and the next commit asks again"
+    );
     remove(machine.root.as_path());
 }
 
@@ -285,16 +371,32 @@ fn a_manager_that_stops_answering_after_the_stop_leaves_the_commit_to_go_on() {
 #[test]
 fn a_service_that_is_still_landing_leaves_the_commit_to_go_on_and_stops_nothing() {
     let machine: Machine = machine("unload-landing-service-lib", Duration::from_millis(100));
-    let mut manager: Scripted = Scripted::new(vec![Answer::State("active")], vec![Answer::State("active")]);
+    let mut manager: Scripted =
+        Scripted::new(vec![Answer::State("active")], vec![Answer::State("active")]);
     let said: Vec<String> = crate::service_timing::capture::entries_of(|| {
-        crate::service_provision::provision_with(&machine.host, &mut manager).expect("a service that is landing does not fail the commit");
+        crate::service_provision::provision_with(&machine.host, &mut manager)
+            .expect("a service that is landing does not fail the commit");
     })
     .iter()
-    .map(|entry| { return entry.message.clone(); })
+    .map(|entry| {
+        return entry.message.clone();
+    })
     .collect();
-    assert!(manager.stops.is_empty(), "nothing of a service that is landing is stopped: {:?}", manager.stops);
-    assert!(said.iter().any(|line| { return line.contains("still running"); }), "one line says what it found: {said:?}");
-    assert!(!record_says_read(&machine), "the text was not dropped, so the record stays unwritten and the next commit asks again");
+    assert!(
+        manager.stops.is_empty(),
+        "nothing of a service that is landing is stopped: {:?}",
+        manager.stops
+    );
+    assert!(
+        said.iter().any(|line| {
+            return line.contains("still running");
+        }),
+        "one line says what it found: {said:?}"
+    );
+    assert!(
+        !record_says_read(&machine),
+        "the text was not dropped, so the record stays unwritten and the next commit asks again"
+    );
     remove(machine.root.as_path());
 }
 
@@ -322,14 +424,29 @@ fn a_program_link_that_cannot_be_pointed_leaves_the_commit_to_go_on() {
     let machine: Machine = machine("unload-link-refused-lib", Duration::from_secs(10));
     let link: PathBuf = program_link(machine.host.runtime_dir.as_path());
     std::fs::create_dir_all(&link).expect("occupy the link path with a directory");
-    let mut manager: Scripted = Scripted::new(vec![Answer::State("active"), Answer::State("inactive"), Answer::Gone], vec![Answer::State("active"), Answer::Gone]);
+    let mut manager: Scripted = Scripted::new(
+        vec![
+            Answer::State("active"),
+            Answer::State("inactive"),
+            Answer::Gone,
+        ],
+        vec![Answer::State("active"), Answer::Gone],
+    );
     let said: Vec<String> = crate::service_timing::capture::entries_of(|| {
-        crate::service_provision::provision_with(&machine.host, &mut manager).expect("a link that cannot be pointed does not fail the commit");
+        crate::service_provision::provision_with(&machine.host, &mut manager)
+            .expect("a link that cannot be pointed does not fail the commit");
     })
     .iter()
-    .map(|entry| { return entry.message.clone(); })
+    .map(|entry| {
+        return entry.message.clone();
+    })
     .collect();
-    assert!(said.iter().any(|line| { return line.contains(link.to_string_lossy().as_ref()); }), "one line names the link it could not point: {said:?}");
+    assert!(
+        said.iter().any(|line| {
+            return line.contains(link.to_string_lossy().as_ref());
+        }),
+        "one line names the link it could not point: {said:?}"
+    );
     remove(machine.root.as_path());
 }
 
@@ -359,18 +476,29 @@ fn a_unit_the_manager_keeps_past_the_wait_leaves_the_commit_to_go_on_and_the_rec
     // What: The socket is stopped and gone,
     // and the service is still there at every question after it.
     // Why:  That is what a second command's start, or a collection the manager has not reached, leaves.
-    let mut manager: Scripted = Scripted::new(vec![Answer::State("active"), Answer::State("inactive")], vec![Answer::State("active")]);
+    let mut manager: Scripted = Scripted::new(
+        vec![Answer::State("active"), Answer::State("inactive")],
+        vec![Answer::State("active")],
+    );
     let said: Vec<String> = crate::service_timing::capture::entries_of(|| {
-        crate::service_provision::provision_with(&machine.host, &mut manager).expect("a unit the manager keeps does not fail the commit");
+        crate::service_provision::provision_with(&machine.host, &mut manager)
+            .expect("a unit the manager keeps does not fail the commit");
     })
     .iter()
-    .map(|entry| { return entry.message.clone(); })
+    .map(|entry| {
+        return entry.message.clone();
+    })
     .collect();
     assert!(
-        said.iter().any(|line| { return line.contains("still holds this worktree's unit") && line.contains(INSTANCE); }),
+        said.iter().any(|line| {
+            return line.contains("still holds this worktree's unit") && line.contains(INSTANCE);
+        }),
         "one line says the manager still holds one of this worktree's units, and the commit goes on: {said:?}"
     );
-    assert!(!record_says_read(&machine), "the text was not dropped, so the record stays unwritten and the next commit asks again");
+    assert!(
+        !record_says_read(&machine),
+        "the text was not dropped, so the record stays unwritten and the next commit asks again"
+    );
     remove(machine.root.as_path());
 }
 
@@ -401,24 +529,43 @@ fn a_service_started_inside_the_unloads_window_is_never_stopped() {
     // What: The first look finds the service at rest and its socket held,
     // and a concurrent commit starts the service the moment the socket is stopped.
     // Why:  That is the window: the look said nothing was running, and the stop's job runs after the start.
-    let mut manager: Scripted = Scripted::new(vec![Answer::State("inactive")], vec![Answer::State("active")])
-        .started_again_after_the_socket_stop(Answer::State("active"));
+    let mut manager: Scripted = Scripted::new(
+        vec![Answer::State("inactive")],
+        vec![Answer::State("active")],
+    )
+    .started_again_after_the_socket_stop(Answer::State("active"));
     let said: Vec<String> = crate::service_timing::capture::entries_of(|| {
-        crate::service_provision::provision_with(&machine.host, &mut manager).expect("a service that is landing does not fail the commit");
+        crate::service_provision::provision_with(&machine.host, &mut manager)
+            .expect("a service that is landing does not fail the commit");
     })
     .iter()
-    .map(|entry| { return entry.message.clone(); })
+    .map(|entry| {
+        return entry.message.clone();
+    })
     .collect();
     // What: The only stop the unload sent, and what the service was doing when it was sent.
     // Why:  A stop of the service, or a stop of the socket in the mode that carries through `Requires=`, is what cuts the
     //       landing; the socket stopped alone leaves the service running.
-    assert_eq!(manager.stops, vec![format!("stop-alone {}", socket_unit_instance(INSTANCE))], "the only stop names the socket and leaves the service alone");
-    assert_eq!(manager.service_state_at_the_stop.as_deref(), Some("active"), "the service was landing when the socket was stopped, and nothing of it was stopped");
+    assert_eq!(
+        manager.stops,
+        vec![format!("stop-alone {}", socket_unit_instance(INSTANCE))],
+        "the only stop names the socket and leaves the service alone"
+    );
+    assert_eq!(
+        manager.service_state_at_the_stop.as_deref(),
+        Some("active"),
+        "the service was landing when the socket was stopped, and nothing of it was stopped"
+    );
     assert!(
-        said.iter().any(|line| { return line.contains("started again while its units were being dropped"); }),
+        said.iter().any(|line| {
+            return line.contains("started again while its units were being dropped");
+        }),
         "one line says the service started inside the wait and was left: {said:?}"
     );
-    assert!(!record_says_read(&machine), "the units were not watched being dropped, so the record stays unwritten and the next commit asks again");
+    assert!(
+        !record_says_read(&machine),
+        "the units were not watched being dropped, so the record stays unwritten and the next commit asks again"
+    );
     remove(machine.root.as_path());
 }
 
@@ -447,15 +594,20 @@ fn instance_socket() -> String {
 /// const machine = machineAtAnAbstractName('unload-abstract-lib', 2000); // a 2 s retirement wait
 /// ```
 #[cfg(target_os = "linux")]
-fn machine_at_an_abstract_name(name: &str, retirement_wait: Duration) -> Machine {
+fn machine_at_an_abstract_name(
+    name: &str,
+    retirement_wait: Duration,
+) -> Machine {
     let root: PathBuf = fixture(name);
     let count: usize = RUNTIME_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let scratch: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
+    let scratch: PathBuf =
+        PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
     // A runtime directory one byte past the longest a socket path carries, built to the byte.
     let holder: PathBuf = scratch.join(format!("unloadname-{}-{count}", std::process::id()));
     std::fs::create_dir_all(&holder).expect("the holder of the runtime directory");
     crate::test_support::track_for_this_thread(holder.as_path());
-    let room: usize = (crate::service_instance::longest_runtime_directory(INSTANCE) + 1).saturating_sub(holder.as_os_str().len() + 1);
+    let room: usize = (crate::service_instance::longest_runtime_directory(INSTANCE) + 1)
+        .saturating_sub(holder.as_os_str().len() + 1);
     let runtime: PathBuf = holder.join("r".repeat(room.max(1)));
     std::fs::create_dir_all(&runtime).expect("runtime directory");
     let host: ProvisionHost = ProvisionHost {
@@ -468,7 +620,10 @@ fn machine_at_an_abstract_name(name: &str, retirement_wait: Duration) -> Machine
         git_dir: root.join("repository/.git/worktrees/topic"),
         retirement_wait,
     };
-    return Machine { root, host };
+    return Machine {
+        root,
+        host,
+    };
 }
 
 /// What:
@@ -484,17 +639,30 @@ fn machine_at_an_abstract_name(name: &str, retirement_wait: Duration) -> Machine
 /// const asked = standingAtAnAbstractName(address); // asked.flag is set when the retire line arrives
 /// ```
 #[cfg(target_os = "linux")]
-fn standing_at_an_abstract_name(address: &Bind) -> (std::thread::JoinHandle<bool>, std::sync::Arc<std::sync::atomic::AtomicBool>) {
+fn standing_at_an_abstract_name(
+    address: &Bind
+) -> (
+    std::thread::JoinHandle<bool>,
+    std::sync::Arc<std::sync::atomic::AtomicBool>,
+) {
     use std::os::linux::net::SocketAddrExt;
-    let Bind::Abstract(name) = address else { panic!("this control stands a service at an abstract name") };
-    let socket_address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("the name fits an address");
-    let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind_addr(&socket_address).expect("a listener at the abstract name");
-    let asked: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let Bind::Abstract(name) = address else {
+        panic!("this control stands a service at an abstract name")
+    };
+    let socket_address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes())
+        .expect("the name fits an address");
+    let listener: std::os::unix::net::UnixListener =
+        std::os::unix::net::UnixListener::bind_addr(&socket_address)
+            .expect("a listener at the abstract name");
+    let asked: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let flag: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&asked);
     let thread: std::thread::JoinHandle<bool> = std::thread::spawn(move || {
         // The accept itself is bounded: a control whose ask is lost must say so in its assertions, not hold the suite in a
         // thread that waits for a connection nothing will make.
-        let Ok(()) = listener.set_nonblocking(true) else { return false };
+        let Ok(()) = listener.set_nonblocking(true) else {
+            return false;
+        };
         let began: std::time::Instant = std::time::Instant::now();
         let mut stream = loop {
             match listener.accept() {
@@ -509,20 +677,29 @@ fn standing_at_an_abstract_name(address: &Bind) -> (std::thread::JoinHandle<bool
         };
         let _back_to_blocking = stream.set_nonblocking(false);
         let _timeout = stream.set_read_timeout(Some(Duration::from_secs(10)));
-        let mut welcome: String = crate::service_protocol_encode_messages_to_lines::encode_service(&crate::service_protocol::ServiceMessage::Welcome {
-            version: crate::service_protocol::PROTOCOL_VERSION,
-            release: None,
-        });
+        let mut welcome: String = crate::service_protocol_encode_messages_to_lines::encode_service(
+            &crate::service_protocol::ServiceMessage::Welcome {
+                version: crate::service_protocol::PROTOCOL_VERSION,
+                release: None,
+            },
+        );
         welcome.push('\n');
         if std::io::Write::write_all(&mut stream, welcome.as_bytes()).is_err() {
             return false;
         }
         let mut line: String = String::new();
-        if std::io::BufRead::read_line(&mut std::io::BufReader::new(stream.try_clone().expect("a second handle")), &mut line).is_err() {
+        if std::io::BufRead::read_line(
+            &mut std::io::BufReader::new(stream.try_clone().expect("a second handle")),
+            &mut line,
+        )
+        .is_err()
+        {
             return false;
         }
         let heard: bool = matches!(
-            crate::service_protocol_decode_lines_to_messages::decode_client(line.trim_end_matches('\n')),
+            crate::service_protocol_decode_lines_to_messages::decode_client(
+                line.trim_end_matches('\n')
+            ),
             Ok(crate::service_protocol::ClientMessage::Retire)
         );
         if heard {
@@ -554,39 +731,69 @@ struct UntilAsked {
 
 #[cfg(target_os = "linux")]
 impl Manager for UntilAsked {
-    fn within(&mut self, _wait: Duration) {}
+    fn within(
+        &mut self,
+        _wait: Duration,
+    ) {
+    }
 
-    fn reset_failed(&mut self, _unit: &str) -> Result<(), CallError> {
+    fn reset_failed(
+        &mut self,
+        _unit: &str,
+    ) -> Result<(), CallError> {
         return Ok(());
     }
 
-    fn start(&mut self, _unit: &str) -> Result<(), CallError> {
+    fn start(
+        &mut self,
+        _unit: &str,
+    ) -> Result<(), CallError> {
         return Ok(());
     }
 
-    fn stop(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         if unit == self.socket {
             self.socket_stopped = true;
         }
         return Ok(());
     }
 
-    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop_alone(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         return self.stop(unit);
     }
 
-    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
+    fn active_state(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<String>, CallError> {
         if unit == self.service {
             let still_running: bool = !self.asked.load(std::sync::atomic::Ordering::SeqCst);
-            return Ok(if still_running { Some(String::from("active")) } else { None });
+            return Ok(if still_running {
+                Some(String::from("active"))
+            } else {
+                None
+            });
         }
         if unit == self.socket {
-            return Ok(if self.socket_stopped { None } else { Some(String::from("active")) });
+            return Ok(if self.socket_stopped {
+                None
+            } else {
+                Some(String::from("active"))
+            });
         }
         return Ok(None);
     }
 
-    fn listen(&mut self, _unit: &str) -> Result<Option<Vec<String>>, CallError> {
+    fn listen(
+        &mut self,
+        _unit: &str,
+    ) -> Result<Option<Vec<String>>, CallError> {
         // A manager that cannot say where a unit listens proves nothing either way, which is no refusal.
         return Ok(None);
     }
@@ -620,10 +827,18 @@ impl Manager for UntilAsked {
 #[test]
 #[cfg(target_os = "linux")]
 fn a_service_at_an_abstract_name_is_asked_to_retire_and_the_repair_finishes() {
-    let mut machine: Machine = machine_at_an_abstract_name("unload-abstract-lib", Duration::from_secs(2));
-    let address: Bind = crate::service_address_of_a_worktree::socket_address_of(machine.host.runtime_dir.as_path(), INSTANCE);
-    assert!(matches!(address, Bind::Abstract(_)), "this control's runtime directory is served at an abstract name");
-    let unit_directory: PathBuf = crate::service_provision::runtime_unit_dir(machine.host.runtime_dir.as_path());
+    let mut machine: Machine =
+        machine_at_an_abstract_name("unload-abstract-lib", Duration::from_secs(2));
+    let address: Bind = crate::service_address_of_a_worktree::socket_address_of(
+        machine.host.runtime_dir.as_path(),
+        INSTANCE,
+    );
+    assert!(
+        matches!(address, Bind::Abstract(_)),
+        "this control's runtime directory is served at an abstract name"
+    );
+    let unit_directory: PathBuf =
+        crate::service_provision::runtime_unit_dir(machine.host.runtime_dir.as_path());
     std::fs::create_dir_all(&unit_directory).expect("the unit directory");
     // What: The unit files say what this release writes and the record of what the manager read is absent.
     // Why:  A kill between the template's write and the record's leaves exactly that, and so does a record write that failed;
@@ -640,18 +855,31 @@ fn a_service_at_an_abstract_name_is_asked_to_retire_and_the_repair_finishes() {
         socket_stopped: false,
     };
     let began: std::time::Instant = std::time::Instant::now();
-    crate::service_provision::provision_with(&machine.host, &mut manager).expect("a repair that cannot be finished does not fail the commit");
+    crate::service_provision::provision_with(&machine.host, &mut manager)
+        .expect("a repair that cannot be finished does not fail the commit");
     let took: Duration = began.elapsed();
-    assert!(asked.load(std::sync::atomic::Ordering::SeqCst), "the service at the abstract name was never asked to retire");
-    assert!(record_says_read(&machine), "the ask arrived, so the repair finished and the record of what the manager read is written");
-    assert!(took < machine.host.retirement_wait, "the unload did not spend the retirement wait: {took:?}");
+    assert!(
+        asked.load(std::sync::atomic::Ordering::SeqCst),
+        "the service at the abstract name was never asked to retire"
+    );
+    assert!(
+        record_says_read(&machine),
+        "the ask arrived, so the repair finished and the record of what the manager read is written"
+    );
+    assert!(
+        took < machine.host.retirement_wait,
+        "the unload did not spend the retirement wait: {took:?}"
+    );
     // What: A unit text that changed while the service ran is repaired by asking the running service to retire again.
     // Why:  The same state, reached by a sequence no kill is needed for: the service unit names the program link and the stop
     //       timeout, so a different Git resolution or another spelling of the runtime directory writes another text, and the
     //       service that runs still holds the text the manager read earlier.
     // The Git the service unit names is one word of its text, so another resolution of Git is another text.
     machine.host.git = PathBuf::from("/usr/bin/git-of-another-resolution");
-    assert!(!record_says_read(&machine), "the texts this host writes now are not the ones the record names");
+    assert!(
+        !record_says_read(&machine),
+        "the texts this host writes now are not the ones the record names"
+    );
     let (_, asked_again) = standing_at_an_abstract_name(&address);
     let mut second_manager: UntilAsked = UntilAsked {
         service: instance_service(),
@@ -660,10 +888,20 @@ fn a_service_at_an_abstract_name_is_asked_to_retire_and_the_repair_finishes() {
         socket_stopped: false,
     };
     let second_began: std::time::Instant = std::time::Instant::now();
-    crate::service_provision::provision_with(&machine.host, &mut second_manager).expect("a text that changed while the service ran is repaired");
+    crate::service_provision::provision_with(&machine.host, &mut second_manager)
+        .expect("a text that changed while the service ran is repaired");
     let second_took: Duration = second_began.elapsed();
-    assert!(asked_again.load(std::sync::atomic::Ordering::SeqCst), "the service running the text from before was asked to retire");
-    assert!(record_says_read(&machine), "and the repair wrote the record of the texts the manager now read");
-    assert!(second_took < machine.host.retirement_wait, "the second repair did not spend the retirement wait either: {second_took:?}");
+    assert!(
+        asked_again.load(std::sync::atomic::Ordering::SeqCst),
+        "the service running the text from before was asked to retire"
+    );
+    assert!(
+        record_says_read(&machine),
+        "and the repair wrote the record of the texts the manager now read"
+    );
+    assert!(
+        second_took < machine.host.retirement_wait,
+        "the second repair did not spend the retirement wait either: {second_took:?}"
+    );
     remove(machine.root.as_path());
 }

@@ -26,7 +26,13 @@ use std::process::Command;
 /// The listed package paths that lie under a folder named `uses`,
 /// which is where a `uses/` link's target lands in the archive.
 fn uses_entries(listing: &str) -> Vec<String> {
-    return listing.lines().filter(|line| { return line.split('/').any(|segment| return segment == "uses"); }).map(String::from).collect();
+    return listing
+        .lines()
+        .filter(|line| {
+            return line.split('/').any(|segment| return segment == "uses");
+        })
+        .map(String::from)
+        .collect();
 }
 
 /// What:
@@ -38,7 +44,14 @@ fn uses_entries(listing: &str) -> Vec<String> {
 fn package_listing() -> Vec<String> {
     let manifest: std::path::PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
     let output: std::process::Output = Command::new("cargo")
-        .args(["package", "--list", "--offline", "--locked", "--allow-dirty", "--manifest-path"])
+        .args([
+            "package",
+            "--list",
+            "--offline",
+            "--locked",
+            "--allow-dirty",
+            "--manifest-path",
+        ])
         .arg(&manifest)
         .output()
         .expect("cargo runs: the package list is the answer this control judges");
@@ -48,7 +61,11 @@ fn package_listing() -> Vec<String> {
         manifest.display(),
         String::from_utf8_lossy(output.stderr.as_slice())
     );
-    return String::from_utf8(output.stdout).expect("cargo prints UTF-8 paths").lines().map(String::from).collect();
+    return String::from_utf8(output.stdout)
+        .expect("cargo prints UTF-8 paths")
+        .lines()
+        .map(String::from)
+        .collect();
 }
 
 /// What:
@@ -61,7 +78,9 @@ fn package_listing() -> Vec<String> {
 fn the_package_carries_no_copy_of_the_tree_under_a_uses_link() {
     let listed: Vec<String> = package_listing();
     assert!(
-        listed.iter().any(|path| { return path == "src/native/lib.rs"; }),
+        listed.iter().any(|path| {
+            return path == "src/native/lib.rs";
+        }),
         "positive control: the list holds the crate's own sources, and it holds {} paths",
         listed.len()
     );
@@ -92,6 +111,11 @@ fn a_listed_path_under_a_uses_folder_is_found() {
 /// including a file whose own name carries the word.
 #[test]
 fn a_listed_path_outside_a_uses_folder_is_not_found() {
-    let planted: &str = "Cargo.toml\nsrc/native/lib.rs\nsrc/native/source_guard/packaged_uses_links_tests.rs\n";
-    assert!(uses_entries(planted).is_empty(), "{}", uses_entries(planted).join("\n"));
+    let planted: &str =
+        "Cargo.toml\nsrc/native/lib.rs\nsrc/native/source_guard/packaged_uses_links_tests.rs\n";
+    assert!(
+        uses_entries(planted).is_empty(),
+        "{}",
+        uses_entries(planted).join("\n")
+    );
 }

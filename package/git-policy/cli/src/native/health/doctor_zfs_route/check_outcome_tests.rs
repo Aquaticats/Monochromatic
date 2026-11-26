@@ -10,7 +10,14 @@
 //! expect(reportLine({ check: 'device', outcome: pass('opened') })).toBe('zfs: device: pass: opened');
 //! ```
 
-use super::{Check, CheckOutcome, CheckReport, finding, pass, unknown};
+use super::{
+    Check,
+    CheckOutcome,
+    CheckReport,
+    finding,
+    pass,
+    unknown,
+};
 use std::collections::BTreeSet;
 
 /// A pass prints its detail after the state.
@@ -26,8 +33,14 @@ fn a_pass_line_carries_what_the_check_read() {
 /// A finding prints the failing field before its detail.
 #[test]
 fn a_finding_line_carries_the_failing_field() {
-    let report: CheckReport = CheckReport::new(Check::ContainerDataset, finding("mountpoint", "the container is not legacy"));
-    assert_eq!(report.line(), "zfs: container-dataset: finding: mountpoint: the container is not legacy");
+    let report: CheckReport = CheckReport::new(
+        Check::ContainerDataset,
+        finding("mountpoint", "the container is not legacy"),
+    );
+    assert_eq!(
+        report.line(),
+        "zfs: container-dataset: finding: mountpoint: the container is not legacy"
+    );
     assert!(report.found());
     assert!(!report.passed());
 }
@@ -36,7 +49,10 @@ fn a_finding_line_carries_the_failing_field() {
 #[test]
 fn an_unknown_line_carries_the_reason() {
     let report: CheckReport = CheckReport::new(Check::Abi, unknown("/dev/zfs could not be opened"));
-    assert_eq!(report.line(), "zfs: abi: unknown: /dev/zfs could not be opened");
+    assert_eq!(
+        report.line(),
+        "zfs: abi: unknown: /dev/zfs could not be opened"
+    );
     assert!(report.unknown());
     assert!(!report.found());
 }
@@ -90,7 +106,11 @@ fn every_check_name_is_unique() {
         Check::Sanoid,
     ];
     let names: BTreeSet<&'static str> = checks.iter().map(|check| return check.name()).collect();
-    assert_eq!(names.len(), checks.len(), "two checks share a name: {names:?}");
+    assert_eq!(
+        names.len(),
+        checks.len(),
+        "two checks share a name: {names:?}"
+    );
 }
 
 /// A finding's field is a word or a component,
@@ -99,7 +119,11 @@ fn every_check_name_is_unique() {
 #[test]
 fn a_finding_field_is_never_empty() {
     let outcome: CheckOutcome = finding("mode", "the folder is 0755");
-    let CheckOutcome::Finding { field, .. } = outcome else {
+    let CheckOutcome::Finding {
+        field,
+        ..
+    } = outcome
+    else {
         panic!("the constructor builds a finding");
     };
     assert!(!field.is_empty());

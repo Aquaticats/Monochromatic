@@ -34,8 +34,16 @@
 /// import { parseConfigRegion, ConfigFile, ConfigWrite } from './command_config.ts';
 /// import { parseRemoteRegion } from './command_remote.ts';
 /// ```
-use crate::command_config::{ConfigFile, ConfigRegion, ConfigWrite, parse_config_region};
-use crate::command_remote::{RemoteRegion, parse_remote_region};
+use crate::command_config::{
+    ConfigFile,
+    ConfigRegion,
+    ConfigWrite,
+    parse_config_region,
+};
+use crate::command_remote::{
+    RemoteRegion,
+    parse_remote_region,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path of the same bytes.
@@ -282,13 +290,19 @@ fn remote_token<'region>(
 /// ```ts
 /// const configWrite = (region: string[], parsed: ConfigRegion): SharedRemoteChange | undefined => { /* ... */ };
 /// ```
-fn config_write(region: &[OsString], parsed: &ConfigRegion) -> Option<SharedRemoteChange> {
+fn config_write(
+    region: &[OsString],
+    parsed: &ConfigRegion,
+) -> Option<SharedRemoteChange> {
     // Which file: the repository's own, or the one the command names for the caller to resolve.
     let named_file: Option<PathBuf> = match parsed.file {
         ConfigFile::Shared => None,
         // `?` answers nothing for a `--blob`, which names no path, and for a path no platform can read.
         ConfigFile::Named => Some(parsed.named_file.clone()?),
-        ConfigFile::Worktree | ConfigFile::Global | ConfigFile::System | ConfigFile::Contradictory => {
+        ConfigFile::Worktree
+        | ConfigFile::Global
+        | ConfigFile::System
+        | ConfigFile::Contradictory => {
             return None;
         }
     };
@@ -338,7 +352,10 @@ fn config_write(region: &[OsString], parsed: &ConfigRegion) -> Option<SharedRemo
 /// ```ts
 /// function sharedRemoteWrite(word: string, region: string[]): SharedRemoteChange | undefined;
 /// ```
-pub fn shared_remote_write(word: &[u8], region: &[OsString]) -> Option<SharedRemoteChange> {
+pub fn shared_remote_write(
+    word: &[u8],
+    region: &[OsString],
+) -> Option<SharedRemoteChange> {
     if word == b"remote" {
         // A region Git refuses runs nothing, and `?` answers nothing for it.
         let parsed: RemoteRegion = parse_remote_region(region).ok()?;

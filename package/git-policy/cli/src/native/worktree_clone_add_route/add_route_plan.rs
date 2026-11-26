@@ -27,7 +27,10 @@ use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_binding_record::binding_encoding::Request;
 use crate::worktree_clone_binding_record::binding_words::RequestForm;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStrExt;
 
 /// The word an origin snapshot's name begins with, before the nonce.
@@ -105,11 +108,24 @@ pub struct AddNames {
 /// # Errors
 /// The random source failed,
 /// or the person's words are not a form the add's plan read.
-pub fn name_the_add(facts: &RouteFacts, plan: &AddPlan, arguments: &[OsString]) -> Result<AddNames, String> {
+pub fn name_the_add(
+    facts: &RouteFacts,
+    plan: &AddPlan,
+    arguments: &[OsString],
+) -> Result<AddNames, String> {
     let nonce: RequestNonce = RequestNonce::fresh().map_err(|refusal| return format!("the add cannot take a random number for its lock and records ({refusal:?}), so nothing was changed"))?;
-    let origin_snapshot: String = format!("{}@{ORIGIN_SNAPSHOT_PREFIX}{}", facts.checkout_dataset, nonce.as_str());
+    let origin_snapshot: String = format!(
+        "{}@{ORIGIN_SNAPSHOT_PREFIX}{}",
+        facts.checkout_dataset,
+        nonce.as_str()
+    );
     let request: Request = request_of(plan, arguments)?;
-    return Ok(AddNames { nonce, origin_snapshot, clone_dataset: facts.clone_dataset(), request });
+    return Ok(AddNames {
+        nonce,
+        origin_snapshot,
+        clone_dataset: facts.clone_dataset(),
+        request,
+    });
 }
 
 /// What:
@@ -124,7 +140,10 @@ pub fn name_the_add(facts: &RouteFacts, plan: &AddPlan, arguments: &[OsString]) 
 /// # Errors
 /// A `-b` or `-B` with no value,
 /// or a word after the options that is not text.
-pub fn request_of(plan: &AddPlan, arguments: &[OsString]) -> Result<Request, String> {
+pub fn request_of(
+    plan: &AddPlan,
+    arguments: &[OsString],
+) -> Result<Request, String> {
     let mut detached: bool = false;
     let mut new_branch: Option<Vec<u8>> = None;
     let mut index: usize = plan.insert_at;
@@ -173,11 +192,17 @@ pub fn request_of(plan: &AddPlan, arguments: &[OsString]) -> Result<Request, Str
         });
     }
     if let Some(branch) = new_branch {
-        return Ok(Request::with_argument(RequestForm::Branch, branch.as_slice()));
+        return Ok(Request::with_argument(
+            RequestForm::Branch,
+            branch.as_slice(),
+        ));
     }
     return Ok(match plan.target.as_deref() {
         Some(target) => Request::with_argument(RequestForm::Commit, target.as_bytes()),
-        None => Request::with_argument(RequestForm::Branch, OsStr::new(plan.destination.file_name().unwrap_or_default()).as_bytes()),
+        None => Request::with_argument(
+            RequestForm::Branch,
+            OsStr::new(plan.destination.file_name().unwrap_or_default()).as_bytes(),
+        ),
     });
 }
 
@@ -210,12 +235,20 @@ impl Stops {
     /// The variable names a step the add does not know.
     pub fn from_environment() -> Result<Stops, String> {
         // The three switches a control of the add arms, which a release build never reads.
-        let hold_step: Option<String> = crate::test_only_switches::value(HOLD_STEP_VARIABLE).and_then(|value| return value.into_string().ok());
-        let hold_until: Option<std::path::PathBuf> = crate::test_only_switches::value(HOLD_UNTIL_VARIABLE).map(std::path::PathBuf::from);
+        let hold_step: Option<String> = crate::test_only_switches::value(HOLD_STEP_VARIABLE)
+            .and_then(|value| return value.into_string().ok());
+        let hold_until: Option<std::path::PathBuf> =
+            crate::test_only_switches::value(HOLD_UNTIL_VARIABLE).map(std::path::PathBuf::from);
         let Some(value) = crate::test_only_switches::value(STOP_AFTER_VARIABLE) else {
-            return Ok(Stops { step: None, hold_step, hold_until });
+            return Ok(Stops {
+                step: None,
+                hold_step,
+                hold_until,
+            });
         };
-        let text: String = value.into_string().map_err(|_raw| return format!("{STOP_AFTER_VARIABLE} is not text"))?;
+        let text: String = value
+            .into_string()
+            .map_err(|_raw| return format!("{STOP_AFTER_VARIABLE} is not text"))?;
         let mut stops: Stops = Stops::named(text.as_str())?;
         stops.hold_step = hold_step;
         stops.hold_until = hold_until;
@@ -228,14 +261,25 @@ impl Stops {
     /// The name is not one of the add's steps.
     pub fn named(step: &str) -> Result<Stops, String> {
         if !STOP_STEPS.contains(&step) {
-            return Err(format!("{STOP_AFTER_VARIABLE} names `{step}`, and the add's steps are {}", STOP_STEPS.join(", ")));
+            return Err(format!(
+                "{STOP_AFTER_VARIABLE} names `{step}`, and the add's steps are {}",
+                STOP_STEPS.join(", ")
+            ));
         }
-        return Ok(Stops { step: Some(String::from(step)), hold_step: None, hold_until: None });
+        return Ok(Stops {
+            step: Some(String::from(step)),
+            hold_step: None,
+            hold_until: None,
+        });
     }
 
     /// No switch at all.
     pub fn none() -> Stops {
-        return Stops { step: None, hold_step: None, hold_until: None };
+        return Stops {
+            step: None,
+            hold_step: None,
+            hold_until: None,
+        };
     }
 
     /// What:
@@ -251,7 +295,10 @@ impl Stops {
     /// # Errors
     /// The bound passed with no release file,
     /// or the waiting marker cannot be written.
-    pub fn hold(&self, step: &str) -> Result<(), String> {
+    pub fn hold(
+        &self,
+        step: &str,
+    ) -> Result<(), String> {
         if self.hold_step.as_deref() != Some(step) {
             return Ok(());
         }
@@ -259,11 +306,19 @@ impl Stops {
             return Ok(());
         };
         let waiting: std::path::PathBuf = until.with_extension("waiting");
-        std::fs::write(waiting.as_path(), b"waiting\n").map_err(|error| return format!("the control's waiting marker {} cannot be written ({error})", waiting.display()))?;
+        std::fs::write(waiting.as_path(), b"waiting\n").map_err(|error| {
+            return format!(
+                "the control's waiting marker {} cannot be written ({error})",
+                waiting.display()
+            );
+        })?;
         let started: std::time::Instant = std::time::Instant::now();
         while !until.exists() {
             if started.elapsed() > HOLD_BOUND {
-                return Err(format!("the control never released the add at `{step}` ({} did not appear), so it stopped before the step it was meant to measure", until.display()));
+                return Err(format!(
+                    "the control never released the add at `{step}` ({} did not appear), so it stopped before the step it was meant to measure",
+                    until.display()
+                ));
             }
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
@@ -272,7 +327,10 @@ impl Stops {
 
     /// End this process by `SIGKILL` when the switch names `step`, exactly as a
     /// kill from outside would.
-    pub fn after(&self, step: &str) {
+    pub fn after(
+        &self,
+        step: &str,
+    ) {
         if self.step.as_deref() != Some(step) {
             return;
         }

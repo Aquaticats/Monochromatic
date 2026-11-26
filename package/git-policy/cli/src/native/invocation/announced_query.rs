@@ -25,7 +25,10 @@
 ///   Only a child that ended with exit code 0 answered the question.
 use crate::forwarding::ChildOutcome;
 /// The result of the global-option scan that says where the query token sits.
-use crate::global_arguments::{GlobalLayout, GlobalOutcome};
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+};
 /// Native argument storage;
 ///  no lossy UTF-8 conversion occurs.
 use std::ffi::OsString;
@@ -70,7 +73,10 @@ pub enum AnnouncedQuery {
 /// ```ts
 /// function announcedQuery(args: string[], layout: GlobalLayout): 'version' | 'help' | undefined;
 /// ```
-pub fn announced_query(arguments: &[OsString], layout: &GlobalLayout) -> Option<AnnouncedQuery> {
+pub fn announced_query(
+    arguments: &[OsString],
+    layout: &GlobalLayout,
+) -> Option<AnnouncedQuery> {
     if layout.outcome != GlobalOutcome::Query {
         return None;
     }
@@ -99,7 +105,11 @@ pub fn announced_query(arguments: &[OsString], layout: &GlobalLayout) -> Option<
 /// ```ts
 /// function announcement(query: AnnouncedQuery, version: string, realGit: string): string;
 /// ```
-pub fn announcement(query: AnnouncedQuery, version: &str, real_git: &Path) -> String {
+pub fn announcement(
+    query: AnnouncedQuery,
+    version: &str,
+    real_git: &Path,
+) -> String {
     match query {
         AnnouncedQuery::Version => {
             return format!(
@@ -131,7 +141,10 @@ pub fn announcement(query: AnnouncedQuery, version: &str, real_git: &Path) -> St
 /// ```ts
 /// function printableAfter(outcome: ChildOutcome, text: string): string { return outcome.exited === 0 ? text : ''; }
 /// ```
-pub fn printable_after(outcome: ChildOutcome, text: &str) -> &str {
+pub fn printable_after(
+    outcome: ChildOutcome,
+    text: &str,
+) -> &str {
     if outcome == ChildOutcome::Exited(0) {
         return text;
     }

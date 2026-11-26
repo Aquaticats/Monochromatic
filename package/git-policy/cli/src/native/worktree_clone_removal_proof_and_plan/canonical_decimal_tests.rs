@@ -13,7 +13,11 @@
 //! expect(isCanonicalDecimal('007', 20)).toBe(false);
 //! ```
 
-use super::{decimal_digits, is_canonical_decimal, parse_canonical_u64};
+use super::{
+    decimal_digits,
+    is_canonical_decimal,
+    parse_canonical_u64,
+};
 
 /// The digit bound a plan's `uint64` fields take.
 const BOUND: usize = 20;
@@ -22,18 +26,34 @@ const BOUND: usize = 20;
 fn a_canonical_number_is_read_and_a_repeated_or_signed_one_is_not() {
     assert_eq!(parse_canonical_u64("0", BOUND), Some(0));
     assert_eq!(parse_canonical_u64("1", BOUND), Some(1));
-    assert_eq!(parse_canonical_u64("7828944690444299989", BOUND), Some(7_828_944_690_444_299_989));
-    assert_eq!(parse_canonical_u64(u64::MAX.to_string().as_str(), BOUND), Some(u64::MAX));
+    assert_eq!(
+        parse_canonical_u64("7828944690444299989", BOUND),
+        Some(7_828_944_690_444_299_989)
+    );
+    assert_eq!(
+        parse_canonical_u64(u64::MAX.to_string().as_str(), BOUND),
+        Some(u64::MAX)
+    );
     for refused in ["", "00", "007", "+1", "-1", "1 ", " 1", "1.0", "0x10", "١"] {
-        assert!(!is_canonical_decimal(refused, BOUND), "`{refused}` is not a canonical decimal");
-        assert_eq!(parse_canonical_u64(refused, BOUND), None, "`{refused}` parses to nothing");
+        assert!(
+            !is_canonical_decimal(refused, BOUND),
+            "`{refused}` is not a canonical decimal"
+        );
+        assert_eq!(
+            parse_canonical_u64(refused, BOUND),
+            None,
+            "`{refused}` parses to nothing"
+        );
     }
 }
 
 #[test]
 fn a_number_wider_than_the_grammar_allows_is_refused_before_it_is_parsed() {
     let wide: String = format!("1{}", "0".repeat(BOUND));
-    assert!(!is_canonical_decimal(wide.as_str(), BOUND), "21 digits are past the bound");
+    assert!(
+        !is_canonical_decimal(wide.as_str(), BOUND),
+        "21 digits are past the bound"
+    );
     assert_eq!(parse_canonical_u64(wide.as_str(), BOUND), None);
 }
 

@@ -11,7 +11,12 @@
 
 /// Import the functions and types under test.
 use super::{
-    CandidateMode, ObjectId, SHA1_HEX_LENGTH, SHA256_HEX_LENGTH, mode_from_git, parse_object_id,
+    CandidateMode,
+    ObjectId,
+    SHA1_HEX_LENGTH,
+    SHA256_HEX_LENGTH,
+    mode_from_git,
+    parse_object_id,
 };
 
 /// Complete SHA-1 and SHA-256 names are accepted and printed back unchanged.

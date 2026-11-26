@@ -93,7 +93,10 @@ fn non_empty_fields(output: &[u8]) -> Vec<&[u8]> {
 /// ```ts
 /// function overlappingPaths(dirty: Uint8Array[], incoming: Uint8Array[]): Uint8Array[];
 /// ```
-pub fn overlapping_paths(dirty: &[Vec<u8>], incoming: &[Vec<u8>]) -> Vec<Vec<u8>> {
+pub fn overlapping_paths(
+    dirty: &[Vec<u8>],
+    incoming: &[Vec<u8>],
+) -> Vec<Vec<u8>> {
     let mut overlap: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for path in dirty {
         if incoming.contains(path) && !overlap.contains(path) {

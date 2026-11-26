@@ -14,7 +14,12 @@
 //! ```
 
 /// The counters and the measured stream.
-use super::{MeasuredStandardError, note_scratch_removal, note_standard_error, outside_the_phases};
+use super::{
+    MeasuredStandardError,
+    note_scratch_removal,
+    note_standard_error,
+    outside_the_phases,
+};
 use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
@@ -33,14 +38,19 @@ struct Slow {
 impl Slow {
     /// A stream that has written nothing yet.
     fn new() -> Self {
-        return Self { written: Rc::new(RefCell::new(Vec::new())) };
+        return Self {
+            written: Rc::new(RefCell::new(Vec::new())),
+        };
     }
 }
 
 impl Write for Slow {
     /// Keeps the bytes after spending a moment,
     /// as a pipe whose reader is slow does.
-    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        buffer: &[u8],
+    ) -> std::io::Result<usize> {
         std::thread::sleep(Duration::from_millis(3));
         self.written.borrow_mut().extend_from_slice(buffer);
         return Ok(buffer.len());
@@ -62,7 +72,11 @@ fn every_removal_adds_its_span_and_an_unfinished_one_is_counted() {
     note_scratch_removal(Duration::from_micros(900), true);
     note_scratch_removal(Duration::from_millis(3), false);
     let outside = outside_the_phases();
-    assert_eq!(outside.scratch_removal, Duration::from_millis(10), "7 ms plus 0.9 ms, each rounded down");
+    assert_eq!(
+        outside.scratch_removal,
+        Duration::from_millis(10),
+        "7 ms plus 0.9 ms, each rounded down"
+    );
     assert_eq!(outside.removals_that_did_not_finish, 1);
     assert_eq!(outside.standard_error, Duration::ZERO);
 }
@@ -74,10 +88,15 @@ fn a_write_and_a_flush_add_the_time_they_took() {
     let slow: Slow = Slow::new();
     let kept: Rc<RefCell<Vec<u8>>> = Rc::clone(&slow.written);
     let mut stream: MeasuredStandardError<Slow> = MeasuredStandardError::over(slow);
-    stream.write_all(b"a line the person reads\n").expect("written");
+    stream
+        .write_all(b"a line the person reads\n")
+        .expect("written");
     stream.flush().expect("flushed");
     let outside = outside_the_phases();
-    assert!(outside.standard_error >= Duration::from_millis(6), "one write and one flush of 3 ms: {outside:?}");
+    assert!(
+        outside.standard_error >= Duration::from_millis(6),
+        "one write and one flush of 3 ms: {outside:?}"
+    );
     assert_eq!(kept.borrow().as_slice(), b"a line the person reads\n");
     assert_eq!(outside.scratch_removal, Duration::ZERO);
     assert_eq!(outside.removals_that_did_not_finish, 0);
@@ -88,5 +107,8 @@ fn a_write_and_a_flush_add_the_time_they_took() {
 fn a_span_larger_than_the_counter_is_held_at_its_end() {
     note_standard_error(Duration::from_secs(u64::MAX / 2));
     note_standard_error(Duration::from_secs(u64::MAX / 2));
-    assert_eq!(outside_the_phases().standard_error, Duration::from_millis(u64::MAX / 1000));
+    assert_eq!(
+        outside_the_phases().standard_error,
+        Duration::from_millis(u64::MAX / 1000)
+    );
 }

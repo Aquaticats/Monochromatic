@@ -12,7 +12,6 @@
 //! const MOST_CONCURRENT_REMOTE_QUERIES = 4;
 //! ```
 
-
 /// What:
 ///  One confirmed push update,
 /// the public fact the policies read.

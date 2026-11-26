@@ -15,7 +15,10 @@
 //! writeAll(status, 'probe-step ...\n'); setNonblocking(status); const bytes = readAvailable(status, buffer);
 //! ```
 
-use super::probe_call_error::{CallError, failed};
+use super::probe_call_error::{
+    CallError,
+    failed,
+};
 use std::os::fd::RawFd;
 
 /// What:
@@ -27,11 +30,20 @@ use std::os::fd::RawFd;
 ///
 /// # Errors
 /// The write answered an error.
-pub fn write_all(fd: RawFd, bytes: &[u8]) -> Result<(), CallError> {
+pub fn write_all(
+    fd: RawFd,
+    bytes: &[u8],
+) -> Result<(), CallError> {
     let mut written: usize = 0;
     while written < bytes.len() {
         // SAFETY: the slice's remaining bytes are this call's own and outlive it.
-        let wrote: libc::ssize_t = unsafe { libc::write(fd, bytes[written..].as_ptr().cast::<libc::c_void>(), bytes.len() - written) };
+        let wrote: libc::ssize_t = unsafe {
+            libc::write(
+                fd,
+                bytes[written..].as_ptr().cast::<libc::c_void>(),
+                bytes.len() - written,
+            )
+        };
         if wrote < 0 {
             let error: std::io::Error = std::io::Error::last_os_error();
             if error.raw_os_error() == Some(libc::EINTR) {
@@ -61,9 +73,13 @@ pub fn write_all(fd: RawFd, bytes: &[u8]) -> Result<(), CallError> {
 ///
 /// # Errors
 /// The read answered an error other than "nothing there yet".
-pub fn read_available(fd: RawFd, buffer: &mut [u8]) -> Result<ReadSome, CallError> {
+pub fn read_available(
+    fd: RawFd,
+    buffer: &mut [u8],
+) -> Result<ReadSome, CallError> {
     // SAFETY: the buffer is this call's own and the call writes at most its length.
-    let read: libc::ssize_t = unsafe { libc::read(fd, buffer.as_mut_ptr().cast::<libc::c_void>(), buffer.len()) };
+    let read: libc::ssize_t =
+        unsafe { libc::read(fd, buffer.as_mut_ptr().cast::<libc::c_void>(), buffer.len()) };
     if read < 0 {
         let error: std::io::Error = std::io::Error::last_os_error();
         return match error.raw_os_error() {
@@ -110,12 +126,16 @@ pub fn read_one_blocking(fd: RawFd) -> Result<u8, CallError> {
     let mut byte: [u8; 1] = [0];
     loop {
         // SAFETY: the buffer is this call's own and the call writes at most its length.
-        let read: libc::ssize_t = unsafe { libc::read(fd, byte.as_mut_ptr().cast::<libc::c_void>(), 1) };
+        let read: libc::ssize_t =
+            unsafe { libc::read(fd, byte.as_mut_ptr().cast::<libc::c_void>(), 1) };
         if read == 1 {
             return Ok(byte[0]);
         }
         if read == 0 {
-            return Err(CallError { call: "read", errno: libc::EPIPE });
+            return Err(CallError {
+                call: "read",
+                errno: libc::EPIPE,
+            });
         }
         let error: std::io::Error = std::io::Error::last_os_error();
         if error.raw_os_error() != Some(libc::EINTR) {
@@ -137,14 +157,21 @@ pub fn read_one_blocking(fd: RawFd) -> Result<u8, CallError> {
 /// The read answered an error,
 ///  the pipe ended,
 ///  or the line passed the bound.
-pub fn read_line_blocking(fd: RawFd, limit: usize) -> Result<String, CallError> {
+pub fn read_line_blocking(
+    fd: RawFd,
+    limit: usize,
+) -> Result<String, CallError> {
     let mut line: Vec<u8> = Vec::new();
     loop {
         let mut byte: [u8; 1] = [0];
         // SAFETY: the buffer is this call's own and the call writes at most its length.
-        let read: libc::ssize_t = unsafe { libc::read(fd, byte.as_mut_ptr().cast::<libc::c_void>(), 1) };
+        let read: libc::ssize_t =
+            unsafe { libc::read(fd, byte.as_mut_ptr().cast::<libc::c_void>(), 1) };
         if read == 0 {
-            return Err(CallError { call: "read", errno: libc::EPIPE });
+            return Err(CallError {
+                call: "read",
+                errno: libc::EPIPE,
+            });
         }
         if read < 0 {
             let error: std::io::Error = std::io::Error::last_os_error();
@@ -154,11 +181,19 @@ pub fn read_line_blocking(fd: RawFd, limit: usize) -> Result<String, CallError> 
             return Err(failed("read"));
         }
         if byte[0] == b'\n' {
-            return String::from_utf8(line).map_err(|_| return CallError { call: "read", errno: libc::EINVAL });
+            return String::from_utf8(line).map_err(|_| {
+                return CallError {
+                    call: "read",
+                    errno: libc::EINVAL,
+                };
+            });
         }
         line.push(byte[0]);
         if line.len() > limit {
-            return Err(CallError { call: "read", errno: libc::E2BIG });
+            return Err(CallError {
+                call: "read",
+                errno: libc::E2BIG,
+            });
         }
     }
 }
@@ -179,9 +214,12 @@ pub fn set_nonblocking(fd: RawFd) -> Result<(), CallError> {
     }
     // SAFETY: the same descriptor, with the one bit this process sets.
     let set: libc::c_int = unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) };
-    return if set == 0 { Ok(()) } else { Err(failed("fcntl")) };
+    return if set == 0 {
+        Ok(())
+    } else {
+        Err(failed("fcntl"))
+    };
 }
-
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

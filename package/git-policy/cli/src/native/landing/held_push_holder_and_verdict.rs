@@ -35,8 +35,14 @@
 //! ```
 
 use crate::claim_time::current_boot_id;
-use crate::process_identity::{current_birth_identity, process_birth_identity};
-use serde_json::{Map, Value};
+use crate::process_identity::{
+    current_birth_identity,
+    process_birth_identity,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// The record field naming the command that will decide the commit's checks.
 pub const HOLDER_FIELD: &str = "holder";
@@ -132,7 +138,11 @@ impl Holding {
     /// const undecided = { holder: '', verdict: 'undecided', reason: '' };
     /// ```
     pub fn undecided() -> Holding {
-        return Holding { holder: String::new(), verdict: Verdict::Undecided, reason: String::new() };
+        return Holding {
+            holder: String::new(),
+            verdict: Verdict::Undecided,
+            reason: String::new(),
+        };
     }
 }
 
@@ -175,8 +185,15 @@ pub fn this_command() -> String {
 /// ```ts
 /// const fieldText = (fields, name) => fields[name] ?? '';
 /// ```
-fn field_text(fields: &Map<String, Value>, name: &str) -> String {
-    return fields.get(name).and_then(Value::as_str).unwrap_or_default().to_owned();
+fn field_text(
+    fields: &Map<String, Value>,
+    name: &str,
+) -> String {
+    return fields
+        .get(name)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
 }
 
 pub fn holding_in(text: &str) -> Holding {
@@ -187,7 +204,11 @@ pub fn holding_in(text: &str) -> Holding {
         return Holding::undecided();
     };
     let verdict: String = field_text(fields, VERDICT_FIELD);
-    return Holding { holder: field_text(fields, HOLDER_FIELD), verdict: Verdict::of(verdict.as_str()), reason: field_text(fields, REASON_FIELD) };
+    return Holding {
+        holder: field_text(fields, HOLDER_FIELD),
+        verdict: Verdict::of(verdict.as_str()),
+        reason: field_text(fields, REASON_FIELD),
+    };
 }
 
 /// What:
@@ -203,12 +224,24 @@ pub fn holding_in(text: &str) -> Holding {
 /// ```ts
 /// withHolding(text, 'boot/pid/linux:42', 'passed', '') // one JSON line
 /// ```
-pub fn with_holding(text: &str, holding: &Holding) -> Option<String> {
+pub fn with_holding(
+    text: &str,
+    holding: &Holding,
+) -> Option<String> {
     let value: Value = serde_json::from_str(text).ok()?;
     let mut fields: Map<String, Value> = value.as_object()?.clone();
-    fields.insert(String::from(HOLDER_FIELD), Value::from(holding.holder.as_str()));
-    fields.insert(String::from(VERDICT_FIELD), Value::from(holding.verdict.name()));
-    fields.insert(String::from(REASON_FIELD), Value::from(holding.reason.as_str()));
+    fields.insert(
+        String::from(HOLDER_FIELD),
+        Value::from(holding.holder.as_str()),
+    );
+    fields.insert(
+        String::from(VERDICT_FIELD),
+        Value::from(holding.verdict.name()),
+    );
+    fields.insert(
+        String::from(REASON_FIELD),
+        Value::from(holding.reason.as_str()),
+    );
     return Some(format!("{}\n", Value::Object(fields)));
 }
 

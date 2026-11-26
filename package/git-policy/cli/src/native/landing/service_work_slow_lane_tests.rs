@@ -17,17 +17,56 @@
 use super::*;
 use crate::claim_time::ClaimTime;
 use crate::parallel_budget::HostResources;
-use crate::push_retry::{PLAN_DIRECTORY, PushRetries, Retrying};
+use crate::push_retry::{
+    PLAN_DIRECTORY,
+    PushRetries,
+    Retrying,
+};
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_claim_watch::ClaimWatch;
-use crate::service_round::{Assignment, RoundDrain, drain_directories};
+use crate::service_round::{
+    Assignment,
+    RoundDrain,
+    drain_directories,
+};
 use crate::service_server_work_loop_awaiting::work_loop_awaiting;
-use crate::service_work::{GitHandlers, Verdict, work_directory};
-use crate::service_work_handlers_replanning_and_acceptance::{PUSH_KINDS, SERVICE_KINDS, WorkHandlers};
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository, wait_until};
-use crate::work_item::{CLAIMED, DONE, FAILED, PENDING, WorkItem, WorkKind, claim_next_of, enqueue, state_directory};
+use crate::service_work::{
+    GitHandlers,
+    Verdict,
+    work_directory,
+};
+use crate::service_work_handlers_replanning_and_acceptance::{
+    PUSH_KINDS,
+    SERVICE_KINDS,
+    WorkHandlers,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+    wait_until,
+};
+use crate::work_item::{
+    CLAIMED,
+    DONE,
+    FAILED,
+    PENDING,
+    WorkItem,
+    WorkKind,
+    claim_next_of,
+    enqueue,
+    state_directory,
+};
 use crate::worktree_trash_dispose_awaiting::INSIDE_A_SLOW_STEP;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicU32,
+    AtomicUsize,
+    Ordering,
+};
 use std::time::Duration;
 
 /// The branch every push item of these controls names.
@@ -38,7 +77,10 @@ const BRANCH: &str = "refs/heads/main";
 const PAUSE: Duration = Duration::from_millis(300);
 
 /// A host large enough that neither the CPUs nor the memory bound a round of one repository.
-const LARGE_HOST: HostResources = HostResources { parallelism: 8, memory_available: None };
+const LARGE_HOST: HostResources = HostResources {
+    parallelism: 8,
+    memory_available: None,
+};
 
 /// A repository directory standing in for a Git directory,
 /// with a worktree directory beside it and a work directory.
@@ -54,12 +96,20 @@ struct World {
 
 /// One record of `kind` for `world`,
 /// acceptable to the service and leaving nothing behind when it runs.
-fn record(world: &World, kind: WorkKind, oid: &str) -> WorkItem {
+fn record(
+    world: &World,
+    kind: WorkKind,
+    oid: &str,
+) -> WorkItem {
     return WorkItem {
         kind,
         repository: world.root.clone(),
         git_dir: world.common.clone(),
-        branch_ref: if kind == WorkKind::Push { BRANCH.to_string() } else { String::from("refs/cli-git/trash") },
+        branch_ref: if kind == WorkKind::Push {
+            BRANCH.to_string()
+        } else {
+            String::from("refs/cli-git/trash")
+        },
         oid: oid.to_string(),
         parent: String::new(),
         created: String::from("2026-11-10T18:16:51.000Z"),
@@ -70,14 +120,21 @@ fn record(world: &World, kind: WorkKind, oid: &str) -> WorkItem {
 
 /// A directory standing for a repository,
 /// with the records of the kinds given written for it.
-fn world(name: &str, kinds: &[(WorkKind, &str)]) -> World {
+fn world(
+    name: &str,
+    kinds: &[(WorkKind, &str)],
+) -> World {
     let root: PathBuf = fixture(name);
     let common: PathBuf = root.join("common");
     let worktree: PathBuf = root.join("worktree");
     std::fs::create_dir_all(&common).expect("the Git directory");
     std::fs::create_dir_all(&worktree).expect("the worktree directory");
     let work: PathBuf = work_directory(common.as_path());
-    let world: World = World { root, common, work };
+    let world: World = World {
+        root,
+        common,
+        work,
+    };
     for (kind, oid) in kinds {
         let item: WorkItem = record(&world, *kind, oid);
         enqueue(world.work.as_path(), &item).expect("the record is written");
@@ -87,16 +144,30 @@ fn world(name: &str, kinds: &[(WorkKind, &str)]) -> World {
 
 /// The names of the records of `world` in `state`,
 /// sorted.
-fn names_in(world: &World, state: &str) -> Vec<String> {
+fn names_in(
+    world: &World,
+    state: &str,
+) -> Vec<String> {
     return names_in_at(world.work.as_path(), state);
 }
 
 /// The names of the records of the work directory `work` in `state`,
 /// sorted.
-fn names_in_at(work: &Path, state: &str) -> Vec<String> {
-    let mut names: Vec<String> = state_directory(work, state)
-        .read_dir()
-        .map_or_else(|_no_directory| return Vec::new(), |listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); });
+fn names_in_at(
+    work: &Path,
+    state: &str,
+) -> Vec<String> {
+    let mut names: Vec<String> = state_directory(work, state).read_dir().map_or_else(
+        |_no_directory| return Vec::new(),
+        |listing| {
+            return listing
+                .flatten()
+                .map(|entry| {
+                    return entry.file_name().to_string_lossy().into_owned();
+                })
+                .collect();
+        },
+    );
     names.sort();
     return names;
 }
@@ -114,22 +185,34 @@ struct Counted {
 }
 
 impl WorkHandlers for Counted {
-    fn push(&self, _items: &[WorkItem]) -> Verdict {
+    fn push(
+        &self,
+        _items: &[WorkItem],
+    ) -> Verdict {
         self.pushes.fetch_add(1, Ordering::SeqCst);
         return Verdict::Done;
     }
 
-    fn trash(&self, _item: &WorkItem) -> Verdict {
+    fn trash(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         self.trashes.fetch_add(1, Ordering::SeqCst);
         return Verdict::Done;
     }
 
-    fn review(&self, _item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         self.reviews.fetch_add(1, Ordering::SeqCst);
         return Verdict::Done;
     }
 
-    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 }
@@ -159,9 +242,16 @@ const THE_LANES_REVIEW: &str = "6666666666666666666666666666666666666666";
 /// ```ts
 /// namesIn(world, state).some((name) => name.startsWith(`${kind}-${oid}`))
 /// ```
-fn record_of(world: &World, state: &str, kind: WorkKind, oid: &str) -> bool {
+fn record_of(
+    world: &World,
+    state: &str,
+    kind: WorkKind,
+    oid: &str,
+) -> bool {
     let wanted: String = format!("{}-{oid}", kind.name());
-    return names_in(world, state).iter().any(|name| { return name.starts_with(wanted.as_str()); });
+    return names_in(world, state).iter().any(|name| {
+        return name.starts_with(wanted.as_str());
+    });
 }
 
 /// What:
@@ -181,19 +271,53 @@ fn record_of(world: &World, state: &str, kind: WorkKind, oid: &str) -> bool {
 fn the_round_that_serves_the_person_takes_the_push_and_leaves_the_slow_kinds() {
     let world: World = world(
         "slow-lane-the-round",
-        &[(WorkKind::Push, THE_ROUNDS_PUSH), (WorkKind::Trash, THE_ROUNDS_TRASH), (WorkKind::Review, THE_ROUNDS_REVIEW)],
+        &[
+            (WorkKind::Push, THE_ROUNDS_PUSH),
+            (WorkKind::Trash, THE_ROUNDS_TRASH),
+            (WorkKind::Review, THE_ROUNDS_REVIEW),
+        ],
     );
     let counted: Arc<Counted> = Arc::new(Counted::default());
     let assignments: Vec<Assignment> = vec![Assignment::plain(world.common.clone())];
-    let _waits: Vec<(PathBuf, Duration)> =
-        drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers: Arc::clone(&counted), now: &ClaimTime::read(), host: &LARGE_HOST }).waits;
-    assert_eq!(counted.pushes.load(Ordering::SeqCst), 1, "the round took the push");
-    assert_eq!(counted.trashes.load(Ordering::SeqCst), 0, "the round claims no trash");
-    assert_eq!(counted.reviews.load(Ordering::SeqCst), 0, "the round claims no review");
-    assert!(record_of(&world, DONE, WorkKind::Push, THE_ROUNDS_PUSH), "the round settled the push");
-    assert_eq!(names_in(&world, DONE).len(), 1, "the round settled nothing else");
-    assert!(record_of(&world, PENDING, WorkKind::Trash, THE_ROUNDS_TRASH), "the trash waits for the lane");
-    assert!(record_of(&world, PENDING, WorkKind::Review, THE_ROUNDS_REVIEW), "the review waits for the lane");
+    let _waits: Vec<(PathBuf, Duration)> = drain_directories(&RoundDrain {
+        directories: assignments.as_slice(),
+        handlers: Arc::clone(&counted),
+        now: &ClaimTime::read(),
+        host: &LARGE_HOST,
+    })
+    .waits;
+    assert_eq!(
+        counted.pushes.load(Ordering::SeqCst),
+        1,
+        "the round took the push"
+    );
+    assert_eq!(
+        counted.trashes.load(Ordering::SeqCst),
+        0,
+        "the round claims no trash"
+    );
+    assert_eq!(
+        counted.reviews.load(Ordering::SeqCst),
+        0,
+        "the round claims no review"
+    );
+    assert!(
+        record_of(&world, DONE, WorkKind::Push, THE_ROUNDS_PUSH),
+        "the round settled the push"
+    );
+    assert_eq!(
+        names_in(&world, DONE).len(),
+        1,
+        "the round settled nothing else"
+    );
+    assert!(
+        record_of(&world, PENDING, WorkKind::Trash, THE_ROUNDS_TRASH),
+        "the trash waits for the lane"
+    );
+    assert!(
+        record_of(&world, PENDING, WorkKind::Review, THE_ROUNDS_REVIEW),
+        "the review waits for the lane"
+    );
     remove(world.root.as_path());
 }
 
@@ -212,21 +336,43 @@ fn the_round_that_serves_the_person_takes_the_push_and_leaves_the_slow_kinds() {
 fn the_lane_runs_the_slow_kinds_the_round_left() {
     let world: World = world(
         "slow-lane-the-lane",
-        &[(WorkKind::Push, THE_LANES_PUSH), (WorkKind::Trash, THE_LANES_TRASH), (WorkKind::Review, THE_LANES_REVIEW)],
+        &[
+            (WorkKind::Push, THE_LANES_PUSH),
+            (WorkKind::Trash, THE_LANES_TRASH),
+            (WorkKind::Review, THE_LANES_REVIEW),
+        ],
     );
     let counted: Counted = Counted::default();
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime of this thread");
     let _left: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
         world.common.as_path(),
         &counted,
         HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
     ));
-    assert_eq!(counted.trashes.load(Ordering::SeqCst), 1, "the lane took the trash");
-    assert_eq!(counted.reviews.load(Ordering::SeqCst), 1, "the lane took the review");
-    assert_eq!(counted.pushes.load(Ordering::SeqCst), 0, "the lane takes no push");
+    assert_eq!(
+        counted.trashes.load(Ordering::SeqCst),
+        1,
+        "the lane took the trash"
+    );
+    assert_eq!(
+        counted.reviews.load(Ordering::SeqCst),
+        1,
+        "the lane took the review"
+    );
+    assert_eq!(
+        counted.pushes.load(Ordering::SeqCst),
+        0,
+        "the lane takes no push"
+    );
     assert_eq!(names_in(&world, PENDING).len(), 1, "only the push waits");
-    assert!(record_of(&world, PENDING, WorkKind::Push, THE_LANES_PUSH), "the push is left to the round");
+    assert!(
+        record_of(&world, PENDING, WorkKind::Push, THE_LANES_PUSH),
+        "the push is left to the round"
+    );
     remove(world.root.as_path());
 }
 
@@ -256,7 +402,10 @@ fn the_two_claim_lists_partition_the_kinds_the_service_runs() {
     }
     claimed.sort_unstable();
     service.sort_unstable();
-    assert_eq!(claimed, service, "the round's kinds and the lane's are the service's kinds, each named once");
+    assert_eq!(
+        claimed, service,
+        "the round's kinds and the lane's are the service's kinds, each named once"
+    );
 }
 
 /// A repository tracking a bare remote,
@@ -280,29 +429,59 @@ fn stage(name: &str) -> Stage {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     let remote: PathBuf = root.join("remote.git");
-    git(root.as_path(), &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
-    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    git(
+        root.as_path(),
+        &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")],
+    );
+    git(
+        repo.as_path(),
+        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+    );
     std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
     git(repo.as_path(), &["add", "--", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
-    git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(
+        repo.as_path(),
+        &["push", "--quiet", "--set-upstream", "origin", "main"],
+    );
     std::fs::write(repo.join("a.txt"), b"two\n").expect("file");
-    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=two"]);
-    let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
-    let staged: Stage = Stage { root, repo, remote, landed };
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=two"],
+    );
+    let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
+    let staged: Stage = Stage {
+        root,
+        repo,
+        remote,
+        landed,
+    };
     // The reading of the remote's ref file is what the control waits on, so it is shown to see a push before the control runs.
-    assert_ne!(remote_tip(&staged), staged.landed, "no push has carried the landed commit yet");
+    assert_ne!(
+        remote_tip(&staged),
+        staged.landed,
+        "no push has carried the landed commit yet"
+    );
     return staged;
 }
 
 /// The branch tip the remote holds,
 /// read from the bare remote's own ref file.
 fn remote_tip(stage: &Stage) -> String {
-    return std::fs::read_to_string(stage.remote.join("refs").join("heads").join("main")).map(|text| { return text.trim().to_owned(); }).unwrap_or_default();
+    return std::fs::read_to_string(stage.remote.join("refs").join("heads").join("main"))
+        .map(|text| {
+            return text.trim().to_owned();
+        })
+        .unwrap_or_default();
 }
 
 /// The trash record one of these controls writes into a repository's work directory.
-fn a_trash_record(staged: &Stage, oid: &str) -> WorkItem {
+fn a_trash_record(
+    staged: &Stage,
+    oid: &str,
+) -> WorkItem {
     return WorkItem {
         kind: WorkKind::Trash,
         repository: staged.repo.clone(),
@@ -344,14 +523,29 @@ fn a_push_record(staged: &Stage) -> WorkItem {
 /// ```ts
 /// const [wake, running] = startTheLoop(); wake.send([gitDir, null]);
 /// ```
-fn start_the_loop(staged: &Stage) -> (tokio::sync::mpsc::UnboundedSender<Wake>, tokio::task::JoinHandle<()>) {
+fn start_the_loop(
+    staged: &Stage
+) -> (
+    tokio::sync::mpsc::UnboundedSender<Wake>,
+    tokio::task::JoinHandle<()>,
+) {
     let plans: PathBuf = staged.root.join("journal").join(PLAN_DIRECTORY);
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let handlers: GitHandlers = GitHandlers::new(git_context());
-    let (control, taken): (tokio::sync::mpsc::UnboundedSender<Wake>, tokio::sync::mpsc::UnboundedReceiver<Wake>) = tokio::sync::mpsc::unbounded_channel::<Wake>();
+    let (control, taken): (
+        tokio::sync::mpsc::UnboundedSender<Wake>,
+        tokio::sync::mpsc::UnboundedReceiver<Wake>,
+    ) = tokio::sync::mpsc::unbounded_channel::<Wake>();
     let running: tokio::task::JoinHandle<()> = crate::lazy_runtime::spawn_on_runtime(async move {
         let mut receiver = taken;
-        work_loop_awaiting(&mut receiver, &handlers, &busy, PushRetries::restored(PAUSE, plans.as_path()), ClaimWatch::in_memory()).await;
+        work_loop_awaiting(
+            &mut receiver,
+            &handlers,
+            &busy,
+            PushRetries::restored(PAUSE, plans.as_path()),
+            ClaimWatch::in_memory(),
+        )
+        .await;
     })
     .expect("the runtime starts the after-commit work");
     return (control, running);
@@ -384,7 +578,13 @@ struct HeldTrash {
 fn hold_inside_a_trash() -> HeldTrash {
     let (reached, reached_wait) = tokio::sync::oneshot::channel::<()>();
     let (let_go, held) = tokio::sync::oneshot::channel::<()>();
-    crate::service_fault::hooks::hold_awaiting_on_any_thread(crate::service_fault::hooks::HoldAwaitingOnAnyThread { point: String::from(INSIDE_A_SLOW_STEP), reached, let_go: held });
+    crate::service_fault::hooks::hold_awaiting_on_any_thread(
+        crate::service_fault::hooks::HoldAwaitingOnAnyThread {
+            point: String::from(INSIDE_A_SLOW_STEP),
+            reached,
+            let_go: held,
+        },
+    );
     let arrived: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let told: Arc<AtomicBool> = Arc::clone(&arrived);
     let _watching = crate::lazy_runtime::spawn_on_runtime(async move {
@@ -392,7 +592,10 @@ fn hold_inside_a_trash() -> HeldTrash {
         told.store(true, Ordering::SeqCst);
     })
     .expect("the runtime says the trash was reached");
-    return HeldTrash { arrived, let_go };
+    return HeldTrash {
+        arrived,
+        let_go,
+    };
 }
 
 /// What:
@@ -418,17 +621,40 @@ fn a_push_is_taken_while_the_service_is_inside_a_trash() {
     let staged: Stage = stage("slow-lane-inside-a-trash");
     let git_dir: PathBuf = staged.repo.join(".git");
     let work: PathBuf = work_directory(git_dir.as_path());
-    enqueue(work.as_path(), &a_trash_record(&staged, "7777777777777777777777777777777777777777")).expect("the trash is written");
+    enqueue(
+        work.as_path(),
+        &a_trash_record(&staged, "7777777777777777777777777777777777777777"),
+    )
+    .expect("the trash is written");
     let held: HeldTrash = hold_inside_a_trash();
-    let (wake, running): (tokio::sync::mpsc::UnboundedSender<Wake>, tokio::task::JoinHandle<()>) = start_the_loop(&staged);
-    wake.send((git_dir.clone(), None)).expect("the trash's wake");
-    assert!(wait_until(&|| { return held.arrived.load(Ordering::SeqCst); }), "the service is inside the trash");
+    let (wake, running): (
+        tokio::sync::mpsc::UnboundedSender<Wake>,
+        tokio::task::JoinHandle<()>,
+    ) = start_the_loop(&staged);
+    wake.send((git_dir.clone(), None))
+        .expect("the trash's wake");
+    assert!(
+        wait_until(&|| {
+            return held.arrived.load(Ordering::SeqCst);
+        }),
+        "the service is inside the trash"
+    );
     enqueue(work.as_path(), &a_push_record(&staged)).expect("the push is written");
     wake.send((git_dir, None)).expect("the push's wake");
-    assert!(wait_until(&|| { return remote_tip(&staged) == staged.landed; }), "the push landed while the trash was still running");
+    assert!(
+        wait_until(&|| {
+            return remote_tip(&staged) == staged.landed;
+        }),
+        "the push landed while the trash was still running"
+    );
     let _let_go = held.let_go.send(());
     drop(wake);
-    assert!(wait_until(&|| { return running.is_finished(); }), "the after-commit work ends when its queue is closed");
+    assert!(
+        wait_until(&|| {
+            return running.is_finished();
+        }),
+        "the after-commit work ends when its queue is closed"
+    );
     remove(staged.root.as_path());
 }
 
@@ -449,17 +675,36 @@ fn the_lane_settles_the_trash_the_loop_was_woken_for() {
     let staged: Stage = stage("slow-lane-settles-a-trash");
     let git_dir: PathBuf = staged.repo.join(".git");
     let work: PathBuf = work_directory(git_dir.as_path());
-    enqueue(work.as_path(), &a_trash_record(&staged, "8888888888888888888888888888888888888888")).expect("the trash is written");
-    let (wake, running): (tokio::sync::mpsc::UnboundedSender<Wake>, tokio::task::JoinHandle<()>) = start_the_loop(&staged);
+    enqueue(
+        work.as_path(),
+        &a_trash_record(&staged, "8888888888888888888888888888888888888888"),
+    )
+    .expect("the trash is written");
+    let (wake, running): (
+        tokio::sync::mpsc::UnboundedSender<Wake>,
+        tokio::task::JoinHandle<()>,
+    ) = start_the_loop(&staged);
     wake.send((git_dir, None)).expect("the trash's wake");
     // The step settles the record for what it holds, which is what the control reads: the record leaves `pending` without the
     //  round having run any slow kind.
     let settled = |state: &str| -> bool {
-        return names_in_at(work.as_path(), state).iter().any(|name| { return name.starts_with("trash-8888888888888888888888888888888888888888"); });
+        return names_in_at(work.as_path(), state).iter().any(|name| {
+            return name.starts_with("trash-8888888888888888888888888888888888888888");
+        });
     };
-    assert!(wait_until(&|| { return settled("failed") || settled(DONE); }), "the lane settled the trash");
+    assert!(
+        wait_until(&|| {
+            return settled("failed") || settled(DONE);
+        }),
+        "the lane settled the trash"
+    );
     drop(wake);
-    assert!(wait_until(&|| { return running.is_finished(); }), "the after-commit work ends when its queue is closed");
+    assert!(
+        wait_until(&|| {
+            return running.is_finished();
+        }),
+        "the after-commit work ends when its queue is closed"
+    );
     remove(staged.root.as_path());
 }
 
@@ -507,27 +752,49 @@ fn a_look_that_ran_out_of_its_slice_is_looked_at_again() {
     let staged: Stage = stage("slow-lane-a-slice-then-again");
     let git_dir: PathBuf = staged.repo.join(".git");
     let work: PathBuf = work_directory(git_dir.as_path());
-    enqueue(work.as_path(), &a_trash_record(&staged, THE_HELDS_TRASH)).expect("the held trash is written");
-    enqueue(work.as_path(), &a_trash_record(&staged, THE_LEFT_TRASH)).expect("the left trash is written");
+    enqueue(work.as_path(), &a_trash_record(&staged, THE_HELDS_TRASH))
+        .expect("the held trash is written");
+    enqueue(work.as_path(), &a_trash_record(&staged, THE_LEFT_TRASH))
+        .expect("the left trash is written");
     let held: HeldTrash = hold_inside_a_trash();
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let handlers: GitHandlers = GitHandlers::new(git_context());
-    let lane: SlowLane =
-        crate::merge_second_pass::tests::await_it(async move { return SlowLane::start_with_slice_and_lease(&handlers, busy, A_SLICE_ONE_LOOK_SPENDS, crate::service_work::CLAIM_LEASE); });
+    let lane: SlowLane = crate::merge_second_pass::tests::await_it(async move {
+        return SlowLane::start_with_slice_and_lease(
+            &handlers,
+            busy,
+            A_SLICE_ONE_LOOK_SPENDS,
+            crate::service_work::CLAIM_LEASE,
+        );
+    });
     lane.ask((git_dir, None));
-    assert!(wait_until(&|| { return held.arrived.load(Ordering::SeqCst); }), "the lane is inside the first trash");
+    assert!(
+        wait_until(&|| {
+            return held.arrived.load(Ordering::SeqCst);
+        }),
+        "the lane is inside the first trash"
+    );
     // The slice is already spent while that trash is held, so the trash behind it is not started by this look.
     let _let_go = held.let_go.send(());
     // The step settles the record for what it holds, which is what this control reads.
     let settled = |oid: &str| -> bool {
         let wanted: String = format!("trash-{oid}");
         return [DONE, FAILED].iter().any(|state| {
-            return names_in_at(work.as_path(), *state).iter().any(|name| { return name.starts_with(wanted.as_str()); });
+            return names_in_at(work.as_path(), *state).iter().any(|name| {
+                return name.starts_with(wanted.as_str());
+            });
         });
     };
-    assert!(wait_until(&|| { return settled(THE_HELDS_TRASH); }), "the first trash of a look starts however spent its slice is");
     assert!(
-        wait_until(&|| { return settled(THE_LEFT_TRASH); }),
+        wait_until(&|| {
+            return settled(THE_HELDS_TRASH);
+        }),
+        "the first trash of a look starts however spent its slice is"
+    );
+    assert!(
+        wait_until(&|| {
+            return settled(THE_LEFT_TRASH);
+        }),
         "the trash the first look did not start is run by the look the lane takes by itself, with no second wake"
     );
     drop(lane);
@@ -549,16 +816,27 @@ const A_MARGIN_PAST_THE_ANSWER: Duration = Duration::from_millis(150);
 /// ```ts
 /// const [world, id] = worldWithARemoval('name', 61);
 /// ```
-fn world_with_a_removal(name: &str, id: u64) -> (World, String) {
+fn world_with_a_removal(
+    name: &str,
+    id: u64,
+) -> (World, String) {
     let root: PathBuf = fixture(name);
     let common: PathBuf = root.join("common");
     let parent: PathBuf = root.join("parent");
     std::fs::create_dir(common.as_path()).expect("the Git directory");
     std::fs::create_dir(parent.as_path()).expect("the directory the removal renamed out of");
     let work: PathBuf = work_directory(common.as_path());
-    let item: WorkItem = crate::worktree_remove_hand_over::removal_item(common.as_path(), parent.as_path(), id);
+    let item: WorkItem =
+        crate::worktree_remove_hand_over::removal_item(common.as_path(), parent.as_path(), id);
     enqueue(work.as_path(), &item).expect("the record is written");
-    return (World { root, common, work }, item.id());
+    return (
+        World {
+            root,
+            common,
+            work,
+        },
+        item.id(),
+    );
 }
 
 /// Handlers whose delete answers `said` by the attempt's number counting from one,
@@ -577,19 +855,31 @@ struct Said {
 }
 
 impl WorkHandlers for Said {
-    fn push(&self, _items: &[WorkItem]) -> Verdict {
+    fn push(
+        &self,
+        _items: &[WorkItem],
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn review(&self, _item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn subvolume_delete(&self, _item: &WorkItem) -> Verdict {
+    fn subvolume_delete(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         let attempt: u32 = self.asked.fetch_add(1, Ordering::SeqCst) + 1;
         return (self.said)(attempt);
     }
@@ -598,7 +888,13 @@ impl WorkHandlers for Said {
 /// The handler of a control and the counter of its attempts.
 fn said(answers: impl Fn(u32) -> Verdict + Send + Sync + 'static) -> (Said, Arc<AtomicU32>) {
     let asked: Arc<AtomicU32> = Arc::new(AtomicU32::new(0));
-    return (Said { said: Box::new(answers), asked: Arc::clone(&asked) }, asked);
+    return (
+        Said {
+            said: Box::new(answers),
+            asked: Arc::clone(&asked),
+        },
+        asked,
+    );
 }
 
 /// The number of tries the record claimed in `world` carries,
@@ -606,8 +902,12 @@ fn said(answers: impl Fn(u32) -> Verdict + Send + Sync + 'static) -> (Said, Arc<
 fn tries_of_the_claimed_record(world: &World) -> u32 {
     let names: Vec<String> = names_in(world, CLAIMED);
     let name: &String = names.first().expect("a record is claimed");
-    let text: String = std::fs::read_to_string(state_directory(world.work.as_path(), CLAIMED).join(name)).expect("the claim is a file");
-    return WorkItem::decode(text.as_str()).expect("the record decodes").tries;
+    let text: String =
+        std::fs::read_to_string(state_directory(world.work.as_path(), CLAIMED).join(name))
+            .expect("the claim is a file");
+    return WorkItem::decode(text.as_str())
+        .expect("the record decodes")
+        .tries;
 }
 
 /// What:
@@ -639,19 +939,39 @@ fn tries_of_the_claimed_record(world: &World) -> u32 {
 fn a_slow_item_that_answers_a_retryable_answer_is_tried_again_when_its_claim_runs_out() {
     let (world, id): (World, String) = world_with_a_removal("slow-lane-a-kept-claim", 61);
     let (handlers, asked): (Said, Arc<AtomicU32>) = said(|attempt| {
-        return if attempt == 1 { Verdict::Retry(String::from("the volume is busy")) } else { Verdict::Done };
+        return if attempt == 1 {
+            Verdict::Retry(String::from("the volume is busy"))
+        } else {
+            Verdict::Done
+        };
     });
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime of this thread");
     let answered: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
         world.common.as_path(),
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
     ));
-    let waited: Duration = answered.unwrap_or_else(|| panic!("the look that keeps a claim answers when it runs out, or nothing looks at it again"));
-    assert!(waited <= A_LEASE_A_CONTROL_WAITS_OUT, "the answer is no later than the claim's end: {waited:?}");
-    assert_eq!(asked.load(Ordering::SeqCst), 1, "the first look ran the item once");
-    assert_eq!(names_in(&world, CLAIMED).len(), 1, "the retryable answer keeps the claim");
+    let waited: Duration = answered.unwrap_or_else(|| {
+        panic!("the look that keeps a claim answers when it runs out, or nothing looks at it again")
+    });
+    assert!(
+        waited <= A_LEASE_A_CONTROL_WAITS_OUT,
+        "the answer is no later than the claim's end: {waited:?}"
+    );
+    assert_eq!(
+        asked.load(Ordering::SeqCst),
+        1,
+        "the first look ran the item once"
+    );
+    assert_eq!(
+        names_in(&world, CLAIMED).len(),
+        1,
+        "the retryable answer keeps the claim"
+    );
     std::thread::sleep(waited + A_MARGIN_PAST_THE_ANSWER);
     let _again: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
         world.common.as_path(),
@@ -659,8 +979,16 @@ fn a_slow_item_that_answers_a_retryable_answer_is_tried_again_when_its_claim_run
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
     ));
-    assert_eq!(asked.load(Ordering::SeqCst), 2, "the look at the claim's end runs the item again, with no other wake");
-    assert_eq!(names_in(&world, DONE), vec![id], "the item the second attempt finished is done");
+    assert_eq!(
+        asked.load(Ordering::SeqCst),
+        2,
+        "the look at the claim's end runs the item again, with no other wake"
+    );
+    assert_eq!(
+        names_in(&world, DONE),
+        vec![id],
+        "the item the second attempt finished is done"
+    );
     remove(world.root.as_path());
 }
 
@@ -686,24 +1014,43 @@ fn a_slow_item_that_answers_a_retryable_answer_is_tried_again_when_its_claim_run
 /// ```
 #[test]
 fn a_claim_whose_settling_could_not_run_is_looked_at_again_when_its_lease_runs_out() {
-    let (world, _id): (World, String) = world_with_a_removal("slow-lane-a-claim-that-could-not-be-settled", 62);
+    let (world, _id): (World, String) =
+        world_with_a_removal("slow-lane-a-claim-that-could-not-be-settled", 62);
     // A file where the `done` directory must be makes every settlement of a finished item fail, so the claim is the look's to
     //  keep and nothing else would ever look at it again.
     let done: PathBuf = state_directory(world.work.as_path(), DONE);
     std::fs::remove_dir(done.as_path()).expect("the empty done directory");
     std::fs::write(done.as_path(), b"in the way").expect("the blocker");
-    let (handlers, asked): (Said, Arc<AtomicU32>) = said(|_attempt| { return Verdict::Done; });
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    let (handlers, asked): (Said, Arc<AtomicU32>) = said(|_attempt| {
+        return Verdict::Done;
+    });
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime of this thread");
     let answered: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
         world.common.as_path(),
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
     ));
-    let waited: Duration = answered.unwrap_or_else(|| panic!("the look that could not settle a claim answers when it runs out"));
-    assert!(waited <= A_LEASE_A_CONTROL_WAITS_OUT, "the answer is no later than the claim's end: {waited:?}");
-    assert_eq!(asked.load(Ordering::SeqCst), 1, "the first look ran the item once");
-    assert_eq!(names_in(&world, CLAIMED).len(), 1, "the claim the settling step could not move is kept");
+    let waited: Duration = answered.unwrap_or_else(|| {
+        panic!("the look that could not settle a claim answers when it runs out")
+    });
+    assert!(
+        waited <= A_LEASE_A_CONTROL_WAITS_OUT,
+        "the answer is no later than the claim's end: {waited:?}"
+    );
+    assert_eq!(
+        asked.load(Ordering::SeqCst),
+        1,
+        "the first look ran the item once"
+    );
+    assert_eq!(
+        names_in(&world, CLAIMED).len(),
+        1,
+        "the claim the settling step could not move is kept"
+    );
     std::thread::sleep(waited + A_MARGIN_PAST_THE_ANSWER);
     let _again: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
         world.common.as_path(),
@@ -711,8 +1058,16 @@ fn a_claim_whose_settling_could_not_run_is_looked_at_again_when_its_lease_runs_o
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
     ));
-    assert_eq!(asked.load(Ordering::SeqCst), 2, "the look at the claim's end claims the record again and runs it");
-    assert_eq!(tries_of_the_claimed_record(&world), 1, "the recovery at the claim's end queued it with one more try");
+    assert_eq!(
+        asked.load(Ordering::SeqCst),
+        2,
+        "the look at the claim's end claims the record again and runs it"
+    );
+    assert_eq!(
+        tries_of_the_claimed_record(&world),
+        1,
+        "the recovery at the claim's end queued it with one more try"
+    );
     remove(world.root.as_path());
 }
 
@@ -735,22 +1090,42 @@ fn a_claim_whose_settling_could_not_run_is_looked_at_again_when_its_lease_runs_o
 #[test]
 fn the_lanes_look_at_a_bare_repositorys_common_records_answers_the_end_of_a_claim_it_keeps() {
     let (world, _id): (World, String) = world_with_a_removal("slow-lane-common-kept-claim", 63);
-    std::fs::write(world.common.join("config"), "[core]\n\tbare = true\n").expect("the config of a bare repository");
+    std::fs::write(world.common.join("config"), "[core]\n\tbare = true\n")
+        .expect("the config of a bare repository");
     let linked: PathBuf = world.common.join("worktrees").join("w");
     std::fs::create_dir_all(linked.as_path()).expect("a linked worktree's Git directory");
-    std::fs::write(linked.join("commondir"), "../..\n").expect("the commondir the linked Git directory names");
-    let (handlers, asked): (Said, Arc<AtomicU32>) = said(|_attempt| { return Verdict::Retry(String::from("the volume is busy")); });
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    std::fs::write(linked.join("commondir"), "../..\n")
+        .expect("the commondir the linked Git directory names");
+    let (handlers, asked): (Said, Arc<AtomicU32>) = said(|_attempt| {
+        return Verdict::Retry(String::from("the volume is busy"));
+    });
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime of this thread");
     let answered: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
         linked.as_path(),
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
     ));
-    let waited: Duration = answered.unwrap_or_else(|| panic!("the look at a bare repository's common records answers when its claim runs out"));
-    assert!(waited <= A_LEASE_A_CONTROL_WAITS_OUT, "the answer is no later than the claim's end: {waited:?}");
-    assert_eq!(asked.load(Ordering::SeqCst), 1, "the common directory's record ran");
-    assert_eq!(names_in(&world, CLAIMED).len(), 1, "the retryable answer keeps the claim");
+    let waited: Duration = answered.unwrap_or_else(|| {
+        panic!("the look at a bare repository's common records answers when its claim runs out")
+    });
+    assert!(
+        waited <= A_LEASE_A_CONTROL_WAITS_OUT,
+        "the answer is no later than the claim's end: {waited:?}"
+    );
+    assert_eq!(
+        asked.load(Ordering::SeqCst),
+        1,
+        "the common directory's record ran"
+    );
+    assert_eq!(
+        names_in(&world, CLAIMED).len(),
+        1,
+        "the retryable answer keeps the claim"
+    );
     remove(world.root.as_path());
 }
 
@@ -771,27 +1146,44 @@ fn the_lanes_look_at_a_bare_repositorys_common_records_answers_the_end_of_a_clai
 /// ```
 #[test]
 fn the_rounds_drain_answers_the_end_of_a_claim_it_keeps() {
-    let (world, _id): (World, String) = world_with_a_removal("slow-lane-the-round-keeps-a-claim", 64);
+    let (world, _id): (World, String) =
+        world_with_a_removal("slow-lane-the-round-keeps-a-claim", 64);
     let done: PathBuf = state_directory(world.work.as_path(), DONE);
     std::fs::remove_dir(done.as_path()).expect("the empty done directory");
     std::fs::write(done.as_path(), b"in the way").expect("the blocker");
-    let (handlers, asked): (Said, Arc<AtomicU32>) = said(|_attempt| { return Verdict::Done; });
-    let drained = crate::merge_second_pass::tests::await_it(crate::service_work::drain_planned_with_awaiting(
-        world.common.as_path(),
-        &handlers,
-        &ClaimTime::read(),
-        A_LEASE_A_CONTROL_WAITS_OUT,
-        Renewal::Timed,
-        &Retrying::none(),
-        &SERVICE_KINDS,
-    ));
-    let waited: Duration = drained.wait.unwrap_or_else(|| panic!("the round answers when to look again for the claim it keeps"));
-    assert!(waited <= A_LEASE_A_CONTROL_WAITS_OUT, "the answer is no later than the claim's end: {waited:?}");
-    assert_eq!(asked.load(Ordering::SeqCst), 1, "the round ran the item once");
-    assert_eq!(names_in(&world, CLAIMED).len(), 1, "the claim the settling step could not move is kept");
+    let (handlers, asked): (Said, Arc<AtomicU32>) = said(|_attempt| {
+        return Verdict::Done;
+    });
+    let drained = crate::merge_second_pass::tests::await_it(
+        crate::service_work::drain_planned_with_awaiting(
+            world.common.as_path(),
+            &handlers,
+            &ClaimTime::read(),
+            A_LEASE_A_CONTROL_WAITS_OUT,
+            Renewal::Timed,
+            &Retrying::none(),
+            &SERVICE_KINDS,
+        ),
+    );
+    let waited: Duration = drained
+        .wait
+        .unwrap_or_else(|| panic!("the round answers when to look again for the claim it keeps"));
+    assert!(
+        waited <= A_LEASE_A_CONTROL_WAITS_OUT,
+        "the answer is no later than the claim's end: {waited:?}"
+    );
+    assert_eq!(
+        asked.load(Ordering::SeqCst),
+        1,
+        "the round ran the item once"
+    );
+    assert_eq!(
+        names_in(&world, CLAIMED).len(),
+        1,
+        "the claim the settling step could not move is kept"
+    );
     remove(world.root.as_path());
 }
-
 
 /// The trash whose handler stops unexpectedly,
 /// and the one the same look would run beside it.
@@ -804,23 +1196,38 @@ const THE_TRASH_BEHIND_IT: &str = "cccccccccccccccccccccccccccccccccccccccc";
 struct StoppingOnOne;
 
 impl WorkHandlers for StoppingOnOne {
-    fn push(&self, _items: &[WorkItem]) -> Verdict {
+    fn push(
+        &self,
+        _items: &[WorkItem],
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn review(&self, _item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn trash(&self, _item: &WorkItem) -> Verdict {
+    fn trash(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn trash_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
             if item.oid == THE_STOPPING_TRASH {
                 tokio::time::sleep(Duration::from_millis(50)).await;
@@ -847,17 +1254,36 @@ impl WorkHandlers for StoppingOnOne {
 /// ends that item.
 #[test]
 fn a_slow_item_that_stops_unexpectedly_ends_its_own_record_and_not_the_look() {
-    let world: World = world("slow-lane-a-stopping-item", &[(WorkKind::Trash, THE_STOPPING_TRASH), (WorkKind::Trash, THE_TRASH_BEHIND_IT)]);
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    let world: World = world(
+        "slow-lane-a-stopping-item",
+        &[
+            (WorkKind::Trash, THE_STOPPING_TRASH),
+            (WorkKind::Trash, THE_TRASH_BEHIND_IT),
+        ],
+    );
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime of this thread");
     let _left: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
         world.common.as_path(),
         &StoppingOnOne,
         HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
     ));
-    assert!(record_of(&world, FAILED, WorkKind::Trash, THE_STOPPING_TRASH), "the item whose handler stopped is settled as failed");
-    assert!(record_of(&world, DONE, WorkKind::Trash, THE_TRASH_BEHIND_IT), "the item behind it is settled as done");
-    assert!(names_in(&world, CLAIMED).is_empty(), "no record of the look stays claimed: {:?}", names_in(&world, CLAIMED));
+    assert!(
+        record_of(&world, FAILED, WorkKind::Trash, THE_STOPPING_TRASH),
+        "the item whose handler stopped is settled as failed"
+    );
+    assert!(
+        record_of(&world, DONE, WorkKind::Trash, THE_TRASH_BEHIND_IT),
+        "the item behind it is settled as done"
+    );
+    assert!(
+        names_in(&world, CLAIMED).is_empty(),
+        "no record of the look stays claimed: {:?}",
+        names_in(&world, CLAIMED)
+    );
     remove(world.root.as_path());
 }
 
@@ -877,14 +1303,29 @@ fn the_lane_gives_its_busy_count_back_when_a_look_panicked() {
         let _counted: TheLaneIsBusy = TheLaneIsBusy::raising(&busy);
         busy.load(Ordering::SeqCst)
     };
-    assert_eq!(raised, 1, "the lane counts itself busy while its work lasts");
-    assert_eq!(busy.load(Ordering::SeqCst), 0, "the count goes back when that work ends");
-    let caught: std::thread::Result<()> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let _counted: TheLaneIsBusy = TheLaneIsBusy::raising(&busy);
-        panic!("a look stopped unexpectedly");
-    }));
-    assert!(caught.is_err(), "the control's own panic reached the end of the frame it was raised in");
-    assert_eq!(busy.load(Ordering::SeqCst), 0, "a look that panicked gives the count back too");
+    assert_eq!(
+        raised, 1,
+        "the lane counts itself busy while its work lasts"
+    );
+    assert_eq!(
+        busy.load(Ordering::SeqCst),
+        0,
+        "the count goes back when that work ends"
+    );
+    let caught: std::thread::Result<()> =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _counted: TheLaneIsBusy = TheLaneIsBusy::raising(&busy);
+            panic!("a look stopped unexpectedly");
+        }));
+    assert!(
+        caught.is_err(),
+        "the control's own panic reached the end of the frame it was raised in"
+    );
+    assert_eq!(
+        busy.load(Ordering::SeqCst),
+        0,
+        "a look that panicked gives the count back too"
+    );
 }
 
 /// What:
@@ -898,18 +1339,32 @@ fn the_lane_gives_its_busy_count_back_when_a_look_panicked() {
 /// so the pause is what brings this repository back to the lane that is still serving the ones behind it.
 #[test]
 fn a_look_that_panicked_is_looked_at_again() {
-    let panicked: Option<Duration> = crate::merge_second_pass::tests::await_it(a_look_that_may_panic(async {
-        panic!("a look stopped unexpectedly");
-    }));
+    let panicked: Option<Duration> =
+        crate::merge_second_pass::tests::await_it(a_look_that_may_panic(async {
+            panic!("a look stopped unexpectedly");
+        }));
     assert_eq!(
         panicked,
         Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING),
         "a look that panicked asks to be looked at again after the pause"
     );
-    let quiet: Option<Duration> = crate::merge_second_pass::tests::await_it(a_look_that_may_panic(async { return None; }));
-    assert_eq!(quiet, None, "a look that left nothing behind asks for no extra look");
-    let asked: Option<Duration> = crate::merge_second_pass::tests::await_it(a_look_that_may_panic(async { return Some(Duration::from_secs(3)); }));
-    assert_eq!(asked, Some(Duration::from_secs(3)), "a look that asked for a pause keeps its own");
+    let quiet: Option<Duration> =
+        crate::merge_second_pass::tests::await_it(a_look_that_may_panic(async {
+            return None;
+        }));
+    assert_eq!(
+        quiet, None,
+        "a look that left nothing behind asks for no extra look"
+    );
+    let asked: Option<Duration> =
+        crate::merge_second_pass::tests::await_it(a_look_that_may_panic(async {
+            return Some(Duration::from_secs(3));
+        }));
+    assert_eq!(
+        asked,
+        Some(Duration::from_secs(3)),
+        "a look that asked for a pause keeps its own"
+    );
 }
 
 /// The upkeep and the trash of the look whose own work stops.
@@ -931,15 +1386,24 @@ struct StoppingUpkeep {
 }
 
 impl WorkHandlers for StoppingUpkeep {
-    fn push(&self, _items: &[WorkItem]) -> Verdict {
+    fn push(
+        &self,
+        _items: &[WorkItem],
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn maintenance_awaiting<'a>(&'a self, _item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn maintenance_awaiting<'a>(
+        &'a self,
+        _item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
             tokio::time::sleep(Duration::from_millis(10)).await;
             if self.stops {
@@ -949,11 +1413,17 @@ impl WorkHandlers for StoppingUpkeep {
         });
     }
 
-    fn review(&self, _item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 
-    fn trash(&self, _item: &WorkItem) -> Verdict {
+    fn trash(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Done;
     }
 }
@@ -971,21 +1441,35 @@ impl WorkHandlers for StoppingUpkeep {
 fn a_look_whose_own_work_stopped_is_looked_at_again_and_settles_nothing() {
     let world: World = world(
         "slow-lane-a-stopping-look",
-        &[(WorkKind::Maintenance, THE_STOPPING_UPKEEP), (WorkKind::Trash, THE_TRASH_THAT_LOOK_NEVER_REACHED)],
+        &[
+            (WorkKind::Maintenance, THE_STOPPING_UPKEEP),
+            (WorkKind::Trash, THE_TRASH_THAT_LOOK_NEVER_REACHED),
+        ],
     );
-    let answered: Option<Duration> = crate::merge_second_pass::tests::await_it(a_look_that_may_panic(drain_the_slow_work_awaiting(
-        world.common.as_path(),
-        &StoppingUpkeep { stops: true },
-        HOUSEKEEPING_OF_ONE_ROUND,
-        crate::service_work::CLAIM_LEASE,
-    )));
+    let answered: Option<Duration> = crate::merge_second_pass::tests::await_it(
+        a_look_that_may_panic(drain_the_slow_work_awaiting(
+            world.common.as_path(),
+            &StoppingUpkeep {
+                stops: true,
+            },
+            HOUSEKEEPING_OF_ONE_ROUND,
+            crate::service_work::CLAIM_LEASE,
+        )),
+    );
     assert_eq!(
         answered,
         Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING),
         "a look that stopped asks to be looked at again after the pause"
     );
-    assert!(names_in(&world, DONE).is_empty() && names_in(&world, FAILED).is_empty(), "nothing of a look that stopped is settled");
-    assert_eq!(names_in(&world, CLAIMED).len(), 2, "the records the look held keep their lease, so the look after it finds them");
+    assert!(
+        names_in(&world, DONE).is_empty() && names_in(&world, FAILED).is_empty(),
+        "nothing of a look that stopped is settled"
+    );
+    assert_eq!(
+        names_in(&world, CLAIMED).len(),
+        2,
+        "the records the look held keep their lease, so the look after it finds them"
+    );
     remove(world.root.as_path());
 }
 
@@ -1022,7 +1506,10 @@ const ASK_AGAIN: Duration = Duration::from_millis(5);
 /// not a wait for a run that may be slow:
 /// what it decides is whether an event came when the service promised it,
 /// and a progress-based wait would answer yes for an event that came at the claim's end instead.
-fn holds_within(bound: Duration, condition: impl Fn() -> bool) -> bool {
+fn holds_within(
+    bound: Duration,
+    condition: impl Fn() -> bool,
+) -> bool {
     let began: std::time::Instant = std::time::Instant::now();
     while began.elapsed() < bound {
         if condition() {
@@ -1058,22 +1545,64 @@ fn holds_within(bound: Duration, condition: impl Fn() -> bool) -> bool {
 /// ```
 #[test]
 fn a_wake_that_arrives_while_the_lane_waits_for_a_claim_is_served_at_once() {
-    let round_held: World = world("slow-lane-a-wake-during-a-wait", &[(WorkKind::Push, THE_PUSH_A_ROUND_OWNS), (WorkKind::Trash, THE_TRASH_THE_FIRST_LOOK_RUNS)]);
-    let taken: bool = claim_next_of(round_held.work.as_path(), &ClaimTime::read(), &[WorkKind::Push]).expect("the push of the round is claimed").is_some();
-    assert!(taken, "the round holds its push, so the first look answers the end of a claim it does not hold itself");
-    let woken: World = world("slow-lane-a-wake-during-a-wait-second", &[(WorkKind::Maintenance, THE_UPKEEP_THE_WAKE_NAMES)]);
+    let round_held: World = world(
+        "slow-lane-a-wake-during-a-wait",
+        &[
+            (WorkKind::Push, THE_PUSH_A_ROUND_OWNS),
+            (WorkKind::Trash, THE_TRASH_THE_FIRST_LOOK_RUNS),
+        ],
+    );
+    let taken: bool = claim_next_of(
+        round_held.work.as_path(),
+        &ClaimTime::read(),
+        &[WorkKind::Push],
+    )
+    .expect("the push of the round is claimed")
+    .is_some();
+    assert!(
+        taken,
+        "the round holds its push, so the first look answers the end of a claim it does not hold itself"
+    );
+    let woken: World = world(
+        "slow-lane-a-wake-during-a-wait-second",
+        &[(WorkKind::Maintenance, THE_UPKEEP_THE_WAKE_NAMES)],
+    );
     let handlers: GitHandlers = GitHandlers::new(git_context());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let lane: SlowLane = crate::merge_second_pass::tests::await_it(async move {
-        return SlowLane::start_with_slice_and_lease(&handlers, busy, HOUSEKEEPING_OF_ONE_ROUND, A_LEASE_A_WAKE_MUST_NOT_WAIT_OUT);
+        return SlowLane::start_with_slice_and_lease(
+            &handlers,
+            busy,
+            HOUSEKEEPING_OF_ONE_ROUND,
+            A_LEASE_A_WAKE_MUST_NOT_WAIT_OUT,
+        );
     });
     lane.ask((round_held.common.clone(), None));
     // The first look has to have taken its own wake before the second one is sent, or both would be looked at in one batch
     //  and the control would prove nothing: the trash it runs is that reading's evidence.
-    let ran_the_trash = |state: &str| -> bool { return record_of(&round_held, state, WorkKind::Trash, THE_TRASH_THE_FIRST_LOOK_RUNS); };
-    assert!(wait_until(&|| { return ran_the_trash(DONE) || ran_the_trash(FAILED); }), "the first look ran the trash it was woken for");
+    let ran_the_trash = |state: &str| -> bool {
+        return record_of(
+            &round_held,
+            state,
+            WorkKind::Trash,
+            THE_TRASH_THE_FIRST_LOOK_RUNS,
+        );
+    };
+    assert!(
+        wait_until(&|| {
+            return ran_the_trash(DONE) || ran_the_trash(FAILED);
+        }),
+        "the first look ran the trash it was woken for"
+    );
     lane.ask((woken.common.clone(), None));
-    let settled = || -> bool { return !record_of(&woken, PENDING, WorkKind::Maintenance, THE_UPKEEP_THE_WAKE_NAMES); };
+    let settled = || -> bool {
+        return !record_of(
+            &woken,
+            PENDING,
+            WorkKind::Maintenance,
+            THE_UPKEEP_THE_WAKE_NAMES,
+        );
+    };
     assert!(
         holds_within(THE_BOUND_A_WAKE_IS_SERVED_WITHIN, settled),
         "the upkeep the second wake names is run at once, and not when the claim the first look answered runs out in {A_LEASE_A_WAKE_MUST_NOT_WAIT_OUT:?}"

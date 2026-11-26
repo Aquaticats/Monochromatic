@@ -16,15 +16,33 @@
 use crate::service_client_listen_and_ask_to_retire::ask_to_retire;
 use crate::service_instance::LEGACY_SOCKET_RELATIVE;
 use crate::service_messages::ClientFailure;
-use crate::service_provision_host_and_manager::{LEGACY_SERVICE_UNIT_NAME, LEGACY_SOCKET_UNIT_NAME, Manager, ProvisionHost, refusal, runtime_unit_dir};
-use crate::service_provision_unit_file_ownership_and_writes::{any_named_anywhere, carries_own_marker, is_own_unit_file, remove_settled};
+use crate::service_provision_host_and_manager::{
+    LEGACY_SERVICE_UNIT_NAME,
+    LEGACY_SOCKET_UNIT_NAME,
+    Manager,
+    ProvisionHost,
+    refusal,
+    runtime_unit_dir,
+};
+use crate::service_provision_unit_file_ownership_and_writes::{
+    any_named_anywhere,
+    carries_own_marker,
+    is_own_unit_file,
+    remove_settled,
+};
 use crate::service_server::Bind;
-use crate::systemd_dbus::{CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
+use crate::systemd_dbus::{
+    CallError,
+    EXCHANGE_WAIT,
+    NO_SUCH_UNIT,
+};
 use std::path::PathBuf;
 
 /// What the user's own unit directory holds under the names the wrapper uses.
 pub(crate) fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
-    let Some(directory) = host.user_unit_dir.as_deref() else { return Ok(false) };
+    let Some(directory) = host.user_unit_dir.as_deref() else {
+        return Ok(false);
+    };
     let mut removed: bool = false;
     for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
         let path: PathBuf = directory.join(name);
@@ -41,7 +59,9 @@ pub(crate) fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFa
         removed = true;
     }
     // The enabling link an earlier release made points at the file just removed.
-    let link: PathBuf = directory.join("sockets.target.wants").join(LEGACY_SOCKET_UNIT_NAME);
+    let link: PathBuf = directory
+        .join("sockets.target.wants")
+        .join(LEGACY_SOCKET_UNIT_NAME);
     if matches!(std::fs::symlink_metadata(&link), Ok(meta) if meta.file_type().is_symlink()) {
         let _removed = std::fs::remove_file(&link);
         removed = true;
@@ -72,10 +92,15 @@ pub(crate) fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFa
 /// ```ts
 /// await retireEarlierService(host, manager) // true: reload
 /// ```
-pub(crate) fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<bool, ClientFailure> {
+pub(crate) fn retire_earlier_service(
+    host: &ProvisionHost,
+    manager: &mut dyn Manager,
+) -> Result<bool, ClientFailure> {
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     // The releases that wrote into the user's own directory left their service running just the same.
-    let directories: Vec<PathBuf> = std::iter::once(directory.clone()).chain(host.user_unit_dir.clone()).collect();
+    let directories: Vec<PathBuf> = std::iter::once(directory.clone())
+        .chain(host.user_unit_dir.clone())
+        .collect();
     let socket_file: PathBuf = host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
     let both: [&str; 2] = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME];
     // Only a unit whose definition the manager reads is ours to stop: a file of the same name in the runtime directory
@@ -100,7 +125,11 @@ pub(crate) fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Man
     }
     // A socket file with no unit file of that name anywhere is what a release that removed the files but not the service left
     //  behind: the service may still run, so both names are stopped. A file of that name that is someone else's blocks this.
-    if units.is_empty() && owned_files.is_empty() && socket_file.exists() && !any_named_anywhere(directories.as_slice(), &both) {
+    if units.is_empty()
+        && owned_files.is_empty()
+        && socket_file.exists()
+        && !any_named_anywhere(directories.as_slice(), &both)
+    {
         units = both.to_vec();
     }
     if units.is_empty() && owned_files.is_empty() {
@@ -139,11 +168,17 @@ pub(crate) fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Man
 
 /// Asks the manager to stop each unit;
 /// a unit it never loaded has nothing to stop.
-fn stop_units(manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFailure> {
+fn stop_units(
+    manager: &mut dyn Manager,
+    units: &[&str],
+) -> Result<(), ClientFailure> {
     for name in units {
         match manager.stop(name) {
             Ok(()) => {}
-            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
+            Err(CallError::Manager {
+                name: error,
+                ..
+            }) if error == NO_SUCH_UNIT => {}
             // What: The stop calls follow the one exchange's time the retirement sets before them.
             // Why:  A stop that ran out of that time names it, and every other refusal leaves the time unread.
             Err(error) => return Err(refusal(error)),
@@ -167,7 +202,10 @@ fn stop_units(manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFai
 /// ```ts
 /// effectiveUnitFile(host, 'cli-git.service') // the path the manager reads
 /// ```
-fn effective_unit_file(host: &ProvisionHost, name: &str) -> Option<PathBuf> {
+fn effective_unit_file(
+    host: &ProvisionHost,
+    name: &str,
+) -> Option<PathBuf> {
     // The user's own directory first, then the runtime directory.
     if let Some(directory) = host.user_unit_dir.as_ref() {
         let file: PathBuf = directory.join(name);
@@ -193,7 +231,10 @@ fn effective_unit_file(host: &ProvisionHost, name: &str) -> Option<PathBuf> {
 /// ```ts
 /// const stillStopping = (host, unit) => new ClientFailure('could-not-start', `the earlier commit service (${unit}) is still running ...`);
 /// ```
-fn still_stopping(host: &ProvisionHost, unit: &str) -> ClientFailure {
+fn still_stopping(
+    host: &ProvisionHost,
+    unit: &str,
+) -> ClientFailure {
     return ClientFailure::CouldNotStart(format!(
         "the earlier commit service ({unit}) is still running after {:.1} seconds, and it may be in the middle of a landing that stopping it would cut; run the commit again in a moment, or, when no commit is running, stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
         host.retirement_wait.as_secs_f64()
@@ -223,7 +264,11 @@ fn still_stopping(host: &ProvisionHost, unit: &str) -> ClientFailure {
 /// ```ts
 /// await waitUntilStopped(host, manager, ['cli-git.socket', 'cli-git.service'])
 /// ```
-fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFailure> {
+fn wait_until_stopped(
+    host: &ProvisionHost,
+    manager: &mut dyn Manager,
+    units: &[&str],
+) -> Result<(), ClientFailure> {
     let deadline: std::time::Instant = std::time::Instant::now() + host.retirement_wait;
     loop {
         let mut running: Option<&str> = None;

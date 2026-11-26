@@ -15,15 +15,39 @@
 /// The parser,
 ///  its tables,
 ///  the oracles and the real-Git fixture helpers.
-use super::{StashRegion, StashSubcommand, parse_stash_region};
-use crate::command_options::{OptionError, OptionErrorKind, OptionSpec, WrapperOccurrence};
-use crate::command_stash_table::{
-    STASH_APPLY_TABLE, STASH_DROP_TABLE, STASH_EMPTY_TABLE, STASH_EXPORT_TABLE, STASH_POP_TABLE,
-    STASH_PUSH_TABLE, STASH_SAVE_TABLE, STASH_SHOW_TABLE, STASH_STORE_TABLE,
+use super::{
+    StashRegion,
+    StashSubcommand,
+    parse_stash_region,
 };
-use crate::command_test_completion::{git_completion, render_completion};
+use crate::command_options::{
+    OptionError,
+    OptionErrorKind,
+    OptionSpec,
+    WrapperOccurrence,
+};
+use crate::command_stash_table::{
+    STASH_APPLY_TABLE,
+    STASH_DROP_TABLE,
+    STASH_EMPTY_TABLE,
+    STASH_EXPORT_TABLE,
+    STASH_POP_TABLE,
+    STASH_PUSH_TABLE,
+    STASH_SAVE_TABLE,
+    STASH_SHOW_TABLE,
+    STASH_STORE_TABLE,
+};
+use crate::command_test_completion::{
+    git_completion,
+    render_completion,
+};
 use crate::command_test_support::{
-    assert_table_invariants, git, git_status, os_arguments, output_text, remove,
+    assert_table_invariants,
+    git,
+    git_status,
+    os_arguments,
+    output_text,
+    remove,
     repository_with_tracked_file,
 };
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
@@ -147,8 +171,14 @@ fn reads_the_hatch_by_position_in_each_subcommand() {
     assert_eq!(
         other.wrapper.other,
         vec![
-            WrapperOccurrence { flag: 0, token: 0 },
-            WrapperOccurrence { flag: 0, token: 2 }
+            WrapperOccurrence {
+                flag: 0,
+                token: 0
+            },
+            WrapperOccurrence {
+                flag: 0,
+                token: 2
+            }
         ]
     );
 }
@@ -193,7 +223,10 @@ fn reports_what_git_refuses() {
     ] {
         assert_eq!(
             refusal(values.as_slice()),
-            OptionError { kind, token },
+            OptionError {
+                kind,
+                token
+            },
             "{values:?}"
         );
     }
@@ -287,6 +320,10 @@ fn only_list_show_and_create_leave_state_alone() {
         (StashSubcommand::Save, true),
         (StashSubcommand::AssumedPush, true),
     ] {
-        assert_eq!(super::stash_changes_state(subcommand), changes, "{subcommand:?}");
+        assert_eq!(
+            super::stash_changes_state(subcommand),
+            changes,
+            "{subcommand:?}"
+        );
     }
 }

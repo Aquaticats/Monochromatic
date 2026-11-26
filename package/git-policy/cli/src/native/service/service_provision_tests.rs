@@ -8,10 +8,16 @@
 
 use super::*;
 use crate::service_instance::socket_path;
-use crate::service_provision_unit_file_ownership_and_writes::remove_settled;
 use crate::service_messages::render;
-use crate::test_support::{fixture, remove};
-use std::sync::{Arc, Mutex};
+use crate::service_provision_unit_file_ownership_and_writes::remove_settled;
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 /// A manager that records what it is asked and can be made to fail.
 #[derive(Clone, Default)]
@@ -53,39 +59,92 @@ pub(super) struct Recorder {
 }
 
 impl Manager for Recorder {
-    fn within(&mut self, wait: std::time::Duration) {
+    fn within(
+        &mut self,
+        wait: std::time::Duration,
+    ) {
         self.budgets.lock().expect("lock").push(wait);
     }
 
-    fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {
-        self.calls.lock().expect("lock").push(format!("reset-failed {unit}"));
-        return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
+    fn reset_failed(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
+        self.calls
+            .lock()
+            .expect("lock")
+            .push(format!("reset-failed {unit}"));
+        return self
+            .failure
+            .lock()
+            .expect("lock")
+            .clone()
+            .map_or(Ok(()), Err);
     }
 
-    fn start(&mut self, unit: &str) -> Result<(), CallError> {
+    fn start(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         if let Some(read) = self.at_start.lock().expect("lock").as_mut() {
             read();
         }
-        self.calls.lock().expect("lock").push(format!("start {unit}"));
-        return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
+        self.calls
+            .lock()
+            .expect("lock")
+            .push(format!("start {unit}"));
+        return self
+            .failure
+            .lock()
+            .expect("lock")
+            .clone()
+            .map_or(Ok(()), Err);
     }
 
-    fn stop(&mut self, unit: &str) -> Result<(), CallError> {
-        self.calls.lock().expect("lock").push(format!("stop {unit}"));
+    fn stop(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
+        self.calls
+            .lock()
+            .expect("lock")
+            .push(format!("stop {unit}"));
         if let Some(refusal) = self.stop_failure.lock().expect("lock").clone() {
             return Err(refusal);
         }
-        return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
+        return self
+            .failure
+            .lock()
+            .expect("lock")
+            .clone()
+            .map_or(Ok(()), Err);
     }
 
-    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
-        self.calls.lock().expect("lock").push(format!("stop-alone {unit}"));
+    fn stop_alone(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
+        self.calls
+            .lock()
+            .expect("lock")
+            .push(format!("stop-alone {unit}"));
         self.recreate_socket();
-        return self.stop_alone_failure.lock().expect("lock").clone().map_or(Ok(()), Err);
+        return self
+            .stop_alone_failure
+            .lock()
+            .expect("lock")
+            .clone()
+            .map_or(Ok(()), Err);
     }
 
-    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
-        self.calls.lock().expect("lock").push(format!("state {unit}"));
+    fn active_state(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<String>, CallError> {
+        self.calls
+            .lock()
+            .expect("lock")
+            .push(format!("state {unit}"));
         if unit == earlier_socket_unit_instance(INSTANCE) {
             self.recreate_socket();
         }
@@ -93,11 +152,20 @@ impl Manager for Recorder {
             return Err(failure);
         }
         let mut scripts = self.states.lock().expect("lock");
-        let Some(script) = scripts.get_mut(unit) else { return Ok(None) };
-        return Ok(if script.len() > 1 { script.remove(0) } else { script[0].clone() });
+        let Some(script) = scripts.get_mut(unit) else {
+            return Ok(None);
+        };
+        return Ok(if script.len() > 1 {
+            script.remove(0)
+        } else {
+            script[0].clone()
+        });
     }
 
-    fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError> {
+    fn listen(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<Vec<String>>, CallError> {
         if let Some(failure) = self.listen_failure.lock().expect("lock").clone() {
             return Err(failure);
         }
@@ -143,15 +211,30 @@ impl Recorder {
     }
 
     /// What a control reads each time the manager is asked to start a unit.
-    pub(super) fn observe_start(&self, read: Box<dyn FnMut() + Send>) {
+    pub(super) fn observe_start(
+        &self,
+        read: Box<dyn FnMut() + Send>,
+    ) {
         *self.at_start.lock().expect("lock") = Some(read);
     }
 
     /// Answers the state questions about `unit` with these states in turn,
     /// the last one repeating,
     /// so a control can watch a unit go from running to inactive to gone.
-    pub(super) fn report_states_of(&self, unit: &str, states: &[Option<&str>]) {
-        self.states.lock().expect("lock").insert(unit.to_owned(), states.iter().map(|state| { return state.map(str::to_owned); }).collect());
+    pub(super) fn report_states_of(
+        &self,
+        unit: &str,
+        states: &[Option<&str>],
+    ) {
+        self.states.lock().expect("lock").insert(
+            unit.to_owned(),
+            states
+                .iter()
+                .map(|state| {
+                    return state.map(str::to_owned);
+                })
+                .collect(),
+        );
     }
 }
 
@@ -173,7 +256,10 @@ pub(super) fn machine(name: &str) -> Machine {
         git_dir: root.join("repository/.git/worktrees/topic"),
         retirement_wait: std::time::Duration::from_millis(400),
     };
-    return Machine { root, host };
+    return Machine {
+        root,
+        host,
+    };
 }
 
 /// How many runtime directories this process has made.
@@ -194,7 +280,8 @@ static RUNTIME_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::Atomic
 /// const runtime = join(home, 'temp/agent', `pr-${process.pid}-${n}`); // removed with the thread's fixtures
 /// ```
 fn short_runtime_directory() -> PathBuf {
-    let scratch: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
+    let scratch: PathBuf =
+        PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
     let number: usize = RUNTIME_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let runtime: PathBuf = scratch.join(format!("pr-{}-{number}", std::process::id()));
     std::fs::create_dir_all(&runtime).expect("the runtime directory");
@@ -202,8 +289,14 @@ fn short_runtime_directory() -> PathBuf {
     return runtime;
 }
 
-fn written(machine: &Machine, name: &str) -> String {
-    return std::fs::read_to_string(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name)).expect("unit");
+fn written(
+    machine: &Machine,
+    name: &str,
+) -> String {
+    return std::fs::read_to_string(
+        runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name),
+    )
+    .expect("unit");
 }
 
 /// A unit file that an earlier release wrote and one this release writes are both the wrapper's own,
@@ -213,11 +306,20 @@ fn written(machine: &Machine, name: &str) -> String {
 #[test]
 fn unit_files_of_both_spellings_are_the_wrappers_own_and_the_new_ones_name_the_new_program_only() {
     use crate::service_provision_unit_file_ownership_and_writes::carries_own_marker;
-    assert!(carries_own_marker("# Written by the git wrapper for its commit service (cli-git-unit); the wrapper rewrites this file.\n"));
-    assert!(carries_own_marker("# Written by the git wrapper for its commit service (monochromatic-git-policy-cli-unit); the wrapper rewrites this file.\n"));
-    assert!(!carries_own_marker("# A unit someone else wrote for their own service.\n"));
+    assert!(carries_own_marker(
+        "# Written by the git wrapper for its commit service (cli-git-unit); the wrapper rewrites this file.\n"
+    ));
+    assert!(carries_own_marker(
+        "# Written by the git wrapper for its commit service (monochromatic-git-policy-cli-unit); the wrapper rewrites this file.\n"
+    ));
+    assert!(!carries_own_marker(
+        "# A unit someone else wrote for their own service.\n"
+    ));
     for text in [SOCKET_UNIT, SERVICE_UNIT] {
-        assert!(!text.contains("cli-git"), "a unit this release writes names the new program only: {text}");
+        assert!(
+            !text.contains("cli-git"),
+            "a unit this release writes names the new program only: {text}"
+        );
     }
 }
 
@@ -239,15 +341,34 @@ fn the_first_provisioning_writes_the_units_and_starts() {
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     for (name, text) in unit_texts(&machine.host) {
         assert_eq!(written(&machine, name), text);
-        assert!(!text.contains(BINARY_PLACEHOLDER) && !text.contains(GIT_PLACEHOLDER), "no placeholder is left in {name}");
-        assert!(OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }), "{name} carries the marker");
+        assert!(
+            !text.contains(BINARY_PLACEHOLDER) && !text.contains(GIT_PLACEHOLDER),
+            "no placeholder is left in {name}"
+        );
+        assert!(
+            OWN_MARKERS.iter().any(|marker| {
+                return text.contains(marker);
+            }),
+            "{name} carries the marker"
+        );
     }
     let link: PathBuf = program_link(machine.host.runtime_dir.as_path());
-    assert!(written(&machine, SERVICE_UNIT_NAME).contains(link.to_string_lossy().as_ref()), "the service unit runs the link");
-    assert_eq!(std::fs::read_link(&link).expect("the link is there"), machine.host.service_binary, "and the link names this release");
+    assert!(
+        written(&machine, SERVICE_UNIT_NAME).contains(link.to_string_lossy().as_ref()),
+        "the service unit runs the link"
+    );
+    assert_eq!(
+        std::fs::read_link(&link).expect("the link is there"),
+        machine.host.service_binary,
+        "and the link names this release"
+    );
     assert_eq!(
         recorder.calls(),
-        with_earlier_instance_questions(vec![format!("state {}", instance_service()), format!("state {}", instance_socket()), format!("start {}", instance_socket())])
+        with_earlier_instance_questions(vec![
+            format!("state {}", instance_service()),
+            format!("state {}", instance_socket()),
+            format!("start {}", instance_socket())
+        ])
     );
     remove(machine.root.as_path());
 }
@@ -259,17 +380,37 @@ fn the_first_provisioning_writes_the_units_and_starts() {
 #[test]
 fn the_service_unit_signals_only_the_service_and_waits_longer_than_the_last_resort() {
     let machine: Machine = machine("unit-stop-timeout-lib");
-    let text: String = unit_texts(&machine.host).into_iter().find(|(name, _text)| { return *name == SERVICE_UNIT_NAME; }).expect("the service unit").1;
-    assert!(text.lines().any(|line| { return line == "KillMode=mixed"; }), "{text}");
+    let text: String = unit_texts(&machine.host)
+        .into_iter()
+        .find(|(name, _text)| {
+            return *name == SERVICE_UNIT_NAME;
+        })
+        .expect("the service unit")
+        .1;
+    assert!(
+        text.lines().any(|line| {
+            return line == "KillMode=mixed";
+        }),
+        "{text}"
+    );
     let written: u64 = text
         .lines()
-        .find_map(|line| { return line.strip_prefix("TimeoutStopSec="); })
+        .find_map(|line| {
+            return line.strip_prefix("TimeoutStopSec=");
+        })
         .expect("the unit sets its own stop timeout")
         .parse()
         .expect("whole seconds");
     assert_eq!(written, STOP_TIMEOUT_SECONDS);
-    assert!(std::time::Duration::from_secs(written) > crate::stop_of_the_service_noticed_by_its_children::LAST_RESORT, "{written} s is not above the last resort");
-    assert!(!text.contains("@STOP_TIMEOUT_SECONDS@"), "no placeholder is left: {text}");
+    assert!(
+        std::time::Duration::from_secs(written)
+            > crate::stop_of_the_service_noticed_by_its_children::LAST_RESORT,
+        "{written} s is not above the last resort"
+    );
+    assert!(
+        !text.contains("@STOP_TIMEOUT_SECONDS@"),
+        "no placeholder is left: {text}"
+    );
     remove(machine.root.as_path());
 }
 
@@ -281,12 +422,23 @@ fn provisioning_notes_which_worktree_the_units_are_for() {
     let machine: Machine = machine("provision-note-lib");
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
-    let note: PathBuf = crate::service_units_of_removed_worktrees::note_path(machine.host.runtime_dir.as_path(), INSTANCE);
-    assert_eq!(noted(note.as_path()), machine.host.git_dir, "the note names the worktree of the units");
+    let note: PathBuf = crate::service_units_of_removed_worktrees::note_path(
+        machine.host.runtime_dir.as_path(),
+        INSTANCE,
+    );
+    assert_eq!(
+        noted(note.as_path()),
+        machine.host.git_dir,
+        "the note names the worktree of the units"
+    );
     let written: Vec<u8> = std::fs::read(&note).expect("the note");
     let mut again: Recorder = Recorder::default();
     provision_with(&machine.host, &mut again).expect("provisioned again");
-    assert_eq!(std::fs::read(&note).expect("the note"), written, "the second provisioning writes no other note");
+    assert_eq!(
+        std::fs::read(&note).expect("the note"),
+        written,
+        "the second provisioning writes no other note"
+    );
     assert_eq!(noted(note.as_path()), machine.host.git_dir);
     remove(machine.root.as_path());
 }
@@ -297,10 +449,16 @@ fn provisioning_notes_which_worktree_the_units_are_for() {
 /// not its text,
 /// which would name another place or none for a path that is not text.
 fn noted(note: &Path) -> PathBuf {
-    use crate::path_bytes_in_records::{GITDIR_HEX_PREFIX, path_of_hex};
+    use crate::path_bytes_in_records::{
+        GITDIR_HEX_PREFIX,
+        path_of_hex,
+    };
     let text: String = std::fs::read_to_string(note).expect("the note");
-    let hexadecimal: &str = text.strip_prefix(GITDIR_HEX_PREFIX).expect("the note names the bytes of the directory");
-    return path_of_hex(hexadecimal.trim_end_matches('\n')).expect("the note holds the bytes of a path");
+    let hexadecimal: &str = text
+        .strip_prefix(GITDIR_HEX_PREFIX)
+        .expect("the note names the bytes of the directory");
+    return path_of_hex(hexadecimal.trim_end_matches('\n'))
+        .expect("the note holds the bytes of a path");
 }
 
 /// What:
@@ -326,15 +484,28 @@ fn noted(note: &Path) -> PathBuf {
 #[test]
 fn the_worktrees_note_is_written_before_the_manager_is_asked_to_start_the_units() {
     let machine: Machine = machine("provision-note-first-lib");
-    let note: PathBuf = crate::service_units_of_removed_worktrees::note_path(machine.host.runtime_dir.as_path(), INSTANCE);
+    let note: PathBuf = crate::service_units_of_removed_worktrees::note_path(
+        machine.host.runtime_dir.as_path(),
+        INSTANCE,
+    );
     let seen: Arc<Mutex<Vec<bool>>> = Arc::new(Mutex::new(Vec::new()));
     let mut recorder: Recorder = Recorder::default();
     let watched: Arc<Mutex<Vec<bool>>> = Arc::clone(&seen);
     let named: PathBuf = note.clone();
-    recorder.observe_start(Box::new(move || { watched.lock().expect("lock").push(named.exists()); }));
+    recorder.observe_start(Box::new(move || {
+        watched.lock().expect("lock").push(named.exists());
+    }));
     provision_with(&machine.host, &mut recorder).expect("provisioned");
-    assert_eq!(seen.lock().expect("lock").as_slice(), [true], "the note names the worktree before the units are started");
-    assert_eq!(noted(note.as_path()), machine.host.git_dir, "the note names the worktree of the units");
+    assert_eq!(
+        seen.lock().expect("lock").as_slice(),
+        [true],
+        "the note names the worktree before the units are started"
+    );
+    assert_eq!(
+        noted(note.as_path()),
+        machine.host.git_dir,
+        "the note names the worktree of the units"
+    );
     remove(machine.root.as_path());
 }
 
@@ -348,16 +519,34 @@ fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_star
     let mut first: Recorder = Recorder::default();
     provision_with(&machine.host, &mut first).expect("provisioned");
     let stamps: Vec<std::time::SystemTime> = [SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]
-        .map(|name| { return std::fs::metadata(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name)).expect("unit").modified().expect("time"); })
+        .map(|name| {
+            return std::fs::metadata(
+                runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name),
+            )
+            .expect("unit")
+            .modified()
+            .expect("time");
+        })
         .to_vec();
     let mut second: Recorder = Recorder::default();
     provision_with(&machine.host, &mut second).expect("provisioned again");
     assert_eq!(
         second.calls(),
-        with_earlier_instance_questions(vec![format!("reset-failed {}", instance_service()), format!("reset-failed {}", instance_socket()), format!("start {}", instance_socket())])
+        with_earlier_instance_questions(vec![
+            format!("reset-failed {}", instance_service()),
+            format!("reset-failed {}", instance_socket()),
+            format!("start {}", instance_socket())
+        ])
     );
     let after: Vec<std::time::SystemTime> = [SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]
-        .map(|name| { return std::fs::metadata(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name)).expect("unit").modified().expect("time"); })
+        .map(|name| {
+            return std::fs::metadata(
+                runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name),
+            )
+            .expect("unit")
+            .modified()
+            .expect("time");
+        })
         .to_vec();
     assert_eq!(stamps, after);
     remove(machine.root.as_path());
@@ -366,7 +555,10 @@ fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_star
 /// The socket the units activate,
 /// as the manager would have made it.
 pub(super) fn add_socket(machine: &Machine) {
-    let socket: PathBuf = socket_path(machine.host.runtime_dir.as_path(), machine.host.instance.as_str());
+    let socket: PathBuf = socket_path(
+        machine.host.runtime_dir.as_path(),
+        machine.host.instance.as_str(),
+    );
     std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("directories");
     std::fs::write(&socket, b"").expect("socket stand-in");
 }
@@ -383,7 +575,10 @@ fn units_are_in_place_only_when_they_match_and_the_socket_exists() {
     add_socket(&machine);
     assert!(in_place(&machine.host), "units that match and the socket");
     machine.host.git = PathBuf::from("/opt/other/git");
-    assert!(!in_place(&machine.host), "a different real Git is a different service unit");
+    assert!(
+        !in_place(&machine.host),
+        "a different real Git is a different service unit"
+    );
     machine.host.git = PathBuf::from("/usr/bin/git");
     assert!(in_place(&machine.host));
     remove(machine.root.as_path());
@@ -401,16 +596,31 @@ fn only_the_wrappers_own_earlier_units_keep_an_installation_from_being_in_place(
     add_socket(&machine);
     assert!(in_place(&machine.host));
     let runtime_directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
-    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), FOREIGN_UNIT).expect("someone's unit");
-    assert!(in_place(&machine.host), "a unit someone else wrote is not an earlier service of the wrapper's");
-    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), OWN_UNIT).expect("an earlier unit of the wrapper's");
-    assert!(!in_place(&machine.host), "an earlier unit of the wrapper's in the runtime directory");
+    std::fs::write(
+        runtime_directory.join(LEGACY_SERVICE_UNIT_NAME),
+        FOREIGN_UNIT,
+    )
+    .expect("someone's unit");
+    assert!(
+        in_place(&machine.host),
+        "a unit someone else wrote is not an earlier service of the wrapper's"
+    );
+    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), OWN_UNIT)
+        .expect("an earlier unit of the wrapper's");
+    assert!(
+        !in_place(&machine.host),
+        "an earlier unit of the wrapper's in the runtime directory"
+    );
     std::fs::remove_file(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME)).expect("removed");
     assert!(in_place(&machine.host));
     let user_directory: PathBuf = machine.host.user_unit_dir.clone().expect("unit directory");
     std::fs::create_dir_all(&user_directory).expect("user directory");
-    std::fs::write(user_directory.join(LEGACY_SOCKET_UNIT_NAME), OWN_UNIT).expect("an earlier unit of the wrapper's");
-    assert!(!in_place(&machine.host), "an earlier unit of the wrapper's in the user's own directory");
+    std::fs::write(user_directory.join(LEGACY_SOCKET_UNIT_NAME), OWN_UNIT)
+        .expect("an earlier unit of the wrapper's");
+    assert!(
+        !in_place(&machine.host),
+        "an earlier unit of the wrapper's in the user's own directory"
+    );
     remove(machine.root.as_path());
 }
 
@@ -431,9 +641,19 @@ fn a_unit_of_an_earlier_release_is_rewritten_and_started() {
     let machine: Machine = machine("provision-removed-lib");
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     add_socket(&machine);
-    let unit: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME);
+    let unit: PathBuf =
+        runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME);
     let removed: &str = "/home/a/.local/share/toolchain/cargo/cli/0.5.2/bin/cli-git-service";
-    std::fs::write(&unit, written(&machine, SERVICE_UNIT_NAME).replace(program_link(machine.host.runtime_dir.as_path()).to_string_lossy().as_ref(), removed)).expect("older unit");
+    std::fs::write(
+        &unit,
+        written(&machine, SERVICE_UNIT_NAME).replace(
+            program_link(machine.host.runtime_dir.as_path())
+                .to_string_lossy()
+                .as_ref(),
+            removed,
+        ),
+    )
+    .expect("older unit");
     assert!(!in_place(&machine.host));
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("repaired");
@@ -463,15 +683,28 @@ fn a_unit_from_another_release_is_rewritten() {
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     add_socket(&machine);
     let dir: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
-    let other: String = written(&machine, SERVICE_UNIT_NAME).replace("Restart=on-failure", "Restart=always");
+    let other: String =
+        written(&machine, SERVICE_UNIT_NAME).replace("Restart=on-failure", "Restart=always");
     std::fs::write(dir.join(SERVICE_UNIT_NAME), &other).expect("other release's unit");
     assert!(!in_place(&machine.host));
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("rewritten");
-    assert_eq!(written(&machine, SERVICE_UNIT_NAME), unit_texts(&machine.host)[1].1);
+    assert_eq!(
+        written(&machine, SERVICE_UNIT_NAME),
+        unit_texts(&machine.host)[1].1
+    );
     let calls: Vec<String> = recorder.calls();
-    assert_eq!(calls.first(), Some(&format!("state {}", instance_service())), "the manager is asked what it holds of this worktree: {calls:?}");
-    assert!(!calls.iter().any(|call| { return call.starts_with("reload"); }), "and nothing makes it read every unit it holds: {calls:?}");
+    assert_eq!(
+        calls.first(),
+        Some(&format!("state {}", instance_service())),
+        "the manager is asked what it holds of this worktree: {calls:?}"
+    );
+    assert!(
+        !calls.iter().any(|call| {
+            return call.starts_with("reload");
+        }),
+        "and nothing makes it read every unit it holds: {calls:?}"
+    );
     remove(machine.root.as_path());
 }
 
@@ -498,7 +731,8 @@ fn a_refused_start_leaves_the_files_and_no_stale_unit() {
     let machine: Machine = machine("provision-withdrawn-lib");
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     add_socket(&machine);
-    let unit: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME);
+    let unit: PathBuf =
+        runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME);
     // What:     `format!("{}...", text)` builds a new owned `String`: the written unit followed by one more line.
     // Why:      an older release's unit differs from this release's template by a line this release never writes, so
     //           the difference does not depend on any one setting staying in the template.
@@ -507,21 +741,38 @@ fn a_refused_start_leaves_the_files_and_no_stale_unit() {
     // ```ts
     // writeFileSync(unit, `${written(machine, SERVICE_UNIT_NAME)}# a line an older release wrote\n`);
     // ```
-    std::fs::write(&unit, format!("{}# a line an older release wrote\n", written(&machine, SERVICE_UNIT_NAME))).expect("older unit");
+    std::fs::write(
+        &unit,
+        format!(
+            "{}# a line an older release wrote\n",
+            written(&machine, SERVICE_UNIT_NAME)
+        ),
+    )
+    .expect("older unit");
     let mut refusing: Recorder = Recorder::default();
-    *refusing.failure.lock().expect("lock") = Some(CallError::Manager { name: String::from("org.freedesktop.systemd1.AccessDenied"), text: String::new() });
+    *refusing.failure.lock().expect("lock") = Some(CallError::Manager {
+        name: String::from("org.freedesktop.systemd1.AccessDenied"),
+        text: String::new(),
+    });
     provision_with(&machine.host, &mut refusing).expect_err("refused");
     // What: The texts on disk are the ones the manager was told about before this call, because the write put the template
     //       back as the first provisioning left it.
     // Why:  The record is the manager's own answer and nothing this call learned, so a call that was refused cannot spoil it;
     //       what it must not do is record texts the manager was never told about.
-    assert!(in_place(&machine.host), "the files hold the texts the manager was told about, and nothing stale is held");
+    assert!(
+        in_place(&machine.host),
+        "the files hold the texts the manager was told about, and nothing stale is held"
+    );
     // What: The next call finds the files an installation the manager was told about and asks nothing at all.
     // Why:  The refused start spoiled nothing: the record is the manager's own answer from the call before, and the texts on
     //       disk are the ones it covers.
     let mut again: Recorder = Recorder::default();
     provision_with(&machine.host, &mut again).expect("provisioned again");
-    assert!(again.calls().is_empty(), "the installation is in place, so nothing is asked: {:?}", again.calls());
+    assert!(
+        again.calls().is_empty(),
+        "the installation is in place, so nothing is asked: {:?}",
+        again.calls()
+    );
     remove(machine.root.as_path());
 }
 
@@ -541,10 +792,20 @@ fn a_moved_program_moves_only_the_link() {
     add_socket(&machine);
     let texts_before: [(&'static str, String); 2] = unit_texts(&machine.host);
     machine.host.service_binary = machine.root.join("upgraded/monochromatic-git-policy-cli");
-    assert_eq!(unit_texts(&machine.host), texts_before, "an upgrade changes no unit text");
+    assert_eq!(
+        unit_texts(&machine.host),
+        texts_before,
+        "an upgrade changes no unit text"
+    );
     point_program_link(&machine.host);
-    assert_eq!(std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"), machine.host.service_binary);
-    assert!(in_place(&machine.host), "and the installation stays one the manager read");
+    assert_eq!(
+        std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"),
+        machine.host.service_binary
+    );
+    assert!(
+        in_place(&machine.host),
+        "and the installation stays one the manager read"
+    );
     remove(machine.root.as_path());
 }
 
@@ -581,14 +842,37 @@ fn a_release_change_of_every_kind_changes_no_unit_text() {
     // What: The four ways a release changes, as the paths they leave the wrapper running from.
     // Why:  A build of this repository made in a worktree (`target/debug`) is a release change like an install, which is
     //       what makes a second build of one release a case of its own.
-    let next_release: PathBuf = machine.root.join("releases/0.6.2/bin/monochromatic-git-policy-cli");
-    let previous_release: PathBuf = machine.root.join("releases/0.6.0/bin/monochromatic-git-policy-cli");
+    let next_release: PathBuf = machine
+        .root
+        .join("releases/0.6.2/bin/monochromatic-git-policy-cli");
+    let previous_release: PathBuf = machine
+        .root
+        .join("releases/0.6.0/bin/monochromatic-git-policy-cli");
     let this_release: PathBuf = machine.host.service_binary.clone();
-    let a_build_in_a_worktree: PathBuf = machine.root.join("worktrees/topic/target/debug/monochromatic-git-policy-cli");
-    for program in [&next_release, &previous_release, &this_release, &a_build_in_a_worktree, &next_release] {
+    let a_build_in_a_worktree: PathBuf = machine
+        .root
+        .join("worktrees/topic/target/debug/monochromatic-git-policy-cli");
+    for program in [
+        &next_release,
+        &previous_release,
+        &this_release,
+        &a_build_in_a_worktree,
+        &next_release,
+    ] {
         machine.host.service_binary = program.clone();
-        assert_eq!(unit_texts(&machine.host), installed, "a release change to {} changes no unit text", program.display());
-        assert!(!unit_texts(&machine.host).iter().any(|(_name, text)| { return text.contains(program.to_string_lossy().as_ref()); }), "and no unit names the executable of {} itself", program.display());
+        assert_eq!(
+            unit_texts(&machine.host),
+            installed,
+            "a release change to {} changes no unit text",
+            program.display()
+        );
+        assert!(
+            !unit_texts(&machine.host).iter().any(|(_name, text)| {
+                return text.contains(program.to_string_lossy().as_ref());
+            }),
+            "and no unit names the executable of {} itself",
+            program.display()
+        );
     }
     // The link is the one thing a release change moves, and each of those four names it.
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
@@ -597,8 +881,18 @@ fn a_release_change_of_every_kind_changes_no_unit_text() {
         machine.host.service_binary = program.clone();
         let installed_text: String = written(&machine, SERVICE_UNIT_NAME);
         point_program_link(&machine.host);
-        assert_eq!(written(&machine, SERVICE_UNIT_NAME), installed_text, "the template is not written again for {}", program.display());
-        assert_eq!(std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"), *program, "and the link names {}", program.display());
+        assert_eq!(
+            written(&machine, SERVICE_UNIT_NAME),
+            installed_text,
+            "the template is not written again for {}",
+            program.display()
+        );
+        assert_eq!(
+            std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"),
+            *program,
+            "and the link names {}",
+            program.display()
+        );
     }
     remove(machine.root.as_path());
 }
@@ -629,7 +923,11 @@ fn a_provisioning_of_an_installation_that_is_in_place_asks_the_manager_nothing()
     assert!(in_place(&machine.host));
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned again");
-    assert!(recorder.calls().is_empty(), "nothing to write and nothing to start, so nothing is asked: {:?}", recorder.calls());
+    assert!(
+        recorder.calls().is_empty(),
+        "nothing to write and nothing to start, so nothing is asked: {:?}",
+        recorder.calls()
+    );
     remove(machine.root.as_path());
 }
 
@@ -652,20 +950,32 @@ fn a_provisioning_of_an_installation_that_is_in_place_asks_the_manager_nothing()
 /// ```ts
 /// // { release: '0.6.1-alpha.13', program: '<the executable of the release that wrote the template>' }
 /// ```
-fn template_of(release: &str, runtime_dir: &Path) -> String {
+fn template_of(
+    release: &str,
+    runtime_dir: &Path,
+) -> String {
     // What: The program each release filled into the template.
     // Why:  `0.6.1-alpha.13` wrote the absolute path of its own executable into the unit;
     //       `0.6.1-alpha.14` wrote a link of its
     //       own, which sits in the notes folder of the note directory.
     let program: String = match release {
-        "0.6.1-alpha.13" => String::from("/home/someone/.local/share/toolchain/cargo/cli/0.6.1-alpha.13/bin/monochromatic-git-policy-cli"),
-        "0.6.1-alpha.14" => runtime_unit_dir(runtime_dir).join(crate::service_units_of_removed_worktrees::NOTES_FOLDER).join("service-program").to_string_lossy().into_owned(),
+        "0.6.1-alpha.13" => String::from(
+            "/home/someone/.local/share/toolchain/cargo/cli/0.6.1-alpha.13/bin/monochromatic-git-policy-cli",
+        ),
+        "0.6.1-alpha.14" => runtime_unit_dir(runtime_dir)
+            .join(crate::service_units_of_removed_worktrees::NOTES_FOLDER)
+            .join("service-program")
+            .to_string_lossy()
+            .into_owned(),
         other => panic!("{other} is no release this control knows"),
     };
     return SERVICE_UNIT
         .replace(BINARY_PLACEHOLDER, program.as_str())
         .replace(GIT_PLACEHOLDER, "/usr/bin/git")
-        .replace(STOP_TIMEOUT_PLACEHOLDER, STOP_TIMEOUT_SECONDS.to_string().as_str());
+        .replace(
+            STOP_TIMEOUT_PLACEHOLDER,
+            STOP_TIMEOUT_SECONDS.to_string().as_str(),
+        );
 }
 
 /// What:
@@ -704,26 +1014,51 @@ fn a_machine_carrying_either_earlier_releases_template_is_brought_over_without_a
         let directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
         std::fs::create_dir_all(&directory).expect("the unit directory");
         let seeded: String = template_of(release, machine.host.runtime_dir.as_path());
-        std::fs::write(directory.join(SERVICE_UNIT_NAME), &seeded).expect("the earlier release's service template");
-        std::fs::write(directory.join(SOCKET_UNIT_NAME), SOCKET_UNIT).expect("the earlier release's socket template");
+        std::fs::write(directory.join(SERVICE_UNIT_NAME), &seeded)
+            .expect("the earlier release's service template");
+        std::fs::write(directory.join(SOCKET_UNIT_NAME), SOCKET_UNIT)
+            .expect("the earlier release's socket template");
         // The record those releases kept: one file for the whole runtime directory, which this release never reads.
-        let notes: PathBuf = directory.join(crate::service_units_of_removed_worktrees::NOTES_FOLDER);
+        let notes: PathBuf =
+            directory.join(crate::service_units_of_removed_worktrees::NOTES_FOLDER);
         std::fs::create_dir_all(&notes).expect("the notes folder");
-        std::fs::write(notes.join("units-the-manager-was-told"), "an earlier release's digest\n").expect("the earlier release's record");
+        std::fs::write(
+            notes.join("units-the-manager-was-told"),
+            "an earlier release's digest\n",
+        )
+        .expect("the earlier release's record");
         // The socket the earlier release started, which the manager keeps across a release change.
         add_socket(&machine);
-        assert_ne!(written(&machine, SERVICE_UNIT_NAME), unit_texts(&machine.host)[1].1, "{release}'s template is not this release's");
-        assert!(!in_place(&machine.host), "so the machine is not set up for this release yet");
+        assert_ne!(
+            written(&machine, SERVICE_UNIT_NAME),
+            unit_texts(&machine.host)[1].1,
+            "{release}'s template is not this release's"
+        );
+        assert!(
+            !in_place(&machine.host),
+            "so the machine is not set up for this release yet"
+        );
         let mut recorder: Recorder = Recorder::default();
         // What: The manager the first commit meets: it holds this worktree's service running under the earlier release's text,
         //       and drops it once it was asked to retire and its socket was stopped.
         // Why:  That is the state a machine which used the earlier release is in, and the calls below are what the migration
         //       costs it.
-        recorder.report_states_of(instance_service().as_str(), &[Some("active"), Some("inactive"), None]);
+        recorder.report_states_of(
+            instance_service().as_str(),
+            &[Some("active"), Some("inactive"), None],
+        );
         recorder.report_states_of(instance_socket().as_str(), &[Some("active"), None]);
-        provision_with(&machine.host, &mut recorder).expect("the first commit of this release sets the machine up");
-        assert_eq!(written(&machine, SERVICE_UNIT_NAME), unit_texts(&machine.host)[1].1, "{release}'s template is rewritten to this release's");
-        assert!(in_place(&machine.host), "and the machine is set up for this release");
+        provision_with(&machine.host, &mut recorder)
+            .expect("the first commit of this release sets the machine up");
+        assert_eq!(
+            written(&machine, SERVICE_UNIT_NAME),
+            unit_texts(&machine.host)[1].1,
+            "{release}'s template is rewritten to this release's"
+        );
+        assert!(
+            in_place(&machine.host),
+            "and the machine is set up for this release"
+        );
         // What: Every call the manager was asked for, in order.
         // Why:  It names this worktree's own two units and nothing else, and no member of it can make the manager read every
         //       unit it holds: retirement, the stop of the socket this worktree's service requires, the wait until the manager
@@ -766,15 +1101,36 @@ fn a_replacement_that_stops_before_its_rename_leaves_the_old_link() {
     std::fs::create_dir_all(machine.root.join("programs")).expect("the program folder");
     std::fs::write(&earlier, b"the earlier release").expect("the earlier program");
     std::fs::write(&later, b"the later release").expect("the later program");
-    crate::service_provision_unit_file_ownership_and_writes::link_atomically(program_link(machine.host.runtime_dir.as_path()).as_path(), earlier.as_path()).expect("the link names the earlier release");
+    crate::service_provision_unit_file_ownership_and_writes::link_atomically(
+        program_link(machine.host.runtime_dir.as_path()).as_path(),
+        earlier.as_path(),
+    )
+    .expect("the link names the earlier release");
     // What: The temporary link a killed replacement left behind, beside the link that was there.
     // Why:  It is the name `link_atomically` writes before the rename, which a kill between the two leaves on disk.
-    let temporary: PathBuf = program_link(machine.host.runtime_dir.as_path()).with_extension(format!("linktmp-{}-0", std::process::id()));
-    std::os::unix::fs::symlink(&later, &temporary).expect("the temporary link a killed replacement left");
-    assert_eq!(std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"), earlier, "a reader sees the link that was there, whole");
-    crate::service_provision_unit_file_ownership_and_writes::link_atomically(program_link(machine.host.runtime_dir.as_path()).as_path(), later.as_path()).expect("the next provisioning renames its own over the old one");
-    assert_eq!(std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"), later, "the link names the program the next provisioning wrote");
-    assert!(earlier.exists() && later.exists(), "neither program is touched");
+    let temporary: PathBuf = program_link(machine.host.runtime_dir.as_path())
+        .with_extension(format!("linktmp-{}-0", std::process::id()));
+    std::os::unix::fs::symlink(&later, &temporary)
+        .expect("the temporary link a killed replacement left");
+    assert_eq!(
+        std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"),
+        earlier,
+        "a reader sees the link that was there, whole"
+    );
+    crate::service_provision_unit_file_ownership_and_writes::link_atomically(
+        program_link(machine.host.runtime_dir.as_path()).as_path(),
+        later.as_path(),
+    )
+    .expect("the next provisioning renames its own over the old one");
+    assert_eq!(
+        std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"),
+        later,
+        "the link names the program the next provisioning wrote"
+    );
+    assert!(
+        earlier.exists() && later.exists(),
+        "neither program is touched"
+    );
     let _removed = std::fs::remove_file(&temporary);
     remove(machine.root.as_path());
 }
@@ -806,12 +1162,22 @@ fn a_replacement_that_stops_before_its_rename_leaves_the_old_link() {
 #[test]
 fn a_commit_killed_before_it_recorded_the_units_is_repaired_by_the_next_commit() {
     let machine: Machine = machine("provision-interrupted-upgrade-lib");
-    provision_with(&machine.host, &mut Recorder::default()).expect("the replaced release provisioned");
+    provision_with(&machine.host, &mut Recorder::default())
+        .expect("the replaced release provisioned");
     add_socket(&machine);
-    assert!(in_place(&machine.host), "the replaced release is installed and the manager read its texts");
+    assert!(
+        in_place(&machine.host),
+        "the replaced release is installed and the manager read its texts"
+    );
     // The upgrading release was killed before it recorded what the manager holds.
-    crate::service_provision_loaded_unit_texts::forget(machine.host.runtime_dir.as_path(), INSTANCE);
-    assert!(!in_place(&machine.host), "the next commit does not take the files for an installation the manager read");
+    crate::service_provision_loaded_unit_texts::forget(
+        machine.host.runtime_dir.as_path(),
+        INSTANCE,
+    );
+    assert!(
+        !in_place(&machine.host),
+        "the next commit does not take the files for an installation the manager read"
+    );
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("repaired");
     assert_eq!(
@@ -820,7 +1186,10 @@ fn a_commit_killed_before_it_recorded_the_units_is_repaired_by_the_next_commit()
         "the manager is asked what it holds of this worktree before anything is started: {:?}",
         recorder.calls()
     );
-    assert!(in_place(&machine.host), "and the installation is one the manager read");
+    assert!(
+        in_place(&machine.host),
+        "and the installation is one the manager read"
+    );
     remove(machine.root.as_path());
 }
 
@@ -831,17 +1200,50 @@ fn earlier_units_are_removed_with_their_link() {
     let machine: Machine = machine("provision-earlier-lib");
     let directory: PathBuf = machine.host.user_unit_dir.clone().expect("unit directory");
     std::fs::create_dir_all(directory.join("sockets.target.wants")).expect("directories");
-    std::fs::write(directory.join(LEGACY_SOCKET_UNIT_NAME), "[Unit]\nDescription=Commit service socket for the git wrapper\n").expect("earlier socket");
-    std::fs::write(directory.join(LEGACY_SERVICE_UNIT_NAME), "[Unit]\nDescription=Commit service for the git wrapper\n").expect("earlier service");
-    std::os::unix::fs::symlink("../cli-git.socket", directory.join("sockets.target.wants").join(LEGACY_SOCKET_UNIT_NAME)).expect("link");
+    std::fs::write(
+        directory.join(LEGACY_SOCKET_UNIT_NAME),
+        "[Unit]\nDescription=Commit service socket for the git wrapper\n",
+    )
+    .expect("earlier socket");
+    std::fs::write(
+        directory.join(LEGACY_SERVICE_UNIT_NAME),
+        "[Unit]\nDescription=Commit service for the git wrapper\n",
+    )
+    .expect("earlier service");
+    std::os::unix::fs::symlink(
+        "../cli-git.socket",
+        directory
+            .join("sockets.target.wants")
+            .join(LEGACY_SOCKET_UNIT_NAME),
+    )
+    .expect("link");
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
-    assert!(!directory.join(LEGACY_SOCKET_UNIT_NAME).exists() && !directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
-    assert!(std::fs::symlink_metadata(directory.join("sockets.target.wants").join(LEGACY_SOCKET_UNIT_NAME)).is_err());
+    assert!(
+        !directory.join(LEGACY_SOCKET_UNIT_NAME).exists()
+            && !directory.join(LEGACY_SERVICE_UNIT_NAME).exists()
+    );
+    assert!(
+        std::fs::symlink_metadata(
+            directory
+                .join("sockets.target.wants")
+                .join(LEGACY_SOCKET_UNIT_NAME)
+        )
+        .is_err()
+    );
     // The service those units ran is stopped before this worktree's own socket is started.
     let calls: Vec<String> = recorder.calls();
-    assert!(position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str()) < position(&calls, format!("start {}", instance_socket()).as_str()), "{calls:?}");
-    assert!(!calls.iter().any(|call| { return call.starts_with("reload"); }), "and nothing makes the manager read every unit it holds: {calls:?}");
+    assert!(
+        position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str())
+            < position(&calls, format!("start {}", instance_socket()).as_str()),
+        "{calls:?}"
+    );
+    assert!(
+        !calls.iter().any(|call| {
+            return call.starts_with("reload");
+        }),
+        "and nothing makes the manager read every unit it holds: {calls:?}"
+    );
     remove(machine.root.as_path());
 }
 
@@ -858,10 +1260,19 @@ fn a_foreign_unit_is_left_alone_and_named() {
     std::fs::write(&foreign, "[Service]\nExecStart=/usr/bin/true\n").expect("foreign unit");
     let mut recorder: Recorder = Recorder::default();
     let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("refused");
-    assert_eq!(failure, ClientFailure::UnitInTheWay(foreign.display().to_string()));
+    assert_eq!(
+        failure,
+        ClientFailure::UnitInTheWay(foreign.display().to_string())
+    );
     assert!(render(&failure).contains(foreign.to_string_lossy().as_ref()));
-    assert_eq!(std::fs::read_to_string(&foreign).expect("still there"), "[Service]\nExecStart=/usr/bin/true\n");
-    assert!(!runtime_unit_dir(machine.host.runtime_dir.as_path()).exists(), "nothing was written");
+    assert_eq!(
+        std::fs::read_to_string(&foreign).expect("still there"),
+        "[Service]\nExecStart=/usr/bin/true\n"
+    );
+    assert!(
+        !runtime_unit_dir(machine.host.runtime_dir.as_path()).exists(),
+        "nothing was written"
+    );
     assert!(recorder.calls().is_empty());
     remove(machine.root.as_path());
 }
@@ -873,13 +1284,22 @@ fn a_foreign_unit_is_left_alone_and_named() {
 fn manager_failures_are_plain() {
     let machine: Machine = machine("provision-failures-lib");
     let mut recorder: Recorder = Recorder::default();
-    *recorder.failure.lock().expect("lock") =
-        Some(CallError::Manager { name: String::from("org.freedesktop.systemd1.AccessDenied"), text: String::from("permission denied") });
+    *recorder.failure.lock().expect("lock") = Some(CallError::Manager {
+        name: String::from("org.freedesktop.systemd1.AccessDenied"),
+        text: String::from("permission denied"),
+    });
     let refused: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("refused");
     let text: String = render(&refused);
-    assert!(text.contains("permission denied") && !text.contains("org.freedesktop"), "{text}");
-    *recorder.failure.lock().expect("lock") = Some(CallError::Connection(String::from("broken pipe")));
-    assert_eq!(provision_with(&machine.host, &mut recorder), Err(ClientFailure::NoActivation(platform_without_manager())));
+    assert!(
+        text.contains("permission denied") && !text.contains("org.freedesktop"),
+        "{text}"
+    );
+    *recorder.failure.lock().expect("lock") =
+        Some(CallError::Connection(String::from("broken pipe")));
+    assert_eq!(
+        provision_with(&machine.host, &mut recorder),
+        Err(ClientFailure::NoActivation(platform_without_manager()))
+    );
     remove(machine.root.as_path());
 }
 
@@ -897,13 +1317,25 @@ fn a_bus_without_a_user_manager_gets_the_plain_remedy_for_an_account_without_use
     let mut recorder: Recorder = Recorder::default();
     *recorder.failure.lock().expect("lock") = Some(CallError::Manager {
         name: String::from("org.freedesktop.DBus.Error.ServiceUnknown"),
-        text: String::from("The name org.freedesktop.systemd1 was not provided by any .service files"),
+        text: String::from(
+            "The name org.freedesktop.systemd1 was not provided by any .service files",
+        ),
     });
-    let refused: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("no manager to start the service");
-    assert_eq!(refused, ClientFailure::NoActivation(platform_without_manager()));
+    let refused: ClientFailure =
+        provision_with(&machine.host, &mut recorder).expect_err("no manager to start the service");
+    assert_eq!(
+        refused,
+        ClientFailure::NoActivation(platform_without_manager())
+    );
     let text: String = render(&refused);
-    assert!(text.contains(crate::service_messages::LINGER_COMMAND), "the remedy is the one for an account without user services: {text}");
-    assert!(!text.contains("org.freedesktop"), "the bus's own words do not reach the person: {text}");
+    assert!(
+        text.contains(crate::service_messages::LINGER_COMMAND),
+        "the remedy is the one for an account without user services: {text}"
+    );
+    assert!(
+        !text.contains("org.freedesktop"),
+        "the bus's own words do not reach the person: {text}"
+    );
     remove(machine.root.as_path());
 }
 
@@ -918,7 +1350,9 @@ fn racing_first_commits_agree_without_a_lock() {
         .map(|_| {
             let for_thread: Arc<ProvisionHost> = Arc::clone(&shared);
             let mut manager: Recorder = recorder.clone();
-            return std::thread::spawn(move || { return provision_with(&for_thread, &mut manager); });
+            return std::thread::spawn(move || {
+                return provision_with(&for_thread, &mut manager);
+            });
         })
         .collect();
     for handle in handles {
@@ -927,12 +1361,17 @@ fn racing_first_commits_agree_without_a_lock() {
     for (name, text) in unit_texts(&machine.host) {
         assert_eq!(written(&machine, name), text);
     }
-    let leftovers: Vec<String> = std::fs::read_dir(runtime_unit_dir(machine.host.runtime_dir.as_path()))
-        .expect("directory")
-        .flatten()
-        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|name| { return name.contains(".tmp-"); })
-        .collect();
+    let leftovers: Vec<String> =
+        std::fs::read_dir(runtime_unit_dir(machine.host.runtime_dir.as_path()))
+            .expect("directory")
+            .flatten()
+            .map(|entry| {
+                return entry.file_name().to_string_lossy().into_owned();
+            })
+            .filter(|name| {
+                return name.contains(".tmp-");
+            })
+            .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
     remove(machine.root.as_path());
 }
@@ -940,7 +1379,10 @@ fn racing_first_commits_agree_without_a_lock() {
 /// The wrapper's own program name and the unit names agree with what the units say.
 #[test]
 fn the_unit_names_agree_with_the_templates() {
-    assert!(SERVICE_UNIT.contains(&format!("Requires={}", SOCKET_UNIT_NAME.replace('@', "@%i"))));
+    assert!(SERVICE_UNIT.contains(&format!(
+        "Requires={}",
+        SOCKET_UNIT_NAME.replace('@', "@%i")
+    )));
     assert!(SERVICE_UNIT.contains(BINARY_PLACEHOLDER) && SERVICE_UNIT.contains(GIT_PLACEHOLDER));
 }
 
@@ -959,10 +1401,15 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
     let directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
     std::fs::create_dir_all(&directory).expect("unit directory");
     for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
-        std::fs::write(directory.join(name), "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n").expect("earlier unit");
+        std::fs::write(
+            directory.join(name),
+            "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n",
+        )
+        .expect("earlier unit");
     }
     let earlier_socket: PathBuf = machine.host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
-    std::fs::create_dir_all(earlier_socket.parent().expect("socket directory")).expect("directories");
+    std::fs::create_dir_all(earlier_socket.parent().expect("socket directory"))
+        .expect("directories");
     std::fs::write(&earlier_socket, b"").expect("the earlier socket's file");
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
@@ -981,8 +1428,14 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
             format!("start {}", instance_socket())
         ])
     );
-    assert!(!directory.join(LEGACY_SOCKET_UNIT_NAME).exists() && !directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
-    assert!(!earlier_socket.exists(), "the earlier socket's file is gone");
+    assert!(
+        !directory.join(LEGACY_SOCKET_UNIT_NAME).exists()
+            && !directory.join(LEGACY_SERVICE_UNIT_NAME).exists()
+    );
+    assert!(
+        !earlier_socket.exists(),
+        "the earlier socket's file is gone"
+    );
     add_socket(&machine);
     assert!(in_place(&machine.host));
     remove(machine.root.as_path());
@@ -990,27 +1443,51 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
 
 /// The wrapper's units of the earlier single service in `directory`,
 /// and the socket file it listened on.
-pub(super) fn earlier_service_files(machine: &Machine, directory: &Path) -> PathBuf {
+pub(super) fn earlier_service_files(
+    machine: &Machine,
+    directory: &Path,
+) -> PathBuf {
     std::fs::create_dir_all(directory).expect("unit directory");
     for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
-        std::fs::write(directory.join(name), "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n").expect("earlier unit");
+        std::fs::write(
+            directory.join(name),
+            "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n",
+        )
+        .expect("earlier unit");
     }
     let earlier_socket: PathBuf = machine.host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
-    std::fs::create_dir_all(earlier_socket.parent().expect("socket directory")).expect("directories");
+    std::fs::create_dir_all(earlier_socket.parent().expect("socket directory"))
+        .expect("directories");
     std::fs::write(&earlier_socket, b"").expect("the earlier socket's file");
     return earlier_socket;
 }
 
-fn script(recorder: &Recorder, unit: &str, states: &[&str]) {
-    recorder
-        .states
-        .lock()
-        .expect("lock")
-        .insert(unit.to_string(), states.iter().map(|state| { return Some((*state).to_string()); }).collect());
+fn script(
+    recorder: &Recorder,
+    unit: &str,
+    states: &[&str],
+) {
+    recorder.states.lock().expect("lock").insert(
+        unit.to_string(),
+        states
+            .iter()
+            .map(|state| {
+                return Some((*state).to_string());
+            })
+            .collect(),
+    );
 }
 
-fn position(calls: &[String], wanted: &str) -> usize {
-    return calls.iter().position(|call| { return call == wanted; }).unwrap_or_else(|| { panic!("{wanted} was not asked: {calls:?}") });
+fn position(
+    calls: &[String],
+    wanted: &str,
+) -> usize {
+    return calls
+        .iter()
+        .position(|call| {
+            return call == wanted;
+        })
+        .unwrap_or_else(|| panic!("{wanted} was not asked: {calls:?}"));
 }
 
 /// A stop job that is only queued has not stopped the service:
@@ -1020,16 +1497,37 @@ fn position(calls: &[String], wanted: &str) -> usize {
 #[test]
 fn an_instance_starts_only_after_the_earlier_service_has_stopped() {
     let machine: Machine = machine("provision-retire-wait-lib");
-    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    earlier_service_files(
+        &machine,
+        runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path(),
+    );
     let mut recorder: Recorder = Recorder::default();
-    script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["active", "deactivating", "inactive"]);
+    script(
+        &recorder,
+        LEGACY_SERVICE_UNIT_NAME,
+        &["active", "deactivating", "inactive"],
+    );
     script(&recorder, LEGACY_SOCKET_UNIT_NAME, &["inactive"]);
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let calls: Vec<String> = recorder.calls();
-    let service_states: Vec<usize> =
-        calls.iter().enumerate().filter(|(_, call)| { return call.as_str() == format!("state {LEGACY_SERVICE_UNIT_NAME}"); }).map(|(index, _)| { return index; }).collect();
-    assert!(service_states.len() >= 3, "asked until it was inactive: {calls:?}");
-    assert!(position(&calls, format!("start {}", instance_socket()).as_str()) > service_states[2], "{calls:?}");
+    let service_states: Vec<usize> = calls
+        .iter()
+        .enumerate()
+        .filter(|(_, call)| {
+            return call.as_str() == format!("state {LEGACY_SERVICE_UNIT_NAME}");
+        })
+        .map(|(index, _)| {
+            return index;
+        })
+        .collect();
+    assert!(
+        service_states.len() >= 3,
+        "asked until it was inactive: {calls:?}"
+    );
+    assert!(
+        position(&calls, format!("start {}", instance_socket()).as_str()) > service_states[2],
+        "{calls:?}"
+    );
     remove(machine.root.as_path());
 }
 
@@ -1043,10 +1541,23 @@ fn an_earlier_service_that_does_not_stop_in_time_fails_the_commit() {
     let earlier_socket: PathBuf = earlier_service_files(&machine, directory.as_path());
     let mut recorder: Recorder = Recorder::default();
     script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["deactivating"]);
-    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("the stop did not finish");
-    assert!(matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains(LEGACY_SERVICE_UNIT_NAME)), "{failure:?}");
-    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("start ") || call == "reload"; }), "{:?}", recorder.calls());
-    assert!(directory.join(LEGACY_SERVICE_UNIT_NAME).exists() && earlier_socket.exists(), "the evidence stays for the next commit");
+    let failure: ClientFailure =
+        provision_with(&machine.host, &mut recorder).expect_err("the stop did not finish");
+    assert!(
+        matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains(LEGACY_SERVICE_UNIT_NAME)),
+        "{failure:?}"
+    );
+    assert!(
+        !recorder.calls().iter().any(|call| {
+            return call.starts_with("start ") || call == "reload";
+        }),
+        "{:?}",
+        recorder.calls()
+    );
+    assert!(
+        directory.join(LEGACY_SERVICE_UNIT_NAME).exists() && earlier_socket.exists(),
+        "the evidence stays for the next commit"
+    );
     remove(machine.root.as_path());
 }
 
@@ -1058,12 +1569,22 @@ fn an_earlier_service_that_does_not_stop_in_time_fails_the_commit() {
 #[test]
 fn a_state_question_that_outlasts_the_retirement_wait_is_a_slow_stop_and_not_a_missing_manager() {
     let machine: Machine = machine("provision-retire-question-late-lib");
-    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    earlier_service_files(
+        &machine,
+        runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path(),
+    );
     let mut recorder: Recorder = Recorder::default();
     *recorder.state_failure.lock().expect("lock") = Some(CallError::TimedOut);
-    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("the question ran out of time");
-    assert!(matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains(LEGACY_SERVICE_UNIT_NAME) || reason.contains(LEGACY_SOCKET_UNIT_NAME)), "{failure:?}");
-    assert_ne!(failure, ClientFailure::NoActivation(platform_without_manager()));
+    let failure: ClientFailure =
+        provision_with(&machine.host, &mut recorder).expect_err("the question ran out of time");
+    assert!(
+        matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains(LEGACY_SERVICE_UNIT_NAME) || reason.contains(LEGACY_SOCKET_UNIT_NAME)),
+        "{failure:?}"
+    );
+    assert_ne!(
+        failure,
+        ClientFailure::NoActivation(platform_without_manager())
+    );
     remove(machine.root.as_path());
 }
 
@@ -1090,17 +1611,44 @@ fn a_manager_that_does_not_answer_never_fails_the_commit() {
     let machine: Machine = machine("provision-timeout-lib");
     let mut recorder: Recorder = Recorder::default();
     *recorder.failure.lock().expect("lock") = Some(CallError::TimedOut);
-    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
-        provision_with(&machine.host, &mut recorder).expect("a manager that does not answer is not a failure");
-    });
-    let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
-    assert_eq!(said.len(), 1, "one line says what the wait was for: {said:?}");
-    assert!(said[0].contains(&format!("within {} seconds", EXCHANGE_WAIT.as_secs())), "{said:?}");
-    assert!(said[0].contains(instance_socket().as_str()), "{said:?}");
-    assert!(said[0].contains("the commit goes on") && said[0].contains("the next commit asks the manager again"), "{said:?}");
-    assert!(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME).exists(), "the units are written");
+    let entries: Vec<crate::service_timing::capture::Captured> =
+        crate::service_timing::capture::entries_of(|| {
+            provision_with(&machine.host, &mut recorder)
+                .expect("a manager that does not answer is not a failure");
+        });
+    let said: Vec<String> = entries
+        .iter()
+        .map(|entry| {
+            return entry.message.clone();
+        })
+        .collect();
+    assert_eq!(
+        said.len(),
+        1,
+        "one line says what the wait was for: {said:?}"
+    );
     assert!(
-        !crate::service_provision_loaded_unit_texts::remembers(machine.host.runtime_dir.as_path(), INSTANCE, unit_texts(&machine.host).as_slice()),
+        said[0].contains(&format!("within {} seconds", EXCHANGE_WAIT.as_secs())),
+        "{said:?}"
+    );
+    assert!(said[0].contains(instance_socket().as_str()), "{said:?}");
+    assert!(
+        said[0].contains("the commit goes on")
+            && said[0].contains("the next commit asks the manager again"),
+        "{said:?}"
+    );
+    assert!(
+        runtime_unit_dir(machine.host.runtime_dir.as_path())
+            .join(SERVICE_UNIT_NAME)
+            .exists(),
+        "the units are written"
+    );
+    assert!(
+        !crate::service_provision_loaded_unit_texts::remembers(
+            machine.host.runtime_dir.as_path(),
+            INSTANCE,
+            unit_texts(&machine.host).as_slice()
+        ),
         "the record is unwritten, so the next commit asks again"
     );
     add_socket(&machine);
@@ -1124,17 +1672,42 @@ fn a_manager_that_does_not_answer_never_fails_the_commit() {
 #[test]
 fn the_retirement_questions_and_the_start_have_budgets_of_their_own() {
     let machine: Machine = machine("provision-budgets-lib");
-    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    earlier_service_files(
+        &machine,
+        runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path(),
+    );
     let mut recorder: Recorder = Recorder::default();
-    script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["deactivating", "inactive"]);
+    script(
+        &recorder,
+        LEGACY_SERVICE_UNIT_NAME,
+        &["deactivating", "inactive"],
+    );
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let budgets: Vec<std::time::Duration> = recorder.budgets.lock().expect("lock").clone();
-    assert_eq!(budgets.first(), Some(&EXCHANGE_WAIT), "the stop calls get a whole exchange's time: {budgets:?}");
+    assert_eq!(
+        budgets.first(),
+        Some(&EXCHANGE_WAIT),
+        "the stop calls get a whole exchange's time: {budgets:?}"
+    );
     assert!(!budgets.is_empty() && budgets.len() >= 4, "{budgets:?}");
     // The last budget is the earlier socket of the worktree's, and the one before it the start's.
-    assert_eq!(budgets[budgets.len() - 2], EXCHANGE_WAIT, "the start gets a whole exchange's time again: {budgets:?}");
-    assert!(budgets.iter().all(|budget| { return *budget <= EXCHANGE_WAIT; }), "no call is given more than one exchange: {budgets:?}");
-    assert!(budgets.iter().any(|budget| { return *budget <= machine.host.retirement_wait; }), "and a phase of the retirement or of the unload is bounded by the retirement wait: {budgets:?}");
+    assert_eq!(
+        budgets[budgets.len() - 2],
+        EXCHANGE_WAIT,
+        "the start gets a whole exchange's time again: {budgets:?}"
+    );
+    assert!(
+        budgets.iter().all(|budget| {
+            return *budget <= EXCHANGE_WAIT;
+        }),
+        "no call is given more than one exchange: {budgets:?}"
+    );
+    assert!(
+        budgets.iter().any(|budget| {
+            return *budget <= machine.host.retirement_wait;
+        }),
+        "and a phase of the retirement or of the unload is bounded by the retirement wait: {budgets:?}"
+    );
     remove(machine.root.as_path());
 }
 
@@ -1143,13 +1716,28 @@ fn the_retirement_questions_and_the_start_have_budgets_of_their_own() {
 #[test]
 fn a_refused_stop_of_the_earlier_service_fails_the_commit() {
     let machine: Machine = machine("provision-retire-refused-lib");
-    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    earlier_service_files(
+        &machine,
+        runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path(),
+    );
     let mut recorder: Recorder = Recorder::default();
-    *recorder.stop_failure.lock().expect("lock") =
-        Some(CallError::Manager { name: String::from("org.freedesktop.systemd1.AccessDenied"), text: String::from("permission denied") });
-    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("the stop was refused");
-    assert!(matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains("permission denied")), "{failure:?}");
-    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("start "); }), "{:?}", recorder.calls());
+    *recorder.stop_failure.lock().expect("lock") = Some(CallError::Manager {
+        name: String::from("org.freedesktop.systemd1.AccessDenied"),
+        text: String::from("permission denied"),
+    });
+    let failure: ClientFailure =
+        provision_with(&machine.host, &mut recorder).expect_err("the stop was refused");
+    assert!(
+        matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains("permission denied")),
+        "{failure:?}"
+    );
+    assert!(
+        !recorder.calls().iter().any(|call| {
+            return call.starts_with("start ");
+        }),
+        "{:?}",
+        recorder.calls()
+    );
     remove(machine.root.as_path());
 }
 
@@ -1164,9 +1752,21 @@ fn an_earlier_service_installed_in_the_persistent_unit_directory_is_stopped() {
     script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["active", "inactive"]);
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let calls: Vec<String> = recorder.calls();
-    assert!(position(&calls, format!("stop {LEGACY_SOCKET_UNIT_NAME}").as_str()) < position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str()));
-    assert!(position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str()) < position(&calls, format!("start {}", instance_socket()).as_str()), "{calls:?}");
-    assert!(!calls.iter().any(|call| { return call.starts_with("reload"); }), "and nothing makes the manager read every unit it holds: {calls:?}");
+    assert!(
+        position(&calls, format!("stop {LEGACY_SOCKET_UNIT_NAME}").as_str())
+            < position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str())
+    );
+    assert!(
+        position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str())
+            < position(&calls, format!("start {}", instance_socket()).as_str()),
+        "{calls:?}"
+    );
+    assert!(
+        !calls.iter().any(|call| {
+            return call.starts_with("reload");
+        }),
+        "and nothing makes the manager read every unit it holds: {calls:?}"
+    );
     assert!(!directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
     remove(machine.root.as_path());
 }
@@ -1178,20 +1778,33 @@ fn an_earlier_service_installed_in_the_persistent_unit_directory_is_stopped() {
 fn an_earlier_socket_file_without_unit_files_still_retires_the_service() {
     let machine: Machine = machine("provision-retire-socket-only-lib");
     let earlier_socket: PathBuf = machine.host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
-    std::fs::create_dir_all(earlier_socket.parent().expect("socket directory")).expect("directories");
+    std::fs::create_dir_all(earlier_socket.parent().expect("socket directory"))
+        .expect("directories");
     std::fs::write(&earlier_socket, b"").expect("the earlier socket's file");
     let mut recorder: Recorder = Recorder::default();
-    *recorder.stop_failure.lock().expect("lock") =
-        Some(CallError::Manager { name: String::from("org.freedesktop.systemd1.NoSuchUnit"), text: String::from("not loaded") });
+    *recorder.stop_failure.lock().expect("lock") = Some(CallError::Manager {
+        name: String::from("org.freedesktop.systemd1.NoSuchUnit"),
+        text: String::from("not loaded"),
+    });
     provision_with(&machine.host, &mut recorder).expect("provisioned");
-    assert!(recorder.calls().contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")), "{:?}", recorder.calls());
-    assert!(!earlier_socket.exists(), "the earlier socket's file is gone");
+    assert!(
+        recorder
+            .calls()
+            .contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")),
+        "{:?}",
+        recorder.calls()
+    );
+    assert!(
+        !earlier_socket.exists(),
+        "the earlier socket's file is gone"
+    );
     remove(machine.root.as_path());
 }
 
 /// The text of a unit the wrapper wrote,
 /// and of one something else wrote.
-const OWN_UNIT: &str = "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n";
+const OWN_UNIT: &str =
+    "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n";
 const FOREIGN_UNIT: &str = "[Service]\nExecStart=/usr/bin/true\n";
 
 /// An owned unit in the user's own directory is the unit that runs,
@@ -1206,12 +1819,29 @@ fn an_owned_persistent_unit_does_not_authorize_removing_a_foreign_runtime_file()
     std::fs::create_dir_all(&user_directory).expect("user directory");
     std::fs::create_dir_all(&runtime_directory).expect("runtime directory");
     std::fs::write(user_directory.join(LEGACY_SERVICE_UNIT_NAME), OWN_UNIT).expect("owned unit");
-    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), FOREIGN_UNIT).expect("foreign unit");
+    std::fs::write(
+        runtime_directory.join(LEGACY_SERVICE_UNIT_NAME),
+        FOREIGN_UNIT,
+    )
+    .expect("foreign unit");
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
-    assert!(recorder.calls().contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")), "the unit that runs is stopped: {:?}", recorder.calls());
-    assert_eq!(std::fs::read_to_string(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME)).expect("still there"), FOREIGN_UNIT);
-    assert!(!user_directory.join(LEGACY_SERVICE_UNIT_NAME).exists(), "the owned file is removed");
+    assert!(
+        recorder
+            .calls()
+            .contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")),
+        "the unit that runs is stopped: {:?}",
+        recorder.calls()
+    );
+    assert_eq!(
+        std::fs::read_to_string(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME))
+            .expect("still there"),
+        FOREIGN_UNIT
+    );
+    assert!(
+        !user_directory.join(LEGACY_SERVICE_UNIT_NAME).exists(),
+        "the owned file is removed"
+    );
     remove(machine.root.as_path());
 }
 
@@ -1231,9 +1861,21 @@ fn an_owned_runtime_file_does_not_authorize_stopping_a_foreign_persistent_unit()
     std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), OWN_UNIT).expect("owned unit");
     let mut recorder: Recorder = Recorder::default();
     let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("refused");
-    assert_eq!(failure, ClientFailure::UnitInTheWay(foreign.display().to_string()));
-    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop "); }), "{:?}", recorder.calls());
-    assert_eq!(std::fs::read_to_string(&foreign).expect("still there"), FOREIGN_UNIT);
+    assert_eq!(
+        failure,
+        ClientFailure::UnitInTheWay(foreign.display().to_string())
+    );
+    assert!(
+        !recorder.calls().iter().any(|call| {
+            return call.starts_with("stop ");
+        }),
+        "{:?}",
+        recorder.calls()
+    );
+    assert_eq!(
+        std::fs::read_to_string(&foreign).expect("still there"),
+        FOREIGN_UNIT
+    );
     remove(machine.root.as_path());
 }
 
@@ -1244,10 +1886,15 @@ fn an_owned_runtime_file_does_not_authorize_stopping_a_foreign_persistent_unit()
 fn a_unit_file_that_vanished_after_the_ownership_check_is_a_finished_removal() {
     let machine: Machine = machine("provision-vanished-lib");
     std::fs::create_dir_all(&machine.root).expect("root");
-    assert_eq!(remove_settled(machine.root.join("gone.service").as_path()), Ok(()));
+    assert_eq!(
+        remove_settled(machine.root.join("gone.service").as_path()),
+        Ok(())
+    );
     let blocked: PathBuf = machine.root.join("directory.service");
     std::fs::create_dir_all(&blocked).expect("a directory where a file was expected");
-    assert!(matches!(remove_settled(blocked.as_path()), Err(ClientFailure::CouldNotStart(reason)) if reason.contains(blocked.to_string_lossy().as_ref())));
+    assert!(
+        matches!(remove_settled(blocked.as_path()), Err(ClientFailure::CouldNotStart(reason)) if reason.contains(blocked.to_string_lossy().as_ref()))
+    );
     remove(machine.root.as_path());
 }
 
@@ -1257,10 +1904,20 @@ fn an_earlier_unit_the_wrapper_did_not_write_is_not_stopped() {
     let machine: Machine = machine("provision-retire-foreign-lib");
     let directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
     std::fs::create_dir_all(&directory).expect("unit directory");
-    std::fs::write(directory.join(LEGACY_SERVICE_UNIT_NAME), "[Service]\nExecStart=/usr/bin/true\n").expect("someone's unit");
+    std::fs::write(
+        directory.join(LEGACY_SERVICE_UNIT_NAME),
+        "[Service]\nExecStart=/usr/bin/true\n",
+    )
+    .expect("someone's unit");
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
-    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop "); }), "{:?}", recorder.calls());
+    assert!(
+        !recorder.calls().iter().any(|call| {
+            return call.starts_with("stop ");
+        }),
+        "{:?}",
+        recorder.calls()
+    );
     assert!(directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
     remove(machine.root.as_path());
 }
@@ -1276,13 +1933,23 @@ fn an_earlier_unit_the_wrapper_did_not_write_is_not_stopped() {
 #[test]
 fn an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper() {
     let machine: Machine = machine("provision-retire-polite-lib");
-    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    earlier_service_files(
+        &machine,
+        runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path(),
+    );
     let mut recorder: Recorder = Recorder::default();
     script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["active"]);
-    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("the service kept working");
-    assert!(matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains(LEGACY_SERVICE_UNIT_NAME)), "{failure:?}");
+    let failure: ClientFailure =
+        provision_with(&machine.host, &mut recorder).expect_err("the service kept working");
+    assert!(
+        matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains(LEGACY_SERVICE_UNIT_NAME)),
+        "{failure:?}"
+    );
     let calls: Vec<String> = recorder.calls();
-    assert!(!calls.contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")), "a service that may be landing is not stopped: {calls:?}");
+    assert!(
+        !calls.contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")),
+        "a service that may be landing is not stopped: {calls:?}"
+    );
     remove(machine.root.as_path());
 }
 
@@ -1291,15 +1958,39 @@ fn an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped
 #[test]
 fn the_earlier_service_is_stopped_only_after_it_has_left() {
     let machine: Machine = machine("provision-retire-after-leaving-lib");
-    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    earlier_service_files(
+        &machine,
+        runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path(),
+    );
     let mut recorder: Recorder = Recorder::default();
-    script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["active", "deactivating", "inactive"]);
+    script(
+        &recorder,
+        LEGACY_SERVICE_UNIT_NAME,
+        &["active", "deactivating", "inactive"],
+    );
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let calls: Vec<String> = recorder.calls();
     let stop: usize = position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str());
-    let service_states: Vec<usize> =
-        calls.iter().enumerate().filter(|(_, call)| { return call.as_str() == format!("state {LEGACY_SERVICE_UNIT_NAME}"); }).map(|(index, _)| { return index; }).collect();
-    assert!(service_states.iter().filter(|index| { return **index < stop; }).count() >= 3, "it was asked until it was inactive before the stop: {calls:?}");
+    let service_states: Vec<usize> = calls
+        .iter()
+        .enumerate()
+        .filter(|(_, call)| {
+            return call.as_str() == format!("state {LEGACY_SERVICE_UNIT_NAME}");
+        })
+        .map(|(index, _)| {
+            return index;
+        })
+        .collect();
+    assert!(
+        service_states
+            .iter()
+            .filter(|index| {
+                return **index < stop;
+            })
+            .count()
+            >= 3,
+        "it was asked until it was inactive before the stop: {calls:?}"
+    );
     remove(machine.root.as_path());
 }
 
@@ -1329,14 +2020,21 @@ fn earlier_templates(machine: &Machine) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = Vec::new();
     for name in ["cli-git@.socket", "cli-git@.service"] {
         let file: PathBuf = directory.join(name);
-        std::fs::write(&file, "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n").expect("earlier template");
+        std::fs::write(
+            &file,
+            "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n",
+        )
+        .expect("earlier template");
         files.push(file);
     }
     return files;
 }
 
 /// The socket file the manager made for the earlier unit of an instance.
-fn earlier_socket_file(machine: &Machine, instance: &str) -> PathBuf {
+fn earlier_socket_file(
+    machine: &Machine,
+    instance: &str,
+) -> PathBuf {
     let file: PathBuf = earlier_socket_path(machine.host.runtime_dir.as_path(), instance);
     std::fs::create_dir_all(file.parent().expect("socket directory")).expect("directories");
     std::fs::write(&file, b"").expect("the earlier socket's file");
@@ -1353,18 +2051,31 @@ fn the_same_worktrees_earlier_socket_is_stopped_after_the_new_instance_started()
     let templates: Vec<PathBuf> = earlier_templates(&machine);
     let socket_file: PathBuf = earlier_socket_file(&machine, INSTANCE);
     let mut recorder: Recorder = Recorder::default();
-    script(&recorder, earlier_socket().as_str(), &["active", "inactive"]);
+    script(
+        &recorder,
+        earlier_socket().as_str(),
+        &["active", "inactive"],
+    );
     script(&recorder, earlier_service().as_str(), &["inactive"]);
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     // The manager leaves the file of a stopped socket behind (measured with a throwaway socket unit). An earlier-release wrapper
     //  can make its unit listen again at that path at any moment, so the file is never unlinked here.
-    assert!(socket_file.exists(), "the file is the manager's and an earlier wrapper's, not this program's to unlink");
+    assert!(
+        socket_file.exists(),
+        "the file is the manager's and an earlier wrapper's, not this program's to unlink"
+    );
     let calls: Vec<String> = recorder.calls();
     assert!(
-        position(&calls, format!("stop-alone {}", earlier_socket()).as_str()) > position(&calls, format!("start {}", instance_socket()).as_str()),
+        position(&calls, format!("stop-alone {}", earlier_socket()).as_str())
+            > position(&calls, format!("start {}", instance_socket()).as_str()),
         "{calls:?}"
     );
-    assert!(templates.iter().all(|file| { return file.exists(); }), "the templates of the other worktrees' instances stay");
+    assert!(
+        templates.iter().all(|file| {
+            return file.exists();
+        }),
+        "the templates of the other worktrees' instances stay"
+    );
     remove(machine.root.as_path());
 }
 
@@ -1381,10 +2092,24 @@ fn the_earlier_socket_is_stopped_without_stopping_the_unit_that_requires_it() {
     let socket_file: PathBuf = earlier_socket_file(&machine, INSTANCE);
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let calls: Vec<String> = recorder.calls();
-    assert!(socket_file.exists(), "a socket the manager still reports active keeps its file; the next commit looks again");
-    assert!(calls.contains(&format!("stop-alone {}", earlier_socket())), "{calls:?}");
-    assert!(!calls.contains(&format!("stop {}", earlier_socket())), "a plain stop would stop the service too: {calls:?}");
-    assert!(!calls.iter().any(|call| { return call.starts_with("stop") && call.ends_with(earlier_service().as_str()); }), "{calls:?}");
+    assert!(
+        socket_file.exists(),
+        "a socket the manager still reports active keeps its file; the next commit looks again"
+    );
+    assert!(
+        calls.contains(&format!("stop-alone {}", earlier_socket())),
+        "{calls:?}"
+    );
+    assert!(
+        !calls.contains(&format!("stop {}", earlier_socket())),
+        "a plain stop would stop the service too: {calls:?}"
+    );
+    assert!(
+        !calls.iter().any(|call| {
+            return call.starts_with("stop") && call.ends_with(earlier_service().as_str());
+        }),
+        "{calls:?}"
+    );
     remove(machine.root.as_path());
 }
 
@@ -1394,14 +2119,32 @@ fn the_earlier_socket_is_stopped_without_stopping_the_unit_that_requires_it() {
 fn another_worktrees_earlier_socket_is_left_alone() {
     let machine: Machine = machine("provision-earlier-socket-other-lib");
     let mut recorder: Recorder = Recorder::default();
-    script(&recorder, earlier_socket_unit_instance(OTHER_INSTANCE).as_str(), &["active"]);
-    script(&recorder, earlier_service_unit_instance(OTHER_INSTANCE).as_str(), &["active"]);
+    script(
+        &recorder,
+        earlier_socket_unit_instance(OTHER_INSTANCE).as_str(),
+        &["active"],
+    );
+    script(
+        &recorder,
+        earlier_service_unit_instance(OTHER_INSTANCE).as_str(),
+        &["active"],
+    );
     let other_file: PathBuf = earlier_socket_file(&machine, OTHER_INSTANCE);
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let calls: Vec<String> = recorder.calls();
-    assert!(!calls.iter().any(|call| { return call.contains(OTHER_INSTANCE); }), "{calls:?}");
+    assert!(
+        !calls.iter().any(|call| {
+            return call.contains(OTHER_INSTANCE);
+        }),
+        "{calls:?}"
+    );
     assert!(other_file.exists());
-    assert!(!calls.iter().any(|call| { return call.starts_with("stop"); }), "nothing else is stopped: {calls:?}");
+    assert!(
+        !calls.iter().any(|call| {
+            return call.starts_with("stop");
+        }),
+        "nothing else is stopped: {calls:?}"
+    );
     remove(machine.root.as_path());
 }
 
@@ -1411,17 +2154,39 @@ fn another_worktrees_earlier_socket_is_left_alone() {
 fn a_missing_earlier_unit_is_not_an_error() {
     let machine: Machine = machine("provision-earlier-socket-missing-lib");
     let mut recorder: Recorder = Recorder::default();
-    let entries = crate::service_timing::capture::entries_of(|| { provision_with(&machine.host, &mut recorder).expect("provisioned"); });
-    assert!(recorder.calls().contains(&format!("state {}", earlier_socket())), "the manager was asked: {:?}", recorder.calls());
-    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop"); }), "{:?}", recorder.calls());
+    let entries = crate::service_timing::capture::entries_of(|| {
+        provision_with(&machine.host, &mut recorder).expect("provisioned");
+    });
+    assert!(
+        recorder
+            .calls()
+            .contains(&format!("state {}", earlier_socket())),
+        "the manager was asked: {:?}",
+        recorder.calls()
+    );
+    assert!(
+        !recorder.calls().iter().any(|call| {
+            return call.starts_with("stop");
+        }),
+        "{:?}",
+        recorder.calls()
+    );
     assert!(entries.is_empty(), "nothing to say: {entries:?}");
     remove(machine.root.as_path());
     let vanished: Machine = self::machine("provision-earlier-socket-vanished-lib");
     let mut vanishing: Recorder = Recorder::default();
     script(&vanishing, earlier_socket().as_str(), &["active"]);
-    *vanishing.stop_alone_failure.lock().expect("lock") = Some(CallError::Manager { name: NO_SUCH_UNIT.to_string(), text: String::from("not loaded") });
-    let vanished_entries = crate::service_timing::capture::entries_of(|| { provision_with(&vanished.host, &mut vanishing).expect("provisioned"); });
-    assert!(vanished_entries.is_empty(), "a unit that is gone is what the stop was for: {vanished_entries:?}");
+    *vanishing.stop_alone_failure.lock().expect("lock") = Some(CallError::Manager {
+        name: NO_SUCH_UNIT.to_string(),
+        text: String::from("not loaded"),
+    });
+    let vanished_entries = crate::service_timing::capture::entries_of(|| {
+        provision_with(&vanished.host, &mut vanishing).expect("provisioned");
+    });
+    assert!(
+        vanished_entries.is_empty(),
+        "a unit that is gone is what the stop was for: {vanished_entries:?}"
+    );
     remove(vanished.root.as_path());
 }
 
@@ -1435,7 +2200,10 @@ fn a_failure_to_stop_the_earlier_socket_is_logged_and_never_fails_provisioning()
     let failures: [CallError; 4] = [
         CallError::Connection(String::from("broken pipe")),
         CallError::TimedOut,
-        CallError::Manager { name: String::from("org.freedesktop.DBus.Error.AccessDenied"), text: String::from("permission denied") },
+        CallError::Manager {
+            name: String::from("org.freedesktop.DBus.Error.AccessDenied"),
+            text: String::from("permission denied"),
+        },
         CallError::Malformed(String::from("odd reply")),
     ];
     for failure in failures {
@@ -1443,17 +2211,39 @@ fn a_failure_to_stop_the_earlier_socket_is_logged_and_never_fails_provisioning()
         let mut recorder: Recorder = Recorder::default();
         script(&recorder, earlier_socket().as_str(), &["active"]);
         *recorder.stop_alone_failure.lock().expect("lock") = Some(failure.clone());
-        let entries = crate::service_timing::capture::entries_of(|| { provision_with(&machine.host, &mut recorder).expect("provisioned"); });
-        assert!(entries.iter().any(|entry| { return entry.message.contains(earlier_socket().as_str()); }), "{failure:?}: logged plainly, naming the unit: {entries:?}");
-        assert!(recorder.calls().contains(&format!("start {}", instance_socket())), "the instance of this release was started");
+        let entries = crate::service_timing::capture::entries_of(|| {
+            provision_with(&machine.host, &mut recorder).expect("provisioned");
+        });
+        assert!(
+            entries.iter().any(|entry| {
+                return entry.message.contains(earlier_socket().as_str());
+            }),
+            "{failure:?}: logged plainly, naming the unit: {entries:?}"
+        );
+        assert!(
+            recorder
+                .calls()
+                .contains(&format!("start {}", instance_socket())),
+            "the instance of this release was started"
+        );
         remove(machine.root.as_path());
     }
     let machine: Machine = machine("provision-earlier-socket-question-lib");
     let mut recorder: Recorder = Recorder::default();
     *recorder.state_failure.lock().expect("lock") = Some(CallError::TimedOut);
-    let entries = crate::service_timing::capture::entries_of(|| { provision_with(&machine.host, &mut recorder).expect("provisioned"); });
-    assert!(!entries.is_empty(), "a question that cannot be answered is logged too");
-    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop"); }), "nothing is stopped on a guess");
+    let entries = crate::service_timing::capture::entries_of(|| {
+        provision_with(&machine.host, &mut recorder).expect("provisioned");
+    });
+    assert!(
+        !entries.is_empty(),
+        "a question that cannot be answered is logged too"
+    );
+    assert!(
+        !recorder.calls().iter().any(|call| {
+            return call.starts_with("stop");
+        }),
+        "nothing is stopped on a guess"
+    );
     remove(machine.root.as_path());
 }
 
@@ -1470,7 +2260,10 @@ fn the_questions_about_the_earlier_socket_have_a_budget_of_their_own() {
     let budgets = recorder.budgets.lock().expect("lock").clone();
     // The questions about this worktree's own units, the start, and the two questions about the earlier socket: each of them
     //  gets a whole exchange.
-    assert!(budgets.len() >= 4, "the unload, the start and both earlier-socket questions have a budget: {budgets:?}");
+    assert!(
+        budgets.len() >= 4,
+        "the unload, the start and both earlier-socket questions have a budget: {budgets:?}"
+    );
     assert_eq!(budgets.last().copied(), Some(EXCHANGE_WAIT));
     assert_eq!(budgets[budgets.len() - 2], EXCHANGE_WAIT);
     remove(machine.root.as_path());
@@ -1490,12 +2283,25 @@ fn a_running_earlier_helper_is_not_stopped_and_its_socket_is_kept() {
         script(&recorder, earlier_socket().as_str(), &["active"]);
         script(&recorder, earlier_service().as_str(), &[state]);
         let socket_file: PathBuf = earlier_socket_file(&machine, INSTANCE);
-        let entries = crate::service_timing::capture::entries_of(|| { provision_with(&machine.host, &mut recorder).expect("provisioned"); });
+        let entries = crate::service_timing::capture::entries_of(|| {
+            provision_with(&machine.host, &mut recorder).expect("provisioned");
+        });
         let calls: Vec<String> = recorder.calls();
-        assert!(calls.contains(&format!("state {}", earlier_service())), "{state}: the helper was looked for before anything was stopped: {calls:?}");
-        assert!(!calls.iter().any(|call| { return call.starts_with("stop"); }), "{state}: {calls:?}");
+        assert!(
+            calls.contains(&format!("state {}", earlier_service())),
+            "{state}: the helper was looked for before anything was stopped: {calls:?}"
+        );
+        assert!(
+            !calls.iter().any(|call| {
+                return call.starts_with("stop");
+            }),
+            "{state}: {calls:?}"
+        );
         assert!(entries.is_empty(), "{state}: {entries:?}");
-        assert!(socket_file.exists(), "{state}: the helper's socket file stays");
+        assert!(
+            socket_file.exists(),
+            "{state}: the helper's socket file stays"
+        );
         remove(machine.root.as_path());
     }
 }
@@ -1514,7 +2320,13 @@ fn a_socket_file_left_by_an_unloaded_earlier_unit_is_not_unlinked() {
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     assert!(own.exists() && other.exists());
-    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop"); }), "{:?}", recorder.calls());
+    assert!(
+        !recorder.calls().iter().any(|call| {
+            return call.starts_with("stop");
+        }),
+        "{:?}",
+        recorder.calls()
+    );
     remove(machine.root.as_path());
 }
 
@@ -1531,27 +2343,48 @@ fn a_socket_file_left_by_an_unloaded_earlier_unit_is_not_unlinked() {
 fn a_socket_the_earlier_wrapper_makes_again_during_provisioning_is_left_whole() {
     let machine: Machine = machine("provision-earlier-socket-recreated-lib");
     let file: PathBuf = earlier_socket_path(machine.host.runtime_dir.as_path(), INSTANCE);
-    for states in [&["active", "inactive"][..], &["active"][..], &["inactive"][..]] {
+    for states in [
+        &["active", "inactive"][..],
+        &["active"][..],
+        &["inactive"][..],
+    ] {
         let mut recorder: Recorder = Recorder::default();
         *recorder.recreate.lock().expect("lock") = Some(file.clone());
         script(&recorder, earlier_socket().as_str(), states);
         provision_with(&machine.host, &mut recorder).expect("provisioned");
-        assert_eq!(std::fs::read(&file).expect("the earlier wrapper's socket is still there"), b"live", "{states:?}");
+        assert_eq!(
+            std::fs::read(&file).expect("the earlier wrapper's socket is still there"),
+            b"live",
+            "{states:?}"
+        );
         std::fs::remove_file(&file).expect("reset");
     }
     remove(machine.root.as_path());
 }
 
 /// A fake process table whose unix socket table holds `lines`.
-fn proc_with_sockets(machine: &Machine, lines: &[String]) -> PathBuf {
+fn proc_with_sockets(
+    machine: &Machine,
+    lines: &[String],
+) -> PathBuf {
     let proc_root: PathBuf = machine.root.join("proc");
     std::fs::create_dir_all(proc_root.join("net")).expect("net folder");
-    std::fs::write(proc_root.join("net/unix"), format!("Num       RefCount Protocol Flags    Type St Inode Path\n{}", lines.concat())).expect("table");
+    std::fs::write(
+        proc_root.join("net/unix"),
+        format!(
+            "Num       RefCount Protocol Flags    Type St Inode Path\n{}",
+            lines.concat()
+        ),
+    )
+    .expect("table");
     return proc_root;
 }
 
 /// One line of the table for a socket bound at `path`.
-fn socket_line(flags: &str, path: &str) -> String {
+fn socket_line(
+    flags: &str,
+    path: &str,
+) -> String {
     return format!("000000002982a48d: 00000002 00000000 {flags} 0001 01 2269401 {path}\n");
 }
 
@@ -1561,7 +2394,8 @@ fn socket_line(flags: &str, path: &str) -> String {
 /// a stopped socket leaves the file,
 /// and that must not send every later commit to the bus.
 #[test]
-fn an_earlier_socket_that_listens_keeps_the_installation_from_being_in_place_and_a_leftover_file_does_not() {
+fn an_earlier_socket_that_listens_keeps_the_installation_from_being_in_place_and_a_leftover_file_does_not()
+ {
     let machine: Machine = machine("provision-earlier-socket-in-place-lib");
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     add_socket(&machine);
@@ -1570,15 +2404,33 @@ fn an_earlier_socket_that_listens_keeps_the_installation_from_being_in_place_and
     let other_path: String = format!("{runtime}/cli-git/{OTHER_INSTANCE}.sock");
     let own_file: PathBuf = earlier_socket_file(&machine, INSTANCE);
     let quiet: PathBuf = proc_with_sockets(&machine, &[]);
-    assert!(in_place_with(&machine.host, quiet.as_path()), "a leftover file of a stopped socket is no reason to ask the manager");
-    let listening: PathBuf = proc_with_sockets(&machine, &[socket_line("00010000", own_path.as_str())]);
-    assert!(!in_place_with(&machine.host, listening.as_path()), "this worktree's earlier socket listens");
-    let connected: PathBuf = proc_with_sockets(&machine, &[socket_line("00000000", own_path.as_str())]);
-    assert!(in_place_with(&machine.host, connected.as_path()), "a socket that does not listen starts no helper");
-    let other: PathBuf = proc_with_sockets(&machine, &[socket_line("00010000", other_path.as_str())]);
-    assert!(in_place_with(&machine.host, other.as_path()), "another worktree's earlier socket says nothing about this one");
+    assert!(
+        in_place_with(&machine.host, quiet.as_path()),
+        "a leftover file of a stopped socket is no reason to ask the manager"
+    );
+    let listening: PathBuf =
+        proc_with_sockets(&machine, &[socket_line("00010000", own_path.as_str())]);
+    assert!(
+        !in_place_with(&machine.host, listening.as_path()),
+        "this worktree's earlier socket listens"
+    );
+    let connected: PathBuf =
+        proc_with_sockets(&machine, &[socket_line("00000000", own_path.as_str())]);
+    assert!(
+        in_place_with(&machine.host, connected.as_path()),
+        "a socket that does not listen starts no helper"
+    );
+    let other: PathBuf =
+        proc_with_sockets(&machine, &[socket_line("00010000", other_path.as_str())]);
+    assert!(
+        in_place_with(&machine.host, other.as_path()),
+        "another worktree's earlier socket says nothing about this one"
+    );
     std::fs::remove_file(machine.root.join("proc/net/unix")).expect("table removed");
-    assert!(!in_place_with(&machine.host, machine.root.join("proc").as_path()), "a table that cannot be read leaves the question open");
+    assert!(
+        !in_place_with(&machine.host, machine.root.join("proc").as_path()),
+        "a table that cannot be read leaves the question open"
+    );
     assert!(own_file.exists());
     remove(machine.root.as_path());
 }
@@ -1592,7 +2444,11 @@ fn an_earlier_socket_that_listens_keeps_the_installation_from_being_in_place_and
 /// The socket file of the single service of the first releases,
 /// spelled out.
 fn shared_earlier_socket(machine: &Machine) -> PathBuf {
-    return machine.host.runtime_dir.join("cli-git").join("service.sock");
+    return machine
+        .host
+        .runtime_dir
+        .join("cli-git")
+        .join("service.sock");
 }
 
 /// The constant names that file,
@@ -1611,9 +2467,16 @@ fn the_shared_earlier_socket_file_keeps_the_installation_from_being_in_place() {
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     add_socket(&machine);
     assert!(in_place(&machine.host));
-    let elsewhere: PathBuf = machine.host.runtime_dir.join("monochromatic-git-policy-cli").join("service.sock");
+    let elsewhere: PathBuf = machine
+        .host
+        .runtime_dir
+        .join("monochromatic-git-policy-cli")
+        .join("service.sock");
     std::fs::write(&elsewhere, b"").expect("a file of this release's folder");
-    assert!(in_place(&machine.host), "this release's folder is not the single service's");
+    assert!(
+        in_place(&machine.host),
+        "this release's folder is not the single service's"
+    );
     std::fs::remove_file(&elsewhere).expect("removed");
     let shared: PathBuf = shared_earlier_socket(&machine);
     std::fs::create_dir_all(shared.parent().expect("socket directory")).expect("directories");
@@ -1635,7 +2498,11 @@ fn a_shared_earlier_socket_file_without_unit_files_retires_the_service_at_its_ow
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let calls: Vec<String> = recorder.calls();
-    assert!(calls.contains(&format!("stop {LEGACY_SOCKET_UNIT_NAME}")) && calls.contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")), "{calls:?}");
+    assert!(
+        calls.contains(&format!("stop {LEGACY_SOCKET_UNIT_NAME}"))
+            && calls.contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")),
+        "{calls:?}"
+    );
     assert!(!shared.exists(), "its socket file is gone");
     remove(machine.root.as_path());
 }

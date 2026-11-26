@@ -11,10 +11,20 @@
 //! writeStagingClaim(directory, claim); expect(readStagingClaim(directory, guid)).toEqual(claim);
 //! ```
 
-use super::{claim_from_text, read_claim, staging_claim_path, write_claim, StagingClaim, CLAIM_FOLDER};
+use super::{
+    CLAIM_FOLDER,
+    StagingClaim,
+    claim_from_text,
+    read_claim,
+    staging_claim_path,
+    write_claim,
+};
 use crate::staged_folder_identity::StagedFolderIdentity;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The GUID the fixtures use.
 fn guid() -> DatasetGuid {
@@ -27,7 +37,13 @@ fn claim() -> StagingClaim {
         guid: guid(),
         nonce: String::from("0123456789abcdef0123456789abcdef"),
         owner: String::from("1234~1~2"),
-        identity: StagedFolderIdentity { device: 4, inode: 5, birth: Some((1_700_000_000, 1)), owner: 1000, mode: 0o700 },
+        identity: StagedFolderIdentity {
+            device: 4,
+            inode: 5,
+            birth: Some((1_700_000_000, 1)),
+            owner: 1000,
+            mode: 0o700,
+        },
     };
 }
 
@@ -36,7 +52,12 @@ fn claim() -> StagingClaim {
 #[test]
 fn the_claim_lives_beside_the_copy_journal() {
     let path: PathBuf = staging_claim_path(Path::new("/repo/.git"), guid());
-    assert_eq!(path, Path::new("/repo/.git").join(CLAIM_FOLDER).join("1234.staged"));
+    assert_eq!(
+        path,
+        Path::new("/repo/.git")
+            .join(CLAIM_FOLDER)
+            .join("1234.staged")
+    );
 }
 
 /// One claim survives its text.
@@ -65,9 +86,13 @@ fn a_foreign_shape_is_refused() {
 fn one_whole_claim_is_written() {
     let root: PathBuf = crate::testing::test_support::fixture_root().join("staging-claim-write");
     std::fs::create_dir_all(root.as_path()).expect("the claim folder is made");
-    let directory: std::fs::File = std::fs::File::open(root.as_path()).expect("the claim folder opens");
+    let directory: std::fs::File =
+        std::fs::File::open(root.as_path()).expect("the claim folder opens");
     write_claim(&directory, &claim()).expect("the claim is written");
-    assert_eq!(read_claim(&directory, guid()).expect("the claim is read"), Some(claim()));
+    assert_eq!(
+        read_claim(&directory, guid()).expect("the claim is read"),
+        Some(claim())
+    );
     assert!(!root.join("1234.staged.tmp").exists());
 }
 
@@ -76,6 +101,7 @@ fn one_whole_claim_is_written() {
 fn an_absent_claim_is_nothing() {
     let root: PathBuf = crate::testing::test_support::fixture_root().join("staging-claim-absent");
     std::fs::create_dir_all(root.as_path()).expect("the claim folder is made");
-    let directory: std::fs::File = std::fs::File::open(root.as_path()).expect("the claim folder opens");
+    let directory: std::fs::File =
+        std::fs::File::open(root.as_path()).expect("the claim folder opens");
     assert_eq!(read_claim(&directory, guid()), Ok(None));
 }

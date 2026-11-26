@@ -10,10 +10,20 @@
 
 /// Import the readers under test and the parser that builds their inputs.
 use super::{
-    MAX_SAFE_INTEGER, boolean, kind_name, member_keys, member_path, safe_integer, strings, text,
+    MAX_SAFE_INTEGER,
+    boolean,
+    kind_name,
+    member_keys,
+    member_path,
+    safe_integer,
+    strings,
+    text,
     wrong_kind,
 };
-use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncValue,
+    parse_jsonc,
+};
 
 /// Parse one JSONC value fixture;
 ///  a fixture that does not parse is a broken test.

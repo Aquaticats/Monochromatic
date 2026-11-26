@@ -40,20 +40,32 @@ use std::path::PathBuf;
 /// ```ts
 /// function onAReflinkCapableFixture(fixture: Fixture, control: string): boolean;
 /// ```
-pub fn on_a_reflink_capable_fixture(fixture: &Fixture, control: &str) -> bool {
+pub fn on_a_reflink_capable_fixture(
+    fixture: &Fixture,
+    control: &str,
+) -> bool {
     let from: PathBuf = fixture.root.join("reflink-probe-from");
     let to: PathBuf = fixture.root.join("reflink-probe-to");
     std::fs::write(from.as_path(), b"probe\n").expect("the probe's file");
     std::fs::write(to.as_path(), b"").expect("the probe's clone");
-    let opened = (std::fs::File::open(from.as_path()), std::fs::OpenOptions::new().write(true).open(to.as_path()));
+    let opened = (
+        std::fs::File::open(from.as_path()),
+        std::fs::OpenOptions::new().write(true).open(to.as_path()),
+    );
     let cloned: bool = match opened {
         (Ok(source), Ok(destination)) => clone_file(&source, &destination, to.as_path()).is_ok(),
         _unreadable => false,
     };
-    let _removed = (std::fs::remove_file(from.as_path()), std::fs::remove_file(to.as_path()));
+    let _removed = (
+        std::fs::remove_file(from.as_path()),
+        std::fs::remove_file(to.as_path()),
+    );
     if cloned {
         return true;
     }
-    eprintln!("CLONE CONTROL NOT RUN: {control} (the fixture root {} cannot reflink a file, so the clone rung cannot serve an add there)", fixture.root.display());
+    eprintln!(
+        "CLONE CONTROL NOT RUN: {control} (the fixture root {} cannot reflink a file, so the clone rung cannot serve an add there)",
+        fixture.root.display()
+    );
     return false;
 }

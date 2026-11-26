@@ -20,13 +20,22 @@
 
 use crate::service_client_connect_within_a_bound::connect_within;
 use crate::service_protocol::{
-    MAX_LINE_BYTES, ServiceMessage, decode_service, encode_retire,
+    MAX_LINE_BYTES,
+    ServiceMessage,
+    decode_service,
+    encode_retire,
 };
 use crate::service_server::Bind;
-use std::io::{BufRead, BufReader};
+use std::io::{
+    BufRead,
+    BufReader,
+};
 use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 /// How long the client waits for a service to start or to retire when it cannot ask the service manager how the start is going.
 ///  Ten times the slowest of 52 cold starts in this repository's commit timing log (`startWaitMs`,
 /// longest 1041 ms,
@@ -135,11 +144,23 @@ fn own_users_id() -> u32 {
 #[cfg(target_os = "linux")]
 fn the_users_id_on_the_other_end(stream: &UnixStream) -> Option<u32> {
     use std::os::fd::AsRawFd;
-    let mut credentials: libc::ucred = libc::ucred { pid: 0, uid: 0, gid: 0 };
+    let mut credentials: libc::ucred = libc::ucred {
+        pid: 0,
+        uid: 0,
+        gid: 0,
+    };
     let mut length: libc::socklen_t = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
     // SAFETY: the descriptor is the live connection this call holds, `credentials` is a `ucred` of the size it is given, and
     //  `length` is written with the bytes the kernel filled in, which is at most that size.
-    let read: libc::c_int = unsafe { libc::getsockopt(stream.as_raw_fd(), libc::SOL_SOCKET, libc::SO_PEERCRED, std::ptr::from_mut(&mut credentials).cast(), &mut length) };
+    let read: libc::c_int = unsafe {
+        libc::getsockopt(
+            stream.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_PEERCRED,
+            std::ptr::from_mut(&mut credentials).cast(),
+            &mut length,
+        )
+    };
     if read != 0 {
         return None;
     }
@@ -157,7 +178,10 @@ fn the_users_id_on_the_other_end(stream: &UnixStream) -> Option<u32> {
 /// ```ts
 /// aConnectionOfTheAccount(1001, 1000) // false
 /// ```
-fn a_connection_of_the_account(their_user: Option<u32>, our_user: u32) -> bool {
+fn a_connection_of_the_account(
+    their_user: Option<u32>,
+    our_user: u32,
+) -> bool {
     return their_user == Some(our_user);
 }
 
@@ -165,7 +189,8 @@ fn a_connection_of_the_account(their_user: Option<u32>, our_user: u32) -> bool {
 /// so there is no second question to ask.
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn connection_is_this_account(_stream: &UnixStream) -> bool {
-    return true;}
+    return true;
+}
 
 pub(crate) fn read_message(reader: &mut BufReader<UnixStream>) -> Option<ServiceMessage> {
     return match listen(reader) {
@@ -229,7 +254,10 @@ pub(crate) fn listen(reader: &mut BufReader<UnixStream>) -> Heard {
 /// ```ts
 /// listenWithin(reader, 5_000) // { message } | 'closed' | 'silent'
 /// ```
-fn listen_within(reader: &mut BufReader<UnixStream>, within: Duration) -> Heard {
+fn listen_within(
+    reader: &mut BufReader<UnixStream>,
+    within: Duration,
+) -> Heard {
     let until: Instant = Instant::now() + within;
     let mut line: Vec<u8> = Vec::new();
     loop {
@@ -242,10 +270,21 @@ fn listen_within(reader: &mut BufReader<UnixStream>, within: Duration) -> Heard 
         let available: usize = match reader.fill_buf() {
             Ok(bytes) if bytes.is_empty() => return Heard::Closed,
             Ok(bytes) => bytes.len(),
-            Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => return Heard::Silent,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                return Heard::Silent;
+            }
             Err(_) => return Heard::Closed,
         };
-        let taken: usize = match reader.buffer().iter().position(|byte| return *byte == b'\n') {
+        let taken: usize = match reader
+            .buffer()
+            .iter()
+            .position(|byte| return *byte == b'\n')
+        {
             Some(end) => end + 1,
             None => available,
         };
@@ -257,7 +296,9 @@ fn listen_within(reader: &mut BufReader<UnixStream>, within: Duration) -> Heard 
         if line.last() != Some(&b'\n') {
             continue;
         }
-        let Ok(text) = String::from_utf8(line) else { return Heard::Closed };
+        let Ok(text) = String::from_utf8(line) else {
+            return Heard::Closed;
+        };
         return decode_service(text.trim_end_matches('\n')).map_or(Heard::Closed, Heard::Message);
     }
 }
@@ -276,8 +317,17 @@ fn listen_within(reader: &mut BufReader<UnixStream>, within: Duration) -> Heard 
 fn listen_one_line(reader: &mut BufReader<UnixStream>) -> Heard {
     let mut line: String = String::new();
     return match reader.read_line(&mut line) {
-        Ok(read) if read > 0 => decode_service(line.trim_end_matches('\n')).map_or(Heard::Closed, Heard::Message),
-        Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => Heard::Silent,
+        Ok(read) if read > 0 => {
+            decode_service(line.trim_end_matches('\n')).map_or(Heard::Closed, Heard::Message)
+        }
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+            ) =>
+        {
+            Heard::Silent
+        }
         _ => Heard::Closed,
     };
 }
@@ -327,7 +377,12 @@ pub(crate) enum Wrote {
 /// ```ts
 /// writeWithin(socket, bytes, 5_000, 10_000) // 'all' | 'nothing-taken' | 'too-slow' | 'ended'
 /// ```
-pub(crate) fn write_within(stream: &UnixStream, bytes: &[u8], silence: Duration, ceiling: Duration) -> Wrote {
+pub(crate) fn write_within(
+    stream: &UnixStream,
+    bytes: &[u8],
+    silence: Duration,
+    ceiling: Duration,
+) -> Wrote {
     let began: Instant = Instant::now();
     let mut written: usize = 0;
     let mut took_a_byte: Instant = began;
@@ -340,8 +395,14 @@ pub(crate) fn write_within(stream: &UnixStream, bytes: &[u8], silence: Duration,
         if silence_left.is_zero() {
             return Wrote::NothingTaken;
         }
-        let mut waiting: libc::pollfd = libc::pollfd { fd: stream.as_raw_fd(), events: libc::POLLOUT, revents: 0 };
-        let millis: libc::c_int = libc::c_int::try_from(whole_left.min(silence_left).as_millis().max(1)).unwrap_or(libc::c_int::MAX);
+        let mut waiting: libc::pollfd = libc::pollfd {
+            fd: stream.as_raw_fd(),
+            events: libc::POLLOUT,
+            revents: 0,
+        };
+        let millis: libc::c_int =
+            libc::c_int::try_from(whole_left.min(silence_left).as_millis().max(1))
+                .unwrap_or(libc::c_int::MAX);
         // SAFETY: `waiting` is one valid `pollfd` for the call, which reads and writes only that.
         let ready: libc::c_int = unsafe { libc::poll(&raw mut waiting, 1, millis) };
         if ready < 0 {
@@ -360,7 +421,12 @@ pub(crate) fn write_within(stream: &UnixStream, bytes: &[u8], silence: Duration,
         // SAFETY: the pointer and length are this function's own slice, and `MSG_DONTWAIT` and `MSG_NOSIGNAL` are flags the
         //  kernel takes for a send on a connected socket.
         let sent: isize = unsafe {
-            libc::send(stream.as_raw_fd(), bytes[written..].as_ptr().cast(), bytes.len() - written, libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL)
+            libc::send(
+                stream.as_raw_fd(),
+                bytes[written..].as_ptr().cast(),
+                bytes.len() - written,
+                libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL,
+            )
         };
         if sent < 0 {
             let failed: std::io::Error = std::io::Error::last_os_error();
@@ -407,14 +473,24 @@ pub(crate) fn a_message_is_already_here(reader: &mut BufReader<UnixStream>) -> b
     let mut first: [u8; 1] = [0; 1];
     // SAFETY: `first` is a buffer the call writes at most one byte into, and the descriptor is the live connection the
     //  reader holds its own reference to.
-    let peeked: isize = unsafe { libc::recv(reader.get_ref().as_raw_fd(), first.as_mut_ptr().cast(), first.len(), libc::MSG_PEEK | libc::MSG_DONTWAIT) };
+    let peeked: isize = unsafe {
+        libc::recv(
+            reader.get_ref().as_raw_fd(),
+            first.as_mut_ptr().cast(),
+            first.len(),
+            libc::MSG_PEEK | libc::MSG_DONTWAIT,
+        )
+    };
     if peeked >= 0 {
         // A closed connection is answered at once as well: the read that follows returns with the close rather than waiting
         //  for a line the closed service will never send.
         return true;
     }
     // Only a connection with nothing to read leaves the read that follows waiting, and a notice is for that wait alone.
-    return !matches!(std::io::Error::last_os_error().kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut);
+    return !matches!(
+        std::io::Error::last_os_error().kind(),
+        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+    );
 }
 
 /// What:
@@ -444,14 +520,27 @@ pub(crate) fn a_message_is_already_here(reader: &mut BufReader<UnixStream>) -> b
 /// ```
 pub fn ask_to_retire(address: &Bind) {
     // A connect that waits in the kernel for a queue nothing empties is no one to ask, and the wait has an end.
-    let Ok(stream) = crate::service_client_connect_within_a_bound::connect_within(address) else { return };
+    let Ok(stream) = crate::service_client_connect_within_a_bound::connect_within(address) else {
+        return;
+    };
     let _timeout = stream.set_read_timeout(Some(START_WAIT));
     let mut reader: BufReader<UnixStream> = BufReader::new(stream);
-    let Some(ServiceMessage::Welcome { version, .. }) = read_message(&mut reader) else { return };
+    let Some(ServiceMessage::Welcome {
+        version,
+        ..
+    }) = read_message(&mut reader)
+    else {
+        return;
+    };
     let mut retire: String = encode_retire(version);
     retire.push('\n');
     // The one line of the ask is written under the same bounds as any other, so a service that stops reading holds nothing.
-    let _sent = write_within(reader.get_ref(), retire.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING);
+    let _sent = write_within(
+        reader.get_ref(),
+        retire.as_bytes(),
+        crate::wait_ceilings::REQUEST_WRITE_SILENCE,
+        crate::wait_ceilings::REQUEST_WRITE_CEILING,
+    );
 }
 
 /// Controls of the bounds of one exchange and of the account on the other end stay out of the release executable.

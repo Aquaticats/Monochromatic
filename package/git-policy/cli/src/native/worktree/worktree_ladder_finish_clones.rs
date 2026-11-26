@@ -15,18 +15,41 @@
 //! const line = serveClones(source, fence, plan, bound, runGit, context); // throws the reason
 //! ```
 
-use crate::add_timing::{begin_step, end_step};
+use crate::add_timing::{
+    begin_step,
+    end_step,
+};
 use crate::diagnostic_log::warn;
 use crate::transaction_git::GitContext;
-use crate::worktree_add_binding::{Bound, verify_association};
+use crate::worktree_add_binding::{
+    Bound,
+    verify_association,
+};
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_clone::{ClonedBytes, clone_tracked_bytes_beside, leftover_report};
-use crate::worktree_clone_index::PendingIndex;
 #[cfg(feature = "measurement-routes")]
-use crate::worktree_clone::{Cloned, clone_tracked_files};
-use crate::worktree_clone_conversion_beside_the_clone::{fence_beside_the_clone, install_beside_the_clone};
-use crate::worktree_copy::{GitRunner, GitStatus};
-use crate::worktree_ladder_target::{Target, apply_difference_with_index, prepare_target};
+use crate::worktree_clone::{
+    Cloned,
+    clone_tracked_files,
+};
+use crate::worktree_clone::{
+    ClonedBytes,
+    clone_tracked_bytes_beside,
+    leftover_report,
+};
+use crate::worktree_clone_conversion_beside_the_clone::{
+    fence_beside_the_clone,
+    install_beside_the_clone,
+};
+use crate::worktree_clone_index::PendingIndex;
+use crate::worktree_copy::{
+    GitRunner,
+    GitStatus,
+};
+use crate::worktree_ladder_target::{
+    Target,
+    apply_difference_with_index,
+    prepare_target,
+};
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::path::Path;
 
@@ -62,13 +85,37 @@ const TAG: &str = "worktreeLadder";
 /// ```ts
 /// async function serveClones(args): Promise<string>; // the checkout line; throws a reason
 /// ```
-pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext, entries: Option<Vec<crate::worktree_clean::StatEntry>>) -> Result<String, String> {
+pub(super) fn serve_clones(
+    source: &SnapshotSource,
+    fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence,
+    plan: &AddPlan,
+    bound: &Bound,
+    run_git: &mut dyn GitRunner,
+    context: &GitContext,
+    entries: Option<Vec<crate::worktree_clean::StatEntry>>,
+) -> Result<String, String> {
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
-    let (created, decided, pending): (Vec<crate::worktree_clone::Created>, crate::worktree_clone_conversion_fence::Fence, Option<PendingIndex>) = clone_with_the_fence((source, fence, target.admin.as_path(), bound, context, entries))?;
-    let index_file: Option<std::path::PathBuf> = pending.as_ref().map(|held| return held.path_in().to_path_buf());
+    let (created, decided, pending): (
+        Vec<crate::worktree_clone::Created>,
+        crate::worktree_clone_conversion_fence::Fence,
+        Option<PendingIndex>,
+    ) = clone_with_the_fence((
+        source,
+        fence,
+        target.admin.as_path(),
+        bound,
+        context,
+        entries,
+    ))?;
+    let index_file: Option<std::path::PathBuf> = pending
+        .as_ref()
+        .map(|held| return held.path_in().to_path_buf());
     let applied: Result<(), String> = match verify_association(bound) {
-        Ok(()) => apply_difference_with_index((source, &target, plan.destination.as_path(), run_git), index_file.as_deref()),
+        Ok(()) => apply_difference_with_index(
+            (source, &target, plan.destination.as_path(), run_git),
+            index_file.as_deref(),
+        ),
         Err(reason) => Err(reason),
     };
     if let Err(reason) = applied {
@@ -88,9 +135,17 @@ pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone
             // fallback runs against that file and removes what the target tree lacks by itself.
             return Err(reason);
         };
-        let settled: GitStatus = super::checkout_like_git_with((plan, bound, run_git), Some(waits.path_in()), true);
+        let settled: GitStatus =
+            super::checkout_like_git_with((plan, bound, run_git), Some(waits.path_in()), true);
         if !settled.succeeded() {
-            warn(TAG, format!("monochromatic-git-policy-cli: {}", leftover_report(created.as_slice(), plan.destination.as_path())).as_str());
+            warn(
+                TAG,
+                format!(
+                    "monochromatic-git-policy-cli: {}",
+                    leftover_report(created.as_slice(), plan.destination.as_path())
+                )
+                .as_str(),
+            );
             waits.discard(&bound.admin);
             return Err(reason);
         }
@@ -100,8 +155,21 @@ pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone
     if !decided.git_writes.is_empty() {
         let write_entered: bool = begin_step("writeConversions");
         let written: Result<(), String> = match pending.as_ref().map(|held| return held.path_in()) {
-            Some(index) => crate::worktree_clone_conversion_fence::checkout_index_through_the_index_at((target.admin.as_path(), plan.destination.as_path(), context), index, decided.git_writes.as_slice(), source.clean.hash_length),
-            None => crate::worktree_clone_conversion_fence::write_through_git(target.admin.as_path(), plan.destination.as_path(), context, decided.git_writes.as_slice(), source.clean.hash_length),
+            Some(index) => {
+                crate::worktree_clone_conversion_fence::checkout_index_through_the_index_at(
+                    (target.admin.as_path(), plan.destination.as_path(), context),
+                    index,
+                    decided.git_writes.as_slice(),
+                    source.clean.hash_length,
+                )
+            }
+            None => crate::worktree_clone_conversion_fence::write_through_git(
+                target.admin.as_path(),
+                plan.destination.as_path(),
+                context,
+                decided.git_writes.as_slice(),
+                source.clean.hash_length,
+            ),
         };
         end_step(write_entered);
         if let Err(reason) = written {
@@ -142,7 +210,23 @@ pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone
 /// ```ts
 /// async function cloneWithTheFence(args): Promise<[Created[], Fence, PendingIndex?]>; // throws a reason
 /// ```
-pub(super) fn clone_with_the_fence((source, fence, admin_path, bound, context, entries): (&SnapshotSource, crate::worktree_clone_conversion_beside_the_clone::CloneFence, &Path, &Bound, &GitContext, Option<Vec<crate::worktree_clean::StatEntry>>)) -> Result<(Vec<crate::worktree_clone::Created>, crate::worktree_clone_conversion_fence::Fence, Option<PendingIndex>), String> {
+pub(super) fn clone_with_the_fence(
+    (source, fence, admin_path, bound, context, entries): (
+        &SnapshotSource,
+        crate::worktree_clone_conversion_beside_the_clone::CloneFence,
+        &Path,
+        &Bound,
+        &GitContext,
+        Option<Vec<crate::worktree_clean::StatEntry>>,
+    )
+) -> Result<
+    (
+        Vec<crate::worktree_clone::Created>,
+        crate::worktree_clone_conversion_fence::Fence,
+        Option<PendingIndex>,
+    ),
+    String,
+> {
     return match fence {
         #[cfg(feature = "measurement-routes")]
         crate::worktree_clone_conversion_beside_the_clone::CloneFence::BeforeTheClone(decided) => {
@@ -157,20 +241,34 @@ pub(super) fn clone_with_the_fence((source, fence, admin_path, bound, context, e
             //  installs it under the fence's waiting name itself; the copies, the fence beside them and the write step
             //  after the tree difference are the whole rung's own.
             if source.dirty.is_some() {
-                let part = crate::worktree_clone_partial::clone_the_unchanged(crate::worktree_clone_partial::PartialClone {
-                    context,
-                    source,
-                    entries,
-                    destination: &bound.destination,
-                    admin: &bound.admin,
-                    admin_path,
-                    fence: held,
-                });
-                let (cloned, decided, pending): (crate::worktree_clone_partial::PartCloned, crate::worktree_clone_conversion_fence::Fence, PendingIndex) = part?;
+                let part = crate::worktree_clone_partial::clone_the_unchanged(
+                    crate::worktree_clone_partial::PartialClone {
+                        context,
+                        source,
+                        entries,
+                        destination: &bound.destination,
+                        admin: &bound.admin,
+                        admin_path,
+                        fence: held,
+                    },
+                );
+                let (cloned, decided, pending): (
+                    crate::worktree_clone_partial::PartCloned,
+                    crate::worktree_clone_conversion_fence::Fence,
+                    PendingIndex,
+                ) = part?;
                 return Ok((cloned.created, decided, Some(pending)));
             }
             let beside_entered: bool = begin_step("conversionBesideTheClone");
-            let (cloned, answered): (ClonedBytes, Option<Result<crate::worktree_clone_conversion_fence::Fence, String>>) = clone_tracked_bytes_beside(source, entries, &bound.destination, fence_beside_the_clone(source, context, held))?;
+            let (cloned, answered): (
+                ClonedBytes,
+                Option<Result<crate::worktree_clone_conversion_fence::Fence, String>>,
+            ) = clone_tracked_bytes_beside(
+                source,
+                entries,
+                &bound.destination,
+                fence_beside_the_clone(source, context, held),
+            )?;
             end_step(beside_entered);
             // A fence's reason, or a pool that would not run it, ends the rung here before any index exists: Git's own
             // checkout writes the worktree.
@@ -179,7 +277,12 @@ pub(super) fn clone_with_the_fence((source, fence, admin_path, bound, context, e
                 Some(Err(reason)) => return Err(reason),
                 None => return Err(String::from("the fence beside the copies answered nothing")),
             };
-            let pending: PendingIndex = install_beside_the_clone((&bound.admin, admin_path), source, &decided, cloned.stats())?;
+            let pending: PendingIndex = install_beside_the_clone(
+                (&bound.admin, admin_path),
+                source,
+                &decided,
+                cloned.stats(),
+            )?;
             Ok((cloned.into_created(), decided, Some(pending)))
         }
     };
@@ -198,7 +301,10 @@ pub(super) fn clone_with_the_fence((source, fence, admin_path, bound, context, e
 /// ```ts
 /// if (pending) pending.discard(admin);
 /// ```
-fn discard_the_pending_index(pending: Option<PendingIndex>, admin: &std::fs::File) {
+fn discard_the_pending_index(
+    pending: Option<PendingIndex>,
+    admin: &std::fs::File,
+) {
     if let Some(held) = pending {
         held.discard(admin);
     }

@@ -9,10 +9,24 @@
 //! ```
 
 /// Import the actual parser and native argument/process types.
-use super::{GlobalLayout, GlobalOutcome, command_tokens, global_layout};
-use crate::git_version::{MINIMUM_GIT_VERSION, parse_git_version};
+use super::{
+    GlobalLayout,
+    GlobalOutcome,
+    command_tokens,
+    global_layout,
+};
+use crate::git_version::{
+    MINIMUM_GIT_VERSION,
+    parse_git_version,
+};
 use crate::global_arguments_pathspec_modes::without_pathspec_mode_options;
-use crate::test_support::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, REAL_GIT, real_git_within};
+use crate::test_support::{
+    FIXTURE_GIT_BOUND,
+    QueryAnswer,
+    QueryEnding,
+    REAL_GIT,
+    real_git_within,
+};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -31,18 +45,49 @@ fn arguments(values: &[&str]) -> Vec<OsString> {
 #[test]
 fn a_pathspec_mode_option_leaves_the_prefix_and_its_value_stays() {
     let kept = |values: &[&str]| -> Vec<String> {
-        return without_pathspec_mode_options(arguments(values).as_slice()).iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect();
+        return without_pathspec_mode_options(arguments(values).as_slice())
+            .iter()
+            .map(|token| {
+                return token.to_string_lossy().into_owned();
+            })
+            .collect();
     };
     assert_eq!(kept(&[]), Vec::<String>::new());
-    assert_eq!(kept(&["--icase-pathspecs", "-C", "dir"]), vec![String::from("-C"), String::from("dir")]);
-    assert_eq!(kept(&["-C", "--icase-pathspecs"]), vec![String::from("-C"), String::from("--icase-pathspecs")], "the value of -C is a directory, not a mode");
-    assert_eq!(kept(&["-c", "--literal-pathspecs"]), vec![String::from("-c"), String::from("--literal-pathspecs")], "nor is the value of -c");
     assert_eq!(
-        kept(&["--glob-pathspecs", "-c", "core.pager=cat", "--literal-pathspecs", "--no-literal-pathspecs", "--no-pager"]),
-        vec![String::from("-c"), String::from("core.pager=cat"), String::from("--no-pager")],
+        kept(&["--icase-pathspecs", "-C", "dir"]),
+        vec![String::from("-C"), String::from("dir")]
+    );
+    assert_eq!(
+        kept(&["-C", "--icase-pathspecs"]),
+        vec![String::from("-C"), String::from("--icase-pathspecs")],
+        "the value of -C is a directory, not a mode"
+    );
+    assert_eq!(
+        kept(&["-c", "--literal-pathspecs"]),
+        vec![String::from("-c"), String::from("--literal-pathspecs")],
+        "nor is the value of -c"
+    );
+    assert_eq!(
+        kept(&[
+            "--glob-pathspecs",
+            "-c",
+            "core.pager=cat",
+            "--literal-pathspecs",
+            "--no-literal-pathspecs",
+            "--no-pager"
+        ]),
+        vec![
+            String::from("-c"),
+            String::from("core.pager=cat"),
+            String::from("--no-pager")
+        ],
         "every mode option goes and nothing else does"
     );
-    assert_eq!(kept(&["--noglob-pathspecs", "--git-dir=/tmp/g"]), vec![String::from("--git-dir=/tmp/g")], "an inline value carries its own");
+    assert_eq!(
+        kept(&["--noglob-pathspecs", "--git-dir=/tmp/g"]),
+        vec![String::from("--git-dir=/tmp/g")],
+        "an inline value carries its own"
+    );
 }
 
 /// Separated values,
@@ -147,11 +192,34 @@ fn unsupported_globals_do_not_gain_a_wrapper_interpretation() {
 /// The output of one real-Git query of this control,
 ///  run under `bound` seconds so a Git that never answers fails this control
 ///  with a verdict that names the query and the bound.
-fn git_output_within(arguments: &[&str], bound: std::time::Duration) -> std::process::Output {
-    let words: Vec<OsString> = arguments.iter().map(|argument| { return OsString::from(*argument); }).collect();
-    let answer: QueryAnswer = real_git_within(Path::new(REAL_GIT), None, &[], words.as_slice(), None, bound);
-    assert_eq!(answer.ending, QueryEnding::Itself, "the Git query {arguments:?} did not answer within {} s: the bound ended it", bound.as_secs());
-    assert!(!answer.held_open, "the Git query {arguments:?} ended, and a descendant of it still holds its output");
+fn git_output_within(
+    arguments: &[&str],
+    bound: std::time::Duration,
+) -> std::process::Output {
+    let words: Vec<OsString> = arguments
+        .iter()
+        .map(|argument| {
+            return OsString::from(*argument);
+        })
+        .collect();
+    let answer: QueryAnswer = real_git_within(
+        Path::new(REAL_GIT),
+        None,
+        &[],
+        words.as_slice(),
+        None,
+        bound,
+    );
+    assert_eq!(
+        answer.ending,
+        QueryEnding::Itself,
+        "the Git query {arguments:?} did not answer within {} s: the bound ended it",
+        bound.as_secs()
+    );
+    assert!(
+        !answer.held_open,
+        "the Git query {arguments:?} ended, and a descendant of it still holds its output"
+    );
     return answer.output;
 }
 
@@ -165,7 +233,11 @@ fn native_git_256_controls_confirm_the_option_boundary() {
     let version = git_output_within(&["--version"], FIXTURE_GIT_BOUND);
     assert!(version.status.success());
     let release = parse_git_version(&version.stdout).expect("the Git under test names its release");
-    assert!(release >= MINIMUM_GIT_VERSION, "{:?}", String::from_utf8_lossy(&version.stdout));
+    assert!(
+        release >= MINIMUM_GIT_VERSION,
+        "{:?}",
+        String::from_utf8_lossy(&version.stdout)
+    );
     let query = git_output_within(&["--exec-path-extra"], FIXTURE_GIT_BOUND);
     assert!(query.status.success());
     for flag in ["-C/fixture", "--super-prefix", "--shallow-file=unused"] {
@@ -249,16 +321,39 @@ fn a_directory_change_and_its_directory_leave_the_prefix() {
     let kept = |values: &[&str]| -> Vec<String> {
         return crate::global_arguments::without_directory_changes(arguments(values).as_slice())
             .iter()
-            .map(|token| { return token.to_string_lossy().into_owned(); })
+            .map(|token| {
+                return token.to_string_lossy().into_owned();
+            })
             .collect();
     };
     assert_eq!(kept(&[]), Vec::<String>::new());
     assert_eq!(kept(&["-C", ".."]), Vec::<String>::new());
-    assert_eq!(kept(&["-C", "..", "-C", "."]), Vec::<String>::new(), "every one of them, not the first");
-    assert_eq!(kept(&["-C", "", "status"]), vec![String::from("status")], "an empty directory moves Git nowhere");
-    assert_eq!(kept(&["-C"]), Vec::<String>::new(), "a value Git itself refuses");
     assert_eq!(
-        kept(&["-C", "..", "--git-dir=../cfg.git", "--work-tree", ".", "-c", "user.name=X", "--no-pager"]),
+        kept(&["-C", "..", "-C", "."]),
+        Vec::<String>::new(),
+        "every one of them, not the first"
+    );
+    assert_eq!(
+        kept(&["-C", "", "status"]),
+        vec![String::from("status")],
+        "an empty directory moves Git nowhere"
+    );
+    assert_eq!(
+        kept(&["-C"]),
+        Vec::<String>::new(),
+        "a value Git itself refuses"
+    );
+    assert_eq!(
+        kept(&[
+            "-C",
+            "..",
+            "--git-dir=../cfg.git",
+            "--work-tree",
+            ".",
+            "-c",
+            "user.name=X",
+            "--no-pager"
+        ]),
         vec![
             String::from("--git-dir=../cfg.git"),
             String::from("--work-tree"),
@@ -269,5 +364,9 @@ fn a_directory_change_and_its_directory_leave_the_prefix() {
         ],
         "the repository selection and the configuration stay, in the order they were written"
     );
-    assert_eq!(kept(&["-c", "-C"]), vec![String::from("-c"), String::from("-C")], "the value of -c is not a directory change");
+    assert_eq!(
+        kept(&["-c", "-C"]),
+        vec![String::from("-c"), String::from("-C")],
+        "the value of -c is not a directory change"
+    );
 }

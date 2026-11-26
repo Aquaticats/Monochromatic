@@ -104,7 +104,9 @@ impl CommandWord {
                 kept.push(character);
             }
         }
-        return CommandWord { text: kept };
+        return CommandWord {
+            text: kept,
+        };
     }
 
     /// What:
@@ -119,7 +121,9 @@ impl CommandWord {
     /// CommandWord.saying('a command this wrapper could not read')
     /// ```
     pub fn saying(word: &'static str) -> CommandWord {
-        return CommandWord { text: String::from(word) };
+        return CommandWord {
+            text: String::from(word),
+        };
     }
 
     /// The escaped name,
@@ -236,28 +240,52 @@ pub fn cause_of(errno: i32) -> Option<RefusalWord> {
 /// ```ts
 /// const record = parseProcessRecord(pid, text);
 /// ```
-pub fn parse_process_record(pid: i32, text: &str) -> ReadOutcome {
+pub fn parse_process_record(
+    pid: i32,
+    text: &str,
+) -> ReadOutcome {
     let Some(opened) = text.find('(') else {
-        return ReadOutcome::Blind { errno: 0, word: RefusalWord::HolderBlind };
+        return ReadOutcome::Blind {
+            errno: 0,
+            word: RefusalWord::HolderBlind,
+        };
     };
     let Some(closed) = text.rfind(')') else {
-        return ReadOutcome::Blind { errno: 0, word: RefusalWord::HolderBlind };
+        return ReadOutcome::Blind {
+            errno: 0,
+            word: RefusalWord::HolderBlind,
+        };
     };
     if closed < opened {
-        return ReadOutcome::Blind { errno: 0, word: RefusalWord::HolderBlind };
+        return ReadOutcome::Blind {
+            errno: 0,
+            word: RefusalWord::HolderBlind,
+        };
     }
     let Some(command) = text.get(opened + 1..closed) else {
-        return ReadOutcome::Blind { errno: 0, word: RefusalWord::HolderBlind };
+        return ReadOutcome::Blind {
+            errno: 0,
+            word: RefusalWord::HolderBlind,
+        };
     };
     let Some(after) = text.get(closed + 2..) else {
-        return ReadOutcome::Blind { errno: 0, word: RefusalWord::HolderBlind };
+        return ReadOutcome::Blind {
+            errno: 0,
+            word: RefusalWord::HolderBlind,
+        };
     };
     let fields: Vec<&str> = trim_javascript(after).split(' ').collect();
     if fields.len() <= STARTED_FIELD {
-        return ReadOutcome::Blind { errno: 0, word: RefusalWord::HolderBlind };
+        return ReadOutcome::Blind {
+            errno: 0,
+            word: RefusalWord::HolderBlind,
+        };
     }
     let Some(state) = fields[STATE_FIELD].chars().next() else {
-        return ReadOutcome::Blind { errno: 0, word: RefusalWord::HolderBlind };
+        return ReadOutcome::Blind {
+            errno: 0,
+            word: RefusalWord::HolderBlind,
+        };
     };
     let numbers: Option<(i32, i32, i32, u64)> = (|| {
         return Some((
@@ -268,7 +296,10 @@ pub fn parse_process_record(pid: i32, text: &str) -> ReadOutcome {
         ));
     })();
     let Some((parent, group, session, started)) = numbers else {
-        return ReadOutcome::Blind { errno: 0, word: RefusalWord::HolderBlind };
+        return ReadOutcome::Blind {
+            errno: 0,
+            word: RefusalWord::HolderBlind,
+        };
     };
     return ReadOutcome::Found(ProcessRecord {
         pid,
@@ -293,14 +324,20 @@ pub fn parse_process_record(pid: i32, text: &str) -> ReadOutcome {
 /// ```ts
 /// const outcome = readProcessRecord('/proc', pid);
 /// ```
-pub fn read_process_record(proc_root: &std::path::Path, pid: i32) -> ReadOutcome {
+pub fn read_process_record(
+    proc_root: &std::path::Path,
+    pid: i32,
+) -> ReadOutcome {
     let path: std::path::PathBuf = proc_root.join(pid.to_string()).join("stat");
     let text: String = match std::fs::read_to_string(&path) {
         Ok(read) => read,
         Err(error) => {
             let errno: i32 = error.raw_os_error().unwrap_or(0);
             return match cause_of(errno) {
-                Some(word) => ReadOutcome::Blind { errno, word },
+                Some(word) => ReadOutcome::Blind {
+                    errno,
+                    word,
+                },
                 None => ReadOutcome::Gone,
             };
         }

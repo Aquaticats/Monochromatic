@@ -31,7 +31,10 @@
 //! const directory = chain.directory(['package', 'cli', 'src']); // the handle those names lead to
 //! ```
 
-use super::fs_beneath::{device_of, open_directory_at};
+use super::fs_beneath::{
+    device_of,
+    open_directory_at,
+};
 use super::fs_beneath_walk_chain::open_directory_beneath;
 use std::ffi::OsStr;
 use std::ffi::OsString;
@@ -120,7 +123,10 @@ pub struct DirectoryChain<'root> {
 /// ```ts
 /// const shared = (opened, names) => opened.findIndex((each, index) => each.name !== names[index]);
 /// ```
-fn shared_prefix(opened: &[Opened], names: &[OsString]) -> usize {
+fn shared_prefix(
+    opened: &[Opened],
+    names: &[OsString],
+) -> usize {
     let mut shared: usize = 0;
     while shared < opened.len() && shared < names.len() {
         if opened[shared].name != names[shared] {
@@ -161,7 +167,12 @@ impl<'root> DirectoryChain<'root> {
     /// ```
     pub fn new(root: &'root File) -> std::io::Result<Self> {
         // The chain has opened nothing, and no path has been too deep for it yet.
-        return Ok(Self { root, device: device_of(root)?, opened: Vec::new(), deep_answer: None });
+        return Ok(Self {
+            root,
+            device: device_of(root)?,
+            opened: Vec::new(),
+            deep_answer: None,
+        });
     }
 
     /// What:
@@ -180,7 +191,10 @@ impl<'root> DirectoryChain<'root> {
     /// ```ts
     /// const directory = chain.directory(['package', 'cli']); // the handle, or why it is refused
     /// ```
-    pub fn directory(&mut self, names: &[OsString]) -> std::io::Result<&File> {
+    pub fn directory(
+        &mut self,
+        names: &[OsString],
+    ) -> std::io::Result<&File> {
         // Keeping every ancestor of a deeper path would hold one descriptor per component, which a valid checkout
         //  can exceed; such a path is walked one directory at a time, as it was before the chain.
         if names.len() > MOST_DIRECTORIES_HELD {
@@ -197,9 +211,15 @@ impl<'root> DirectoryChain<'root> {
             };
             let next: File = open_directory_at(parent, name.as_os_str())?;
             if device_of(&next)? != self.device {
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{} is on another device", name.to_string_lossy())));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("{} is on another device", name.to_string_lossy()),
+                ));
             }
-            self.opened.push(Opened { name: name.clone(), directory: next });
+            self.opened.push(Opened {
+                name: name.clone(),
+                directory: next,
+            });
         }
         return Ok(self.deepest());
     }
@@ -221,7 +241,10 @@ impl<'root> DirectoryChain<'root> {
     /// ```ts
     /// const directory = chain.tooDeepToKeep(names); // the same handle, one open at a time
     /// ```
-    fn too_deep_to_keep(&mut self, names: &[OsString]) -> std::io::Result<&File> {
+    fn too_deep_to_keep(
+        &mut self,
+        names: &[OsString],
+    ) -> std::io::Result<&File> {
         // The directories this chain keeps and the answer a path too deep to keep left before are descriptors the walk
         //  below does not use; held through it, they take the room its root's clone and the directory it is opening need.
         let root: &'root File = self.root;

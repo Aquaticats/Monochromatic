@@ -17,7 +17,10 @@
 //! const widestEntry = 'entry='.length + 'snapshot'.length + 3 + 20 + 20 + 255 + 1;
 //! ```
 
-use super::binding_words::{BINDING_HEADER, INVENTORY_HEADER};
+use super::binding_words::{
+    BINDING_HEADER,
+    INVENTORY_HEADER,
+};
 
 /// The kernel's `PATH_MAX`, measured as 4096 on this host (`F14` of the design's facts).
 const PATH_MAX: u64 = 4_096;
@@ -60,7 +63,10 @@ const POINTER_HEXADECIMAL_WIDEST: u64 = (GITDIR_POINTER_PREFIX + PATH_MAX + 1) *
 const REQUEST_WIDEST: u64 = REQUEST_FORM_WIDEST + 1 + PATH_HEXADECIMAL_WIDEST;
 
 /// One `key=value` line's bytes, its newline included.
-const fn line(key: &str, value: u64) -> u64 {
+const fn line(
+    key: &str,
+    value: u64,
+) -> u64 {
     return key.len() as u64 + 1 + value + 1;
 }
 
@@ -103,7 +109,8 @@ pub const BINDING_MAXIMUM_BYTES: u64 = header_bytes()
 
 /// The widest one inventory entry line may be:
 /// `entry=`, the kind, three separators, a GUID, a `createtxg`, a ZFS name and its newline.
-pub const INVENTORY_ENTRY_LINE_MAXIMUM_BYTES: u64 = 6 + 8 + 3 + DECIMAL_WIDEST + DECIMAL_WIDEST + ZFS_NAME_WIDEST + 1;
+pub const INVENTORY_ENTRY_LINE_MAXIMUM_BYTES: u64 =
+    6 + 8 + 3 + DECIMAL_WIDEST + DECIMAL_WIDEST + ZFS_NAME_WIDEST + 1;
 
 /// The inventory's header line and its newline.
 const fn inventory_header_bytes() -> u64 {

@@ -4,9 +4,15 @@
 //! and that a copy still running is left alone.
 
 use super::*;
-use crate::private_storage::take_file_syncs;
 use crate::json_record::quote;
-use crate::test_support::{dead_copy_owner, fixture, git, remove, repository};
+use crate::private_storage::take_file_syncs;
+use crate::test_support::{
+    dead_copy_owner,
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use std::os::unix::fs::PermissionsExt;
@@ -17,15 +23,20 @@ fn record_root(common: &Path) -> PathBuf {
     let root: PathBuf = journal_root(common);
     std::fs::create_dir_all(root.as_path()).expect("record root");
     let parent: &Path = root.parent().expect("the record root's parent");
-    std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700)).expect("private parent");
-    std::fs::set_permissions(root.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private root");
+    std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))
+        .expect("private parent");
+    std::fs::set_permissions(root.as_path(), std::fs::Permissions::from_mode(0o700))
+        .expect("private root");
     return root;
 }
 
 /// The journal path of one copy in that root,
 /// named as the copy names it,
 /// with a dead owner unless the control says otherwise.
-fn journal_of(common: &Path, token: &str) -> PathBuf {
+fn journal_of(
+    common: &Path,
+    token: &str,
+) -> PathBuf {
     return record_root(common).join(format!("0123456789abcdef.{token}.json"));
 }
 
@@ -34,7 +45,8 @@ fn journal_of(common: &Path, token: &str) -> PathBuf {
 fn worktree(root: &Path) -> (PathBuf, crate::fs_beneath::ObjectId) {
     let destination: PathBuf = root.join("worktree");
     std::fs::create_dir_all(destination.as_path()).expect("destination");
-    let identity: crate::fs_beneath::ObjectId = crate::worktree_add_binding::path_identity(destination.as_path()).expect("identity");
+    let identity: crate::fs_beneath::ObjectId =
+        crate::worktree_add_binding::path_identity(destination.as_path()).expect("identity");
     return (destination, identity);
 }
 
@@ -58,16 +70,36 @@ fn the_record_of_an_unfilled_worktree_flushes_nothing() {
     let (destination, identity) = worktree(root.as_path());
     let journal: PathBuf = root.join("0123456789abcdef.json");
     take_file_syncs();
-    remember_unfilled(journal.as_path(), destination.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
-    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the record of an unfilled worktree flushes no file");
+    remember_unfilled(
+        journal.as_path(),
+        destination.as_path(),
+        identity,
+        Path::new("/source/tree"),
+        Some(dead_copy_owner().token().as_str()),
+    )
+    .expect("remembered");
     assert_eq!(
-        decode_unfilled(std::fs::read_to_string(unfilled_path_of(journal.as_path())).expect("record").as_str()).expect("decoded").destination,
+        take_file_syncs(),
+        Vec::<PathBuf>::new(),
+        "the record of an unfilled worktree flushes no file"
+    );
+    assert_eq!(
+        decode_unfilled(
+            std::fs::read_to_string(unfilled_path_of(journal.as_path()))
+                .expect("record")
+                .as_str()
+        )
+        .expect("decoded")
+        .destination,
         destination,
         "the record is published whole"
     );
     let control: PathBuf = root.join("durable-control");
     crate::private_storage::write_private_file(control.as_path(), b"control").expect("control");
-    assert!(!take_file_syncs().is_empty(), "the recorder sees a durable private file");
+    assert!(
+        !take_file_syncs().is_empty(),
+        "the recorder sees a durable private file"
+    );
     remove(root.as_path());
 }
 
@@ -81,8 +113,20 @@ fn a_record_names_the_worktree_the_source_and_the_owner() {
     let (destination, identity) = worktree(root.as_path());
     let journal: PathBuf = root.join("0123456789abcdef.json");
     let owner: String = dead_copy_owner().token();
-    remember_unfilled(journal.as_path(), destination.as_path(), identity, Path::new("/source/tree"), Some(owner.as_str())).expect("remembered");
-    let copy: UnfilledCopy = decode_unfilled(std::fs::read_to_string(unfilled_path_of(journal.as_path())).expect("record").as_str()).expect("decoded");
+    remember_unfilled(
+        journal.as_path(),
+        destination.as_path(),
+        identity,
+        Path::new("/source/tree"),
+        Some(owner.as_str()),
+    )
+    .expect("remembered");
+    let copy: UnfilledCopy = decode_unfilled(
+        std::fs::read_to_string(unfilled_path_of(journal.as_path()))
+            .expect("record")
+            .as_str(),
+    )
+    .expect("decoded");
     assert_eq!(copy.destination, destination);
     assert_eq!(copy.destination_identity, identity);
     assert_eq!(copy.source, PathBuf::from("/source/tree"));
@@ -107,7 +151,14 @@ fn a_finished_installation_forgets_the_record() {
     let root: PathBuf = fixture("unfilled-record-forget");
     let (destination, identity) = worktree(root.as_path());
     let journal: PathBuf = root.join("0123456789abcdef.json");
-    remember_unfilled(journal.as_path(), destination.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
+    remember_unfilled(
+        journal.as_path(),
+        destination.as_path(),
+        identity,
+        Path::new("/source/tree"),
+        Some(dead_copy_owner().token().as_str()),
+    )
+    .expect("remembered");
     assert!(unfilled_path_of(journal.as_path()).exists());
     forget_unfilled(journal.as_path()).expect("forgotten");
     assert!(!unfilled_path_of(journal.as_path()).exists());
@@ -122,16 +173,37 @@ fn a_standing_worktree_is_named_on_every_pass() {
     let common: PathBuf = root.join("common");
     let (destination, identity) = worktree(root.as_path());
     let journal: PathBuf = journal_of(common.as_path(), dead_copy_owner().token().as_str());
-    remember_unfilled(journal.as_path(), destination.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
+    remember_unfilled(
+        journal.as_path(),
+        destination.as_path(),
+        identity,
+        Path::new("/source/tree"),
+        Some(dead_copy_owner().token().as_str()),
+    )
+    .expect("remembered");
     let first: Vec<String> = report_unfilled_records(common.as_path()).expect("reported");
     let again: Vec<String> = report_unfilled_records(common.as_path()).expect("reported again");
     assert_eq!(first.len(), 1, "{first:?}");
-    assert_eq!(first, again, "the line comes again until the worktree is settled");
-    assert!(first[0].contains(quote(destination.to_string_lossy().as_ref()).as_str()), "{}", first[0]);
+    assert_eq!(
+        first, again,
+        "the line comes again until the worktree is settled"
+    );
+    assert!(
+        first[0].contains(quote(destination.to_string_lossy().as_ref()).as_str()),
+        "{}",
+        first[0]
+    );
     assert!(first[0].contains("holds less than"), "{}", first[0]);
-    assert!(first[0].contains("git worktree remove --force"), "{}", first[0]);
+    assert!(
+        first[0].contains("git worktree remove --force"),
+        "{}",
+        first[0]
+    );
     assert!(first[0].contains("/source/tree"), "{}", first[0]);
-    assert!(unfilled_path_of(journal.as_path()).exists(), "the record stays while the worktree stands");
+    assert!(
+        unfilled_path_of(journal.as_path()).exists(),
+        "the record stays while the worktree stands"
+    );
     remove(root.as_path());
 }
 
@@ -147,11 +219,29 @@ fn a_moved_worktree_is_named_where_it_stands_and_keeps_its_record() {
     let main: PathBuf = repository(root.as_path(), "main");
     let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
     let source: PathBuf = root.join("source");
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "source", source.to_str().expect("utf8 source")]);
+    git(
+        main.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "source",
+            source.to_str().expect("utf8 source"),
+        ],
+    );
     let source_root: PathBuf = std::fs::canonicalize(source.as_path()).expect("canonical source");
-    let identity: crate::fs_beneath::ObjectId = crate::worktree_add_binding::path_identity(source_root.as_path()).expect("identity");
+    let identity: crate::fs_beneath::ObjectId =
+        crate::worktree_add_binding::path_identity(source_root.as_path()).expect("identity");
     let journal: PathBuf = journal_of(common.as_path(), dead_copy_owner().token().as_str());
-    remember_unfilled(journal.as_path(), source_root.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
+    remember_unfilled(
+        journal.as_path(),
+        source_root.as_path(),
+        identity,
+        Path::new("/source/tree"),
+        Some(dead_copy_owner().token().as_str()),
+    )
+    .expect("remembered");
     let moved: PathBuf = root.join("moved");
     git(
         main.as_path(),
@@ -164,7 +254,11 @@ fn a_moved_worktree_is_named_where_it_stands_and_keeps_its_record() {
     );
     let moved_root: PathBuf = std::fs::canonicalize(moved).expect("canonical moved");
     let named: Vec<String> = report_unfilled_records(common.as_path()).expect("reported");
-    assert_eq!(named.len(), 1, "the worktree still stands, so its record names it: {named:?}");
+    assert_eq!(
+        named.len(),
+        1,
+        "the worktree still stands, so its record names it: {named:?}"
+    );
     assert!(
         named[0].contains(quote(moved_root.to_string_lossy().as_ref()).as_str()),
         "the line names where the worktree stands now: {}",
@@ -175,7 +269,10 @@ fn a_moved_worktree_is_named_where_it_stands_and_keeps_its_record() {
         "the line names no path the worktree has left: {}",
         named[0]
     );
-    assert!(unfilled_path_of(journal.as_path()).exists(), "a worktree that still stands keeps its record");
+    assert!(
+        unfilled_path_of(journal.as_path()).exists(),
+        "a worktree that still stands keeps its record"
+    );
     remove(root.as_path());
 }
 
@@ -190,22 +287,59 @@ fn a_record_of_an_unreadable_registration_is_kept() {
     let main: PathBuf = repository(root.as_path(), "main");
     let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
     let source: PathBuf = root.join("source");
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "source", source.to_str().expect("utf8 source")]);
+    git(
+        main.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "source",
+            source.to_str().expect("utf8 source"),
+        ],
+    );
     let source_root: PathBuf = std::fs::canonicalize(source.as_path()).expect("canonical source");
-    let identity: crate::fs_beneath::ObjectId = crate::worktree_add_binding::path_identity(source_root.as_path()).expect("identity");
+    let identity: crate::fs_beneath::ObjectId =
+        crate::worktree_add_binding::path_identity(source_root.as_path()).expect("identity");
     let journal: PathBuf = journal_of(common.as_path(), dead_copy_owner().token().as_str());
-    remember_unfilled(journal.as_path(), source_root.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
+    remember_unfilled(
+        journal.as_path(),
+        source_root.as_path(),
+        identity,
+        Path::new("/source/tree"),
+        Some(dead_copy_owner().token().as_str()),
+    )
+    .expect("remembered");
     let moved: PathBuf = root.join("moved");
-    git(main.as_path(), &["worktree", "move", source_root.to_str().expect("utf8 source"), moved.to_str().expect("utf8 moved")]);
+    git(
+        main.as_path(),
+        &[
+            "worktree",
+            "move",
+            source_root.to_str().expect("utf8 source"),
+            moved.to_str().expect("utf8 moved"),
+        ],
+    );
     let moved_root: PathBuf = std::fs::canonicalize(moved).expect("canonical moved");
-    let admin: PathBuf = match crate::worktree_copy_registration_naming::registration_naming(common.as_path(), moved_root.as_path()) {
+    let admin: PathBuf = match crate::worktree_copy_registration_naming::registration_naming(
+        common.as_path(),
+        moved_root.as_path(),
+    ) {
         crate::worktree_copy_registration_naming::NamedRegistration::Named(admin) => admin,
         other => panic!("the registration is there: {other:?}"),
     };
-    std::fs::remove_file(admin.join("gitdir").as_path()).expect("the registration's gitdir is gone while it is written again");
+    std::fs::remove_file(admin.join("gitdir").as_path())
+        .expect("the registration's gitdir is gone while it is written again");
     let named: Vec<String> = report_unfilled_records(common.as_path()).expect("reported");
-    assert_eq!(named, Vec::<String>::new(), "a registration that cannot be read names no line: {named:?}");
-    assert!(unfilled_path_of(journal.as_path()).exists(), "a record whose worktree stands somewhere unproven is kept");
+    assert_eq!(
+        named,
+        Vec::<String>::new(),
+        "a registration that cannot be read names no line: {named:?}"
+    );
+    assert!(
+        unfilled_path_of(journal.as_path()).exists(),
+        "a record whose worktree stands somewhere unproven is kept"
+    );
     remove(root.as_path());
 }
 
@@ -217,16 +351,42 @@ fn a_gone_or_replaced_worktree_settles_its_record() {
     let common: PathBuf = root.join("common");
     let (gone, gone_identity) = worktree(root.as_path());
     let journal: PathBuf = journal_of(common.as_path(), dead_copy_owner().token().as_str());
-    remember_unfilled(journal.as_path(), gone.as_path(), gone_identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
+    remember_unfilled(
+        journal.as_path(),
+        gone.as_path(),
+        gone_identity,
+        Path::new("/source/tree"),
+        Some(dead_copy_owner().token().as_str()),
+    )
+    .expect("remembered");
     std::fs::remove_dir_all(gone.as_path()).expect("removed");
-    assert_eq!(report_unfilled_records(common.as_path()).expect("reported"), Vec::<String>::new());
-    assert!(!unfilled_path_of(journal.as_path()).exists(), "a worktree that is gone settles its record");
+    assert_eq!(
+        report_unfilled_records(common.as_path()).expect("reported"),
+        Vec::<String>::new()
+    );
+    assert!(
+        !unfilled_path_of(journal.as_path()).exists(),
+        "a worktree that is gone settles its record"
+    );
     let (replaced, before) = worktree(root.as_path());
-    remember_unfilled(journal.as_path(), replaced.as_path(), before, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
+    remember_unfilled(
+        journal.as_path(),
+        replaced.as_path(),
+        before,
+        Path::new("/source/tree"),
+        Some(dead_copy_owner().token().as_str()),
+    )
+    .expect("remembered");
     std::fs::remove_dir_all(replaced.as_path()).expect("removed");
     std::fs::create_dir_all(replaced.as_path()).expect("made again");
-    assert_eq!(report_unfilled_records(common.as_path()).expect("reported"), Vec::<String>::new());
-    assert!(!unfilled_path_of(journal.as_path()).exists(), "a worktree made again settles the record of the one before it");
+    assert_eq!(
+        report_unfilled_records(common.as_path()).expect("reported"),
+        Vec::<String>::new()
+    );
+    assert!(
+        !unfilled_path_of(journal.as_path()).exists(),
+        "a worktree made again settles the record of the one before it"
+    );
     remove(root.as_path());
 }
 
@@ -239,11 +399,34 @@ fn a_record_of_a_running_copy_is_left_alone() {
     let (destination, identity) = worktree(root.as_path());
     let owner: String = current_copy_owner().expect("owner").token();
     let journal: PathBuf = journal_of(common.as_path(), owner.as_str());
-    remember_unfilled(journal.as_path(), destination.as_path(), identity, Path::new("/source/tree"), Some(owner.as_str())).expect("remembered");
-    assert_eq!(report_unfilled_records(common.as_path()).expect("reported"), Vec::<String>::new(), "a copy that runs owns its record");
+    remember_unfilled(
+        journal.as_path(),
+        destination.as_path(),
+        identity,
+        Path::new("/source/tree"),
+        Some(owner.as_str()),
+    )
+    .expect("remembered");
+    assert_eq!(
+        report_unfilled_records(common.as_path()).expect("reported"),
+        Vec::<String>::new(),
+        "a copy that runs owns its record"
+    );
     // The same record, once its owner is gone, names the worktree.
-    remember_unfilled(journal.as_path(), destination.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
-    assert_eq!(report_unfilled_records(common.as_path()).expect("reported").len(), 1);
+    remember_unfilled(
+        journal.as_path(),
+        destination.as_path(),
+        identity,
+        Path::new("/source/tree"),
+        Some(dead_copy_owner().token().as_str()),
+    )
+    .expect("remembered");
+    assert_eq!(
+        report_unfilled_records(common.as_path())
+            .expect("reported")
+            .len(),
+        1
+    );
     remove(root.as_path());
 }
 
@@ -256,16 +439,30 @@ fn a_record_this_release_does_not_write_is_named_and_left_to_the_command_that_se
     let common: PathBuf = root.join("common");
     let record: PathBuf = record_root(common.as_path()).join("0123456789abcdef.unfilled");
     std::fs::write(record.as_path(), b"destination=nothing-useful\n").expect("foreign record");
-    std::fs::set_permissions(record.as_path(), std::fs::Permissions::from_mode(0o600)).expect("private record");
+    std::fs::set_permissions(record.as_path(), std::fs::Permissions::from_mode(0o600))
+        .expect("private record");
     // A record a rename published before its bytes is what a crash leaves: the sweep that reports worktrees names no
     // worktree from it, so the command that found it moves it aside, and no reader fails a command over it.
     let reading: Option<UnfilledFile> = unfilled_file_reading(record.as_path()).expect("reading");
-    let Some(UnfilledFile::Unreadable { reason }) = reading else {
+    let Some(UnfilledFile::Unreadable {
+        reason,
+    }) = reading
+    else {
         panic!("a record this release does not write is one it cannot read");
     };
-    assert_eq!(reason, "its worktree is not a path", "the reading names why the record is not one this release writes");
-    assert_eq!(report_unfilled_records(common.as_path()).expect("reported"), Vec::<String>::new(), "no worktree is named from it");
-    assert!(record.exists(), "a record this release cannot read is still there for the command that settles it");
+    assert_eq!(
+        reason, "its worktree is not a path",
+        "the reading names why the record is not one this release writes"
+    );
+    assert_eq!(
+        report_unfilled_records(common.as_path()).expect("reported"),
+        Vec::<String>::new(),
+        "no worktree is named from it"
+    );
+    assert!(
+        record.exists(),
+        "a record this release cannot read is still there for the command that settles it"
+    );
     remove(root.as_path());
 }
 
@@ -290,7 +487,14 @@ fn the_pending_check_names_the_worktree() {
     let common: PathBuf = root.join("common");
     let (destination, identity) = worktree(root.as_path());
     let journal: PathBuf = journal_of(common.as_path(), dead_copy_owner().token().as_str());
-    remember_unfilled(journal.as_path(), destination.as_path(), identity, Path::new("/source/tree"), Some(dead_copy_owner().token().as_str())).expect("remembered");
+    remember_unfilled(
+        journal.as_path(),
+        destination.as_path(),
+        identity,
+        Path::new("/source/tree"),
+        Some(dead_copy_owner().token().as_str()),
+    )
+    .expect("remembered");
     let mut told: Vec<u8> = Vec::new();
     recover_pending_worktree_copies(
         common.as_path(),
@@ -300,7 +504,10 @@ fn the_pending_check_names_the_worktree() {
     )
     .expect("the pass");
     let text: String = String::from_utf8(told).expect("text");
-    assert!(text.contains(quote(destination.to_string_lossy().as_ref()).as_str()), "{text}");
+    assert!(
+        text.contains(quote(destination.to_string_lossy().as_ref()).as_str()),
+        "{text}"
+    );
     assert!(text.contains("holds less than"), "{text}");
     remove(root.as_path());
 }

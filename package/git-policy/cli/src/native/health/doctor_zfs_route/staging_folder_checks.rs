@@ -23,10 +23,21 @@
 //! const outcome = check_staging_folder(facts); // pass | finding('owner'|'mode'|'name'|'content') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
-use super::handler_checks::{PathFacts, PathState};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
+use super::handler_checks::{
+    PathFacts,
+    PathState,
+};
 use crate::fs_mount_options::MountFacts;
-use crate::worktree_clone_unmount::staging_folder_name::{STAGING_FOLDER_PREFIX, guid_of_folder_name};
+use crate::worktree_clone_unmount::staging_folder_name::{
+    STAGING_FOLDER_PREFIX,
+    guid_of_folder_name,
+};
 
 /// The mode every staging folder is made with,
 /// owned by the account.
@@ -103,11 +114,32 @@ pub struct StagingFolderFacts {
 pub fn check_staging_folder(facts: &StagingFolderFacts) -> CheckOutcome {
     let cache: String = facts.cache.path.display().to_string();
     match &facts.cache.state {
-        PathState::Absent => return pass(format!("{cache} is not there, so no staging folder stands under it")),
-        PathState::Unreadable { why } => return unknown(format!("{cache} could not be listed ({why}), so no staging folder is proved absent")),
-        PathState::WrongKind { found } => return finding("cache", format!("{cache} is not a directory ({found})")),
-        PathState::File { .. } => return finding("cache", format!("{cache} is a file rather than the account's cache folder")),
-        PathState::Directory { .. } => {}
+        PathState::Absent => {
+            return pass(format!(
+                "{cache} is not there, so no staging folder stands under it"
+            ));
+        }
+        PathState::Unreadable {
+            why,
+        } => {
+            return unknown(format!(
+                "{cache} could not be listed ({why}), so no staging folder is proved absent"
+            ));
+        }
+        PathState::WrongKind {
+            found,
+        } => return finding("cache", format!("{cache} is not a directory ({found})")),
+        PathState::File {
+            ..
+        } => {
+            return finding(
+                "cache",
+                format!("{cache} is a file rather than the account's cache folder"),
+            );
+        }
+        PathState::Directory {
+            ..
+        } => {}
     }
     if facts.folders.is_empty() {
         return pass(format!("no staging folder stands under {cache}"));
@@ -115,28 +147,89 @@ pub fn check_staging_folder(facts: &StagingFolderFacts) -> CheckOutcome {
     let mut empty_folders: usize = 0;
     for folder in &facts.folders {
         match &folder.state {
-            PathState::Unreadable { why } => return unknown(format!("{cache}/{} could not be looked at ({why}), so its ownership and content are unproved", folder.name)),
-            PathState::Directory { owner, mode } => {
+            PathState::Unreadable {
+                why,
+            } => {
+                return unknown(format!(
+                    "{cache}/{} could not be looked at ({why}), so its ownership and content are unproved",
+                    folder.name
+                ));
+            }
+            PathState::Directory {
+                owner,
+                mode,
+            } => {
                 if !folder.derived {
-                    return finding("name", format!("{cache}/{} begins with `{STAGING_FOLDER_PREFIX}` and the rest of the name is no dataset GUID, so no removal derived it; it is reported and left in place", folder.name));
+                    return finding(
+                        "name",
+                        format!(
+                            "{cache}/{} begins with `{STAGING_FOLDER_PREFIX}` and the rest of the name is no dataset GUID, so no removal derived it; it is reported and left in place",
+                            folder.name
+                        ),
+                    );
                 }
                 if *owner != facts.account {
-                    return finding("owner", format!("{cache}/{} is owned by user {owner} and a staging folder is the managed account's ({})", folder.name, facts.account));
+                    return finding(
+                        "owner",
+                        format!(
+                            "{cache}/{} is owned by user {owner} and a staging folder is the managed account's ({})",
+                            folder.name, facts.account
+                        ),
+                    );
                 }
                 if *mode != STAGING_FOLDER_MODE {
-                    return finding("mode", format!("{cache}/{} is mode {mode:04o} and the design makes a staging folder {STAGING_FOLDER_MODE:04o}", folder.name));
+                    return finding(
+                        "mode",
+                        format!(
+                            "{cache}/{} is mode {mode:04o} and the design makes a staging folder {STAGING_FOLDER_MODE:04o}",
+                            folder.name
+                        ),
+                    );
                 }
                 if !folder.empty {
-                    return finding("content", format!("{cache}/{} holds an entry, and a staging folder is empty before the clone moves onto it; a person looks at what stands there before any removal removes it", folder.name));
+                    return finding(
+                        "content",
+                        format!(
+                            "{cache}/{} holds an entry, and a staging folder is empty before the clone moves onto it; a person looks at what stands there before any removal removes it",
+                            folder.name
+                        ),
+                    );
                 }
                 empty_folders += 1;
             }
-            PathState::Absent => return finding("folder", format!("{cache}/{} is gone between the listing and the look", folder.name)),
-            PathState::WrongKind { found } => return finding("folder", format!("{cache}/{} is no staging folder: it is {found}", folder.name)),
-            PathState::File { .. } => return finding("folder", format!("{cache}/{} is a file rather than a folder", folder.name)),
+            PathState::Absent => {
+                return finding(
+                    "folder",
+                    format!(
+                        "{cache}/{} is gone between the listing and the look",
+                        folder.name
+                    ),
+                );
+            }
+            PathState::WrongKind {
+                found,
+            } => {
+                return finding(
+                    "folder",
+                    format!(
+                        "{cache}/{} is no staging folder: it is {found}",
+                        folder.name
+                    ),
+                );
+            }
+            PathState::File {
+                ..
+            } => {
+                return finding(
+                    "folder",
+                    format!("{cache}/{} is a file rather than a folder", folder.name),
+                );
+            }
         }
     }
-    return pass(format!("{empty_folders} staging folder(s) under {cache} are the account's, mode {STAGING_FOLDER_MODE:04o} and empty"));
+    return pass(format!(
+        "{empty_folders} staging folder(s) under {cache} are the account's, mode {STAGING_FOLDER_MODE:04o} and empty"
+    ));
 }
 
 /// What:
@@ -172,13 +265,20 @@ pub struct StagingBind {
 /// ```ts
 /// const binds = staging_binds(rows, cache); // rows whose mount point is `<cache>/monochromatic-git-policy-cli-staging-...`
 /// ```
-pub fn staging_binds(rows: &[MountFacts], cache: &std::path::Path) -> Vec<StagingBind> {
+pub fn staging_binds(
+    rows: &[MountFacts],
+    cache: &std::path::Path,
+) -> Vec<StagingBind> {
     let mut binds: Vec<StagingBind> = Vec::new();
     for row in rows {
         if !row.mount_point.starts_with(cache) || row.mount_point == cache {
             continue;
         }
-        let Some(name) = row.mount_point.file_name().and_then(|name| return name.to_str()) else {
+        let Some(name) = row
+            .mount_point
+            .file_name()
+            .and_then(|name| return name.to_str())
+        else {
             continue;
         };
         if !name.starts_with(STAGING_FOLDER_PREFIX) {
@@ -190,7 +290,11 @@ pub fn staging_binds(rows: &[MountFacts], cache: &std::path::Path) -> Vec<Stagin
                 sharing.push(field.clone());
             }
         }
-        binds.push(StagingBind { mount_point: row.mount_point.clone(), source: row.source.clone(), sharing });
+        binds.push(StagingBind {
+            mount_point: row.mount_point.clone(),
+            source: row.source.clone(),
+            sharing,
+        });
     }
     return binds;
 }
@@ -220,11 +324,17 @@ pub fn check_staging_bind_propagation(binds: &[StagingBind]) -> CheckOutcome {
         if !bind.sharing.is_empty() {
             return finding(
                 "propagation",
-                format!("the staging bind at {path} is not private ({}), so a mount made on it reaches another namespace; set it back with `mount --make-private {path}`", bind.sharing.join(", ")),
+                format!(
+                    "the staging bind at {path} is not private ({}), so a mount made on it reaches another namespace; set it back with `mount --make-private {path}`",
+                    bind.sharing.join(", ")
+                ),
             );
         }
     }
-    return pass(format!("{} staging bind(s) are private and bind their own folder", binds.len()));
+    return pass(format!(
+        "{} staging bind(s) are private and bind their own folder",
+        binds.len()
+    ));
 }
 
 /// What:

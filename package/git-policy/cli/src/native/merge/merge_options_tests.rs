@@ -20,7 +20,9 @@ fn supported(words: &[&str]) -> MergeShape {
 /// or a failure naming it.
 fn unsupported(words: &[&str]) -> String {
     match parse_merge_shape(&region(words)) {
-        ParsedMerge::Supported(shape) => panic!("{words:?} should be forwarded but read as {shape:?}"),
+        ParsedMerge::Supported(shape) => {
+            panic!("{words:?} should be forwarded but read as {shape:?}")
+        }
         ParsedMerge::Unsupported(reason) => return reason,
     }
 }
@@ -49,7 +51,11 @@ fn every_spelling_of_the_message_reads_the_same_bytes() {
         vec!["--message", "text", "feature"],
         vec!["feature", "-m", "text"],
     ] {
-        assert_eq!(supported(&words).message, Some(b"text\n".to_vec()), "{words:?}");
+        assert_eq!(
+            supported(&words).message,
+            Some(b"text\n".to_vec()),
+            "{words:?}"
+        );
     }
 }
 
@@ -67,7 +73,8 @@ fn a_message_keeps_its_bytes() {
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStringExt;
-        let mut words: Vec<OsString> = vec![OsString::from("-m"), OsString::from_vec(vec![0xff, b'x'])];
+        let mut words: Vec<OsString> =
+            vec![OsString::from("-m"), OsString::from_vec(vec![0xff, b'x'])];
         words.push(OsString::from("feature"));
         let ParsedMerge::Supported(shape) = parse_merge_shape(&words) else {
             panic!("a binary message is a message");
@@ -82,8 +89,14 @@ fn a_message_keeps_its_bytes() {
 /// stat and unrelated-history switches.
 #[test]
 fn the_switches_are_read() {
-    assert_eq!(supported(&["--no-ff", "f"]).fast_forward, FastForwardChoice::Never);
-    assert_eq!(supported(&["--ff", "f"]).fast_forward, FastForwardChoice::Allowed);
+    assert_eq!(
+        supported(&["--no-ff", "f"]).fast_forward,
+        FastForwardChoice::Never
+    );
+    assert_eq!(
+        supported(&["--ff", "f"]).fast_forward,
+        FastForwardChoice::Allowed
+    );
     assert!(supported(&["--no-edit", "f"]).no_edit);
     assert!(supported(&["-q", "f"]).quiet);
     assert!(supported(&["--quiet", "f"]).quiet);
@@ -98,7 +111,14 @@ fn the_switches_are_read() {
 /// Output-only options change nothing about the commit.
 #[test]
 fn output_only_options_are_accepted_and_ignored() {
-    for option in ["-v", "--verbose", "--no-progress", "--no-verify", "--no-signoff", "--no-autostash"] {
+    for option in [
+        "-v",
+        "--verbose",
+        "--no-progress",
+        "--no-verify",
+        "--no-signoff",
+        "--no-autostash",
+    ] {
         let shape: MergeShape = supported(&[option, "feature"]);
         assert_eq!(shape.reference, OsString::from("feature"), "{option}");
     }
@@ -109,8 +129,14 @@ fn output_only_options_are_accepted_and_ignored() {
 fn signing_options_are_read() {
     assert_eq!(supported(&["-S", "f"]).signing, Signing::Sign(None));
     assert_eq!(supported(&["--gpg-sign", "f"]).signing, Signing::Sign(None));
-    assert_eq!(supported(&["-SABCD", "f"]).signing, Signing::Sign(Some(b"ABCD".to_vec())));
-    assert_eq!(supported(&["--gpg-sign=ABCD", "f"]).signing, Signing::Sign(Some(b"ABCD".to_vec())));
+    assert_eq!(
+        supported(&["-SABCD", "f"]).signing,
+        Signing::Sign(Some(b"ABCD".to_vec()))
+    );
+    assert_eq!(
+        supported(&["--gpg-sign=ABCD", "f"]).signing,
+        Signing::Sign(Some(b"ABCD".to_vec()))
+    );
     assert_eq!(supported(&["--no-gpg-sign", "f"]).signing, Signing::Never);
 }
 
@@ -154,7 +180,10 @@ fn an_option_that_is_not_text_is_forwarded() {
     {
         use std::os::unix::ffi::OsStringExt;
         let words: Vec<OsString> = vec![OsString::from_vec(vec![b'-', 0xff]), OsString::from("f")];
-        assert!(matches!(parse_merge_shape(&words), ParsedMerge::Unsupported(_)));
+        assert!(matches!(
+            parse_merge_shape(&words),
+            ParsedMerge::Unsupported(_)
+        ));
     }
 }
 
@@ -189,6 +218,12 @@ fn the_summary_switches_decide_the_diffstat_as_git_documents_them() {
     assert_eq!(supported(&["--summary", "feature"]).stat, Some(true));
     assert_eq!(supported(&["--no-summary", "feature"]).stat, Some(false));
     // Read in the order they come, as the diffstat switches are.
-    assert_eq!(supported(&["--stat", "--no-summary", "feature"]).stat, Some(false));
-    assert_eq!(supported(&["--no-stat", "--summary", "feature"]).stat, Some(true));
+    assert_eq!(
+        supported(&["--stat", "--no-summary", "feature"]).stat,
+        Some(false)
+    );
+    assert_eq!(
+        supported(&["--no-stat", "--summary", "feature"]).stat,
+        Some(true)
+    );
 }

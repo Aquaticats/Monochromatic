@@ -24,30 +24,41 @@
 
 /// The modes and object names a correction keeps and compares.
 use crate::candidate_object::CandidateMode;
+/// The candidate and version types.
+use crate::candidate_version::CandidateVersion;
 /// The planner's modes,
 ///  failures and messages.
-use crate::dependent_version_content::{TrackedMode, display_path};
+use crate::dependent_version_content::{
+    TrackedMode,
+    display_path,
+};
 /// The planner's view of the candidate state.
 use crate::dependent_version_lifecycle::LifecycleWorkspace;
 /// The planner's bump of one manifest.
 use crate::dependent_version_plan::ManifestBump;
 /// The planner's findings.
 use crate::dependent_version_policy::DependentFinding;
-/// The candidate and version types.
-use crate::candidate_version::CandidateVersion;
 /// The event pathname type a note carries.
 use crate::event_path::EventPath;
-/// The finding,
-///  note and outcome types of a check.
-use crate::policy_engine::{PolicyNote, PolicyOutcome};
 /// The precondition for a path a lifecycle did not select,
 ///  its reasons and its messages.
 use crate::policy_added_path::{
-    ADDED_PATH_STAGED_REASON, ADDED_PATH_UNSTAGED_REASON, CommitAddedPath, Entry, commit_added_path_message,
-    commit_refusal, real_index_entries,
+    ADDED_PATH_STAGED_REASON,
+    ADDED_PATH_UNSTAGED_REASON,
+    CommitAddedPath,
+    Entry,
+    commit_added_path_message,
+    commit_refusal,
+    real_index_entries,
 };
 /// The lifecycle's correction.
 use crate::policy_content::Correction;
+/// The finding,
+///  note and outcome types of a check.
+use crate::policy_engine::{
+    PolicyNote,
+    PolicyOutcome,
+};
 /// The facts interface the real index is listed through.
 use crate::repository_facts::RepositoryFacts;
 /// The repository location the listing names.
@@ -75,7 +86,11 @@ use std::rc::Rc;
 pub fn noted(message: &str) -> PolicyOutcome {
     return PolicyOutcome::FindingsWithNotes {
         findings: Vec::new(),
-        notes: vec![note_of(message, None, Some(crate::policy_events::LEFT_ALONE_HINT))],
+        notes: vec![note_of(
+            message,
+            None,
+            Some(crate::policy_events::LEFT_ALONE_HINT),
+        )],
     };
 }
 
@@ -93,7 +108,11 @@ pub fn noted(message: &str) -> PolicyOutcome {
 /// ```ts
 /// const noteOf = (message, path, hint) => ({ message, path: path && eventPath(path), hint });
 /// ```
-pub fn note_of(message: &str, path: Option<&[u8]>, hint: Option<&'static str>) -> PolicyNote {
+pub fn note_of(
+    message: &str,
+    path: Option<&[u8]>,
+    hint: Option<&'static str>,
+) -> PolicyNote {
     return PolicyNote {
         message: String::from(message),
         path: path.map(EventPath::from_git_bytes),
@@ -144,7 +163,10 @@ pub enum LeftBehind {
 /// ```ts
 /// const leftBehind = (bump, left) => noteOf(hintOf(left), messageOf(left), bump.path);
 /// ```
-pub fn left_behind(bump: &ManifestBump, left: &LeftBehind) -> PolicyNote {
+pub fn left_behind(
+    bump: &ManifestBump,
+    left: &LeftBehind,
+) -> PolicyNote {
     let shown: String = display_path(bump.path.as_slice());
     let message: String = match left {
         LeftBehind::Holds(reason) => commit_added_path_message(
@@ -168,7 +190,9 @@ pub fn left_behind(bump: &ManifestBump, left: &LeftBehind) -> PolicyNote {
     };
     let hint: Option<&'static str> = match left {
         LeftBehind::Unlisted(_) => Some(crate::policy_events::UNPROVEN_RIPPLE_HINT),
-        LeftBehind::Holds(_) | LeftBehind::Unreadable(_) => Some(crate::policy_events::LEFT_ALONE_HINT),
+        LeftBehind::Holds(_) | LeftBehind::Unreadable(_) => {
+            Some(crate::policy_events::LEFT_ALONE_HINT)
+        }
     };
     return note_of(message.as_str(), Some(bump.path.as_slice()), hint);
 }

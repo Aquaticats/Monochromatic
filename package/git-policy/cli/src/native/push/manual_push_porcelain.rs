@@ -126,7 +126,10 @@ pub fn parse_porcelain(output: &str) -> Result<Vec<PorcelainBlock>, String> {
     let mut blocks: Vec<PorcelainBlock> = Vec::new();
     for line in output.lines() {
         if let Some(shown) = line.strip_prefix("To ") {
-            blocks.push(PorcelainBlock { shown: shown.to_owned(), updates: Vec::new() });
+            blocks.push(PorcelainBlock {
+                shown: shown.to_owned(),
+                updates: Vec::new(),
+            });
             continue;
         }
         // `-u`, `--set-upstream` and `push.autoSetupRemote` make Git add this line to the report (measured on 2.56.0).
@@ -134,7 +137,11 @@ pub fn parse_porcelain(output: &str) -> Result<Vec<PorcelainBlock>, String> {
             continue;
         }
         let mut fields = line.splitn(3, '\t');
-        let (Some(flag), Some(spec), summary) = (fields.next(), fields.next(), fields.next().unwrap_or_default()) else {
+        let (Some(flag), Some(spec), summary) = (
+            fields.next(),
+            fields.next(),
+            fields.next().unwrap_or_default(),
+        ) else {
             return Err(format!("Malformed porcelain line: {line}"));
         };
         // Git splits a refspec at its last colon, so a source such as `:/message` keeps its own.
@@ -148,7 +155,12 @@ pub fn parse_porcelain(output: &str) -> Result<Vec<PorcelainBlock>, String> {
             continue;
         }
         let (before, after) = parse_summary(summary);
-        block.updates.push(PorcelainUpdate { from: from.to_owned(), to: to.to_owned(), before, after });
+        block.updates.push(PorcelainUpdate {
+            from: from.to_owned(),
+            to: to.to_owned(),
+            before,
+            after,
+        });
     }
     return Ok(blocks);
 }

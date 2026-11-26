@@ -101,7 +101,12 @@ fn is_false(value: std::ffi::OsString) -> bool {
 /// ```ts
 /// `[${level}] [${new Date().toISOString()}] [monochromatic-git-policy-cli] [${tag}] ${neutralize(maskUserinfo(message))}\n`
 /// ```
-pub fn diagnostic_line(level: &str, time: &str, tag: &str, message: &str) -> String {
+pub fn diagnostic_line(
+    level: &str,
+    time: &str,
+    tag: &str,
+    message: &str,
+) -> String {
     let masked: String = mask_url_secrets_text(message);
     // `mut` allows building the neutralized message one character at a time.
     let mut single: String = String::with_capacity(masked.len());
@@ -193,7 +198,10 @@ pub(crate) fn take_lines_written() -> Vec<String> {
 /// ```ts
 /// tagged({ tag }).debug(message);
 /// ```
-pub fn debug(tag: &str, message: &str) {
+pub fn debug(
+    tag: &str,
+    message: &str,
+) {
     if verbose_enabled() {
         write_line(diagnostic_line("debug", now_iso().as_str(), tag, message).as_str());
     }
@@ -210,7 +218,10 @@ pub fn debug(tag: &str, message: &str) {
 /// ```ts
 /// tagged({ tag }).warn(message);
 /// ```
-pub fn warn(tag: &str, message: &str) {
+pub fn warn(
+    tag: &str,
+    message: &str,
+) {
     if !warnings_suppressed() {
         write_line(diagnostic_line("warn", now_iso().as_str(), tag, message).as_str());
     }

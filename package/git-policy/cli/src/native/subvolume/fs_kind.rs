@@ -25,7 +25,10 @@
 //! const isSubvolumeRoot = kind === 'btrfs' && (await stat(path, { bigint: true })).ino === 256n;
 //! ```
 
-use crate::fs_primitive_error::{PrimitiveError, c_path};
+use crate::fs_primitive_error::{
+    PrimitiveError,
+    c_path,
+};
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
@@ -204,7 +207,10 @@ pub fn is_xfs(path: &Path) -> Result<bool, PrimitiveError> {
 /// const kindMayClone = (kind: FilesystemKind) => kind === 'btrfs' || kind === 'overlayfs' || kind === 'zfs';
 /// ```
 pub fn kind_may_clone(kind: FilesystemKind) -> bool {
-    return matches!(kind, FilesystemKind::Btrfs | FilesystemKind::Overlayfs | FilesystemKind::Zfs);
+    return matches!(
+        kind,
+        FilesystemKind::Btrfs | FilesystemKind::Overlayfs | FilesystemKind::Zfs
+    );
 }
 
 /// What:
@@ -249,7 +255,13 @@ pub fn is_subvolume_root(path: &Path) -> Result<bool, PrimitiveError> {
     }
     let metadata = match std::fs::metadata(path) {
         Ok(found) => found,
-        Err(error) => return Err(PrimitiveError { operation: "stat", path: path.to_path_buf(), errno: error.raw_os_error().unwrap_or(0) }),
+        Err(error) => {
+            return Err(PrimitiveError {
+                operation: "stat",
+                path: path.to_path_buf(),
+                errno: error.raw_os_error().unwrap_or(0),
+            });
+        }
     };
     return Ok(metadata.is_dir() && metadata.ino() == BTRFS_SUBVOLUME_ROOT_INODE);
 }

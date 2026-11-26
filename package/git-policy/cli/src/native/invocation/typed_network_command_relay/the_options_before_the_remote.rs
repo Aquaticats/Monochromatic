@@ -27,7 +27,13 @@ use std::ffi::OsString;
 // ```ts
 // type OptionSpec = { short?: string; long?: string; arity: 'none' | 'required' | 'optional' };
 // ```
-use crate::command_options::{Arity, DEFAULT_MODE, OptionSpec, ParsedOptions, parse_options};
+use crate::command_options::{
+    Arity,
+    DEFAULT_MODE,
+    OptionSpec,
+    ParsedOptions,
+    parse_options,
+};
 // What: The command word this table belongs to.
 // Why:  A clone's words and a push's words are different grammars.
 //
@@ -52,7 +58,10 @@ use super::the_remote_a_typed_command_names::TypedNetworkCommand;
 ///   return parsed ? region[parsed.leading[0]] : undefined;
 /// }
 /// ```
-pub fn remote_operand(command: TypedNetworkCommand, region: &[OsString]) -> Option<&OsString> {
+pub fn remote_operand(
+    command: TypedNetworkCommand,
+    region: &[OsString],
+) -> Option<&OsString> {
     // What: `ParsedOptions.leading` is the positions of the tokens that are not options and not an option's value.
     // Why:   The first of them is where Git reads the remote.
     //
@@ -64,7 +73,6 @@ pub fn remote_operand(command: TypedNetworkCommand, region: &[OsString]) -> Opti
     let first: usize = *parsed.leading.first()?;
     return region.get(first);
 }
-
 
 /// What:
 ///  Git's own option table for one of the four commands.
@@ -95,8 +103,18 @@ fn table_of(command: TypedNetworkCommand) -> &'static [OptionSpec] {
 /// ```ts
 /// const row = (short, long, arity) => ({ id: 0, short, long, arity, negatable: true });
 /// ```
-const fn row(short: Option<u8>, long: Option<&'static str>, arity: Arity) -> OptionSpec {
-    return OptionSpec { id: crate::command_options::UNREAD, short, long, arity, negatable: true };
+const fn row(
+    short: Option<u8>,
+    long: Option<&'static str>,
+    arity: Arity,
+) -> OptionSpec {
+    return OptionSpec {
+        id: crate::command_options::UNREAD,
+        short,
+        long,
+        arity,
+        negatable: true,
+    };
 }
 
 /// What:

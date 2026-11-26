@@ -38,7 +38,10 @@
 //! ```
 
 use std::io::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The line that keeps the trash parent,
@@ -99,7 +102,12 @@ pub fn ensure_trash_is_excluded(common_dir: &Path) -> Result<bool, String> {
     let existing: Vec<u8> = match std::fs::read(path.as_path()) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-        Err(error) => return Err(format!("{} cannot be read ({error}), so nothing says whether a trash in this repository would be staged", path.display())),
+        Err(error) => {
+            return Err(format!(
+                "{} cannot be read ({error}), so nothing says whether a trash in this repository would be staged",
+                path.display()
+            ));
+        }
     };
     if already_excluded(existing.as_slice()) {
         return Ok(false);
@@ -113,18 +121,33 @@ pub fn ensure_trash_is_excluded(common_dir: &Path) -> Result<bool, String> {
     if let Some(parent) = path.parent()
         && let Err(error) = std::fs::create_dir_all(parent)
     {
-        return Err(format!("{} cannot be made ({error}), so the trash line cannot be written", parent.display()));
+        return Err(format!(
+            "{} cannot be made ({error}), so the trash line cannot be written",
+            parent.display()
+        ));
     }
     // The file is opened for appending and for nothing else: a write that fails or is killed leaves every byte that was there
     //  where it was, and the worst a half-written addition can leave is a truncated pattern of the wrapper's own that ignores
     //  nothing.
-    let mut opened: std::fs::File = match std::fs::OpenOptions::new().append(true).create(true).open(path.as_path()) {
+    let mut opened: std::fs::File = match std::fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(path.as_path())
+    {
         Ok(file) => file,
-        Err(error) => return Err(format!("{} cannot be written ({error}), so nothing says whether a trash in this repository would be staged", path.display())),
+        Err(error) => {
+            return Err(format!(
+                "{} cannot be written ({error}), so nothing says whether a trash in this repository would be staged",
+                path.display()
+            ));
+        }
     };
     return match opened.write_all(adding.as_slice()) {
         Ok(()) => Ok(true),
-        Err(error) => Err(format!("{} cannot be written ({error}), so nothing says whether a trash in this repository would be staged", path.display())),
+        Err(error) => Err(format!(
+            "{} cannot be written ({error}), so nothing says whether a trash in this repository would be staged",
+            path.display()
+        )),
     };
 }
 

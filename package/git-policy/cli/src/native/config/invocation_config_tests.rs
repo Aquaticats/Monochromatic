@@ -12,16 +12,38 @@
 #![cfg(unix)]
 
 /// Import the lookup under test and shared fixtures.
-use super::{config_invalid_event, legacy_warning_events, load_identity_config};
+use super::{
+    config_invalid_event,
+    legacy_warning_events,
+    load_identity_config,
+};
 use crate::config_error::ConfigError;
-use crate::config_file::{CONFIG_FILE_NAME, LoadedConfig};
+use crate::config_file::{
+    CONFIG_FILE_NAME,
+    LoadedConfig,
+};
 use crate::config_schema::CliGitConfig;
-use crate::policy_registry::{PolicyId, Severity};
-use crate::repository_facts::{RepositoryFacts, git_facts};
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+};
+use crate::repository_facts::{
+    RepositoryFacts,
+    git_facts,
+};
 use crate::repository_location::RepositoryLocation;
-use crate::test_support::{REAL_GIT, fixture, git, remove, repository};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Load configuration for the location real Git reports after `-C <directory>`.
 fn load(directory: &Path) -> Result<LoadedConfig, ConfigError> {
@@ -142,7 +164,7 @@ fn locations_without_a_worktree_use_the_defaults() {
                 config: CliGitConfig::defaults(),
                 source: None,
                 ignored_legacy: Vec::<PathBuf>::new(),
-            earlier_name_notice: None,
+                earlier_name_notice: None,
             }),
             "{directory:?}"
         );
@@ -177,17 +199,21 @@ fn a_rejected_file_is_a_configuration_error() {
 #[test]
 fn events_render_configuration_failures_and_legacy_warnings() {
     assert_eq!(
-        config_invalid_event(&ConfigError::new("/r/monochromatic-git-policy-cli.config.jsonc: bad \"key\"")),
+        config_invalid_event(&ConfigError::new(
+            "/r/monochromatic-git-policy-cli.config.jsonc: bad \"key\""
+        )),
         "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"/r/monochromatic-git-policy-cli.config.jsonc: bad \\\"key\\\"\",\"hint\":\"Hint: if you just edited monochromatic-git-policy-cli.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}\n"
     );
     let loaded: LoadedConfig = LoadedConfig {
         config: CliGitConfig::defaults(),
-        source: Some(PathBuf::from("/r/monochromatic-git-policy-cli.config.jsonc")),
+        source: Some(PathBuf::from(
+            "/r/monochromatic-git-policy-cli.config.jsonc",
+        )),
         ignored_legacy: vec![
             PathBuf::from("/r/cli-git.config.mjs"),
             PathBuf::from("/r/cli-git.config.ts"),
         ],
-            earlier_name_notice: None,
+        earlier_name_notice: None,
     };
     assert_eq!(
         legacy_warning_events(&loaded),
@@ -196,7 +222,9 @@ fn events_render_configuration_failures_and_legacy_warnings() {
     );
     let without_legacy: LoadedConfig = LoadedConfig {
         config: CliGitConfig::defaults(),
-        source: Some(PathBuf::from("/r/monochromatic-git-policy-cli.config.jsonc")),
+        source: Some(PathBuf::from(
+            "/r/monochromatic-git-policy-cli.config.jsonc",
+        )),
         ignored_legacy: Vec::<PathBuf>::new(),
         earlier_name_notice: None,
     };
@@ -206,7 +234,7 @@ fn events_render_configuration_failures_and_legacy_warnings() {
         config: CliGitConfig::defaults(),
         source: None,
         ignored_legacy: vec![PathBuf::from("/r/cli-git.config.ts")],
-            earlier_name_notice: None,
+        earlier_name_notice: None,
     };
     assert_eq!(legacy_warning_events(&without_source), "");
 }

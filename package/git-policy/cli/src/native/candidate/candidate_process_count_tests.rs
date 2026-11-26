@@ -16,11 +16,27 @@
 
 /// Import the store under test and shared fixtures.
 use super::CandidateStore;
-use super::tests::{at, store_with};
-use crate::candidate_version::{CandidateSource, CandidateVersion};
-use crate::test_support::{REAL_GIT, executable, fixture, git, remove, repository};
+use super::tests::{
+    at,
+    store_with,
+};
+use crate::candidate_version::{
+    CandidateSource,
+    CandidateVersion,
+};
+use crate::test_support::{
+    REAL_GIT,
+    executable,
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 use std::rc::Rc;
 
@@ -63,7 +79,11 @@ fn starts(count: &Path) -> usize {
 }
 
 /// A repository with `files` staged files of distinct content.
-fn staged_repository(root: &Path, name: &str, files: usize) -> PathBuf {
+fn staged_repository(
+    root: &Path,
+    name: &str,
+    files: usize,
+) -> PathBuf {
     let repo: PathBuf = repository(root, name);
     for index in 0..files {
         std::fs::write(
@@ -77,7 +97,10 @@ fn staged_repository(root: &Path, name: &str, files: usize) -> PathBuf {
 }
 
 /// Read every candidate of the staged version through a store that starts Git only via the counting stand-in.
-fn read_all(store: &mut CandidateStore, files: usize) {
+fn read_all(
+    store: &mut CandidateStore,
+    files: usize,
+) {
     let version: Rc<CandidateVersion> = store
         .version(&CandidateSource::StagedAgainstHead)
         .expect("staged version");

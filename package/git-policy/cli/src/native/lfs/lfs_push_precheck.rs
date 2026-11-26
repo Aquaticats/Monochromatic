@@ -28,9 +28,16 @@ use crate::child_environment::environment_value;
 use crate::command_push::parse_push_region;
 /// The hook switch,
 /// the lookup and the refusal text.
-use crate::lfs_pre_push::{hook_switched_off, program_on_path, skip_requested};
+use crate::lfs_pre_push::{
+    hook_switched_off,
+    program_on_path,
+    skip_requested,
+};
 /// The folders searched and the refusal that names them.
-use crate::lfs_program_search::{ProgramSearch, missing_program_message};
+use crate::lfs_program_search::{
+    ProgramSearch,
+    missing_program_message,
+};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 

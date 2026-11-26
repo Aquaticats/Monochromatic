@@ -15,7 +15,15 @@
 //! // expect(JSON.parse(stderr).hint).toMatch(/^Hint: /);
 //! ```
 
-use super::support::{Fixture, Observed, fixture, observe_raw, remove, repository, wrapped};
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    observe_raw,
+    remove,
+    repository,
+    wrapped,
+};
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
@@ -35,10 +43,18 @@ fn a_bulk_add_carries_an_intent_hint() {
     let fixture: Fixture = fixture("hint-bulk-add");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
-    let observed: Observed = observe_raw(wrapped(&fixture).current_dir(repo.as_path()).args(["add", "."]), b"");
+    let observed: Observed = observe_raw(
+        wrapped(&fixture)
+            .current_dir(repo.as_path())
+            .args(["add", "."]),
+        b"",
+    );
     let text: String = streams(&observed);
     assert_eq!(observed.code, Some(1), "{text}");
-    assert!(text.contains("\"code\":\"add-explicit/bulk-add-rejected\""), "{text}");
+    assert!(
+        text.contains("\"code\":\"add-explicit/bulk-add-rejected\""),
+        "{text}"
+    );
     assert!(
         text.contains("\"hint\":\"Hint: if you meant to stage everything you changed, run `git status --short`"),
         "{text}"
@@ -51,8 +67,19 @@ fn a_bulk_add_carries_an_intent_hint() {
 fn an_invalid_configuration_carries_an_intent_hint() {
     let fixture: Fixture = fixture("hint-config");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), b"{ \"notAKey\": true }\n").expect("config");
-    let observed: Observed = observe_raw(wrapped(&fixture).current_dir(repo.as_path()).args(["monochromatic-git-policy-cli", "check", "--all"]), b"");
+    std::fs::write(
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
+        b"{ \"notAKey\": true }\n",
+    )
+    .expect("config");
+    let observed: Observed = observe_raw(
+        wrapped(&fixture).current_dir(repo.as_path()).args([
+            "monochromatic-git-policy-cli",
+            "check",
+            "--all",
+        ]),
+        b"",
+    );
     let text: String = streams(&observed);
     assert_eq!(observed.code, Some(2), "{text}");
     assert!(text.contains("\"code\":\"config-invalid\""), "{text}");
@@ -75,7 +102,11 @@ fn a_root_context_file_carries_an_intent_hint() {
     .expect("config");
     std::fs::write(repo.join("CONTEXT.md"), b"context\n").expect("context");
     let observed: Observed = observe_raw(
-        wrapped(&fixture).current_dir(repo.as_path()).args(["monochromatic-git-policy-cli", "check", "--all"]),
+        wrapped(&fixture).current_dir(repo.as_path()).args([
+            "monochromatic-git-policy-cli",
+            "check",
+            "--all",
+        ]),
         b"",
     );
     let text: String = streams(&observed);

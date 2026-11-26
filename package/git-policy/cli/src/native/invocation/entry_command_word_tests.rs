@@ -15,16 +15,33 @@
 //! expect(plan(['cli-git', 'doctor'])).toEqual(withNotice(plan(['monochromatic-git-policy-cli', 'doctor'])));
 //! ```
 
+use super::tests::{
+    inputs,
+    text,
+};
 /// The planner and the notice under test.
-use super::{EARLIER_COMMAND_WORD_NOTICE, MANAGEMENT_COMMAND, plan_invocation};
-use super::tests::{inputs, text};
-use crate::action::{Action, with_leading_notice};
+use super::{
+    EARLIER_COMMAND_WORD_NOTICE,
+    MANAGEMENT_COMMAND,
+    plan_invocation,
+};
+use crate::action::{
+    Action,
+    with_leading_notice,
+};
 use crate::management_arguments::MANAGEMENT_HELP;
 use crate::real_git::ResolutionInputs;
-use crate::test_support::{fixture, remove, repository};
+use crate::test_support::{
+    fixture,
+    remove,
+    repository,
+};
 use crate::wrapper_names_old_and_new::COMMAND_WORD;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Every management command the help lists,
 ///  with the options that make it harmless in an empty repository.
@@ -49,8 +66,16 @@ const MANAGEMENT_COMMANDS: [&[&str]; 14] = [
 ///  the repository directory,
 ///  the command word,
 ///  then the command.
-fn invocation_with(directory: &Path, word: &str, command: &[&str]) -> Vec<OsString> {
-    let mut arguments: Vec<OsString> = vec![OsString::from("-C"), directory.as_os_str().to_os_string(), OsString::from(word)];
+fn invocation_with(
+    directory: &Path,
+    word: &str,
+    command: &[&str],
+) -> Vec<OsString> {
+    let mut arguments: Vec<OsString> = vec![
+        OsString::from("-C"),
+        directory.as_os_str().to_os_string(),
+        OsString::from(word),
+    ];
     arguments.extend(text(command));
     return arguments;
 }
@@ -71,15 +96,35 @@ fn the_earlier_word_does_the_same_as_the_new_word_plus_one_notice_for_every_comm
     let repo: PathBuf = repository(root.as_path(), "repo");
     let resolution: ResolutionInputs = inputs(root.as_path());
     for command in MANAGEMENT_COMMANDS {
-        let current: Action = plan_invocation(invocation_with(repo.as_path(), COMMAND_WORD.current, command).as_slice(), &[], &resolution);
-        let earlier: Action = plan_invocation(invocation_with(repo.as_path(), COMMAND_WORD.earlier, command).as_slice(), &[], &resolution);
+        let current: Action = plan_invocation(
+            invocation_with(repo.as_path(), COMMAND_WORD.current, command).as_slice(),
+            &[],
+            &resolution,
+        );
+        let earlier: Action = plan_invocation(
+            invocation_with(repo.as_path(), COMMAND_WORD.earlier, command).as_slice(),
+            &[],
+            &resolution,
+        );
         match &current {
-            Action::Exit { stderr, .. } => {
-                assert!(!stderr.contains(EARLIER_COMMAND_WORD_NOTICE), "the new word gives no notice: {command:?}: {stderr}");
+            Action::Exit {
+                stderr,
+                ..
+            } => {
+                assert!(
+                    !stderr.contains(EARLIER_COMMAND_WORD_NOTICE),
+                    "the new word gives no notice: {command:?}: {stderr}"
+                );
             }
-            other => panic!("the management namespace is answered by the wrapper: {command:?}: {other:?}"),
+            other => panic!(
+                "the management namespace is answered by the wrapper: {command:?}: {other:?}"
+            ),
         }
-        assert_eq!(earlier, with_leading_notice(current, Some(EARLIER_COMMAND_WORD_NOTICE)), "{command:?}");
+        assert_eq!(
+            earlier,
+            with_leading_notice(current, Some(EARLIER_COMMAND_WORD_NOTICE)),
+            "{command:?}"
+        );
     }
     remove(root.as_path());
 }
@@ -89,10 +134,20 @@ fn the_earlier_word_does_the_same_as_the_new_word_plus_one_notice_for_every_comm
 ///  and ends with a line feed.
 #[test]
 fn the_notice_is_one_line_that_names_both_spellings() {
-    assert_eq!(EARLIER_COMMAND_WORD_NOTICE.matches('\n').count(), 1, "{EARLIER_COMMAND_WORD_NOTICE:?}");
+    assert_eq!(
+        EARLIER_COMMAND_WORD_NOTICE.matches('\n').count(),
+        1,
+        "{EARLIER_COMMAND_WORD_NOTICE:?}"
+    );
     assert!(EARLIER_COMMAND_WORD_NOTICE.ends_with('\n'));
-    assert!(EARLIER_COMMAND_WORD_NOTICE.contains(&format!("git {}", COMMAND_WORD.current)), "{EARLIER_COMMAND_WORD_NOTICE}");
-    assert!(EARLIER_COMMAND_WORD_NOTICE.contains(&format!("git {}", COMMAND_WORD.earlier)), "{EARLIER_COMMAND_WORD_NOTICE}");
+    assert!(
+        EARLIER_COMMAND_WORD_NOTICE.contains(&format!("git {}", COMMAND_WORD.current)),
+        "{EARLIER_COMMAND_WORD_NOTICE}"
+    );
+    assert!(
+        EARLIER_COMMAND_WORD_NOTICE.contains(&format!("git {}", COMMAND_WORD.earlier)),
+        "{EARLIER_COMMAND_WORD_NOTICE}"
+    );
 }
 
 /// Help through either word shows the same text,
@@ -103,7 +158,11 @@ fn help_names_the_new_word_only() {
     let resolution: ResolutionInputs = inputs(root.as_path());
     for word in [COMMAND_WORD.current, COMMAND_WORD.earlier] {
         match plan_invocation(text(&[word, "--help"]).as_slice(), &[], &resolution) {
-            Action::Exit { code, stdout, .. } => {
+            Action::Exit {
+                code,
+                stdout,
+                ..
+            } => {
                 assert_eq!(code, 0);
                 assert_eq!(stdout, MANAGEMENT_HELP);
             }
@@ -111,7 +170,10 @@ fn help_names_the_new_word_only() {
         }
     }
     assert!(MANAGEMENT_HELP.contains(&format!("git {} <command>", COMMAND_WORD.current)));
-    assert!(!MANAGEMENT_HELP.contains(&format!("git {} ", COMMAND_WORD.earlier)), "{MANAGEMENT_HELP}");
+    assert!(
+        !MANAGEMENT_HELP.contains(&format!("git {} ", COMMAND_WORD.earlier)),
+        "{MANAGEMENT_HELP}"
+    );
     remove(root.as_path());
 }
 
@@ -121,13 +183,25 @@ fn global_options_do_not_hide_either_word() {
     let root: PathBuf = fixture("command-word-globals");
     let resolution: ResolutionInputs = inputs(root.as_path());
     for word in [COMMAND_WORD.current, COMMAND_WORD.earlier] {
-        for before in [vec!["--no-pager"], vec!["-c", "a.b=c"], vec!["--cli-git-keep-going"]] {
+        for before in [
+            vec!["--no-pager"],
+            vec!["-c", "a.b=c"],
+            vec!["--cli-git-keep-going"],
+        ] {
             let mut arguments: Vec<&str> = before;
             arguments.push(word);
             arguments.push("--help");
             match plan_invocation(text(arguments.as_slice()).as_slice(), &[], &resolution) {
-                Action::Exit { code, stdout, .. } => {
-                    assert_eq!((code, stdout.as_str()), (0, MANAGEMENT_HELP), "{arguments:?}");
+                Action::Exit {
+                    code,
+                    stdout,
+                    ..
+                } => {
+                    assert_eq!(
+                        (code, stdout.as_str()),
+                        (0, MANAGEMENT_HELP),
+                        "{arguments:?}"
+                    );
                 }
                 other => panic!("{arguments:?} must be answered by the wrapper: {other:?}"),
             }
@@ -142,9 +216,21 @@ fn global_options_do_not_hide_either_word() {
 fn a_longer_word_is_not_the_management_word() {
     let root: PathBuf = fixture("command-word-prefix");
     let resolution: ResolutionInputs = inputs(root.as_path());
-    for word in ["monochromatic-git-policy-cli-x", "cli-git-x", "cli-gi", "monochromatic-git-policy-cl"] {
-        let planned: Action = plan_invocation(text(&["-C", ".", word, "--help"]).as_slice(), &[], &resolution);
-        assert!(!matches!(&planned, Action::Exit { stdout, .. } if stdout == MANAGEMENT_HELP), "{word}: {planned:?}");
+    for word in [
+        "monochromatic-git-policy-cli-x",
+        "cli-git-x",
+        "cli-gi",
+        "monochromatic-git-policy-cl",
+    ] {
+        let planned: Action = plan_invocation(
+            text(&["-C", ".", word, "--help"]).as_slice(),
+            &[],
+            &resolution,
+        );
+        assert!(
+            !matches!(&planned, Action::Exit { stdout, .. } if stdout == MANAGEMENT_HELP),
+            "{word}: {planned:?}"
+        );
     }
     remove(root.as_path());
 }

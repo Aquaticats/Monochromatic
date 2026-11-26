@@ -15,9 +15,16 @@
 //! expect(findTheSlotRegistration(commonDir, slot, slotPath, nonce).registration.kind).toBe('one');
 //! ```
 
-use super::{TheRegistration, find_the_slot_registration, the_slots_the_home_names};
+use super::{
+    TheRegistration,
+    find_the_slot_registration,
+    the_slots_the_home_names,
+};
 use crate::worktree_clone_binding_record::registration_resume::EntryDecision;
-use crate::worktree_clone_managed_lock::test_fixtures::{Fixture, RecordSpec};
+use crate::worktree_clone_managed_lock::test_fixtures::{
+    Fixture,
+    RecordSpec,
+};
 use crate::worktree_clone_mount_protocol::RequestNonce;
 use std::path::PathBuf;
 
@@ -35,9 +42,24 @@ fn a_complete_entry_is_adopted() {
     let fixture: Fixture = Fixture::new("finding-adopt");
     let registration: PathBuf = fixture.write_registration("locked-slot");
     fixture.write_pointer(registration.as_path());
-    fixture.write_lock(registration.as_path(), fixture.the_sentence(NONCE).as_slice());
-    let finding = find_the_slot_registration(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path(), &nonce());
-    assert_eq!(finding.registration, TheRegistration::One { name: String::from("locked-slot"), path: registration, decision: EntryDecision::Adopt });
+    fixture.write_lock(
+        registration.as_path(),
+        fixture.the_sentence(NONCE).as_slice(),
+    );
+    let finding = find_the_slot_registration(
+        fixture.common_dir.as_path(),
+        fixture.slot.as_str(),
+        fixture.slot_path.as_path(),
+        &nonce(),
+    );
+    assert_eq!(
+        finding.registration,
+        TheRegistration::One {
+            name: String::from("locked-slot"),
+            path: registration,
+            decision: EntryDecision::Adopt
+        }
+    );
     assert_eq!(finding.names_seen, vec![String::from("locked-slot")]);
 }
 
@@ -46,11 +68,23 @@ fn a_complete_entry_is_adopted() {
 #[test]
 fn a_bare_entry_is_cleared() {
     let fixture: Fixture = Fixture::new("finding-bare");
-    std::fs::create_dir_all(fixture.worktrees().join("locked-slot")).expect("the bare registration is made");
-    let finding = find_the_slot_registration(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path(), &nonce());
+    std::fs::create_dir_all(fixture.worktrees().join("locked-slot"))
+        .expect("the bare registration is made");
+    let finding = find_the_slot_registration(
+        fixture.common_dir.as_path(),
+        fixture.slot.as_str(),
+        fixture.slot_path.as_path(),
+        &nonce(),
+    );
     assert_eq!(
         finding.registration,
-        TheRegistration::One { name: String::from("locked-slot"), path: fixture.worktrees().join("locked-slot"), decision: EntryDecision::Clear { row: crate::worktree_clone_binding_record::EntryRow::Bare } }
+        TheRegistration::One {
+            name: String::from("locked-slot"),
+            path: fixture.worktrees().join("locked-slot"),
+            decision: EntryDecision::Clear {
+                row: crate::worktree_clone_binding_record::EntryRow::Bare
+            }
+        }
     );
 }
 
@@ -64,8 +98,18 @@ fn two_attributing_entries_are_named() {
     fixture.write_lock(first.as_path(), fixture.the_sentence(NONCE).as_slice());
     let second: PathBuf = fixture.write_registration("locked-slot1");
     fixture.write_lock(second.as_path(), fixture.the_sentence(NONCE).as_slice());
-    let finding = find_the_slot_registration(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path(), &nonce());
-    assert_eq!(finding.registration, TheRegistration::Two { names: vec![String::from("locked-slot"), String::from("locked-slot1")] });
+    let finding = find_the_slot_registration(
+        fixture.common_dir.as_path(),
+        fixture.slot.as_str(),
+        fixture.slot_path.as_path(),
+        &nonce(),
+    );
+    assert_eq!(
+        finding.registration,
+        TheRegistration::Two {
+            names: vec![String::from("locked-slot"), String::from("locked-slot1")]
+        }
+    );
 }
 
 /// A name another slot's own binding owns is left alone,
@@ -77,9 +121,22 @@ fn a_name_another_slot_owns_is_left_alone() {
     other.clone_dataset = String::from("pool/clones/topic1");
     let home: PathBuf = fixture.home();
     std::fs::create_dir_all(home.as_path()).expect("the record folder is made");
-    std::fs::write(home.join("topic1.binding"), b"# a record of another slot\n").expect("another slot's record is written");
-    assert_eq!(the_slots_the_home_names(fixture.common_dir.as_path()), vec![String::from("topic1")]);
-    assert!(matches!(find_the_slot_registration(fixture.common_dir.as_path(), "topic", fixture.slot_path.as_path(), &nonce()).registration, TheRegistration::None));
+    std::fs::write(home.join("topic1.binding"), b"# a record of another slot\n")
+        .expect("another slot's record is written");
+    assert_eq!(
+        the_slots_the_home_names(fixture.common_dir.as_path()),
+        vec![String::from("topic1")]
+    );
+    assert!(matches!(
+        find_the_slot_registration(
+            fixture.common_dir.as_path(),
+            "topic",
+            fixture.slot_path.as_path(),
+            &nonce()
+        )
+        .registration,
+        TheRegistration::None
+    ));
 }
 
 /// A walk that finds nothing says so,
@@ -87,7 +144,12 @@ fn a_name_another_slot_owns_is_left_alone() {
 #[test]
 fn a_walk_that_finds_nothing_answers_none() {
     let fixture: Fixture = Fixture::new("finding-none");
-    let finding = find_the_slot_registration(fixture.common_dir.as_path(), fixture.slot.as_str(), fixture.slot_path.as_path(), &nonce());
+    let finding = find_the_slot_registration(
+        fixture.common_dir.as_path(),
+        fixture.slot.as_str(),
+        fixture.slot_path.as_path(),
+        &nonce(),
+    );
     assert_eq!(finding.registration, TheRegistration::None);
     assert!(finding.names_seen.is_empty());
 }

@@ -17,19 +17,37 @@
 //! expect(intentProperty(intent).get(DESIRED_STATE_PROPERTY)).toBe('v1:...:mount');
 //! ```
 
-use super::{CloneIntentWriter, IntentWriteRefusal, intent_property, nudge_property};
-use crate::worktree_clone_mount_protocol::clone_mount_intent::{MountIntent, MountOperation};
-use crate::worktree_clone_mount_protocol::clone_mount_property_names::{DESIRED_STATE_PROPERTY, SWEEP_NONCE_PROPERTY};
+use super::{
+    CloneIntentWriter,
+    IntentWriteRefusal,
+    intent_property,
+    nudge_property,
+};
+use crate::worktree_clone_mount_protocol::clone_mount_intent::{
+    MountIntent,
+    MountOperation,
+};
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::{
+    DESIRED_STATE_PROPERTY,
+    SWEEP_NONCE_PROPERTY,
+};
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::zfs_compatibility_gate::gate_verdict::{BeforeRequests, Verdict};
-use monochromatic_zfs_request_to_openzfs_kernel_device::{CompatibilityRefusal, CompatibilityStep};
+use crate::zfs_compatibility_gate::gate_verdict::{
+    BeforeRequests,
+    Verdict,
+};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    CompatibilityRefusal,
+    CompatibilityStep,
+};
 
 /// The clone every payload names.
 const CLONE: &str = "zpcachyos/nosnap/clones/one";
 
 /// The nonce the controls write.
 fn nonce() -> RequestNonce {
-    return RequestNonce::parse("0123456789abcdef0123456789abcdef").expect("the control nonce is valid");
+    return RequestNonce::parse("0123456789abcdef0123456789abcdef")
+        .expect("the control nonce is valid");
 }
 
 /// A gate that refuses at the device step without reading a device.
@@ -48,14 +66,33 @@ impl BeforeRequests for RefusingGate {
 /// The intent payload carries one key and exactly the designed value.
 #[test]
 fn the_intent_payload_is_one_property_with_the_designed_value() {
-    for (operation, word) in [(MountOperation::Mount, "mount"), (MountOperation::Unmount, "unmount")] {
-        let intent: MountIntent = MountIntent { operation, nonce: nonce() };
+    for (operation, word) in [
+        (MountOperation::Mount, "mount"),
+        (MountOperation::Unmount, "unmount"),
+    ] {
+        let intent: MountIntent = MountIntent {
+            operation,
+            nonce: nonce(),
+        };
         let payload = intent_property(&intent);
         assert_eq!(payload.iter().count(), 1);
-        assert_eq!(payload.get_str(DESIRED_STATE_PROPERTY), Some(format!("v1:{}:{word}", nonce().as_str()).as_str()));
+        assert_eq!(
+            payload.get_str(DESIRED_STATE_PROPERTY),
+            Some(format!("v1:{}:{word}", nonce().as_str()).as_str())
+        );
         assert_eq!(payload.get_str(SWEEP_NONCE_PROPERTY), None);
-        assert!(!payload.get_str(DESIRED_STATE_PROPERTY).unwrap_or_default().contains('/'));
-        assert!(!payload.get_str(DESIRED_STATE_PROPERTY).unwrap_or_default().contains("flag"));
+        assert!(
+            !payload
+                .get_str(DESIRED_STATE_PROPERTY)
+                .unwrap_or_default()
+                .contains('/')
+        );
+        assert!(
+            !payload
+                .get_str(DESIRED_STATE_PROPERTY)
+                .unwrap_or_default()
+                .contains("flag")
+        );
     }
 }
 
@@ -65,7 +102,10 @@ fn the_intent_payload_is_one_property_with_the_designed_value() {
 fn the_nudge_payload_is_the_nonce_alone() {
     let payload = nudge_property(&nonce());
     assert_eq!(payload.iter().count(), 1);
-    assert_eq!(payload.get_str(SWEEP_NONCE_PROPERTY), Some(nonce().as_str()));
+    assert_eq!(
+        payload.get_str(SWEEP_NONCE_PROPERTY),
+        Some(nonce().as_str())
+    );
     assert_eq!(payload.get_str(DESIRED_STATE_PROPERTY), None);
     let value: &str = payload.get_str(SWEEP_NONCE_PROPERTY).unwrap_or_default();
     assert!(!value.contains("mount"), "{value}");
@@ -76,9 +116,13 @@ fn the_nudge_payload_is_the_nonce_alone() {
 /// so a machine without `/dev/zfs` still runs this refusal.
 #[test]
 fn a_refused_gate_opens_no_device() {
-    let refusal: IntentWriteRefusal = CloneIntentWriter::open(&RefusingGate, CLONE).err().expect("the gate refuses");
+    let refusal: IntentWriteRefusal = CloneIntentWriter::open(&RefusingGate, CLONE)
+        .err()
+        .expect("the gate refuses");
     match &refusal {
-        IntentWriteRefusal::Gate { line } => assert!(line.contains("device"), "{line}"),
+        IntentWriteRefusal::Gate {
+            line,
+        } => assert!(line.contains("device"), "{line}"),
         other => panic!("the refusal is the gate's: {other:?}"),
     }
     let message: String = refusal.message();

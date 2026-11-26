@@ -24,7 +24,10 @@
 //! for (const file of sources) for (const line of lockLines(file)) expect(inventory.has(file) && reasonAbove(file, line)).toBe(true);
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The sources this guard covers,
 /// by the start of the file name:
@@ -97,6 +100,10 @@ const LOCK_WORDS: &[&str] = &["Mutex", "RwLock", "Condvar", "flock(", "LOCK_EX",
 /// which is where its reason is written.
 const REASON_MARKER: &str = "Lock kept:";
 
+/// The words a line starts with when it opens an import,
+/// whichever visibility the import has.
+const USE_PREFIXES: &[&str] = &["use ", "pub use ", "pub(crate) use ", "pub(super) use "];
+
 /// The locks that stay,
 /// by file:
 /// what each protects is in the comment block above it,
@@ -136,7 +143,10 @@ fn rust_files_below(root: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
-        for entry in std::fs::read_dir(&directory).expect("a readable source directory").flatten() {
+        for entry in std::fs::read_dir(&directory)
+            .expect("a readable source directory")
+            .flatten()
+        {
             let path: PathBuf = entry.path();
             // The entry's own type, so a link is seen as a link: a `uses` folder holds one link per source folder its
             // code uses (`AGENTS.md`, rule LYD), and following one would scan those sources under a second name.
@@ -146,7 +156,9 @@ fn rust_files_below(root: &Path) -> Vec<String> {
             }
             if kind.is_dir() {
                 pending.push(path);
-            } else if path.extension().is_some_and(|extension| { return extension == "rs"; }) {
+            } else if path.extension().is_some_and(|extension| {
+                return extension == "rs";
+            }) {
                 let relative: &Path = path.strip_prefix(root).expect("a path below the root");
                 found.push(relative.to_string_lossy().replace('\\', "/"));
             }
@@ -159,7 +171,9 @@ fn rust_files_below(root: &Path) -> Vec<String> {
 /// Whether the file name of `path` starts with one of the covered prefixes.
 fn is_covered(path: &str) -> bool {
     let name: &str = path.rsplit('/').next().unwrap_or(path);
-    return COVERED_PREFIXES.iter().any(|prefix| { return name.starts_with(prefix); });
+    return COVERED_PREFIXES.iter().any(|prefix| {
+        return name.starts_with(prefix);
+    });
 }
 
 /// The covered sources of this package:
@@ -170,7 +184,8 @@ fn covered_sources() -> Vec<(String, String)> {
     let mut found: Vec<(String, String)> = Vec::new();
     for relative in rust_files_below(directory.as_path()) {
         if is_covered(relative.as_str()) && !relative.ends_with("_tests.rs") {
-            let text: String = std::fs::read_to_string(directory.join(relative.as_str())).expect("a readable source");
+            let text: String = std::fs::read_to_string(directory.join(relative.as_str()))
+                .expect("a readable source");
             found.push((relative, text));
         }
     }
@@ -182,15 +197,28 @@ fn covered_sources() -> Vec<(String, String)> {
 /// not comments,
 /// not imports.
 fn lock_lines(source: &str) -> Vec<usize> {
-    return source
-        .lines()
-        .enumerate()
-        .filter(|(_, line)| {
-            let code: &str = line.trim_start();
-            return !code.starts_with("//") && !code.starts_with("use ") && !code.starts_with("pub use ") && LOCK_WORDS.iter().any(|word| { return code.contains(word); });
-        })
-        .map(|(number, _)| { return number; })
-        .collect();
+    let mut numbers: Vec<usize> = Vec::new();
+    // The root rustfmt.toml writes imports vertically, one name to a line inside the `use` block,
+    //  so a line inside an open `use` block is an import as much as the `use` line is,
+    //  and the block stays open until the line that holds its closing semicolon.
+    let mut inside_use_block: bool = false;
+    for (number, line) in source.lines().enumerate() {
+        let code: &str = line.trim_start();
+        let opens_use: bool = USE_PREFIXES.iter().any(|prefix| {
+            return code.starts_with(prefix);
+        });
+        if inside_use_block || opens_use {
+            inside_use_block = !code.contains(';');
+            continue;
+        }
+        let names_a_lock: bool = LOCK_WORDS.iter().any(|word| {
+            return code.contains(word);
+        });
+        if !code.starts_with("//") && names_a_lock {
+            numbers.push(number);
+        }
+    }
+    return numbers;
 }
 
 /// The lines of `source` that declare a shipped lock:
@@ -212,7 +240,10 @@ fn shipped_lock_lines(source: &str) -> Vec<usize> {
 }
 
 /// Whether the comment block directly above line `number` of `source` carries the reason marker.
-fn reason_above(source: &str, number: usize) -> bool {
+fn reason_above(
+    source: &str,
+    number: usize,
+) -> bool {
     let lines: Vec<&str> = source.lines().collect();
     let mut cursor: usize = number;
     while cursor > 0 {
@@ -262,7 +293,9 @@ const CHECK_ROUTE_FOLDERS: &[&str] = &[
 fn the_check_route_is_covered() {
     let sources: Vec<(String, String)> = covered_sources();
     for folder in CHECK_ROUTE_FOLDERS {
-        let reached: bool = sources.iter().any(|(path, _)| return path.starts_with(folder));
+        let reached: bool = sources
+            .iter()
+            .any(|(path, _)| return path.starts_with(folder));
         assert!(reached, "no covered source in {folder}");
     }
 }
@@ -285,12 +318,18 @@ fn the_check_route_is_covered() {
 #[test]
 fn the_scan_tells_a_test_only_lock_from_a_shipped_one() {
     assert!(is_test_only_lock("#[cfg(test)]\n    gate: Mutex<()>,\n", 1));
-    assert!(!is_test_only_lock("static HELD: Mutex<u8> = Mutex::new(0);\n", 0));
+    assert!(!is_test_only_lock(
+        "static HELD: Mutex<u8> = Mutex::new(0);\n",
+        0
+    ));
 }
 
 /// Whether the lock at `number` of `source` is declared under `#[cfg(test)]`,
 ///  so it ships nothing.
-fn is_test_only_lock(source: &str, number: usize) -> bool {
+fn is_test_only_lock(
+    source: &str,
+    number: usize,
+) -> bool {
     let lines: Vec<&str> = source.lines().collect();
     let mut cursor: usize = number;
     while cursor > 0 {
@@ -312,10 +351,19 @@ fn is_test_only_lock(source: &str, number: usize) -> bool {
 fn a_lock_stands_only_in_a_file_on_the_inventory() {
     let strays: Vec<String> = covered_sources()
         .into_iter()
-        .filter(|(name, source)| return !TEST_ONLY_SOURCES.contains(&name.as_str()) && !shipped_lock_lines(source.as_str()).is_empty() && !INVENTORY.contains(&name.as_str()))
-        .map(|(name, _)| { return name; })
+        .filter(|(name, source)| {
+            return !TEST_ONLY_SOURCES.contains(&name.as_str())
+                && !shipped_lock_lines(source.as_str()).is_empty()
+                && !INVENTORY.contains(&name.as_str());
+        })
+        .map(|(name, _)| {
+            return name;
+        })
         .collect();
-    assert!(strays.is_empty(), "locks outside the inventory (remove them, or keep them with the reason and list the file): {strays:?}");
+    assert!(
+        strays.is_empty(),
+        "locks outside the inventory (remove them, or keep them with the reason and list the file): {strays:?}"
+    );
 }
 
 /// Every lock on the inventory has its reason in the comment block above its declaration,
@@ -324,10 +372,23 @@ fn a_lock_stands_only_in_a_file_on_the_inventory() {
 fn every_kept_lock_has_its_reason_beside_it_and_the_inventory_has_no_stale_entry() {
     let sources: Vec<(String, String)> = covered_sources();
     for kept in INVENTORY {
-        let (_, source) = sources.iter().find(|(name, _)| { return name == kept; }).unwrap_or_else(|| { panic!("{kept} is on the inventory but is not a covered source"); });
+        let (_, source) = sources
+            .iter()
+            .find(|(name, _)| {
+                return name == kept;
+            })
+            .unwrap_or_else(|| {
+                panic!("{kept} is on the inventory but is not a covered source");
+            });
         let lines: Vec<usize> = shipped_lock_lines(source.as_str());
-        let first: usize = *lines.first().unwrap_or_else(|| { panic!("{kept} is on the inventory and holds no shipped lock any more"); });
-        assert!(reason_above(source.as_str(), first), "{kept}:{} declares a lock with no `{REASON_MARKER}` comment block above it", first + 1);
+        let first: usize = *lines.first().unwrap_or_else(|| {
+            panic!("{kept} is on the inventory and holds no shipped lock any more");
+        });
+        assert!(
+            reason_above(source.as_str(), first),
+            "{kept}:{} declares a lock with no `{REASON_MARKER}` comment block above it",
+            first + 1
+        );
     }
 }
 
@@ -338,7 +399,9 @@ fn every_covered_prefix_reaches_a_source_in_some_folder() {
     let sources: Vec<(String, String)> = covered_sources();
     for prefix in COVERED_PREFIXES {
         let reached: bool = sources.iter().any(|(path, _)| {
-            return path.rsplit('/').next().is_some_and(|name| { return name.starts_with(prefix); });
+            return path.rsplit('/').next().is_some_and(|name| {
+                return name.starts_with(prefix);
+            });
         });
         assert!(reached, "no covered source starts with {prefix}");
     }
@@ -348,8 +411,35 @@ fn every_covered_prefix_reaches_a_source_in_some_folder() {
 /// the positive control that a scan which finds nothing would fail.
 #[test]
 fn the_scan_finds_a_lock_in_text_that_has_one() {
-    let sample: &str = "// Mutex in a comment\nuse std::sync::Mutex;\nstruct A {\n    held: Mutex<u8>,\n}\n";
+    let sample: &str =
+        "// Mutex in a comment\nuse std::sync::Mutex;\nstruct A {\n    held: Mutex<u8>,\n}\n";
     assert_eq!(lock_lines(sample), vec![3]);
     assert!(!reason_above(sample, 3));
-    assert!(reason_above("/// Lock kept: because.\n#[derive(Debug)]\nheld: Mutex<u8>,\n", 2));
+    assert!(reason_above(
+        "/// Lock kept: because.\n#[derive(Debug)]\nheld: Mutex<u8>,\n",
+        2
+    ));
+}
+
+/// A name imported inside a vertical `use` block is an import, not a lock,
+///  and the scan finds the lock again on the first line after the block closes.
+#[test]
+fn a_lock_word_inside_a_vertical_use_block_is_an_import() {
+    let sample: &str = "use std::sync::{\n    Arc,\n    Mutex,\n    mpsc::{\n        Sender,\n    },\n};\nstruct A {\n    held: Mutex<u8>,\n}\n";
+    let held: usize = sample
+        .lines()
+        .position(|line| {
+            return line.contains("held: Mutex");
+        })
+        .expect("the sample's lock line");
+    assert_eq!(lock_lines(sample), vec![held]);
+    let one_line: &str =
+        "pub(crate) use std::sync::Mutex;\nstatic HELD: Mutex<u8> = Mutex::new(0);\n";
+    let declared: usize = one_line
+        .lines()
+        .position(|line| {
+            return line.starts_with("static HELD");
+        })
+        .expect("the one-line sample's lock line");
+    assert_eq!(lock_lines(one_line), vec![declared]);
 }

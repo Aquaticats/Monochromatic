@@ -23,9 +23,23 @@
 /// import { Occurrence, OptionError, OptionSpec, ParsedOptions, ParseMode } from './command_options.ts';
 /// import { takeValue } from './command_options_value.ts';
 /// ```
-use crate::command_options::{Occurrence, OptionError, OptionSpec, OptionValue, ParseMode, ParsedOptions};
-use crate::command_options_long_resolution::{Candidate, Resolution, resolve_long_option};
-use crate::command_options_value::{Spelling, take_value};
+use crate::command_options::{
+    Occurrence,
+    OptionError,
+    OptionSpec,
+    OptionValue,
+    ParseMode,
+    ParsedOptions,
+};
+use crate::command_options_long_resolution::{
+    Candidate,
+    Resolution,
+    resolve_long_option,
+};
+use crate::command_options_value::{
+    Spelling,
+    take_value,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
@@ -96,7 +110,12 @@ pub(crate) fn scan_long_option(
     // `?` returns a refusal to our caller, or unwraps Git's reading of the token.
     let resolution: Resolution = match resolve_long_option(token, table, mode.keep_unknown) {
         Ok(resolved) => resolved,
-        Err(kind) => return Err(OptionError { kind, token: index }),
+        Err(kind) => {
+            return Err(OptionError {
+                kind,
+                token: index,
+            });
+        }
     };
     // `match` picks one arm per variant and the compiler refuses the code if one is forgotten.
     return match resolution {
@@ -105,7 +124,10 @@ pub(crate) fn scan_long_option(
             parsed.unknown.push(index);
             Ok(false)
         }
-        Resolution::Known { row, attached } => accept(arguments, index, row, attached, parsed),
+        Resolution::Known {
+            row,
+            attached,
+        } => accept(arguments, index, row, attached, parsed),
     };
 }
 

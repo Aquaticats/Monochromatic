@@ -13,8 +13,17 @@
 
 /// The functions under test,
 ///  their result type and the real-Git fixture helpers.
-use super::{QUIET_INJECTION, has_explicit_status_hints_override, status_hints_off};
-use crate::command_test_support::{git_output, os_arguments, remove, repository_with_tracked_file};
+use super::{
+    QUIET_INJECTION,
+    has_explicit_status_hints_override,
+    status_hints_off,
+};
+use crate::command_test_support::{
+    git_output,
+    os_arguments,
+    remove,
+    repository_with_tracked_file,
+};
 use crate::rule_argument_rewrite::ArgumentRewrite;
 use std::ffi::OsString;
 use std::path::PathBuf;

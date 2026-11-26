@@ -3,11 +3,26 @@
 //! and the member it makes is one a commit then takes.
 
 use super::*;
-use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
-use crate::shadow_pool::{take, pool_root};
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::capture_invocation::{
+    capture_invocation_base,
+    capture_invocation_layout,
+};
+use crate::shadow_pool::{
+    pool_root,
+    take,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A repository with one commit on `main` and one tracked file.
 fn repository_of(root: &Path) -> PathBuf {
@@ -29,7 +44,8 @@ fn the_facts_a_fill_reads_are_the_facts_a_capture_reads() {
     let repo: PathBuf = repository_of(root.as_path());
     let context: GitContext = git_context();
     let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
-    let expected: ShadowTemplate = ShadowTemplate::of(&context, &layout).expect("the client's facts");
+    let expected: ShadowTemplate =
+        ShadowTemplate::of(&context, &layout).expect("the client's facts");
     let filled: ShadowTemplate = template_of(
         &context,
         repo.join(".git").as_path(),
@@ -37,11 +53,23 @@ fn the_facts_a_fill_reads_are_the_facts_a_capture_reads() {
         repo.as_path(),
     )
     .expect("the service's facts");
-    assert_eq!(filled.common_dir, expected.common_dir, "the common directory");
-    assert_eq!(filled.git_dir, expected.git_dir, "the worktree's Git directory");
+    assert_eq!(
+        filled.common_dir, expected.common_dir,
+        "the common directory"
+    );
+    assert_eq!(
+        filled.git_dir, expected.git_dir,
+        "the worktree's Git directory"
+    );
     assert_eq!(filled.repository_root, repo, "the worktree root");
-    assert_eq!(filled.object_directory, expected.object_directory, "the object directory");
-    assert_eq!(filled.object_format, expected.object_format, "the object format");
+    assert_eq!(
+        filled.object_directory, expected.object_directory,
+        "the object directory"
+    );
+    assert_eq!(
+        filled.object_format, expected.object_format,
+        "the object format"
+    );
     assert_eq!(filled.ref_format, expected.ref_format, "the ref backend");
     assert_eq!(filled.format, expected.format, "the format facts");
     remove(root.as_path());
@@ -66,8 +94,14 @@ fn a_fill_from_a_request_makes_a_member_a_commit_takes() {
     let capture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
     let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("facts");
     let destination: PathBuf = root.join("shadow");
-    assert!(take(&template, destination.as_path()), "the commit takes the member");
-    assert!(members(pool_root(&template).as_path()).is_empty(), "and the pool is empty");
+    assert!(
+        take(&template, destination.as_path()),
+        "the commit takes the member"
+    );
+    assert!(
+        members(pool_root(&template).as_path()).is_empty(),
+        "and the pool is empty"
+    );
     remove(root.as_path());
 }
 
@@ -80,7 +114,10 @@ fn a_full_pool_is_not_filled_again() {
     let common: PathBuf = repo.join(".git");
     let mut made: usize = 0;
     for _round in 0..POOL_LIMIT + 1 {
-        if fill_one(&context, common.as_path(), common.as_path(), repo.as_path()).expect("filled").is_some() {
+        if fill_one(&context, common.as_path(), common.as_path(), repo.as_path())
+            .expect("filled")
+            .is_some()
+        {
             made += 1;
         }
     }
@@ -95,14 +132,26 @@ fn a_full_pool_is_not_filled_again() {
 ///  and a capture needs a repository with a `HEAD`.
 fn initialize(directory: PathBuf) -> PathBuf {
     std::fs::create_dir(directory.as_path()).expect("repository directory");
-    git(directory.as_path(), &["init", "--quiet", "--initial-branch=main"]);
-    git(directory.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        directory.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
+    git(
+        directory.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     return directory;
 }
 
 /// The facts the service's fill reads in `repo`.
 fn template_of_fixture(repo: &Path) -> ShadowTemplate {
-    return template_of(&git_context(), repo.join(".git").as_path(), repo.join(".git").as_path(), repo).expect("the service's facts");
+    return template_of(
+        &git_context(),
+        repo.join(".git").as_path(),
+        repo.join(".git").as_path(),
+        repo,
+    )
+    .expect("the service's facts");
 }
 
 /// The facts the invocation's own capture reads in `repo`.
@@ -118,7 +167,9 @@ fn capture_layout(repo: &Path) -> crate::capture_invocation::InvocationLayout {
 /// and the member's alternates named a store that does not exist.
 #[test]
 fn the_facts_of_a_repository_whose_name_is_not_text_are_the_captures() {
-    if !in_a_fixture_root_taking_any_name("service::service_shadow_pool_fill::tests::the_facts_of_a_repository_whose_name_is_not_text_are_the_captures") {
+    if !in_a_fixture_root_taking_any_name(
+        "service::service_shadow_pool_fill::tests::the_facts_of_a_repository_whose_name_is_not_text_are_the_captures",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStringExt;

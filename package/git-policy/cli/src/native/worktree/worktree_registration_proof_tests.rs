@@ -11,8 +11,15 @@
 //! expect(registrationOf(commonDir, worktree)).toEqual(admin);
 //! ```
 
-use crate::test_support::{fixture, git, repository};
-use crate::worktree_registration_proof::{RegistrationRefusal, registration_of};
+use crate::test_support::{
+    fixture,
+    git,
+    repository,
+};
+use crate::worktree_registration_proof::{
+    RegistrationRefusal,
+    registration_of,
+};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -43,8 +50,21 @@ fn a_repository_with_one_worktree(name: &str) -> Added {
     let root: PathBuf = fixture(name);
     let main: PathBuf = repository(root.as_path(), "main");
     let worktree: PathBuf = root.join("worktree");
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", worktree.to_str().expect("a UTF-8 fixture path")]);
-    return Added { common: main.join(".git"), worktree };
+    git(
+        main.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            worktree.to_str().expect("a UTF-8 fixture path"),
+        ],
+    );
+    return Added {
+        common: main.join(".git"),
+        worktree,
+    };
 }
 
 /// The one registration below a common directory.
@@ -52,7 +72,7 @@ fn only_registration(common: &std::path::Path) -> PathBuf {
     let found: Vec<PathBuf> = std::fs::read_dir(common.join("worktrees"))
         .expect("the registrations")
         .flatten()
-        .map(|entry| { return entry.path() })
+        .map(|entry| return entry.path())
         .collect();
     assert_eq!(found.len(), 1, "{found:?}");
     return found.into_iter().next().expect("one registration");
@@ -62,7 +82,8 @@ fn only_registration(common: &std::path::Path) -> PathBuf {
 /// which blocks whoever opens it for reading until a writer comes.
 fn make_a_named_pipe(path: &std::path::Path) {
     use std::os::unix::ffi::OsStrExt as _;
-    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    let name: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
     // SAFETY: `name` is a NUL-terminated string that outlives the call.
     let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
     assert_eq!(made, 0, "mkfifo {}", path.display());
@@ -77,7 +98,8 @@ fn make_a_named_pipe(path: &std::path::Path) {
 fn the_registration_git_wrote_satisfies_the_proof() {
     let added: Added = a_repository_with_one_worktree("proof-git-registration");
     let admin: PathBuf = only_registration(added.common.as_path());
-    let proved: Result<PathBuf, RegistrationRefusal> = registration_of(added.common.as_path(), added.worktree.as_path());
+    let proved: Result<PathBuf, RegistrationRefusal> =
+        registration_of(added.common.as_path(), added.worktree.as_path());
     assert_eq!(proved.expect("Git's own registration"), admin);
 }
 
@@ -96,8 +118,12 @@ fn a_pointer_without_its_registrations_back_link_is_no_worktree() {
     let added: Added = a_repository_with_one_worktree("proof-no-back-link");
     let admin: PathBuf = only_registration(added.common.as_path());
     std::fs::remove_file(admin.join("gitdir")).expect("the back-link is removed");
-    let proved: Result<PathBuf, RegistrationRefusal> = registration_of(added.common.as_path(), added.worktree.as_path());
-    assert!(matches!(proved, Err(RegistrationRefusal::NotThisRepository(_))), "a registration with no back-link answered for this directory: {proved:?}");
+    let proved: Result<PathBuf, RegistrationRefusal> =
+        registration_of(added.common.as_path(), added.worktree.as_path());
+    assert!(
+        matches!(proved, Err(RegistrationRefusal::NotThisRepository(_))),
+        "a registration with no back-link answered for this directory: {proved:?}"
+    );
 }
 
 /// What:
@@ -112,9 +138,17 @@ fn a_registration_that_names_another_worktree_is_no_worktree_of_this_one() {
     let admin: PathBuf = only_registration(added.common.as_path());
     let elsewhere: PathBuf = added.worktree.join("somewhere-else");
     std::fs::create_dir_all(elsewhere.as_path()).expect("another directory");
-    std::fs::write(admin.join("gitdir"), format!("{}\n", elsewhere.join(".git").display())).expect("a back-link to another directory");
-    let proved: Result<PathBuf, RegistrationRefusal> = registration_of(added.common.as_path(), added.worktree.as_path());
-    assert!(matches!(proved, Err(RegistrationRefusal::NotThisRepository(_))), "a back-link to another directory answered for this one: {proved:?}");
+    std::fs::write(
+        admin.join("gitdir"),
+        format!("{}\n", elsewhere.join(".git").display()),
+    )
+    .expect("a back-link to another directory");
+    let proved: Result<PathBuf, RegistrationRefusal> =
+        registration_of(added.common.as_path(), added.worktree.as_path());
+    assert!(
+        matches!(proved, Err(RegistrationRefusal::NotThisRepository(_))),
+        "a back-link to another directory answered for this one: {proved:?}"
+    );
 }
 
 /// What:
@@ -127,9 +161,14 @@ fn a_registration_that_names_another_worktree_is_no_worktree_of_this_one() {
 fn a_registration_of_another_repository_is_no_worktree_of_this_one() {
     let added: Added = a_repository_with_one_worktree("proof-other-repository");
     let admin: PathBuf = only_registration(added.common.as_path());
-    std::fs::write(admin.join("commondir"), b"../elsewhere\n").expect("a common directory that is not this repository's");
-    let proved: Result<PathBuf, RegistrationRefusal> = registration_of(added.common.as_path(), added.worktree.as_path());
-    assert!(matches!(proved, Err(RegistrationRefusal::NotThisRepository(_))), "a registration of another repository answered for this directory: {proved:?}");
+    std::fs::write(admin.join("commondir"), b"../elsewhere\n")
+        .expect("a common directory that is not this repository's");
+    let proved: Result<PathBuf, RegistrationRefusal> =
+        registration_of(added.common.as_path(), added.worktree.as_path());
+    assert!(
+        matches!(proved, Err(RegistrationRefusal::NotThisRepository(_))),
+        "a registration of another repository answered for this directory: {proved:?}"
+    );
 }
 
 /// What:
@@ -152,21 +191,35 @@ fn a_pointer_that_is_a_named_pipe_is_refused_without_waiting() {
     let asked_common: PathBuf = added.common.clone();
     let asked_worktree: PathBuf = added.worktree.clone();
     let worker: std::thread::JoinHandle<()> = std::thread::spawn(move || {
-        let _ = sender.send(registration_of(asked_common.as_path(), asked_worktree.as_path()));
+        let _ = sender.send(registration_of(
+            asked_common.as_path(),
+            asked_worktree.as_path(),
+        ));
     });
-    let answered: Result<Result<PathBuf, RegistrationRefusal>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(BOUND);
+    let answered: Result<Result<PathBuf, RegistrationRefusal>, std::sync::mpsc::RecvTimeoutError> =
+        receiver.recv_timeout(BOUND);
     if answered.is_err() {
         // Release the reader so this control reports what it found instead of leaving a thread waiting for ever.
-        let mut writer: std::fs::File = std::fs::OpenOptions::new().write(true).open(pointer.as_path()).expect("release the reader");
-        writer.write_all(old_pointer.as_slice()).expect("write the pointer");
+        let mut writer: std::fs::File = std::fs::OpenOptions::new()
+            .write(true)
+            .open(pointer.as_path())
+            .expect("release the reader");
+        writer
+            .write_all(old_pointer.as_slice())
+            .expect("write the pointer");
         drop(writer);
     }
     let proved: Result<PathBuf, RegistrationRefusal> = match answered {
         Ok(found) => found,
-        Err(_) => receiver.recv_timeout(BOUND).expect("the released reader lets the read finish"),
+        Err(_) => receiver
+            .recv_timeout(BOUND)
+            .expect("the released reader lets the read finish"),
     };
     worker.join().expect("join the read");
-    assert!(matches!(proved, Err(RegistrationRefusal::NotThisRepository(_))), "a pointer that is no regular file answered as a registration: {proved:?}");
+    assert!(
+        matches!(proved, Err(RegistrationRefusal::NotThisRepository(_))),
+        "a pointer that is no regular file answered as a registration: {proved:?}"
+    );
 }
 
 /// What:
@@ -179,13 +232,32 @@ fn a_pointer_that_is_a_named_pipe_is_refused_without_waiting() {
 /// so the answers are asked of the classification directly.
 #[test]
 fn an_absent_path_is_not_the_same_answer_as_a_read_that_may_pass() {
-    for kind in [std::io::ErrorKind::NotFound, std::io::ErrorKind::NotADirectory] {
-        assert!(crate::worktree_registration_proof::is_absent(&std::io::Error::from(kind)), "{kind:?} names no path");
-    }
-    assert!(crate::worktree_registration_proof::is_absent(&std::io::Error::from_raw_os_error(libc::ELOOP)), "a link that loops names no path");
-    for code in [libc::EACCES, libc::EIO, libc::EMFILE, libc::ENOSPC, libc::ESTALE] {
+    for kind in [
+        std::io::ErrorKind::NotFound,
+        std::io::ErrorKind::NotADirectory,
+    ] {
         assert!(
-            !crate::worktree_registration_proof::is_absent(&std::io::Error::from_raw_os_error(code)),
+            crate::worktree_registration_proof::is_absent(&std::io::Error::from(kind)),
+            "{kind:?} names no path"
+        );
+    }
+    assert!(
+        crate::worktree_registration_proof::is_absent(&std::io::Error::from_raw_os_error(
+            libc::ELOOP
+        )),
+        "a link that loops names no path"
+    );
+    for code in [
+        libc::EACCES,
+        libc::EIO,
+        libc::EMFILE,
+        libc::ENOSPC,
+        libc::ESTALE,
+    ] {
+        assert!(
+            !crate::worktree_registration_proof::is_absent(&std::io::Error::from_raw_os_error(
+                code
+            )),
             "{code} may pass"
         );
     }

@@ -30,7 +30,10 @@
 //! export const didNotAnswer = (waited: Duration): string => ...;
 //! ```
 
-use crate::service_messages::{NOTHING_CHANGED, STATUS_COMMAND};
+use crate::service_messages::{
+    NOTHING_CHANGED,
+    STATUS_COMMAND,
+};
 
 /// What:
 ///  The words for a commit the user service manager never answered about.

@@ -23,10 +23,17 @@
 //! const back = await drainASnapshotAhead(held, workDir, itemsTaken, handlers);
 //! ```
 
-use crate::landing::service_work_handlers_replanning_and_acceptance::{WorkHandlers, is_acceptable};
+use crate::landing::service_work_handlers_replanning_and_acceptance::{
+    WorkHandlers,
+    is_acceptable,
+};
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_work_storage_awaited::still_held_awaiting;
-use crate::work_item::{Claimed, DONE, FAILED};
+use crate::work_item::{
+    Claimed,
+    DONE,
+    FAILED,
+};
 use std::path::Path;
 
 /// What:
@@ -52,24 +59,38 @@ use std::path::Path;
 /// ```ts
 /// async function drainASnapshotAhead(held, workDir, claimed, handlers) { const mine = await stillHeld(held, workDir, claimed); for (const item of mine) { const verdict = await handlers.snapshotAheadAwaiting(item.item); held = await settleWithTheWords(held, workDir, item, verdict, 'snapshot ahead'); } return held; }
 /// ```
-pub(crate) async fn drain_a_snapshot_ahead<H: WorkHandlers + Sync + ?Sized>(held: HeldClaims, work_dir: &Path, claimed: Vec<Claimed>, handlers: &H) -> Option<HeldClaims> {
-    let (mut back, mine): (HeldClaims, Vec<Claimed>) = match still_held_awaiting(held, work_dir, claimed).await {
-        Some((back, mine)) => (back, mine),
-        None => return None,
-    };
+pub(crate) async fn drain_a_snapshot_ahead<H: WorkHandlers + Sync + ?Sized>(
+    held: HeldClaims,
+    work_dir: &Path,
+    claimed: Vec<Claimed>,
+    handlers: &H,
+) -> Option<HeldClaims> {
+    let (mut back, mine): (HeldClaims, Vec<Claimed>) =
+        match still_held_awaiting(held, work_dir, claimed).await {
+            Some((back, mine)) => (back, mine),
+            None => return None,
+        };
     for item in mine {
         if !is_acceptable(&item.item, item.item.git_dir.as_path()) {
             back = settle(back, work_dir, item, FAILED).await?;
             continue;
         }
-        let verdict: crate::service_work::Verdict = handlers.snapshot_ahead_awaiting(&item.item).await;
+        let verdict: crate::service_work::Verdict =
+            handlers.snapshot_ahead_awaiting(&item.item).await;
         let settle_as: Option<&'static str> = match &verdict {
-            crate::service_work::Verdict::Done | crate::service_work::Verdict::Skipped(_) => Some(DONE),
+            crate::service_work::Verdict::Done | crate::service_work::Verdict::Skipped(_) => {
+                Some(DONE)
+            }
             // Only a push answers this, and the upkeep of this kind settles nothing a push said; a record of a snapshot ahead
             //  that landed is the state it asks for.
-            crate::service_work::Verdict::Delivered { .. } => Some(DONE),
+            crate::service_work::Verdict::Delivered {
+                ..
+            } => Some(DONE),
             crate::service_work::Verdict::Failed(reason) => {
-                crate::service_warn!("the snapshot ahead of {} could not be made: {reason}", item.item.repository.display());
+                crate::service_warn!(
+                    "the snapshot ahead of {} could not be made: {reason}",
+                    item.item.repository.display()
+                );
                 Some(FAILED)
             }
             // The copy could not be made for a reason that can pass, so nothing is settled: the claim keeps its lease,
@@ -100,6 +121,17 @@ pub(crate) async fn drain_a_snapshot_ahead<H: WorkHandlers + Sync + ?Sized>(held
 /// ```ts
 /// const settle = (held, workDir, item, state) => settleAll(held, workDir, [item], state);
 /// ```
-async fn settle(held: HeldClaims, work_dir: &Path, item: Claimed, state: &'static str) -> Option<HeldClaims> {
-    return crate::service_work_storage_awaited::settle_all_awaiting(held, work_dir, vec![item], state).await;
+async fn settle(
+    held: HeldClaims,
+    work_dir: &Path,
+    item: Claimed,
+    state: &'static str,
+) -> Option<HeldClaims> {
+    return crate::service_work_storage_awaited::settle_all_awaiting(
+        held,
+        work_dir,
+        vec![item],
+        state,
+    )
+    .await;
 }

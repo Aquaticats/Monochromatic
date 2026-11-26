@@ -12,8 +12,15 @@
 //! ```
 
 use super::*;
-use crate::test_support::{executable, fixture, remove};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    executable,
+    fixture,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 
 /// The path the message file is given as,
@@ -37,7 +44,11 @@ fn a_shell_s_word(line: &str) -> String {
         .arg(MESSAGE)
         .output()
         .expect("the shell starts");
-    assert!(finished.status.success(), "{line}: {}", String::from_utf8_lossy(finished.stderr.as_slice()));
+    assert!(
+        finished.status.success(),
+        "{line}: {}",
+        String::from_utf8_lossy(finished.stderr.as_slice())
+    );
     return String::from_utf8_lossy(finished.stdout.as_slice()).into_owned();
 }
 
@@ -48,7 +59,11 @@ fn these_words(words: &[OsString]) -> String {
         .arg(MESSAGE)
         .output()
         .expect("the editor starts");
-    assert!(finished.status.success(), "{}", String::from_utf8_lossy(finished.stderr.as_slice()));
+    assert!(
+        finished.status.success(),
+        "{}",
+        String::from_utf8_lossy(finished.stderr.as_slice())
+    );
     return String::from_utf8_lossy(finished.stdout.as_slice()).into_owned();
 }
 
@@ -61,7 +76,10 @@ fn these_words(words: &[OsString]) -> String {
 fn the_words_are_the_ones_a_shell_makes() {
     let parent: PathBuf = fixture("merge-editor-words");
     let script: PathBuf = printing_script(parent.as_path());
-    let program: String = script.to_str().expect("the script's path is text").to_owned();
+    let program: String = script
+        .to_str()
+        .expect("the script's path is text")
+        .to_owned();
     let lines: [String; 8] = [
         program.clone(),
         format!("{program} --wait"),
@@ -73,8 +91,14 @@ fn the_words_are_the_ones_a_shell_makes() {
         format!("{program} 'a $dollar and a `backtick`' \"d\\\"quoted\""),
     ];
     for line in lines {
-        let Some(words) = editor_words(line.as_str()) else { panic!("{line}: the line splits") };
-        assert_eq!(these_words(words.as_slice()), a_shell_s_word(line.as_str()), "{line}");
+        let Some(words) = editor_words(line.as_str()) else {
+            panic!("{line}: the line splits")
+        };
+        assert_eq!(
+            these_words(words.as_slice()),
+            a_shell_s_word(line.as_str()),
+            "{line}"
+        );
     }
     remove(parent.as_path());
 }
@@ -123,6 +147,12 @@ fn a_blank_command_makes_no_words() {
 /// which a program can tell from no argument at all.
 #[test]
 fn an_empty_quoted_argument_is_a_word() {
-    assert_eq!(editor_words("editor ''"), Some(vec![OsString::from("editor"), OsString::from("")]));
-    assert_eq!(editor_words("editor \"\""), Some(vec![OsString::from("editor"), OsString::from("")]));
+    assert_eq!(
+        editor_words("editor ''"),
+        Some(vec![OsString::from("editor"), OsString::from("")])
+    );
+    assert_eq!(
+        editor_words("editor \"\""),
+        Some(vec![OsString::from("editor"), OsString::from("")])
+    );
 }

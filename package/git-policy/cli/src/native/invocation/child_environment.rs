@@ -21,9 +21,15 @@
 /// ```ts
 /// // Node exposes process.env as strings; there is no byte-preserving equivalent.
 /// ```
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `Path` is a borrowed filesystem path made of the same raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Git's count variable for environment-supplied configuration.
 pub const COUNT_VARIABLE: &str = "GIT_CONFIG_COUNT";
 
@@ -77,7 +83,10 @@ const GIT_MAX_CONFIG_COUNT: u64 = 2_147_483_647;
 /// ```ts
 /// function environmentValue(environment: [string, string][], name: string): string | undefined;
 /// ```
-pub fn environment_value(environment: &[(OsString, OsString)], name: &str) -> Option<OsString> {
+pub fn environment_value(
+    environment: &[(OsString, OsString)],
+    name: &str,
+) -> Option<OsString> {
     // What: `for (key, value) in environment` destructures each borrowed pair.
     // Why:  The list is small and scanned in its original order.
     //
@@ -117,7 +126,10 @@ pub fn environment_value(environment: &[(OsString, OsString)], name: &str) -> Op
 /// ```ts
 /// function environmentValueByNameBytes(environment: [string, string][], name: Uint8Array): string | undefined;
 /// ```
-pub fn environment_value_by_name_bytes(environment: &[(OsString, OsString)], name: &[u8]) -> Option<OsString> {
+pub fn environment_value_by_name_bytes(
+    environment: &[(OsString, OsString)],
+    name: &[u8],
+) -> Option<OsString> {
     // What: `for (key, value) in environment` destructures each borrowed pair.
     // Why:  The list is small and scanned in its original order.
     //
@@ -416,7 +428,8 @@ pub fn environment_with_overlay(
     overlay: &[(OsString, OsString)],
 ) -> Vec<(OsString, OsString)> {
     // `mut` lets the overlay entries be appended after the surviving caller entries.
-    let mut result: Vec<(OsString, OsString)> = Vec::with_capacity(environment.len() + overlay.len());
+    let mut result: Vec<(OsString, OsString)> =
+        Vec::with_capacity(environment.len() + overlay.len());
     for (name, value) in environment {
         let mut replaced: bool = false;
         for (overlaid, _value) in overlay {
@@ -472,7 +485,10 @@ pub const TERMINAL_PROMPT_VARIABLE: &str = "GIT_TERMINAL_PROMPT";
 pub fn never_prompt_overlay() -> Vec<(OsString, OsString)> {
     return vec![
         (OsString::from(ASKPASS_VARIABLE), OsString::new()),
-        (OsString::from(TERMINAL_PROMPT_VARIABLE), OsString::from("0")),
+        (
+            OsString::from(TERMINAL_PROMPT_VARIABLE),
+            OsString::from("0"),
+        ),
     ];
 }
 
@@ -538,8 +554,14 @@ pub const NO_ANSWER_PROGRAM: &str = "false";
 /// ```
 pub fn ssh_no_answer_overlay() -> Vec<(OsString, OsString)> {
     return vec![
-        (OsString::from(SSH_ASKPASS_VARIABLE), OsString::from(NO_ANSWER_PROGRAM)),
-        (OsString::from(ASKPASS_REQUIRE_VARIABLE), OsString::from(ASKPASS_REQUIRE_FORCE)),
+        (
+            OsString::from(SSH_ASKPASS_VARIABLE),
+            OsString::from(NO_ANSWER_PROGRAM),
+        ),
+        (
+            OsString::from(ASKPASS_REQUIRE_VARIABLE),
+            OsString::from(ASKPASS_REQUIRE_FORCE),
+        ),
     ];
 }
 

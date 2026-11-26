@@ -13,10 +13,21 @@
 /// Tokenizer types,
 ///  the shared synthetic table and the real-Git fixture helpers.
 use crate::command_options::{
-    Occurrence, OptionError, OptionErrorKind, OptionValue, ParsedOptions,
+    Occurrence,
+    OptionError,
+    OptionErrorKind,
+    OptionValue,
+    ParsedOptions,
 };
 use crate::command_test_support::{
-    CONTAINS, MESSAGE, fixture, git, git_status, parse_synthetic, remove, repository,
+    CONTAINS,
+    MESSAGE,
+    fixture,
+    git,
+    git_status,
+    parse_synthetic,
+    remove,
+    repository,
 };
 use std::path::PathBuf;
 use std::process::Output;
@@ -72,7 +83,9 @@ fn a_required_value_takes_any_next_token() {
         let parsed: ParsedOptions = parse_synthetic(&["--message", value, "x"]).expect("valid");
         assert_eq!(
             parsed.occurrences[0].value,
-            Some(OptionValue::Detached { token: 1 }),
+            Some(OptionValue::Detached {
+                token: 1
+            }),
             "{value}"
         );
         assert_eq!(parsed.occurrences.len(), 1, "{value}");
@@ -107,7 +120,9 @@ fn reads_last_argument_default_options() {
         vec![Occurrence {
             id: CONTAINS,
             negated: false,
-            value: Some(OptionValue::Detached { token: 1 }),
+            value: Some(OptionValue::Detached {
+                token: 1
+            }),
             token: 0
         }]
     );

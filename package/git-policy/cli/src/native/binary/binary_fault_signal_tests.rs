@@ -29,14 +29,40 @@
 //! expect(standInGit.receivedSignals).toEqual(['QUIT']); expect(await wrapper.exit).toBe(128 + 3);
 //! ```
 
-use super::commit::{remove_settled, run_commit};
-use super::fault::{staged_repository, verify_recovery};
-use super::fault_run::{is_running, run_watched, send, spawn_watched, unbounded_wrapper};
-use super::support::{Fixture, executable, fixture, stalling_editor};
+use super::commit::{
+    remove_settled,
+    run_commit,
+};
+use super::fault::{
+    staged_repository,
+    verify_recovery,
+};
+use super::fault_run::{
+    is_running,
+    run_watched,
+    send,
+    spawn_watched,
+    unbounded_wrapper,
+};
+use super::support::{
+    Fixture,
+    executable,
+    fixture,
+    stalling_editor,
+};
 use std::os::unix::process::CommandExt;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long a control waits for a process it expects to be gone:
 /// a hang guard,
@@ -57,7 +83,12 @@ const GONE_PATIENCE: Duration = Duration::from_secs(30);
 /// a shell cannot die of a quit it has reset,
 /// which is why it exits).
 ///  Returns the directory to add to `PATH`.
-fn stand_in_git(fixture: &Fixture, log: &Path, started: &Path, process_id: &Path) -> PathBuf {
+fn stand_in_git(
+    fixture: &Fixture,
+    log: &Path,
+    started: &Path,
+    process_id: &Path,
+) -> PathBuf {
     let directory: PathBuf = fixture.root.join("shim");
     std::fs::create_dir(&directory).expect("shim directory");
     let script: String = String::from(
@@ -86,17 +117,26 @@ exec /usr/bin/git \"$@\"
     .replace("PID", &process_id.display().to_string())
     .replace("STARTED", &started.display().to_string())
     // Last, because the condition holds a path that no other name may be looked for in.
-    .replace("LIVES", &super::support::while_test_lives(fixture.root.as_path()));
+    .replace(
+        "LIVES",
+        &super::support::while_test_lives(fixture.root.as_path()),
+    );
     executable(directory.join("git").as_path(), script.as_bytes());
     return directory;
 }
 
 /// Waits until the process is gone,
 /// or fails the control naming it.
-fn assert_gone(pid: i32, what: &str) {
+fn assert_gone(
+    pid: i32,
+    what: &str,
+) {
     let began: Instant = Instant::now();
     while is_running(pid) {
-        assert!(began.elapsed() < GONE_PATIENCE, "{what} (process {pid}) still runs {GONE_PATIENCE:?} after the wrapper ended");
+        assert!(
+            began.elapsed() < GONE_PATIENCE,
+            "{what} (process {pid}) still runs {GONE_PATIENCE:?} after the wrapper ended"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
 }
@@ -108,35 +148,64 @@ fn assert_gone(pid: i32, what: &str) {
 /// the wrapper ended with `128 + signal`,
 /// nothing runs on,
 /// and the repository recovers.
-fn relayed_to_git(name: &str, label: &str, signal: i32) {
+fn relayed_to_git(
+    name: &str,
+    label: &str,
+    signal: i32,
+) {
     let fixture: Fixture = fixture(label);
     let repo: PathBuf = staged_repository(&fixture, "repo");
     let log: PathBuf = fixture.root.join("received.log");
     let started: PathBuf = fixture.root.join("git-started");
     let process_id: PathBuf = fixture.root.join("git-pid");
-    let shim: PathBuf = stand_in_git(&fixture, log.as_path(), started.as_path(), process_id.as_path());
+    let shim: PathBuf = stand_in_git(
+        &fixture,
+        log.as_path(),
+        started.as_path(),
+        process_id.as_path(),
+    );
     // The wrapper first, then the stand-in. `/usr/bin` stays off `PATH`: the wrapper tries the conventional locations of Git
     //  ahead of the rest of `PATH`, so a `/usr/bin/git` on it would be chosen over the stand-in (the stand-in runs the real one
     //  by its absolute path).
     let path: String = format!("{}:{}", fixture.root.join("bin").display(), shim.display());
-    let mut command: Command = unbounded_wrapper(&fixture, repo.as_path(), &["commit", "--quiet", "--", "a.txt"]);
+    let mut command: Command = unbounded_wrapper(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--", "a.txt"],
+    );
     // An editor is named so the wrapper takes the editor route; the stand-in stalls before Git would start it.
     command.env("PATH", &path).env("GIT_EDITOR", "true");
     // SAFETY: between fork and exec only `setrlimit`, an async-signal-safe call, runs.
     unsafe {
-        command.pre_exec(|| { return super::support::LimitKind::CoreFile.apply(0, 0); });
+        command.pre_exec(|| {
+            return super::support::LimitKind::CoreFile.apply(0, 0);
+        });
     }
     let mut running = spawn_watched(&fixture, &mut command);
     running.wait_for(started.as_path());
     send(running.id(), signal);
     let finished: Output = running.finish();
     let said: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
-    assert_eq!(finished.status.code(), Some(128 + signal), "SIG{name}: {said}");
-    let received: String = std::fs::read_to_string(&log).expect("the stand-in Git recorded what reached it");
-    assert_eq!(received, format!("{name}\n"), "exactly the one signal sent to the wrapper reaches Git");
-    let git_pid: i32 = std::fs::read_to_string(&process_id).expect("the stand-in Git's process ID").trim().parse().expect("a process ID");
+    assert_eq!(
+        finished.status.code(),
+        Some(128 + signal),
+        "SIG{name}: {said}"
+    );
+    let received: String =
+        std::fs::read_to_string(&log).expect("the stand-in Git recorded what reached it");
+    assert_eq!(
+        received,
+        format!("{name}\n"),
+        "exactly the one signal sent to the wrapper reaches Git"
+    );
+    let git_pid: i32 = std::fs::read_to_string(&process_id)
+        .expect("the stand-in Git's process ID")
+        .trim()
+        .parse()
+        .expect("a process ID");
     assert_gone(git_pid, "the Git the wrapper started");
-    let verdict: Result<(), String> = verify_recovery(&fixture, repo.as_path(), label, said.as_str());
+    let verdict: Result<(), String> =
+        verify_recovery(&fixture, repo.as_path(), label, said.as_str());
     assert_eq!(verdict, Ok(()));
     remove_settled(&fixture);
 }
@@ -182,7 +251,11 @@ fn a_hangup_of_the_whole_group_during_the_editor_ends_the_commit_and_leaves_noth
     let repo: PathBuf = staged_repository(&fixture, "repo");
     let started: PathBuf = fixture.root.join("editor-started");
     let editor: PathBuf = stalling_editor(&fixture, started.as_path());
-    let mut command: Command = unbounded_wrapper(&fixture, repo.as_path(), &["commit", "--quiet", "--", "a.txt"]);
+    let mut command: Command = unbounded_wrapper(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--", "a.txt"],
+    );
     command.env("GIT_EDITOR", &editor);
     let mut running = spawn_watched(&fixture, &mut command);
     running.wait_for(started.as_path());
@@ -190,7 +263,10 @@ fn a_hangup_of_the_whole_group_during_the_editor_ends_the_commit_and_leaves_noth
     let finished: Output = running.finish();
     let said: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
     assert_eq!(finished.status.code(), Some(128 + libc::SIGHUP), "{said}");
-    assert_eq!(verify_recovery(&fixture, repo.as_path(), "signal-group-hup", said.as_str()), Ok(()));
+    assert_eq!(
+        verify_recovery(&fixture, repo.as_path(), "signal-group-hup", said.as_str()),
+        Ok(())
+    );
     remove_settled(&fixture);
 }
 
@@ -202,8 +278,20 @@ fn a_hangup_of_the_whole_group_during_the_editor_ends_the_commit_and_leaves_noth
 fn an_unsignalled_commit_through_the_same_shape_lands() {
     let fixture: Fixture = fixture("signal-shape");
     let repo: PathBuf = staged_repository(&fixture, "repo");
-    let output: Output = run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &["commit", "--quiet", "--message=x", "--", "a.txt"]));
-    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(output.stderr.as_slice()));
+    let output: Output = run_watched(
+        &fixture,
+        &mut unbounded_wrapper(
+            &fixture,
+            repo.as_path(),
+            &["commit", "--quiet", "--message=x", "--", "a.txt"],
+        ),
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
     let next = run_commit(&fixture, repo.as_path(), &["status", "--porcelain"]);
     assert_eq!(next.code, Some(0));
     remove_settled(&fixture);

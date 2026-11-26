@@ -110,49 +110,84 @@ fn seconds_in(text: String) -> Option<u64> {
 /// `SCRATCH_CEILING_VARIABLE` when it names a positive number of seconds,
 /// else `SCRATCH_COMMIT_STEP_CEILING`.
 pub fn scratch_ceiling() -> Duration {
-    return match std::env::var(SCRATCH_CEILING_VARIABLE).ok().and_then(seconds_in) {
+    return match std::env::var(SCRATCH_CEILING_VARIABLE)
+        .ok()
+        .and_then(seconds_in)
+    {
         Some(seconds) if seconds > 0 => Duration::from_secs(seconds),
         _ => crate::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING,
     };
 }
 
-/// The cadence and the clock of a wait notice.
-use crate::wait_progress::{Cadence, Ticker};
-/// What the ceiling does when it comes.
-use crate::scratch_step_ceiling_stop::{CeilingCame, TheCeiling, ceiling_came};
-/// The line the notice prints,
-/// and the programs it names below the step.
-use crate::scratch_step_notice_line::{notice_line, other_programs};
-/// The programs a look saw below the step,
-/// and the time each was credited with.
-use crate::scratch_step_programs_below::{SeenBelow, credit_between_looks, seen_below};
-/// One look at the step and the programs below it,
-/// and what a look answers about one of them.
-use crate::scratch_step_look_below::{look_below, process_cpu, process_is_blocked};
-/// The one decision this ceiling shares with the wait that owns the step,
-/// what it came to,
-/// and why a step was waited for.
-use crate::scratch_step_stall_decided_once::{TheStall, TheStallDecidedOnce, TheStallItWaitsThrough, WhyTheStepWasWaitedFor};
-/// A decision two enforcers of one ceiling share, kept across the thread that watches the step.
-use std::sync::Arc;
 /// The number of the step,
 /// published the moment it starts.
 use crate::child_number_told_at_start::ChildNumber;
 /// The configuration the commit is built under.
 use crate::config_snapshot::ConfigSnapshot;
+/// What the ceiling does when it comes.
+use crate::scratch_step_ceiling_stop::{
+    CeilingCame,
+    TheCeiling,
+    ceiling_came,
+};
+/// One look at the step and the programs below it,
+/// and what a look answers about one of them.
+use crate::scratch_step_look_below::{
+    look_below,
+    process_cpu,
+    process_is_blocked,
+};
+/// The line the notice prints,
+/// and the programs it names below the step.
+use crate::scratch_step_notice_line::{
+    notice_line,
+    other_programs,
+};
+/// The programs a look saw below the step,
+/// and the time each was credited with.
+use crate::scratch_step_programs_below::{
+    SeenBelow,
+    credit_between_looks,
+    seen_below,
+};
+/// The one decision this ceiling shares with the wait that owns the step,
+/// what it came to,
+/// and why a step was waited for.
+use crate::scratch_step_stall_decided_once::{
+    TheStall,
+    TheStallDecidedOnce,
+    TheStallItWaitsThrough,
+    WhyTheStepWasWaitedFor,
+};
 /// Whether the commit's arguments open an editor.
 use crate::service_commit_args_editor_opening::opens_editor;
+/// The cadence and the clock of a wait notice.
+use crate::wait_progress::{
+    Cadence,
+    Ticker,
+};
 /// The notice's sink.
 use std::ffi::OsString;
 use std::io::Write;
+/// A decision two enforcers of one ceiling share, kept across the thread that watches the step.
+use std::sync::Arc;
 /// The writer thread's own time,
 /// kept where the notice thread can read it.
 use std::sync::Mutex;
 /// The channel that ends the notice thread,
 /// and the queue its writer thread takes whole lines from.
-use std::sync::mpsc::{Sender, RecvTimeoutError, SyncSender, channel, sync_channel};
+use std::sync::mpsc::{
+    RecvTimeoutError,
+    Sender,
+    SyncSender,
+    channel,
+    sync_channel,
+};
 /// Time spans and the monotonic clock.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The shortest pause between two looks of the notice thread,
 /// so a very short interval does not spin.
@@ -230,7 +265,9 @@ thread_local! {
 /// Refuse the next `count` notice threads.
 #[cfg(test)]
 pub(crate) fn refuse_the_next_notice_thread(count: usize) {
-    THREAD_REFUSALS.with(|left| { left.set(count); });
+    THREAD_REFUSALS.with(|left| {
+        left.set(count);
+    });
 }
 
 /// What:
@@ -307,12 +344,12 @@ pub struct NoticeStart<'a> {
     pub sink: Box<dyn Write + Send>,
 }
 
-/// What the notice saw while the step ran,
-/// and the ledger the commit's timing record takes it from.
-use crate::scratch_commit_step::ScratchStepFacts;
 /// The kernel's name,
 /// state and processor time of one process.
 use crate::process_tree::ProcessUse;
+/// What the notice saw while the step ran,
+/// and the ledger the commit's timing record takes it from.
+use crate::scratch_commit_step::ScratchStepFacts;
 
 /// The running notice:
 /// the thread that watches the step,
@@ -353,7 +390,10 @@ pub struct NativeCommitNotice {
 
 /// Whether the commit is signed:
 /// the configuration says so or the command line asks for it.
-pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[OsString]) -> bool {
+pub fn signs_commit(
+    snapshot: Option<&ConfigSnapshot>,
+    commit_arguments: &[OsString],
+) -> bool {
     if crate::service_prepare::config_signs(snapshot) {
         return true;
     }
@@ -365,7 +405,9 @@ pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[OsStr
         }
         if bytes == b"--no-gpg-sign" {
             asked = false;
-        } else if bytes.starts_with(b"--gpg-sign") || (bytes.starts_with(b"-S") && !bytes.starts_with(b"--")) {
+        } else if bytes.starts_with(b"--gpg-sign")
+            || (bytes.starts_with(b"-S") && !bytes.starts_with(b"--"))
+        {
             asked = true;
         }
     }
@@ -403,7 +445,10 @@ impl NativeCommitNotice {
     /// ```ts
     /// notice.stepStarted(pid);
     /// ```
-    pub fn step_started(&self, pid: i32) {
+    pub fn step_started(
+        &self,
+        pid: i32,
+    ) {
         self.step.publish(pid);
     }
 
@@ -485,13 +530,30 @@ impl NativeCommitNotice {
     /// ```ts
     /// const notice = NativeCommitNotice.start({ snapshot, commitArguments, cadence });
     /// ```
-    pub fn start(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[OsString], cadence: Cadence, sink: Box<dyn Write + Send>) -> Self {
-        return Self::start_within(NoticeStart { snapshot, commit_arguments, cadence, ceiling: crate::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING, sink });
+    pub fn start(
+        snapshot: Option<&ConfigSnapshot>,
+        commit_arguments: &[OsString],
+        cadence: Cadence,
+        sink: Box<dyn Write + Send>,
+    ) -> Self {
+        return Self::start_within(NoticeStart {
+            snapshot,
+            commit_arguments,
+            cadence,
+            ceiling: crate::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING,
+            sink,
+        });
     }
 
     /// Starts the notice with the ceiling given.
     pub fn start_within(start: NoticeStart<'_>) -> Self {
-        let NoticeStart { snapshot, commit_arguments, cadence, ceiling, sink } = start;
+        let NoticeStart {
+            snapshot,
+            commit_arguments,
+            cadence,
+            ceiling,
+            sink,
+        } = start;
         if opens_editor(commit_arguments) {
             // The person is the wait, and a message typed into an editor would be lost by a stop.
             return Self::silent(None);
@@ -513,21 +575,25 @@ impl NativeCommitNotice {
         let watched: ChildNumber = step.clone();
         // The lines are written here and never on the thread that enforces the ceiling:
         // a reader that stopped reading then holds this thread, and the commit does not wait for it.
-        let writer = std::thread::Builder::new().name(String::from("native-commit-notice-writer")).spawn(move || {
-            let mut to_write: Box<dyn Write + Send> = sink;
-            for line in waiting {
-                // The command is over: the line it was handed and every line behind it say nothing a reader can act on.
-                if stand_down.load(std::sync::atomic::Ordering::SeqCst) {
-                    break;
+        let writer = std::thread::Builder::new()
+            .name(String::from("native-commit-notice-writer"))
+            .spawn(move || {
+                let mut to_write: Box<dyn Write + Send> = sink;
+                for line in waiting {
+                    // The command is over: the line it was handed and every line behind it say nothing a reader can act on.
+                    if stand_down.load(std::sync::atomic::Ordering::SeqCst) {
+                        break;
+                    }
+                    let writing: Instant = Instant::now();
+                    let _written = to_write.write_all(line.as_bytes());
+                    let _flushed = to_write.flush();
+                    let mut spent = spending
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    *spent = spent.saturating_add(writing.elapsed());
                 }
-                let writing: Instant = Instant::now();
-                let _written = to_write.write_all(line.as_bytes());
-                let _flushed = to_write.flush();
-                let mut spent = spending.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-                *spent = spent.saturating_add(writing.elapsed());
-            }
-            let _told = told_written.send(());
-        });
+                let _told = told_written.send(());
+            });
         // What: A control refuses the notice thread here, as a process at its thread limit answers `pthread_create` with `EAGAIN`.
         // Why:  The refusal cannot be produced on demand,
         //       and a notice with no thread answers exactly what it answers when the system refuses one:
@@ -790,8 +856,12 @@ impl NativeCommitNotice {
         let _written = self.written.recv_timeout(NOTICE_BOUND);
         // The command is over, so the writer prints nothing more: a line it still holds is dropped when its write returns,
         // and the thread ends with it instead of living on beside a reader that stopped reading.
-        self.abandoned.store(true, std::sync::atomic::Ordering::SeqCst);
-        facts.wrote = *self.wrote.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.abandoned
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        facts.wrote = *self
+            .wrote
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         facts.notice = began.elapsed();
         return facts;
     }

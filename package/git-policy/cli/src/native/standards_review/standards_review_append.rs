@@ -103,7 +103,10 @@ fn is_line_feed_byte(byte: &u8) -> bool {
 /// ```ts
 /// for (const line of log.splitAfter('\n')) if (line === receiptLine(sha) + '\n') return true;
 /// ```
-fn bytes_name_commit(log: &[u8], sha: &str) -> bool {
+fn bytes_name_commit(
+    log: &[u8],
+    sha: &str,
+) -> bool {
     let wanted: String = format!("{}\n", receipt_line(sha));
     let mut start: usize = 0;
     while let Some(relative) = log[start..].iter().position(is_line_feed_byte) {
@@ -119,7 +122,10 @@ fn bytes_name_commit(log: &[u8], sha: &str) -> bool {
 
 /// Whether the log carries the commit's receipt already;
 /// a log that cannot be read names nothing.
-pub fn names_commit(log: &Path, sha: &str) -> bool {
+pub fn names_commit(
+    log: &Path,
+    sha: &str,
+) -> bool {
     return history_names_commit(log, sha).unwrap_or(false);
 }
 
@@ -145,7 +151,10 @@ pub fn names_commit(log: &Path, sha: &str) -> bool {
 ///
 /// # Errors
 /// The system's error when the live log exists and cannot be read.
-fn history_names_commit(log: &Path, sha: &str) -> std::io::Result<bool> {
+fn history_names_commit(
+    log: &Path,
+    sha: &str,
+) -> std::io::Result<bool> {
     let current: Vec<u8> = match std::fs::read(log) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
@@ -192,7 +201,10 @@ fn history_names_commit(log: &Path, sha: &str) -> std::io::Result<bool> {
 /// ```ts
 /// await mkdir(dirname(log), { recursive: true, mode: 0o700 }); await appendEntry(log, '\n' + text, retention, { mode: 0o600, noFollow: true });
 /// ```
-fn append_whole(log: &Path, text: &str) -> std::io::Result<()> {
+fn append_whole(
+    log: &Path,
+    text: &str,
+) -> std::io::Result<()> {
     let mut entry: Vec<u8> = Vec::with_capacity(text.len() + 1);
     entry.push(b'\n');
     entry.extend_from_slice(text.as_bytes());
@@ -222,7 +234,11 @@ fn append_whole(log: &Path, text: &str) -> std::io::Result<()> {
 /// ```ts
 /// await deliver({ log, sha, text })
 /// ```
-pub fn deliver(log: &Path, sha: &str, text: &str) -> Result<Delivery, String> {
+pub fn deliver(
+    log: &Path,
+    sha: &str,
+    text: &str,
+) -> Result<Delivery, String> {
     let already_there: bool = match history_names_commit(log, sha) {
         Ok(found) => found,
         Err(error) => return Err(format!("reading {} failed: {error}", log.display())),

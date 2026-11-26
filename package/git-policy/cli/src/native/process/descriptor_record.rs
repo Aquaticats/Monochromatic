@@ -36,7 +36,10 @@
 /// `OsStr` is a borrowed file name.
 use std::ffi::OsStr;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// How much of a descriptor's record a scan takes:
 /// four kibibytes,
@@ -145,7 +148,11 @@ pub enum Record {
 /// }
 /// ```
 #[cfg(unix)]
-pub fn descriptor_record(process: &Path, fd: &OsStr, targeted: Targeted) -> Record {
+pub fn descriptor_record(
+    process: &Path,
+    fd: &OsStr,
+    targeted: Targeted,
+) -> Record {
     let text: Vec<u8> = match linked_text(process, fd) {
         Ok(found) => found,
         // The descriptor closed while the scan walked the directory, or the process exited: nothing of it is open, so it
@@ -186,7 +193,11 @@ pub fn descriptor_record(process: &Path, fd: &OsStr, targeted: Targeted) -> Reco
 /// ```
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
-pub fn descriptor_record(_process: &Path, _fd: &OsStr, _targeted: Targeted) -> Record {
+pub fn descriptor_record(
+    _process: &Path,
+    _fd: &OsStr,
+    _targeted: Targeted,
+) -> Record {
     return Record::Unreadable {
         kind: std::io::ErrorKind::Unsupported,
         reason: String::from("this platform has no `/proc`, so a descriptor's record is not read"),
@@ -206,7 +217,10 @@ pub fn descriptor_record(_process: &Path, _fd: &OsStr, _targeted: Targeted) -> R
 /// readlink(`${process}/fd/${fd}`); // 'anon_inode:inotify', 'pipe:[42]' or '/some/path'
 /// ```
 #[cfg(unix)]
-fn linked_text(process: &Path, fd: &OsStr) -> std::io::Result<Vec<u8>> {
+fn linked_text(
+    process: &Path,
+    fd: &OsStr,
+) -> std::io::Result<Vec<u8>> {
     use std::os::unix::ffi::OsStrExt as _;
     let link: PathBuf = process.join("fd").join(fd);
     let target: PathBuf = std::fs::read_link(link.as_path())?;
@@ -225,7 +239,8 @@ fn linked_text(process: &Path, fd: &OsStr) -> std::io::Result<Vec<u8>> {
 /// ```
 #[cfg(unix)]
 fn exited(error: &std::io::Error) -> bool {
-    return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH);
+    return error.kind() == std::io::ErrorKind::NotFound
+        || error.raw_os_error() == Some(libc::ESRCH);
 }
 
 /// What:
@@ -240,7 +255,10 @@ fn exited(error: &std::io::Error) -> bool {
 /// const opens = (targeted, text) => !text.startsWith('anon_inode:') && (targeted === 'anonymous-file' || text.startsWith('/'));
 /// ```
 #[cfg(unix)]
-fn opens(targeted: Targeted, text: &[u8]) -> bool {
+fn opens(
+    targeted: Targeted,
+    text: &[u8],
+) -> bool {
     if text.starts_with(ANONYMOUS_INODE_PREFIX) {
         return false;
     }
@@ -275,7 +293,10 @@ fn bounded_text(record: &Path) -> Record {
         }
     };
     let mut text: String = String::new();
-    if let Err(error) = file.take(RECORD_BYTES_AT_MOST as u64 + 1).read_to_string(&mut text) {
+    if let Err(error) = file
+        .take(RECORD_BYTES_AT_MOST as u64 + 1)
+        .read_to_string(&mut text)
+    {
         return Record::Unreadable {
             kind: error.kind(),
             reason: format!("{error}"),
@@ -328,7 +349,10 @@ pub fn mount_id_in(text: &str) -> Option<u64> {
 /// const last = text.split('\n').filter(l => l.startsWith(prefix)).at(-1);
 /// return last === undefined ? undefined : Number(last.slice(prefix.length).trim());
 /// ```
-fn number_after(text: &str, prefix: &str) -> Option<u64> {
+fn number_after(
+    text: &str,
+    prefix: &str,
+) -> Option<u64> {
     let mut found: Option<u64> = None;
     for line in text.lines() {
         if let Some(value) = line.strip_prefix(prefix) {

@@ -19,12 +19,23 @@
 //! if (outcome.kind === 'misplaced') rollback(outcome);
 //! ```
 
-use super::attached_mount_identity::{MountIdentity, MountIdentityRefusal, mount_facts_of};
-use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity, field_names};
+use super::attached_mount_identity::{
+    MountIdentity,
+    MountIdentityRefusal,
+    mount_facts_of,
+};
+use super::clone_folder_identity::{
+    CloneFolderField,
+    CloneFolderIdentity,
+    field_names,
+};
 use super::clone_slot_walk::FreshSlotLookup;
 use super::clone_slot_walk_refusals::CloneSlotRefusal;
 use crate::diagnostic_log::debug;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Module tag for diagnostics.
 const TAG: &str = "attachPostCheck";
@@ -129,17 +140,44 @@ impl MisplacedReason {
     /// naming the field or the two numbers that differ.
     pub fn message(&self) -> String {
         return match self {
-            MisplacedReason::WalkRefused { refusal } => format!("the canonical slot could not be walked after the attach: {}", refusal.message()),
-            MisplacedReason::ParentChanged { fields } => format!(
+            MisplacedReason::WalkRefused {
+                refusal,
+            } => format!(
+                "the canonical slot could not be walked after the attach: {}",
+                refusal.message()
+            ),
+            MisplacedReason::ParentChanged {
+                fields,
+            } => format!(
                 "the folder above the canonical slot is not the one the attach held: the {} differs. The mount was attached through the held descriptor, so the canonical slot does not show it.",
                 field_names(fields)
             ),
-            MisplacedReason::HeldTargetElsewhere { held, attached } => format!(
+            MisplacedReason::HeldTargetElsewhere {
+                held,
+                attached,
+            } => format!(
                 "the held target's name beneath the held parent resolves to mount {held}, not mount {attached} that the attach made, so the folder the walk judged did not receive this mount."
             ),
-            MisplacedReason::MountElsewhere { fresh, attached } => format!("the mount at the canonical slot is mount {fresh}, not mount {attached} that the attach made."),
-            MisplacedReason::OtherParentMount { fresh, held } => format!("the slot's mount hangs on mount {fresh}, and the walk's parent folder is on mount {held}, so this is not the mount this walk made."),
-            MisplacedReason::ObservedPathMoved { observed, canonical } => format!("the slot's descriptor names {} now, not the canonical slot {}.", observed.display(), canonical.display()),
+            MisplacedReason::MountElsewhere {
+                fresh,
+                attached,
+            } => format!(
+                "the mount at the canonical slot is mount {fresh}, not mount {attached} that the attach made."
+            ),
+            MisplacedReason::OtherParentMount {
+                fresh,
+                held,
+            } => format!(
+                "the slot's mount hangs on mount {fresh}, and the walk's parent folder is on mount {held}, so this is not the mount this walk made."
+            ),
+            MisplacedReason::ObservedPathMoved {
+                observed,
+                canonical,
+            } => format!(
+                "the slot's descriptor names {} now, not the canonical slot {}.",
+                observed.display(),
+                canonical.display()
+            ),
         };
     }
 }
@@ -221,27 +259,77 @@ pub enum AttachOutcome {
 /// # Errors
 /// The mount table could not be read after the walk matched,
 /// so the mount cannot be recorded and the attach is rolled back.
-pub fn post_attach_check(check: &AttachPostCheck<'_>, fresh: Result<FreshSlotLookup, CloneSlotRefusal>) -> Result<AttachOutcome, MountIdentityRefusal> {
-    let misplaced = |reason: MisplacedReason, found: Option<FreshSlotLookup>, attached: u64| return AttachOutcome::Misplaced(MisplacedAttach { reason, attached_mount_id: attached, canonical_slot: check.canonical_slot.to_path_buf(), fresh: found });
+pub fn post_attach_check(
+    check: &AttachPostCheck<'_>,
+    fresh: Result<FreshSlotLookup, CloneSlotRefusal>,
+) -> Result<AttachOutcome, MountIdentityRefusal> {
+    let misplaced = |reason: MisplacedReason, found: Option<FreshSlotLookup>, attached: u64| {
+        return AttachOutcome::Misplaced(MisplacedAttach {
+            reason,
+            attached_mount_id: attached,
+            canonical_slot: check.canonical_slot.to_path_buf(),
+            fresh: found,
+        });
+    };
     if check.held_target_mount_id != check.attached_mount_id {
-        return Ok(misplaced(MisplacedReason::HeldTargetElsewhere { held: check.held_target_mount_id, attached: check.attached_mount_id }, None, check.attached_mount_id));
+        return Ok(misplaced(
+            MisplacedReason::HeldTargetElsewhere {
+                held: check.held_target_mount_id,
+                attached: check.attached_mount_id,
+            },
+            None,
+            check.attached_mount_id,
+        ));
     }
     let found: FreshSlotLookup = match fresh {
         Ok(lookup) => lookup,
-        Err(refusal) => return Ok(misplaced(MisplacedReason::WalkRefused { refusal: Box::new(refusal) }, None, check.attached_mount_id)),
+        Err(refusal) => {
+            return Ok(misplaced(
+                MisplacedReason::WalkRefused {
+                    refusal: Box::new(refusal),
+                },
+                None,
+                check.attached_mount_id,
+            ));
+        }
     };
-    let fields: Vec<CloneFolderField> = check.held_parent_identity.differences(&found.parent_identity);
+    let fields: Vec<CloneFolderField> = check
+        .held_parent_identity
+        .differences(&found.parent_identity);
     if !fields.is_empty() {
-        return Ok(misplaced(MisplacedReason::ParentChanged { fields }, Some(found), check.attached_mount_id));
+        return Ok(misplaced(
+            MisplacedReason::ParentChanged {
+                fields,
+            },
+            Some(found),
+            check.attached_mount_id,
+        ));
     }
     if found.mount_id != check.attached_mount_id {
-        return Ok(misplaced(MisplacedReason::MountElsewhere { fresh: found.mount_id, attached: check.attached_mount_id }, Some(found), check.attached_mount_id));
+        return Ok(misplaced(
+            MisplacedReason::MountElsewhere {
+                fresh: found.mount_id,
+                attached: check.attached_mount_id,
+            },
+            Some(found),
+            check.attached_mount_id,
+        ));
     }
     if found.parent_mount_id != check.held_parent_mount_id {
-        return Ok(misplaced(MisplacedReason::OtherParentMount { fresh: found.parent_mount_id, held: check.held_parent_mount_id }, Some(found), check.attached_mount_id));
+        return Ok(misplaced(
+            MisplacedReason::OtherParentMount {
+                fresh: found.parent_mount_id,
+                held: check.held_parent_mount_id,
+            },
+            Some(found),
+            check.attached_mount_id,
+        ));
     }
     if found.observed_path != check.canonical_slot {
-        let reason: MisplacedReason = MisplacedReason::ObservedPathMoved { observed: found.observed_path.clone(), canonical: check.canonical_slot.to_path_buf() };
+        let reason: MisplacedReason = MisplacedReason::ObservedPathMoved {
+            observed: found.observed_path.clone(),
+            canonical: check.canonical_slot.to_path_buf(),
+        };
         return Ok(misplaced(reason, Some(found), check.attached_mount_id));
     }
     let facts = mount_facts_of(found.mount_id)?;
@@ -255,8 +343,16 @@ pub fn post_attach_check(check: &AttachPostCheck<'_>, fresh: Result<FreshSlotLoo
         inode: found.slot_identity.inode,
         observed_path: found.observed_path.clone(),
     };
-    debug(TAG, "the mount at the canonical slot is the one the attach made");
-    return Ok(AttachOutcome::Attached { mount, parent_identity: found.parent_identity, canonical_slot: check.canonical_slot.to_path_buf(), observed_path: found.observed_path });
+    debug(
+        TAG,
+        "the mount at the canonical slot is the one the attach made",
+    );
+    return Ok(AttachOutcome::Attached {
+        mount,
+        parent_identity: found.parent_identity,
+        canonical_slot: check.canonical_slot.to_path_buf(),
+        observed_path: found.observed_path,
+    });
 }
 
 /// Controls stay out of the release executable.

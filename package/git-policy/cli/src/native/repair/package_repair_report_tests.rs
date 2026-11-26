@@ -14,13 +14,28 @@ fn destination() -> PathBuf {
 }
 
 /// A finding that worked.
-fn worked(tool: Tool, millis: u128) -> Finding {
-    return Finding { tool, outcome: Outcome::Repaired { detail: format!("{tool:?} detail"), millis } };
+fn worked(
+    tool: Tool,
+    millis: u128,
+) -> Finding {
+    return Finding {
+        tool,
+        outcome: Outcome::Repaired {
+            detail: format!("{tool:?} detail"),
+            millis,
+        },
+    };
 }
 
 /// A finding that failed.
 fn failed(tool: Tool) -> Finding {
-    return Finding { tool, outcome: Outcome::Failed { reason: format!("{tool:?} reason"), run_instead: format!("run {tool:?} instead") } };
+    return Finding {
+        tool,
+        outcome: Outcome::Failed {
+            reason: format!("{tool:?} reason"),
+            run_instead: format!("run {tool:?} instead"),
+        },
+    };
 }
 
 /// No finding prints nothing,
@@ -35,18 +50,34 @@ fn no_findings_print_nothing() {
 /// each tool's detail and the time it took.
 #[test]
 fn successes_share_one_line() {
-    let text: String = render(destination().as_path(), &[worked(Tool::Pnpm, 2_100), worked(Tool::Cargo, 300)], false);
+    let text: String = render(
+        destination().as_path(),
+        &[worked(Tool::Pnpm, 2_100), worked(Tool::Cargo, 300)],
+        false,
+    );
     assert_eq!(text.lines().count(), 1, "{text}");
-    assert!(text.contains(destination().to_str().expect("utf8")), "{text}");
-    assert!(text.contains("Pnpm detail") && text.contains("Cargo detail"), "{text}");
-    assert!(text.contains("2.1 s"), "the time is shown in seconds: {text}");
+    assert!(
+        text.contains(destination().to_str().expect("utf8")),
+        "{text}"
+    );
+    assert!(
+        text.contains("Pnpm detail") && text.contains("Cargo detail"),
+        "{text}"
+    );
+    assert!(
+        text.contains("2.1 s"),
+        "the time is shown in seconds: {text}"
+    );
     assert!(text.ends_with('\n'), "{text:?}");
 }
 
 /// `--quiet` silences a success.
 #[test]
 fn quiet_silences_success() {
-    assert_eq!(render(destination().as_path(), &[worked(Tool::Pnpm, 5)], true), "");
+    assert_eq!(
+        render(destination().as_path(), &[worked(Tool::Pnpm, 5)], true),
+        ""
+    );
 }
 
 /// A failure prints under `--quiet` too,
@@ -55,10 +86,18 @@ fn quiet_silences_success() {
 #[test]
 fn failures_print_even_when_quiet() {
     for quiet in [false, true] {
-        let text: String = render(destination().as_path(), &[failed(Tool::Pnpm), failed(Tool::Cargo)], quiet);
+        let text: String = render(
+            destination().as_path(),
+            &[failed(Tool::Pnpm), failed(Tool::Cargo)],
+            quiet,
+        );
         assert_eq!(text.lines().count(), 2, "{text}");
         for tool in [Tool::Pnpm, Tool::Cargo] {
-            assert!(text.contains(format!("{tool:?} reason").as_str()) && text.contains(format!("run {tool:?} instead").as_str()), "{text}");
+            assert!(
+                text.contains(format!("{tool:?} reason").as_str())
+                    && text.contains(format!("run {tool:?} instead").as_str()),
+                "{text}"
+            );
         }
     }
 }
@@ -80,9 +119,21 @@ fn a_mix_prints_both_kinds_unless_quiet() {
 /// so it is not read as the whole.
 #[test]
 fn a_mix_says_the_success_is_partial() {
-    let mixed: String = render(destination().as_path(), &[worked(Tool::Cargo, 10), failed(Tool::Toolchain)], false);
+    let mixed: String = render(
+        destination().as_path(),
+        &[worked(Tool::Cargo, 10), failed(Tool::Toolchain)],
+        false,
+    );
     let whole: String = render(destination().as_path(), &[worked(Tool::Cargo, 10)], false);
-    let success_of = |text: &str| -> String { return text.lines().find(|line: &&str| { return line.contains("Cargo detail"); }).unwrap_or_default().to_owned(); };
+    let success_of = |text: &str| -> String {
+        return text
+            .lines()
+            .find(|line: &&str| {
+                return line.contains("Cargo detail");
+            })
+            .unwrap_or_default()
+            .to_owned();
+    };
     assert!(success_of(mixed.as_str()).contains("part of"), "{mixed}");
     assert!(!success_of(whole.as_str()).contains("part of"), "{whole}");
 }
@@ -95,14 +146,37 @@ fn a_mix_says_the_success_is_partial() {
 #[test]
 fn a_tool_stopped_at_its_ceiling_is_named_with_what_it_did_and_the_command_to_run() {
     let ceiling: std::time::Duration = crate::wait_ceilings::REPAIR_TOOL_CEILING;
-    for (tool, name) in [(Tool::Pnpm, "pnpm"), (Tool::Cargo, "cargo"), (Tool::Toolchain, "mpm-shadow")] {
-        let run: ToolRun = ToolRun { end: ToolEnd::CeilingReached(ceiling), millis: ceiling.as_millis(), stdout: Vec::new(), notes: Vec::new() };
+    for (tool, name) in [
+        (Tool::Pnpm, "pnpm"),
+        (Tool::Cargo, "cargo"),
+        (Tool::Toolchain, "mpm-shadow"),
+    ] {
+        let run: ToolRun = ToolRun {
+            end: ToolEnd::CeilingReached(ceiling),
+            millis: ceiling.as_millis(),
+            stdout: Vec::new(),
+            notes: Vec::new(),
+        };
         let finding: Finding = finding_from(tool, &run, "detail", "the command to run");
-        let Outcome::Failed { reason, run_instead } = &finding.outcome else { panic!("{finding:?}") };
-        assert!(reason.contains(name) && reason.contains(ceiling.as_secs().to_string().as_str()) && reason.contains("whole process group"), "{reason}");
+        let Outcome::Failed {
+            reason,
+            run_instead,
+        } = &finding.outcome
+        else {
+            panic!("{finding:?}")
+        };
+        assert!(
+            reason.contains(name)
+                && reason.contains(ceiling.as_secs().to_string().as_str())
+                && reason.contains("whole process group"),
+            "{reason}"
+        );
         assert_eq!(run_instead, "the command to run");
         let line: String = render(destination().as_path(), &[finding], true);
-        assert!(line.contains(name) && line.contains("run the command to run"), "{line}");
+        assert!(
+            line.contains(name) && line.contains("run the command to run"),
+            "{line}"
+        );
     }
 }
 
@@ -110,7 +184,11 @@ fn a_tool_stopped_at_its_ceiling_is_named_with_what_it_did_and_the_command_to_ru
 /// or the window would never end anything.
 #[test]
 fn the_shipped_ceiling_is_past_the_shipped_quiet_window() {
-    let environment: crate::package_repair::RepairEnvironment = crate::package_repair::RepairEnvironment::from_process();
+    let environment: crate::package_repair::RepairEnvironment =
+        crate::package_repair::RepairEnvironment::from_process();
     assert!(environment.ceiling > environment.quiet_window);
-    assert_eq!(environment.ceiling, crate::wait_ceilings::REPAIR_TOOL_CEILING);
+    assert_eq!(
+        environment.ceiling,
+        crate::wait_ceilings::REPAIR_TOOL_CEILING
+    );
 }

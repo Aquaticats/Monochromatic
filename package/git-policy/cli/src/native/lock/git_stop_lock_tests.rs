@@ -17,19 +17,55 @@
 //! ```
 #![cfg(unix)]
 
-use crate::bounded_push::{run_bounded_push, Patience, STOPPED_EXIT_CODE};
-use crate::child_watch::{output_watched, WatchTerms};
+use crate::bounded_push::{
+    Patience,
+    STOPPED_EXIT_CODE,
+    run_bounded_push,
+};
+use crate::child_watch::{
+    WatchTerms,
+    output_watched,
+};
 use crate::process_tree::TreeMember;
-use crate::push_limit_held_for_an_ordering::{LimitHeldForAnOrdering, LimitHoldGuard, hold_limit_for_an_ordering};
-use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
-use crate::stop_waits_while_a_member_cannot_be_interrupted::{ControlRules, RulesGuard, STOP_CEILING, rules_for_this_thread};
-use crate::testing::strace_the_controls_run_under::{strace_available_or_acknowledged, strace_program};
-use crate::test_support::{fixture, git, git_text, remove, repository, scratch_environment, while_test_lives};
+use crate::push_limit_held_for_an_ordering::{
+    LimitHeldForAnOrdering,
+    LimitHoldGuard,
+    hold_limit_for_an_ordering,
+};
+use crate::stop_waits_while_a_member_cannot_be_interrupted::{
+    ControlRules,
+    RulesGuard,
+    STOP_CEILING,
+    rules_for_this_thread,
+};
+use crate::stopped_git_locks::{
+    LOCK_SUFFIX,
+    PID_LOCK_SUFFIX,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_text,
+    remove,
+    repository,
+    scratch_environment,
+    while_test_lives,
+};
+use crate::testing::strace_the_controls_run_under::{
+    strace_available_or_acknowledged,
+    strace_program,
+};
 use std::cell::Cell;
 use std::os::unix::process::CommandExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The deadline of the held lock's command:
 /// long enough for Git to start and take the lock,
@@ -174,7 +210,12 @@ struct Watched {
 impl Watched {
     fn of(stage: &Stage) -> Self {
         let files: LockFiles = LockFiles::of(stage);
-        return Self { lock: files.lock, pid_file: files.pid_file, held_seen: Cell::new(false), cut_seen: Cell::new(false) };
+        return Self {
+            lock: files.lock,
+            pid_file: files.pid_file,
+            held_seen: Cell::new(false),
+            cut_seen: Cell::new(false),
+        };
     }
 
     /// What the two files look like now,
@@ -222,19 +263,35 @@ fn the_holder_holds_its_lock() -> bool {
 
 /// Whether a look of this control saw the holder holding its lock.
 fn saw_the_holder_hold_the_lock() -> bool {
-    return WATCHED.with(|slot| { return slot.borrow().as_ref().is_some_and(|watched| { return watched.held_seen.get(); }); });
+    return WATCHED.with(|slot| {
+        return slot.borrow().as_ref().is_some_and(|watched| {
+            return watched.held_seen.get();
+        });
+    });
 }
 
 /// What the watched files look like now,
 /// for the words of a failure.
 fn describe_the_holder() -> String {
-    return WATCHED.with(|slot| { return slot.borrow().as_ref().map(Watched::describe).unwrap_or_else(|| { return String::from("nothing is watched on this thread"); }); });
+    return WATCHED.with(|slot| {
+        return slot
+            .borrow()
+            .as_ref()
+            .map(Watched::describe)
+            .unwrap_or_else(|| {
+                return String::from("nothing is watched on this thread");
+            });
+    });
 }
 
 /// Whether a look of this control saw Git between its two unlinks,
 /// the ordering both slow-cleanup controls are about.
 fn saw_the_cut() -> bool {
-    return WATCHED.with(|slot| { return slot.borrow().as_ref().is_some_and(|watched| { return watched.cut_seen.get(); }); });
+    return WATCHED.with(|slot| {
+        return slot.borrow().as_ref().is_some_and(|watched| {
+            return watched.cut_seen.get();
+        });
+    });
 }
 
 /// Keep the stop waiting while Git has not begun its cleanup,
@@ -306,7 +363,9 @@ impl StopRule {
         return match self {
             StopRule::TheProductionRule => None,
             StopRule::UntilTheCutIsReached => Some(wait_while_git_has_not_begun_its_cleanup),
-            StopRule::UntilTheCleanupIsFinished => Some(wait_while_git_has_not_finished_its_cleanup),
+            StopRule::UntilTheCleanupIsFinished => {
+                Some(wait_while_git_has_not_finished_its_cleanup)
+            }
         };
     }
 
@@ -335,15 +394,30 @@ struct Watching {
 }
 
 impl Watching {
-    fn of(stage: &Stage, rule: StopRule) -> Self {
+    fn of(
+        stage: &Stage,
+        rule: StopRule,
+    ) -> Self {
         let watched: Watched = Watched::of(stage);
         let clear: WatchedClear = WATCHED.with(|slot| {
             *slot.borrow_mut() = Some(watched);
             return WatchedClear;
         });
-        let limit: LimitHoldGuard = hold_limit_for_an_ordering(LimitHeldForAnOrdering { reached: the_holder_holds_its_lock, ceiling: ANNOUNCEMENT_HOLD });
-        let rules: Option<RulesGuard> = rule.blocked().map(|blocked| { return rules_for_this_thread(ControlRules { blocked, ceiling: STOP_CEILING }); });
-        return Self { _watched: clear, _limit: limit, _rules: rules };
+        let limit: LimitHoldGuard = hold_limit_for_an_ordering(LimitHeldForAnOrdering {
+            reached: the_holder_holds_its_lock,
+            ceiling: ANNOUNCEMENT_HOLD,
+        });
+        let rules: Option<RulesGuard> = rule.blocked().map(|blocked| {
+            return rules_for_this_thread(ControlRules {
+                blocked,
+                ceiling: STOP_CEILING,
+            });
+        });
+        return Self {
+            _watched: clear,
+            _limit: limit,
+            _rules: rules,
+        };
     }
 }
 
@@ -352,7 +426,9 @@ struct WatchedClear;
 
 impl Drop for WatchedClear {
     fn drop(&mut self) {
-        WATCHED.with(|slot| { *slot.borrow_mut() = None; });
+        WATCHED.with(|slot| {
+            *slot.borrow_mut() = None;
+        });
     }
 }
 
@@ -379,15 +455,28 @@ fn stage(name: &str) -> Stage {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     let remote: PathBuf = root.join("remote.git");
-    git(root.as_path(), &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
-    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    git(
+        root.as_path(),
+        &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")],
+    );
+    git(
+        repo.as_path(),
+        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+    );
     git(repo.as_path(), &["push", "--quiet", "origin", "main"]);
     let behind: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message", "second"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message", "second"],
+    );
     git(repo.as_path(), &["push", "--quiet", "origin", "main"]);
     git(repo.as_path(), &["update-ref", HELD_REF, behind.as_str()]);
     let ready: PathBuf = root.join("ready");
-    return Stage { root, repo, ready };
+    return Stage {
+        root,
+        repo,
+        ready,
+    };
 }
 
 /// What:
@@ -416,9 +505,13 @@ fn stage(name: &str) -> Stage {
 /// never a bare name:
 /// the holder's `PATH` is the fixture's, and a machine without the tracer cannot make the cut at all
 /// (`can_arrange_the_cut`).
-fn held_before_the_pid_file_goes(tracer: &Path, hold: Duration) -> String {
+fn held_before_the_pid_file_goes(
+    tracer: &Path,
+    hold: Duration,
+) -> String {
     let microseconds: u128 = hold.as_micros();
-    let quoted: String = crate::shell_quote::shell_quote(crate::path_bytes::argument_bytes(tracer.as_os_str()));
+    let quoted: String =
+        crate::shell_quote::shell_quote(crate::path_bytes::argument_bytes(tracer.as_os_str()));
     return format!(
         "{quoted} -f -o /dev/null --kill-on-exit -P \"$PID_FILE\" -e trace=unlink,unlinkat \
          -e inject=unlink:delay_exit={microseconds}:when=1 -e inject=unlinkat:delay_exit={microseconds}:when=1 /usr/bin/git"
@@ -433,7 +526,8 @@ fn held_before_the_pid_file_goes(tracer: &Path, hold: Duration) -> String {
 /// a control that reaches here without a tracer overwrote its own report of that,
 /// so the read refuses loudly instead.
 fn the_tracer() -> PathBuf {
-    return strace_program().expect("the control checked that strace is on PATH before it built the holder");
+    return strace_program()
+        .expect("the control checked that strace is on PATH before it built the holder");
 }
 
 /// What:
@@ -454,15 +548,24 @@ fn the_tracer() -> PathBuf {
 /// and a run that stated the absence gets the line that says this control did not run.
 /// A gate image that lost the program is red, not green with these controls unchecked;
 /// the image installs `strace` (`native-test-base.Containerfile`).
-fn can_arrange_the_cut(kind: Holder, control: &str) -> bool {
-    let traced: bool = matches!(kind, Holder::SlowToFinishCleanup | Holder::HeldPastTheStopGrace);
+fn can_arrange_the_cut(
+    kind: Holder,
+    control: &str,
+) -> bool {
+    let traced: bool = matches!(
+        kind,
+        Holder::SlowToFinishCleanup | Holder::HeldPastTheStopGrace
+    );
     return !traced || strace_available_or_acknowledged(control);
 }
 
 /// The command that holds the lock of `HELD_REF`:
 /// `git update-ref --stdin` told to prepare,
 /// then kept waiting.
-fn holder(stage: &Stage, kind: Holder) -> Command {
+fn holder(
+    stage: &Stage,
+    kind: Holder,
+) -> Command {
     let files: LockFiles = LockFiles::of(stage);
     let lock: PathBuf = files.lock;
     let pid_file: PathBuf = files.pid_file;
@@ -473,10 +576,18 @@ fn holder(stage: &Stage, kind: Holder) -> Command {
     //  (`a_stall_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove`, measured 2026-11-11).
     let lives: String = while_test_lives(stage.root.as_path());
     let watcher: PathBuf = stage.root.join("hold-the-pipe-open.sh");
-    crate::test_support::executable(watcher.as_path(), format!("#!/bin/sh\nwhile {lives}; do sleep 0.1; done\n").as_bytes());
+    crate::test_support::executable(
+        watcher.as_path(),
+        format!("#!/bin/sh\nwhile {lives}; do sleep 0.1; done\n").as_bytes(),
+    );
     let git: String = match kind {
-        Holder::SlowToFinishCleanup => held_before_the_pid_file_goes(the_tracer().as_path(), CLEANUP_HOLD),
-        Holder::HeldPastTheStopGrace => held_before_the_pid_file_goes(the_tracer().as_path(), 2 * crate::bounded_push::STOP_GRACE),
+        Holder::SlowToFinishCleanup => {
+            held_before_the_pid_file_goes(the_tracer().as_path(), CLEANUP_HOLD)
+        }
+        Holder::HeldPastTheStopGrace => held_before_the_pid_file_goes(
+            the_tracer().as_path(),
+            2 * crate::bounded_push::STOP_GRACE,
+        ),
         Holder::Responsive | Holder::Unresponsive => String::from("/usr/bin/git"),
     };
     // The watcher keeps the pipe to Git's input on its standard output, which is what holds the transaction open, and it is
@@ -527,7 +638,10 @@ fn lock_files(directory: &Path) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![directory.to_path_buf()];
     while let Some(next) = pending.pop() {
-        for entry in std::fs::read_dir(next.as_path()).expect("read the directory").flatten() {
+        for entry in std::fs::read_dir(next.as_path())
+            .expect("read the directory")
+            .flatten()
+        {
             let path: PathBuf = entry.path();
             if entry.file_type().expect("file type").is_dir() {
                 pending.push(path);
@@ -552,11 +666,24 @@ fn describe_left(files: &[PathBuf]) -> String {
     let mut lines: Vec<String> = Vec::new();
     for file in files {
         let meta = std::fs::symlink_metadata(file);
-        let size: String = meta.as_ref().map_or(String::from("gone"), |metadata| { return metadata.len().to_string(); });
-        let born: String = meta.as_ref().ok().and_then(|metadata| { return metadata.created().ok(); }).map_or(String::from("unknown"), |time| { return format!("{time:?}"); });
+        let size: String = meta.as_ref().map_or(String::from("gone"), |metadata| {
+            return metadata.len().to_string();
+        });
+        let born: String = meta
+            .as_ref()
+            .ok()
+            .and_then(|metadata| {
+                return metadata.created().ok();
+            })
+            .map_or(String::from("unknown"), |time| {
+                return format!("{time:?}");
+            });
         let name: String = file.to_string_lossy().into_owned();
         let sibling: String = format!("{}~pid.lock", name.trim_end_matches(".lock"));
-        lines.push(format!("{name} size={size} born={born} pid_file_beside={}", Path::new(sibling.as_str()).exists()));
+        lines.push(format!(
+            "{name} size={size} born={born} pid_file_beside={}",
+            Path::new(sibling.as_str()).exists()
+        ));
     }
     return lines.join("; ");
 }
@@ -612,7 +739,12 @@ impl Leftover {
 /// The sweep runs before the stop returns,
 /// and it removes nothing it cannot prove,
 /// so the lock a killed holder left is still there for the next command to name.
-fn assert_the_kill_landed_where_the_control_says(stage: &Stage, kind: Holder, how: &str, leftover: Leftover) {
+fn assert_the_kill_landed_where_the_control_says(
+    stage: &Stage,
+    kind: Holder,
+    how: &str,
+    leftover: Leftover,
+) {
     let Some(pid_file_beside_the_lock) = leftover.pid_file_beside_the_lock() else {
         return;
     };
@@ -637,7 +769,12 @@ fn assert_the_kill_landed_where_the_control_says(stage: &Stage, kind: Holder, ho
 /// a holder that cleaned up leaves nothing,
 /// and one that was killed leaves the lock the wrapper will not remove,
 /// with the pid file its kill did or did not take.
-fn assert_after_stop(stage: &Stage, kind: Holder, how: &str, leftover: Leftover) {
+fn assert_after_stop(
+    stage: &Stage,
+    kind: Holder,
+    how: &str,
+    leftover: Leftover,
+) {
     assert_the_kill_landed_where_the_control_says(stage, kind, how, leftover);
     if leftover != Leftover::TheHolderCleansItUp {
         return;
@@ -648,7 +785,11 @@ fn assert_after_stop(stage: &Stage, kind: Holder, how: &str, leftover: Leftover)
         std::thread::sleep(Duration::from_millis(50));
         left = lock_files(stage.repo.join(".git").as_path());
     }
-    assert!(left.is_empty(), "{how} {kind:?}: a stopped Git child left lock files: {}", describe_left(left.as_slice()));
+    assert!(
+        left.is_empty(),
+        "{how} {kind:?}: a stopped Git child left lock files: {}",
+        describe_left(left.as_slice())
+    );
     let fetched = std::process::Command::new("/usr/bin/git")
         .current_dir(stage.repo.as_path())
         .env_clear()
@@ -658,11 +799,19 @@ fn assert_after_stop(stage: &Stage, kind: Holder, how: &str, leftover: Leftover)
         .args(["fetch", "--quiet", "origin", "main"])
         .output()
         .expect("start git fetch");
-    assert!(fetched.status.success(), "{how} {kind:?}: the following fetch failed: {}", String::from_utf8_lossy(&fetched.stderr));
+    assert!(
+        fetched.status.success(),
+        "{how} {kind:?}: the following fetch failed: {}",
+        String::from_utf8_lossy(&fetched.stderr)
+    );
 }
 
 /// A push-style bounded run stops the holder at its run's limit.
-fn bounded_run(kind: Holder, name: &str, leftover: Leftover) {
+fn bounded_run(
+    kind: Holder,
+    name: &str,
+    leftover: Leftover,
+) {
     bounded_run_with(kind, name, StopRule::TheProductionRule, leftover);
 }
 
@@ -678,21 +827,40 @@ fn bounded_run(kind: Holder, name: &str, leftover: Leftover) {
 /// the report then names the ordering the control
 ///  needed and did not see,
 /// never a watchdog.
-fn bounded_run_with(kind: Holder, name: &str, rule: StopRule, leftover: Leftover) {
+fn bounded_run_with(
+    kind: Holder,
+    name: &str,
+    rule: StopRule,
+    leftover: Leftover,
+) {
     if !can_arrange_the_cut(kind, name) {
         return;
     }
     let stage: Stage = stage(name);
     let grace: Duration = match kind {
         Holder::Responsive => RESPONSIVE_GRACE,
-        Holder::Unresponsive | Holder::SlowToFinishCleanup | Holder::HeldPastTheStopGrace => SHORT_GRACE,
+        Holder::Unresponsive | Holder::SlowToFinishCleanup | Holder::HeldPastTheStopGrace => {
+            SHORT_GRACE
+        }
     };
     let watching: Watching = Watching::of(&stage, rule);
-    let attempt = run_bounded_push(holder(&stage, kind), Patience::Fixed(HOLD_DEADLINE), grace, scratch_environment().as_slice()).expect("runs");
-    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its limit");
+    let attempt = run_bounded_push(
+        holder(&stage, kind),
+        Patience::Fixed(HOLD_DEADLINE),
+        grace,
+        scratch_environment().as_slice(),
+    )
+    .expect("runs");
+    assert_eq!(
+        attempt.exit_code, STOPPED_EXIT_CODE,
+        "the holder is stopped at its limit"
+    );
     assert_the_holder_held_its_lock(kind, "bounded run");
     if rule.expects_the_cut() {
-        assert!(saw_the_cut(), "{kind:?}: the stop ended without a look seeing Git between its two unlinks, so the ordering this control is about never happened");
+        assert!(
+            saw_the_cut(),
+            "{kind:?}: the stop ended without a look seeing Git between its two unlinks, so the ordering this control is about never happened"
+        );
     }
     drop(watching);
     assert_after_stop(&stage, kind, "bounded run", leftover);
@@ -709,7 +877,10 @@ fn bounded_run_with(kind: Holder, name: &str, rule: StopRule, leftover: Leftover
 ///  the hold ran out and names what was on disk,
 /// instead of the misleading "the holder took the lock before it was
 ///  stopped" of a control that bet the holder is quick.
-fn assert_the_holder_held_its_lock(kind: Holder, how: &str) {
+fn assert_the_holder_held_its_lock(
+    kind: Holder,
+    how: &str,
+) {
     assert!(
         saw_the_holder_hold_the_lock(),
         "{how} {kind:?}: no look saw the lock and its pid file within the hold of {ANNOUNCEMENT_HOLD:?}, so the stop was asked before the holder held the lock: {}",
@@ -730,12 +901,23 @@ fn assert_the_holder_held_its_lock(kind: Holder, how: &str) {
 /// A step stopped by a fixed limit is not:
 /// its limit can pass before the holder reaches its lock,
 ///  which is why those controls read Git's own files instead (`the_holder_holds_its_lock`).
-fn assert_the_holder_announced_its_lock(stage: &Stage, kind: Holder, how: &str) {
-    assert!(stage.ready.exists(), "{how} {kind:?}: the holder never announced that it held the lock, so the stop was asked before the lock existed");
+fn assert_the_holder_announced_its_lock(
+    stage: &Stage,
+    kind: Holder,
+    how: &str,
+) {
+    assert!(
+        stage.ready.exists(),
+        "{how} {kind:?}: the holder never announced that it held the lock, so the stop was asked before the lock existed"
+    );
 }
 
 /// A watched step stops the holder at its bound.
-fn watched_step(kind: Holder, name: &str, leftover: Leftover) {
+fn watched_step(
+    kind: Holder,
+    name: &str,
+    leftover: Leftover,
+) {
     if !can_arrange_the_cut(kind, name) {
         return;
     }
@@ -743,11 +925,17 @@ fn watched_step(kind: Holder, name: &str, leftover: Leftover) {
     let mut command: Command = holder(&stage, kind);
     let terms: WatchTerms = WatchTerms {
         limit: HOLD_DEADLINE,
-        cadence: crate::wait_progress::Cadence { grace: HOLD_DEADLINE, interval: HOLD_DEADLINE },
+        cadence: crate::wait_progress::Cadence {
+            grace: HOLD_DEADLINE,
+            interval: HOLD_DEADLINE,
+        },
         notices: Box::new(std::io::sink()),
     };
     let ended = output_watched(&mut command, "git update-ref --stdin", terms);
-    assert_eq!(ended.expect_err("the step is stopped at its bound").kind(), std::io::ErrorKind::TimedOut);
+    assert_eq!(
+        ended.expect_err("the step is stopped at its bound").kind(),
+        std::io::ErrorKind::TimedOut
+    );
     assert_the_holder_announced_its_lock(&stage, kind, "watched step");
     assert_after_stop(&stage, kind, "watched step", leftover);
     remove(stage.root.as_path());
@@ -759,18 +947,38 @@ fn watched_step(kind: Holder, name: &str, leftover: Leftover) {
 #[test]
 fn a_stall_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove() {
     let stage: Stage = stage("stop-lock-push-stall");
-    let patience: Patience = Patience::Progress { stall: HOLD_DEADLINE };
-    let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), patience, SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
-    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped on no progress");
+    let patience: Patience = Patience::Progress {
+        stall: HOLD_DEADLINE,
+    };
+    let attempt = run_bounded_push(
+        holder(&stage, Holder::Unresponsive),
+        patience,
+        SHORT_GRACE,
+        scratch_environment().as_slice(),
+    )
+    .expect("runs");
+    assert_eq!(
+        attempt.exit_code, STOPPED_EXIT_CODE,
+        "the holder is stopped on no progress"
+    );
     assert_the_holder_announced_its_lock(&stage, Holder::Unresponsive, "stalled run");
-    assert_after_stop(&stage, Holder::Unresponsive, "stalled run", Leftover::BeforeTheHandlerRan);
+    assert_after_stop(
+        &stage,
+        Holder::Unresponsive,
+        "stalled run",
+        Leftover::BeforeTheHandlerRan,
+    );
     remove(stage.root.as_path());
 }
 
 /// A holder that answers `SIGTERM` is cleaned up by Git itself in the push path.
 #[test]
 fn a_push_stop_of_a_responsive_holder_leaves_no_lock() {
-    bounded_run(Holder::Responsive, "stop-lock-push-responsive", Leftover::TheHolderCleansItUp);
+    bounded_run(
+        Holder::Responsive,
+        "stop-lock-push-responsive",
+        Leftover::TheHolderCleansItUp,
+    );
 }
 
 /// A holder whose handler is slow to finish is not killed between Git's two unlinks:
@@ -789,7 +997,12 @@ fn a_push_stop_of_a_responsive_holder_leaves_no_lock() {
 ///  (`doc/troubleshooting/git-policy-cli-stop-lock-controls-wait-on-order-not-time.md`).
 #[test]
 fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
-    bounded_run_with(Holder::SlowToFinishCleanup, "stop-lock-push-slow-cleanup", StopRule::UntilTheCleanupIsFinished, Leftover::TheHolderCleansItUp);
+    bounded_run_with(
+        Holder::SlowToFinishCleanup,
+        "stop-lock-push-slow-cleanup",
+        StopRule::UntilTheCleanupIsFinished,
+        Leftover::TheHolderCleansItUp,
+    );
 }
 
 /// A kill that falls between Git's two unlinks leaves the lock,
@@ -819,7 +1032,12 @@ fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
 /// so the lock stays and is named.
 #[test]
 fn a_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_prove() {
-    bounded_run_with(Holder::SlowToFinishCleanup, "stop-lock-push-cut-cleanup", StopRule::UntilTheCutIsReached, Leftover::BetweenTheUnlinks);
+    bounded_run_with(
+        Holder::SlowToFinishCleanup,
+        "stop-lock-push-cut-cleanup",
+        StopRule::UntilTheCutIsReached,
+        Leftover::BetweenTheUnlinks,
+    );
 }
 
 /// The same cut in the watched path leaves the lock too.
@@ -841,7 +1059,11 @@ fn a_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_prove() {
 /// which is Git's handler finishing its cleanup after the tracer it was held in was killed.
 #[test]
 fn a_watched_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_prove() {
-    watched_step(Holder::HeldPastTheStopGrace, "stop-lock-watched-cut-cleanup", Leftover::BetweenTheUnlinks);
+    watched_step(
+        Holder::HeldPastTheStopGrace,
+        "stop-lock-watched-cut-cleanup",
+        Leftover::BetweenTheUnlinks,
+    );
 }
 
 /// A member that never leaves the state where a signal cannot act is still ended at the stop's ceiling:
@@ -858,16 +1080,39 @@ fn a_member_held_for_ever_is_ended_at_the_ceiling_and_its_lock_is_left() {
     const GENEROUS_SLACK: Duration = ANNOUNCEMENT_HOLD;
     let stage: Stage = stage("stop-lock-push-held-for-ever");
     let watching: Watching = Watching::of(&stage, StopRule::TheProductionRule);
-    let _rules = rules_for_this_thread(ControlRules { blocked: held_for_ever, ceiling: CEILING });
+    let _rules = rules_for_this_thread(ControlRules {
+        blocked: held_for_ever,
+        ceiling: CEILING,
+    });
     let began: Instant = Instant::now();
-    let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), Patience::Fixed(HOLD_DEADLINE), GRACE, scratch_environment().as_slice()).expect("runs");
+    let attempt = run_bounded_push(
+        holder(&stage, Holder::Unresponsive),
+        Patience::Fixed(HOLD_DEADLINE),
+        GRACE,
+        scratch_environment().as_slice(),
+    )
+    .expect("runs");
     let took: Duration = began.elapsed();
-    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its limit");
-    assert!(took >= HOLD_DEADLINE + CEILING, "the stop forced the end after {took:?}, before the ceiling of {CEILING:?} that followed the request");
-    assert!(took < HOLD_DEADLINE + CEILING + GENEROUS_SLACK, "the stop took {took:?}: it waited past its ceiling");
+    assert_eq!(
+        attempt.exit_code, STOPPED_EXIT_CODE,
+        "the holder is stopped at its limit"
+    );
+    assert!(
+        took >= HOLD_DEADLINE + CEILING,
+        "the stop forced the end after {took:?}, before the ceiling of {CEILING:?} that followed the request"
+    );
+    assert!(
+        took < HOLD_DEADLINE + CEILING + GENEROUS_SLACK,
+        "the stop took {took:?}: it waited past its ceiling"
+    );
     assert_the_holder_held_its_lock(Holder::Unresponsive, "stalled run held for ever");
     drop(watching);
-    assert_after_stop(&stage, Holder::Unresponsive, "bounded run held for ever", Leftover::BeforeTheHandlerRan);
+    assert_after_stop(
+        &stage,
+        Holder::Unresponsive,
+        "bounded run held for ever",
+        Leftover::BeforeTheHandlerRan,
+    );
     remove(stage.root.as_path());
 }
 
@@ -875,20 +1120,32 @@ fn a_member_held_for_ever_is_ended_at_the_ceiling_and_its_lock_is_left() {
 /// and the lock it held stays.
 #[test]
 fn a_push_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove() {
-    bounded_run(Holder::Unresponsive, "stop-lock-push-unresponsive", Leftover::BeforeTheHandlerRan);
+    bounded_run(
+        Holder::Unresponsive,
+        "stop-lock-push-unresponsive",
+        Leftover::BeforeTheHandlerRan,
+    );
 }
 
 /// A holder that answers `SIGTERM` gets the chance in the watched path.
 #[test]
 fn a_watched_stop_of_a_responsive_holder_leaves_no_lock() {
-    watched_step(Holder::Responsive, "stop-lock-watched-responsive", Leftover::TheHolderCleansItUp);
+    watched_step(
+        Holder::Responsive,
+        "stop-lock-watched-responsive",
+        Leftover::TheHolderCleansItUp,
+    );
 }
 
 /// A holder that cannot answer `SIGTERM` is killed in the watched path,
 /// and the lock it held stays.
 #[test]
 fn a_watched_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove() {
-    watched_step(Holder::Unresponsive, "stop-lock-watched-unresponsive", Leftover::BeforeTheHandlerRan);
+    watched_step(
+        Holder::Unresponsive,
+        "stop-lock-watched-unresponsive",
+        Leftover::BeforeTheHandlerRan,
+    );
 }
 
 /// The watched path asks with a catchable signal before it kills:
@@ -908,12 +1165,21 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
         .env("MARKER", marker.as_os_str());
     let terms: WatchTerms = WatchTerms {
         limit: Duration::from_millis(500),
-        cadence: crate::wait_progress::Cadence { grace: Duration::from_millis(500), interval: Duration::from_millis(500) },
+        cadence: crate::wait_progress::Cadence {
+            grace: Duration::from_millis(500),
+            interval: Duration::from_millis(500),
+        },
         notices: Box::new(std::io::sink()),
     };
     let ended = output_watched(&mut command, "a trapping shell", terms);
-    assert_eq!(ended.expect_err("stopped for being quiet").kind(), std::io::ErrorKind::TimedOut);
-    assert!(marker.exists(), "the stop reached the TERM trap before any kill");
+    assert_eq!(
+        ended.expect_err("stopped for being quiet").kind(),
+        std::io::ErrorKind::TimedOut
+    );
+    assert!(
+        marker.exists(),
+        "the stop reached the TERM trap before any kill"
+    );
     remove(root.as_path());
 }
 
@@ -925,9 +1191,23 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
 fn a_stop_without_grace_sweeps_on_a_thread_of_its_own() {
     let stage: Stage = stage("stop-lock-push-no-grace");
     let _watching: Watching = Watching::of(&stage, StopRule::TheProductionRule);
-    let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), Patience::Fixed(HOLD_DEADLINE), Duration::ZERO, scratch_environment().as_slice()).expect("runs");
-    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its limit");
+    let attempt = run_bounded_push(
+        holder(&stage, Holder::Unresponsive),
+        Patience::Fixed(HOLD_DEADLINE),
+        Duration::ZERO,
+        scratch_environment().as_slice(),
+    )
+    .expect("runs");
+    assert_eq!(
+        attempt.exit_code, STOPPED_EXIT_CODE,
+        "the holder is stopped at its limit"
+    );
     assert_the_holder_held_its_lock(Holder::Unresponsive, "bounded run without grace");
-    assert_after_stop(&stage, Holder::Unresponsive, "bounded run without grace", Leftover::BeforeTheHandlerRan);
+    assert_after_stop(
+        &stage,
+        Holder::Unresponsive,
+        "bounded run without grace",
+        Leftover::BeforeTheHandlerRan,
+    );
     remove(stage.root.as_path());
 }

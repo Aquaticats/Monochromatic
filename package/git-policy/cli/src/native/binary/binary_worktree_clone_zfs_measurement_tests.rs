@@ -20,9 +20,29 @@
 //! ```
 
 /// Import the shared fixtures and the counter readings.
-use super::support::{BlockCloneCounters, Fixture, Observed, counters, fixture, on_zfs_or_acknowledged, remove, repository, run_direct, run_wrapped_verbose, stderr_of};
-use super::worktree_snapshot::{commit_all, tracked, tracked_above_the_mean_edge, tracked_content};
-use std::path::{Path, PathBuf};
+use super::support::{
+    BlockCloneCounters,
+    Fixture,
+    Observed,
+    counters,
+    fixture,
+    on_zfs_or_acknowledged,
+    remove,
+    repository,
+    run_direct,
+    run_wrapped_verbose,
+    stderr_of,
+};
+use super::worktree_snapshot::{
+    commit_all,
+    tracked,
+    tracked_above_the_mean_edge,
+    tracked_content,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// How many rounds each arm is measured in,
 /// alternating Git's checkout and the wrapper's add.
@@ -46,12 +66,20 @@ fn files_under(directory: &Path) -> Vec<(PathBuf, PathBuf)> {
     let mut found: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![directory.to_path_buf()];
     while let Some(current) = pending.pop() {
-        for entry in std::fs::read_dir(current.as_path()).expect("a directory of the measured tree").flatten() {
+        for entry in std::fs::read_dir(current.as_path())
+            .expect("a directory of the measured tree")
+            .flatten()
+        {
             let path: PathBuf = entry.path();
             if path.is_dir() {
                 pending.push(path);
             } else if path.is_file() {
-                found.push((path.strip_prefix(directory).expect("below the tree").to_path_buf(), path.clone()));
+                found.push((
+                    path.strip_prefix(directory)
+                        .expect("below the tree")
+                        .to_path_buf(),
+                    path.clone(),
+                ));
             }
         }
     }
@@ -74,13 +102,19 @@ fn files_under(directory: &Path) -> Vec<(PathBuf, PathBuf)> {
 /// ```
 fn measured_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, std::ffi::OsStr::new("measured"));
-    let sources: Vec<(PathBuf, PathBuf)> = files_under(Path::new(env!("CARGO_MANIFEST_DIR")).join("src").as_path());
+    let sources: Vec<(PathBuf, PathBuf)> =
+        files_under(Path::new(env!("CARGO_MANIFEST_DIR")).join("src").as_path());
     // The anchor sits above the clone rung's mean-file edge on purpose: this tree of the crate's own sources averages
     // about 14 KB a file, the size limit declines it, and the measurement would read Git's checkout instead of the rung.
     tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", sources.len() as u64);
     for (relative, absolute) in sources {
-        let content: Vec<u8> = std::fs::read(absolute.as_path()).expect("a source file of the measured tree");
-        tracked(repo.as_path(), relative.to_str().expect("a UTF-8 path in this crate"), content.as_slice());
+        let content: Vec<u8> =
+            std::fs::read(absolute.as_path()).expect("a source file of the measured tree");
+        tracked(
+            repo.as_path(),
+            relative.to_str().expect("a UTF-8 path in this crate"),
+            content.as_slice(),
+        );
     }
     commit_all(fixture, repo.as_path(), "measured tree");
     return repo;
@@ -117,8 +151,14 @@ struct ArmCost {
 /// ```ts
 /// const before = counters(); run(); const after = counters(); return { used: after.used - before.used, blocks: after.bcloneused - before.bcloneused };
 /// ```
-fn cost_of(before: &BlockCloneCounters, after: &BlockCloneCounters) -> ArmCost {
-    return ArmCost { used: after.allocated.saturating_sub(before.allocated), blocks: after.bcloneused.saturating_sub(before.bcloneused) };
+fn cost_of(
+    before: &BlockCloneCounters,
+    after: &BlockCloneCounters,
+) -> ArmCost {
+    return ArmCost {
+        used: after.allocated.saturating_sub(before.allocated),
+        blocks: after.bcloneused.saturating_sub(before.bcloneused),
+    };
 }
 
 /// What:
@@ -138,27 +178,67 @@ fn cost_of(before: &BlockCloneCounters, after: &BlockCloneCounters) -> ArmCost {
 #[test]
 fn a_clean_same_dataset_add_saves_disk_against_gits_checkout() {
     let fixture: Fixture = fixture("zfs-measurement");
-    if !on_zfs_or_acknowledged(&fixture, "a_clean_same_dataset_add_saves_disk_against_gits_checkout") {
+    if !on_zfs_or_acknowledged(
+        &fixture,
+        "a_clean_same_dataset_add_saves_disk_against_gits_checkout",
+    ) {
         remove(&fixture);
         return;
     }
     let repo: PathBuf = measured_repository(&fixture);
     let tree: Vec<(String, Vec<u8>, bool)> = tracked_content(&fixture, repo.as_path());
     let files: usize = tree.len();
-    let bytes: u64 = tree.iter().map(|(_name, content, _executable)| { return content.len() as u64; }).sum();
+    let bytes: u64 = tree
+        .iter()
+        .map(|(_name, content, _executable)| {
+            return content.len() as u64;
+        })
+        .sum();
     let mut git: ArmCost = ArmCost::default();
     let mut clone: ArmCost = ArmCost::default();
     let mut last_clone: BlockCloneCounters = counters(&fixture);
     for round in 0..ROUNDS {
         let before_git: BlockCloneCounters = counters(&fixture);
-        let control: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", format!("control{round}").as_str(), format!("../control{round}").as_str()]);
+        let control: Observed = run_direct(
+            &fixture,
+            repo.as_path(),
+            &[
+                "worktree",
+                "add",
+                "--quiet",
+                "-b",
+                format!("control{round}").as_str(),
+                format!("../control{round}").as_str(),
+            ],
+        );
         let after_git: BlockCloneCounters = counters(&fixture);
-        assert_eq!(control.code, Some(0), "Git's own checkout of round {round}: {}", stderr_of(&control));
+        assert_eq!(
+            control.code,
+            Some(0),
+            "Git's own checkout of round {round}: {}",
+            stderr_of(&control)
+        );
         git.used += cost_of(&before_git, &after_git).used;
         let before_clone: BlockCloneCounters = counters(&fixture);
-        let created: Observed = run_wrapped_verbose(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", format!("clone{round}").as_str(), format!("../clone{round}").as_str()]);
+        let created: Observed = run_wrapped_verbose(
+            &fixture,
+            repo.as_path(),
+            &[
+                "worktree",
+                "add",
+                "--quiet",
+                "-b",
+                format!("clone{round}").as_str(),
+                format!("../clone{round}").as_str(),
+            ],
+        );
         let after_clone: BlockCloneCounters = counters(&fixture);
-        assert_eq!(created.code, Some(0), "the wrapper's add of round {round}: {}", stderr_of(&created));
+        assert_eq!(
+            created.code,
+            Some(0),
+            "the wrapper's add of round {round}: {}",
+            stderr_of(&created)
+        );
         assert!(
             stderr_of(&created).contains("clones served"),
             "round {round} must measure the clone rung and not Git's checkout:\n{}",
@@ -172,8 +252,18 @@ fn a_clean_same_dataset_add_saves_disk_against_gits_checkout() {
     let saved: u64 = git.used.saturating_sub(clone.used);
     println!(
         "MEASUREMENT zfs clone saved {saved} bytes of {bytes} in {files} files over {ROUNDS} alternating rounds (Git's checkout used +{} bytes, the clone rung used +{} bytes and counted +{} cloned bytes; pool bcloneused {}, bclonesaved {}, bcloneratio {})",
-        git.used, clone.used, clone.blocks, last_clone.bcloneused, last_clone.bclonesaved, last_clone.bcloneratio
+        git.used,
+        clone.used,
+        clone.blocks,
+        last_clone.bcloneused,
+        last_clone.bclonesaved,
+        last_clone.bcloneratio
     );
-    assert!(saved > 0, "a clone rung that saved nothing is no rung: Git's checkout used +{}, the clone rung +{}", git.used, clone.used);
+    assert!(
+        saved > 0,
+        "a clone rung that saved nothing is no rung: Git's checkout used +{}, the clone rung +{}",
+        git.used,
+        clone.used
+    );
     remove(&fixture);
 }

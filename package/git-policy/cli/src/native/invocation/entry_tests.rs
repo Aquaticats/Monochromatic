@@ -16,16 +16,39 @@
 #![cfg(unix)]
 
 /// Import the decision under test and shared fixtures.
-use super::{MANAGEMENT_COMMAND, plan_invocation};
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
-use crate::child_environment::{FORWARD_TARGET_VARIABLE, NO_ANSWER_PROGRAM, never_prompt_overlay, ssh_no_answer_overlay};
+use super::{
+    MANAGEMENT_COMMAND,
+    plan_invocation,
+};
+use crate::action::{
+    Action,
+    ENGINE_FAILURE_EXIT_CODE,
+};
+use crate::child_environment::{
+    FORWARD_TARGET_VARIABLE,
+    NO_ANSWER_PROGRAM,
+    never_prompt_overlay,
+    ssh_no_answer_overlay,
+};
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::MANAGEMENT_HELP;
-use crate::real_git::{Platform, ResolutionInputs};
-use crate::test_support::{REAL_GIT, executable, fixture, remove, repository};
+use crate::real_git::{
+    Platform,
+    ResolutionInputs,
+};
+use crate::test_support::{
+    REAL_GIT,
+    executable,
+    fixture,
+    remove,
+    repository,
+};
 
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Inputs selecting the image's real Git,
@@ -62,7 +85,10 @@ pub(super) fn text(values: &[&str]) -> Vec<OsString> {
 }
 
 /// Build `-C <directory> <rest...>` as owned arguments.
-fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
+fn in_directory(
+    directory: &Path,
+    rest: &[&str],
+) -> Vec<OsString> {
     let mut result: Vec<OsString> =
         vec![OsString::from("-C"), directory.as_os_str().to_os_string()];
     result.extend(text(rest));
@@ -116,12 +142,24 @@ pub(super) fn stopped(action: Action) -> String {
             assert_eq!(stdout, "", "wrapped commands report on standard error");
             return stderr;
         }
-        Action::Forward { .. } => panic!("expected a stop action, got {action:?}"),
-        Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
-        Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
-        Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
-        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
-        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
+        Action::Forward {
+            ..
+        } => panic!("expected a stop action, got {action:?}"),
+        Action::ForwardCoordinated {
+            ..
+        } => panic!("a coordinated forward is not expected in this control"),
+        Action::ForwardSettled {
+            ..
+        } => panic!("a settled forward is not expected in this control"),
+        Action::ForwardPush {
+            ..
+        } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced {
+            ..
+        } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes {
+            ..
+        } => panic!("a report of pathnames is not expected in this control"),
     }
 }
 
@@ -139,8 +177,16 @@ pub(super) fn stopped(action: Action) -> String {
 /// ```ts
 /// expect(plan).toMatchObject({ kind: 'forward-coordinated', args, stderr, unprovenOwnerTimeoutMs: 1000 });
 /// ```
-fn assert_coordinated_add(action: Action, arguments: &[OsString], warnings: &str) {
-    let Action::ForwardCoordinated { forward: planned, stderr } = action else {
+fn assert_coordinated_add(
+    action: Action,
+    arguments: &[OsString],
+    warnings: &str,
+) {
+    let Action::ForwardCoordinated {
+        forward: planned,
+        stderr,
+    } = action
+    else {
         panic!("an index writer is coordinated, got a different action");
     };
     assert_eq!(stderr, warnings);
@@ -216,7 +262,9 @@ fn every_command_the_wrapper_forwards_never_prompts() {
         ("SSH_ASKPASS_REQUIRE", "force"),
     ] {
         assert!(
-            forwarded.iter().any(|(key, value)| { return key == name && value == wanted; }),
+            forwarded.iter().any(|(key, value)| {
+                return key == name && value == wanted;
+            }),
             "the forwarded overlay carries {name}={wanted}: {forwarded:?}"
         );
     }
@@ -249,7 +297,10 @@ fn inspection_commands_are_forwarded_without_wrapper_controls() {
         (vec!["log", "--oneline"], vec!["log", "--oneline"]),
         (vec!["branch", "--list"], vec!["branch", "--list"]),
         // The namespace word in any position but the subcommand is an ordinary argument.
-        (vec!["log", "monochromatic-git-policy-cli"], vec!["log", "monochromatic-git-policy-cli"]),
+        (
+            vec!["log", "monochromatic-git-policy-cli"],
+            vec!["log", "monochromatic-git-policy-cli"],
+        ),
         (
             vec!["status", "--cli-git-keep-going", "--short"],
             vec!["-c", "advice.statusHints=false", "status", "--short"],
@@ -292,14 +343,26 @@ fn inspection_commands_are_forwarded_without_wrapper_controls() {
                 );
                 assert_eq!(stderr.matches('\n').count(), 1, "{prefix:?}: {stderr}");
             }
-            Action::Forward { .. } => {
+            Action::Forward {
+                ..
+            } => {
                 panic!("{prefix:?}: a command below the top level is stopped")
             }
-        Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
-        Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
-        Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
-        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
-        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
+            Action::ForwardCoordinated {
+                ..
+            } => panic!("a coordinated forward is not expected in this control"),
+            Action::ForwardSettled {
+                ..
+            } => panic!("a settled forward is not expected in this control"),
+            Action::ForwardPush {
+                ..
+            } => panic!("a stacked push is not expected in this control"),
+            Action::ForwardAnnounced {
+                ..
+            } => panic!("an announced query is not expected in this control"),
+            Action::ExitBytes {
+                ..
+            } => panic!("a report of pathnames is not expected in this control"),
         }
     }
     remove(root.as_path());
@@ -317,10 +380,21 @@ fn management_namespace_is_answered_by_the_wrapper() {
     assert_eq!(MANAGEMENT_COMMAND, "monochromatic-git-policy-cli");
     for arguments in [
         vec!["monochromatic-git-policy-cli", "--help"],
-        vec!["-C", "/somewhere", "-c", "a.b=c", "monochromatic-git-policy-cli", "-h"],
+        vec![
+            "-C",
+            "/somewhere",
+            "-c",
+            "a.b=c",
+            "monochromatic-git-policy-cli",
+            "-h",
+        ],
         vec!["--no-pager", "monochromatic-git-policy-cli", "--help"],
         // A wrapper control before the namespace word does not hide it.
-        vec!["--cli-git-keep-going", "monochromatic-git-policy-cli", "--help"],
+        vec![
+            "--cli-git-keep-going",
+            "monochromatic-git-policy-cli",
+            "--help",
+        ],
         vec![
             "-C",
             "/somewhere",
@@ -341,27 +415,53 @@ fn management_namespace_is_answered_by_the_wrapper() {
     }
     // A control after the namespace word is not part of the management grammar.
     match plan_invocation(
-        text(&["monochromatic-git-policy-cli", "--cli-git-keep-going", "check", "--all"]).as_slice(),
+        text(&[
+            "monochromatic-git-policy-cli",
+            "--cli-git-keep-going",
+            "check",
+            "--all",
+        ])
+        .as_slice(),
         &[],
         &resolution,
     ) {
-        Action::Exit { code, stdout, .. } => {
+        Action::Exit {
+            code,
+            stdout,
+            ..
+        } => {
             assert_eq!(code, 2);
             assert_eq!(stdout, "");
         }
-        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
-        Action::Forward { .. } => panic!("the management namespace is never forwarded"),
-        Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
-        Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
-        Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
-        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes {
+            ..
+        } => panic!("a report of pathnames is not expected in this control"),
+        Action::Forward {
+            ..
+        } => panic!("the management namespace is never forwarded"),
+        Action::ForwardCoordinated {
+            ..
+        } => panic!("a coordinated forward is not expected in this control"),
+        Action::ForwardSettled {
+            ..
+        } => panic!("a settled forward is not expected in this control"),
+        Action::ForwardPush {
+            ..
+        } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced {
+            ..
+        } => panic!("an announced query is not expected in this control"),
     }
     // The global prefix reaches the direct command: it selects the repository whose file is read.
     resolution.path = OsString::from("/usr/bin");
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join(CONFIG_FILE_NAME), r#"{ "unknown": 1 }"#).expect("invalid config");
     match plan_invocation(
-        in_directory(repo.as_path(), &["monochromatic-git-policy-cli", "check", "--all"]).as_slice(),
+        in_directory(
+            repo.as_path(),
+            &["monochromatic-git-policy-cli", "check", "--all"],
+        )
+        .as_slice(),
         &[],
         &resolution,
     ) {
@@ -378,12 +478,24 @@ fn management_namespace_is_answered_by_the_wrapper() {
             );
             assert_eq!(stderr, "");
         }
-        Action::Forward { .. } => panic!("the management namespace is never forwarded"),
-        Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
-        Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
-        Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
-        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
-        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
+        Action::Forward {
+            ..
+        } => panic!("the management namespace is never forwarded"),
+        Action::ForwardCoordinated {
+            ..
+        } => panic!("a coordinated forward is not expected in this control"),
+        Action::ForwardSettled {
+            ..
+        } => panic!("a settled forward is not expected in this control"),
+        Action::ForwardPush {
+            ..
+        } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced {
+            ..
+        } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes {
+            ..
+        } => panic!("a report of pathnames is not expected in this control"),
     }
     remove(root.as_path());
 }
@@ -502,7 +614,10 @@ fn policy_commands_outside_a_worktree_use_defaults() {
         &[],
         &resolution,
     ) {
-        Action::Exit { code, .. } => assert_eq!(code, 128),
+        Action::Exit {
+            code,
+            ..
+        } => assert_eq!(code, 128),
         other => panic!("expected the commit to end, got {other:?}"),
     }
     assert!(!plain.join(".git").exists());
@@ -519,7 +634,10 @@ fn repository_with_rules_file(root: &Path) -> (PathBuf, PathBuf) {
     )
     .expect("configuration");
     crate::test_support::git(repo.as_path(), &["add", "--", CONFIG_FILE_NAME]);
-    crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=configure"]);
+    crate::test_support::git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=configure"],
+    );
     let linked: PathBuf = root.join("linked");
     crate::test_support::git(
         repo.as_path(),
@@ -532,7 +650,10 @@ fn repository_with_rules_file(root: &Path) -> (PathBuf, PathBuf) {
 /// or a failure naming the action that was planned instead.
 fn settled_facts(action: Action) -> crate::worktree_copy_forward::CopyFacts {
     match action {
-        Action::ForwardSettled { copy, .. } => return *copy,
+        Action::ForwardSettled {
+            copy,
+            ..
+        } => return *copy,
         other => panic!("expected a settled forward, got {other:?}"),
     }
 }
@@ -546,8 +667,21 @@ fn commands_in_a_linked_worktree_are_settled_by_the_copy() {
     let (_repo, linked): (PathBuf, PathBuf) = repository_with_rules_file(root.as_path());
     let resolution: ResolutionInputs = inputs(root.as_path());
     for (rest, creates) in [
-        (vec!["worktree", "add", "--quiet", "-b", "second", "../second"], true),
-        (vec!["-c", "alias.wta=worktree add", "wta", "-b", "second", "../second"], true),
+        (
+            vec!["worktree", "add", "--quiet", "-b", "second", "../second"],
+            true,
+        ),
+        (
+            vec![
+                "-c",
+                "alias.wta=worktree add",
+                "wta",
+                "-b",
+                "second",
+                "../second",
+            ],
+            true,
+        ),
         (vec!["worktree", "move", "../second", "../third"], false),
         (vec!["worktree", "list"], false),
         (vec!["log", "--oneline"], false),
@@ -560,7 +694,10 @@ fn commands_in_a_linked_worktree_are_settled_by_the_copy() {
         assert_eq!(facts.creates, creates, "{rest:?}");
         // The destination is read for a creation, whatever the form of the add, and is absent for every other command.
         assert_eq!(facts.destination.is_some(), creates, "{rest:?}");
-        assert!(matches!(facts.identity, crate::worktree_identity::WorktreeIdentity::LinkedWorktree { .. }));
+        assert!(matches!(
+            facts.identity,
+            crate::worktree_identity::WorktreeIdentity::LinkedWorktree { .. }
+        ));
     }
     remove(root.as_path());
 }
@@ -577,7 +714,15 @@ fn the_opt_out_and_short_circuit_forms_are_not_settled() {
         plan_invocation(
             in_directory(
                 linked.as_path(),
-                &["worktree", "add", "--no-worktree-copy", "--quiet", "-b", "second", "../second"]
+                &[
+                    "worktree",
+                    "add",
+                    "--no-worktree-copy",
+                    "--quiet",
+                    "-b",
+                    "second",
+                    "../second"
+                ]
             )
             .as_slice(),
             &[],
@@ -589,7 +734,11 @@ fn the_opt_out_and_short_circuit_forms_are_not_settled() {
         ))
     );
     // Commands that need no repository are never asked about their location.
-    for rest in [vec!["version"], vec!["help", "worktree"], vec!["config", "--global", "--list"]] {
+    for rest in [
+        vec!["version"],
+        vec!["help", "worktree"],
+        vec!["config", "--global", "--list"],
+    ] {
         assert_eq!(
             plan_invocation(
                 in_directory(linked.as_path(), rest.as_slice()).as_slice(),
@@ -622,7 +771,14 @@ fn the_main_checkout_is_settled_only_for_a_creation() {
     let resolution: ResolutionInputs = inputs(root.as_path());
     for rest in [
         vec!["worktree", "add", "--quiet", "-b", "second", "../second"],
-        vec!["-c", "alias.wta=worktree add", "wta", "-b", "second", "../second"],
+        vec![
+            "-c",
+            "alias.wta=worktree add",
+            "wta",
+            "-b",
+            "second",
+            "../second",
+        ],
     ] {
         let facts = settled_facts(plan_invocation(
             in_directory(repo.as_path(), rest.as_slice()).as_slice(),
@@ -632,7 +788,12 @@ fn the_main_checkout_is_settled_only_for_a_creation() {
         assert!(facts.creates, "{rest:?}");
     }
     // Commands that create nothing keep their plain forward from the main checkout.
-    for rest in [vec!["worktree", "list"], vec!["worktree", "move", "../linked", "../moved"], vec!["status"], vec!["log", "--oneline"]] {
+    for rest in [
+        vec!["worktree", "list"],
+        vec!["worktree", "move", "../linked", "../moved"],
+        vec!["status"],
+        vec!["log", "--oneline"],
+    ] {
         assert!(
             matches!(
                 plan_invocation(
@@ -667,14 +828,29 @@ fn a_removal_that_names_a_worktree_is_settled_in_every_spelling() {
         vec!["worktree", "remove", "-f", "-f", "../linked"],
         vec!["worktree", "remove", "--force", "--force", "../linked"],
     ] {
-        let facts = settled_facts(plan_invocation(in_directory(repo.as_path(), rest.as_slice()).as_slice(), &[], &resolution));
-        assert!(facts.removal_target.is_some(), "the refusal reads the worktree this removal names: {rest:?}");
-        assert_eq!(facts.remove_plan.is_some(), rest.len() == 3, "only the plain form is served by a subvolume destroy: {rest:?}");
+        let facts = settled_facts(plan_invocation(
+            in_directory(repo.as_path(), rest.as_slice()).as_slice(),
+            &[],
+            &resolution,
+        ));
+        assert!(
+            facts.removal_target.is_some(),
+            "the refusal reads the worktree this removal names: {rest:?}"
+        );
+        assert_eq!(
+            facts.remove_plan.is_some(),
+            rest.len() == 3,
+            "only the plain form is served by a subvolume destroy: {rest:?}"
+        );
     }
     for rest in [vec!["worktree", "remove"], vec!["worktree", "remove", "-f"]] {
         assert!(
             matches!(
-                plan_invocation(in_directory(repo.as_path(), rest.as_slice()).as_slice(), &[], &resolution),
+                plan_invocation(
+                    in_directory(repo.as_path(), rest.as_slice()).as_slice(),
+                    &[],
+                    &resolution
+                ),
                 Action::Forward { .. }
             ),
             "a removal that names no worktree keeps its plain forward: {rest:?}"
@@ -692,16 +868,43 @@ fn a_main_checkout_without_a_rules_file_is_settled_for_a_creation() {
     let root: PathBuf = fixture("entry-settled-main-unconfigured");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let resolution: ResolutionInputs = inputs(root.as_path());
-    let unserved: Vec<&str> = vec!["worktree", "add", "--force", "--quiet", "-b", "second", "../second"];
-    let facts = settled_facts(plan_invocation(in_directory(repo.as_path(), unserved.as_slice()).as_slice(), &[], &resolution));
+    let unserved: Vec<&str> = vec![
+        "worktree",
+        "add",
+        "--force",
+        "--quiet",
+        "-b",
+        "second",
+        "../second",
+    ];
+    let facts = settled_facts(plan_invocation(
+        in_directory(repo.as_path(), unserved.as_slice()).as_slice(),
+        &[],
+        &resolution,
+    ));
     assert!(facts.creates);
-    assert!(facts.add_plan.is_none(), "the ladder does not serve a forced add");
+    assert!(
+        facts.add_plan.is_none(),
+        "the ladder does not serve a forced add"
+    );
     let served: Vec<&str> = vec!["worktree", "add", "--quiet", "-b", "second", "../second"];
-    let served_facts = settled_facts(plan_invocation(in_directory(repo.as_path(), served.as_slice()).as_slice(), &[], &resolution));
+    let served_facts = settled_facts(plan_invocation(
+        in_directory(repo.as_path(), served.as_slice()).as_slice(),
+        &[],
+        &resolution,
+    ));
     assert!(served_facts.creates);
-    assert!(matches!(served_facts.identity, crate::worktree_identity::WorktreeIdentity::MainWorktree { .. }));
+    assert!(matches!(
+        served_facts.identity,
+        crate::worktree_identity::WorktreeIdentity::MainWorktree { .. }
+    ));
     let plan = served_facts.add_plan.expect("the ladder serves this form");
-    assert_eq!(plan.destination, std::fs::canonicalize(root.as_path()).expect("canonical").join("second"));
+    assert_eq!(
+        plan.destination,
+        std::fs::canonicalize(root.as_path())
+            .expect("canonical")
+            .join("second")
+    );
     remove(root.as_path());
 }
 
@@ -727,7 +930,10 @@ fn an_index_writer_carries_the_copy_only_from_a_linked_worktree() {
             &[],
             &resolution,
         ) {
-            Action::ForwardCoordinated { forward: planned, .. } => {
+            Action::ForwardCoordinated {
+                forward: planned,
+                ..
+            } => {
                 assert_eq!(planned.copy.is_some(), carries, "{directory:?}");
             }
             other => panic!("expected a coordinated forward, got {other:?}"),

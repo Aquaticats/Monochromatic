@@ -20,7 +20,10 @@
 /// which the patience is derived from.
 use crate::wait_ceilings::MERGE_LOCK_CEILING;
 use std::path::Path;
-use std::time::{Duration, SystemTime};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// How long an owner of another PID namespace counts as alive,
 /// measured from when its record was written.
@@ -144,7 +147,10 @@ pub fn current_pid_namespace() -> Option<String> {
 /// ```ts
 /// recorded !== undefined && current !== undefined && recorded !== current
 /// ```
-pub fn is_other_namespace(recorded: Option<&str>, current: Option<&str>) -> bool {
+pub fn is_other_namespace(
+    recorded: Option<&str>,
+    current: Option<&str>,
+) -> bool {
     return match (recorded, current) {
         (Some(recorded_name), Some(current_name)) => recorded_name != current_name,
         _ => false,
@@ -229,7 +235,10 @@ pub fn foreign_record_age(record_path: &Path) -> RecordAge {
 /// error.code === 'ENOENT' || error.code === 'ENOTDIR'
 /// ```
 fn is_missing(error: &std::io::Error) -> bool {
-    return matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory);
+    return matches!(
+        error.kind(),
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+    );
 }
 
 /// What:
@@ -363,7 +372,10 @@ impl RefusedForeignRecord {
     /// ```ts
     /// `monochromatic-git-policy-cli: the record ${record} was written by process ${pid} ... rm -- ${quoted(record)}`
     /// ```
-    pub fn describe(&self, owner_pid: i64) -> String {
+    pub fn describe(
+        &self,
+        owner_pid: i64,
+    ) -> String {
         let state: String = match &self.because {
             ForeignRefusal::PastThePatience(age) => format!(
                 "and it is {minutes} minutes old, past the {patience} minutes after which monochromatic-git-policy-cli no longer takes such a record for a live owner's; \
@@ -420,15 +432,22 @@ impl RefusedForeignRecord {
 /// ```ts
 /// isOtherNamespace(recorded, current) ? standingOf(ageOf(recordPath)) : undefined
 /// ```
-pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Option<ForeignStanding> {
+pub fn foreign_owner_standing(
+    recorded: Option<&str>,
+    record_path: &Path,
+) -> Option<ForeignStanding> {
     #[cfg(test)]
-    STANDING_LOOKUPS.with(|count| { count.set(count.get() + 1); });
+    STANDING_LOOKUPS.with(|count| {
+        count.set(count.get() + 1);
+    });
     if !is_other_namespace(recorded, current_pid_namespace().as_deref()) {
         return None;
     }
     let namespace: String = recorded.map_or_else(String::new, String::from);
     let because: ForeignRefusal = match foreign_record_age(record_path) {
-        RecordAge::Measured(age) if age_outlives_patience(age) => ForeignRefusal::PastThePatience(age),
+        RecordAge::Measured(age) if age_outlives_patience(age) => {
+            ForeignRefusal::PastThePatience(age)
+        }
         RecordAge::Measured(_) => return Some(ForeignStanding::Standing),
         // An owner that finished removes its record, and nothing is left to hold anything: the reader that finds it gone
         // says so instead of stopping the command over a file that is not there
@@ -437,7 +456,11 @@ pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Opt
         RecordAge::Ahead => ForeignRefusal::TimeAhead,
         RecordAge::Unreadable(reason) => ForeignRefusal::TimeUnreadable(reason),
     };
-    return Some(ForeignStanding::Refused(RefusedForeignRecord { record: record_path.to_path_buf(), namespace, because }));
+    return Some(ForeignStanding::Refused(RefusedForeignRecord {
+        record: record_path.to_path_buf(),
+        namespace,
+        because,
+    }));
 }
 
 #[cfg(test)]

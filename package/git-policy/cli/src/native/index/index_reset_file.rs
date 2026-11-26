@@ -23,29 +23,58 @@
 
 use crate::diagnostic_log::debug;
 use crate::index_byte_search::has_nonzero_byte;
-use crate::index_full::{FullIndex, parse_full_index};
-use crate::index_full_write::{Trailer, write_full_index};
-use crate::index_stat::IndexStamp;
+use crate::index_full::{
+    FullIndex,
+    parse_full_index,
+};
+use crate::index_full_write::{
+    Trailer,
+    write_full_index,
+};
 use crate::index_reset::reset_paths;
+use crate::index_reset_publish::publish;
+use crate::index_reset_tree::{
+    changed_paths,
+    root_tree,
+    tree_entries_at,
+};
 use crate::index_reset_worktree_stat::LandingStat;
 use crate::index_reset_worktree_stat_source::WorktreeStat;
-use crate::index_reset_publish::publish;
-use crate::service_index_lock::IndexLock;
-use crate::index_reset_tree::{changed_paths, root_tree, tree_entries_at};
-use crate::index_settings::{IndexSettings, read_settings};
+use crate::index_settings::{
+    IndexSettings,
+    read_settings,
+};
+use crate::index_stat::IndexStamp;
 use crate::repo_read_config_list::list_config;
 use crate::repo_read_config_scan::ScopeEnvironment;
-use crate::repo_read_hook::{enabled, guarded};
-use crate::repo_read_layout::{ObjectFormat, RepoLayout, read_layout_with};
+use crate::repo_read_hook::{
+    enabled,
+    guarded,
+};
+use crate::repo_read_layout::{
+    ObjectFormat,
+    RepoLayout,
+    read_layout_with,
+};
 use crate::repo_read_object::name_length;
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_tree::FlatEntry;
-use crate::service_land_follow::{IndexPaths, PrivateCopy};
+use crate::service_index_lock::IndexLock;
+use crate::service_land_follow::{
+    IndexPaths,
+    PrivateCopy,
+};
 use crate::service_protocol::is_zero_object;
-use crate::subvolume_sha::{sha1, sha256};
+use crate::subvolume_sha::{
+    sha1,
+    sha256,
+};
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The most bytes of index file this reads:
 /// the bound the in-process query layer already puts on the same file (`repo_read_query.rs`,
@@ -57,8 +86,15 @@ const INDEX_LIMIT: u64 = 1 << 30;
 const POST_INDEX_HOOK: &str = "post-index-change";
 
 /// The checksum of the format's object hash over `bytes`.
-fn checksum(format: ObjectFormat, bytes: &[u8]) -> Vec<u8> {
-    return if name_length(format) == 20 { sha1_bytes(bytes) } else { sha256_bytes(bytes) };
+fn checksum(
+    format: ObjectFormat,
+    bytes: &[u8],
+) -> Vec<u8> {
+    return if name_length(format) == 20 {
+        sha1_bytes(bytes)
+    } else {
+        sha256_bytes(bytes)
+    };
 }
 
 /// The SHA-1 of `bytes` as a byte vector.
@@ -73,7 +109,12 @@ fn sha256_bytes(bytes: &[u8]) -> Vec<u8> {
 
 /// The names (top-relative,
 /// as bytes) the update resets.
-fn names_of(database: &ObjectDatabase, layout: &RepoLayout, new_tree: &[u8], paths: IndexPaths<'_>) -> Option<Vec<Vec<u8>>> {
+fn names_of(
+    database: &ObjectDatabase,
+    layout: &RepoLayout,
+    new_tree: &[u8],
+    paths: IndexPaths<'_>,
+) -> Option<Vec<Vec<u8>>> {
     return match paths {
         IndexPaths::Listed(listed) => {
             let mut names: Vec<Vec<u8>> = Vec::new();
@@ -83,9 +124,20 @@ fn names_of(database: &ObjectDatabase, layout: &RepoLayout, new_tree: &[u8], pat
             Some(names)
         }
         IndexPaths::Named(named) => Some(named.to_vec()),
-        IndexPaths::Derived { old } => {
-            let old_tree: Option<Vec<u8>> = if is_zero_object(old) { None } else { Some(root_tree(database, old, layout.object_format)?) };
-            changed_paths(database, old_tree.as_deref(), new_tree, layout.object_format)
+        IndexPaths::Derived {
+            old,
+        } => {
+            let old_tree: Option<Vec<u8>> = if is_zero_object(old) {
+                None
+            } else {
+                Some(root_tree(database, old, layout.object_format)?)
+            };
+            changed_paths(
+                database,
+                old_tree.as_deref(),
+                new_tree,
+                layout.object_format,
+            )
         }
     };
 }
@@ -143,8 +195,12 @@ fn turns_monitor_on(effective: &[(OsString, OsString)]) -> bool {
 /// Read the layout,
 /// the configuration and the objects,
 /// or decline.
-fn surroundings(git: &GitContext, repository: &Path) -> Option<Surroundings> {
-    let added: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(git.overlay.as_slice(), git.real_git.as_path());
+fn surroundings(
+    git: &GitContext,
+    repository: &Path,
+) -> Option<Surroundings> {
+    let added: Vec<(OsString, OsString)> =
+        crate::git_system_config::with_real_git(git.overlay.as_slice(), git.real_git.as_path());
     if !enabled(added.as_slice()) {
         return None;
     }
@@ -155,19 +211,38 @@ fn surroundings(git: &GitContext, repository: &Path) -> Option<Surroundings> {
     }
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(effective.as_slice());
     let layout: RepoLayout = read_layout_with(repository, effective.as_slice(), &scope)?;
-    let listed = list_config(layout.common_dir.as_path(), layout.git_dir.as_path(), &scope, effective.as_slice())?;
+    let listed = list_config(
+        layout.common_dir.as_path(),
+        layout.git_dir.as_path(),
+        &scope,
+        effective.as_slice(),
+    )?;
     let settings: IndexSettings = read_settings(listed.as_slice())?;
-    if layout.common_dir.join("hooks").join(POST_INDEX_HOOK).symlink_metadata().is_ok() {
+    if layout
+        .common_dir
+        .join("hooks")
+        .join(POST_INDEX_HOOK)
+        .symlink_metadata()
+        .is_ok()
+    {
         return None;
     }
-    let database: ObjectDatabase = ObjectDatabase::open_where_the_layout_proved_the_store(&layout, None)?;
-    return Some(Surroundings { layout, settings, database });
+    let database: ObjectDatabase =
+        ObjectDatabase::open_where_the_layout_proved_the_store(&layout, None)?;
+    return Some(Surroundings {
+        layout,
+        settings,
+        database,
+    });
 }
 
 /// The index of the file,
 /// its modification time to the nanosecond,
 /// or `None` when the checksum or the layout is not plain.
-fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, IndexStamp)> {
+fn read_index(
+    file: &Path,
+    format: ObjectFormat,
+) -> Option<(FullIndex, IndexStamp)> {
     let bytes: Vec<u8> = crate::private_storage::read_regular_file(file, INDEX_LIMIT).ok()?;
     let hash_length: usize = name_length(format);
     let (body, stored) = bytes.split_at(bytes.len().checked_sub(hash_length)?);
@@ -177,7 +252,10 @@ fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, IndexStam
     }
     let modified: std::time::SystemTime = std::fs::metadata(file).ok()?.modified().ok()?;
     let age: std::time::Duration = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
-    let stamp: IndexStamp = IndexStamp { seconds: age.as_secs() as u32, nanoseconds: age.subsec_nanos() };
+    let stamp: IndexStamp = IndexStamp {
+        seconds: age.as_secs() as u32,
+        nanoseconds: age.subsec_nanos(),
+    };
     return Some((parse_full_index(bytes.as_slice(), hash_length)?, stamp));
 }
 
@@ -218,7 +296,10 @@ fn attribute_directory(path: &[u8]) -> Option<Vec<u8>> {
 /// ```ts
 /// const directories = [...index.entries, ...tree].map((entry) => entry.path === '.gitattributes' ? '' : entry.path.replace(/\/\.gitattributes$/, '')).filter(defined);
 /// ```
-fn indexed_attribute_directories(index: &FullIndex, tree: &[FlatEntry]) -> Vec<Vec<u8>> {
+fn indexed_attribute_directories(
+    index: &FullIndex,
+    tree: &[FlatEntry],
+) -> Vec<Vec<u8>> {
     let mut directories: Vec<Vec<u8>> = Vec::new();
     for entry in index.entries.iter() {
         if entry.stage() == 0
@@ -240,16 +321,29 @@ fn indexed_attribute_directories(index: &FullIndex, tree: &[FlatEntry]) -> Vec<V
 /// The update,
 /// with every decline as `None`,
 /// and the names it reset.
-fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, built: &Path, times: Option<(std::time::SystemTime, std::time::SystemTime)>) -> Option<Vec<Vec<u8>>> {
+fn reset_file(
+    git: &GitContext,
+    repository: &Path,
+    new: &str,
+    paths: IndexPaths<'_>,
+    built: &Path,
+    times: Option<(std::time::SystemTime, std::time::SystemTime)>,
+) -> Option<Vec<Vec<u8>>> {
     let around: Surroundings = surroundings(git, repository)?;
     let (mut index, stamp) = read_index(built, around.layout.object_format)?;
     let new_tree: Vec<u8> = root_tree(&around.database, new, around.layout.object_format)?;
-    let names: Vec<Vec<u8>> = names_of(&around.database, &around.layout, new_tree.as_slice(), paths)?;
+    let names: Vec<Vec<u8>> =
+        names_of(&around.database, &around.layout, new_tree.as_slice(), paths)?;
     // An empty list resets nothing; `reset` with no path would reset the whole index, so the caller never asks it.
     if names.is_empty() {
         return Some(names);
     }
-    let tree: Vec<FlatEntry> = tree_entries_at(&around.database, new_tree.as_slice(), names.as_slice(), around.layout.object_format)?;
+    let tree: Vec<FlatEntry> = tree_entries_at(
+        &around.database,
+        new_tree.as_slice(),
+        names.as_slice(),
+        around.layout.object_format,
+    )?;
     // What:
     //  Where the stat data of each entry the reset makes comes from:
     //  the worktree's own, for a path whose file provably holds the bytes the entry records.
@@ -279,29 +373,57 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     // const target = { root, gitDir: layout.gitDir, commonDir: layout.commonDir, environment, format };
     // const source = new LandingStat(root, target, stamp, new Cell(0));
     // ```
-    let root: std::fs::File = crate::fs_beneath::open_root(around.layout.worktree_root.as_path()).ok()?;
-    let environment: crate::worktree_clean_content_attribute_sources::ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(git);
-    let target: crate::worktree_clean_tree_walk::ContentTarget<'_> = crate::worktree_clean_tree_walk::ContentTarget {
-        root: around.layout.worktree_root.as_path(),
-        git_dir: around.layout.git_dir.as_path(),
-        common_dir: around.layout.common_dir.as_path(),
-        environment: &environment,
-        format: around.layout.object_format,
-    };
+    let root: std::fs::File =
+        crate::fs_beneath::open_root(around.layout.worktree_root.as_path()).ok()?;
+    let environment: crate::worktree_clean_content_attribute_sources::ConversionEnvironment =
+        crate::worktree_clean_content_attribute_sources::for_context(git);
+    let target: crate::worktree_clean_tree_walk::ContentTarget<'_> =
+        crate::worktree_clean_tree_walk::ContentTarget {
+            root: around.layout.worktree_root.as_path(),
+            git_dir: around.layout.git_dir.as_path(),
+            common_dir: around.layout.common_dir.as_path(),
+            environment: &environment,
+            format: around.layout.object_format,
+        };
     let hashed: std::cell::Cell<u64> = std::cell::Cell::new(0);
     let indexed: Vec<Vec<u8>> = indexed_attribute_directories(&index, tree.as_slice());
-    let source: LandingStat<'_> = LandingStat::new(&root, &target, stamp, &hashed, indexed.as_slice());
-    reset_paths(&mut index, names.as_slice(), tree.as_slice(), around.settings, stamp, WorktreeStat::Recorded(&source))?;
+    let source: LandingStat<'_> =
+        LandingStat::new(&root, &target, stamp, &hashed, indexed.as_slice());
+    reset_paths(
+        &mut index,
+        names.as_slice(),
+        tree.as_slice(),
+        around.settings,
+        stamp,
+        WorktreeStat::Recorded(&source),
+    )?;
     let format: ObjectFormat = around.layout.object_format;
-    let hash: fn(&[u8]) -> Vec<u8> = if name_length(format) == 20 { sha1_bytes } else { sha256_bytes };
+    let hash: fn(&[u8]) -> Vec<u8> = if name_length(format) == 20 {
+        sha1_bytes
+    } else {
+        sha256_bytes
+    };
     // The file ends as the configuration asks: Git writes zeros for a skipped hash, and the differential controls compare
     // the bytes, so this update writes what Git's own `reset` would.
-    let trailer: Trailer = if around.settings.skip_hash { Trailer::Skipped { checksum_length: name_length(format) } } else { Trailer::Hashed };
+    let trailer: Trailer = if around.settings.skip_hash {
+        Trailer::Skipped {
+            checksum_length: name_length(format),
+        }
+    } else {
+        Trailer::Hashed
+    };
     let bytes: Vec<u8> = write_full_index(&index, &hash, trailer)?;
     // A copy that could not be published is a decline, and Git's own reset then runs.
     // The published copy takes the live index's times with its bytes, in the one flush the step makes
     // (`index_reset_publish.rs`, `publish_with`).
-    if publish(built, bytes.as_slice(), around.settings.shared_repository, times).is_err() {
+    if publish(
+        built,
+        bytes.as_slice(),
+        around.settings.shared_repository,
+        times,
+    )
+    .is_err()
+    {
         return None;
     }
     return Some(names);
@@ -313,7 +435,16 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
 /// the commit,
 /// the paths,
 /// the copy and its times.
-fn reset_file_guarded((git, repository, new, paths, built, times): (&GitContext, &Path, &str, IndexPaths<'_>, &Path, Option<(std::time::SystemTime, std::time::SystemTime)>)) -> Option<Vec<Vec<u8>>> {
+fn reset_file_guarded(
+    (git, repository, new, paths, built, times): (
+        &GitContext,
+        &Path,
+        &str,
+        IndexPaths<'_>,
+        &Path,
+        Option<(std::time::SystemTime, std::time::SystemTime)>,
+    )
+) -> Option<Vec<Vec<u8>>> {
     return reset_file(git, repository, new, paths, built, times);
 }
 
@@ -337,16 +468,45 @@ fn reset_file_guarded((git, repository, new, paths, built, times): (&GitContext,
 /// ```ts
 /// resetIndexFile({ git, repository, commit, paths, indexFile }): names | undefined
 /// ```
-pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, lock: &IndexLock, copy: &PrivateCopy) -> Option<Vec<Vec<u8>>> {
+pub fn reset_index_file(
+    git: &GitContext,
+    repository: &Path,
+    new: &str,
+    paths: IndexPaths<'_>,
+    lock: &IndexLock,
+    copy: &PrivateCopy,
+) -> Option<Vec<Vec<u8>>> {
     // The copy is installed by a rename onto the live index, so it must be beside it.
     if copy.directory().parent() != lock.index().parent() {
         return None;
     }
     let built: PathBuf = copy.path().to_path_buf();
-    let done: Option<Vec<Vec<u8>>> = guarded((git, repository, new, paths, built.as_path(), copy.live_times()), reset_file_guarded);
+    let done: Option<Vec<Vec<u8>>> = guarded(
+        (
+            git,
+            repository,
+            new,
+            paths,
+            built.as_path(),
+            copy.live_times(),
+        ),
+        reset_file_guarded,
+    );
     // `publish` flushes the new bytes before it renames them onto the copy, and nothing writes to the copy after it returns.
     copy.set_flushed(done.is_some());
-    debug("indexResetFile", format!("in-process reset of {}: {}", built.display(), if done.is_some() { "done" } else { "declined, Git answers" }).as_str());
+    debug(
+        "indexResetFile",
+        format!(
+            "in-process reset of {}: {}",
+            built.display(),
+            if done.is_some() {
+                "done"
+            } else {
+                "declined, Git answers"
+            }
+        )
+        .as_str(),
+    );
     return done;
 }
 

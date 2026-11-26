@@ -11,11 +11,21 @@
 //! ```
 
 /// Import the parser under test and its record.
-use super::{TreeRecord, parse_tree_records};
+use super::{
+    TreeRecord,
+    parse_tree_records,
+};
 /// The failure causes the parser reports.
-use crate::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// The modes and object names records carry.
-use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    parse_object_id,
+};
 
 /// Forty copies of one hexadecimal digit,
 /// as text.

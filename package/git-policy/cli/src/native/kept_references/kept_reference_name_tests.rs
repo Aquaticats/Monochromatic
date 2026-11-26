@@ -10,14 +10,23 @@
 //! expect(isAKeptReference('refs/cli-git/carried/7')).toBe(false);
 //! ```
 
-use super::{batch_and_rescued_of, is_a_kept_reference};
+use super::{
+    batch_and_rescued_of,
+    is_a_kept_reference,
+};
 
 /// The batch's own name and the name beside it are both kept references,
 /// and each carries its batch.
 #[test]
 fn the_two_forms_a_commit_is_kept_on_are_both_kept_references() {
-    assert_eq!(batch_and_rescued_of("refs/cli-git/kept/1794071191963902"), Some((1794071191963902, false)));
-    assert_eq!(batch_and_rescued_of("refs/cli-git/kept/1794071191963902-rescue"), Some((1794071191963902, true)));
+    assert_eq!(
+        batch_and_rescued_of("refs/cli-git/kept/1794071191963902"),
+        Some((1794071191963902, false))
+    );
+    assert_eq!(
+        batch_and_rescued_of("refs/cli-git/kept/1794071191963902-rescue"),
+        Some((1794071191963902, true))
+    );
     assert!(is_a_kept_reference("refs/cli-git/kept/7"));
     assert!(is_a_kept_reference("refs/cli-git/kept/7-rescue"));
 }

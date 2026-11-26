@@ -21,11 +21,23 @@
 //! const named: NamedPush = await namedPush({ git, branchRef }); // push | remote-must-have | skip
 //! ```
 
-use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query, run_query_awaiting};
+use crate::auto_push_refspec_judging::{
+    Judged,
+    judge,
+    parse_refspec,
+};
+use crate::auto_push_single_flight::{
+    PushGit,
+    SingleFlightError,
+    run_query,
+    run_query_awaiting,
+};
 use crate::bounded_query::QueryOutput;
-use crate::config_snapshot::{ConfigSnapshot, Lookup};
+use crate::config_snapshot::{
+    ConfigSnapshot,
+    Lookup,
+};
 use std::ffi::OsString;
-use crate::auto_push_refspec_judging::{Judged, judge, parse_refspec};
 
 /// Start of every note this module words,
 /// so the terminal filter keeps it and a person sees which tool spoke.
@@ -124,7 +136,10 @@ fn argv(parts: &[&str]) -> Vec<OsString> {
 /// ```ts
 /// snapshot.entries.filter((entry) => entry.key === key).map((entry) => entry.value ?? '')
 /// ```
-fn values_of(snapshot: &ConfigSnapshot, key: &str) -> Vec<String> {
+fn values_of(
+    snapshot: &ConfigSnapshot,
+    key: &str,
+) -> Vec<String> {
     let mut values: Vec<String> = Vec::new();
     for entry in snapshot.entries() {
         if entry.key != key {
@@ -145,7 +160,10 @@ fn values_of(snapshot: &ConfigSnapshot, key: &str) -> Vec<String> {
 /// ```ts
 /// valuesOf(snapshot, key).at(-1) ?? ''
 /// ```
-fn last_of(snapshot: &ConfigSnapshot, key: &str) -> String {
+fn last_of(
+    snapshot: &ConfigSnapshot,
+    key: &str,
+) -> String {
     return values_of(snapshot, key).pop().unwrap_or_default();
 }
 
@@ -165,7 +183,10 @@ fn last_of(snapshot: &ConfigSnapshot, key: &str) -> String {
 /// ```ts
 /// async function readPushSettings({ git, branchRef }): Promise<PushSettings | undefined>;
 /// ```
-fn read_push_settings(git: &PushGit, branch_ref: &str) -> Result<Option<PushSettings>, SingleFlightError> {
+fn read_push_settings(
+    git: &PushGit,
+    branch_ref: &str,
+) -> Result<Option<PushSettings>, SingleFlightError> {
     let Some(name) = branch_ref.strip_prefix("refs/heads/") else {
         return Ok(None);
     };
@@ -187,7 +208,10 @@ fn read_push_settings(git: &PushGit, branch_ref: &str) -> Result<Option<PushSett
 /// ```ts
 /// await readPushSettingsOnTheRuntime({ git, branchRef });
 /// ```
-async fn read_push_settings_awaiting(git: &PushGit, branch_ref: &str) -> Result<Option<PushSettings>, SingleFlightError> {
+async fn read_push_settings_awaiting(
+    git: &PushGit,
+    branch_ref: &str,
+) -> Result<Option<PushSettings>, SingleFlightError> {
     let Some(name) = branch_ref.strip_prefix("refs/heads/") else {
         return Ok(None);
     };
@@ -207,9 +231,16 @@ async fn read_push_settings_awaiting(git: &PushGit, branch_ref: &str) -> Result<
 /// ```ts
 /// settingsOf(listing, name); // PushSettings | undefined
 /// ```
-fn push_settings_of(listing: &QueryOutput, name: &str) -> Result<Option<PushSettings>, SingleFlightError> {
+fn push_settings_of(
+    listing: &QueryOutput,
+    name: &str,
+) -> Result<Option<PushSettings>, SingleFlightError> {
     if listing.code != Some(0) {
-        return Err(SingleFlightError::Git { arguments: String::from("config --list -z --show-scope"), code: listing.code, stderr: String::from_utf8_lossy(&listing.stderr).into_owned() });
+        return Err(SingleFlightError::Git {
+            arguments: String::from("config --list -z --show-scope"),
+            code: listing.code,
+            stderr: String::from_utf8_lossy(&listing.stderr).into_owned(),
+        });
     }
     let Some(snapshot) = ConfigSnapshot::parse(&listing.stdout, true) else {
         return Err(SingleFlightError::Git {
@@ -232,7 +263,10 @@ fn push_settings_of(listing: &QueryOutput, name: &str) -> Result<Option<PushSett
     return Ok(Some(PushSettings {
         branch: name.to_owned(),
         refspecs: values_of(&snapshot, &format!("remote.{push_remote}.push")),
-        mirror: matches!(snapshot.bool_value(&format!("remote.{push_remote}.mirror")), Lookup::Found(true)),
+        mirror: matches!(
+            snapshot.bool_value(&format!("remote.{push_remote}.mirror")),
+            Lookup::Found(true)
+        ),
         merges: values_of(&snapshot, &format!("branch.{name}.merge")),
         mode: last_of(&snapshot, "push.default"),
         push_remote,
@@ -248,8 +282,13 @@ fn push_settings_of(listing: &QueryOutput, name: &str) -> Result<Option<PushSett
 /// ```ts
 /// `monochromatic-git-policy-cli: auto-push: ${branch} was not pushed: ${reason} Nothing was pushed or changed.`
 /// ```
-fn note(branch: &str, reason: &str) -> String {
-    return format!("{NOTE_PREFIX}{branch} was not pushed: {reason} Nothing was pushed or changed; the commit is saved locally.");
+fn note(
+    branch: &str,
+    reason: &str,
+) -> String {
+    return format!(
+        "{NOTE_PREFIX}{branch} was not pushed: {reason} Nothing was pushed or changed; the commit is saved locally."
+    );
 }
 
 /// The skip of a branch,
@@ -259,7 +298,10 @@ fn note(branch: &str, reason: &str) -> String {
 /// ```ts
 /// ({ kind: 'skip', note: note(branch, reason) })
 /// ```
-fn skip(branch: &str, reason: &str) -> NamedPush {
+fn skip(
+    branch: &str,
+    reason: &str,
+) -> NamedPush {
     return NamedPush::Skip(note(branch, reason));
 }
 
@@ -279,28 +321,45 @@ enum ByMode {
 /// The target when the push goes to the branch's upstream:
 /// refused when the push remote is not the tracked remote or the
 /// branch has not exactly one `merge` value that names a branch.
-fn upstream_target(settings: &PushSettings, triangular: bool, mode_name: &str) -> ByMode {
+fn upstream_target(
+    settings: &PushSettings,
+    triangular: bool,
+    mode_name: &str,
+) -> ByMode {
     let branch = settings.branch.as_str();
     if triangular {
-        return ByMode::Refused(skip(branch, &format!(
-            "`push.default` is `{mode_name}` but its push remote `{}` is not the remote it tracks (`{}`), so Git refuses to say which \
+        return ByMode::Refused(skip(
+            branch,
+            &format!(
+                "`push.default` is `{mode_name}` but its push remote `{}` is not the remote it tracks (`{}`), so Git refuses to say which \
              branch to update. Set `push.default` to `simple` or `current`, or push it with `git push {} {branch}`.",
-            settings.push_remote, settings.tracked_remote, settings.push_remote
-        )));
+                settings.push_remote, settings.tracked_remote, settings.push_remote
+            ),
+        ));
     }
     let [merge] = settings.merges.as_slice() else {
-        return ByMode::Refused(skip(branch, &format!(
-            "`branch.{branch}.merge` has {} values and `push.default` is `{}`, so Git refuses to pick one upstream branch (\"multiple upstream \
+        return ByMode::Refused(skip(
+            branch,
+            &format!(
+                "`branch.{branch}.merge` has {} values and `push.default` is `{}`, so Git refuses to pick one upstream branch (\"multiple upstream \
              branches, refusing to push\"). Keep one `branch.{branch}.merge` value, or set `push.default` to `current`.",
-            settings.merges.len(),
-            if mode_name.is_empty() { "simple" } else { mode_name }
-        )));
+                settings.merges.len(),
+                if mode_name.is_empty() {
+                    "simple"
+                } else {
+                    mode_name
+                }
+            ),
+        ));
     };
     if !merge.starts_with("refs/heads/") || merge == "refs/heads/" {
-        return ByMode::Refused(skip(branch, &format!(
-            "it tracks `{merge}`, which is not a branch under `refs/heads`. Push it yourself with `git push {} {branch}`.",
-            settings.push_remote
-        )));
+        return ByMode::Refused(skip(
+            branch,
+            &format!(
+                "it tracks `{merge}`, which is not a branch under `refs/heads`. Push it yourself with `git push {} {branch}`.",
+                settings.push_remote
+            ),
+        ));
     }
     return ByMode::Target(merge.clone());
 }
@@ -325,7 +384,10 @@ fn upstream_target(settings: &PushSettings, triangular: bool, mode_name: &str) -
 /// ```ts
 /// function byMode(branchRef: string, settings: PushSettings): ByMode;
 /// ```
-fn by_mode(branch_ref: &str, settings: &PushSettings) -> ByMode {
+fn by_mode(
+    branch_ref: &str,
+    settings: &PushSettings,
+) -> ByMode {
     let branch = settings.branch.as_str();
     let mode = settings.mode.as_str();
     let triangular = settings.push_remote != settings.tracked_remote;
@@ -335,14 +397,20 @@ fn by_mode(branch_ref: &str, settings: &PushSettings) -> ByMode {
         "" | "simple" => upstream_target(settings, triangular, ""),
         "upstream" | "tracking" => upstream_target(settings, triangular, mode),
         "matching" => ByMode::Matching,
-        "nothing" => ByMode::Refused(skip(branch, &format!(
-            "`push.default` is `nothing`, so Git pushes no branch without a refspec. Set `push.default` to `simple` or `current`, or push it \
+        "nothing" => ByMode::Refused(skip(
+            branch,
+            &format!(
+                "`push.default` is `nothing`, so Git pushes no branch without a refspec. Set `push.default` to `simple` or `current`, or push it \
              with `git push {} {branch}`.",
-            settings.push_remote
-        ))),
-        other => ByMode::Refused(skip(branch, &format!(
-            "`push.default` is `{other}`, a value Git does not accept. Set it to `simple`, `current`, `upstream` or `matching`."
-        ))),
+                settings.push_remote
+            ),
+        )),
+        other => ByMode::Refused(skip(
+            branch,
+            &format!(
+                "`push.default` is `{other}`, a value Git does not accept. Set it to `simple`, `current`, `upstream` or `matching`."
+            ),
+        )),
     };
 }
 
@@ -365,7 +433,10 @@ fn by_mode(branch_ref: &str, settings: &PushSettings) -> ByMode {
 /// ```ts
 /// async function readDestination({ git, branchRef }): Promise<Destination | undefined>;
 /// ```
-pub fn read_destination(git: &PushGit, branch_ref: &str) -> Result<Option<Destination>, SingleFlightError> {
+pub fn read_destination(
+    git: &PushGit,
+    branch_ref: &str,
+) -> Result<Option<Destination>, SingleFlightError> {
     let Some(settings) = read_push_settings(git, branch_ref)? else {
         return Ok(None);
     };
@@ -385,7 +456,10 @@ pub fn read_destination(git: &PushGit, branch_ref: &str) -> Result<Option<Destin
 /// ```ts
 /// await readDestinationOnTheRuntime({ git, branchRef });
 /// ```
-pub async fn read_destination_awaiting(git: &PushGit, branch_ref: &str) -> Result<Option<Destination>, SingleFlightError> {
+pub async fn read_destination_awaiting(
+    git: &PushGit,
+    branch_ref: &str,
+) -> Result<Option<Destination>, SingleFlightError> {
     let Some(settings) = read_push_settings_awaiting(git, branch_ref).await? else {
         return Ok(None);
     };
@@ -402,12 +476,18 @@ pub async fn read_destination_awaiting(git: &PushGit, branch_ref: &str) -> Resul
 /// ```ts
 /// settings.mirror || settings.refspecs.length ? undefined : byMode(branchRef, settings).kind === 'target' ? { remote, mergeRef } : undefined;
 /// ```
-fn destination_of(branch_ref: &str, settings: &PushSettings) -> Option<Destination> {
+fn destination_of(
+    branch_ref: &str,
+    settings: &PushSettings,
+) -> Option<Destination> {
     if settings.mirror || !settings.refspecs.is_empty() {
         return None;
     }
     return match by_mode(branch_ref, settings) {
-        ByMode::Target(merge_ref) => Some(Destination { remote: settings.push_remote.clone(), merge_ref }),
+        ByMode::Target(merge_ref) => Some(Destination {
+            remote: settings.push_remote.clone(),
+            merge_ref,
+        }),
         ByMode::Matching | ByMode::Refused(_) => None,
     };
 }
@@ -429,10 +509,16 @@ fn destination_of(branch_ref: &str, settings: &PushSettings) -> Option<Destinati
 /// ```ts
 /// async function namedPush({ git, branchRef }): Promise<NamedPush>;
 /// ```
-pub fn named_push(git: &PushGit, branch_ref: &str) -> Result<NamedPush, SingleFlightError> {
+pub fn named_push(
+    git: &PushGit,
+    branch_ref: &str,
+) -> Result<NamedPush, SingleFlightError> {
     let Some(settings) = read_push_settings(git, branch_ref)? else {
         let branch = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-        return Ok(skip(branch, "it has no remote to push to (its remote is `.`, a local branch, or none is set). Push it yourself with `git push`."));
+        return Ok(skip(
+            branch,
+            "it has no remote to push to (its remote is `.`, a local branch, or none is set). Push it yourself with `git push`.",
+        ));
     };
     if settings.mirror {
         return Ok(mirror_skip(&settings));
@@ -456,10 +542,16 @@ pub fn named_push(git: &PushGit, branch_ref: &str) -> Result<NamedPush, SingleFl
 /// ```ts
 /// await namedPushOnTheRuntime({ git, branchRef });
 /// ```
-pub async fn named_push_awaiting(git: &PushGit, branch_ref: &str) -> Result<NamedPush, SingleFlightError> {
+pub async fn named_push_awaiting(
+    git: &PushGit,
+    branch_ref: &str,
+) -> Result<NamedPush, SingleFlightError> {
     let Some(settings) = read_push_settings_awaiting(git, branch_ref).await? else {
         let branch = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-        return Ok(skip(branch, "it has no remote to push to (its remote is `.`, a local branch, or none is set). Push it yourself with `git push`."));
+        return Ok(skip(
+            branch,
+            "it has no remote to push to (its remote is `.`, a local branch, or none is set). Push it yourself with `git push`.",
+        ));
     };
     if settings.mirror {
         return Ok(mirror_skip(&settings));
@@ -480,11 +572,14 @@ pub async fn named_push_awaiting(git: &PushGit, branch_ref: &str) -> Result<Name
 /// skip(settings.branch, `remote.${settings.pushRemote}.mirror is true ...`);
 /// ```
 fn mirror_skip(settings: &PushSettings) -> NamedPush {
-    return skip(&settings.branch, &format!(
-        "`remote.{0}.mirror` is true: Git mirrors every ref to `{0}` (and deletes the ones it lacks) and refuses a branch pushed by name, \
+    return skip(
+        &settings.branch,
+        &format!(
+            "`remote.{0}.mirror` is true: Git mirrors every ref to `{0}` (and deletes the ones it lacks) and refuses a branch pushed by name, \
          which is all this service pushes. Run `git push` yourself to mirror, or unset `remote.{0}.mirror`.",
-        settings.push_remote
-    ));
+            settings.push_remote
+        ),
+    );
 }
 
 /// What:
@@ -497,10 +592,18 @@ fn mirror_skip(settings: &PushSettings) -> NamedPush {
 /// ```ts
 /// const decided = byMode(branchRef, settings);
 /// ```
-fn named_by_mode(branch_ref: &str, settings: &PushSettings) -> NamedPush {
+fn named_by_mode(
+    branch_ref: &str,
+    settings: &PushSettings,
+) -> NamedPush {
     return match by_mode(branch_ref, settings) {
-        ByMode::Target(target) => NamedPush::Push { remote: settings.push_remote.clone(), targets: vec![target] },
-        ByMode::Matching => NamedPush::Matching { remote: settings.push_remote.clone() },
+        ByMode::Target(target) => NamedPush::Push {
+            remote: settings.push_remote.clone(),
+            targets: vec![target],
+        },
+        ByMode::Matching => NamedPush::Matching {
+            remote: settings.push_remote.clone(),
+        },
         ByMode::Refused(skipped) => skipped,
     };
 }
@@ -516,9 +619,16 @@ fn named_by_mode(branch_ref: &str, settings: &PushSettings) -> NamedPush {
 /// ```ts
 /// async function namedByRefspecs({ git, branchRef, settings }): Promise<NamedPush>;
 /// ```
-fn named_by_refspecs(git: &PushGit, branch_ref: &str, settings: &PushSettings) -> Result<NamedPush, SingleFlightError> {
+fn named_by_refspecs(
+    git: &PushGit,
+    branch_ref: &str,
+    settings: &PushSettings,
+) -> Result<NamedPush, SingleFlightError> {
     let query: Vec<String> = refspec_query(settings);
-    let asked = run_query(git, &argv(&query.iter().map(String::as_str).collect::<Vec<&str>>()))?;
+    let asked = run_query(
+        git,
+        &argv(&query.iter().map(String::as_str).collect::<Vec<&str>>()),
+    )?;
     return named_by_refspecs_of(branch_ref, settings, &asked, &query);
 }
 
@@ -535,9 +645,17 @@ fn named_by_refspecs(git: &PushGit, branch_ref: &str, settings: &PushSettings) -
 /// ```ts
 /// await namedByRefspecsOnTheRuntime({ git, branchRef, settings });
 /// ```
-async fn named_by_refspecs_awaiting(git: &PushGit, branch_ref: &str, settings: &PushSettings) -> Result<NamedPush, SingleFlightError> {
+async fn named_by_refspecs_awaiting(
+    git: &PushGit,
+    branch_ref: &str,
+    settings: &PushSettings,
+) -> Result<NamedPush, SingleFlightError> {
     let query: Vec<String> = refspec_query(settings);
-    let asked = run_query_awaiting(git, &argv(&query.iter().map(String::as_str).collect::<Vec<&str>>())).await?;
+    let asked = run_query_awaiting(
+        git,
+        &argv(&query.iter().map(String::as_str).collect::<Vec<&str>>()),
+    )
+    .await?;
     return named_by_refspecs_of(branch_ref, settings, &asked, &query);
 }
 
@@ -563,7 +681,10 @@ fn refspec_query(settings: &PushSettings) -> Vec<String> {
     }
     patterns.sort();
     patterns.dedup();
-    let mut query: Vec<String> = vec![String::from("for-each-ref"), String::from("--format=%(refname)")];
+    let mut query: Vec<String> = vec![
+        String::from("for-each-ref"),
+        String::from("--format=%(refname)"),
+    ];
     query.extend(patterns);
     return query;
 }
@@ -579,7 +700,12 @@ fn refspec_query(settings: &PushSettings) -> Vec<String> {
 /// ```ts
 /// judge(branchRef, remote, settings.refspecs, localRefs); // push | skip
 /// ```
-fn named_by_refspecs_of(branch_ref: &str, settings: &PushSettings, asked: &QueryOutput, query: &[String]) -> Result<NamedPush, SingleFlightError> {
+fn named_by_refspecs_of(
+    branch_ref: &str,
+    settings: &PushSettings,
+    asked: &QueryOutput,
+    query: &[String],
+) -> Result<NamedPush, SingleFlightError> {
     let branch = settings.branch.as_str();
     let remote = settings.push_remote.as_str();
     if asked.code != Some(0) {
@@ -589,19 +715,38 @@ fn named_by_refspecs_of(branch_ref: &str, settings: &PushSettings, asked: &Query
             stderr: String::from_utf8_lossy(&asked.stderr).into_owned(),
         });
     }
-    let local_refs: Vec<String> = String::from_utf8_lossy(&asked.stdout).lines().map(str::to_owned).collect();
-    return Ok(match judge(branch_ref, remote, &settings.refspecs, &local_refs) {
-        Judged::Targets(targets) if !targets.is_empty() => NamedPush::Push { remote: remote.to_owned(), targets },
-        Judged::Targets(_) => skip(branch, &format!(
-            "no `remote.{remote}.push` refspec sends it anywhere, so Git pushes other refs or nothing for it. Add a refspec for it, or push it \
+    let local_refs: Vec<String> = String::from_utf8_lossy(&asked.stdout)
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    return Ok(
+        match judge(branch_ref, remote, &settings.refspecs, &local_refs) {
+            Judged::Targets(targets) if !targets.is_empty() => NamedPush::Push {
+                remote: remote.to_owned(),
+                targets,
+            },
+            Judged::Targets(_) => skip(
+                branch,
+                &format!(
+                    "no `remote.{remote}.push` refspec sends it anywhere, so Git pushes other refs or nothing for it. Add a refspec for it, or push it \
              with `git push {remote} {branch}`."
-        )),
-        Judged::Refused(reason) => skip(branch, &format!("{reason} Fix `remote.{remote}.push`, or push it with `git push {remote} {branch}`.")),
-        Judged::Unjudged(text) => skip(branch, &format!(
-            "`remote.{remote}.push` has `{text}`, a form this service does not interpret (it reads full ref names and one `*` per side). \
+                ),
+            ),
+            Judged::Refused(reason) => skip(
+                branch,
+                &format!(
+                    "{reason} Fix `remote.{remote}.push`, or push it with `git push {remote} {branch}`."
+                ),
+            ),
+            Judged::Unjudged(text) => skip(
+                branch,
+                &format!(
+                    "`remote.{remote}.push` has `{text}`, a form this service does not interpret (it reads full ref names and one `*` per side). \
              Push it yourself with `git push`."
-        )),
-    });
+                ),
+            ),
+        },
+    );
 }
 
 /// The destination logic is controlled in the test module.

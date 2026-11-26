@@ -13,8 +13,24 @@
 //!  caller writes brings a directory back.
 //! Real Git started directly is the positive control for every marker.
 
-use super::commit::{remove_settled, run_commit, wrapped_commit};
-use super::support::{Fixture, Observed, decline_in_process_lfs_scan, direct, executable, fixture, git, observe, repository, stderr_of, wrapper_first_path};
+use super::commit::{
+    remove_settled,
+    run_commit,
+    wrapped_commit,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    decline_in_process_lfs_scan,
+    direct,
+    executable,
+    fixture,
+    git,
+    observe,
+    repository,
+    stderr_of,
+    wrapper_first_path,
+};
 use git_policy_cli::doctor::lfs_shim_text;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -36,10 +52,18 @@ struct World {
 
 /// Write an executable hook file `name` into the repository's hooks directory that appends `name` to the markers
 ///  and exits with `status`.
-fn marker_hook(world: &World, name: &str, status: i32) {
+fn marker_hook(
+    world: &World,
+    name: &str,
+    status: i32,
+) {
     executable(
         world.repo.join(".git/hooks").join(name).as_path(),
-        format!("#!/bin/sh\necho {name} >> '{}'\nexit {status}\n", world.markers.display()).as_bytes(),
+        format!(
+            "#!/bin/sh\necho {name} >> '{}'\nexit {status}\n",
+            world.markers.display()
+        )
+        .as_bytes(),
     );
 }
 
@@ -51,31 +75,75 @@ fn markers(world: &World) -> String {
 
 /// How many times the stand-in `git-lfs` ran.
 fn lfs_runs(world: &World) -> usize {
-    return std::fs::read_to_string(&world.lfs_runs).unwrap_or_default().lines().count();
+    return std::fs::read_to_string(&world.lfs_runs)
+        .unwrap_or_default()
+        .lines()
+        .count();
 }
 
 /// Create the world;
 /// `lfs` adds a Git LFS key to the repository configuration.
-fn world(fixture: &Fixture, lfs: bool) -> World {
+fn world(
+    fixture: &Fixture,
+    lfs: bool,
+) -> World {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     let origin: PathBuf = fixture.root.join("origin.git");
-    git(fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "origin.git"]);
-    git(fixture, repo.as_path(), &["remote", "add", "origin", origin.to_str().expect("UTF-8")]);
-    git(fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
+    git(
+        fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            "origin.git",
+        ],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["remote", "add", "origin", origin.to_str().expect("UTF-8")],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["config", "maintenance.autoDetach", "false"],
+    );
     if lfs {
-        git(fixture, repo.as_path(), &["config", "lfs.url", "http://127.0.0.1:9/never-contacted"]);
+        git(
+            fixture,
+            repo.as_path(),
+            &["config", "lfs.url", "http://127.0.0.1:9/never-contacted"],
+        );
     }
     let lfs_runs: PathBuf = fixture.root.join("lfs-runs.txt");
     executable(
         fixture.root.join("bin/git-lfs").as_path(),
-        format!("#!/bin/sh\ncat > /dev/null\necho \"$*\" >> '{}'\nexit 0\n", lfs_runs.display()).as_bytes(),
+        format!(
+            "#!/bin/sh\ncat > /dev/null\necho \"$*\" >> '{}'\nexit 0\n",
+            lfs_runs.display()
+        )
+        .as_bytes(),
     );
-    return World { repo, origin, markers: fixture.root.join("markers.txt"), lfs_runs };
+    return World {
+        repo,
+        origin,
+        markers: fixture.root.join("markers.txt"),
+        lfs_runs,
+    };
 }
 
 /// Run a wrapped command in the repository.
-fn wrapped(fixture: &Fixture, world: &World, arguments: &[&str]) -> Observed {
-    return observe(&mut wrapped_commit(fixture, world.repo.as_path(), arguments), b"");
+fn wrapped(
+    fixture: &Fixture,
+    world: &World,
+    arguments: &[&str],
+) -> Observed {
+    return observe(
+        &mut wrapped_commit(fixture, world.repo.as_path(), arguments),
+        b"",
+    );
 }
 
 /// A hook file does not run for a forwarded command,
@@ -87,11 +155,23 @@ fn a_forwarded_command_does_not_run_a_hook_file() {
     marker_hook(&world, "post-checkout", 0);
     let switched: Observed = wrapped(&fixture, &world, &["checkout", "--quiet", "main"]);
     assert_eq!(switched.code, Some(0), "{}", stderr_of(&switched));
-    assert_eq!(markers(&world), "", "the hook file must not run through the wrapper");
+    assert_eq!(
+        markers(&world),
+        "",
+        "the hook file must not run through the wrapper"
+    );
     // Positive control: the same command straight to real Git runs the hook file.
-    let control = direct(&fixture).current_dir(&world.repo).args(["checkout", "--quiet", "main"]).output().expect("git starts");
+    let control = direct(&fixture)
+        .current_dir(&world.repo)
+        .args(["checkout", "--quiet", "main"])
+        .output()
+        .expect("git starts");
     assert!(control.status.success());
-    assert_eq!(markers(&world), "post-checkout\n", "real Git started directly runs the hook file");
+    assert_eq!(
+        markers(&world),
+        "post-checkout\n",
+        "real Git started directly runs the hook file"
+    );
     remove_settled(&fixture);
 }
 
@@ -103,9 +183,28 @@ fn a_configured_hook_never_runs_for_a_forwarded_command() {
     let world: World = world(&fixture, false);
     marker_hook(&world, "post-checkout", 1);
     let script: PathBuf = fixture.root.join("configured-hook");
-    executable(script.as_path(), format!("#!/bin/sh\necho configured >> '{}'\n", world.markers.display()).as_bytes());
-    git(&fixture, world.repo.as_path(), &["config", "hook.control.event", "post-checkout"]);
-    git(&fixture, world.repo.as_path(), &["config", "hook.control.command", script.to_str().expect("UTF-8")]);
+    executable(
+        script.as_path(),
+        format!(
+            "#!/bin/sh\necho configured >> '{}'\n",
+            world.markers.display()
+        )
+        .as_bytes(),
+    );
+    git(
+        &fixture,
+        world.repo.as_path(),
+        &["config", "hook.control.event", "post-checkout"],
+    );
+    git(
+        &fixture,
+        world.repo.as_path(),
+        &[
+            "config",
+            "hook.control.command",
+            script.to_str().expect("UTF-8"),
+        ],
+    );
     let switched: Observed = wrapped(&fixture, &world, &["checkout", "--quiet", "main"]);
     assert_eq!(switched.code, Some(0), "{}", stderr_of(&switched));
     assert_eq!(markers(&world), "");
@@ -121,7 +220,11 @@ fn a_hooks_path_of_the_caller_does_not_bring_the_hook_file_back() {
     marker_hook(&world, "post-checkout", 0);
     let hooks: String = world.repo.join(".git/hooks").display().to_string();
     let option: String = format!("core.hooksPath={hooks}");
-    let switched: Observed = wrapped(&fixture, &world, &["-c", option.as_str(), "checkout", "--quiet", "main"]);
+    let switched: Observed = wrapped(
+        &fixture,
+        &world,
+        &["-c", option.as_str(), "checkout", "--quiet", "main"],
+    );
     assert_eq!(switched.code, Some(0), "{}", stderr_of(&switched));
     assert_eq!(markers(&world), "");
     remove_settled(&fixture);
@@ -135,13 +238,23 @@ fn a_configured_hooks_directory_is_not_used_and_is_still_reported() {
     let world: World = world(&fixture, false);
     let hooks: PathBuf = fixture.root.join("other-hooks");
     std::fs::create_dir(&hooks).expect("hooks");
-    executable(hooks.join("post-checkout").as_path(), format!("#!/bin/sh\necho other >> '{}'\n", world.markers.display()).as_bytes());
-    git(&fixture, world.repo.as_path(), &["config", "core.hooksPath", hooks.to_str().expect("UTF-8")]);
+    executable(
+        hooks.join("post-checkout").as_path(),
+        format!("#!/bin/sh\necho other >> '{}'\n", world.markers.display()).as_bytes(),
+    );
+    git(
+        &fixture,
+        world.repo.as_path(),
+        &["config", "core.hooksPath", hooks.to_str().expect("UTF-8")],
+    );
     let switched: Observed = wrapped(&fixture, &world, &["checkout", "--quiet", "main"]);
     assert_eq!(switched.code, Some(0), "{}", stderr_of(&switched));
     assert_eq!(markers(&world), "");
     let reported: Observed = wrapped(&fixture, &world, &["config", "--get", "core.hooksPath"]);
-    assert_eq!(String::from_utf8_lossy(&reported.stdout).trim(), hooks.to_str().expect("UTF-8"));
+    assert_eq!(
+        String::from_utf8_lossy(&reported.stdout).trim(),
+        hooks.to_str().expect("UTF-8")
+    );
     let listed: Observed = wrapped(&fixture, &world, &["config", "--list"]);
     assert!(!String::from_utf8_lossy(&listed.stdout).contains("cli-git-no-hooks"));
     remove_settled(&fixture);
@@ -157,23 +270,60 @@ fn a_failing_pre_push_hook_file_blocks_neither_a_push_nor_an_auto_push() {
     assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
     std::fs::write(world.repo.join("a.txt"), b"one\n").expect("a.txt");
     git(&fixture, world.repo.as_path(), &["add", "--", "a.txt"]);
-    let landed: Observed = run_commit(&fixture, world.repo.as_path(), &["commit", "--quiet", "--message=one", "--", "a.txt"]);
+    let landed: Observed = run_commit(
+        &fixture,
+        world.repo.as_path(),
+        &["commit", "--quiet", "--message=one", "--", "a.txt"],
+    );
     let stderr: String = stderr_of(&landed);
     assert_eq!(landed.code, Some(0), "{stderr}");
     assert!(!stderr.contains("auto-push to origin failed"), "{stderr}");
     assert_eq!(markers(&world), "", "no hook file ran");
-    let head = direct(&fixture).current_dir(&world.repo).args(["rev-parse", "HEAD"]).output().expect("git starts");
-    let published = direct(&fixture).current_dir(&world.origin).args(["rev-parse", "refs/heads/main"]).output().expect("git starts");
-    assert_eq!(head.stdout, published.stdout, "the auto-push published the commit");
+    let head = direct(&fixture)
+        .current_dir(&world.repo)
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .expect("git starts");
+    let published = direct(&fixture)
+        .current_dir(&world.origin)
+        .args(["rev-parse", "refs/heads/main"])
+        .output()
+        .expect("git starts");
+    assert_eq!(
+        head.stdout, published.stdout,
+        "the auto-push published the commit"
+    );
     remove_settled(&fixture);
 }
 
 /// Configure a `pre-push` hook that appends `configured` to the markers.
-fn configured_pre_push(fixture: &Fixture, world: &World) {
+fn configured_pre_push(
+    fixture: &Fixture,
+    world: &World,
+) {
     let script: PathBuf = fixture.root.join("configured-pre-push");
-    executable(script.as_path(), format!("#!/bin/sh\necho configured >> '{}'\n", world.markers.display()).as_bytes());
-    git(fixture, world.repo.as_path(), &["config", "hook.control.event", "pre-push"]);
-    git(fixture, world.repo.as_path(), &["config", "hook.control.command", script.to_str().expect("UTF-8")]);
+    executable(
+        script.as_path(),
+        format!(
+            "#!/bin/sh\necho configured >> '{}'\n",
+            world.markers.display()
+        )
+        .as_bytes(),
+    );
+    git(
+        fixture,
+        world.repo.as_path(),
+        &["config", "hook.control.event", "pre-push"],
+    );
+    git(
+        fixture,
+        world.repo.as_path(),
+        &[
+            "config",
+            "hook.control.command",
+            script.to_str().expect("UTF-8"),
+        ],
+    );
 }
 
 /// A configured `pre-push` hook does not run for a normal push,
@@ -197,7 +347,11 @@ fn a_configured_pre_push_hook_does_not_run_for_an_auto_push() {
     configured_pre_push(&fixture, &world);
     std::fs::write(world.repo.join("a.txt"), b"one\n").expect("a.txt");
     git(&fixture, world.repo.as_path(), &["add", "--", "a.txt"]);
-    let landed: Observed = run_commit(&fixture, world.repo.as_path(), &["commit", "--quiet", "--message=one", "--", "a.txt"]);
+    let landed: Observed = run_commit(
+        &fixture,
+        world.repo.as_path(),
+        &["commit", "--quiet", "--message=one", "--", "a.txt"],
+    );
     assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
     assert_eq!(markers(&world), "");
     remove_settled(&fixture);
@@ -212,17 +366,42 @@ fn a_configured_pre_push_hook_does_not_run_for_a_lost_race_push() {
     let world: World = world(&fixture, false);
     configured_pre_push(&fixture, &world);
     // The origin gets `main` from a clone that is not the pushing repository, so the push loses.
-    git(&fixture, world.repo.as_path(), &["push", "--quiet", "--no-verify", "origin", "main"]);
+    git(
+        &fixture,
+        world.repo.as_path(),
+        &["push", "--quiet", "--no-verify", "origin", "main"],
+    );
     let rival: PathBuf = fixture.root.join("rival");
-    git(&fixture, fixture.root.as_path(), &["clone", "--quiet", world.origin.to_str().expect("UTF-8"), "rival"]);
+    git(
+        &fixture,
+        fixture.root.as_path(),
+        &[
+            "clone",
+            "--quiet",
+            world.origin.to_str().expect("UTF-8"),
+            "rival",
+        ],
+    );
     std::fs::write(rival.join("rival.txt"), b"rival\n").expect("rival.txt");
     git(&fixture, rival.as_path(), &["add", "--", "rival.txt"]);
-    git(&fixture, rival.as_path(), &["commit", "--quiet", "--message=rival", "--", "rival.txt"]);
-    git(&fixture, rival.as_path(), &["push", "--quiet", "--no-verify", "origin", "HEAD:main"]);
+    git(
+        &fixture,
+        rival.as_path(),
+        &["commit", "--quiet", "--message=rival", "--", "rival.txt"],
+    );
+    git(
+        &fixture,
+        rival.as_path(),
+        &["push", "--quiet", "--no-verify", "origin", "HEAD:main"],
+    );
     commit_directly(&fixture, &world, "local.txt");
     let pushed: Observed = wrapped(&fixture, &world, &["push", "origin", "main"]);
     assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
-    assert!(stderr_of(&pushed).contains("had new commits"), "{}", stderr_of(&pushed));
+    assert!(
+        stderr_of(&pushed).contains("had new commits"),
+        "{}",
+        stderr_of(&pushed)
+    );
     assert_eq!(markers(&world), "");
     remove_settled(&fixture);
 }
@@ -235,7 +414,11 @@ fn a_local_remotes_server_side_hook_still_runs() {
     let world: World = world(&fixture, false);
     executable(
         world.origin.join("hooks/post-receive").as_path(),
-        format!("#!/bin/sh\necho post-receive >> '{}'\n", world.markers.display()).as_bytes(),
+        format!(
+            "#!/bin/sh\necho post-receive >> '{}'\n",
+            world.markers.display()
+        )
+        .as_bytes(),
     );
     let pushed: Observed = wrapped(&fixture, &world, &["push", "origin", "main"]);
     assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
@@ -251,7 +434,10 @@ fn a_regenerated_pre_push_shim_does_not_double_the_upload() {
     let world: World = world(&fixture, true);
     // The repository holds no pointer, so only a scan by `git-lfs` makes the wrapper's own step run the program.
     decline_in_process_lfs_scan(&fixture, world.repo.as_path());
-    executable(world.repo.join(".git/hooks/pre-push").as_path(), lfs_shim_text("pre-push").as_bytes());
+    executable(
+        world.repo.join(".git/hooks/pre-push").as_path(),
+        lfs_shim_text("pre-push").as_bytes(),
+    );
     let pushed: Observed = wrapped(&fixture, &world, &["push", "origin", "main"]);
     assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
     assert_eq!(lfs_runs(&world), 1, "one upload step, not two");
@@ -264,21 +450,46 @@ fn a_regenerated_pre_push_shim_does_not_double_the_upload() {
         .args(["push", "origin", "main"])
         .output()
         .expect("git starts");
-    assert!(control.status.success(), "{}", String::from_utf8_lossy(&control.stderr));
-    assert_eq!(lfs_runs(&world), 2, "the shim ran when real Git was started directly");
+    assert!(
+        control.status.success(),
+        "{}",
+        String::from_utf8_lossy(&control.stderr)
+    );
+    assert_eq!(
+        lfs_runs(&world),
+        2,
+        "the shim ran when real Git was started directly"
+    );
     remove_settled(&fixture);
 }
 
 /// Commit a file with real Git,
 /// so no auto-push runs.
-fn commit_directly(fixture: &Fixture, world: &World, name: &str) {
+fn commit_directly(
+    fixture: &Fixture,
+    world: &World,
+    name: &str,
+) {
     std::fs::write(world.repo.join(name), b"x\n").expect("fixture file");
     git(fixture, world.repo.as_path(), &["add", "--", name]);
-    git(fixture, world.repo.as_path(), &["commit", "--quiet", &format!("--message={name}"), "--", name]);
+    git(
+        fixture,
+        world.repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            &format!("--message={name}"),
+            "--",
+            name,
+        ],
+    );
 }
 
 /// Run `git monochromatic-git-policy-cli doctor` through the wrapper.
-fn doctor(fixture: &Fixture, world: &World) -> Observed {
+fn doctor(
+    fixture: &Fixture,
+    world: &World,
+) -> Observed {
     return wrapped(fixture, world, &["monochromatic-git-policy-cli", "doctor"]);
 }
 
@@ -291,15 +502,34 @@ fn doctor_explains_the_git_lfs_shims_and_exits_zero() {
     let fixture: Fixture = fixture("hooks-off-doctor-shims");
     let world: World = world(&fixture, true);
     for name in ["pre-push", "post-checkout", "post-commit", "post-merge"] {
-        executable(world.repo.join(".git/hooks").join(name).as_path(), lfs_shim_text(name).as_bytes());
+        executable(
+            world.repo.join(".git/hooks").join(name).as_path(),
+            lfs_shim_text(name).as_bytes(),
+        );
     }
     let report: Observed = doctor(&fixture, &world);
     let stderr: String = stderr_of(&report);
     assert_eq!(report.code, Some(0), "{stderr}");
-    assert!(report.stdout.is_empty(), "{}", String::from_utf8_lossy(&report.stdout));
-    assert!(stderr.contains("the Git LFS shims, byte for byte, and nothing needs doing"), "{stderr}");
+    assert!(
+        report.stdout.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&report.stdout)
+    );
+    assert!(
+        stderr.contains("the Git LFS shims, byte for byte, and nothing needs doing"),
+        "{stderr}"
+    );
     assert!(stderr.contains("this is normal"), "{stderr}");
-    assert!(stderr.contains(world.repo.join(".git/hooks/pre-push").to_str().expect("UTF-8")), "{stderr}");
+    assert!(
+        stderr.contains(
+            world
+                .repo
+                .join(".git/hooks/pre-push")
+                .to_str()
+                .expect("UTF-8")
+        ),
+        "{stderr}"
+    );
     remove_settled(&fixture);
 }
 
@@ -308,7 +538,10 @@ fn doctor_explains_the_git_lfs_shims_and_exits_zero() {
 fn doctor_keeps_reporting_other_hooks_beside_the_shims() {
     let fixture: Fixture = fixture("hooks-off-doctor-foreign");
     let world: World = world(&fixture, true);
-    executable(world.repo.join(".git/hooks/pre-push").as_path(), lfs_shim_text("pre-push").as_bytes());
+    executable(
+        world.repo.join(".git/hooks/pre-push").as_path(),
+        lfs_shim_text("pre-push").as_bytes(),
+    );
     marker_hook(&world, "pre-commit", 0);
     let report: Observed = doctor(&fixture, &world);
     assert_eq!(report.code, Some(1), "{}", stderr_of(&report));
@@ -316,7 +549,11 @@ fn doctor_keeps_reporting_other_hooks_beside_the_shims() {
         String::from_utf8_lossy(&report.stdout),
         format!("{}\n", world.repo.join(".git/hooks/pre-commit").display())
     );
-    assert!(stderr_of(&report).contains("never run through monochromatic-git-policy-cli"), "{}", stderr_of(&report));
+    assert!(
+        stderr_of(&report).contains("never run through monochromatic-git-policy-cli"),
+        "{}",
+        stderr_of(&report)
+    );
     remove_settled(&fixture);
 }
 
@@ -325,7 +562,14 @@ fn doctor_keeps_reporting_other_hooks_beside_the_shims() {
 fn doctor_outside_a_repository_still_exits_two() {
     let fixture: Fixture = fixture("hooks-off-doctor-outside");
     let _world: World = world(&fixture, false);
-    let report: Observed = observe(&mut wrapped_commit(&fixture, fixture.root.as_path(), &["monochromatic-git-policy-cli", "doctor"]), b"");
+    let report: Observed = observe(
+        &mut wrapped_commit(
+            &fixture,
+            fixture.root.as_path(),
+            &["monochromatic-git-policy-cli", "doctor"],
+        ),
+        b"",
+    );
     assert_eq!(report.code, Some(2), "{}", stderr_of(&report));
     remove_settled(&fixture);
 }
@@ -334,7 +578,9 @@ fn doctor_outside_a_repository_still_exits_two() {
 /// this compares the recognized bytes with a real file.
 #[test]
 fn the_recognized_shim_bytes_are_the_ones_the_real_git_lfs_writes() {
-    let Some(program) = super::real_git_lfs_the_run_requires::required("the bytes the real `git-lfs` writes into a repository's hooks folder") else {
+    let Some(program) = super::real_git_lfs_the_run_requires::required(
+        "the bytes the real `git-lfs` writes into a repository's hooks folder",
+    ) else {
         return;
     };
     let fixture: Fixture = fixture("hooks-off-real-shim");
@@ -346,18 +592,31 @@ fn the_recognized_shim_bytes_are_the_ones_the_real_git_lfs_writes() {
         ("filter.lfs.process", "git-lfs filter-process"),
         ("filter.lfs.required", "true"),
     ] {
-        git(&fixture, repo.as_path(), &[ "config", key, value]);
+        git(&fixture, repo.as_path(), &["config", key, value]);
     }
-    std::fs::write(repo.join(".gitattributes"), b"*.bin filter=lfs diff=lfs merge=lfs -text\n").expect("attributes");
+    std::fs::write(
+        repo.join(".gitattributes"),
+        b"*.bin filter=lfs diff=lfs merge=lfs -text\n",
+    )
+    .expect("attributes");
     std::fs::write(repo.join("x.bin"), b"hello\n").expect("x.bin");
     let hooks: PathBuf = repo.join(".git/hooks");
-    let written = |name: &str| -> Option<Vec<u8>> { return std::fs::read(hooks.join(name)).ok(); };
+    let written = |name: &str| -> Option<Vec<u8>> {
+        return std::fs::read(hooks.join(name)).ok();
+    };
     // Through the wrapper the clean filter inherits the hooks-off option, so git-lfs finds no hooks directory it can
     // write to and leaves the repository without shims.
-    let added: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), &["add", "--", "x.bin"]), b"");
+    let added: Observed = observe(
+        &mut wrapped_commit(&fixture, repo.as_path(), &["add", "--", "x.bin"]),
+        b"",
+    );
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     for name in ["pre-push", "post-checkout", "post-commit", "post-merge"] {
-        assert_eq!(written(name), None, "{name} must not be written through the wrapper");
+        assert_eq!(
+            written(name),
+            None,
+            "{name} must not be written through the wrapper"
+        );
     }
     // Positive control: the same add by real Git started directly writes the four shims, with the recognized bytes.
     std::fs::write(repo.join("y.bin"), b"world\n").expect("y.bin");
@@ -367,9 +626,17 @@ fn the_recognized_shim_bytes_are_the_ones_the_real_git_lfs_writes() {
         .args(["add", "--", "y.bin"])
         .output()
         .expect("git starts");
-    assert!(control.status.success(), "{}", String::from_utf8_lossy(&control.stderr));
+    assert!(
+        control.status.success(),
+        "{}",
+        String::from_utf8_lossy(&control.stderr)
+    );
     for name in ["pre-push", "post-checkout", "post-commit", "post-merge"] {
-        assert_eq!(written(name), Some(lfs_shim_text(name).into_bytes()), "{name}");
+        assert_eq!(
+            written(name),
+            Some(lfs_shim_text(name).into_bytes()),
+            "{name}"
+        );
     }
     remove_settled(&fixture);
 }

@@ -27,9 +27,20 @@
 //! ```
 
 use crate::push_retry::PLAN_DIRECTORY;
-use crate::push_retry_store::{StoredPlan, load, remove};
-use crate::unreachable_git_dir_proven_gone::{Proof, prove, the_mounts};
-use std::path::{Path, PathBuf};
+use crate::push_retry_store::{
+    StoredPlan,
+    load,
+    remove,
+};
+use crate::unreachable_git_dir_proven_gone::{
+    Proof,
+    prove,
+    the_mounts,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Ends the retry plan of every branch whose Git directory is proven gone,
@@ -53,7 +64,11 @@ pub fn end_plans_of_gone_repositories(journal: &Path) -> Vec<String> {
         if !repository_is_gone(&plan) {
             continue;
         }
-        remove(plans.as_path(), plan.git_dir.as_path(), plan.item.branch_ref.as_str());
+        remove(
+            plans.as_path(),
+            plan.git_dir.as_path(),
+            plan.item.branch_ref.as_str(),
+        );
         ended.push(format!("{} of {}", plan.item.branch_ref, plan.item.oid));
     }
     return ended;
@@ -77,7 +92,14 @@ fn repository_is_gone(plan: &StoredPlan) -> bool {
     if std::fs::symlink_metadata(plan.git_dir.as_path()).is_ok() {
         return false;
     }
-    return matches!(prove(plan.git_dir.as_path(), Some(plan.item.repository.as_path()), &the_mounts()), Proof::Gone(_));
+    return matches!(
+        prove(
+            plan.git_dir.as_path(),
+            Some(plan.item.repository.as_path()),
+            &the_mounts()
+        ),
+        Proof::Gone(_)
+    );
 }
 
 /// Controls of the plans of a gone repository stay out of the release executable.

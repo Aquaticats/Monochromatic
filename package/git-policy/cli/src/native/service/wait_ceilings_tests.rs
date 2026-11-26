@@ -25,7 +25,10 @@ fn derived(measured: Duration) -> Duration {
 /// in whole minutes.
 #[test]
 fn the_merge_waits_the_measured_ceiling() {
-    assert_eq!(MERGE_LOCK_CEILING, derived(LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT));
+    assert_eq!(
+        MERGE_LOCK_CEILING,
+        derived(LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT)
+    );
     let source: &str = include_str!("../lock/index_holder_wait.rs");
     assert!(source.contains("MERGE_LOCK_CEILING"));
 }
@@ -43,7 +46,10 @@ fn the_settling_of_earlier_batches_waits_the_measured_ceiling() {
 /// in whole minutes.
 #[test]
 fn the_index_reconciliation_waits_the_measured_ceiling() {
-    assert_eq!(RECONCILE_LOCK_CEILING, derived(LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT));
+    assert_eq!(
+        RECONCILE_LOCK_CEILING,
+        derived(LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT)
+    );
     let source: &str = include_str!("../landing/service_land_follow.rs");
     assert!(source.contains("RECONCILE_LOCK_CEILING"));
 }
@@ -52,7 +58,10 @@ fn the_index_reconciliation_waits_the_measured_ceiling() {
 /// the landing's and the three that follow it.
 #[test]
 fn every_foreign_lock_wait_is_the_measured_whole_minute() {
-    assert_eq!(LANDING_LOCK_CEILING, derived(LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT));
+    assert_eq!(
+        LANDING_LOCK_CEILING,
+        derived(LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT)
+    );
     assert_eq!(MERGE_LOCK_CEILING, LANDING_LOCK_CEILING);
     assert_eq!(RECONCILE_LOCK_CEILING, LANDING_LOCK_CEILING);
     assert_eq!(SETTLE_LOCK_CEILING, derived(LONGEST_SETTLE_WAIT));
@@ -74,14 +83,28 @@ fn every_foreign_lock_wait_is_the_measured_whole_minute() {
 fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     assert_eq!(MOVED_BRANCH_REBUILD_CEILING, ANSWER_CEILING);
     let decision: &str = include_str!("../landing/service_commit_rebuild_ceiling.rs");
-    assert!(decision.contains("MOVED_BRANCH_REBUILD_CEILING"), "the rebuilding decision takes this ceiling");
-    assert!(decision.contains("may_rebuild"), "the rebuilding decision reads this ceiling");
+    assert!(
+        decision.contains("MOVED_BRANCH_REBUILD_CEILING"),
+        "the rebuilding decision takes this ceiling"
+    );
+    assert!(
+        decision.contains("may_rebuild"),
+        "the rebuilding decision reads this ceiling"
+    );
     // The decision moved to the moved-branch file, and `service_commit.rs` keeps only the loop that runs it;
     // both are checked, because a count of builds must appear in neither.
     let answered: &str = include_str!("../landing/service_commit_after_a_moved_branch.rs");
     let commit: &str = include_str!("../landing/service_commit.rs");
-    assert!(answered.contains("may_rebuild"), "the answer to a moved branch takes this ceiling");
-    assert!(!answered.contains("REBUILD_ATTEMPTS") && !commit.contains("REBUILD_ATTEMPTS") && !decision.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
+    assert!(
+        answered.contains("may_rebuild"),
+        "the answer to a moved branch takes this ceiling"
+    );
+    assert!(
+        !answered.contains("REBUILD_ATTEMPTS")
+            && !commit.contains("REBUILD_ATTEMPTS")
+            && !decision.contains("REBUILD_ATTEMPTS"),
+        "a count of builds no longer ends a commit"
+    );
 }
 
 /// The scratch repository's `git commit` is stopped at three times the slowest step record that ended by itself,
@@ -93,18 +116,36 @@ fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
 /// so the ceiling is the floor.
 #[test]
 fn the_scratch_commit_step_is_stopped_at_a_floor_or_three_times_the_slowest_step_that_ended() {
-    assert_eq!(SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF, Duration::from_millis(12_735), "the slowest step that landed, of 1,433 steps");
+    assert_eq!(
+        SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF,
+        Duration::from_millis(12_735),
+        "the slowest step that landed, of 1,433 steps"
+    );
     assert_eq!(SCRATCH_COMMIT_STEP_MARGIN, 3);
-    assert_eq!(SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF * SCRATCH_COMMIT_STEP_MARGIN, Duration::from_millis(38_205));
+    assert_eq!(
+        SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF * SCRATCH_COMMIT_STEP_MARGIN,
+        Duration::from_millis(38_205)
+    );
     assert_eq!(SCRATCH_COMMIT_STEP_CEILING_FLOOR, Duration::from_secs(60));
-    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, SCRATCH_COMMIT_STEP_CEILING_FLOOR, "the floor holds this population above it, so the ceiling is the floor");
-    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, Duration::from_secs(60), "one minute, 4.7 times the slowest step that ended by itself");
+    assert_eq!(
+        SCRATCH_COMMIT_STEP_CEILING, SCRATCH_COMMIT_STEP_CEILING_FLOOR,
+        "the floor holds this population above it, so the ceiling is the floor"
+    );
+    assert_eq!(
+        SCRATCH_COMMIT_STEP_CEILING,
+        Duration::from_secs(60),
+        "one minute, 4.7 times the slowest step that ended by itself"
+    );
     assert!(
-        SCRATCH_COMMIT_STEP_CEILING >= SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF * SCRATCH_COMMIT_STEP_MARGIN,
+        SCRATCH_COMMIT_STEP_CEILING
+            >= SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF * SCRATCH_COMMIT_STEP_MARGIN,
         "the ceiling is the later of the margin over the slowest ordinary step and the floor"
     );
     let source: &str = include_str!("../commit/commit_preparation.rs");
-    assert!(source.contains("SCRATCH_COMMIT_STEP_CEILING"), "the step that runs the scratch commit takes this ceiling");
+    assert!(
+        source.contains("SCRATCH_COMMIT_STEP_CEILING"),
+        "the step that runs the scratch commit takes this ceiling"
+    );
 }
 
 /// What:
@@ -123,10 +164,24 @@ fn the_scratch_commit_step_is_stopped_at_a_floor_or_three_times_the_slowest_step
 #[test]
 fn a_step_the_kernel_holds_is_waited_for_to_a_bound_far_from_an_ordinary_slow_disk() {
     assert_eq!(SCRATCH_COMMIT_STEP_STALL_CEILING, Duration::from_secs(300));
-    assert!(SCRATCH_COMMIT_STEP_STALL_CEILING > SCRATCH_COMMIT_STEP_CEILING * 4, "the bound is far above the ceiling a step is noticed at");
-    assert!(SCRATCH_COMMIT_STEP_STALL_CEILING > Duration::from_millis(47_978) * 6, "the bound is 6 times the longest step the kernel ever held here");
-    assert_eq!(stall_ceiling_of(Duration::from_secs(1)), SCRATCH_COMMIT_STEP_STALL_CEILING, "a short ceiling is raised to the bound");
-    assert_eq!(stall_ceiling_of(Duration::from_secs(600)), Duration::from_secs(600), "a ceiling a person set above the bound is never lowered");
+    assert!(
+        SCRATCH_COMMIT_STEP_STALL_CEILING > SCRATCH_COMMIT_STEP_CEILING * 4,
+        "the bound is far above the ceiling a step is noticed at"
+    );
+    assert!(
+        SCRATCH_COMMIT_STEP_STALL_CEILING > Duration::from_millis(47_978) * 6,
+        "the bound is 6 times the longest step the kernel ever held here"
+    );
+    assert_eq!(
+        stall_ceiling_of(Duration::from_secs(1)),
+        SCRATCH_COMMIT_STEP_STALL_CEILING,
+        "a short ceiling is raised to the bound"
+    );
+    assert_eq!(
+        stall_ceiling_of(Duration::from_secs(600)),
+        Duration::from_secs(600),
+        "a ceiling a person set above the bound is never lowered"
+    );
 }
 
 /// What:
@@ -143,8 +198,19 @@ fn a_step_the_kernel_holds_is_waited_for_to_a_bound_far_from_an_ordinary_slow_di
 fn the_standing_notice_takes_a_positive_setting_and_the_shipped_wait_otherwise() {
     assert_eq!(notice_after_of(Some("30")), Duration::from_secs(30));
     assert_eq!(notice_after_of(Some(" 1 ")), Duration::from_secs(1));
-    for meaningless in [None, Some(""), Some("abc"), Some("0"), Some("-5"), Some("1.5")] {
-        assert_eq!(notice_after_of(meaningless), WAITING_NOTICE_AFTER, "{meaningless:?}");
+    for meaningless in [
+        None,
+        Some(""),
+        Some("abc"),
+        Some("0"),
+        Some("-5"),
+        Some("1.5"),
+    ] {
+        assert_eq!(
+            notice_after_of(meaningless),
+            WAITING_NOTICE_AFTER,
+            "{meaningless:?}"
+        );
     }
     assert_eq!(notice_after_of(None), WAITING_NOTICE_AFTER);
 }
@@ -154,7 +220,10 @@ fn the_standing_notice_takes_a_positive_setting_and_the_shipped_wait_otherwise()
 fn the_standing_notice_variable_is_the_one_the_client_reads() {
     assert_eq!(WAITING_NOTICE_VARIABLE, "CLI_GIT_STANDING_NOTICE_SECONDS");
     let source: &str = include_str!("../landing/service_commit_input_notes_and_embedded_commit.rs");
-    assert!(source.contains("waiting_notice_after: crate::wait_ceilings::waiting_notice_after()"), "the client's setting is read where the config is made");
+    assert!(
+        source.contains("waiting_notice_after: crate::wait_ceilings::waiting_notice_after()"),
+        "the client's setting is read where the config is made"
+    );
 }
 
 /// What:
@@ -175,28 +244,70 @@ fn the_standing_notice_variable_is_the_one_the_client_reads() {
 ///  would meet nothing else.
 #[test]
 fn a_hand_over_waits_the_greeting_bound_and_never_the_commits_start_wait() {
-    assert!(HAND_OVER_GREETING_WAIT < START_WAIT, "{HAND_OVER_GREETING_WAIT:?} must be shorter than {START_WAIT:?}");
+    assert!(
+        HAND_OVER_GREETING_WAIT < START_WAIT,
+        "{HAND_OVER_GREETING_WAIT:?} must be shorter than {START_WAIT:?}"
+    );
     let stating: [(&str, &str); 6] = [
-        ("../worktree/worktree_trash_hand_over.rs", include_str!("../worktree/worktree_trash_hand_over.rs")),
-        ("../worktree/worktree_remove_hand_over.rs", include_str!("../worktree/worktree_remove_hand_over.rs")),
-        ("../repair/package_repair_relink.rs", include_str!("../repair/package_repair_relink.rs")),
-        ("../repair/package_repair_prewarm.rs", include_str!("../repair/package_repair_prewarm.rs")),
-        ("../landing/held_push_release_wakes_the_service.rs", include_str!("../landing/held_push_release_wakes_the_service.rs")),
-        ("../push/auto_push_trigger.rs", include_str!("../push/auto_push_trigger.rs")),
+        (
+            "../worktree/worktree_trash_hand_over.rs",
+            include_str!("../worktree/worktree_trash_hand_over.rs"),
+        ),
+        (
+            "../worktree/worktree_remove_hand_over.rs",
+            include_str!("../worktree/worktree_remove_hand_over.rs"),
+        ),
+        (
+            "../repair/package_repair_relink.rs",
+            include_str!("../repair/package_repair_relink.rs"),
+        ),
+        (
+            "../repair/package_repair_prewarm.rs",
+            include_str!("../repair/package_repair_prewarm.rs"),
+        ),
+        (
+            "../landing/held_push_release_wakes_the_service.rs",
+            include_str!("../landing/held_push_release_wakes_the_service.rs"),
+        ),
+        (
+            "../push/auto_push_trigger.rs",
+            include_str!("../push/auto_push_trigger.rs"),
+        ),
     ];
     for (path, source) in stating {
-        assert!(source.contains("start_wait: HAND_OVER_GREETING_WAIT"), "{path} hands its record over with the hand-over's bound");
-        assert!(!source.contains("start_wait: START_WAIT"), "{path} does not pay the commit's start wait for a record it already wrote");
-        assert!(!source.contains("start_ceiling: START_CEILING"), "{path} does not pay the commit's start ceiling either");
-        assert!(!source.contains("start_ceiling: crate::wait_ceilings::START_CEILING"), "{path} does not pay the commit's start ceiling either");
+        assert!(
+            source.contains("start_wait: HAND_OVER_GREETING_WAIT"),
+            "{path} hands its record over with the hand-over's bound"
+        );
+        assert!(
+            !source.contains("start_wait: START_WAIT"),
+            "{path} does not pay the commit's start wait for a record it already wrote"
+        );
+        assert!(
+            !source.contains("start_ceiling: START_CEILING"),
+            "{path} does not pay the commit's start ceiling either"
+        );
+        assert!(
+            !source.contains("start_ceiling: crate::wait_ceilings::START_CEILING"),
+            "{path} does not pay the commit's start ceiling either"
+        );
     }
     // The commit's own after-landing wake is one of these too: the service that answered the commit is running.
     let aftermath: &str = include_str!("../landing/service_landed_aftermath.rs");
-    assert!(aftermath.contains("start_wait: HAND_OVER_GREETING_WAIT"), "the after-landing wake waits the hand-over's bound");
+    assert!(
+        aftermath.contains("start_wait: HAND_OVER_GREETING_WAIT"),
+        "the after-landing wake waits the hand-over's bound"
+    );
     // The commit's own request keeps the wait its start needs.
     let commit: &str = include_str!("../landing/service_commit_input_notes_and_embedded_commit.rs");
-    assert!(commit.contains("start_wait: START_WAIT"), "a commit's own request keeps the start wait");
-    assert!(commit.contains("start_ceiling: crate::wait_ceilings::START_CEILING"), "and the start ceiling");
+    assert!(
+        commit.contains("start_wait: START_WAIT"),
+        "a commit's own request keeps the start wait"
+    );
+    assert!(
+        commit.contains("start_ceiling: crate::wait_ceilings::START_CEILING"),
+        "and the start ceiling"
+    );
 }
 
 /// What:
@@ -213,10 +324,22 @@ fn a_hand_over_waits_the_greeting_bound_and_never_the_commits_start_wait() {
 #[test]
 fn a_running_unit_that_greets_nothing_is_restarted_only_at_the_start_ceiling() {
     let reach: &str = include_str!("service_client_reach_service.rs");
-    assert!(reach.contains("(watch.restart)("), "the client is what asks for the restart");
-    assert!(reach.contains("started.elapsed() >= config.start_ceiling"), "and the start ceiling is what ends the wait for a greeting");
-    assert!(!reach.contains("SERVICE_GREETING_SILENCE"), "nothing shorter than the start ceiling may stand in for it");
-    assert!(!reach.contains("Reload") && !reach.contains("reload"), "and nothing here asks the manager to read every unit it holds");
+    assert!(
+        reach.contains("(watch.restart)("),
+        "the client is what asks for the restart"
+    );
+    assert!(
+        reach.contains("started.elapsed() >= config.start_ceiling"),
+        "and the start ceiling is what ends the wait for a greeting"
+    );
+    assert!(
+        !reach.contains("SERVICE_GREETING_SILENCE"),
+        "nothing shorter than the start ceiling may stand in for it"
+    );
+    assert!(
+        !reach.contains("Reload") && !reach.contains("reload"),
+        "and nothing here asks the manager to read every unit it holds"
+    );
 }
 
 /// What:
@@ -229,11 +352,20 @@ fn a_running_unit_that_greets_nothing_is_restarted_only_at_the_start_ceiling() {
 #[test]
 fn a_repair_tool_is_announced_well_before_its_bounds_end_it() {
     assert_eq!(REPAIR_TOOL_NOTICE_AFTER, Duration::from_secs(2));
-    assert!(REPAIR_TOOL_NOTICE_AFTER < REPAIR_TOOL_CEILING, "the notice comes long before the ceiling");
+    assert!(
+        REPAIR_TOOL_NOTICE_AFTER < REPAIR_TOOL_CEILING,
+        "the notice comes long before the ceiling"
+    );
     let request: &str = include_str!("../repair/package_repair_request.rs");
-    assert!(request.contains("const TOOL_QUIET_WINDOW: Duration = Duration::from_secs(600);"), "the owner's quiet window is still 600 s and this change leaves it alone");
+    assert!(
+        request.contains("const TOOL_QUIET_WINDOW: Duration = Duration::from_secs(600);"),
+        "the owner's quiet window is still 600 s and this change leaves it alone"
+    );
     let command: &str = include_str!("../repair/package_repair_command.rs");
-    assert!(command.contains("REPAIR_TOOL_NOTICE_AFTER"), "the run of every repair tool is what waits");
+    assert!(
+        command.contains("REPAIR_TOOL_NOTICE_AFTER"),
+        "the run of every repair tool is what waits"
+    );
 }
 
 /// What:
@@ -250,11 +382,23 @@ fn a_repair_tool_is_announced_well_before_its_bounds_end_it() {
 #[test]
 fn an_add_takes_its_own_snapshot_and_waits_for_none_made_ahead() {
     let rung: &str = include_str!("../worktree/worktree_ladder_finish.rs");
-    assert!(rung.contains("take_snapshot("), "the snapshot rung takes the add's own snapshot");
-    assert!(!rung.contains("look_for_a_snapshot_ahead"), "the add claims no copy the service made ahead");
-    assert!(!rung.contains("SNAPSHOT_AHEAD_CEILING"), "nothing bounds a wait the add does not make");
+    assert!(
+        rung.contains("take_snapshot("),
+        "the snapshot rung takes the add's own snapshot"
+    );
+    assert!(
+        !rung.contains("look_for_a_snapshot_ahead"),
+        "the add claims no copy the service made ahead"
+    );
+    assert!(
+        !rung.contains("SNAPSHOT_AHEAD_CEILING"),
+        "nothing bounds a wait the add does not make"
+    );
     let ceilings: &str = include_str!("wait_ceilings.rs");
-    assert!(!ceilings.contains("SNAPSHOT_AHEAD_CEILING"), "no ceiling of an add's wait for a copy made ahead is left to bound nothing");
+    assert!(
+        !ceilings.contains("SNAPSHOT_AHEAD_CEILING"),
+        "no ceiling of an add's wait for a copy made ahead is left to bound nothing"
+    );
 }
 
 /// What:
@@ -271,9 +415,17 @@ fn an_add_takes_its_own_snapshot_and_waits_for_none_made_ahead() {
 /// because it is the same kind of line at the same measured pace.
 #[test]
 fn the_notice_of_a_repair_tool_gives_up_its_stream_at_the_warnings_bound() {
-    assert_eq!(REPAIR_NOTICE_WRITE_CEILING, WARNING_WRITE_CEILING, "one measured pace of a line to a stream serves both");
+    assert_eq!(
+        REPAIR_NOTICE_WRITE_CEILING, WARNING_WRITE_CEILING,
+        "one measured pace of a line to a stream serves both"
+    );
     let command: &str = include_str!("../repair/package_repair_command.rs");
-    assert!(command.contains("write_within(REPAIR_NOTICE_WRITE_CEILING, StandardErrorDescriptor"), "the repair's notice is written within this bound, through the descriptor that holds no lock");
+    // The call is read without the blanks rustfmt places when it puts each argument on a line of its own.
+    let code: String = command.split_whitespace().collect();
+    assert!(
+        code.contains("write_within(REPAIR_NOTICE_WRITE_CEILING,StandardErrorDescriptor"),
+        "the repair's notice is written within this bound, through the descriptor that holds no lock"
+    );
 }
 
 /// The start of one repair tool is bounded by the wait a client grants a service's own start:
@@ -286,7 +438,13 @@ fn the_notice_of_a_repair_tool_gives_up_its_stream_at_the_warnings_bound() {
 fn a_repair_tool_start_is_bounded_by_the_service_start_wait() {
     assert_eq!(REPAIR_TOOL_START_CEILING, START_CEILING);
     let run: &str = include_str!("../repair/package_repair_command.rs");
-    assert!(run.contains("REPAIR_TOOL_START_CEILING"), "the repair's run takes this bound");
+    assert!(
+        run.contains("REPAIR_TOOL_START_CEILING"),
+        "the repair's run takes this bound"
+    );
     let start: &str = include_str!("../repair/package_repair_start.rs");
-    assert!(start.contains("async fn start_within("), "the start of a tool is the bounded one");
+    assert!(
+        start.contains("async fn start_within("),
+        "the start of a tool is the bounded one"
+    );
 }

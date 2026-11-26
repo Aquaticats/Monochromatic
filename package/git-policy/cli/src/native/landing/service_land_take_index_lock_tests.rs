@@ -6,13 +6,25 @@
 //! and a marker another index's landing started is let go without waiting for its flush.
 
 use super::*;
-use crate::service_index_lock::{lock_path_of, marker_text};
+use crate::service_index_lock::{
+    lock_path_of,
+    marker_text,
+};
 use crate::service_index_marker::own_identity;
 use crate::service_index_prestage;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Mutex;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The controls run one at a time:
 /// the marker made ahead is kept in one slot per landing thread,
@@ -24,8 +36,12 @@ fn leftovers(index: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(index.parent().expect("directory"))
         .expect("listing")
         .flatten()
-        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|name| { return name != "index" && name != "index.lock"; })
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .filter(|name| {
+            return name != "index" && name != "index.lock";
+        })
         .collect();
     names.sort();
     return names;
@@ -34,7 +50,11 @@ fn leftovers(index: &Path) -> Vec<String> {
 /// The request a landing takes the lock for:
 /// nothing in it is read once the lock is taken,
 /// so only the index and the scratch tree name real places.
-fn request_of(index: &Path, scratch: &Path, git_dir: &Path) -> CommitRequest {
+fn request_of(
+    index: &Path,
+    scratch: &Path,
+    git_dir: &Path,
+) -> CommitRequest {
     return CommitRequest {
         id: String::from("control"),
         repository: git_dir.parent().expect("repository").to_path_buf(),
@@ -62,7 +82,12 @@ fn request_of(index: &Path, scratch: &Path, git_dir: &Path) -> CommitRequest {
 /// A context whose Git is never started here:
 /// taking the lock runs no child.
 fn context_of(git_dir: &Path) -> GitContext {
-    return GitContext { real_git: PathBuf::from("/usr/bin/git"), overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(git_dir.to_path_buf()) };
+    return GitContext {
+        real_git: PathBuf::from("/usr/bin/git"),
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+        common_dir: Some(git_dir.to_path_buf()),
+    };
 }
 
 /// The markers made ahead are written by jobs of the blocking pool,
@@ -75,7 +100,10 @@ fn until_the_next_batchs_markers_are_being_made(index: &Path) -> Vec<String> {
         if staged.len() >= service_index_prestage::MARKERS_MADE_AHEAD {
             return staged;
         }
-        assert!(began.elapsed() < Duration::from_secs(60), "the markers of the two batches after this one were not started while the landing held the lock: {staged:?}");
+        assert!(
+            began.elapsed() < Duration::from_secs(60),
+            "the markers of the two batches after this one were not started while the landing held the lock: {staged:?}"
+        );
         std::thread::sleep(Duration::from_millis(5));
     }
 }
@@ -96,16 +124,44 @@ fn the_batch_after_this_one_begins_flushing_when_the_landing_takes_the_lock() {
         std::fs::create_dir(&scratch).expect("scratch");
         let journal: PathBuf = root.join("journal");
         std::fs::create_dir(&journal).expect("journal");
-        let first: CommitRequest = request_of(index.as_path(), scratch.as_path(), git_dir.as_path());
+        let first: CommitRequest =
+            request_of(index.as_path(), scratch.as_path(), git_dir.as_path());
         let mut timing: LandTiming = LandTiming::default();
-        let held: IndexLock = take_index_lock(&context_of(git_dir.as_path()), journal.as_path(), Duration::from_secs(30), &first, 7, &|_| {}, &mut timing, "new", "scratch-ref").expect("the lock is taken");
+        let held: IndexLock = take_index_lock(
+            &context_of(git_dir.as_path()),
+            journal.as_path(),
+            Duration::from_secs(30),
+            &first,
+            7,
+            &|_| {},
+            &mut timing,
+            "new",
+            "scratch-ref",
+        )
+        .expect("the lock is taken");
         // The lock is the batch's own marker, and the next batch's marker is being made beside it while this one is held.
-        assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock's text"), marker_text(7, &own_identity).expect("text"));
+        assert_eq!(
+            std::fs::read_to_string(lock_path_of(&index)).expect("the lock's text"),
+            marker_text(7, &own_identity).expect("text")
+        );
         let staged: Vec<String> = until_the_next_batchs_markers_are_being_made(index.as_path());
-        assert_eq!(staged.len(), service_index_prestage::MARKERS_MADE_AHEAD, "the next batch's marker and the spare after it are being made: {staged:?}");
-        let mut texts: Vec<String> = staged.iter().map(|name| { return std::fs::read_to_string(git_dir.join(name)).expect("the staged marker's text"); }).collect();
+        assert_eq!(
+            staged.len(),
+            service_index_prestage::MARKERS_MADE_AHEAD,
+            "the next batch's marker and the spare after it are being made: {staged:?}"
+        );
+        let mut texts: Vec<String> = staged
+            .iter()
+            .map(|name| {
+                return std::fs::read_to_string(git_dir.join(name))
+                    .expect("the staged marker's text");
+            })
+            .collect();
         texts.sort();
-        let mut expected: Vec<String> = vec![marker_text(8, &own_identity).expect("text"), marker_text(9, &own_identity).expect("text")];
+        let mut expected: Vec<String> = vec![
+            marker_text(8, &own_identity).expect("text"),
+            marker_text(9, &own_identity).expect("text"),
+        ];
         expected.sort();
         assert_eq!(texts, expected);
         drop(held);
@@ -133,7 +189,9 @@ const THE_CEILING_OF_A_HELD_SYNC: Duration = Duration::from_secs(2);
 fn sync_held_by_the_control(file: &std::fs::File) -> std::io::Result<()> {
     HELD_SYNCS_ENTERED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let held: Instant = Instant::now();
-    while !FLUSH_MAY_END.load(std::sync::atomic::Ordering::SeqCst) && held.elapsed() < THE_CEILING_OF_A_HELD_SYNC {
+    while !FLUSH_MAY_END.load(std::sync::atomic::Ordering::SeqCst)
+        && held.elapsed() < THE_CEILING_OF_A_HELD_SYNC
+    {
         std::thread::sleep(Duration::from_millis(1));
     }
     HELD_SYNCS_ENDED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -144,7 +202,11 @@ fn sync_held_by_the_control(file: &std::fs::File) -> std::io::Result<()> {
 fn until_the_held_flushes_are_running(want: usize) {
     let began: Instant = Instant::now();
     while HELD_SYNCS_ENTERED.load(std::sync::atomic::Ordering::SeqCst) < want {
-        assert!(began.elapsed() < Duration::from_secs(10), "{} of {want} held flushes entered", HELD_SYNCS_ENTERED.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(
+            began.elapsed() < Duration::from_secs(10),
+            "{} of {want} held flushes entered",
+            HELD_SYNCS_ENTERED.load(std::sync::atomic::Ordering::SeqCst)
+        );
         std::thread::sleep(Duration::from_millis(1));
     }
 }
@@ -187,22 +249,49 @@ fn taking_this_batchs_lock_does_not_wait_for_another_indexs_flush() {
         service_index_prestage::start_with(sync_held_by_the_control, other_index.as_path(), 8);
         service_index_prestage::start_with(sync_held_by_the_control, other_index.as_path(), 9);
         until_the_held_flushes_are_running(2);
-        let first: CommitRequest = request_of(index.as_path(), scratch.as_path(), git_dir.as_path());
+        let first: CommitRequest =
+            request_of(index.as_path(), scratch.as_path(), git_dir.as_path());
         let mut timing: LandTiming = LandTiming::default();
-        let held: IndexLock = take_index_lock(&context_of(git_dir.as_path()), journal.as_path(), Duration::from_secs(30), &first, 20, &|_| {}, &mut timing, "new", "scratch-ref").expect("this index's lock is free and is taken");
-        assert_eq!(HELD_SYNCS_ENDED.load(std::sync::atomic::Ordering::SeqCst), 0, "taking this batch's lock waited for another index's marker to finish flushing");
+        let held: IndexLock = take_index_lock(
+            &context_of(git_dir.as_path()),
+            journal.as_path(),
+            Duration::from_secs(30),
+            &first,
+            20,
+            &|_| {},
+            &mut timing,
+            "new",
+            "scratch-ref",
+        )
+        .expect("this index's lock is free and is taken");
+        assert_eq!(
+            HELD_SYNCS_ENDED.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "taking this batch's lock waited for another index's marker to finish flushing"
+        );
         let staged_elsewhere: Vec<String> = std::fs::read_dir(&other_git)
             .expect("listing")
             .flatten()
-            .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-            .filter(|name| { return name.contains(crate::service_index_staging::STAGED_INFIX); })
+            .map(|entry| {
+                return entry.file_name().to_string_lossy().into_owned();
+            })
+            .filter(|name| {
+                return name.contains(crate::service_index_staging::STAGED_INFIX);
+            })
             .collect();
-        assert!(staged_elsewhere.is_empty(), "the other index's markers go without waiting for their flushes: {staged_elsewhere:?}");
+        assert!(
+            staged_elsewhere.is_empty(),
+            "the other index's markers go without waiting for their flushes: {staged_elsewhere:?}"
+        );
         drop(held);
         FLUSH_MAY_END.store(true, std::sync::atomic::Ordering::SeqCst);
         let ended: Instant = Instant::now();
         while HELD_SYNCS_ENDED.load(std::sync::atomic::Ordering::SeqCst) < 2 {
-            assert!(ended.elapsed() < Duration::from_secs(10), "{} of 2 held flushes ended", HELD_SYNCS_ENDED.load(std::sync::atomic::Ordering::SeqCst));
+            assert!(
+                ended.elapsed() < Duration::from_secs(10),
+                "{} of 2 held flushes ended",
+                HELD_SYNCS_ENDED.load(std::sync::atomic::Ordering::SeqCst)
+            );
             std::thread::sleep(Duration::from_millis(1));
         }
         service_index_prestage::discard();

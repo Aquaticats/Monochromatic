@@ -24,22 +24,45 @@
 /// Import the shared fixtures,
 ///  the bounded process helpers and the refusal texts.
 use super::support::{
-    Fixture, Observed, TRANSACTION_ID, fixture, git, observe, porcelain, registered_transaction,
-    remove, repository, run_direct, run_wrapped, silent_success, stderr_of, stopped_with, wrapped,
+    Fixture,
+    Observed,
+    TRANSACTION_ID,
+    fixture,
+    git,
+    observe,
+    porcelain,
+    registered_transaction,
+    remove,
+    repository,
+    run_direct,
+    run_wrapped,
+    silent_success,
+    stderr_of,
+    stopped_with,
+    wrapped,
 };
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The commit `HEAD` names,
 ///  as text.
-fn head(fixture: &Fixture, repo: &Path) -> String {
+fn head(
+    fixture: &Fixture,
+    repo: &Path,
+) -> String {
     let output: std::process::Output = git(fixture, repo, &["rev-parse", "HEAD"]);
     return String::from_utf8_lossy(&output.stdout).into_owned();
 }
 
 /// Every ref of a repository,
 ///  one name per line.
-fn refs(fixture: &Fixture, repo: &Path) -> String {
+fn refs(
+    fixture: &Fixture,
+    repo: &Path,
+) -> String {
     let output: std::process::Output = git(fixture, repo, &["for-each-ref", "--format=%(refname)"]);
     return String::from_utf8_lossy(&output.stdout).into_owned();
 }
@@ -274,7 +297,13 @@ fn leftover_transaction_state_refuses_guarded_commands() {
     assert_eq!(beside.code, Some(0), "{}", stderr_of(&beside));
     assert!(beside.stdout.is_empty());
     assert!(
-        stderr_of(&beside).contains(format!("{} holds commit records an earlier release left unfinished", registry.display()).as_str()),
+        stderr_of(&beside).contains(
+            format!(
+                "{} holds commit records an earlier release left unfinished",
+                registry.display()
+            )
+            .as_str()
+        ),
         "{}",
         stderr_of(&beside)
     );
@@ -293,7 +322,10 @@ fn leftover_transaction_state_refuses_guarded_commands() {
         .stdout,
         b"true\n"
     );
-    assert!(registry.join(TRANSACTION_ID).exists(), "nothing was removed");
+    assert!(
+        registry.join(TRANSACTION_ID).exists(),
+        "nothing was removed"
+    );
     std::fs::remove_dir_all(&registry).expect("remove registry");
     // The legacy directory stops with the instructions to recover it.
     let legacy: PathBuf = repo.join(".git/cli-git-transaction");
@@ -351,7 +383,11 @@ fn a_real_push_of_a_nonconforming_commit_is_refused_and_publishes_nothing() {
         "{ \"policies\": { \"final-newline\": \"error\" } }\n",
     )
     .expect("configuration");
-    git(&fixture, repo.as_path(), &["add", "monochromatic-git-policy-cli.config.jsonc"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "monochromatic-git-policy-cli.config.jsonc"],
+    );
     git(
         &fixture,
         repo.as_path(),

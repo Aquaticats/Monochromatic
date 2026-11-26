@@ -38,9 +38,23 @@
 //! const outcome = checkSnapdir(datasetFacts); // pass | finding('snapdir') | unknown
 //! ```
 
-use super::check_outcome::{Check, CheckOutcome, CheckReport, finding, pass, unknown};
-use super::zfs_checks::{DatasetFacts, DatasetRole, Reading};
-use crate::worktree_clone_mount_handler::sweep_dataset_facts::{PropertyValue, value_of};
+use super::check_outcome::{
+    Check,
+    CheckOutcome,
+    CheckReport,
+    finding,
+    pass,
+    unknown,
+};
+use super::zfs_checks::{
+    DatasetFacts,
+    DatasetRole,
+    Reading,
+};
+use crate::worktree_clone_mount_handler::sweep_dataset_facts::{
+    PropertyValue,
+    value_of,
+};
 
 //region The property and its values
 
@@ -146,7 +160,9 @@ pub enum SnapdirSetting {
 /// ```ts
 /// const setting = snapdirSetting(properties); // { kind: 'word', word: 'disabled' }
 /// ```
-pub fn snapdir_setting(properties: &monochromatic_zfs_request_to_openzfs_kernel_device::NvList) -> SnapdirSetting {
+pub fn snapdir_setting(
+    properties: &monochromatic_zfs_request_to_openzfs_kernel_device::NvList
+) -> SnapdirSetting {
     return match value_of(properties, SNAPDIR_PROPERTY) {
         PropertyValue::Absent => SnapdirSetting::Default,
         PropertyValue::Number(value) => match snapdir_word(value) {
@@ -159,7 +175,11 @@ pub fn snapdir_setting(properties: &monochromatic_zfs_request_to_openzfs_kernel_
             "disabled" => SnapdirSetting::Word("disabled"),
             other => SnapdirSetting::UnknownValue(String::from(other)),
         },
-        PropertyValue::Unreadable { why } => SnapdirSetting::Unreadable { why },
+        PropertyValue::Unreadable {
+            why,
+        } => SnapdirSetting::Unreadable {
+            why,
+        },
     };
 }
 
@@ -168,7 +188,8 @@ pub fn snapdir_setting(properties: &monochromatic_zfs_request_to_openzfs_kernel_
 //region The sentences
 
 /// What the route reads the setting for on the checkout dataset.
-const CHECKOUT_SUBJECT: &str = "the checkout dataset, whose `.zfs/snapshot` an account browsing the checkout meets";
+const CHECKOUT_SUBJECT: &str =
+    "the checkout dataset, whose `.zfs/snapshot` an account browsing the checkout meets";
 
 /// What the route reads the setting for on the clone container.
 const CONTAINER_SUBJECT: &str = "the clone container, whose value every clone below it inherits, so this one setting is what hides each clone's `.zfs/snapshot` as well";
@@ -191,7 +212,9 @@ const CLONE_SUBJECT: &str = "a clone below the container, which inherits the con
 /// ```
 fn subject_of(role: &DatasetRole) -> &'static str {
     return match role {
-        DatasetRole::Checkout { .. } => CHECKOUT_SUBJECT,
+        DatasetRole::Checkout {
+            ..
+        } => CHECKOUT_SUBJECT,
         DatasetRole::Container => CONTAINER_SUBJECT,
         DatasetRole::Clone => CLONE_SUBJECT,
     };
@@ -245,15 +268,50 @@ pub fn check_snapdir(facts: &DatasetFacts) -> CheckOutcome {
     let subject: &'static str = subject_of(&facts.role);
     let read = match &facts.reading {
         Reading::Read(read) => read,
-        Reading::Missing { why } => return finding("dataset", format!("`{name}` is not in its pool ({why}), so its `{SNAPDIR_PROPERTY}` cannot hold anything")),
-        Reading::Unreadable { why } => return unknown(format!("`{name}` could not be read ({why}), so its `{SNAPDIR_PROPERTY}` is unproved")),
+        Reading::Missing {
+            why,
+        } => {
+            return finding(
+                "dataset",
+                format!(
+                    "`{name}` is not in its pool ({why}), so its `{SNAPDIR_PROPERTY}` cannot hold anything"
+                ),
+            );
+        }
+        Reading::Unreadable {
+            why,
+        } => {
+            return unknown(format!(
+                "`{name}` could not be read ({why}), so its `{SNAPDIR_PROPERTY}` is unproved"
+            ));
+        }
     };
     return match snapdir_setting(&read.properties) {
-        SnapdirSetting::Word("disabled") => pass(format!("`{name}`'s `{SNAPDIR_PROPERTY}` is `disabled`, so the kernel refuses a snapshot directory's name on {subject}")),
-        SnapdirSetting::Word(word) => finding("snapdir", format!("`{name}`'s `{SNAPDIR_PROPERTY}` is `{word}`, and only `disabled` keeps the kernel from mounting a snapshot when an account enters its directory by name, which is how a listing grows the machine's mount table; on {subject}: {}", remedy_sentence(name))),
-        SnapdirSetting::Default => finding("snapdir", format!("`{name}`'s `{SNAPDIR_PROPERTY}` is unset, which is the default `hidden` and leaves the snapshot directory out of a listing while still letting an account enter a snapshot by name; on {subject}: {}", remedy_sentence(name))),
-        SnapdirSetting::UnknownValue(value) => unknown(format!("`{name}`'s `{SNAPDIR_PROPERTY}` is `{value}`, a value this build does not name, so whether it hides the snapshot directories is unproved")),
-        SnapdirSetting::Unreadable { why } => unknown(format!("`{name}`'s `{SNAPDIR_PROPERTY}` could not be read ({why}), so the setting is unproved")),
+        SnapdirSetting::Word("disabled") => pass(format!(
+            "`{name}`'s `{SNAPDIR_PROPERTY}` is `disabled`, so the kernel refuses a snapshot directory's name on {subject}"
+        )),
+        SnapdirSetting::Word(word) => finding(
+            "snapdir",
+            format!(
+                "`{name}`'s `{SNAPDIR_PROPERTY}` is `{word}`, and only `disabled` keeps the kernel from mounting a snapshot when an account enters its directory by name, which is how a listing grows the machine's mount table; on {subject}: {}",
+                remedy_sentence(name)
+            ),
+        ),
+        SnapdirSetting::Default => finding(
+            "snapdir",
+            format!(
+                "`{name}`'s `{SNAPDIR_PROPERTY}` is unset, which is the default `hidden` and leaves the snapshot directory out of a listing while still letting an account enter a snapshot by name; on {subject}: {}",
+                remedy_sentence(name)
+            ),
+        ),
+        SnapdirSetting::UnknownValue(value) => unknown(format!(
+            "`{name}`'s `{SNAPDIR_PROPERTY}` is `{value}`, a value this build does not name, so whether it hides the snapshot directories is unproved"
+        )),
+        SnapdirSetting::Unreadable {
+            why,
+        } => unknown(format!(
+            "`{name}`'s `{SNAPDIR_PROPERTY}` could not be read ({why}), so the setting is unproved"
+        )),
     };
 }
 
@@ -272,7 +330,9 @@ pub fn check_snapdir(facts: &DatasetFacts) -> CheckOutcome {
 /// ```
 pub fn snapdir_report(facts: &DatasetFacts) -> Option<CheckReport> {
     let check: Check = match facts.role {
-        DatasetRole::Checkout { .. } => Check::CheckoutSnapdir,
+        DatasetRole::Checkout {
+            ..
+        } => Check::CheckoutSnapdir,
         DatasetRole::Container => Check::ContainerSnapdir,
         DatasetRole::Clone => return None,
     };

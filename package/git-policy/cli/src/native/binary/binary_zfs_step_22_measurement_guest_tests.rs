@@ -34,14 +34,45 @@
 
 #![cfg(target_os = "linux")]
 
-use super::zfs_sweep_guest::{clone_the_checkouts_snapshot, make_the_slot, prepare_the_store, required, sweep, write_configuration, write_passing_probe_record, zfs, zfs_ok};
-use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness::{ReadyState, ReadinessRecord, SweepState};
+use super::zfs_sweep_guest::{
+    clone_the_checkouts_snapshot,
+    make_the_slot,
+    prepare_the_store,
+    required,
+    sweep,
+    write_configuration,
+    write_passing_probe_record,
+    zfs,
+    zfs_ok,
+};
+use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness::{
+    ReadinessRecord,
+    ReadyState,
+    SweepState,
+};
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness_file::ReadinessFile;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DeviceError, NvList, Request, ZfsDevice, destroy_snaps};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DeviceError,
+    NvList,
+    Request,
+    ZfsDevice,
+    destroy_snaps,
+};
 use std::os::unix::fs::PermissionsExt as _;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The variable the guest driver sets, so a host run skips instead of touching a pool.
 const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_STEP22_GUEST";
@@ -105,15 +136,27 @@ const REQUEST_NAMES: [usize; 3] = [64, 512, 2048];
 const ACCOUNT: &str = "0";
 
 /// The binding record's phases in the order the add writes them.
-const PHASES: [&str; 7] = ["claimed", "slot", "registered", "snapshotted", "cloned", "mounted", "filled"];
+const PHASES: [&str; 7] = [
+    "claimed",
+    "slot",
+    "registered",
+    "snapshotted",
+    "cloned",
+    "mounted",
+    "filled",
+];
 
 /// Whether this run is inside the guest, or a skip line on every other machine.
 fn guest() -> bool {
     let Ok(name) = std::env::var(GUEST_VARIABLE) else {
-        println!("SKIP binary_zfs_step_22_measurement: {GUEST_VARIABLE} is unset, so this arm runs only in the throwaway mvm guest");
+        println!(
+            "SKIP binary_zfs_step_22_measurement: {GUEST_VARIABLE} is unset, so this arm runs only in the throwaway mvm guest"
+        );
         return false;
     };
-    let running: String = std::fs::read_to_string("/etc/hostname").map(|text| return text.trim().to_string()).unwrap_or_default();
+    let running: String = std::fs::read_to_string("/etc/hostname")
+        .map(|text| return text.trim().to_string())
+        .unwrap_or_default();
     assert_eq!(running, name, "this arm runs only in the guest {name}");
     return true;
 }
@@ -161,8 +204,15 @@ impl Fixture {
         let root: PathBuf = PathBuf::from(required(ROOT_VARIABLE));
         let pool: String = required(POOL_VARIABLE);
         let sbin: String = required(SBIN_VARIABLE);
-        let (checkout, container): (String, String) = make_the_designs_layout(&sbin, &pool, root.as_path());
-        let fixture: Fixture = Fixture { root, pool, sbin, checkout, container };
+        let (checkout, container): (String, String) =
+            make_the_designs_layout(&sbin, &pool, root.as_path());
+        let fixture: Fixture = Fixture {
+            root,
+            pool,
+            sbin,
+            checkout,
+            container,
+        };
         fixture.copy_the_workload();
         fixture.make_the_repository();
         fixture.make_the_worktrees_folder();
@@ -190,12 +240,18 @@ impl Fixture {
     }
 
     /// One slot's folder, which the design keeps under the checkout.
-    fn slot(&self, name: &str) -> PathBuf {
+    fn slot(
+        &self,
+        name: &str,
+    ) -> PathBuf {
         return self.root.join(".claude").join("worktrees").join(name);
     }
 
     /// One slot's clone dataset.
-    fn clone(&self, name: &str) -> String {
+    fn clone(
+        &self,
+        name: &str,
+    ) -> String {
         return format!("{}/{}", self.container, name);
     }
 
@@ -239,14 +295,25 @@ impl Fixture {
         std::thread::sleep(Duration::from_secs(1));
         self.git(&["init", "--quiet", "--initial-branch=main"]);
         self.git(&["add", "."]);
-        self.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "--no-verify", "-m", "one"]);
+        self.git(&[
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "--quiet",
+            "--no-verify",
+            "-m",
+            "one",
+        ]);
     }
 
     /// The folder the route's slots live in, at the mode the design's unit sets.
     fn make_the_worktrees_folder(&self) {
         let parent: PathBuf = self.root.join(".claude").join("worktrees");
         std::fs::create_dir_all(parent.as_path()).expect("the worktrees folder");
-        std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the folder's mode");
+        std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o755))
+            .expect("the folder's mode");
     }
 
     /// The readiness report the add's preflight requires, written as the boot
@@ -254,7 +321,10 @@ impl Fixture {
     fn publish_the_readiness(&self) {
         let file: ReadinessFile = ReadinessFile::live();
         file.prepare().expect("the readiness directory");
-        let boot: String = std::fs::read_to_string("/proc/sys/kernel/random/boot_id").expect("this boot's identifier").trim().to_string();
+        let boot: String = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")
+            .expect("this boot's identifier")
+            .trim()
+            .to_string();
         let record: ReadinessRecord = ReadinessRecord {
             boot,
             pool_name: self.pool.clone(),
@@ -274,66 +344,137 @@ impl Fixture {
         std::fs::create_dir_all(bin.as_path()).expect("the bin folder");
         std::fs::create_dir_all(self.home_folder().as_path()).expect("the home folder");
         std::fs::create_dir_all(self.runtime_folder().as_path()).expect("the runtime folder");
-        std::fs::set_permissions(self.runtime_folder().as_path(), std::fs::Permissions::from_mode(0o700)).expect("the runtime folder's mode");
+        std::fs::set_permissions(
+            self.runtime_folder().as_path(),
+            std::fs::Permissions::from_mode(0o700),
+        )
+        .expect("the runtime folder's mode");
         let link: PathBuf = self.wrapper_git();
         let _stale: std::io::Result<()> = std::fs::remove_file(link.as_path());
         std::os::unix::fs::symlink(WRAPPER, link.as_path()).expect("the wrapper's link");
     }
 
     /// The environment every command runs with, so no host variable reaches it.
-    fn environment(&self, program_folder: &Path) -> Vec<(String, String)> {
+    fn environment(
+        &self,
+        program_folder: &Path,
+    ) -> Vec<(String, String)> {
         return vec![
-            (String::from("PATH"), format!("{}:/usr/bin:/bin", program_folder.display())),
-            (String::from("HOME"), self.home_folder().display().to_string()),
-            (String::from("XDG_RUNTIME_DIR"), self.runtime_folder().display().to_string()),
+            (
+                String::from("PATH"),
+                format!("{}:/usr/bin:/bin", program_folder.display()),
+            ),
+            (
+                String::from("HOME"),
+                self.home_folder().display().to_string(),
+            ),
+            (
+                String::from("XDG_RUNTIME_DIR"),
+                self.runtime_folder().display().to_string(),
+            ),
             (String::from("GIT_CONFIG_NOSYSTEM"), String::from("1")),
-            (String::from("GIT_CONFIG_GLOBAL"), String::from("/nonexistent-global-config")),
+            (
+                String::from("GIT_CONFIG_GLOBAL"),
+                String::from("/nonexistent-global-config"),
+            ),
             (String::from("GIT_AUTHOR_NAME"), String::from("Fixture")),
-            (String::from("GIT_AUTHOR_EMAIL"), String::from("fixture@example.invalid")),
+            (
+                String::from("GIT_AUTHOR_EMAIL"),
+                String::from("fixture@example.invalid"),
+            ),
             (String::from("GIT_COMMITTER_NAME"), String::from("Fixture")),
-            (String::from("GIT_COMMITTER_EMAIL"), String::from("fixture@example.invalid")),
+            (
+                String::from("GIT_COMMITTER_EMAIL"),
+                String::from("fixture@example.invalid"),
+            ),
         ];
     }
 
     /// One real Git command in the checkout, which must succeed.
-    fn git(&self, arguments: &[&str]) -> Output {
-        let output: Output = command(REAL_GIT, arguments, self.root.as_path(), &self.environment(Path::new("/usr/bin")));
-        assert!(output.status.success(), "git {arguments:?} was refused: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    fn git(
+        &self,
+        arguments: &[&str],
+    ) -> Output {
+        let output: Output = command(
+            REAL_GIT,
+            arguments,
+            self.root.as_path(),
+            &self.environment(Path::new("/usr/bin")),
+        );
+        assert!(
+            output.status.success(),
+            "git {arguments:?} was refused: {}",
+            String::from_utf8_lossy(output.stderr.as_slice())
+        );
         return output;
     }
 
     /// One `zfs` command as root, with its status, output and error.
-    fn zfs(&self, arguments: &[&str]) -> (bool, String, String) {
+    fn zfs(
+        &self,
+        arguments: &[&str],
+    ) -> (bool, String, String) {
         return zfs(self.sbin.as_str(), "zfs", arguments, None);
     }
 
     /// One `zfs` command that must succeed.
-    fn zfs_ok(&self, arguments: &[&str]) {
+    fn zfs_ok(
+        &self,
+        arguments: &[&str],
+    ) {
         zfs_ok(self.sbin.as_str(), arguments);
     }
 
     /// One dataset's property, in bytes, where the property is a number.
-    fn bytes(&self, property: &str, dataset: &str) -> u64 {
-        let (_ok, said, _error): (bool, String, String) = self.zfs(&["get", "-H", "-p", "-o", "value", property, dataset]);
+    fn bytes(
+        &self,
+        property: &str,
+        dataset: &str,
+    ) -> u64 {
+        let (_ok, said, _error): (bool, String, String) =
+            self.zfs(&["get", "-H", "-p", "-o", "value", property, dataset]);
         return said.trim().parse().unwrap_or(0);
     }
 
     /// One slot's binding record, or nothing when no phase wrote it.
-    fn record(&self, name: &str) -> Option<String> {
-        return std::fs::read_to_string(self.home().join("worktree-clones").join("v1").join(format!("{name}.binding"))).ok();
+    fn record(
+        &self,
+        name: &str,
+    ) -> Option<String> {
+        return std::fs::read_to_string(
+            self.home()
+                .join("worktree-clones")
+                .join("v1")
+                .join(format!("{name}.binding")),
+        )
+        .ok();
     }
 
     /// The origin snapshot the add recorded, or nothing.
-    fn origin_of(&self, name: &str) -> Option<String> {
+    fn origin_of(
+        &self,
+        name: &str,
+    ) -> Option<String> {
         let record: String = self.record(name)?;
-        return record.lines().find_map(|line| return line.strip_prefix("originSnapshot=")).map(String::from);
+        return record
+            .lines()
+            .find_map(|line| return line.strip_prefix("originSnapshot="))
+            .map(String::from);
     }
 
     /// Run ordinary Git's own `git worktree add`, the control arm.
-    fn git_add(&self, name: &str) -> AddRound {
+    fn git_add(
+        &self,
+        name: &str,
+    ) -> AddRound {
         let slot: PathBuf = self.slot(name);
         let started: Instant = Instant::now();
-        let output: Output = command(REAL_GIT, &["worktree", "add", slot.to_str().expect("a text path")], self.root.as_path(), &self.environment(Path::new("/usr/bin")));
+        let output: Output = command(
+            REAL_GIT,
+            &["worktree", "add", slot.to_str().expect("a text path")],
+            self.root.as_path(),
+            &self.environment(Path::new("/usr/bin")),
+        );
         return AddRound {
             elapsed: started.elapsed(),
             status: output.status.code(),
@@ -344,13 +485,24 @@ impl Fixture {
 
     /// Run the wrapper's own add, which is the ZFS clone route, watching its
     /// binding record and mounting the clone when it asks.
-    fn wrapper_add(&self, name: &str, by_sweep: bool) -> AddRound {
+    fn wrapper_add(
+        &self,
+        name: &str,
+        by_sweep: bool,
+    ) -> AddRound {
         let slot: PathBuf = self.slot(name);
         let clone: String = self.clone(name);
-        let record: PathBuf = self.home().join("worktree-clones").join("v1").join(format!("{name}.binding"));
+        let record: PathBuf = self
+            .home()
+            .join("worktree-clones")
+            .join("v1")
+            .join(format!("{name}.binding"));
         let started: Instant = Instant::now();
         let mut command_line: Command = Command::new(self.wrapper_git());
-        command_line.args(["worktree", "add", slot.to_str().expect("a text path")]).current_dir(self.root.as_path()).env_clear();
+        command_line
+            .args(["worktree", "add", slot.to_str().expect("a text path")])
+            .current_dir(self.root.as_path())
+            .env_clear();
         for (key, value) in self.environment(Path::new("/root/step22-bin")) {
             command_line.env(key, value);
         }
@@ -364,7 +516,10 @@ impl Fixture {
                 if phases.iter().any(|(already, _at)| return *already == word) {
                     continue;
                 }
-                if record_lines(record.as_path()).iter().any(|line| return *line == format!("phase={word}")) {
+                if record_lines(record.as_path())
+                    .iter()
+                    .any(|line| return *line == format!("phase={word}"))
+                {
                     phases.push((word, started.elapsed().as_millis()));
                 }
             }
@@ -374,19 +529,46 @@ impl Fixture {
             }
             // The probe stops once the mount stands: a poll that kept asking
             // while the fill ran would slow the arm it is timing.
-            if !attach_made && slot.is_dir() && dataset_stands(self.sbin.as_str(), clone.as_str()) && intent_says_mount(self.sbin.as_str(), clone.as_str()) && !mounted_at_path(slot.as_path()) {
+            if !attach_made
+                && slot.is_dir()
+                && dataset_stands(self.sbin.as_str(), clone.as_str())
+                && intent_says_mount(self.sbin.as_str(), clone.as_str())
+                && !mounted_at_path(slot.as_path())
+            {
                 let attach: Instant = Instant::now();
                 if by_sweep {
                     let run: super::zfs_sweep_guest::Run = sweep();
-                    assert_eq!(run.status, Some(0), "the sweep that mounts the add's clone reached its end: {}", run.said);
-                    println!("STEP22 add-attach=sweep slot={name} sweep-ms={}", run.elapsed.as_millis());
+                    assert_eq!(
+                        run.status,
+                        Some(0),
+                        "the sweep that mounts the add's clone reached its end: {}",
+                        run.said
+                    );
+                    println!(
+                        "STEP22 add-attach=sweep slot={name} sweep-ms={}",
+                        run.elapsed.as_millis()
+                    );
                 } else {
                     let output: Output = Command::new("/usr/bin/mount")
-                        .args(["-t", "zfs", "-o", "nosuid,nodev", clone.as_str(), slot.to_str().expect("a text path")])
+                        .args([
+                            "-t",
+                            "zfs",
+                            "-o",
+                            "nosuid,nodev",
+                            clone.as_str(),
+                            slot.to_str().expect("a text path"),
+                        ])
                         .output()
                         .expect("mount starts");
-                    assert!(output.status.success(), "the mount of {clone} at the slot was refused: {}", String::from_utf8_lossy(output.stderr.as_slice()));
-                    println!("STEP22 add-attach=direct slot={name} mount-call-ms={}", attach.elapsed().as_millis());
+                    assert!(
+                        output.status.success(),
+                        "the mount of {clone} at the slot was refused: {}",
+                        String::from_utf8_lossy(output.stderr.as_slice())
+                    );
+                    println!(
+                        "STEP22 add-attach=direct slot={name} mount-call-ms={}",
+                        attach.elapsed().as_millis()
+                    );
                 }
                 attach_made = true;
             }
@@ -398,7 +580,10 @@ impl Fixture {
             if phases.iter().any(|(already, _at)| return *already == word) {
                 continue;
             }
-            if record_lines(record.as_path()).iter().any(|line| return *line == format!("phase={word}")) {
+            if record_lines(record.as_path())
+                .iter()
+                .any(|line| return *line == format!("phase={word}"))
+            {
                 phases.push((word, started.elapsed().as_millis()));
             }
         }
@@ -406,13 +591,20 @@ impl Fixture {
             elapsed: started.elapsed(),
             status: output.status.code(),
             phases,
-            said: format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice())),
+            said: format!(
+                "{}{}",
+                String::from_utf8_lossy(output.stdout.as_slice()),
+                String::from_utf8_lossy(output.stderr.as_slice())
+            ),
         };
     }
 
     /// Take a slot's clone, mount, folder, registration and record away, so the
     /// next round starts from nothing.
-    fn clear(&self, name: &str) {
+    fn clear(
+        &self,
+        name: &str,
+    ) {
         let slot: PathBuf = self.slot(name);
         let clone: String = self.clone(name);
         unmount_quiet(slot.as_path());
@@ -423,28 +615,58 @@ impl Fixture {
         }
         let _folder: std::io::Result<()> = std::fs::remove_dir_all(slot.as_path());
         let _records: std::io::Result<()> = std::fs::remove_dir_all(self.home().as_path());
-        let output: Output = command(REAL_GIT, &["worktree", "prune"], self.root.as_path(), &self.environment(Path::new("/usr/bin")));
+        let output: Output = command(
+            REAL_GIT,
+            &["worktree", "prune"],
+            self.root.as_path(),
+            &self.environment(Path::new("/usr/bin")),
+        );
         let _pruned: bool = output.status.success();
     }
 
     /// One clone of a fresh checkout snapshot, asking to be mounted at a slot
     /// Git registered.
-    fn make_a_clone_asking(&self, name: &str, seed: &str) {
+    fn make_a_clone_asking(
+        &self,
+        name: &str,
+        seed: &str,
+    ) {
         let intent: String = format!("v1:{}:mount", nonce(seed));
-        let _clone: String = clone_the_checkouts_snapshot(self.sbin.as_str(), self.checkout.as_str(), self.container.as_str(), name, nonce(seed).as_str(), Some(intent.as_str()));
+        let _clone: String = clone_the_checkouts_snapshot(
+            self.sbin.as_str(),
+            self.checkout.as_str(),
+            self.container.as_str(),
+            name,
+            nonce(seed).as_str(),
+            Some(intent.as_str()),
+        );
         make_the_slot(self.root.as_path(), name);
     }
 
     /// Take one of the arm's own clones away, with the checkout snapshot it was
     /// cloned from, without touching a record the arm still reads.
-    fn forget(&self, name: &str, seed: &str) {
+    fn forget(
+        &self,
+        name: &str,
+        seed: &str,
+    ) {
         let clone: String = self.clone(name);
-        let snapshot: String = format!("{}@git-worktree-clone-origin-{}", self.checkout, nonce(seed));
+        let snapshot: String = format!(
+            "{}@git-worktree-clone-origin-{}",
+            self.checkout,
+            nonce(seed)
+        );
         let _destroyed: (bool, String, String) = self.zfs(&["destroy", "-r", "-f", clone.as_str()]);
         let _snapshot: (bool, String, String) = self.zfs(&["destroy", "-f", snapshot.as_str()]);
         let _folder: std::io::Result<()> = std::fs::remove_dir_all(self.slot(name).as_path());
-        let _inherited: (bool, String, String) = self.zfs(&["inherit", DESIRED_STATE, self.container.as_str()]);
-        let output: Output = command(REAL_GIT, &["worktree", "prune"], self.root.as_path(), &self.environment(Path::new("/usr/bin")));
+        let _inherited: (bool, String, String) =
+            self.zfs(&["inherit", DESIRED_STATE, self.container.as_str()]);
+        let output: Output = command(
+            REAL_GIT,
+            &["worktree", "prune"],
+            self.root.as_path(),
+            &self.environment(Path::new("/usr/bin")),
+        );
         let _pruned: bool = output.status.success();
     }
 }
@@ -460,58 +682,150 @@ impl Fixture {
 ///  either,
 ///  so the guest makes the checkout dataset the step 19 design describes rather
 ///  than finding one.
-fn make_the_designs_layout(sbin: &str, pool: &str, checkout: &Path) -> (String, String) {
+fn make_the_designs_layout(
+    sbin: &str,
+    pool: &str,
+    checkout: &Path,
+) -> (String, String) {
     let home: String = format!("{pool}/ROOT/cos/home");
     let checkout_dataset: String = format!("{home}/{CHECKOUT_LEAF}");
     let container: String = format!("{home}/{CONTAINER_LEAF}");
-    let created: (bool, String, String) = zfs(sbin, "zfs", &["create", "-p", "-o", "mountpoint=none", home.as_str()], None);
+    let created: (bool, String, String) = zfs(
+        sbin,
+        "zfs",
+        &["create", "-p", "-o", "mountpoint=none", home.as_str()],
+        None,
+    );
     assert!(created.0, "the home dataset is made: {}", created.2);
     // A killed arm leaves clones mounted under the checkout, and a checkout
     // snapshot with a dependent clone refuses its own destroy, so the previous
     // run's mounts and container go before the checkout dataset does.
     let _unmounted: (bool, String, String) = zfs(sbin, "zfs", &["unmount", "-a"], None);
-    let _container: (bool, String, String) = zfs(sbin, "zfs", &["destroy", "-r", "-f", container.as_str()], None);
-    let _replaced: (bool, String, String) = zfs(sbin, "zfs", &["destroy", "-r", "-f", checkout_dataset.as_str()], None);
+    let _container: (bool, String, String) = zfs(
+        sbin,
+        "zfs",
+        &["destroy", "-r", "-f", container.as_str()],
+        None,
+    );
+    let _replaced: (bool, String, String) = zfs(
+        sbin,
+        "zfs",
+        &["destroy", "-r", "-f", checkout_dataset.as_str()],
+        None,
+    );
     let mountpoint: String = format!("mountpoint={}", checkout.display());
-    let made: (bool, String, String) = zfs(sbin, "zfs", &["create", "-o", mountpoint.as_str(), checkout_dataset.as_str()], None);
+    let made: (bool, String, String) = zfs(
+        sbin,
+        "zfs",
+        &[
+            "create",
+            "-o",
+            mountpoint.as_str(),
+            checkout_dataset.as_str(),
+        ],
+        None,
+    );
     assert!(made.0, "the checkout dataset is made: {}", made.2);
     std::fs::create_dir_all(checkout).expect("the checkout's mount point");
-    let _private: Output = Command::new("/usr/bin/mount").args(["--make-private", checkout.to_str().expect("a text path")]).output().expect("the private mount starts");
+    let _private: Output = Command::new("/usr/bin/mount")
+        .args(["--make-private", checkout.to_str().expect("a text path")])
+        .output()
+        .expect("the private mount starts");
     let container_made: (bool, String, String) = zfs(
         sbin,
         "zfs",
-        &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "setuid=off", "-o", "devices=off", container.as_str()],
+        &[
+            "create",
+            "-o",
+            "mountpoint=legacy",
+            "-o",
+            "canmount=off",
+            "-o",
+            "setuid=off",
+            "-o",
+            "devices=off",
+            container.as_str(),
+        ],
         None,
     );
-    assert!(container_made.0, "the clone container is made: {}", container_made.2);
+    assert!(
+        container_made.0,
+        "the clone container is made: {}",
+        container_made.2
+    );
     // The nine permissions the design scopes, handed to the account this arm
     // runs as, which is root: the route's preflight reads the caller's own
     // delegation and refuses without them.
     for arguments in [
-        vec!["allow", "-l", "-u", ACCOUNT, "snapshot", checkout_dataset.as_str()],
-        vec!["allow", "-d", "-u", ACCOUNT, "clone,mount,destroy", checkout_dataset.as_str()],
-        vec!["allow", "-l", "-u", ACCOUNT, "create,mount", container.as_str()],
-        vec!["allow", "-d", "-u", ACCOUNT, "mount,destroy,userprop", container.as_str()],
+        vec![
+            "allow",
+            "-l",
+            "-u",
+            ACCOUNT,
+            "snapshot",
+            checkout_dataset.as_str(),
+        ],
+        vec![
+            "allow",
+            "-d",
+            "-u",
+            ACCOUNT,
+            "clone,mount,destroy",
+            checkout_dataset.as_str(),
+        ],
+        vec![
+            "allow",
+            "-l",
+            "-u",
+            ACCOUNT,
+            "create,mount",
+            container.as_str(),
+        ],
+        vec![
+            "allow",
+            "-d",
+            "-u",
+            ACCOUNT,
+            "mount,destroy,userprop",
+            container.as_str(),
+        ],
     ] {
         let granted: (bool, String, String) = zfs(sbin, "zfs", arguments.as_slice(), None);
-        assert!(granted.0, "the decided delegation is granted: {}", granted.2);
+        assert!(
+            granted.0,
+            "the decided delegation is granted: {}",
+            granted.2
+        );
     }
     return (checkout_dataset, container);
 }
 
 /// The lines one binding record holds, or nothing while no phase wrote it.
 fn record_lines(record: &Path) -> Vec<String> {
-    return std::fs::read_to_string(record).map(|text| return text.lines().map(String::from).collect()).unwrap_or_default();
+    return std::fs::read_to_string(record)
+        .map(|text| return text.lines().map(String::from).collect())
+        .unwrap_or_default();
 }
 
 /// Whether a dataset answers `zfs list`.
-fn dataset_stands(sbin: &str, dataset: &str) -> bool {
+fn dataset_stands(
+    sbin: &str,
+    dataset: &str,
+) -> bool {
     return zfs(sbin, "zfs", &["list", "-H", "-o", "name", dataset], None).0;
 }
 
 /// Whether one clone's durable intent asks for its mount.
-fn intent_says_mount(sbin: &str, clone: &str) -> bool {
-    let (_ok, said, _error): (bool, String, String) = zfs(sbin, "zfs", &["get", "-H", "-o", "value", DESIRED_STATE, clone], None);
+fn intent_says_mount(
+    sbin: &str,
+    clone: &str,
+) -> bool {
+    let (_ok, said, _error): (bool, String, String) = zfs(
+        sbin,
+        "zfs",
+        &["get", "-H", "-o", "value", DESIRED_STATE, clone],
+        None,
+    );
     return said.contains(":mount");
 }
 
@@ -519,22 +833,34 @@ fn intent_says_mount(sbin: &str, clone: &str) -> bool {
 fn mounted_at_path(path: &Path) -> bool {
     let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the mount table");
     let wanted: String = path.display().to_string();
-    return table.lines().any(|line| return line.split(' ').nth(4) == Some(wanted.as_str()));
+    return table
+        .lines()
+        .any(|line| return line.split(' ').nth(4) == Some(wanted.as_str()));
 }
 
 /// Take one mount down where it stands, without insisting that it did.
 fn unmount_quiet(folder: &Path) {
-    let _unmounted: Output = Command::new("/usr/bin/umount").arg(folder).output().expect("the cleanup unmount starts");
+    let _unmounted: Output = Command::new("/usr/bin/umount")
+        .arg(folder)
+        .output()
+        .expect("the cleanup unmount starts");
 }
 
 /// Run one program with an environment of its own and no inherited variable.
-fn command(program: &str, arguments: &[&str], directory: &Path, environment: &[(String, String)]) -> Output {
+fn command(
+    program: &str,
+    arguments: &[&str],
+    directory: &Path,
+    environment: &[(String, String)],
+) -> Output {
     let mut started: Command = Command::new(program);
     started.args(arguments).current_dir(directory).env_clear();
     for (key, value) in environment {
         started.env(key, value);
     }
-    return started.output().unwrap_or_else(|error| panic!("{program} {arguments:?} could not start: {error}"));
+    return started
+        .output()
+        .unwrap_or_else(|error| panic!("{program} {arguments:?} could not start: {error}"));
 }
 
 /// What:
@@ -547,7 +873,10 @@ fn command(program: &str, arguments: &[&str], directory: &Path, environment: &[(
 ///  filled a pool with 758 MiB, and made the route's capture exceed its bound.
 ///  A link is not fill work, so it is skipped rather than recreated, and the
 ///  workload is the tree's own files.
-fn copy_tree(from: &Path, to: &Path) {
+fn copy_tree(
+    from: &Path,
+    to: &Path,
+) {
     std::fs::create_dir_all(to).expect("the copy's folder");
     for entry in std::fs::read_dir(from).expect("the tree reads").flatten() {
         let path: PathBuf = entry.path();
@@ -589,7 +918,8 @@ fn count_files(root: &Path) -> u64 {
 fn tree_bytes(root: &Path) -> u64 {
     let mut bytes: u64 = 0;
     for entry in std::fs::read_dir(root).expect("the folder reads").flatten() {
-        let metadata: std::fs::Metadata = std::fs::symlink_metadata(entry.path()).expect("the entry's metadata");
+        let metadata: std::fs::Metadata =
+            std::fs::symlink_metadata(entry.path()).expect("the entry's metadata");
         if metadata.is_dir() {
             bytes += tree_bytes(entry.path().as_path());
         } else {
@@ -600,9 +930,19 @@ fn tree_bytes(root: &Path) -> u64 {
 }
 
 /// Print one arm's control, treatment, spread and ratio.
-fn report_pairs(arm: &str, controls: &[Duration], treatments: &[Duration]) {
-    let control: Vec<u128> = controls.iter().map(|value| return value.as_millis()).collect();
-    let treatment: Vec<u128> = treatments.iter().map(|value| return value.as_millis()).collect();
+fn report_pairs(
+    arm: &str,
+    controls: &[Duration],
+    treatments: &[Duration],
+) {
+    let control: Vec<u128> = controls
+        .iter()
+        .map(|value| return value.as_millis())
+        .collect();
+    let treatment: Vec<u128> = treatments
+        .iter()
+        .map(|value| return value.as_millis())
+        .collect();
     let control_mid: u128 = middle(&control);
     let treatment_mid: u128 = middle(&treatment);
     println!(
@@ -625,8 +965,16 @@ fn add_rounds(fixture: &Fixture) {
     for round in 0..ROUNDS {
         let control_name: String = format!("git-{round}");
         let control: AddRound = fixture.git_add(control_name.as_str());
-        assert_eq!(control.status, Some(0), "round {round}: Git's own add made the worktree: {}", control.said);
-        println!("STEP22 add arm=git round={round} ms={}", control.elapsed.as_millis());
+        assert_eq!(
+            control.status,
+            Some(0),
+            "round {round}: Git's own add made the worktree: {}",
+            control.said
+        );
+        println!(
+            "STEP22 add arm=git round={round} ms={}",
+            control.elapsed.as_millis()
+        );
         if round == 0 {
             // The control's own registration is the same administration the
             // route copies and discards, so the discard is timed here once.
@@ -640,15 +988,28 @@ fn add_rounds(fixture: &Fixture) {
         // so the two shapes bracket what a handler adds to the wait.
         let by_sweep: bool = round % 2 == 0;
         let treatment: AddRound = fixture.wrapper_add(treatment_name.as_str(), by_sweep);
-        assert_eq!(treatment.status, Some(0), "round {round}: the clone route made the worktree: {}", treatment.said);
+        assert_eq!(
+            treatment.status,
+            Some(0),
+            "round {round}: the clone route made the worktree: {}",
+            treatment.said
+        );
         // A wrapper add that fell back to Git's own checkout would also exit
         // zero, so the record's last phase is what proves the route ran.
         assert!(
-            treatment.phases.iter().any(|(word, _at)| return *word == "filled"),
+            treatment
+                .phases
+                .iter()
+                .any(|(word, _at)| return *word == "filled"),
             "round {round}: the add reached the clone route's filled phase rather than the ladder's fallback: {}",
             treatment.said
         );
-        let stages: String = treatment.phases.iter().map(|(word, at)| return format!("{word}={at}")).collect::<Vec<String>>().join(",");
+        let stages: String = treatment
+            .phases
+            .iter()
+            .map(|(word, at)| return format!("{word}={at}"))
+            .collect::<Vec<String>>()
+            .join(",");
         println!(
             "STEP22 add arm=clone round={round} ms={} attached-by={} phases-ms={stages}",
             treatment.elapsed.as_millis(),
@@ -687,9 +1048,15 @@ fn discard_arm(fixture: &Fixture) {
         let started: Instant = Instant::now();
         std::fs::remove_dir_all(to.as_path()).expect("the copied administration goes");
         times.push(started.elapsed().as_millis());
-        println!("STEP22 discard round={round} files={files} bytes={bytes} ms={}", times[times.len() - 1]);
+        println!(
+            "STEP22 discard round={round} files={files} bytes={bytes} ms={}",
+            times[times.len() - 1]
+        );
     }
-    println!("STEP22 discard files={files} bytes={bytes} ms={times:?} mid={}", middle(&times));
+    println!(
+        "STEP22 discard files={files} bytes={bytes} ms={times:?} mid={}",
+        middle(&times)
+    );
 }
 
 /// What:
@@ -704,8 +1071,17 @@ fn discard_arm(fixture: &Fixture) {
 fn sweep_cost_arm(fixture: &Fixture) {
     fixture.make_a_clone_asking("sweep-one", "aa");
     let one: super::zfs_sweep_guest::Run = sweep();
-    assert_eq!(one.status, Some(0), "the one-clone sweep reached its end: {}", one.said);
-    println!("STEP22 sweep clones=1 ms={} attached={}", one.elapsed.as_millis(), mounted_at_path(fixture.slot("sweep-one").as_path()));
+    assert_eq!(
+        one.status,
+        Some(0),
+        "the one-clone sweep reached its end: {}",
+        one.said
+    );
+    println!(
+        "STEP22 sweep clones=1 ms={} attached={}",
+        one.elapsed.as_millis(),
+        mounted_at_path(fixture.slot("sweep-one").as_path())
+    );
     unmount_quiet(fixture.slot("sweep-one").as_path());
     fixture.forget("sweep-one", "aa");
 
@@ -745,18 +1121,51 @@ fn sweep_cost_arm(fixture: &Fixture) {
 /// Why:
 ///  The cost is what the sweep pays per run, and a period a heartbeat uses must
 ///  exceed it, so the arm reads it at two sizes.
-fn sweep_over(fixture: &Fixture, count: usize, seed: &str) {
+fn sweep_over(
+    fixture: &Fixture,
+    count: usize,
+    seed: &str,
+) {
     for index in 0..count {
-        fixture.make_a_clone_asking(format!("sweep-{seed}-{index}").as_str(), format!("{seed}{index:02}").as_str());
+        fixture.make_a_clone_asking(
+            format!("sweep-{seed}-{index}").as_str(),
+            format!("{seed}{index:02}").as_str(),
+        );
     }
     let run: super::zfs_sweep_guest::Run = sweep();
-    assert_eq!(run.status, Some(0), "the {count}-clone sweep reached its end: {}", run.said);
-    let attached: usize = (0..count).filter(|index| return mounted_at_path(fixture.slot(format!("sweep-{seed}-{index}").as_str()).as_path())).count();
-    println!("STEP22 sweep clones={count} ms={} attached={attached}", run.elapsed.as_millis());
-    assert_eq!(attached, count, "the sweep attached every clone it was given");
+    assert_eq!(
+        run.status,
+        Some(0),
+        "the {count}-clone sweep reached its end: {}",
+        run.said
+    );
+    let attached: usize = (0..count)
+        .filter(|index| {
+            return mounted_at_path(
+                fixture
+                    .slot(format!("sweep-{seed}-{index}").as_str())
+                    .as_path(),
+            );
+        })
+        .count();
+    println!(
+        "STEP22 sweep clones={count} ms={} attached={attached}",
+        run.elapsed.as_millis()
+    );
+    assert_eq!(
+        attached, count,
+        "the sweep attached every clone it was given"
+    );
     for index in 0..count {
-        unmount_quiet(fixture.slot(format!("sweep-{seed}-{index}").as_str()).as_path());
-        fixture.forget(format!("sweep-{seed}-{index}").as_str(), format!("{seed}{index:02}").as_str());
+        unmount_quiet(
+            fixture
+                .slot(format!("sweep-{seed}-{index}").as_str())
+                .as_path(),
+        );
+        fixture.forget(
+            format!("sweep-{seed}-{index}").as_str(),
+            format!("{seed}{index:02}").as_str(),
+        );
     }
 }
 
@@ -776,26 +1185,52 @@ fn unmount_arm(fixture: &Fixture) {
         let name: String = format!("unmount-{round}");
         fixture.make_a_clone_asking(name.as_str(), format!("dd{round:02}").as_str());
         let attached: super::zfs_sweep_guest::Run = sweep();
-        assert_eq!(attached.status, Some(0), "round {round}: the sweep attached the clone: {}", attached.said);
+        assert_eq!(
+            attached.status,
+            Some(0),
+            "round {round}: the sweep attached the clone: {}",
+            attached.said
+        );
         let slot: PathBuf = fixture.slot(name.as_str());
-        assert!(mounted_at_path(slot.as_path()), "round {round}: the clone stood at its slot");
+        assert!(
+            mounted_at_path(slot.as_path()),
+            "round {round}: the clone stood at its slot"
+        );
         // The clone's dataset inherits the container's legacy mountpoint, so
         // the kernel's own unmount by path is the call the route makes, not
         // `zfs unmount`, which refuses a legacy dataset by name.
         let started: Instant = Instant::now();
-        let unmounted: Output = Command::new("/usr/bin/umount").arg(slot.to_str().expect("a text path")).output().expect("the plain unmount starts");
+        let unmounted: Output = Command::new("/usr/bin/umount")
+            .arg(slot.to_str().expect("a text path"))
+            .output()
+            .expect("the plain unmount starts");
         plain.push(started.elapsed().as_millis());
-        assert!(unmounted.status.success(), "round {round}: the plain unmount was accepted: {}", String::from_utf8_lossy(unmounted.stderr.as_slice()));
-        assert!(!mounted_at_path(slot.as_path()), "round {round}: the plain unmount took the mount down");
+        assert!(
+            unmounted.status.success(),
+            "round {round}: the plain unmount was accepted: {}",
+            String::from_utf8_lossy(unmounted.stderr.as_slice())
+        );
+        assert!(
+            !mounted_at_path(slot.as_path()),
+            "round {round}: the plain unmount took the mount down"
+        );
         fixture.forget(name.as_str(), format!("dd{round:02}").as_str());
     }
     for round in 0..ROUNDS {
         let name: String = format!("held-{round}");
         fixture.make_a_clone_asking(name.as_str(), format!("ab{round:02}").as_str());
         let attached: super::zfs_sweep_guest::Run = sweep();
-        assert_eq!(attached.status, Some(0), "round {round}: the sweep attached the held clone: {}", attached.said);
+        assert_eq!(
+            attached.status,
+            Some(0),
+            "round {round}: the sweep attached the held clone: {}",
+            attached.said
+        );
         let slot: PathBuf = fixture.slot(name.as_str());
-        assert!(mounted_at_path(slot.as_path()), "round {round}: the held clone stood at its slot");
+        assert!(
+            mounted_at_path(slot.as_path()),
+            "round {round}: the held clone stood at its slot"
+        );
         let mut holder: Child = Command::new("/bin/sleep")
             .arg("600")
             .current_dir(slot.as_path())
@@ -806,28 +1241,57 @@ fn unmount_arm(fixture: &Fixture) {
             .expect("the holder starts");
         std::thread::sleep(Duration::from_millis(200));
         let refused: Instant = Instant::now();
-        let while_held: Output = Command::new("/usr/bin/umount").arg(slot.to_str().expect("a text path")).output().expect("the busy unmount starts");
+        let while_held: Output = Command::new("/usr/bin/umount")
+            .arg(slot.to_str().expect("a text path"))
+            .output()
+            .expect("the busy unmount starts");
         busy.push(refused.elapsed().as_millis());
-        assert!(!while_held.status.success(), "round {round}: a working directory inside the mount refuses the unmount");
+        assert!(
+            !while_held.status.success(),
+            "round {round}: a working directory inside the mount refuses the unmount"
+        );
         let signalled: Instant = Instant::now();
-        let _signal: Output = Command::new("/usr/bin/kill").args(["--signal", "TERM", holder.id().to_string().as_str()]).output().expect("the signal starts");
+        let _signal: Output = Command::new("/usr/bin/kill")
+            .args(["--signal", "TERM", holder.id().to_string().as_str()])
+            .output()
+            .expect("the signal starts");
         let waited: std::io::Result<std::process::ExitStatus> = holder.wait();
         leaving.push(signalled.elapsed().as_millis());
-        assert!(waited.is_ok(), "round {round}: the holder ended after its signal");
+        assert!(
+            waited.is_ok(),
+            "round {round}: the holder ended after its signal"
+        );
         unmount_quiet(slot.as_path());
-        assert!(!mounted_at_path(slot.as_path()), "round {round}: the unmount after the holder ended was accepted");
+        assert!(
+            !mounted_at_path(slot.as_path()),
+            "round {round}: the unmount after the holder ended was accepted"
+        );
         fixture.forget(name.as_str(), format!("ab{round:02}").as_str());
     }
-    println!("STEP22 unmount holder=none ms={plain:?} mid={}", middle(&plain));
-    println!("STEP22 unmount holder=present refused-ms={busy:?} mid={}", middle(&busy));
-    println!("STEP22 forced-arm t-wait-ms={leaving:?} mid={}", middle(&leaving));
+    println!(
+        "STEP22 unmount holder=none ms={plain:?} mid={}",
+        middle(&plain)
+    );
+    println!(
+        "STEP22 unmount holder=present refused-ms={busy:?} mid={}",
+        middle(&busy)
+    );
+    println!(
+        "STEP22 forced-arm t-wait-ms={leaving:?} mid={}",
+        middle(&leaving)
+    );
 
     // The holder that ignores the polite signal: the arm reads that a `SIGKILL`
     // is what ends it, which is why `T_wait` is a wait and not a promise.
     let name: &str = "unmount-stubborn";
     fixture.make_a_clone_asking(name, "ee");
     let attached: super::zfs_sweep_guest::Run = sweep();
-    assert_eq!(attached.status, Some(0), "the stubborn arm's sweep attached the clone: {}", attached.said);
+    assert_eq!(
+        attached.status,
+        Some(0),
+        "the stubborn arm's sweep attached the clone: {}",
+        attached.said
+    );
     let slot: PathBuf = fixture.slot(name);
     let mut stubborn: Child = Command::new("/bin/sh")
         .args(["-c", "trap '' TERM; exec sleep 600"])
@@ -838,13 +1302,25 @@ fn unmount_arm(fixture: &Fixture) {
         .spawn()
         .expect("the stubborn holder starts");
     std::thread::sleep(Duration::from_millis(200));
-    let _signal: Output = Command::new("/usr/bin/kill").args(["--signal", "TERM", stubborn.id().to_string().as_str()]).output().expect("the signal starts");
+    let _signal: Output = Command::new("/usr/bin/kill")
+        .args(["--signal", "TERM", stubborn.id().to_string().as_str()])
+        .output()
+        .expect("the signal starts");
     std::thread::sleep(Duration::from_millis(500));
-    let still: Option<std::process::ExitStatus> = stubborn.try_wait().expect("the stubborn holder is asked how it is");
+    let still: Option<std::process::ExitStatus> = stubborn
+        .try_wait()
+        .expect("the stubborn holder is asked how it is");
     let killed: Instant = Instant::now();
-    let _kill: Output = Command::new("/usr/bin/kill").args(["--signal", "KILL", stubborn.id().to_string().as_str()]).output().expect("the kill starts");
+    let _kill: Output = Command::new("/usr/bin/kill")
+        .args(["--signal", "KILL", stubborn.id().to_string().as_str()])
+        .output()
+        .expect("the kill starts");
     let _ended: std::io::Result<std::process::ExitStatus> = stubborn.wait();
-    println!("STEP22 forced-arm stubborn-alive-after-term={} kill-ms={}", still.is_none(), killed.elapsed().as_millis());
+    println!(
+        "STEP22 forced-arm stubborn-alive-after-term={} kill-ms={}",
+        still.is_none(),
+        killed.elapsed().as_millis()
+    );
     unmount_quiet(slot.as_path());
     fixture.forget(name, "ee");
 }
@@ -862,22 +1338,46 @@ fn stop_wait_arm() {
         // from meeting a transient unit the first run left behind.
         let unit: String = format!("step22-holder-{}-{round}", std::process::id());
         let started: Output = Command::new("/usr/bin/systemd-run")
-            .args(["--unit", unit.as_str(), "--property", "Type=exec", "/bin/sleep", "600"])
+            .args([
+                "--unit",
+                unit.as_str(),
+                "--property",
+                "Type=exec",
+                "/bin/sleep",
+                "600",
+            ])
             .output()
             .expect("systemd-run starts");
-        assert!(started.status.success(), "round {round}: the unit started: {}", String::from_utf8_lossy(started.stderr.as_slice()));
+        assert!(
+            started.status.success(),
+            "round {round}: the unit started: {}",
+            String::from_utf8_lossy(started.stderr.as_slice())
+        );
         std::thread::sleep(Duration::from_millis(200));
         let asked: Instant = Instant::now();
-        let _stop: Output = Command::new("/usr/bin/systemctl").args(["stop", unit.as_str()]).output().expect("the stop starts");
+        let _stop: Output = Command::new("/usr/bin/systemctl")
+            .args(["stop", unit.as_str()])
+            .output()
+            .expect("the stop starts");
         let cgroup: PathBuf = PathBuf::from(format!("/sys/fs/cgroup/system.slice/{unit}.service"));
         while asked.elapsed() < STOP_WAIT_BOUND && cgroup.exists() {
             std::thread::sleep(POLL);
         }
         stops.push(asked.elapsed().as_millis());
-        println!("STEP22 forced-arm unit={unit} gone={} stop-ms={}", !cgroup.exists(), asked.elapsed().as_millis());
-        let _reset: Output = Command::new("/usr/bin/systemctl").args(["reset-failed", unit.as_str()]).output().expect("the reset starts");
+        println!(
+            "STEP22 forced-arm unit={unit} gone={} stop-ms={}",
+            !cgroup.exists(),
+            asked.elapsed().as_millis()
+        );
+        let _reset: Output = Command::new("/usr/bin/systemctl")
+            .args(["reset-failed", unit.as_str()])
+            .output()
+            .expect("the reset starts");
     }
-    println!("STEP22 forced-arm t-stop-ms={stops:?} mid={}", middle(&stops));
+    println!(
+        "STEP22 forced-arm t-stop-ms={stops:?} mid={}",
+        middle(&stops)
+    );
 }
 
 /// What:
@@ -895,11 +1395,19 @@ fn retention_arm(fixture: &Fixture) {
     let name: &str = "retention";
     fixture.make_a_clone_asking(name, "ff");
     let attached: super::zfs_sweep_guest::Run = sweep();
-    assert_eq!(attached.status, Some(0), "the retention arm's sweep attached the clone: {}", attached.said);
+    assert_eq!(
+        attached.status,
+        Some(0),
+        "the retention arm's sweep attached the clone: {}",
+        attached.said
+    );
     let checkout: String = fixture.checkout.clone();
     let clone: String = fixture.clone(name);
     let used_before: u64 = fixture.bytes("used", checkout.as_str());
-    println!("STEP22 retention checkout-used={used_before} clone-used={}", fixture.bytes("used", clone.as_str()));
+    println!(
+        "STEP22 retention checkout-used={used_before} clone-used={}",
+        fixture.bytes("used", clone.as_str())
+    );
 
     // A build-like output the checkout does not track, which an hourly snapshot
     // would pin, written into an ignored folder.
@@ -907,14 +1415,20 @@ fn retention_arm(fixture: &Fixture) {
     std::fs::create_dir_all(output_folder.as_path()).expect("the build output's folder");
     let block: Vec<u8> = vec![b'x'; 1024 * 1024];
     for index in 0..BUILD_OUTPUT_MIB {
-        std::fs::write(output_folder.join(format!("block-{index}")), block.as_slice()).expect("one write of the build-like output");
+        std::fs::write(
+            output_folder.join(format!("block-{index}")),
+            block.as_slice(),
+        )
+        .expect("one write of the build-like output");
     }
     std::thread::sleep(Duration::from_millis(500));
     let written: u64 = fixture.bytes("usedbydataset", checkout.as_str());
     let hourly: String = format!("{checkout}@autosnap_2026-11-25_00:00:00_hourly");
     fixture.zfs_ok(&["snapshot", hourly.as_str()]);
     let with_hourly: u64 = fixture.bytes("usedbysnapshots", checkout.as_str());
-    println!("STEP22 retention checkout-written={written} after-hourly-snapshot-pinned={with_hourly}");
+    println!(
+        "STEP22 retention checkout-written={written} after-hourly-snapshot-pinned={with_hourly}"
+    );
 
     // Removal frees the clone; expiry frees the hourly; the guard could free
     // only a snapshot named like this one on its own configured dataset.
@@ -923,7 +1437,8 @@ fn retention_arm(fixture: &Fixture) {
     let after_removal: u64 = fixture.bytes("used", checkout.as_str());
     fixture.zfs_ok(&["destroy", "-f", hourly.as_str()]);
     let after_expiry: u64 = fixture.bytes("used", checkout.as_str());
-    std::fs::remove_dir_all(output_folder.as_path()).expect("the arm takes its own build output away");
+    std::fs::remove_dir_all(output_folder.as_path())
+        .expect("the arm takes its own build output away");
     let after_output: u64 = fixture.bytes("used", checkout.as_str());
     println!(
         "STEP22 retention after-removal={after_removal} after-expiry={after_expiry} after-output-removed={after_output} freed-by-removal={} freed-by-expiry={}",
@@ -943,28 +1458,45 @@ fn retention_arm(fixture: &Fixture) {
 fn request_budget_arm(fixture: &Fixture) {
     let device: ZfsDevice = ZfsDevice::open().expect("the guest permits the device");
     let dataset: String = format!("{}/step22-batch", fixture.pool);
-    let _destroyed: (bool, String, String) = fixture.zfs(&["destroy", "-r", "-f", dataset.as_str()]);
+    let _destroyed: (bool, String, String) =
+        fixture.zfs(&["destroy", "-r", "-f", dataset.as_str()]);
     fixture.zfs_ok(&["create", "-o", "mountpoint=none", dataset.as_str()]);
     for count in REQUEST_NAMES {
-        let names: Vec<String> = (0..count).map(|index| return format!("{dataset}@step22-{index:05}")).collect();
+        let names: Vec<String> = (0..count)
+            .map(|index| return format!("{dataset}@step22-{index:05}"))
+            .collect();
         for name in &names {
             fixture.zfs_ok(&["snapshot", name.as_str()]);
         }
         let borrowed: Vec<&str> = names.iter().map(|name| return name.as_str()).collect();
-        let request: Request = destroy_snaps(fixture.pool.as_str(), borrowed.as_slice()).expect("the request encodes");
+        let request: Request =
+            destroy_snaps(fixture.pool.as_str(), borrowed.as_slice()).expect("the request encodes");
         let input_bytes: usize = request.input_bytes().len();
         let started: Instant = Instant::now();
-        let answer: Result<Option<NvList>, DeviceError> = device.destroy_snaps(fixture.pool.as_str(), borrowed.as_slice());
+        let answer: Result<Option<NvList>, DeviceError> =
+            device.destroy_snaps(fixture.pool.as_str(), borrowed.as_slice());
         let elapsed: Duration = started.elapsed();
         let outcome: String = match &answer {
             Ok(_answer) => String::from("accepted"),
             Err(error) => format!("refused: {error}"),
         };
-        let (_ok, remaining, _error): (bool, String, String) = fixture.zfs(&["list", "-H", "-o", "name", "-t", "snapshot", "-r", dataset.as_str()]);
+        let (_ok, remaining, _error): (bool, String, String) = fixture.zfs(&[
+            "list",
+            "-H",
+            "-o",
+            "name",
+            "-t",
+            "snapshot",
+            "-r",
+            dataset.as_str(),
+        ]);
         println!(
             "STEP22 request-budget names={count} input-bytes={input_bytes} outcome={outcome} ms={} snapshots-left={}",
             elapsed.as_millis(),
-            remaining.lines().filter(|line| return !line.trim().is_empty()).count()
+            remaining
+                .lines()
+                .filter(|line| return !line.trim().is_empty())
+                .count()
         );
     }
     let _cleaned: (bool, String, String) = fixture.zfs(&["destroy", "-r", "-f", dataset.as_str()]);
@@ -977,8 +1509,15 @@ fn the_step_22_guest_measurements() {
         return;
     }
     let fixture: Fixture = Fixture::prepare();
-    println!("STEP22 pool={} checkout={} container={}", fixture.pool, fixture.checkout, fixture.container);
-    println!("STEP22 workload files={} bytes={}", count_files(fixture.root.join("src").as_path()), tree_bytes(fixture.root.join("src").as_path()));
+    println!(
+        "STEP22 pool={} checkout={} container={}",
+        fixture.pool, fixture.checkout, fixture.container
+    );
+    println!(
+        "STEP22 workload files={} bytes={}",
+        count_files(fixture.root.join("src").as_path()),
+        tree_bytes(fixture.root.join("src").as_path())
+    );
     add_rounds(&fixture);
     sweep_cost_arm(&fixture);
     unmount_arm(&fixture);

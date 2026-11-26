@@ -75,7 +75,11 @@ pub(crate) fn prune_command(common_dir: &Path) -> String {
 /// ```ts
 /// function leftoverStageReport(target: string, converting: string, stage: StageState): string;
 /// ```
-pub(crate) fn leftover_stage_report(target: &Path, converting: &Path, stage: StageState) -> String {
+pub(crate) fn leftover_stage_report(
+    target: &Path,
+    converting: &Path,
+    stage: StageState,
+) -> String {
     let remedy: String = match stage {
         StageState::PastTheSwap => format!(
             "Finish the conversion with `git monochromatic-git-policy-cli convert-worktree-to-subvolume {target}`, which completes it in place (the index, then the copy, then the journal), and then run the removal again. `--abandon` cannot help here: it refuses every conversion at or past its exchange.",
@@ -139,7 +143,11 @@ pub(crate) enum StageState {
 /// ```ts
 /// const state = stageState({ admin, target, converting });
 /// ```
-pub(crate) fn stage_state(admin: &Path, target: &Path, converting: &Path) -> StageState {
+pub(crate) fn stage_state(
+    admin: &Path,
+    target: &Path,
+    converting: &Path,
+) -> StageState {
     let journal = match crate::worktree_convert_journal::Journal::load(admin) {
         Ok(Some(found)) => found,
         // A journal that cannot be read is not a conversion this report can finish; the copy is treated as one a removal
@@ -150,7 +158,8 @@ pub(crate) fn stage_state(admin: &Path, target: &Path, converting: &Path) -> Sta
         return StageState::PastTheSwap;
     }
     if journal.phase == crate::worktree_convert_journal::Phase::Synced
-        && crate::worktree_convert_phases::old_tree_is_at(&journal, target, converting) == crate::worktree_convert_phases::Where::AtConverting
+        && crate::worktree_convert_phases::old_tree_is_at(&journal, target, converting)
+            == crate::worktree_convert_phases::Where::AtConverting
     {
         return StageState::PastTheSwap;
     }
@@ -173,7 +182,12 @@ pub(crate) fn stage_state(admin: &Path, target: &Path, converting: &Path) -> Sta
 /// ```ts
 /// function incompleteReport(args: { target: string; admin: string; commonDir: string; reason: string }): string;
 /// ```
-pub(crate) fn incomplete_report(target: &Path, registration: &Registration, common_dir: &Path, reason: &str) -> String {
+pub(crate) fn incomplete_report(
+    target: &Path,
+    registration: &Registration,
+    common_dir: &Path,
+    reason: &str,
+) -> String {
     let prune: String = prune_command(common_dir);
     return format!(
         "monochromatic-git-policy-cli: the worktree {target} was removed (its subvolume was destroyed), but its registration {admin} was not: {reason}.\n\
@@ -210,7 +224,11 @@ pub(crate) fn incomplete_report(target: &Path, registration: &Registration, comm
 /// ```ts
 /// function registrationVolumeReport(target: string, admin: string, found: Boundary): string;
 /// ```
-pub(crate) fn registration_volume_report(target: &Path, admin: &Path, found: &Boundary) -> String {
+pub(crate) fn registration_volume_report(
+    target: &Path,
+    admin: &Path,
+    found: &Boundary,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the Git directory {admin} of the worktree {target} holds {inner}, which is {what}, \
          and a registration that holds one cannot be emptied, so the removal of {target} could never finish. Nothing was \
@@ -238,7 +256,11 @@ pub(crate) fn registration_volume_report(target: &Path, admin: &Path, found: &Bo
 /// ```ts
 /// function unwalkableRegistrationReport(target: string, admin: string, reason: string): string;
 /// ```
-pub(crate) fn unwalkable_registration_report(target: &Path, admin: &Path, reason: &str) -> String {
+pub(crate) fn unwalkable_registration_report(
+    target: &Path,
+    admin: &Path,
+    reason: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the Git directory {admin} of the worktree {target} cannot be read, so nothing proves \
          the registration could be emptied after the destroy: {reason}. Nothing was removed, and nothing of {target} changed.\n\
@@ -265,7 +287,10 @@ pub(crate) fn unwalkable_registration_report(target: &Path, admin: &Path, reason
 /// ```ts
 /// function pendingDeletionReport(target: string, reason: string): string;
 /// ```
-pub(crate) fn pending_deletion_report(target: &Path, reason: &str) -> String {
+pub(crate) fn pending_deletion_report(
+    target: &Path,
+    reason: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the worktree {target} holds a subvolume this program already renamed for its \
          commit service to delete, and it cannot be moved out of the tree: {reason}.\n\
@@ -299,7 +324,11 @@ pub(crate) fn pending_deletion_report(target: &Path, reason: &str) -> String {
 /// ```ts
 /// function snapshotsAheadReport(target: string, admin: string, reason: string): string;
 /// ```
-pub(crate) fn snapshots_ahead_report(target: &Path, admin: &Path, reason: &str) -> String {
+pub(crate) fn snapshots_ahead_report(
+    target: &Path,
+    admin: &Path,
+    reason: &str,
+) -> String {
     let pool: std::path::PathBuf = crate::worktree_snapshot_ahead::pool_folder(admin);
     return format!(
         "monochromatic-git-policy-cli: the worktree {target} holds the snapshots this program made ahead of an add, in \

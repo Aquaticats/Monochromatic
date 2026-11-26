@@ -29,5 +29,12 @@ fn thread_probe() {
         return;
     }
     let started: bool = std::thread::Builder::new().spawn(|| {}).is_ok();
-    println!("{}", if started { "thread-started" } else { "thread-refused" });
+    println!(
+        "{}",
+        if started {
+            "thread-started"
+        } else {
+            "thread-refused"
+        }
+    );
 }

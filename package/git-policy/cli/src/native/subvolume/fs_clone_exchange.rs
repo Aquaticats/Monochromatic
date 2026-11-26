@@ -25,7 +25,10 @@
 //! await renameExchange(first, second); // no Node API; the kernel call is renameat2(RENAME_EXCHANGE)
 //! ```
 
-use crate::fs_primitive_error::{PrimitiveError, c_path};
+use crate::fs_primitive_error::{
+    PrimitiveError,
+    c_path,
+};
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
@@ -43,9 +46,14 @@ use std::path::Path;
 /// ```ts
 /// await copyFile(sourcePath, destinationPath, constants.COPYFILE_FICLONE_FORCE);
 /// ```
-pub fn clone_file(source: &File, destination: &File, path: &Path) -> Result<(), PrimitiveError> {
+pub fn clone_file(
+    source: &File,
+    destination: &File,
+    path: &Path,
+) -> Result<(), PrimitiveError> {
     // SAFETY: both descriptors are open for the call, and `FICLONE` takes the source descriptor as its argument.
-    let result: libc::c_int = unsafe { libc::ioctl(destination.as_raw_fd(), libc::FICLONE, source.as_raw_fd()) };
+    let result: libc::c_int =
+        unsafe { libc::ioctl(destination.as_raw_fd(), libc::FICLONE, source.as_raw_fd()) };
     if result != 0 {
         return Err(PrimitiveError::last_os_error("FICLONE", path));
     }
@@ -67,16 +75,28 @@ pub fn clone_file(source: &File, destination: &File, path: &Path) -> Result<(), 
 /// ```ts
 /// await renameExchange(first, second); // atomic swap
 /// ```
-pub fn exchange_paths(first: &Path, second: &Path) -> Result<(), PrimitiveError> {
+pub fn exchange_paths(
+    first: &Path,
+    second: &Path,
+) -> Result<(), PrimitiveError> {
     let first_name = c_path("renameat2", first)?;
     let second_name = c_path("renameat2", second)?;
     // SAFETY: both names are NUL-terminated strings that outlive the call; `AT_FDCWD` makes relative names relative to
     // the working directory, as `rename` does.
     let result: libc::c_int = unsafe {
-        libc::renameat2(libc::AT_FDCWD, first_name.as_ptr(), libc::AT_FDCWD, second_name.as_ptr(), libc::RENAME_EXCHANGE)
+        libc::renameat2(
+            libc::AT_FDCWD,
+            first_name.as_ptr(),
+            libc::AT_FDCWD,
+            second_name.as_ptr(),
+            libc::RENAME_EXCHANGE,
+        )
     };
     if result != 0 {
-        return Err(PrimitiveError::last_os_error("renameat2(RENAME_EXCHANGE)", first));
+        return Err(PrimitiveError::last_os_error(
+            "renameat2(RENAME_EXCHANGE)",
+            first,
+        ));
     }
     return Ok(());
 }

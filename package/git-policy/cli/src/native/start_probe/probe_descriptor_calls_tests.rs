@@ -13,7 +13,10 @@
 //! expect(fsopen('no-such-filesystem').errno).toBe(ENODEV);
 //! ```
 
-use super::{fsopen, move_mount_between_paths};
+use super::{
+    fsopen,
+    move_mount_between_paths,
+};
 use crate::testing::test_support::fixture;
 use std::path::PathBuf;
 
@@ -32,6 +35,7 @@ fn a_move_between_plain_paths_is_refused() {
     let root: PathBuf = fixture("start-probe-descriptor-move");
     std::fs::create_dir(root.join("from")).expect("the fixture folder is made");
     std::fs::create_dir(root.join("to")).expect("the fixture folder is made");
-    let refusal = move_mount_between_paths(root.join("from").as_path(), root.join("to").as_path()).expect_err("the move is refused");
+    let refusal = move_mount_between_paths(root.join("from").as_path(), root.join("to").as_path())
+        .expect_err("the move is refused");
     assert_eq!(refusal.call, "move_mount");
 }

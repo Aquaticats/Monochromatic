@@ -34,9 +34,20 @@
 //! ```
 
 use crate::worktree_clone_binding_record::binding_words::Phase;
-use crate::worktree_clone_slot_state::slot_state_mounts::{CloneMount, SlotMount, clone_mount_of};
-use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, PlanReading, SlotReadings};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    CloneMount,
+    SlotMount,
+    clone_mount_of,
+};
+use crate::worktree_clone_slot_state::slot_state_readings::{
+    BindingReading,
+    PlanReading,
+    SlotReadings,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Which of the route's states one slot is in.
@@ -93,11 +104,21 @@ impl SlotRouteState {
     pub fn word(&self) -> &'static str {
         return match self {
             SlotRouteState::NotAManagedClone => "not a managed clone",
-            SlotRouteState::PendingAdd { .. } => "pending add",
-            SlotRouteState::PendingRemoval { .. } => "pending removal",
-            SlotRouteState::KnownUnmountedClone { .. } => "known unmounted clone",
-            SlotRouteState::MountedManagedClone { .. } => "mounted managed clone",
-            SlotRouteState::CannotProve { .. } => "cannot be proved",
+            SlotRouteState::PendingAdd {
+                ..
+            } => "pending add",
+            SlotRouteState::PendingRemoval {
+                ..
+            } => "pending removal",
+            SlotRouteState::KnownUnmountedClone {
+                ..
+            } => "known unmounted clone",
+            SlotRouteState::MountedManagedClone {
+                ..
+            } => "mounted managed clone",
+            SlotRouteState::CannotProve {
+                ..
+            } => "cannot be proved",
         };
     }
 }
@@ -112,8 +133,14 @@ impl SlotRouteState {
 /// ```ts
 /// const disagree = (phase: Phase, mount: string) => `the binding record says phase=${phase} and ${mount} is mounted`;
 /// ```
-fn disagree(phase: Phase, mounted: &str) -> String {
-    return format!("the binding record says `phase={}`, and {mounted}", phase.word());
+fn disagree(
+    phase: Phase,
+    mounted: &str,
+) -> String {
+    return format!(
+        "the binding record says `phase={}`, and {mounted}",
+        phase.word()
+    );
 }
 
 /// What:
@@ -134,17 +161,29 @@ fn disagree(phase: Phase, mounted: &str) -> String {
 /// ```
 pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
     let record = match &readings.binding {
-        BindingReading::Unreadable { reason } => {
+        BindingReading::Unreadable {
+            reason,
+        } => {
             return SlotRouteState::CannotProve {
-                reason: format!("the record filed under `{}` cannot be read: {reason}", readings.slot),
+                reason: format!(
+                    "the record filed under `{}` cannot be read: {reason}",
+                    readings.slot
+                ),
             };
         }
         BindingReading::Absent => {
             return match &readings.slot_mount {
-                SlotMount::Unreadable { reason } => SlotRouteState::CannotProve {
-                    reason: format!("no record is filed under `{}`, and the mount at its path could not be read: {reason}", readings.slot),
+                SlotMount::Unreadable {
+                    reason,
+                } => SlotRouteState::CannotProve {
+                    reason: format!(
+                        "no record is filed under `{}`, and the mount at its path could not be read: {reason}",
+                        readings.slot
+                    ),
                 },
-                SlotMount::Something { described } => SlotRouteState::CannotProve {
+                SlotMount::Something {
+                    described,
+                } => SlotRouteState::CannotProve {
                     reason: format!(
                         "no record is filed under `{}`, and {described}, so nothing proves whether the route or a person put that mount there",
                         readings.slot
@@ -168,18 +207,26 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
         }
         None => {
             return SlotRouteState::CannotProve {
-                reason: format!("the record filed under `{}` holds a `slot=` that is not a path, so the slot it belongs to is unproved", readings.slot),
+                reason: format!(
+                    "the record filed under `{}` holds a `slot=` that is not a path, so the slot it belongs to is unproved",
+                    readings.slot
+                ),
             };
         }
     }
     match &readings.plan {
-        PlanReading::NamesTheClone { plan } => {
+        PlanReading::NamesTheClone {
+            plan,
+        } => {
             return SlotRouteState::PendingRemoval {
                 plan: plan.clone(),
                 clone_dataset: record.clone_dataset.clone(),
             };
         }
-        PlanReading::Unreadable { plan, reason } => {
+        PlanReading::Unreadable {
+            plan,
+            reason,
+        } => {
             return SlotRouteState::CannotProve {
                 reason: format!(
                     "the destruction plan at {} could not be read ({reason}), so nothing proves no removal is in flight for this slot",
@@ -189,41 +236,79 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
         }
         PlanReading::NotAsked => {
             return SlotRouteState::CannotProve {
-                reason: format!("the record filed under `{}` stands, and the plan folder was not read, so nothing proves no removal is in flight for this slot", readings.slot),
+                reason: format!(
+                    "the record filed under `{}` stands, and the plan folder was not read, so nothing proves no removal is in flight for this slot",
+                    readings.slot
+                ),
             };
         }
         PlanReading::NoPlan => {}
     }
-    let mount: CloneMount = clone_mount_of(&readings.mounts, &readings.slot_mount, record.clone_dataset.as_str(), readings.slot_path.as_path());
+    let mount: CloneMount = clone_mount_of(
+        &readings.mounts,
+        &readings.slot_mount,
+        record.clone_dataset.as_str(),
+        readings.slot_path.as_path(),
+    );
     return match record.phase {
-        Phase::Claimed | Phase::Slot | Phase::Registered | Phase::Snapshotted | Phase::Cloned | Phase::Settling => match mount {
+        Phase::Claimed
+        | Phase::Slot
+        | Phase::Registered
+        | Phase::Snapshotted
+        | Phase::Cloned
+        | Phase::Settling => match mount {
             CloneMount::Nowhere => SlotRouteState::PendingAdd {
                 phase: record.phase,
                 clone_dataset: record.clone_dataset.clone(),
             },
-            CloneMount::Unreadable { reason } => SlotRouteState::CannotProve {
-                reason: format!("the binding record says `phase={}`, and the mount table could not be read: {reason}", record.phase.word()),
+            CloneMount::Unreadable {
+                reason,
+            } => SlotRouteState::CannotProve {
+                reason: format!(
+                    "the binding record says `phase={}`, and the mount table could not be read: {reason}",
+                    record.phase.word()
+                ),
             },
-            CloneMount::AtItsSlot => SlotRouteState::CannotProve { reason: disagree(record.phase, "the clone's own root is mounted at the slot") },
-            CloneMount::Elsewhere { described } => SlotRouteState::CannotProve { reason: disagree(record.phase, &format!("{described} is mounted")) },
-            CloneMount::SomethingElseAtTheSlot { described } => SlotRouteState::CannotProve { reason: disagree(record.phase, &format!("{described} stands at the slot")) },
+            CloneMount::AtItsSlot => SlotRouteState::CannotProve {
+                reason: disagree(record.phase, "the clone's own root is mounted at the slot"),
+            },
+            CloneMount::Elsewhere {
+                described,
+            } => SlotRouteState::CannotProve {
+                reason: disagree(record.phase, &format!("{described} is mounted")),
+            },
+            CloneMount::SomethingElseAtTheSlot {
+                described,
+            } => SlotRouteState::CannotProve {
+                reason: disagree(record.phase, &format!("{described} stands at the slot")),
+            },
         },
         Phase::Mounted | Phase::Filled => match mount {
-            CloneMount::AtItsSlot => SlotRouteState::MountedManagedClone { clone_dataset: record.clone_dataset.clone() },
-            CloneMount::Nowhere => SlotRouteState::KnownUnmountedClone { clone_dataset: record.clone_dataset.clone() },
-            CloneMount::Elsewhere { described } => SlotRouteState::CannotProve {
+            CloneMount::AtItsSlot => SlotRouteState::MountedManagedClone {
+                clone_dataset: record.clone_dataset.clone(),
+            },
+            CloneMount::Nowhere => SlotRouteState::KnownUnmountedClone {
+                clone_dataset: record.clone_dataset.clone(),
+            },
+            CloneMount::Elsewhere {
+                described,
+            } => SlotRouteState::CannotProve {
                 reason: format!(
                     "the binding record says `phase={}`, and the clone is mounted somewhere else ({described}), so nothing proves the mount at its slot is the clone's",
                     record.phase.word()
                 ),
             },
-            CloneMount::SomethingElseAtTheSlot { described } => SlotRouteState::CannotProve {
+            CloneMount::SomethingElseAtTheSlot {
+                described,
+            } => SlotRouteState::CannotProve {
                 reason: format!(
                     "the binding record says `phase={}`, and {described} stands at the slot while the clone itself is not mounted there",
                     record.phase.word()
                 ),
             },
-            CloneMount::Unreadable { reason } => SlotRouteState::CannotProve {
+            CloneMount::Unreadable {
+                reason,
+            } => SlotRouteState::CannotProve {
                 reason: format!(
                     "the binding record says `phase={}`, and the mount table could not be read: {reason}",
                     record.phase.word()

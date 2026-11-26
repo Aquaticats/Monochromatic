@@ -33,30 +33,75 @@
 //! const result = await ladder.finish({ git, runGit, context, out, note });
 //! ```
 
-use crate::add_timing::{begin_step, end_step};
-use crate::diagnostic_log::{debug, warn};
+use crate::add_timing::{
+    begin_step,
+    end_step,
+};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::fs_beneath::ObjectId;
 use crate::transaction_git::GitContext;
-use crate::worktree_add_binding::{Bound, bind_registration, verify_association};
+use crate::worktree_add_binding::{
+    Bound,
+    bind_registration,
+    verify_association,
+};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_clone_conversion_fence::Fence;
-use crate::worktree_copy::{GitRunner, GitStatus};
+use crate::worktree_copy::{
+    GitRunner,
+    GitStatus,
+};
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_stage_claim::StageClaim;
-use crate::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
-use crate::worktree_dirty_restore::{changes_left_out, left_out_note, record_left_out, restore_dirty};
-use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment_with_index, prepare_target, run_step};
+use crate::worktree_dirty_restore::{
+    changes_left_out,
+    left_out_note,
+    record_left_out,
+    restore_dirty,
+};
 use crate::worktree_ladder_finish_trash_record::record_before_the_rung_returns;
-use crate::worktree_slow_route::{SlowRoute, explain_clone_failure, explain_failure};
-use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
+use crate::worktree_ladder_run::{
+    Ladder,
+    LadderResult,
+    Rung,
+    discard_stage,
+};
+use crate::worktree_ladder_target::{
+    Target,
+    apply_difference,
+    checkout_environment_with_index,
+    prepare_target,
+    run_step,
+};
+use crate::worktree_slow_route::{
+    SlowRoute,
+    explain_clone_failure,
+    explain_failure,
+};
+use crate::worktree_snapshot::{
+    CopyState,
+    PlaceError,
+    put_in_place,
+    settle_displaced,
+    take_snapshot,
+};
 use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_subvolume::settle_created_destination;
-use crate::worktree_trash::{PendingTrash, TrashManifest};
+use crate::worktree_trash::{
+    PendingTrash,
+    TrashManifest,
+};
 use std::ffi::OsString;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeLadder";
@@ -74,13 +119,19 @@ struct Ended {
 
 impl From<String> for Ended {
     fn from(reason: String) -> Ended {
-        return Ended { reason, stage_is_ours: true };
+        return Ended {
+            reason,
+            stage_is_ours: true,
+        };
     }
 }
 
 impl From<PlaceError> for Ended {
     fn from(error: PlaceError) -> Ended {
-        return Ended { reason: error.reason, stage_is_ours: error.stage_is_ours };
+        return Ended {
+            reason: error.reason,
+            stage_is_ours: error.stage_is_ours,
+        };
     }
 }
 
@@ -128,35 +179,55 @@ struct Served {
 /// ```ts
 /// async function serveSnapshot(args): Promise<{ line: string; placed: ObjectId; trash?: PendingTrash }>;
 /// ```
-fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, fence: &Fence, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<Served, Ended> {
+fn serve_snapshot(
+    source: &SnapshotSource,
+    plan: &AddPlan,
+    stage: &Path,
+    bound: &Bound,
+    made: &mut Option<ObjectId>,
+    fence: &Fence,
+    run_git: &mut dyn GitRunner,
+    context: &GitContext,
+) -> Result<Served, Ended> {
     verify_association(bound)?;
     let prepare_target_entered: bool = begin_step("prepareTarget");
     let prepare_target_outcome = prepare_target(source, plan, context, bound);
     end_step(prepare_target_entered);
     let target: Target = prepare_target_outcome?;
-    let environment: ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(context);
+    let environment: ConversionEnvironment =
+        crate::worktree_clean_content_attribute_sources::for_context(context);
     // The written paths are the fence's, so the snapshot's index names them without stat data and the checkout below
     // writes them: no step between that install and that write vouches for the source's bytes there.
     let written: std::collections::HashSet<Vec<u8>> = fence.git_writes.iter().cloned().collect();
     let take_snapshot_entered: bool = begin_step("takeSnapshot");
-    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment, &written);
+    let take_snapshot_outcome = take_snapshot(
+        source,
+        plan,
+        stage,
+        &bound.admin,
+        target.pointer.as_slice(),
+        &environment,
+        &written,
+    );
     end_step(take_snapshot_entered);
-    let (state, trash, taken_over): (CopyState, Option<TrashManifest>, usize) = match take_snapshot_outcome {
-        Ok(taken) => {
-            *made = Some(taken.stage);
-            (taken.state, taken.trash, taken.taken_over)
-        }
-        Err(failure) => {
-            *made = failure.stage;
-            return Err(Ended::from(failure.reason));
-        }
-    };
+    let (state, trash, taken_over): (CopyState, Option<TrashManifest>, usize) =
+        match take_snapshot_outcome {
+            Ok(taken) => {
+                *made = Some(taken.stage);
+                (taken.state, taken.trash, taken.taken_over)
+            }
+            Err(failure) => {
+                *made = failure.stage;
+                return Err(Ended::from(failure.reason));
+            }
+        };
     verify_association(bound)?;
     // A snapshot of a source with changes carries them, and one the source changed under carries the wrong bytes: both are
     //  reset to the new worktree's HEAD from the index the snapshot carries, which is one instant with its files.
     if source.dirty.is_some() || state == CopyState::ChangedUnderCopy {
         let restore_dirty_entered: bool = begin_step("restoreDirty");
-        let restore_dirty_outcome = restore_dirty(source, &target, stage, run_git, context, &environment);
+        let restore_dirty_outcome =
+            restore_dirty(source, &target, stage, run_git, context, &environment);
         end_step(restore_dirty_entered);
         restore_dirty_outcome?;
     } else {
@@ -185,13 +256,23 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     // ```
     if !fence.git_writes.is_empty() {
         let write_entered: bool = begin_step("writeConversions");
-        let write_outcome = crate::worktree_clone_conversion_fence::checkout_index_through_git(target.admin.as_path(), stage, context, fence.git_writes.as_slice(), source.clean.hash_length);
+        let write_outcome = crate::worktree_clone_conversion_fence::checkout_index_through_git(
+            target.admin.as_path(),
+            stage,
+            context,
+            fence.git_writes.as_slice(),
+            source.clean.hash_length,
+        );
         end_step(write_entered);
         write_outcome?;
     }
     let root_metadata = match std::fs::metadata(source.root.as_path()) {
         Ok(found) => found,
-        Err(error) => return Err(Ended::from(format!("the source's root is unreadable ({error})"))),
+        Err(error) => {
+            return Err(Ended::from(format!(
+                "the source's root is unreadable ({error})"
+            )));
+        }
     };
     let mode: u32 = root_metadata.mode() & 0o7777;
     // The wrapper's last write into the stage is done, so the record of the object it made now names the instant after
@@ -200,11 +281,22 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     //  does not wait for it. Nothing is set aside for a linked worktree.
     let mut pending: Option<PendingTrash> = None;
     if let Some(manifest) = trash {
-        pending = Some(PendingTrash { destination: plan.destination.clone(), common_dir: source.common_dir.clone(), manifest, taken_over, quiet: plan.quiet });
+        pending = Some(PendingTrash {
+            destination: plan.destination.clone(),
+            common_dir: source.common_dir.clone(),
+            manifest,
+            taken_over,
+            quiet: plan.quiet,
+        });
     }
     crate::worktree_snapshot::record_made_of_the_stage(source, stage, *made);
     let exchange_entered: bool = begin_step("exchange");
-    let exchange_outcome = put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id);
+    let exchange_outcome = put_in_place(
+        stage,
+        plan.destination.as_path(),
+        mode,
+        bound.binding.destination_id,
+    );
     end_step(exchange_entered);
     let placed: ObjectId = exchange_outcome?;
     // The trash stands in the published worktree from here, so its record is written now, before this rung returns: a command
@@ -212,12 +304,24 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     //  would ever name.
     let handed_later: Option<PendingTrash> = pending.and_then(record_before_the_rung_returns);
     let settle_displaced_entered: bool = begin_step("settleDisplaced");
-    let settle_displaced_outcome = settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice());
+    let settle_displaced_outcome = settle_displaced(
+        stage,
+        plan.destination.as_path(),
+        bound.binding.destination_id,
+        target.pointer.as_slice(),
+    );
     end_step(settle_displaced_entered);
     for note in settle_displaced_outcome {
-        warn(TAG, format!("monochromatic-git-policy-cli: {note}").as_str());
+        warn(
+            TAG,
+            format!("monochromatic-git-policy-cli: {note}").as_str(),
+        );
     }
-    return Ok(Served { line: target.line, placed, trash: handed_later });
+    return Ok(Served {
+        line: target.line,
+        placed,
+        trash: handed_later,
+    });
 }
 
 /// What:
@@ -240,7 +344,11 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 /// ```ts
 /// async function checkoutLikeGit(args): Promise<GitStatus>; // failure when the binding does not hold
 /// ```
-fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner) -> GitStatus {
+fn checkout_like_git(
+    plan: &AddPlan,
+    bound: &Bound,
+    run_git: &mut dyn GitRunner,
+) -> GitStatus {
     return checkout_like_git_with((plan, bound, run_git), None, plan.quiet);
 }
 
@@ -261,27 +369,61 @@ fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner)
 /// ```ts
 /// async function checkoutLikeGitWith({ plan, bound, runGit }, index, quiet): Promise<GitStatus>;
 /// ```
-fn checkout_like_git_with((plan, bound, run_git): (&AddPlan, &Bound, &mut dyn GitRunner), index: Option<&Path>, quiet: bool) -> GitStatus {
+fn checkout_like_git_with(
+    (plan, bound, run_git): (&AddPlan, &Bound, &mut dyn GitRunner),
+    index: Option<&Path>,
+    quiet: bool,
+) -> GitStatus {
     let destination: &Path = plan.destination.as_path();
     if let Err(reason) = verify_association(bound) {
-        warn(TAG, format!("monochromatic-git-policy-cli: the checkout of {} was not started: {reason}", destination.display()).as_str());
-        return GitStatus { code: Some(1) };
+        warn(
+            TAG,
+            format!(
+                "monochromatic-git-policy-cli: the checkout of {} was not started: {reason}",
+                destination.display()
+            )
+            .as_str(),
+        );
+        return GitStatus {
+            code: Some(1),
+        };
     }
-    let mut arguments: Vec<OsString> = ["-C"].iter().map(OsString::from).chain([destination.as_os_str().to_os_string()]).chain(["reset", "--hard", "--no-recurse-submodules"].iter().map(OsString::from)).collect();
+    let mut arguments: Vec<OsString> = ["-C"]
+        .iter()
+        .map(OsString::from)
+        .chain([destination.as_os_str().to_os_string()])
+        .chain(
+            ["reset", "--hard", "--no-recurse-submodules"]
+                .iter()
+                .map(OsString::from),
+        )
+        .collect();
     if quiet {
         arguments.push(OsString::from("--quiet"));
     }
-    let environment: Vec<(OsString, OsString)> = checkout_environment_with_index((bound.binding.admin.as_path(), destination), index);
+    let environment: Vec<(OsString, OsString)> =
+        checkout_environment_with_index((bound.binding.admin.as_path(), destination), index);
     let status: GitStatus = match run_step(run_git, arguments.as_slice(), environment.as_slice()) {
         Ok(status) => status,
         Err(reason) => {
-            warn(TAG, format!("Git's checkout of {} could not start ({reason})", destination.display()).as_str());
-            return GitStatus { code: Some(1) };
+            warn(
+                TAG,
+                format!(
+                    "Git's checkout of {} could not start ({reason})",
+                    destination.display()
+                )
+                .as_str(),
+            );
+            return GitStatus {
+                code: Some(1),
+            };
         }
     };
     if let (true, Err(reason)) = (status.succeeded(), verify_association(bound)) {
         warn(TAG, format!("monochromatic-git-policy-cli: the checkout of {} ran, but it cannot be taken for the add's: {reason}", destination.display()).as_str());
-        return GitStatus { code: Some(1) };
+        return GitStatus {
+            code: Some(1),
+        };
     }
     return status;
 }
@@ -302,7 +444,8 @@ fn checkout_like_git_with((plan, bound, run_git): (&AddPlan, &Bound, &mut dyn Gi
 /// ```
 fn report_incomplete(plan: &AddPlan) {
     let shown: String = plan.destination.display().to_string();
-    let finish: String = crate::worktree_finish_commands::finish_or_remove_sentence(plan.destination.as_path());
+    let finish: String =
+        crate::worktree_finish_commands::finish_or_remove_sentence(plan.destination.as_path());
     warn(TAG, format!("monochromatic-git-policy-cli: the `git worktree add` of {shown} could not be completed; the worktree and its registration were left as they are. {finish}").as_str());
 }
 
@@ -321,7 +464,11 @@ fn report_incomplete(plan: &AddPlan) {
 /// ```ts
 /// const status = await completeLikeGit({ plan, bound, runGit });
 /// ```
-fn complete_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner) -> GitStatus {
+fn complete_like_git(
+    plan: &AddPlan,
+    bound: &Bound,
+    run_git: &mut dyn GitRunner,
+) -> GitStatus {
     let status: GitStatus = checkout_like_git(plan, bound, run_git);
     if !status.succeeded() {
         report_incomplete(plan);
@@ -342,9 +489,14 @@ fn complete_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner)
 /// ```ts
 /// const bound = await bind(claim, source, plan); // throws a reason
 /// ```
-fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<Bound, String> {
+fn bind(
+    claim: &StageClaim,
+    source: &SnapshotSource,
+    plan: &AddPlan,
+) -> Result<Bound, String> {
     let bind_registration_entered: bool = begin_step("bindRegistration");
-    let bind_registration_outcome = bind_registration(source.common_dir.as_path(), plan.destination.as_path());
+    let bind_registration_outcome =
+        bind_registration(source.common_dir.as_path(), plan.destination.as_path());
     end_step(bind_registration_entered);
     let bound: Bound = bind_registration_outcome?;
     let record_binding_entered: bool = begin_step("recordBinding");
@@ -370,34 +522,77 @@ fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<B
 /// ```ts
 /// async function finishClones(args): Promise<LadderResult>;
 /// ```
-fn finish_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>, entries: Option<Vec<crate::worktree_clean::StatEntry>>) -> LadderResult {
+fn finish_clones(
+    source: &SnapshotSource,
+    fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence,
+    plan: &AddPlan,
+    git: GitStatus,
+    claim: StageClaim,
+    run_git: &mut dyn GitRunner,
+    context: &GitContext,
+    out: &mut dyn Write,
+    slow: &mut Option<SlowRoute>,
+    entries: Option<Vec<crate::worktree_clean::StatEntry>>,
+) -> LadderResult {
     if !git.succeeded() {
-        return LadderResult { git, carried: None, placed: None, trash: None, claim: Some(claim) };
+        return LadderResult {
+            git,
+            carried: None,
+            placed: None,
+            trash: None,
+            claim: Some(claim),
+        };
     }
     let bound: Bound = match bind(&claim, source, plan) {
         Ok(found) => found,
         Err(reason) => {
             warn(TAG, format!("monochromatic-git-policy-cli: {} was left as Git made it, without a checkout: {reason}", plan.destination.display()).as_str());
             report_incomplete(plan);
-            return LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None, claim: Some(claim) };
+            return LadderResult {
+                git: GitStatus {
+                    code: Some(1),
+                },
+                carried: None,
+                placed: None,
+                trash: None,
+                claim: Some(claim),
+            };
         }
     };
     return match serve_clones(source, fence, plan, &bound, run_git, context, entries) {
         Ok(line) => {
-            debug(TAG, format!("clones served {}", plan.destination.display()).as_str());
+            debug(
+                TAG,
+                format!("clones served {}", plan.destination.display()).as_str(),
+            );
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
             let _written = out.write_all(line.as_bytes());
-            LadderResult { git, carried: None, placed: None, trash: None, claim: Some(claim) }
+            LadderResult {
+                git,
+                carried: None,
+                placed: None,
+                trash: None,
+                claim: Some(claim),
+            }
         }
         Err(reason) => {
-            debug(TAG, format!("the clone rung ended: {reason}; Git checks the worktree out").as_str());
+            debug(
+                TAG,
+                format!("the clone rung ended: {reason}; Git checks the worktree out").as_str(),
+            );
             // The record said which rung was chosen; the worktree this add publishes is Git's checkout, and a report that
             // read the route would otherwise take the clone for what wrote it.
             crate::add_timing::note("route", "Git's checkout after the clone rung ended");
             // The person is told why the clone rung ended, the fence's decline included, and the sentence names the clone
             // rung and not the snapshot.
             *slow = Some(explain_clone_failure(reason.as_str()));
-            LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, placed: None, trash: None, claim: Some(claim) }
+            LadderResult {
+                git: complete_like_git(plan, &bound, run_git),
+                carried: None,
+                placed: None,
+                trash: None,
+                claim: Some(claim),
+            }
         }
     };
 }
@@ -416,19 +611,43 @@ fn finish_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversio
 /// ```ts
 /// async function finishSnapshot(args): Promise<LadderResult>;
 /// ```
-fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim: StageClaim, fence: &Fence, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, note: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_snapshot(
+    source: &SnapshotSource,
+    plan: &AddPlan,
+    stage: &Path,
+    claim: StageClaim,
+    fence: &Fence,
+    run_git: &mut dyn GitRunner,
+    context: &GitContext,
+    out: &mut dyn Write,
+    note: &mut dyn Write,
+    slow: &mut Option<SlowRoute>,
+) -> LadderResult {
     let bound: Bound = match bind(&claim, source, plan) {
         Ok(found) => found,
         Err(reason) => {
             warn(TAG, format!("monochromatic-git-policy-cli: {} was left as Git made it, without a checkout: {reason}", plan.destination.display()).as_str());
             report_incomplete(plan);
-            return LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None, claim: Some(claim) };
+            return LadderResult {
+                git: GitStatus {
+                    code: Some(1),
+                },
+                carried: None,
+                placed: None,
+                trash: None,
+                claim: Some(claim),
+            };
         }
     };
     let mut made: Option<ObjectId> = None;
-    return match serve_snapshot(source, plan, stage, &bound, &mut made, fence, run_git, context) {
+    return match serve_snapshot(
+        source, plan, stage, &bound, &mut made, fence, run_git, context,
+    ) {
         Ok(served) => {
-            debug(TAG, format!("the snapshot served {}", plan.destination.display()).as_str());
+            debug(
+                TAG,
+                format!("the snapshot served {}", plan.destination.display()).as_str(),
+            );
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
             let _written = out.write_all(served.line.as_bytes());
             // A snapshot of the main checkout prints no copy summary, so it says what it did, on the stream the command was given for its notes; `--quiet` stays silent.
@@ -441,20 +660,49 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             if let Some(changed) = changes_left_out(source) {
                 record_left_out(plan.destination.as_path(), changed);
             }
-            LadderResult { git: GitStatus { code: Some(0) }, carried: Some(plan.destination.clone()), placed: Some(served.placed), trash: served.trash, claim: Some(claim) }
+            LadderResult {
+                git: GitStatus {
+                    code: Some(0),
+                },
+                carried: Some(plan.destination.clone()),
+                placed: Some(served.placed),
+                trash: served.trash,
+                claim: Some(claim),
+            }
         }
         Err(ended) if ended.stage_is_ours => {
-            debug(TAG, format!("the snapshot rung ended: {}; Git checks the worktree out", ended.reason).as_str());
+            debug(
+                TAG,
+                format!(
+                    "the snapshot rung ended: {}; Git checks the worktree out",
+                    ended.reason
+                )
+                .as_str(),
+            );
             // The record said a snapshot was chosen; Git's checkout is what publishes this worktree.
             crate::add_timing::note("route", "Git's checkout after the snapshot rung ended");
             discard_stage(stage, made);
             *slow = Some(explain_failure(ended.reason.as_str()));
-            LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, placed: None, trash: None, claim: Some(claim) }
+            LadderResult {
+                git: complete_like_git(plan, &bound, run_git),
+                carried: None,
+                placed: None,
+                trash: None,
+                claim: Some(claim),
+            }
         }
         Err(ended) => {
             warn(TAG, format!("monochromatic-git-policy-cli: the add of {} ended in a state the wrapper cannot untangle: {}; {} is not touched", plan.destination.display(), ended.reason, stage.display()).as_str());
             report_incomplete(plan);
-            LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None, claim: Some(claim) }
+            LadderResult {
+                git: GitStatus {
+                    code: Some(1),
+                },
+                carried: None,
+                placed: None,
+                trash: None,
+                claim: Some(claim),
+            }
         }
     };
 }
@@ -462,12 +710,22 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
 /// Release the claim on a stage name,
 /// saying so when that fails;
 /// flushing nothing when a subvolume was swapped into place.
-fn release_claim(claim: StageClaim, swapped: bool) {
+fn release_claim(
+    claim: StageClaim,
+    swapped: bool,
+) {
     let release_claim_entered: bool = begin_step("releaseClaim");
-    let released: Result<(), WorktreeCopyError> = if swapped { claim.release_unsynced() } else { claim.release() };
+    let released: Result<(), WorktreeCopyError> = if swapped {
+        claim.release_unsynced()
+    } else {
+        claim.release()
+    };
     end_step(release_claim_entered);
     if let Err(error) = released {
-        warn(TAG, format!("the stage claim could not be released ({})", error.0).as_str());
+        warn(
+            TAG,
+            format!("the stage claim could not be released ({})", error.0).as_str(),
+        );
     }
 }
 
@@ -499,7 +757,14 @@ impl Ladder {
     /// ```ts
     /// const result = await ladder.finish({ git, runGit, context, out, note });
     /// ```
-    pub fn finish(self, git: GitStatus, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, note: &mut dyn Write) -> LadderResult {
+    pub fn finish(
+        self,
+        git: GitStatus,
+        run_git: &mut dyn GitRunner,
+        context: &GitContext,
+        out: &mut dyn Write,
+        note: &mut dyn Write,
+    ) -> LadderResult {
         // What:
         //  The size read this add started before its source check is settled here,
         //  after Git's own run,
@@ -517,7 +782,9 @@ impl Ladder {
         // ```ts
         // self.sizesBeside?.settle();
         // ```
-        let sizes_beside: Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck> = self.sizes_beside;
+        let sizes_beside: Option<
+            crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck,
+        > = self.sizes_beside;
         if let Some(read) = sizes_beside {
             read.settle();
         }
@@ -526,17 +793,42 @@ impl Ladder {
             (Rung::Snapshot(source, claim, fence), Some(plan)) => {
                 if !git.succeeded() {
                     release_claim(claim, false);
-                    return LadderResult { git, carried: None, placed: None, trash: None, claim: None };
+                    return LadderResult {
+                        git,
+                        carried: None,
+                        placed: None,
+                        trash: None,
+                        claim: None,
+                    };
                 }
                 let stage: PathBuf = claim.container().to_path_buf();
-                finish_snapshot(&source, plan, stage.as_path(), claim, &fence, run_git, context, out, note, &mut slow)
+                finish_snapshot(
+                    &source,
+                    plan,
+                    stage.as_path(),
+                    claim,
+                    &fence,
+                    run_git,
+                    context,
+                    out,
+                    note,
+                    &mut slow,
+                )
             }
             (Rung::Snapshot(_, claim, _fence), None) => {
                 release_claim(claim, false);
-                LadderResult { git, carried: None, placed: None, trash: None, claim: None }
+                LadderResult {
+                    git,
+                    carried: None,
+                    placed: None,
+                    trash: None,
+                    claim: None,
+                }
             }
             (Rung::Clone(source, subvolume, claim, fence, entries), Some(plan)) => {
-                let result: LadderResult = finish_clones(&source, fence, plan, git, claim, run_git, context, out, &mut slow, entries);
+                let result: LadderResult = finish_clones(
+                    &source, fence, plan, git, claim, run_git, context, out, &mut slow, entries,
+                );
                 if let Some(created) = subvolume.as_ref() {
                     settle_created_destination(created);
                 }
@@ -547,17 +839,34 @@ impl Ladder {
                     settle_created_destination(created);
                 }
                 release_claim(claim, false);
-                LadderResult { git, carried: None, placed: None, trash: None, claim: None }
+                LadderResult {
+                    git,
+                    carried: None,
+                    placed: None,
+                    trash: None,
+                    claim: None,
+                }
             }
             (Rung::Git(subvolume), _) => {
                 if let Some(created) = subvolume.as_ref() {
                     settle_created_destination(created);
                 }
-                LadderResult { git, carried: None, placed: None, trash: None, claim: None }
+                LadderResult {
+                    git,
+                    carried: None,
+                    placed: None,
+                    trash: None,
+                    claim: None,
+                }
             }
         };
         // Only an add that succeeded is told as a slow one; a refused or failed add has a worse thing to say.
-        if let (Some(route), Some(plan), true, None) = (slow.as_ref(), self.plan.as_ref(), result.git.succeeded(), result.carried.as_ref()) {
+        if let (Some(route), Some(plan), true, None) = (
+            slow.as_ref(),
+            self.plan.as_ref(),
+            result.git.succeeded(),
+            result.carried.as_ref(),
+        ) {
             route.tell(plan);
         }
         return result;

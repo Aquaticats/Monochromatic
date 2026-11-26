@@ -12,7 +12,13 @@
 
 /// The failure types,
 /// the conversions and the message builders.
-use super::{ContentUnavailable, PlanError, PolicyIncomplete, display_path, plan_error_message};
+use super::{
+    ContentUnavailable,
+    PlanError,
+    PolicyIncomplete,
+    display_path,
+    plan_error_message,
+};
 
 /// Converted failures keep their cause.
 #[test]

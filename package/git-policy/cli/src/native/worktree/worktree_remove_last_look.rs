@@ -23,7 +23,10 @@
 //! beforeTheDestroy(request, target); // the reason, or nothing
 //! ```
 
-use super::{RemoveRequest, TAG};
+use super::{
+    RemoveRequest,
+    TAG,
+};
 use crate::diagnostic_log::debug;
 use std::path::Path;
 
@@ -46,7 +49,10 @@ pub trait LastLook {
 impl std::fmt::Debug for RemoveRequest<'_> {
     /// A request prints the directory it works on and whether its caller asks a question again;
     /// a question itself is not text.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter
             .debug_struct("RemoveRequest")
             .field("plan", &self.plan)
@@ -70,11 +76,23 @@ impl std::fmt::Debug for RemoveRequest<'_> {
 /// ```ts
 /// beforeTheDestroy(request, target) // throws the caller's reason
 /// ```
-pub(super) fn before_the_destroy(request: &RemoveRequest<'_>, target: &Path) -> Result<(), String> {
-    let Some(look) = request.last_look else { return Ok(()) };
+pub(super) fn before_the_destroy(
+    request: &RemoveRequest<'_>,
+    target: &Path,
+) -> Result<(), String> {
+    let Some(look) = request.last_look else {
+        return Ok(());
+    };
     let answer: Result<(), String> = look.ask();
     if let Err(reason) = answer.as_ref() {
-        debug(TAG, format!("{} is no longer one this removal may destroy ({reason}); nothing is removed", target.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{} is no longer one this removal may destroy ({reason}); nothing is removed",
+                target.display()
+            )
+            .as_str(),
+        );
     }
     return answer;
 }

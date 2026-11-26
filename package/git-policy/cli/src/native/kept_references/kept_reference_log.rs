@@ -28,11 +28,20 @@
 //! ```
 
 use crate::iso_time::format_iso_milliseconds;
-use crate::kept_reference_pass::{Pruned, WhyPruned};
+use crate::kept_reference_pass::{
+    Pruned,
+    WhyPruned,
+};
 use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
 use crate::log_lines_appended_without_a_lock::append_line;
-use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The log of the kept references a pass pruned,
 /// inside the common Git directory,
@@ -67,10 +76,18 @@ pub fn log_path(common_dir: &Path) -> PathBuf {
 /// ```ts
 /// const whyWords = (why) => ({ 'reached-a-branch': 'a branch reaches its commit, so the reference held nothing', 'too-old': ..., 'too-much-kept': ... })[why];
 /// ```
-pub fn why_words(why: WhyPruned, limits: crate::kept_reference_limits::KeptReferenceLimits) -> String {
+pub fn why_words(
+    why: WhyPruned,
+    limits: crate::kept_reference_limits::KeptReferenceLimits,
+) -> String {
     return match why {
-        WhyPruned::ReachedABranch => String::from("a branch, a remote-tracking reference or a tag reaches its commit, so nothing was lost"),
-        WhyPruned::TooOld => format!("it reached no branch and was older than the age limit of {}", crate::kept_reference_words::span_words(limits.max_age)),
+        WhyPruned::ReachedABranch => String::from(
+            "a branch, a remote-tracking reference or a tag reaches its commit, so nothing was lost",
+        ),
+        WhyPruned::TooOld => format!(
+            "it reached no branch and was older than the age limit of {}",
+            crate::kept_reference_words::span_words(limits.max_age)
+        ),
         WhyPruned::TooMuchKept => format!(
             "it reached no branch, and the objects only kept references reached weighed more than the {} bytes the size limit allows, so the oldest went first",
             limits.max_bytes
@@ -109,20 +126,50 @@ fn worktree_value(worktree: Option<&str>) -> Value {
 /// ```ts
 /// const lineOf = (pruned, now, limits) => JSON.stringify({ time_ms, time, reference, commit, batch, rescued, age_seconds, kept_at, worktree, why, why_words }) + '\n';
 /// ```
-pub fn line_of(pruned: &Pruned, outcome: &str, now: u128, limits: crate::kept_reference_limits::KeptReferenceLimits) -> String {
+pub fn line_of(
+    pruned: &Pruned,
+    outcome: &str,
+    now: u128,
+    limits: crate::kept_reference_limits::KeptReferenceLimits,
+) -> String {
     let mut object: Map<String, Value> = Map::new();
     object.insert(String::from("outcome"), Value::from(outcome));
-    object.insert(String::from("time_ms"), Value::from(u64::try_from(now).unwrap_or(u64::MAX)));
-    object.insert(String::from("time"), Value::from(format_iso_milliseconds(i64::try_from(now).unwrap_or(i64::MAX))));
-    object.insert(String::from("reference"), Value::from(pruned.reference.as_str()));
+    object.insert(
+        String::from("time_ms"),
+        Value::from(u64::try_from(now).unwrap_or(u64::MAX)),
+    );
+    object.insert(
+        String::from("time"),
+        Value::from(format_iso_milliseconds(
+            i64::try_from(now).unwrap_or(i64::MAX),
+        )),
+    );
+    object.insert(
+        String::from("reference"),
+        Value::from(pruned.reference.as_str()),
+    );
     object.insert(String::from("commit"), Value::from(pruned.commit.as_str()));
     object.insert(String::from("batch"), Value::from(pruned.batch));
     object.insert(String::from("rescued"), Value::from(pruned.rescued));
-    object.insert(String::from("age_seconds"), Value::from(u64::try_from(pruned.age_ms / 1000).unwrap_or(u64::MAX)));
-    object.insert(String::from("kept_at"), Value::from(format_iso_milliseconds(i64::try_from(pruned.kept_at_ms).unwrap_or(i64::MAX))));
-    object.insert(String::from("worktree"), worktree_value(pruned.worktree.as_deref()));
+    object.insert(
+        String::from("age_seconds"),
+        Value::from(u64::try_from(pruned.age_ms / 1000).unwrap_or(u64::MAX)),
+    );
+    object.insert(
+        String::from("kept_at"),
+        Value::from(format_iso_milliseconds(
+            i64::try_from(pruned.kept_at_ms).unwrap_or(i64::MAX),
+        )),
+    );
+    object.insert(
+        String::from("worktree"),
+        worktree_value(pruned.worktree.as_deref()),
+    );
     object.insert(String::from("why"), Value::from(pruned.why.word()));
-    object.insert(String::from("why_words"), Value::from(why_words(pruned.why, limits)));
+    object.insert(
+        String::from("why_words"),
+        Value::from(why_words(pruned.why, limits)),
+    );
     return format!("{}\n", Value::Object(object));
 }
 
@@ -139,13 +186,26 @@ pub fn line_of(pruned: &Pruned, outcome: &str, now: u128, limits: crate::kept_re
 /// ```ts
 /// try { appendLine(logPath(commonDir), lineOf(pruned), UNPINNED_LOG); } catch (error) { debug(TAG, error) }
 /// ```
-pub fn log_one_pruning(common_dir: &Path, pruned: &Pruned, outcome: &str, now: u128) {
+pub fn log_one_pruning(
+    common_dir: &Path,
+    pruned: &Pruned,
+    outcome: &str,
+    now: u128,
+) {
     let limits = crate::kept_reference_limits::limits_from_the_environment();
     let line: String = line_of(pruned, outcome, now, limits);
-    if let Err(error) = append_line(log_path(common_dir).as_path(), line.as_bytes(), &UNPINNED_LOG) {
+    if let Err(error) = append_line(
+        log_path(common_dir).as_path(),
+        line.as_bytes(),
+        &UNPINNED_LOG,
+    ) {
         crate::diagnostic_log::warn(
             "keptReferenceLog",
-            format!("the line about the pruned kept reference {} could not be written: {error}", pruned.reference).as_str(),
+            format!(
+                "the line about the pruned kept reference {} could not be written: {error}",
+                pruned.reference
+            )
+            .as_str(),
         );
     }
 }

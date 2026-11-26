@@ -19,7 +19,13 @@
 use crate::diagnostic_log::debug;
 use crate::wait_ceilings::WARNING_WRITE_CEILING;
 use std::io::Write;
-use std::sync::mpsc::{Receiver, SyncSender, TrySendError, channel, sync_channel};
+use std::sync::mpsc::{
+    Receiver,
+    SyncSender,
+    TrySendError,
+    channel,
+    sync_channel,
+};
 
 /// The tag of this module's diagnostic lines.
 const TAG: &str = "NoticeStreamThatDoesNotHoldItsWriter";
@@ -91,18 +97,31 @@ impl NoticeStreamThatDoesNotHoldItsWriter {
     /// const notices = NoticeStreamThatDoesNotHoldItsWriter.start(sink)
     /// ```
     pub fn start(sink: Box<dyn Write + Send>) -> Self {
-        let (sender, lines): (SyncSender<Vec<u8>>, Receiver<Vec<u8>>) = sync_channel::<Vec<u8>>(LINES_WAITING_FOR_THE_WRITER);
+        let (sender, lines): (SyncSender<Vec<u8>>, Receiver<Vec<u8>>) =
+            sync_channel::<Vec<u8>>(LINES_WAITING_FOR_THE_WRITER);
         let (told, finished): (std::sync::mpsc::Sender<()>, Receiver<()>) = channel::<()>();
-        let started = std::thread::Builder::new().name(String::from(WRITER_THREAD_NAME)).spawn(move || {
-            write_lines(sink, &lines, told);
-        });
+        let started = std::thread::Builder::new()
+            .name(String::from(WRITER_THREAD_NAME))
+            .spawn(move || {
+                write_lines(sink, &lines, told);
+            });
         return match started {
-            Ok(_detached) => Self { lines: Some(sender), buffered: Vec::new(), dropped: 0, finished },
+            Ok(_detached) => Self {
+                lines: Some(sender),
+                buffered: Vec::new(),
+                dropped: 0,
+                finished,
+            },
             // The system refused the thread: the lines of a wait are advisory, so they are dropped rather than written
             //  by the command's own thread, which a reader that stopped draining could then hold.
             Err(error) => {
                 debug(TAG, format!("the system refused the thread for the notices ({error}), so no notice line is written").as_str());
-                Self { lines: None, buffered: Vec::new(), dropped: 0, finished }
+                Self {
+                    lines: None,
+                    buffered: Vec::new(),
+                    dropped: 0,
+                    finished,
+                }
             }
         };
     }
@@ -134,23 +153,36 @@ impl NoticeStreamThatDoesNotHoldItsWriter {
         // The writer ends when every line is written and the stream that fed it is gone.
         drop(self.lines.take());
         if self.finished.recv_timeout(WARNING_WRITE_CEILING).is_err() {
-            debug(TAG, format!("the writer had not written its last line within {WARNING_WRITE_CEILING:?}").as_str());
+            debug(
+                TAG,
+                format!(
+                    "the writer had not written its last line within {WARNING_WRITE_CEILING:?}"
+                )
+                .as_str(),
+            );
         }
     }
 
     /// Hands one whole line to the writer,
     /// or drops it and counts it when the writer still has the one before.
-    fn hand_over(&mut self, line: Vec<u8>) {
+    fn hand_over(
+        &mut self,
+        line: Vec<u8>,
+    ) {
         let Some(lines) = self.lines.as_ref() else {
             self.dropped = self.dropped.saturating_add(1);
             return;
         };
         match lines.try_send(line) {
             Ok(()) => {}
-            Err(TrySendError::Full(_dropped_line)) | Err(TrySendError::Disconnected(_dropped_line)) => {
+            Err(TrySendError::Full(_dropped_line))
+            | Err(TrySendError::Disconnected(_dropped_line)) => {
                 // Said once: a reader that stopped draining drops every line after the first, and one line says why.
                 if self.dropped == 0 {
-                    debug(TAG, "a notice line was dropped because the reader was not taking the one before it");
+                    debug(
+                        TAG,
+                        "a notice line was dropped because the reader was not taking the one before it",
+                    );
                 }
                 self.dropped = self.dropped.saturating_add(1);
             }
@@ -172,7 +204,11 @@ impl NoticeStreamThatDoesNotHoldItsWriter {
 /// ```ts
 /// for await (const line of lines) { if (sink.writeSync(line).error) break; } finished.send();
 /// ```
-fn write_lines(mut sink: Box<dyn Write + Send>, lines: &Receiver<Vec<u8>>, finished: std::sync::mpsc::Sender<()>) {
+fn write_lines(
+    mut sink: Box<dyn Write + Send>,
+    lines: &Receiver<Vec<u8>>,
+    finished: std::sync::mpsc::Sender<()>,
+) {
     for line in lines {
         // A stream that refuses a line ends the thread: every line after it would be refused too.
         if sink.write_all(line.as_slice()).is_err() {
@@ -202,7 +238,10 @@ fn ends_a_line(byte: &u8) -> bool {
 impl Write for NoticeStreamThatDoesNotHoldItsWriter {
     /// Append the bytes,
     /// and hand over each line it completes.
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         self.buffered.extend_from_slice(bytes);
         while let Some(end) = self.buffered.iter().position(ends_a_line) {
             let line: Vec<u8> = self.buffered.drain(..=end).collect();

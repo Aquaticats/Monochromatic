@@ -15,12 +15,32 @@
 /// Import the store under test,
 ///  its sibling fixtures and shared fixtures.
 use super::CandidateStore;
-use super::tests::{rev_parse, store, store_with, write};
-use crate::candidate_error::{CandidateError, CandidateFailure};
-use crate::candidate_object::{ObjectId, parse_object_id};
+use super::tests::{
+    rev_parse,
+    store,
+    store_with,
+    write,
+};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use crate::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
 use crate::candidate_version::CandidateSource;
-use crate::test_support::{executable, fixture, git, remove, repository};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    executable,
+    fixture,
+    git,
+    remove,
+    repository,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A conflicted index is refused as a whole.
 #[test]

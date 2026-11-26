@@ -34,27 +34,72 @@
 //! const clean = await checkClean({ root, gitDir, commonDir }); // { headCommit, headTree } or throws a reason
 //! ```
 
-use crate::add_timing::{begin_step, end_step};
+use crate::add_timing::{
+    begin_step,
+    end_step,
+};
 use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::lazy_runtime::run_on_runtime;
-use crate::repo_read_index::{IndexEntry, parse_index};
+use crate::repo_read_index::{
+    IndexEntry,
+    parse_index,
+};
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_refs::{Refs, RefValue};
-use crate::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree, parse_commit};
-use crate::worktree_clean_content::ConversionEnvironment;
-pub use crate::worktree_clean_stat_verdicts::{CleanRefusal, CleanRefusalKind, StatEntry, StatVerdict, metadata_differs_from_entry, metadata_verdict};
-use crate::worktree_clean_stat_verdicts::{ASSUME_VALID, file_changed};
-pub use crate::worktree_clean_tree_walk::{ContentTarget, StatCursor, paths_whose_content_differs, stat_fields_beneath, tree_differs_from_index, tree_differs_from_index_beneath, tree_fields_by_content};
-use crate::worktree_clean_tree_walk::{tree_differs_from_index_by_content, tree_refusal};
-use crate::subvolume_index::{StoredStat, be32, walk_entries};
+use crate::repo_read_refs::{
+    RefValue,
+    Refs,
+};
+use crate::repo_read_tree::{
+    FlatEntry,
+    MODE_GITLINK,
+    flatten_tree,
+    parse_commit,
+};
+use crate::subvolume_index::{
+    StoredStat,
+    be32,
+    walk_entries,
+};
 use crate::subvolume_index_files::repository_hash_length;
 use crate::transaction_git::GitContext;
-use crate::worktree_clean_untracked_scan::{scan_for_untracked_file, scan_for_untracked_file_awaiting};
+use crate::worktree_clean_content::ConversionEnvironment;
+use crate::worktree_clean_stat_verdicts::{
+    ASSUME_VALID,
+    file_changed,
+};
+pub use crate::worktree_clean_stat_verdicts::{
+    CleanRefusal,
+    CleanRefusalKind,
+    StatEntry,
+    StatVerdict,
+    metadata_differs_from_entry,
+    metadata_verdict,
+};
+pub use crate::worktree_clean_tree_walk::{
+    ContentTarget,
+    StatCursor,
+    paths_whose_content_differs,
+    stat_fields_beneath,
+    tree_differs_from_index,
+    tree_differs_from_index_beneath,
+    tree_fields_by_content,
+};
+use crate::worktree_clean_tree_walk::{
+    tree_differs_from_index_by_content,
+    tree_refusal,
+};
+use crate::worktree_clean_untracked_scan::{
+    scan_for_untracked_file,
+    scan_for_untracked_file_awaiting,
+};
 use std::ffi::OsString;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The entries of a Git directory that mean an operation is in progress and the index or tree is not a plain state.
 /// Why a bisect has two of them:
@@ -122,7 +167,10 @@ pub struct CleanSource {
 /// ```ts
 /// found ?? throw unreadable(reason)
 /// ```
-fn or_unreadable<T>(found: Option<T>, reason: &'static str) -> Result<T, CleanRefusal> {
+fn or_unreadable<T>(
+    found: Option<T>,
+    reason: &'static str,
+) -> Result<T, CleanRefusal> {
     return match found {
         Some(value) => Ok(value),
         None => Err(CleanRefusal::unreadable(reason)),
@@ -156,7 +204,10 @@ fn index_unreadable(error: std::io::Error) -> CleanRefusal {
 /// ```ts
 /// function operationInProgress(gitDir: string): string | undefined;
 /// ```
-fn operation_in_progress(git_dir: &Path, owned_index_lock: bool) -> Option<&'static str> {
+fn operation_in_progress(
+    git_dir: &Path,
+    owned_index_lock: bool,
+) -> Option<&'static str> {
     for name in IN_PROGRESS.iter().copied() {
         if owned_index_lock && name == "index.lock" {
             continue;
@@ -179,7 +230,11 @@ fn operation_in_progress(git_dir: &Path, owned_index_lock: bool) -> Option<&'sta
 /// ```ts
 /// function headCommit(gitDir: string, commonDir: string, format: ObjectFormat): string | undefined;
 /// ```
-pub fn head_commit(git_dir: &Path, common_dir: &Path, format: ObjectFormat) -> Option<String> {
+pub fn head_commit(
+    git_dir: &Path,
+    common_dir: &Path,
+    format: ObjectFormat,
+) -> Option<String> {
     let refs: Refs = Refs::new(common_dir, format.hex_length());
     return match refs.lookup_head(git_dir)? {
         RefValue::Direct(object) => Some(object),
@@ -197,7 +252,10 @@ pub fn head_commit(git_dir: &Path, common_dir: &Path, format: ObjectFormat) -> O
 /// ```ts
 /// function storedStats(bytes: Uint8Array, hashLength: number): { path: Uint8Array; flags: number; mode: number; stored: StoredStat }[] | undefined;
 /// ```
-pub fn stored_stats(bytes: &[u8], hash_length: usize) -> Option<Vec<StatEntry>> {
+pub fn stored_stats(
+    bytes: &[u8],
+    hash_length: usize,
+) -> Option<Vec<StatEntry>> {
     let (entries, _end) = walk_entries(bytes, hash_length)?;
     let mut found: Vec<StatEntry> = Vec::with_capacity(entries.len());
     for entry in entries {
@@ -211,7 +269,12 @@ pub fn stored_stats(bytes: &[u8], hash_length: usize) -> Option<Vec<StatEntry>> 
             gid: be32(bytes, entry.start + 32)?,
             size: be32(bytes, entry.start + 36)?,
         };
-        found.push(StatEntry { path: entry.path, flags: entry.flags, mode: entry.mode, stored });
+        found.push(StatEntry {
+            path: entry.path,
+            flags: entry.flags,
+            mode: entry.mode,
+            stored,
+        });
     }
     return Some(found);
 }
@@ -227,19 +290,43 @@ pub fn stored_stats(bytes: &[u8], hash_length: usize) -> Option<Vec<StatEntry>> 
 /// ```ts
 /// function indexDiffersFromTree(index: IndexEntry[], tree: FlatEntry[]): string | undefined;
 /// ```
-fn index_differs_from_tree(index: &[IndexEntry], tree: &[FlatEntry]) -> Option<CleanRefusal> {
+fn index_differs_from_tree(
+    index: &[IndexEntry],
+    tree: &[FlatEntry],
+) -> Option<CleanRefusal> {
     if index.len() != tree.len() {
-        return Some(CleanRefusal::new(CleanRefusalKind::StagedChange, "the index and the tree of HEAD hold different numbers of files"));
+        return Some(CleanRefusal::new(
+            CleanRefusalKind::StagedChange,
+            "the index and the tree of HEAD hold different numbers of files",
+        ));
     }
     for (staged, committed) in index.iter().zip(tree) {
         if staged.stage != 0 || staged.extended != 0 {
-            return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("the index entry {} is unmerged, intent-to-add or skip-worktree", String::from_utf8_lossy(&staged.path))));
+            return Some(CleanRefusal::new(
+                CleanRefusalKind::NotPlain,
+                format!(
+                    "the index entry {} is unmerged, intent-to-add or skip-worktree",
+                    String::from_utf8_lossy(&staged.path)
+                ),
+            ));
         }
         if staged.mode == MODE_GITLINK {
-            return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{} is a submodule", String::from_utf8_lossy(&staged.path))));
+            return Some(CleanRefusal::new(
+                CleanRefusalKind::NotPlain,
+                format!("{} is a submodule", String::from_utf8_lossy(&staged.path)),
+            ));
         }
-        if staged.path != committed.path || staged.mode != committed.mode || staged.id != committed.id {
-            return Some(CleanRefusal::new(CleanRefusalKind::StagedChange, format!("{} is staged with a change", String::from_utf8_lossy(&staged.path))));
+        if staged.path != committed.path
+            || staged.mode != committed.mode
+            || staged.id != committed.id
+        {
+            return Some(CleanRefusal::new(
+                CleanRefusalKind::StagedChange,
+                format!(
+                    "{} is staged with a change",
+                    String::from_utf8_lossy(&staged.path)
+                ),
+            ));
         }
     }
     return None;
@@ -261,7 +348,11 @@ fn index_differs_from_tree(index: &[IndexEntry], tree: &[FlatEntry]) -> Option<C
 /// ```ts
 /// function checkCleanTracked(root: string, gitDir: string, commonDir: string): CleanSource; // throws the reason
 /// ```
-pub fn check_clean_tracked(root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, String> {
+pub fn check_clean_tracked(
+    root: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+) -> Result<CleanSource, String> {
     return match check_tracked(root, git_dir, common_dir, None, false) {
         Ok(source) => Ok(source),
         Err(refusal) => Err(refusal.reason),
@@ -289,11 +380,24 @@ pub fn check_clean_tracked(root: &Path, git_dir: &Path, common_dir: &Path) -> Re
 /// ```ts
 /// async function checkCleanByContent({ context, root, gitDir, commonDir }): Promise<CleanSource>;
 /// ```
-pub fn check_clean_by_content(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
+pub fn check_clean_by_content(
+    context: &GitContext,
+    root: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+) -> Result<CleanSource, CleanRefusal> {
     let variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    let platform: crate::subvolume_platform::LinuxPlatform = crate::subvolume_platform::LinuxPlatform::forwarding_to(variables.as_slice(), Some(context.real_git.as_path()));
-    let environment: ConversionEnvironment = crate::subvolume_platform::Platform::conversion_environment(&platform);
-    return the_clean_verdict((check_tracked(root, git_dir, common_dir, Some(&environment), false), scan_for_untracked_file((context, root))));
+    let platform: crate::subvolume_platform::LinuxPlatform =
+        crate::subvolume_platform::LinuxPlatform::forwarding_to(
+            variables.as_slice(),
+            Some(context.real_git.as_path()),
+        );
+    let environment: ConversionEnvironment =
+        crate::subvolume_platform::Platform::conversion_environment(&platform);
+    return the_clean_verdict((
+        check_tracked(root, git_dir, common_dir, Some(&environment), false),
+        scan_for_untracked_file((context, root)),
+    ));
 }
 
 /// What:
@@ -312,8 +416,20 @@ pub fn check_clean_by_content(context: &GitContext, root: &Path, git_dir: &Path,
 /// ```ts
 /// function checkCleanTrackedByContent(root: string, gitDir: string, commonDir: string, environment: ConversionEnvironment, ownedIndexLock: boolean): CleanSource; // throws the reason
 /// ```
-pub fn check_clean_tracked_by_content(root: &Path, git_dir: &Path, common_dir: &Path, environment: &ConversionEnvironment, owned_index_lock: bool) -> Result<CleanSource, String> {
-    return match check_tracked(root, git_dir, common_dir, Some(environment), owned_index_lock) {
+pub fn check_clean_tracked_by_content(
+    root: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+    environment: &ConversionEnvironment,
+    owned_index_lock: bool,
+) -> Result<CleanSource, String> {
+    return match check_tracked(
+        root,
+        git_dir,
+        common_dir,
+        Some(environment),
+        owned_index_lock,
+    ) {
         Ok(source) => Ok(source),
         Err(refusal) => Err(refusal.reason),
     };
@@ -358,9 +474,20 @@ impl State {
     /// What `HEAD` names,
     /// with the index bytes the caller proved (or none,
     /// for a worktree that is not clean).
-    fn into_source(self, index_bytes: Vec<u8>) -> CleanSource {
+    fn into_source(
+        self,
+        index_bytes: Vec<u8>,
+    ) -> CleanSource {
         let attribute_blobs: Vec<(Vec<u8>, Vec<u8>)> = self.attribute_blobs();
-        return CleanSource { head_commit: self.commit, head_tree: self.tree_id, tracked: self.entries.len(), index_seconds: self.index_seconds, hash_length: self.hash_length, attribute_blobs, index_bytes };
+        return CleanSource {
+            head_commit: self.commit,
+            head_tree: self.tree_id,
+            tracked: self.entries.len(),
+            index_seconds: self.index_seconds,
+            hash_length: self.hash_length,
+            attribute_blobs,
+            index_bytes,
+        };
     }
 }
 
@@ -386,34 +513,89 @@ impl State {
 /// ```ts
 /// function readState(gitDir: string, commonDir: string): State; // throws a CleanRefusal
 /// ```
-fn read_state(git_dir: &Path, common_dir: &Path) -> Result<State, CleanRefusal> {
-    let hash_length: usize = or_unreadable(repository_hash_length(common_dir), "the repository configuration is unreadable")?;
-    let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+fn read_state(
+    git_dir: &Path,
+    common_dir: &Path,
+) -> Result<State, CleanRefusal> {
+    let hash_length: usize = or_unreadable(
+        repository_hash_length(common_dir),
+        "the repository configuration is unreadable",
+    )?;
+    let format: ObjectFormat = if hash_length == 32 {
+        ObjectFormat::Sha256
+    } else {
+        ObjectFormat::Sha1
+    };
     // One open file gives both the bytes and the time, so the time belongs to the bytes that were proven.
     let index_path = git_dir.join("index");
-    let mut index_file: std::fs::File = std::fs::File::open(index_path.as_path()).map_err(index_unreadable)?;
+    let mut index_file: std::fs::File =
+        std::fs::File::open(index_path.as_path()).map_err(index_unreadable)?;
     let index_seconds: u32 = index_file.metadata().map_err(index_unreadable)?.mtime() as u32;
     let mut bytes: Vec<u8> = Vec::new();
     std::io::Read::read_to_end(&mut index_file, &mut bytes).map_err(index_unreadable)?;
-    let entries: Vec<IndexEntry> = or_unreadable(parse_index(bytes.as_slice(), format), "the index has a layout the reader does not know")?;
-    let stats = or_unreadable(stored_stats(bytes.as_slice(), hash_length), "the index entries have no plain layout")?;
-    let commit: String = or_unreadable(head_commit(git_dir, common_dir, format), "HEAD is not a plain ref to a commit")?;
-    let opened: Option<ObjectDatabase> = ObjectDatabase::open_of_the_repository_alone(common_dir, None, format);
-    let database: ObjectDatabase = or_unreadable(opened, "the object database has a layout the reader does not know")?;
-    let commit_name: Vec<u8> = or_unreadable(crate::repo_read_object::from_hex(commit.as_bytes(), format), "HEAD names no object")?;
-    let commit_object = or_unreadable(database.read(commit_name.as_slice()), "the commit of HEAD is unreadable")?;
-    let commit_fields = or_unreadable(parse_commit(commit_object.bytes.as_slice(), format), "the commit of HEAD has a layout the reader does not know")?;
-    let tree: Vec<FlatEntry> = or_unreadable(flatten_tree(&database, commit_fields.tree.as_slice(), format), "the tree of HEAD is unreadable")?;
-    return Ok(State { bytes, index_seconds, hash_length, format, entries, stats, commit, tree_id: commit_fields.tree, tree });
+    let entries: Vec<IndexEntry> = or_unreadable(
+        parse_index(bytes.as_slice(), format),
+        "the index has a layout the reader does not know",
+    )?;
+    let stats = or_unreadable(
+        stored_stats(bytes.as_slice(), hash_length),
+        "the index entries have no plain layout",
+    )?;
+    let commit: String = or_unreadable(
+        head_commit(git_dir, common_dir, format),
+        "HEAD is not a plain ref to a commit",
+    )?;
+    let opened: Option<ObjectDatabase> =
+        ObjectDatabase::open_of_the_repository_alone(common_dir, None, format);
+    let database: ObjectDatabase = or_unreadable(
+        opened,
+        "the object database has a layout the reader does not know",
+    )?;
+    let commit_name: Vec<u8> = or_unreadable(
+        crate::repo_read_object::from_hex(commit.as_bytes(), format),
+        "HEAD names no object",
+    )?;
+    let commit_object = or_unreadable(
+        database.read(commit_name.as_slice()),
+        "the commit of HEAD is unreadable",
+    )?;
+    let commit_fields = or_unreadable(
+        parse_commit(commit_object.bytes.as_slice(), format),
+        "the commit of HEAD has a layout the reader does not know",
+    )?;
+    let tree: Vec<FlatEntry> = or_unreadable(
+        flatten_tree(&database, commit_fields.tree.as_slice(), format),
+        "the tree of HEAD is unreadable",
+    )?;
+    return Ok(State {
+        bytes,
+        index_seconds,
+        hash_length,
+        format,
+        entries,
+        stats,
+        commit,
+        tree_id: commit_fields.tree,
+        tree,
+    });
 }
 
 /// The checks of `check_clean_tracked`,
 /// by stat data alone or,
 /// given a `scope`,
 /// by content where the stat data is not enough.
-fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, environment: Option<&ConversionEnvironment>, owned_index_lock: bool) -> Result<CleanSource, CleanRefusal> {
+fn check_tracked(
+    root: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+    environment: Option<&ConversionEnvironment>,
+    owned_index_lock: bool,
+) -> Result<CleanSource, CleanRefusal> {
     if let Some(name) = operation_in_progress(git_dir, owned_index_lock) {
-        return Err(CleanRefusal::new(CleanRefusalKind::OperationInProgress(name), format!("{name} exists in {}", git_dir.display())));
+        return Err(CleanRefusal::new(
+            CleanRefusalKind::OperationInProgress(name),
+            format!("{name} exists in {}", git_dir.display()),
+        ));
     }
     let read_index_and_tree_entered: bool = begin_step("readIndexAndTree");
     // Both proofs read the repository's own store, as `main`'s reader did: the question is about this worktree's own files.
@@ -421,7 +603,8 @@ fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, environment: Op
     end_step(read_index_and_tree_entered);
     let state: State = read_index_and_tree_outcome?;
     let index_against_tree_entered: bool = begin_step("indexAgainstTree");
-    let index_against_tree_outcome = index_differs_from_tree(state.entries.as_slice(), state.tree.as_slice());
+    let index_against_tree_outcome =
+        index_differs_from_tree(state.entries.as_slice(), state.tree.as_slice());
     end_step(index_against_tree_entered);
     if let Some(refusal) = index_against_tree_outcome {
         return Err(refusal);
@@ -429,12 +612,24 @@ fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, environment: Op
     let differs: Option<CleanRefusal> = match environment {
         None => {
             let walk_source_entered: bool = begin_step("walkSource");
-            let walked: Option<CleanRefusal> = tree_refusal(root, state.stats.as_slice(), state.index_seconds);
+            let walked: Option<CleanRefusal> =
+                tree_refusal(root, state.stats.as_slice(), state.index_seconds);
             end_step(walk_source_entered);
             walked
         }
-        Some(found) => tree_differs_from_index_by_content(&ContentTarget { root, git_dir, common_dir, environment: found, format: state.format }, state.stats.as_slice(), state.entries.as_slice(), state.index_seconds)
-            .map(file_changed),
+        Some(found) => tree_differs_from_index_by_content(
+            &ContentTarget {
+                root,
+                git_dir,
+                common_dir,
+                environment: found,
+                format: state.format,
+            },
+            state.stats.as_slice(),
+            state.entries.as_slice(),
+            state.index_seconds,
+        )
+        .map(file_changed),
     };
     if let Some(refusal) = differs {
         return Err(refusal);
@@ -464,20 +659,38 @@ fn entry_a_reset_cannot_undo(state: &State) -> Option<CleanRefusal> {
     for staged in &state.entries {
         let shown: String = String::from_utf8_lossy(&staged.path).into_owned();
         if staged.stage != 0 || staged.extended != 0 {
-            return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("the index entry {shown} is unmerged, intent-to-add or skip-worktree")));
+            return Some(CleanRefusal::new(
+                CleanRefusalKind::NotPlain,
+                format!("the index entry {shown} is unmerged, intent-to-add or skip-worktree"),
+            ));
         }
         if staged.mode == MODE_GITLINK {
-            return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{shown} is a submodule")));
+            return Some(CleanRefusal::new(
+                CleanRefusalKind::NotPlain,
+                format!("{shown} is a submodule"),
+            ));
         }
     }
     for entry in &state.tree {
         if entry.mode == MODE_GITLINK {
-            return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{} is a submodule in HEAD", String::from_utf8_lossy(&entry.path))));
+            return Some(CleanRefusal::new(
+                CleanRefusalKind::NotPlain,
+                format!(
+                    "{} is a submodule in HEAD",
+                    String::from_utf8_lossy(&entry.path)
+                ),
+            ));
         }
     }
     for entry in &state.stats {
         if entry.flags & ASSUME_VALID != 0 {
-            return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{} is marked assume-unchanged", String::from_utf8_lossy(&entry.path))));
+            return Some(CleanRefusal::new(
+                CleanRefusalKind::NotPlain,
+                format!(
+                    "{} is marked assume-unchanged",
+                    String::from_utf8_lossy(&entry.path)
+                ),
+            ));
         }
     }
     return None;
@@ -496,7 +709,9 @@ fn entry_a_reset_cannot_undo(state: &State) -> Option<CleanRefusal> {
 /// ```ts
 /// function checkTrackedFiles([root, gitDir, commonDir]: [string, string, string]): CleanSource;
 /// ```
-fn check_tracked_files((root, git_dir, common_dir): (&Path, &Path, &Path)) -> Result<CleanSource, CleanRefusal> {
+fn check_tracked_files(
+    (root, git_dir, common_dir): (&Path, &Path, &Path)
+) -> Result<CleanSource, CleanRefusal> {
     return check_tracked(root, git_dir, common_dir, None, false);
 }
 
@@ -511,7 +726,9 @@ fn check_tracked_files((root, git_dir, common_dir): (&Path, &Path, &Path)) -> Re
 /// ```ts
 /// function checkTrackedFilesInAJob([root, gitDir, commonDir]: [string, string, string]): CleanSource; // throws the reason
 /// ```
-fn check_tracked_files_in_a_job((root, git_dir, common_dir): (PathBuf, PathBuf, PathBuf)) -> Result<CleanSource, CleanRefusal> {
+fn check_tracked_files_in_a_job(
+    (root, git_dir, common_dir): (PathBuf, PathBuf, PathBuf)
+) -> Result<CleanSource, CleanRefusal> {
     return check_tracked_files((root.as_path(), git_dir.as_path(), common_dir.as_path()));
 }
 
@@ -528,10 +745,18 @@ fn check_tracked_files_in_a_job((root, git_dir, common_dir): (PathBuf, PathBuf, 
 /// ```ts
 /// function theCleanVerdict([tracked, untracked]: [CleanSource | Refusal, string | undefined | Refusal]): CleanSource;
 /// ```
-fn the_clean_verdict((tracked, untracked): (Result<CleanSource, CleanRefusal>, Result<Option<String>, CleanRefusal>)) -> Result<CleanSource, CleanRefusal> {
+fn the_clean_verdict(
+    (tracked, untracked): (
+        Result<CleanSource, CleanRefusal>,
+        Result<Option<String>, CleanRefusal>,
+    )
+) -> Result<CleanSource, CleanRefusal> {
     let clean: CleanSource = tracked?;
     if let Some(name) = untracked? {
-        return Err(CleanRefusal::new(CleanRefusalKind::Untracked, format!("{name} is untracked and not ignored")));
+        return Err(CleanRefusal::new(
+            CleanRefusalKind::Untracked,
+            format!("{name} is untracked and not ignored"),
+        ));
     }
     return Ok(clean);
 }
@@ -550,8 +775,12 @@ fn the_clean_verdict((tracked, untracked): (Result<CleanSource, CleanRefusal>, R
 /// ```
 fn a_refused_job_is_a_refusal(error: BlockingJobError) -> CleanRefusal {
     return match error {
-        BlockingJobError::Panicked => CleanRefusal::unreadable("the proof of the tracked files stopped unexpectedly"),
-        other => CleanRefusal::unreadable(format!("the tracked files could not be proven ({other})")),
+        BlockingJobError::Panicked => {
+            CleanRefusal::unreadable("the proof of the tracked files stopped unexpectedly")
+        }
+        other => {
+            CleanRefusal::unreadable(format!("the tracked files could not be proven ({other})"))
+        }
     };
 }
 
@@ -581,10 +810,25 @@ fn a_refused_job_is_a_refusal(error: BlockingJobError) -> CleanRefusal {
 /// ```ts
 /// async function checkCleanAwaiting({ context, root, gitDir, commonDir }): Promise<CleanSource>; // throws the reason
 /// ```
-pub async fn check_clean_awaiting(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
-    let (untracked, tracked): (Result<Option<String>, CleanRefusal>, Result<Result<CleanSource, CleanRefusal>, BlockingJobError>) = tokio::join!(
+pub async fn check_clean_awaiting(
+    context: &GitContext,
+    root: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+) -> Result<CleanSource, CleanRefusal> {
+    let (untracked, tracked): (
+        Result<Option<String>, CleanRefusal>,
+        Result<Result<CleanSource, CleanRefusal>, BlockingJobError>,
+    ) = tokio::join!(
         scan_for_untracked_file_awaiting((context, root)),
-        run_a_job_or_in_turn((root.to_path_buf(), git_dir.to_path_buf(), common_dir.to_path_buf()), check_tracked_files_in_a_job),
+        run_a_job_or_in_turn(
+            (
+                root.to_path_buf(),
+                git_dir.to_path_buf(),
+                common_dir.to_path_buf()
+            ),
+            check_tracked_files_in_a_job
+        ),
     );
     let proof: Result<CleanSource, CleanRefusal> = match tracked {
         Ok(verdict) => verdict,
@@ -613,12 +857,26 @@ pub async fn check_clean_awaiting(context: &GitContext, root: &Path, git_dir: &P
 /// ```ts
 /// function checkClean(args: { context: GitContext; root: string; gitDir: string; commonDir: string }): CleanSource; // throws a reason
 /// ```
-pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
+pub fn check_clean(
+    context: &GitContext,
+    root: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+) -> Result<CleanSource, CleanRefusal> {
     return match run_on_runtime(check_clean_awaiting(context, root, git_dir, common_dir)) {
         Ok(verdict) => verdict,
         Err(refusal) => {
-            crate::diagnostic_log::debug("checkClean", format!("the tracked files and the untracked scan run one after another ({refusal})").as_str());
-            the_clean_verdict((check_tracked_files((root, git_dir, common_dir)), scan_for_untracked_file((context, root))))
+            crate::diagnostic_log::debug(
+                "checkClean",
+                format!(
+                    "the tracked files and the untracked scan run one after another ({refusal})"
+                )
+                .as_str(),
+            );
+            the_clean_verdict((
+                check_tracked_files((root, git_dir, common_dir)),
+                scan_for_untracked_file((context, root)),
+            ))
         }
     };
 }
@@ -664,7 +922,11 @@ pub struct DirtySource {
 /// ```ts
 /// function dirtySource(args: { gitDir: string; commonDir: string; why: CleanRefusal }): DirtySource; // throws a CleanRefusal
 /// ```
-pub fn dirty_source(git_dir: &Path, common_dir: &Path, why: CleanRefusal) -> Result<DirtySource, CleanRefusal> {
+pub fn dirty_source(
+    git_dir: &Path,
+    common_dir: &Path,
+    why: CleanRefusal,
+) -> Result<DirtySource, CleanRefusal> {
     if !why.kind.restorable() {
         return Err(why);
     }
@@ -673,7 +935,10 @@ pub fn dirty_source(git_dir: &Path, common_dir: &Path, why: CleanRefusal) -> Res
         return Err(refusal);
     }
     let read: Vec<u8> = state.bytes.clone();
-    return Ok(DirtySource { source: state.into_source(read), why });
+    return Ok(DirtySource {
+        source: state.into_source(read),
+        why,
+    });
 }
 
 #[cfg(test)]

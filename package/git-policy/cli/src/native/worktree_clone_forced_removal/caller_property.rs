@@ -29,8 +29,15 @@
 //! const identity = parseCallerProperty(value);
 //! ```
 
-use crate::worktree_clone_mount_protocol::clone_mount_property_names::{FIELD_SEPARATOR, NONCE_HEX_DIGITS, VALUE_VERSION};
-use crate::worktree_clone_mount_protocol::request_nonce::{NonceRefusal, RequestNonce};
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::{
+    FIELD_SEPARATOR,
+    NONCE_HEX_DIGITS,
+    VALUE_VERSION,
+};
+use crate::worktree_clone_mount_protocol::request_nonce::{
+    NonceRefusal,
+    RequestNonce,
+};
 
 /// The longest caller value the grammar admits,
 /// in bytes:
@@ -187,7 +194,9 @@ pub fn force_property_value(nonce: &RequestNonce) -> String {
 /// ```
 pub fn parse_caller_property(text: &str) -> Result<CallerIdentity, CallerPropertyRefusal> {
     if text.len() > MAXIMUM_CALLER_PROPERTY_BYTES {
-        return Err(CallerPropertyRefusal::TooLong { found: text.len() });
+        return Err(CallerPropertyRefusal::TooLong {
+            found: text.len(),
+        });
     }
     let fields: Vec<&str> = text.split(FIELD_SEPARATOR).collect();
     if fields.first() != Some(&VALUE_VERSION) {
@@ -196,24 +205,44 @@ pub fn parse_caller_property(text: &str) -> Result<CallerIdentity, CallerPropert
         });
     }
     if fields.len() != 7 {
-        return Err(CallerPropertyRefusal::Fields { found: fields.len() });
+        return Err(CallerPropertyRefusal::Fields {
+            found: fields.len(),
+        });
     }
-    let nonce: RequestNonce = RequestNonce::parse(fields[1]).map_err(CallerPropertyRefusal::Nonce)?;
-    let pid: i32 = fields[2].parse().map_err(|_error| return CallerPropertyRefusal::Number { field: "pid" })?;
-    let started: u64 = fields[3]
-        .parse()
-        .map_err(|_error| return CallerPropertyRefusal::Number { field: "starttime" })?;
-    let parent: i32 = fields[4]
-        .parse()
-        .map_err(|_error| return CallerPropertyRefusal::Number { field: "parent-pid" })?;
-    let parent_started: u64 = fields[5]
-        .parse()
-        .map_err(|_error| return CallerPropertyRefusal::Number { field: "parent-starttime" })?;
+    let nonce: RequestNonce =
+        RequestNonce::parse(fields[1]).map_err(CallerPropertyRefusal::Nonce)?;
+    let pid: i32 = fields[2].parse().map_err(|_error| {
+        return CallerPropertyRefusal::Number {
+            field: "pid",
+        };
+    })?;
+    let started: u64 = fields[3].parse().map_err(|_error| {
+        return CallerPropertyRefusal::Number {
+            field: "starttime",
+        };
+    })?;
+    let parent: i32 = fields[4].parse().map_err(|_error| {
+        return CallerPropertyRefusal::Number {
+            field: "parent-pid",
+        };
+    })?;
+    let parent_started: u64 = fields[5].parse().map_err(|_error| {
+        return CallerPropertyRefusal::Number {
+            field: "parent-starttime",
+        };
+    })?;
     let boot: String = String::from(fields[6]);
     if !is_boot_id(boot.as_str()) {
         return Err(CallerPropertyRefusal::Boot);
     }
-    return Ok(CallerIdentity { nonce, pid, started, parent, parent_started, boot });
+    return Ok(CallerIdentity {
+        nonce,
+        pid,
+        started,
+        parent,
+        parent_started,
+        boot,
+    });
 }
 
 /// What:
@@ -260,7 +289,9 @@ pub enum ForceWordRefusal {
 /// ```
 pub fn parse_force_property(text: &str) -> Result<RequestNonce, ForceWordRefusal> {
     if text.len() > MAXIMUM_FORCE_PROPERTY_BYTES {
-        return Err(ForceWordRefusal::TooLong { found: text.len() });
+        return Err(ForceWordRefusal::TooLong {
+            found: text.len(),
+        });
     }
     let fields: Vec<&str> = text.split(FIELD_SEPARATOR).collect();
     if fields.first() != Some(&VALUE_VERSION) {
@@ -269,7 +300,9 @@ pub fn parse_force_property(text: &str) -> Result<RequestNonce, ForceWordRefusal
         });
     }
     if fields.len() != 2 {
-        return Err(ForceWordRefusal::Fields { found: fields.len() });
+        return Err(ForceWordRefusal::Fields {
+            found: fields.len(),
+        });
     }
     return RequestNonce::parse(fields[1]).map_err(ForceWordRefusal::Nonce);
 }

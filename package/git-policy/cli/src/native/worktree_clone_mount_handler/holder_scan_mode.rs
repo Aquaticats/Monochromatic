@@ -45,8 +45,15 @@
 //! ```
 
 use super::handler_mode_arguments::HolderScanInvocation;
-use super::sweep_dataset_reader::{DatasetReader, ZfsDatasetReader};
-use crate::clone_holder_scan::holder_scan::{HolderScan, HolderScanRequest, scan_holders};
+use super::sweep_dataset_reader::{
+    DatasetReader,
+    ZfsDatasetReader,
+};
+use crate::clone_holder_scan::holder_scan::{
+    HolderScan,
+    HolderScanRequest,
+    scan_holders,
+};
 use crate::foundation::iso_time::now_iso;
 use crate::mount_namespace_scan::mount_namespace_tasks::RootIdentity;
 use crate::mount_namespace_scan::namespace_target;
@@ -67,7 +74,10 @@ pub const SELF_TASK: &str = "/proc/self";
 ///   The result is bound to the GUID,
 ///  so a zero GUID or one that does not spell canonically stops the scan before
 ///  it answers anything a reader would have to compare.
-fn guid_of(identity: &monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity, dataset: &str) -> Result<DatasetGuid, String> {
+fn guid_of(
+    identity: &monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity,
+    dataset: &str,
+) -> Result<DatasetGuid, String> {
     if identity.stats.dds_guid == 0 {
         return Err(format!(
             "`{dataset}` answered GUID 0, and no dataset this route names has none. Nothing was scanned. Ways forward: name the clone whose GUID `zfs get -H -o value guid {dataset}` prints."
@@ -103,7 +113,11 @@ fn nonce_of(invocation: &HolderScanInvocation) -> Result<(RequestNonce, &'static
 ///  The result's own text says which namespaces hold the dataset,
 ///  and this line says how much was read,
 ///  which is what a person and a guest arm read first.
-fn summary_of(scan: &HolderScan, dataset: &str, nonce_source: &str) -> String {
+fn summary_of(
+    scan: &HolderScan,
+    dataset: &str,
+    nonce_source: &str,
+) -> String {
     return format!(
         "the holder scan of {dataset} (GUID {}, nonce {} {nonce_source}) read {} mount namespaces: {} mount(s) of it in the handler's own namespace, {} holder namespace(s) holding {} mount(s) and {} incomplete read(s); it mounted, unmounted and recorded nothing, and it sets nothing aside.",
         scan.dataset.file_name(),
@@ -151,7 +165,12 @@ pub fn run(invocation: &HolderScanInvocation) -> Result<String, String> {
             invocation.dataset
         );
     })?;
-    return run_with(invocation, &reader, Path::new(PROC_ROOT), Path::new(SELF_TASK));
+    return run_with(
+        invocation,
+        &reader,
+        Path::new(PROC_ROOT),
+        Path::new(SELF_TASK),
+    );
 }
 
 /// What:
@@ -170,7 +189,12 @@ pub fn run(invocation: &HolderScanInvocation) -> Result<String, String> {
 /// ```ts
 /// const answer = runWith({ dataset, nonce }, scriptedPool, fixtureProc, '/proc/self');
 /// ```
-pub fn run_with(invocation: &HolderScanInvocation, reader: &dyn DatasetReader, proc_root: &Path, self_task: &Path) -> Result<String, String> {
+pub fn run_with(
+    invocation: &HolderScanInvocation,
+    reader: &dyn DatasetReader,
+    proc_root: &Path,
+    self_task: &Path,
+) -> Result<String, String> {
     let identity = reader.identity(invocation.dataset.as_str()).map_err(|failure| {
         return format!(
             "the holder scan of `{}` could not read the dataset ({failure}). Nothing was scanned. Ways forward: name a dataset this machine holds, and check that the pool is imported.",
@@ -178,7 +202,8 @@ pub fn run_with(invocation: &HolderScanInvocation, reader: &dyn DatasetReader, p
         );
     })?;
     let dataset: DatasetGuid = guid_of(&identity, invocation.dataset.as_str())?;
-    let (own_namespace, readers_root): (Option<String>, Option<RootIdentity>) = readers_place(self_task);
+    let (own_namespace, readers_root): (Option<String>, Option<RootIdentity>) =
+        readers_place(self_task);
     let (nonce, nonce_source): (RequestNonce, &str) = nonce_of(invocation)?;
     let scan: HolderScan = scan_holders(&HolderScanRequest {
         proc_root,
@@ -199,8 +224,16 @@ pub fn run_with(invocation: &HolderScanInvocation, reader: &dyn DatasetReader, p
 ///  and a person reads the last line;
 ///  both come from one value,
 ///  so the counts and the findings cannot disagree.
-fn answer_of(scan: &HolderScan, dataset: &str, nonce_source: &str) -> String {
-    return format!("{}\n{}", scan.text().trim_end(), summary_of(scan, dataset, nonce_source));
+fn answer_of(
+    scan: &HolderScan,
+    dataset: &str,
+    nonce_source: &str,
+) -> String {
+    return format!(
+        "{}\n{}",
+        scan.text().trim_end(),
+        summary_of(scan, dataset, nonce_source)
+    );
 }
 
 /// Controls stay out of the release executable.

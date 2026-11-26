@@ -13,16 +13,29 @@
 //! expect(fileText(['a'])).toBe('a\n');
 //! ```
 
-use crate::checkout_boot_units::unit_file_text::{file_text, path_comment};
+use crate::checkout_boot_units::unit_file_text::{
+    file_text,
+    path_comment,
+};
 use std::path::Path;
 
 #[test]
 fn one_newline_ends_the_file_and_no_second_one_follows() {
-    assert_eq!(file_text(vec![String::from("a"), String::from("b")]), "a\nb\n");
-    assert_eq!(file_text(Vec::new()), "\n", "an empty file is still one line");
+    assert_eq!(
+        file_text(vec![String::from("a"), String::from("b")]),
+        "a\nb\n"
+    );
+    assert_eq!(
+        file_text(Vec::new()),
+        "\n",
+        "an empty file is still one line"
+    );
 }
 
 #[test]
 fn the_comment_names_the_path_the_file_belongs_at() {
-    assert_eq!(path_comment(Path::new("/etc/systemd/system/x.service")), "# /etc/systemd/system/x.service");
+    assert_eq!(
+        path_comment(Path::new("/etc/systemd/system/x.service")),
+        "# /etc/systemd/system/x.service"
+    );
 }

@@ -56,15 +56,33 @@
 //! const code = await finishLikeCleanRun({ forward, gitDir }); // undefined: leave the operation stopped
 //! ```
 
-use crate::child_environment::{CHILD_SET_PREFIX, environment_value};
+use crate::child_environment::{
+    CHILD_SET_PREFIX,
+    environment_value,
+};
 use crate::entry::run_nested_process;
 use crate::forwarded_command::ResolvedCommand;
-use crate::merge_isolation_git_reads::{editor_would_open, stdin_and_stdout_are_one_terminal};
-use crate::merge_second_pass_finish_stops::{Operation, Stops, merge_stops, pick_stops, saved_pick_stops};
+use crate::merge_isolation_git_reads::{
+    editor_would_open,
+    stdin_and_stdout_are_one_terminal,
+};
+use crate::merge_second_pass_finish_stops::{
+    Operation,
+    Stops,
+    merge_stops,
+    pick_stops,
+    saved_pick_stops,
+};
 use std::ffi::OsString;
-use std::io::{IsTerminal, Write};
+use std::io::{
+    IsTerminal,
+    Write,
+};
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// The finishes now running in this process,
 /// outermost first.
@@ -129,7 +147,8 @@ pub fn split_cmdline(text: &str) -> Option<Vec<OsString>> {
 /// so a list past it is more than 13,000 commits),
 /// because a named pipe at a todo file holds the finish for ever otherwise.
 fn todo_commands(path: &Path) -> usize {
-    let Ok(text) = crate::plain_file::read_plain_text_at(path, crate::plain_file::SMALL_FILE_LIMIT) else {
+    let Ok(text) = crate::plain_file::read_plain_text_at(path, crate::plain_file::SMALL_FILE_LIMIT)
+    else {
         return 0;
     };
     let mut commands: usize = 0;
@@ -159,9 +178,14 @@ fn todo_commands(path: &Path) -> usize {
 /// ```ts
 /// function finishBudget(operation: Operation, gitDir: string): number;
 /// ```
-fn finish_budget(operation: Operation, git_dir: &Path) -> usize {
+fn finish_budget(
+    operation: Operation,
+    git_dir: &Path,
+) -> usize {
     return match operation {
-        Operation::Rebase => todo_commands(git_dir.join("rebase-merge/git-rebase-todo").as_path()) + 1,
+        Operation::Rebase => {
+            todo_commands(git_dir.join("rebase-merge/git-rebase-todo").as_path()) + 1
+        }
         Operation::Pick => todo_commands(git_dir.join("sequencer/todo").as_path()).max(1),
         Operation::Merge => 1,
     };
@@ -169,7 +193,10 @@ fn finish_budget(operation: Operation, git_dir: &Path) -> usize {
 
 /// Whether one more finish may be nested inside `running` others,
 /// under a budget of `budget` finishes.
-fn nesting_allows(running: usize, budget: usize) -> bool {
+fn nesting_allows(
+    running: usize,
+    budget: usize,
+) -> bool {
     return running < budget;
 }
 
@@ -234,7 +261,9 @@ pub fn without_conflicts_hint(message: &[u8]) -> Vec<u8> {
     let mut comment: Option<&[u8]> = None;
     // Walk back over the path lines, then expect the `Conflicts:` line.
     while start > 0 {
-        let line: &[u8] = lines[start - 1].strip_suffix(b"\n").unwrap_or(lines[start - 1]);
+        let line: &[u8] = lines[start - 1]
+            .strip_suffix(b"\n")
+            .unwrap_or(lines[start - 1]);
         if let Some(prefix) = line.strip_suffix(b"Conflicts:") {
             let same_comment: bool = match comment {
                 Some(known) => known == prefix,
@@ -251,7 +280,9 @@ pub fn without_conflicts_hint(message: &[u8]) -> Vec<u8> {
             Some(known) => line.strip_prefix(known),
             None => Some(line),
         };
-        let Some(tab_path) = path_line else { return message.to_vec() };
+        let Some(tab_path) = path_line else {
+            return message.to_vec();
+        };
         if comment.is_none() && !tab_path.contains(&b'\t') {
             return message.to_vec();
         }
@@ -281,7 +312,10 @@ pub fn without_conflicts_hint(message: &[u8]) -> Vec<u8> {
 /// ```ts
 /// function mergeEditsByDefault(message: boolean, environment): boolean | undefined;
 /// ```
-fn merge_edits_by_default(message: bool, environment: &[(OsString, OsString)]) -> Option<bool> {
+fn merge_edits_by_default(
+    message: bool,
+    environment: &[(OsString, OsString)],
+) -> Option<bool> {
     if message {
         return Some(false);
     }
@@ -295,14 +329,20 @@ fn merge_edits_by_default(message: bool, environment: &[(OsString, OsString)]) -
 
 /// Which operation left its state in the Git directory,
 /// from the state files Git writes.
-fn operation_in_progress(git_dir: &Path, command: &ResolvedCommand, squash: bool) -> Option<Operation> {
+fn operation_in_progress(
+    git_dir: &Path,
+    command: &ResolvedCommand,
+    squash: bool,
+) -> Option<Operation> {
     if git_dir.join("rebase-merge").is_dir() || git_dir.join("rebase-apply").is_dir() {
         return Some(Operation::Rebase);
     }
     if git_dir.join("CHERRY_PICK_HEAD").exists() || git_dir.join("REVERT_HEAD").exists() {
         return Some(Operation::Pick);
     }
-    if git_dir.join("MERGE_HEAD").exists() || (squash && command.word() != b"cherry-pick" && command.word() != b"revert") {
+    if git_dir.join("MERGE_HEAD").exists()
+        || (squash && command.word() != b"cherry-pick" && command.word() != b"revert")
+    {
         return Some(Operation::Merge);
     }
     return None;
@@ -335,11 +375,20 @@ pub struct Finish {
 /// ```ts
 /// function planFinish({ command, environment, gitDir, mergeOptionsSet }): Finish | undefined;
 /// ```
-pub fn plan_finish(command: &ResolvedCommand, environment: &[(OsString, OsString)], git_dir: &Path, configured_options: &[OsString]) -> Option<Finish> {
+pub fn plan_finish(
+    command: &ResolvedCommand,
+    environment: &[(OsString, OsString)],
+    git_dir: &Path,
+    configured_options: &[OsString],
+) -> Option<Finish> {
     let region: &[OsString] = command.region();
     let word: &[u8] = command.word();
     // `branch.<name>.mergeoptions` is parsed before the command line (`merge.c` lines 1407 to 1409).
-    let merge_region: Vec<OsString> = configured_options.iter().chain(region.iter()).cloned().collect();
+    let merge_region: Vec<OsString> = configured_options
+        .iter()
+        .chain(region.iter())
+        .cloned()
+        .collect();
     let (mut stops, continuing): (Stops, bool) = match word {
         b"merge" => (merge_stops(merge_region.as_slice(), false)?, false),
         b"pull" => (merge_stops(merge_region.as_slice(), true)?, false),
@@ -355,7 +404,12 @@ pub fn plan_finish(command: &ResolvedCommand, environment: &[(OsString, OsString
         None => return None,
     };
     // The state must be the one this command makes: a merge's, a rebase's (also a pull's), a pick's.
-    if !matches!((word, operation), (b"merge" | b"pull", Operation::Merge) | (b"pull" | b"rebase", Operation::Rebase) | (b"cherry-pick" | b"revert", Operation::Pick)) {
+    if !matches!(
+        (word, operation),
+        (b"merge" | b"pull", Operation::Merge)
+            | (b"pull" | b"rebase", Operation::Rebase)
+            | (b"cherry-pick" | b"revert", Operation::Pick)
+    ) {
         return None;
     }
     // The outermost finish sets the budget from its input; the finishes nested in it spend it.
@@ -367,7 +421,10 @@ pub fn plan_finish(command: &ResolvedCommand, environment: &[(OsString, OsString
         return None;
     }
     if continuing {
-        stops = Stops { passed_on: stops.passed_on.clone(), ..saved_pick_stops(git_dir)? };
+        stops = Stops {
+            passed_on: stops.passed_on.clone(),
+            ..saved_pick_stops(git_dir)?
+        };
     }
     if operation == Operation::Rebase && todo_needs_editor(git_dir) {
         return None;
@@ -378,17 +435,28 @@ pub fn plan_finish(command: &ResolvedCommand, environment: &[(OsString, OsString
     if operation == Operation::Pick {
         // A clean pick edits when asked to, and a revert also on a terminal (`should_edit`).
         let reverting: bool = word == b"revert" || git_dir.join("REVERT_HEAD").exists();
-        stops.edit = Some(stops.edit.unwrap_or(reverting && std::io::stdin().is_terminal()));
+        stops.edit = Some(
+            stops
+                .edit
+                .unwrap_or(reverting && std::io::stdin().is_terminal()),
+        );
         // A range applied with `--no-commit` cannot be continued by Git either (`error_dirty_index`).
         if stops.no_commit && git_dir.join("sequencer/todo").exists() {
             return None;
         }
     }
-    return Some(Finish { operation, stops, git_dir: git_dir.to_path_buf() });
+    return Some(Finish {
+        operation,
+        stops,
+        git_dir: git_dir.to_path_buf(),
+    });
 }
 
 /// The invocation's global options followed by `words`.
-fn invocation(command: &ResolvedCommand, words: &[&str]) -> Vec<OsString> {
+fn invocation(
+    command: &ResolvedCommand,
+    words: &[&str],
+) -> Vec<OsString> {
     let mut arguments: Vec<OsString> = command.arguments[..command.subcommand_index].to_vec();
     arguments.extend(words.iter().map(OsString::from));
     return arguments;
@@ -414,7 +482,12 @@ fn invocation(command: &ResolvedCommand, words: &[&str]) -> Vec<OsString> {
 fn todo_needs_editor(git_dir: &Path) -> bool {
     // The todo list is read as a plain file and to a bound, so a named pipe at its name answers as a list that asks for no
     //  editor rather than holding the finish (`merge_second_pass_finish_tests`).
-    let Ok(todo) = crate::plain_file::read_plain_text_at(git_dir.join("rebase-merge/git-rebase-todo").as_path(), crate::plain_file::SMALL_FILE_LIMIT) else { return false };
+    let Ok(todo) = crate::plain_file::read_plain_text_at(
+        git_dir.join("rebase-merge/git-rebase-todo").as_path(),
+        crate::plain_file::SMALL_FILE_LIMIT,
+    ) else {
+        return false;
+    };
     for line in todo.lines() {
         let mut words = line.split_whitespace();
         let command: &str = words.next().unwrap_or_default();
@@ -422,7 +495,9 @@ fn todo_needs_editor(git_dir: &Path) -> bool {
             Some(option) => option == "-c" || option == "-C",
             None => false,
         };
-        if matches!(command, "reword" | "r" | "squash" | "s") || (matches!(command, "fixup" | "f") && fixup_edits) {
+        if matches!(command, "reword" | "r" | "squash" | "s")
+            || (matches!(command, "fixup" | "f") && fixup_edits)
+        {
             return true;
         }
     }
@@ -431,7 +506,10 @@ fn todo_needs_editor(git_dir: &Path) -> bool {
 
 /// A command of this invocation run through the wrapper's own path,
 /// nested one level deeper.
-fn run_nested(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
+fn run_nested(
+    arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+) -> i32 {
     NESTED_FINISHES.fetch_add(1, Ordering::SeqCst);
     let code: i32 = run_nested_process(arguments, environment);
     NESTED_FINISHES.fetch_sub(1, Ordering::SeqCst);
@@ -440,12 +518,23 @@ fn run_nested(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i
 
 /// The commit that ends a stopped merge or pick,
 /// run through the wrapper.
-fn commit_step(finish: &Finish, command: &ResolvedCommand, environment: &[(OsString, OsString)]) -> i32 {
+fn commit_step(
+    finish: &Finish,
+    command: &ResolvedCommand,
+    environment: &[(OsString, OsString)],
+) -> i32 {
     let mut words: Vec<&str> = vec!["commit"];
     if finish.stops.edit != Some(true) {
         // A pick passes the same two Git's own `--continue` does (`continue_single_pick`, `sequencer.c` line 5371); a merge
         // keeps its prepared message as it is, comment lines included, as a clean merge without an editor does.
-        words.extend(["--no-edit", if finish.operation == Operation::Merge { "--cleanup=whitespace" } else { "--cleanup=strip" }]);
+        words.extend([
+            "--no-edit",
+            if finish.operation == Operation::Merge {
+                "--cleanup=whitespace"
+            } else {
+                "--cleanup=strip"
+            },
+        ]);
     }
     let mut arguments: Vec<OsString> = invocation(command, words.as_slice());
     arguments.extend(finish.stops.passed_on.iter().cloned());
@@ -465,39 +554,72 @@ fn commit_step(finish: &Finish, command: &ResolvedCommand, environment: &[(OsStr
 /// ```ts
 /// async function finish(plan, command, environment, stderr): Promise<number>;
 /// ```
-pub fn finish(plan: &Finish, command: &ResolvedCommand, environment: &[(OsString, OsString)], stderr: &mut dyn Write) -> i32 {
+pub fn finish(
+    plan: &Finish,
+    command: &ResolvedCommand,
+    environment: &[(OsString, OsString)],
+    stderr: &mut dyn Write,
+) -> i32 {
     let message_file = plan.git_dir.join("MERGE_MSG");
     if plan.operation != Operation::Rebase
         && let Ok(message) = std::fs::read(&message_file)
     {
         let cleaned: Vec<u8> = without_conflicts_hint(message.as_slice());
         if cleaned != message {
-            let result = if cleaned.is_empty() { std::fs::remove_file(&message_file) } else { std::fs::write(&message_file, cleaned) };
+            let result = if cleaned.is_empty() {
+                std::fs::remove_file(&message_file)
+            } else {
+                std::fs::write(&message_file, cleaned)
+            };
             if let Err(error) = result {
-                crate::diagnostic_log::warn("wordMergeFinish", format!("the conflict hint could not be cut from {}: {error}", message_file.display()).as_str());
+                crate::diagnostic_log::warn(
+                    "wordMergeFinish",
+                    format!(
+                        "the conflict hint could not be cut from {}: {error}",
+                        message_file.display()
+                    )
+                    .as_str(),
+                );
             }
         }
     }
     match plan.operation {
         Operation::Rebase => {
             let mut quiet: Vec<(OsString, OsString)> = environment.to_vec();
-            quiet.push((OsString::from(format!("{CHILD_SET_PREFIX}GIT_EDITOR")), OsString::from(":")));
-            return run_nested(invocation(command, &["rebase", "--continue"]).as_slice(), quiet.as_slice());
+            quiet.push((
+                OsString::from(format!("{CHILD_SET_PREFIX}GIT_EDITOR")),
+                OsString::from(":"),
+            ));
+            return run_nested(
+                invocation(command, &["rebase", "--continue"]).as_slice(),
+                quiet.as_slice(),
+            );
         }
         Operation::Merge if plan.stops.no_commit || plan.stops.squash => {
-            let _ = stderr.write_all(b"Automatic merge went well; stopped before committing as requested\n");
+            let _ = stderr
+                .write_all(b"Automatic merge went well; stopped before committing as requested\n");
             return 0;
         }
         Operation::Pick if plan.stops.no_commit => return 0,
         _ => {}
     }
     let committed: i32 = commit_step(plan, command, environment);
-    if committed != 0 || plan.operation != Operation::Pick || !plan.git_dir.join("sequencer/todo").exists() {
+    if committed != 0
+        || plan.operation != Operation::Pick
+        || !plan.git_dir.join("sequencer/todo").exists()
+    {
         return committed;
     }
     // The rest of the sequence, which also ends it (`sequencer_continue`, `sequencer.c` lines 5617 to 5630).
-    let word: &str = if command.word() == b"revert" || plan.git_dir.join("REVERT_HEAD").exists() { "revert" } else { "cherry-pick" };
-    return run_nested(invocation(command, &[word, "--continue"]).as_slice(), environment);
+    let word: &str = if command.word() == b"revert" || plan.git_dir.join("REVERT_HEAD").exists() {
+        "revert"
+    } else {
+        "cherry-pick"
+    };
+    return run_nested(
+        invocation(command, &[word, "--continue"]).as_slice(),
+        environment,
+    );
 }
 
 /// Controls for the option readers,

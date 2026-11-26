@@ -16,6 +16,16 @@
 //! // parseManagementArgs(['check', '--all']) => { command: 'check', all: true, policies: [], pathspecs: [] }
 //! ```
 
+/// The grammar of the subvolume migration command,
+/// parsed apart.
+use crate::subvolume_arguments::{
+    MigrateArguments,
+    parse_migrate_arguments,
+};
+use crate::worktree_convert_arguments::{
+    ConvertArguments,
+    parse_convert_arguments,
+};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -27,10 +37,6 @@
 /// // string[] argv, but byte-preserving.
 /// ```
 use std::ffi::OsString;
-/// The grammar of the subvolume migration command,
-/// parsed apart.
-use crate::subvolume_arguments::{MigrateArguments, parse_migrate_arguments};
-use crate::worktree_convert_arguments::{ConvertArguments, parse_convert_arguments};
 
 /// What:
 ///  The complete grammar shown when an invocation is refused.
@@ -293,7 +299,10 @@ fn parse_retired(
         }
     }
     // `Ok(...)` is the success variant carrying the understood action.
-    return Ok(ManagementAction::Retired { command, help });
+    return Ok(ManagementAction::Retired {
+        command,
+        help,
+    });
 }
 
 /// What:
@@ -316,7 +325,10 @@ fn parse_retired(
 /// ```ts
 /// function recordPolicy(policies: string[], value: Uint8Array): void { const id = decodeUtf8OrRefuse(value); if (!policies.includes(id)) policies.push(id); }
 /// ```
-fn record_policy(policies: &mut Vec<String>, value: &[u8]) -> Result<(), ManagementRefusal> {
+fn record_policy(
+    policies: &mut Vec<String>,
+    value: &[u8],
+) -> Result<(), ManagementRefusal> {
     // What: `let Ok(text) = ... else { ... };` keeps valid UTF-8 or exits.
     // Why:  Bytes that are not text cannot be a policy ID.
     //
@@ -352,7 +364,10 @@ fn record_policy(policies: &mut Vec<String>, value: &[u8]) -> Result<(), Managem
 /// ```ts
 /// function parseDirect(fix: boolean, rest: string[]): ManagementAction;
 /// ```
-fn parse_direct(fix: bool, rest: &[OsString]) -> Result<ManagementAction, ManagementRefusal> {
+fn parse_direct(
+    fix: bool,
+    rest: &[OsString],
+) -> Result<ManagementAction, ManagementRefusal> {
     let mut all: bool = false;
     // `Vec::<String>::new()` is an empty owned list; `mut` allows pushing.
     let mut policies: Vec<String> = Vec::<String>::new();
@@ -402,10 +417,14 @@ fn parse_direct(fix: bool, rest: &[OsString]) -> Result<ManagementAction, Manage
         return Err(ManagementRefusal::Usage);
     }
     if pathspec_before_separator {
-        return Err(ManagementRefusal::PathspecsBeforeSeparator { fix });
+        return Err(ManagementRefusal::PathspecsBeforeSeparator {
+            fix,
+        });
     }
     if all == !pathspecs.is_empty() {
-        return Err(ManagementRefusal::ScopeRequired { fix });
+        return Err(ManagementRefusal::ScopeRequired {
+            fix,
+        });
     }
     return Ok(ManagementAction::Direct {
         fix,
@@ -427,7 +446,7 @@ fn parse_direct(fix: bool, rest: &[OsString]) -> Result<ManagementAction, Manage
 /// function parseManagementArguments(args: string[]): ManagementAction;
 /// ```
 pub fn parse_management_arguments(
-    arguments: &[OsString],
+    arguments: &[OsString]
 ) -> Result<ManagementAction, ManagementRefusal> {
     // What: `let Some(name) = arguments.first() else { ... };` unwraps the command name.
     // Why:  A bare `git monochromatic-git-policy-cli` names no command.
@@ -464,23 +483,35 @@ pub fn parse_management_arguments(
         return Ok(ManagementAction::Doctor);
     }
     if name == "migrate-to-subvolume" {
-        return Ok(ManagementAction::MigrateToSubvolume(parse_migrate_arguments(rest)));
+        return Ok(ManagementAction::MigrateToSubvolume(
+            parse_migrate_arguments(rest),
+        ));
     }
     if name == "convert-worktree-to-subvolume" {
-        return Ok(ManagementAction::ConvertWorktree(parse_convert_arguments(rest)));
+        return Ok(ManagementAction::ConvertWorktree(parse_convert_arguments(
+            rest,
+        )));
     }
     if name == "service" {
         return match rest {
             [word] if word == "status" => Ok(ManagementAction::ServiceStatus),
-            [word] if word == "settle-earlier-batches" => Ok(ManagementAction::SettleEarlierBatches),
-            [word] if word == "stop-units-of-removed-worktrees" => Ok(ManagementAction::StopUnitsOfRemovedWorktrees),
+            [word] if word == "settle-earlier-batches" => {
+                Ok(ManagementAction::SettleEarlierBatches)
+            }
+            [word] if word == "stop-units-of-removed-worktrees" => {
+                Ok(ManagementAction::StopUnitsOfRemovedWorktrees)
+            }
             _ => Err(ManagementRefusal::Usage),
         };
     }
     if name == "kept-references" {
         return match rest {
-            [] => Ok(ManagementAction::KeptReferences { prune: false }),
-            [option] if option == "--prune" => Ok(ManagementAction::KeptReferences { prune: true }),
+            [] => Ok(ManagementAction::KeptReferences {
+                prune: false,
+            }),
+            [option] if option == "--prune" => Ok(ManagementAction::KeptReferences {
+                prune: true,
+            }),
             _ => Err(ManagementRefusal::Usage),
         };
     }

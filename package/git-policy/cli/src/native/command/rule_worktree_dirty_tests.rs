@@ -13,15 +13,36 @@
 /// The query builder,
 /// the reader and the scopes.
 use super::{
-    DirtyScope, dirty_from_output, dirty_query_arguments, ignored_paths_from_answer,
-    ignored_paths_queries, index_file_is_absent, replaced_answers, untracked_paths_queries, with_ancestors,
+    DirtyScope,
+    dirty_from_output,
+    dirty_query_arguments,
+    ignored_paths_from_answer,
+    ignored_paths_queries,
+    index_file_is_absent,
+    replaced_answers,
+    untracked_paths_queries,
+    with_ancestors,
 };
-use crate::command_test_support::{byte_argument, fixture, git, os_arguments, remove, repository};
+use crate::command_test_support::{
+    byte_argument,
+    fixture,
+    git,
+    os_arguments,
+    remove,
+    repository,
+};
 use crate::git_metadata::MetadataOutput;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// Build the output of one status run.
-fn output(success: bool, stdout: &[u8], stderr: &[u8]) -> MetadataOutput {
+fn output(
+    success: bool,
+    stdout: &[u8],
+    stderr: &[u8],
+) -> MetadataOutput {
     return MetadataOutput {
         success,
         code: Some(if success { 0 } else { 128 }),
@@ -63,7 +84,10 @@ fn the_query_names_the_scope_after_the_global_options() {
 /// and a failure is an error carrying Git's first line.
 #[test]
 fn output_means_dirty_and_failure_is_an_error() {
-    assert_eq!(dirty_from_output(&output(true, b" M a.txt\n", b"")), Ok(true));
+    assert_eq!(
+        dirty_from_output(&output(true, b" M a.txt\n", b"")),
+        Ok(true)
+    );
     assert_eq!(dirty_from_output(&output(true, b"", b"")), Ok(false));
     assert_eq!(
         dirty_from_output(&output(false, b"", b"fatal: not a git repository\nmore\n")),
@@ -94,13 +118,22 @@ fn each_scope_counts_the_state_it_can_destroy() {
         assert!(!ask(repo.as_path(), scope), "{scope:?} clean");
     }
     std::fs::write(repo.join("new.txt"), "x\n").expect("untracked file");
-    assert!(!ask(repo.as_path(), DirtyScope::Tracked), "an untracked file is not tracked work");
+    assert!(
+        !ask(repo.as_path(), DirtyScope::Tracked),
+        "an untracked file is not tracked work"
+    );
     assert!(ask(repo.as_path(), DirtyScope::TrackedAndUntracked));
     git(repo.as_path(), &["add", "--", "new.txt"]);
     assert!(ask(repo.as_path(), DirtyScope::Tracked));
-    git(repo.as_path(), &["commit", "--quiet", "--message=untracked"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=untracked"],
+    );
     std::fs::write(repo.join(".env"), b"SECRET=1\n").expect("ignored file");
-    assert!(!ask(repo.as_path(), DirtyScope::Tracked), "an ignored file is not tracked work");
+    assert!(
+        !ask(repo.as_path(), DirtyScope::Tracked),
+        "an ignored file is not tracked work"
+    );
     assert!(
         !ask(repo.as_path(), DirtyScope::TrackedAndUntracked),
         "an ignored file is not untracked, and a clean may delete it in a linked worktree"
@@ -109,7 +142,10 @@ fn each_scope_counts_the_state_it_can_destroy() {
 }
 
 /// Run the query with real Git inside a repository and read it.
-fn ask(repo: &std::path::Path, scope: DirtyScope) -> bool {
+fn ask(
+    repo: &std::path::Path,
+    scope: DirtyScope,
+) -> bool {
     let arguments: Vec<OsString> = dirty_query_arguments(&[], scope);
     let raw = crate::command_test_support::git_output(repo, arguments.as_slice());
     let output = output(raw.status.success(), &raw.stdout, &raw.stderr);
@@ -142,7 +178,10 @@ fn the_index_file_is_not_absent_when_the_question_is_not_the_default_index() {
     assert!(!index_file_is_absent(None, None));
     let git_directory = root.join("git-directory");
     std::fs::create_dir(&git_directory).expect("git directory");
-    assert!(!index_file_is_absent(Some(git_directory.as_path()), Some(OsStr::new("other-index"))));
+    assert!(!index_file_is_absent(
+        Some(git_directory.as_path()),
+        Some(OsStr::new("other-index"))
+    ));
     remove(root.as_path());
 }
 
@@ -172,12 +211,17 @@ fn the_ignored_paths_query_names_each_path_exactly() {
     let mut not_utf8: Vec<u8> = b":(top,literal)".to_vec();
     not_utf8.extend_from_slice(&[0xff, 0xfe]);
     expected.push(byte_argument(not_utf8.as_slice()));
-    assert_eq!(ignored_paths_queries(prefix.as_slice(), paths.as_slice()), vec![expected]);
+    assert_eq!(
+        ignored_paths_queries(prefix.as_slice(), paths.as_slice()),
+        vec![expected]
+    );
     // No path, no start at all.
     assert!(ignored_paths_queries(&[], &[]).is_empty());
     // A long list is asked in bounded starts, and every path lands in exactly one of them.
     // 4000 paths of about 50 bytes each are more than one start may carry.
-    let many: Vec<Vec<u8>> = (0..4000).map(|index| return format!("dir with a fairly long name/{index}.bin").into_bytes()).collect();
+    let many: Vec<Vec<u8>> = (0..4000)
+        .map(|index| return format!("dir with a fairly long name/{index}.bin").into_bytes())
+        .collect();
     let queries: Vec<Vec<OsString>> = ignored_paths_queries(&[], many.as_slice());
     assert!(queries.len() > 1, "one start carried every path");
     let mut asked: Vec<String> = Vec::<String>::new();
@@ -192,8 +236,18 @@ fn the_ignored_paths_query_names_each_path_exactly() {
         }
     }
     assert_eq!(asked.len(), many.len());
-    assert_eq!(asked.first(), Some(&String::from(":(top,literal)dir with a fairly long name/0.bin")));
-    assert_eq!(asked.last(), Some(&String::from(":(top,literal)dir with a fairly long name/3999.bin")));
+    assert_eq!(
+        asked.first(),
+        Some(&String::from(
+            ":(top,literal)dir with a fairly long name/0.bin"
+        ))
+    );
+    assert_eq!(
+        asked.last(),
+        Some(&String::from(
+            ":(top,literal)dir with a fairly long name/3999.bin"
+        ))
+    );
 }
 
 /// The untracked query is the ignored one without the flag that would narrow it,
@@ -215,7 +269,10 @@ fn the_untracked_paths_query_names_each_path_exactly_without_the_ignored_flag() 
         OsString::from("--"),
         OsString::from(":(top,literal)victim.txt"),
     ];
-    assert_eq!(untracked_paths_queries(prefix.as_slice(), paths.as_slice()), vec![expected]);
+    assert_eq!(
+        untracked_paths_queries(prefix.as_slice(), paths.as_slice()),
+        vec![expected]
+    );
     assert!(untracked_paths_queries(&[], &[]).is_empty());
 }
 
@@ -227,7 +284,10 @@ fn the_ignored_answer_lists_the_paths_git_printed() {
         ignored_paths_from_answer(&output(true, b".env\0ignored/data.bin\0", b"")),
         Ok(vec![b".env".to_vec(), b"ignored/data.bin".to_vec()])
     );
-    assert_eq!(ignored_paths_from_answer(&output(true, b"", b"")), Ok(Vec::<Vec<u8>>::new()));
+    assert_eq!(
+        ignored_paths_from_answer(&output(true, b"", b"")),
+        Ok(Vec::<Vec<u8>>::new())
+    );
     // A path that holds a newline or bytes that are not UTF-8 keeps its bytes exactly.
     assert_eq!(
         ignored_paths_from_answer(&output(true, b"od\nd name\0\xff\xfe\0", b"")),
@@ -235,7 +295,9 @@ fn the_ignored_answer_lists_the_paths_git_printed() {
     );
     assert_eq!(
         ignored_paths_from_answer(&output(false, b"", b"fatal: not a git repository\n")),
-        Err(String::from("Git could not read the ignored files: fatal: not a git repository"))
+        Err(String::from(
+            "Git could not read the ignored files: fatal: not a git repository"
+        ))
     );
 }
 
@@ -255,14 +317,18 @@ fn real_git_lists_the_ignored_file_the_tree_tracks() {
     std::fs::write(repo.join(".env"), b"tracked version\n").expect("tracked environment file");
     std::fs::create_dir_all(repo.join("ignored")).expect("ignored directory");
     std::fs::write(repo.join("ignored/data.bin"), b"kept elsewhere\n").expect("ignored file");
-    git(repo.as_path(), &["add", "--force", "--", ".env", "ignored/data.bin"]);
+    git(
+        repo.as_path(),
+        &["add", "--force", "--", ".env", "ignored/data.bin"],
+    );
     git(repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
     git(repo.as_path(), &["checkout", "--quiet", "main"]);
     // The worktree holds both ignored entries again; only the local environment file differs from the tree.
     std::fs::write(repo.join(".env"), b"the person value\n").expect("ignored file");
     std::fs::create_dir_all(repo.join("ignored")).expect("ignored directory");
     std::fs::write(repo.join("ignored/data.bin"), b"the person version\n").expect("ignored file");
-    std::fs::write(repo.join("ignored/local.bin"), b"the person other file\n").expect("ignored work");
+    std::fs::write(repo.join("ignored/local.bin"), b"the person other file\n")
+        .expect("ignored work");
     let tree = crate::command_test_support::git_output(
         repo.as_path(),
         os_arguments(&["ls-tree", "-r", "-z", "--name-only", "tracks"]).as_slice(),
@@ -276,7 +342,12 @@ fn real_git_lists_the_ignored_file_the_tree_tracks() {
     tracked.sort();
     assert_eq!(
         tracked,
-        vec![b".env".to_vec(), b".gitignore".to_vec(), b"ignored/data.bin".to_vec(), b"tracked.txt".to_vec()]
+        vec![
+            b".env".to_vec(),
+            b".gitignore".to_vec(),
+            b"ignored/data.bin".to_vec(),
+            b"tracked.txt".to_vec()
+        ]
     );
     let queries: Vec<Vec<OsString>> = ignored_paths_queries(&[], tracked.as_slice());
     assert_eq!(queries.len(), 1);
@@ -289,8 +360,15 @@ fn real_git_lists_the_ignored_file_the_tree_tracks() {
     // A tree path that is ignored but absent from the worktree is not a file the command would replace.
     std::fs::remove_file(repo.join("ignored/data.bin")).expect("drop the ignored file");
     let remaining = crate::command_test_support::git_output(repo.as_path(), queries[0].as_slice());
-    let after = output(remaining.status.success(), &remaining.stdout, &remaining.stderr);
-    assert_eq!(ignored_paths_from_answer(&after), Ok(vec![b".env".to_vec()]));
+    let after = output(
+        remaining.status.success(),
+        &remaining.stdout,
+        &remaining.stderr,
+    );
+    assert_eq!(
+        ignored_paths_from_answer(&after),
+        Ok(vec![b".env".to_vec()])
+    );
     remove(root.as_path());
 }
 
@@ -331,7 +409,12 @@ fn the_question_names_every_directory_the_tree_needs() {
         vec![b"one".to_vec()]
     );
     assert!(
-        replaced_answers(&[b"one".to_vec()], tracked.as_slice(), &[b"one/inside.txt".to_vec()]).is_empty(),
+        replaced_answers(
+            &[b"one".to_vec()],
+            tracked.as_slice(),
+            &[b"one/inside.txt".to_vec()]
+        )
+        .is_empty(),
         "a directory the tree also has keeps the files inside it"
     );
     // A tree path the worktree holds as a directory loses everything inside it when the tree writes a file
@@ -356,6 +439,11 @@ fn the_question_names_every_directory_the_tree_needs() {
     );
     // A name that merely starts the same letters is below nothing.
     assert!(
-        replaced_answers(&[], &[b"private".to_vec()], &[b"private-notes.txt".to_vec()]).is_empty()
+        replaced_answers(
+            &[],
+            &[b"private".to_vec()],
+            &[b"private-notes.txt".to_vec()]
+        )
+        .is_empty()
     );
 }

@@ -7,7 +7,10 @@
 //! and the deletion.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// A fresh journal path in a fixture.
 fn journal_path(name: &str) -> (PathBuf, PathBuf) {
@@ -54,9 +57,20 @@ fn a_marked_step_survives_a_reload_and_leaves_no_temporary_file() {
     journal.mark("create", "done").expect("mark");
     journal.mark("copy", "started").expect("mark");
     let reloaded: Journal = Journal::load(path.as_path()).expect("reload");
-    assert!(reloaded.is_persisted() && reloaded.is_done("create") && reloaded.has_begun("copy") && !reloaded.is_done("copy"));
+    assert!(
+        reloaded.is_persisted()
+            && reloaded.is_done("create")
+            && reloaded.has_begun("copy")
+            && !reloaded.is_done("copy")
+    );
     assert_eq!(reloaded.started, journal.started);
-    let names: Vec<String> = std::fs::read_dir(parent.as_path()).expect("listing").flatten().map(|item| { return item.file_name().to_string_lossy().into_owned(); }).collect();
+    let names: Vec<String> = std::fs::read_dir(parent.as_path())
+        .expect("listing")
+        .flatten()
+        .map(|item| {
+            return item.file_name().to_string_lossy().into_owned();
+        })
+        .collect();
     assert_eq!(names, vec![String::from(".journal.json")]);
     remove(parent.as_path());
 }
@@ -68,17 +82,29 @@ fn a_file_that_is_not_a_journal_is_refused_by_name() {
     let (parent, path) = journal_path("journal-broken");
     let cases: [(&str, &str); 6] = [
         ("not json", "is not valid JSON"),
-        ("{\"schema\": 2, \"started\": \"x\", \"steps\": {}}", "unknown schema version"),
-        ("{\"started\": \"x\", \"steps\": {}}", "unknown schema version"),
+        (
+            "{\"schema\": 2, \"started\": \"x\", \"steps\": {}}",
+            "unknown schema version",
+        ),
+        (
+            "{\"started\": \"x\", \"steps\": {}}",
+            "unknown schema version",
+        ),
         ("{\"schema\": 1, \"steps\": {}}", "has no start time"),
         ("{\"schema\": 1, \"started\": \"x\"}", "has no steps"),
-        ("{\"schema\": 1, \"started\": \"x\", \"steps\": {\"copy\": {}}}", "step without a state"),
+        (
+            "{\"schema\": 1, \"started\": \"x\", \"steps\": {\"copy\": {}}}",
+            "step without a state",
+        ),
     ];
     for (text, why) in cases {
         std::fs::write(path.as_path(), text).expect("write");
         let error: MigrateError = Journal::load(path.as_path()).expect_err("refused");
         let shown: String = error.to_string();
-        assert!(shown.contains(why) && shown.contains(path.to_str().expect("path")), "{text}: {shown}");
+        assert!(
+            shown.contains(why) && shown.contains(path.to_str().expect("path")),
+            "{text}: {shown}"
+        );
     }
     remove(parent.as_path());
 }
@@ -90,7 +116,10 @@ fn an_unreadable_journal_is_an_error_not_an_empty_one() {
     let (parent, path) = journal_path("journal-directory");
     std::fs::create_dir(path.as_path()).expect("a directory where the journal would be");
     let error: MigrateError = Journal::load(path.as_path()).expect_err("refused");
-    assert!(error.to_string().contains("cannot read the journal"), "{error}");
+    assert!(
+        error.to_string().contains("cannot read the journal"),
+        "{error}"
+    );
     remove(parent.as_path());
 }
 
@@ -100,8 +129,13 @@ fn a_journal_that_cannot_be_written_is_reported() {
     let parent: PathBuf = fixture("journal-unwritable");
     let path: PathBuf = parent.join("absent-directory").join(".journal.json");
     let mut journal: Journal = Journal::load(path.as_path()).expect("load");
-    let error: MigrateError = journal.mark("copy", "started").expect_err("no directory to write in");
-    assert!(error.to_string().contains("cannot write the journal"), "{error}");
+    let error: MigrateError = journal
+        .mark("copy", "started")
+        .expect_err("no directory to write in");
+    assert!(
+        error.to_string().contains("cannot write the journal"),
+        "{error}"
+    );
     assert!(!journal.is_persisted());
     remove(parent.as_path());
 }
@@ -126,9 +160,19 @@ fn a_journal_path_that_cannot_be_removed_is_reported() {
     let (parent, path) = journal_path("journal-undeletable");
     std::fs::create_dir(path.as_path()).expect("directory");
     std::fs::write(path.join("inside"), b"x").expect("file");
-    let mut journal: Journal = Journal { path: path.clone(), started: String::from("x"), states: BTreeMap::new(), times: BTreeMap::new(), values: BTreeMap::new(), persisted: true };
+    let mut journal: Journal = Journal {
+        path: path.clone(),
+        started: String::from("x"),
+        states: BTreeMap::new(),
+        times: BTreeMap::new(),
+        values: BTreeMap::new(),
+        persisted: true,
+    };
     let error: MigrateError = journal.delete().expect_err("a directory is not a file");
-    assert!(error.to_string().contains("cannot delete the journal"), "{error}");
+    assert!(
+        error.to_string().contains("cannot delete the journal"),
+        "{error}"
+    );
     remove(parent.as_path());
 }
 
@@ -148,19 +192,39 @@ fn a_journal_path_that_cannot_be_removed_is_reported() {
 #[test]
 fn the_stage_identity_reads_back_from_the_recorded_value() {
     let (parent, path) = journal_path("journal-stage-identity");
-    let identity = crate::fs_beneath::ObjectId { device: 0, inode: 256, birth: Some((7, 8)) };
+    let identity = crate::fs_beneath::ObjectId {
+        device: 0,
+        inode: 256,
+        birth: Some((7, 8)),
+    };
     let mut journal: Journal = Journal::load(path.as_path()).expect("load");
-    assert_eq!(journal.stage_identity(), None, "a journal that records none answers none");
+    assert_eq!(
+        journal.stage_identity(),
+        None,
+        "a journal that records none answers none"
+    );
     journal.record_stage_identity(identity);
     journal.mark("create", "done").expect("mark");
     let reloaded: Journal = Journal::load(path.as_path()).expect("load");
-    assert_eq!(reloaded.stage_identity(), Some(identity), "the identity is written and read back");
-    assert_eq!(reloaded.value(STAGE_ROOT), Some(identity.encode().as_str()), "it is one of the journal's values");
+    assert_eq!(
+        reloaded.stage_identity(),
+        Some(identity),
+        "the identity is written and read back"
+    );
+    assert_eq!(
+        reloaded.value(STAGE_ROOT),
+        Some(identity.encode().as_str()),
+        "it is one of the journal's values"
+    );
     let mut not_an_identity: Journal = Journal::load(path.as_path()).expect("load");
     not_an_identity.set_value(STAGE_ROOT, "not an identity");
     not_an_identity.mark("verify", "done").expect("mark");
     let after_a_foreign_value: Journal = Journal::load(path.as_path()).expect("load");
-    assert_eq!(after_a_foreign_value.stage_identity(), None, "a value that is not an identity answers none");
+    assert_eq!(
+        after_a_foreign_value.stage_identity(),
+        None,
+        "a value that is not an identity answers none"
+    );
     remove(parent.as_path());
 }
 
@@ -180,7 +244,10 @@ fn a_value_recorded_beside_a_step_is_read_back() {
     assert_eq!(reloaded.value("installed-root"), Some("0:256"));
     assert_eq!(reloaded.value("other"), None);
     let text: String = std::fs::read_to_string(path.as_path()).expect("file");
-    assert!(text.contains("installed-root"), "the value is in the file: {text}");
+    assert!(
+        text.contains("installed-root"),
+        "the value is in the file: {text}"
+    );
     // A file without the values object is a journal of an earlier release, not a broken one.
     let earlier: String = String::from("{\"schema\": 1, \"started\": \"x\", \"steps\": {}}");
     std::fs::write(path.as_path(), earlier).expect("an earlier release's journal");
@@ -203,10 +270,23 @@ fn a_step_keeps_its_own_time_and_an_old_record_has_none() {
     std::thread::sleep(std::time::Duration::from_millis(1100));
     journal.mark("delta1", "done").expect("mark");
     let reloaded: Journal = Journal::load(path.as_path()).expect("reload");
-    assert_eq!(reloaded.seconds_of("copy"), Some(first), "marking another step does not move this step's time");
+    assert_eq!(
+        reloaded.seconds_of("copy"),
+        Some(first),
+        "marking another step does not move this step's time"
+    );
     assert!(reloaded.seconds_of("delta1") > Some(first));
-    std::fs::write(path.as_path(), br#"{"schema":1,"started":"x","steps":{"copy":{"state":"done","at":"y"}}}"#).expect("an older journal");
-    assert_eq!(Journal::load(path.as_path()).expect("load").seconds_of("copy"), None);
+    std::fs::write(
+        path.as_path(),
+        br#"{"schema":1,"started":"x","steps":{"copy":{"state":"done","at":"y"}}}"#,
+    )
+    .expect("an older journal");
+    assert_eq!(
+        Journal::load(path.as_path())
+            .expect("load")
+            .seconds_of("copy"),
+        None
+    );
     crate::test_support::remove(directory.as_path());
 }
 
@@ -220,13 +300,24 @@ fn the_start_time_is_the_recorded_one_and_a_fresh_journal_has_its_own() {
     let (parent, path) = journal_path("journal-started");
     let fresh: Journal = Journal::load(path.as_path()).expect("load");
     let began: &str = fresh.started();
-    assert!(began.len() >= "2026-01-01T00:00:00Z".len() && began.contains('T') && began.ends_with('Z'), "{began}");
+    assert!(
+        began.len() >= "2026-01-01T00:00:00Z".len() && began.contains('T') && began.ends_with('Z'),
+        "{began}"
+    );
     let recorded: &str = "2026-10-31T12:34:56.789Z";
-    std::fs::write(path.as_path(), format!("{{\"schema\":1,\"started\":\"{recorded}\",\"steps\":{{}}}}")).expect("a journal");
+    std::fs::write(
+        path.as_path(),
+        format!("{{\"schema\":1,\"started\":\"{recorded}\",\"steps\":{{}}}}"),
+    )
+    .expect("a journal");
     let mut loaded: Journal = Journal::load(path.as_path()).expect("load");
     assert_eq!(loaded.started(), recorded);
     loaded.mark("copy", "started").expect("mark");
-    assert_eq!(Journal::load(path.as_path()).expect("reload").started(), recorded, "a resumed run keeps the start time");
+    assert_eq!(
+        Journal::load(path.as_path()).expect("reload").started(),
+        recorded,
+        "a resumed run keeps the start time"
+    );
     remove(parent.as_path());
 }
 
@@ -243,7 +334,11 @@ fn old_fixed_sibling(journal: &Path) -> PathBuf {
 /// `.tmp.`,
 /// a process
 ///  number and a clock reading.
-fn leftover_sibling(journal: &Path, process: &str, clock: &str) -> PathBuf {
+fn leftover_sibling(
+    journal: &Path,
+    process: &str,
+    clock: &str,
+) -> PathBuf {
     let mut name: std::ffi::OsString = journal.as_os_str().to_os_string();
     name.push(format!(".tmp.{process}.{clock}"));
     return PathBuf::from(name);
@@ -262,10 +357,23 @@ fn a_link_planted_at_the_old_sibling_name_is_not_written_through() {
     let planted: PathBuf = old_fixed_sibling(path.as_path());
     std::os::unix::fs::symlink(victim.as_path(), planted.as_path()).expect("plant the link");
     let mut journal: Journal = Journal::load(path.as_path()).expect("load");
-    journal.mark("copy", "started").expect("the journal is written beside the planted link");
-    assert_eq!(std::fs::read(victim.as_path()).expect("victim"), precious, "the planted link was written through");
-    assert_eq!(std::fs::read_link(planted.as_path()).expect("the link is left where it was"), victim);
-    assert!(Journal::load(path.as_path()).expect("reload").has_begun("copy"));
+    journal
+        .mark("copy", "started")
+        .expect("the journal is written beside the planted link");
+    assert_eq!(
+        std::fs::read(victim.as_path()).expect("victim"),
+        precious,
+        "the planted link was written through"
+    );
+    assert_eq!(
+        std::fs::read_link(planted.as_path()).expect("the link is left where it was"),
+        victim
+    );
+    assert!(
+        Journal::load(path.as_path())
+            .expect("reload")
+            .has_begun("copy")
+    );
     remove(parent.as_path());
 }
 
@@ -279,9 +387,18 @@ fn a_dangling_link_planted_at_the_old_sibling_name_creates_nothing() {
     let planted: PathBuf = old_fixed_sibling(path.as_path());
     std::os::unix::fs::symlink(aimed_at.as_path(), planted.as_path()).expect("plant the link");
     let mut journal: Journal = Journal::load(path.as_path()).expect("load");
-    journal.mark("copy", "started").expect("the journal is written beside the planted link");
-    assert!(std::fs::symlink_metadata(aimed_at.as_path()).is_err(), "the write created the file the link names");
-    assert!(Journal::load(path.as_path()).expect("reload").has_begun("copy"));
+    journal
+        .mark("copy", "started")
+        .expect("the journal is written beside the planted link");
+    assert!(
+        std::fs::symlink_metadata(aimed_at.as_path()).is_err(),
+        "the write created the file the link names"
+    );
+    assert!(
+        Journal::load(path.as_path())
+            .expect("reload")
+            .has_begun("copy")
+    );
     remove(parent.as_path());
 }
 
@@ -302,14 +419,30 @@ fn leftovers_of_a_killed_run_are_swept_and_nothing_else_is() {
     let directory: PathBuf = leftover_sibling(path.as_path(), "4243", "1700000000000000001");
     std::fs::create_dir(directory.as_path()).expect("directory under a temporary name");
     let link: PathBuf = leftover_sibling(path.as_path(), "4244", "1700000000000000002");
-    std::os::unix::fs::symlink(notes.as_path(), link.as_path()).expect("link under a temporary name");
+    std::os::unix::fs::symlink(notes.as_path(), link.as_path())
+        .expect("link under a temporary name");
     let mut journal: Journal = Journal::load(path.as_path()).expect("load");
     journal.mark("copy", "started").expect("mark");
-    assert!(std::fs::symlink_metadata(leftover.as_path()).is_err(), "the leftover plain file stayed");
-    assert!(std::fs::symlink_metadata(old_fixed.as_path()).is_err(), "the old fixed sibling stayed");
-    assert_eq!(std::fs::read(notes.as_path()).expect("notes"), b"somebody's notes");
+    assert!(
+        std::fs::symlink_metadata(leftover.as_path()).is_err(),
+        "the leftover plain file stayed"
+    );
+    assert!(
+        std::fs::symlink_metadata(old_fixed.as_path()).is_err(),
+        "the old fixed sibling stayed"
+    );
+    assert_eq!(
+        std::fs::read(notes.as_path()).expect("notes"),
+        b"somebody's notes"
+    );
     assert!(directory.is_dir(), "a directory is never swept");
-    assert!(std::fs::symlink_metadata(link.as_path()).expect("link").file_type().is_symlink(), "a link is never swept");
+    assert!(
+        std::fs::symlink_metadata(link.as_path())
+            .expect("link")
+            .file_type()
+            .is_symlink(),
+        "a link is never swept"
+    );
     remove(parent.as_path());
 }
 
@@ -331,8 +464,14 @@ fn the_exclusive_write_refuses_anything_already_there() {
     let dangling: PathBuf = parent.join("dangling");
     std::os::unix::fs::symlink(aimed_at.as_path(), dangling.as_path()).expect("dangling link");
     for occupied in [&plain, &link, &dangling] {
-        let error: std::io::Error = write_exclusively(occupied.as_path(), b"journal").expect_err("refused");
-        assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists, "{}", occupied.display());
+        let error: std::io::Error =
+            write_exclusively(occupied.as_path(), b"journal").expect_err("refused");
+        assert_eq!(
+            error.kind(),
+            std::io::ErrorKind::AlreadyExists,
+            "{}",
+            occupied.display()
+        );
     }
     assert_eq!(std::fs::read(plain.as_path()).expect("plain"), b"kept");
     assert_eq!(std::fs::read(victim.as_path()).expect("victim"), b"kept");
@@ -351,13 +490,33 @@ fn the_temporary_file_is_private_and_only_the_writers_own_names_are_leftovers() 
     let (parent, _path) = journal_path("journal-shapes");
     let written: PathBuf = parent.join("written");
     write_exclusively(written.as_path(), b"journal").expect("written");
-    let mode: u32 = std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(written.as_path()).expect("metadata").permissions());
+    let mode: u32 = std::os::unix::fs::PermissionsExt::mode(
+        &std::fs::metadata(written.as_path())
+            .expect("metadata")
+            .permissions(),
+    );
     assert_eq!(mode & 0o777, PRIVATE_FILE_MODE);
     let name: &[u8] = b"j.json";
-    for own in ["j.json.tmp", "j.json.tmp.1.2", "j.json.tmp.123456.1700000000000000000"] {
+    for own in [
+        "j.json.tmp",
+        "j.json.tmp.1.2",
+        "j.json.tmp.123456.1700000000000000000",
+    ] {
         assert!(is_leftover_name(own.as_bytes(), name), "{own}");
     }
-    for foreign in ["j.json", "j.json.tmp.", "j.json.tmp.1", "j.json.tmp.1.", "j.json.tmp..2", "j.json.tmp.1.2.3", "j.json.tmp.a.2", "j.json.tmpx", "j.json.old", "x.j.json.tmp", "j.json.tmp.1.2x"] {
+    for foreign in [
+        "j.json",
+        "j.json.tmp.",
+        "j.json.tmp.1",
+        "j.json.tmp.1.",
+        "j.json.tmp..2",
+        "j.json.tmp.1.2.3",
+        "j.json.tmp.a.2",
+        "j.json.tmpx",
+        "j.json.old",
+        "x.j.json.tmp",
+        "j.json.tmp.1.2x",
+    ] {
         assert!(!is_leftover_name(foreign.as_bytes(), name), "{foreign}");
     }
     remove(parent.as_path());
@@ -381,9 +540,16 @@ fn a_named_pipe_where_the_journal_belongs_is_refused_at_once() {
     let parent: PathBuf = fixture("journal-fifo");
     let path: PathBuf = parent.join(".cli-git-migrate-checkout.journal.json");
     crate::subvolume_sync_attrs::make_fifo(path.as_path(), 0o600).expect("named pipe");
-    let read: Option<Result<Journal, MigrateError>> = crate::test_support::finished_within(move || { return Journal::load(path.as_path()); });
-    let Some(loaded) = read else { panic!("reading the journal did not finish within five seconds") };
-    let reason: String = loaded.expect_err("a named pipe is not a journal").to_string();
+    let read: Option<Result<Journal, MigrateError>> =
+        crate::test_support::finished_within(move || {
+            return Journal::load(path.as_path());
+        });
+    let Some(loaded) = read else {
+        panic!("reading the journal did not finish within five seconds")
+    };
+    let reason: String = loaded
+        .expect_err("a named pipe is not a journal")
+        .to_string();
     assert!(reason.contains("not a plain file"), "{reason}");
     remove(parent.as_path());
 }

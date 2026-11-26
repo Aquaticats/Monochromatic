@@ -101,12 +101,31 @@
 //! setInterval(() => { const reason = judge.observe(elapsed(), lookAt(pid)); if (reason) { record(reason); endTree(pin); fail(reason); } }, 100);
 //! ```
 
-use super::supervisor_pin::{Pin, end_tree};
-use super::supervisor_proc::{Look, Sample, children, command_line_of, describe, directory_of, look_at, stat_of, tick};
+use super::supervisor_pin::{
+    Pin,
+    end_tree,
+};
+use super::supervisor_proc::{
+    Look,
+    Sample,
+    children,
+    command_line_of,
+    describe,
+    directory_of,
+    look_at,
+    stat_of,
+    tick,
+};
 use std::collections::HashMap;
 use std::process::Command;
-use std::sync::{Mutex, Once};
-use std::time::{Duration, Instant};
+use std::sync::{
+    Mutex,
+    Once,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The wall-clock backstop of a shared-bound command as the text `timeout` takes:
 /// ten minutes,
@@ -144,7 +163,11 @@ pub struct Limits {
 }
 
 /// The limits of the shared bound.
-pub const SHARED: Limits = Limits { no_progress: NO_PROGRESS_WINDOW, cpu_budget: CPU_BUDGET, backstop: Duration::from_secs(600) };
+pub const SHARED: Limits = Limits {
+    no_progress: NO_PROGRESS_WINDOW,
+    cpu_budget: CPU_BUDGET,
+    backstop: Duration::from_secs(600),
+};
 
 /// Why a command was ended.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -160,15 +183,26 @@ pub enum Reason {
 impl std::fmt::Display for Reason {
     /// The reason in words,
     /// with the figure that decided it.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             Reason::NoProgress(idle) => write!(
                 formatter,
                 "no progress for {:.1} s: no task was runnable, waiting for the disk or held from outside, and processor time, bytes moved, the work of waited-for children and the set of processes stood still (a deadlock or a wait on something that never happens)",
                 idle.as_secs_f64()
             ),
-            Reason::CpuBudget(used) => write!(formatter, "it used {:.1} s of processor time (a loop)", used.as_secs_f64()),
-            Reason::Backstop(elapsed) => write!(formatter, "it was still running after the {:.0} s wall-clock backstop", elapsed.as_secs_f64()),
+            Reason::CpuBudget(used) => write!(
+                formatter,
+                "it used {:.1} s of processor time (a loop)",
+                used.as_secs_f64()
+            ),
+            Reason::Backstop(elapsed) => write!(
+                formatter,
+                "it was still running after the {:.0} s wall-clock backstop",
+                elapsed.as_secs_f64()
+            ),
         };
     }
 }
@@ -202,8 +236,17 @@ pub struct Judge {
 impl Judge {
     /// A judge with nothing seen yet;
     /// `tick` is the length of a clock tick.
-    pub fn new(limits: Limits, tick: Duration) -> Judge {
-        return Judge { limits, last_change: Duration::ZERO, previous: None, cpu_peak_ticks: 0, tick };
+    pub fn new(
+        limits: Limits,
+        tick: Duration,
+    ) -> Judge {
+        return Judge {
+            limits,
+            last_change: Duration::ZERO,
+            previous: None,
+            cpu_peak_ticks: 0,
+            tick,
+        };
     }
 
     /// Judge one look taken `elapsed` after the command started;
@@ -213,22 +256,46 @@ impl Judge {
     /// which suspends the idle rule and nothing else.
     ///  The processor budget and the backstop are checked first,
     /// because they hold whatever the tree is doing.
-    pub fn observe(&mut self, elapsed: Duration, sample: &Sample, held_by_test: bool) -> Option<Reason> {
+    pub fn observe(
+        &mut self,
+        elapsed: Duration,
+        sample: &Sample,
+        held_by_test: bool,
+    ) -> Option<Reason> {
         self.cpu_peak_ticks = self.cpu_peak_ticks.max(sample.cpu_ticks);
-        let used: Duration = self.tick.saturating_mul(u32::try_from(self.cpu_peak_ticks).unwrap_or(u32::MAX));
+        let used: Duration = self
+            .tick
+            .saturating_mul(u32::try_from(self.cpu_peak_ticks).unwrap_or(u32::MAX));
         if used >= self.limits.cpu_budget {
             return Some(Reason::CpuBudget(used));
         }
         if elapsed >= self.limits.backstop {
             return Some(Reason::Backstop(elapsed));
         }
-        let moved: bool = self.previous.as_ref().is_none_or(|(cpu, activity, faults, processes)| {
-            return *cpu != sample.cpu_ticks || *activity != sample.activity || *faults != sample.child_faults || *processes != sample.processes;
-        });
-        if moved || sample.runnable || sample.disk_wait || sample.answer_wait || sample.held || held_by_test {
+        let moved: bool =
+            self.previous
+                .as_ref()
+                .is_none_or(|(cpu, activity, faults, processes)| {
+                    return *cpu != sample.cpu_ticks
+                        || *activity != sample.activity
+                        || *faults != sample.child_faults
+                        || *processes != sample.processes;
+                });
+        if moved
+            || sample.runnable
+            || sample.disk_wait
+            || sample.answer_wait
+            || sample.held
+            || held_by_test
+        {
             self.last_change = elapsed;
         }
-        self.previous = Some((sample.cpu_ticks, sample.activity, sample.child_faults, sample.processes.clone()));
+        self.previous = Some((
+            sample.cpu_ticks,
+            sample.activity,
+            sample.child_faults,
+            sample.processes.clone(),
+        ));
         let idle: Duration = elapsed.saturating_sub(self.last_change);
         if idle >= self.limits.no_progress {
             return Some(Reason::NoProgress(idle));
@@ -295,7 +362,9 @@ static REGISTRY: Mutex<Option<Registry>> = Mutex::new(None);
 
 /// Runs the registry's closure under its lock.
 fn with_registry<T>(action: impl FnOnce(&mut Registry) -> T) -> T {
-    let mut guard = REGISTRY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut guard = REGISTRY
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     return action(guard.get_or_insert_with(Registry::default));
 }
 
@@ -311,7 +380,12 @@ pub fn is_shared_command_line(arguments: &[&str]) -> bool {
 /// Whether a command about to be started is the shared bound.
 pub fn is_shared(command: &Command) -> bool {
     let program: String = command.get_program().to_string_lossy().into_owned();
-    let arguments: Vec<String> = command.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    let arguments: Vec<String> = command
+        .get_args()
+        .map(|argument| {
+            return argument.to_string_lossy().into_owned();
+        })
+        .collect();
     let mut line: Vec<&str> = vec![program.as_str()];
     line.extend(arguments.iter().map(String::as_str));
     return is_shared_command_line(line.as_slice());
@@ -324,18 +398,36 @@ pub fn is_shared(command: &Command) -> bool {
 /// and entered into the registry directly,
 /// so no look of the
 ///  monitor that came before can have written it off.
-pub fn watch(pid: u32, limits: Limits) {
+pub fn watch(
+    pid: u32,
+    limits: Limits,
+) {
     let watched: i32 = i32::try_from(pid).expect("a process ID fits");
     ensure_monitor();
-    let started: u64 = stat_of(watched).expect("the child to watch is running").started;
+    let started: u64 = stat_of(watched)
+        .expect("the child to watch is running")
+        .started;
     let pin: Pin = Pin::open(watched, started).expect("the child to watch can be pinned");
-    with_registry(|registry| { registry.watched.insert(watched, Watched { judge: Judge::new(limits, tick()), began: Instant::now(), pin }); });
+    with_registry(|registry| {
+        registry.watched.insert(
+            watched,
+            Watched {
+                judge: Judge::new(limits, tick()),
+                began: Instant::now(),
+                pin,
+            },
+        );
+    });
 }
 
 /// Whether the monitor still watches the command `pid`.
 pub fn is_watching(pid: u32) -> bool {
-    let Ok(watched) = i32::try_from(pid) else { return false };
-    return with_registry(|registry| { return registry.watched.contains_key(&watched); });
+    let Ok(watched) = i32::try_from(pid) else {
+        return false;
+    };
+    return with_registry(|registry| {
+        return registry.watched.contains_key(&watched);
+    });
 }
 
 /// Take the message of the kill of the command `pid`,
@@ -347,7 +439,9 @@ pub fn is_watching(pid: u32) -> bool {
 pub fn take_kill(pid: u32) -> Option<String> {
     let ended: i32 = i32::try_from(pid).ok()?;
     return with_registry(|registry| {
-        let position: usize = registry.kills.iter().rposition(|kill| { return kill.pid == ended; })?;
+        let position: usize = registry.kills.iter().rposition(|kill| {
+            return kill.pid == ended;
+        })?;
         return Some(registry.kills.remove(position).message);
     });
 }
@@ -356,16 +450,24 @@ pub fn take_kill(pid: u32) -> Option<String> {
 /// a control that wants a slow
 ///  volume to have been in the way reads it after the command ended.
 pub fn disk_wait_looks(pid: u32) -> u32 {
-    let Ok(watched) = i32::try_from(pid) else { return 0 };
-    return with_registry(|registry| { return registry.disk_wait_looks.get(&watched).copied().unwrap_or(0); });
+    let Ok(watched) = i32::try_from(pid) else {
+        return 0;
+    };
+    return with_registry(|registry| {
+        return registry.disk_wait_looks.get(&watched).copied().unwrap_or(0);
+    });
 }
 
 /// How many looks the monitor has taken of the command `pid`:
 /// a control that waits for the monitor to have judged a command
 ///  a number of times counts them instead of the clock.
 pub fn looks_of(pid: u32) -> u32 {
-    let Ok(watched) = i32::try_from(pid) else { return 0 };
-    return with_registry(|registry| { return registry.looks.get(&watched).copied().unwrap_or(0); });
+    let Ok(watched) = i32::try_from(pid) else {
+        return 0;
+    };
+    return with_registry(|registry| {
+        return registry.looks.get(&watched).copied().unwrap_or(0);
+    });
 }
 
 /// A test's hold on the idle judgment of a command,
@@ -397,8 +499,12 @@ impl Drop for IdleHold {
 /// A test that holds a command and never lets it go ends at the backstop.
 pub fn hold_idle_judgment(pid: u32) -> IdleHold {
     let held: i32 = i32::try_from(pid).expect("a process ID fits");
-    with_registry(|registry| { *registry.holds.entry(held).or_default() += 1; });
-    return IdleHold { pid: held };
+    with_registry(|registry| {
+        *registry.holds.entry(held).or_default() += 1;
+    });
+    return IdleHold {
+        pid: held,
+    };
 }
 
 /// What:
@@ -472,8 +578,12 @@ pub fn ending_the_command_of(pid: i32) -> Occupied {
 /// answering the hold that removes it again.
 fn occupy(pid: u32) -> Occupied {
     let marked: i32 = i32::try_from(pid).expect("a process ID fits");
-    with_registry(|registry| { *registry.occupied.entry(marked).or_default() += 1; });
-    return Occupied { pid: marked };
+    with_registry(|registry| {
+        *registry.occupied.entry(marked).or_default() += 1;
+    });
+    return Occupied {
+        pid: marked,
+    };
 }
 
 /// The exit handler:
@@ -481,7 +591,9 @@ fn occupy(pid: u32) -> Occupied {
 /// whatever the test body concluded.
 extern "C" fn fail_unclaimed_at_exit() {
     if let Some(message) = unclaimed_kill(Instant::now(), Duration::ZERO) {
-        eprintln!("a command the supervisor ended was never reported by its test, so the process exits with a failure:\n{message}");
+        eprintln!(
+            "a command the supervisor ended was never reported by its test, so the process exits with a failure:\n{message}"
+        );
         // SAFETY:
         // `_exit` ends the process at once and touches no memory of it;
         // an exit handler must not call `exit` again.
@@ -516,7 +628,9 @@ fn monitor() {
         std::thread::sleep(POLL);
         discover(own, tick);
         let now: Instant = Instant::now();
-        let ids: Vec<i32> = with_registry(|registry| { return registry.watched.keys().copied().collect(); });
+        let ids: Vec<i32> = with_registry(|registry| {
+            return registry.watched.keys().copied().collect();
+        });
         for pid in ids {
             judge_one(pid, now);
         }
@@ -531,10 +645,19 @@ fn monitor() {
 /// and `exec` keeps its process ID and start time,
 /// so a
 ///  verdict about it is read again at every look.
-fn discover(own: i32, tick: Duration) {
+fn discover(
+    own: i32,
+    tick: Duration,
+) {
     for pid in children(own) {
         let Some(stat) = stat_of(pid) else { continue };
-        if stat.parent != own || with_registry(|registry| { return registry.watched.get(&pid).is_some_and(|watched| { return watched.pin.started() == stat.started; }); }) {
+        if stat.parent != own
+            || with_registry(|registry| {
+                return registry.watched.get(&pid).is_some_and(|watched| {
+                    return watched.pin.started() == stat.started;
+                });
+            })
+        {
             continue;
         }
         let line: Vec<String> = command_line_of(pid);
@@ -542,23 +665,43 @@ fn discover(own: i32, tick: Duration) {
         if !is_shared_command_line(words.as_slice()) {
             continue;
         }
-        let Some(pin) = Pin::open(pid, stat.started) else { continue };
+        let Some(pin) = Pin::open(pid, stat.started) else {
+            continue;
+        };
         with_registry(|registry| {
-            registry.watched.insert(pid, Watched { judge: Judge::new(SHARED, tick), began: Instant::now(), pin });
+            registry.watched.insert(
+                pid,
+                Watched {
+                    judge: Judge::new(SHARED, tick),
+                    began: Instant::now(),
+                    pin,
+                },
+            );
         });
     }
 }
 
 /// Look at one watched command and end it if the judge says so.
-fn judge_one(pid: i32, now: Instant) {
-    let Some(started) = with_registry(|registry| { return registry.watched.get(&pid).map(|watched| { return watched.pin.started(); }); }) else { return };
+fn judge_one(
+    pid: i32,
+    now: Instant,
+) {
+    let Some(started) = with_registry(|registry| {
+        return registry.watched.get(&pid).map(|watched| {
+            return watched.pin.started();
+        });
+    }) else {
+        return;
+    };
     let sample: Sample = match look_at(pid, started) {
         // The command is over;
         // the entry goes,
         // and a kill that was recorded for it stays for its test.
         Look::Gone | Look::Exited => {
             with_registry(|registry| {
-                if registry.watched.get(&pid).is_some_and(|watched| { return watched.pin.started() == started; }) {
+                if registry.watched.get(&pid).is_some_and(|watched| {
+                    return watched.pin.started() == started;
+                }) {
                     registry.watched.remove(&pid);
                 }
             });
@@ -574,7 +717,9 @@ fn judge_one(pid: i32, now: Instant) {
         let held: bool = registry.holds.contains_key(&pid);
         let watched: &mut Watched = registry.watched.get_mut(&pid)?;
         let began: Instant = watched.began;
-        return watched.judge.observe(now.saturating_duration_since(began), &sample, held);
+        return watched
+            .judge
+            .observe(now.saturating_duration_since(began), &sample, held);
     });
     let Some(reason) = verdict else { return };
     let line: String = command_line_of(pid).join(" ");
@@ -583,7 +728,11 @@ fn judge_one(pid: i32, now: Instant) {
         directory_of(pid),
         describe(pid)
     );
-    let Some(watched) = with_registry(|registry| { return registry.watched.remove(&pid); }) else { return };
+    let Some(watched) = with_registry(|registry| {
+        return registry.watched.remove(&pid);
+    }) else {
+        return;
+    };
     end_command(&watched.pin, message.as_str(), &end_tree);
     eprintln!("{message}");
 }
@@ -593,8 +742,18 @@ fn judge_one(pid: i32, now: Instant) {
 /// the test that waits for the command
 ///  sees it end after the first signal,
 /// so the record has to be there before.
-pub fn end_command(pin: &Pin, message: &str, end: &dyn Fn(&Pin)) {
-    with_registry(|registry| { registry.kills.push(Kill { pid: pin.pid(), message: message.to_string(), at: Instant::now() }); });
+pub fn end_command(
+    pin: &Pin,
+    message: &str,
+    end: &dyn Fn(&Pin),
+) {
+    with_registry(|registry| {
+        registry.kills.push(Kill {
+            pid: pin.pid(),
+            message: message.to_string(),
+            at: Instant::now(),
+        });
+    });
     // What: the mark saying this command's ending is still going on, held until the tree is ended.
     // Why:  the record above cannot be claimed until the command is gone, and a starved host can take seconds to end a
     //       tree, so the monitor must not abort over a record no test could have claimed yet.
@@ -604,7 +763,9 @@ pub fn end_command(pin: &Pin, message: &str, end: &dyn Fn(&Pin)) {
     // The test has the whole grace to claim the record from the moment the command is gone: an ending that a starved host
     //  makes slow must not use the grace up before the test has had a chance to run (a gate saw the process abort that way).
     with_registry(|registry| {
-        if let Some(kill) = registry.kills.iter_mut().rev().find(|kill| { return kill.pid == pin.pid(); }) {
+        if let Some(kill) = registry.kills.iter_mut().rev().find(|kill| {
+            return kill.pid == pin.pid();
+        }) {
             kill.at = Instant::now();
         }
     });
@@ -612,21 +773,46 @@ pub fn end_command(pin: &Pin, message: &str, end: &dyn Fn(&Pin)) {
 
 /// Whether a kill of the command `pid` is recorded and not claimed.
 pub fn kill_recorded(pid: i32) -> bool {
-    return with_registry(|registry| { return registry.kills.iter().any(|kill| { return kill.pid == pid; }); });
+    return with_registry(|registry| {
+        return registry.kills.iter().any(|kill| {
+            return kill.pid == pid;
+        });
+    });
 }
 
 /// The message of a kill nobody has claimed within `grace` of `now`,
 /// if there is one.
-pub fn unclaimed_kill(now: Instant, grace: Duration) -> Option<String> {
+pub fn unclaimed_kill(
+    now: Instant,
+    grace: Duration,
+) -> Option<String> {
     return with_registry(|registry| {
-        return registry.kills.iter().find(|kill| { return now.saturating_duration_since(kill.at) >= grace; }).map(|kill| { return kill.message.clone(); });
+        return registry
+            .kills
+            .iter()
+            .find(|kill| {
+                return now.saturating_duration_since(kill.at) >= grace;
+            })
+            .map(|kill| {
+                return kill.message.clone();
+            });
     });
 }
 
 /// Record a kill as the monitor would,
 /// for the control that reads what happens to one nobody claims.
-pub fn plant_kill(pid: i32, message: &str, at: Instant) {
-    with_registry(|registry| { registry.kills.push(Kill { pid, message: message.to_string(), at }); });
+pub fn plant_kill(
+    pid: i32,
+    message: &str,
+    at: Instant,
+) {
+    with_registry(|registry| {
+        registry.kills.push(Kill {
+            pid,
+            message: message.to_string(),
+            at,
+        });
+    });
 }
 
 /// What:
@@ -644,13 +830,21 @@ pub fn plant_kill(pid: i32, message: &str, at: Instant) {
 /// ```ts
 /// const killToAbort = (now, grace) => kills.find((k) => now - k.at >= grace && !occupied.has(k.pid));
 /// ```
-pub fn kill_to_abort(now: Instant, grace: Duration) -> Option<String> {
+pub fn kill_to_abort(
+    now: Instant,
+    grace: Duration,
+) -> Option<String> {
     return with_registry(|registry| {
         return registry
             .kills
             .iter()
-            .find(|kill| { return now.saturating_duration_since(kill.at) >= grace && !registry.occupied.contains_key(&kill.pid); })
-            .map(|kill| { return kill.message.clone(); });
+            .find(|kill| {
+                return now.saturating_duration_since(kill.at) >= grace
+                    && !registry.occupied.contains_key(&kill.pid);
+            })
+            .map(|kill| {
+                return kill.message.clone();
+            });
     });
 }
 
@@ -658,7 +852,9 @@ pub fn kill_to_abort(now: Instant, grace: Duration) -> Option<String> {
 /// so a command ended by the supervisor always fails its test.
 fn abort_on_unclaimed(now: Instant) {
     if let Some(message) = kill_to_abort(now, UNCLAIMED_GRACE) {
-        eprintln!("a command the supervisor ended was never reported by its test, so the process aborts:\n{message}");
+        eprintln!(
+            "a command the supervisor ended was never reported by its test, so the process aborts:\n{message}"
+        );
         std::process::abort();
     }
 }

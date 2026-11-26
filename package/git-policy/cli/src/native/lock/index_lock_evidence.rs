@@ -32,22 +32,39 @@
 //! const evidence = await gatherIndexLockEvidence({ realIndexPath }); classifyIndexLock(evidence);
 //! ```
 
-/// Open-holder scans.
-use crate::index_lock_holders::{HolderEvidence, scan_platform_holders};
 /// Whether a process's command name is Git's.
 use crate::git_command_name::names_git_command;
-/// Process start times.
-use crate::process_start::{ProcessStart, resolve_process_start};
+/// The end of a wait and the sentences the evidence is reported in.
+pub use crate::index_lock_evidence_words::{
+    DEAD_OWNER_LOCK_LEFT,
+    THE_ENDING_SAYS_IT,
+    WaitEnd,
+    blocker_words,
+    ceiling_line,
+    dead_owner_diagnostic,
+    proven_holder_line,
+    proven_holder_progress_line,
+    unproven_removal_advice,
+    unproven_wait_line,
+};
 /// The sentences about a live holder.
 pub use crate::index_lock_holder_words::holder_way_out;
+/// Open-holder scans.
+use crate::index_lock_holders::{
+    HolderEvidence,
+    scan_platform_holders,
+};
+/// Process start times.
+use crate::process_start::{
+    ProcessStart,
+    resolve_process_start,
+};
 /// Git's PID file path.
 use crate::recovery_files::lock_pid_path;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
-/// The end of a wait and the sentences the evidence is reported in.
-pub use crate::index_lock_evidence_words::{
-    DEAD_OWNER_LOCK_LEFT, THE_ENDING_SAYS_IT, WaitEnd, blocker_words, ceiling_line, dead_owner_diagnostic, proven_holder_line, proven_holder_progress_line,
-    unproven_removal_advice, unproven_wait_line,
+use std::path::{
+    Path,
+    PathBuf,
 };
 
 /// Longest PID file text quoted in evidence,
@@ -140,9 +157,15 @@ impl PidProcess {
     /// Only worded:
     /// no verdict rests on it (audit of 2026-11-09,
     /// finding 3).
-    pub fn starts_after(&self, lock: &LockMetadata) -> bool {
+    pub fn starts_after(
+        &self,
+        lock: &LockMetadata,
+    ) -> bool {
         return match self.start {
-            ProcessStart::Running { started_at_ms, resolution_ms } => started_at_ms > (lock.ctime_ms + resolution_ms) as f64,
+            ProcessStart::Running {
+                started_at_ms,
+                resolution_ms,
+            } => started_at_ms > (lock.ctime_ms + resolution_ms) as f64,
             ProcessStart::Missing | ProcessStart::Unknown(_) => false,
         };
     }
@@ -278,7 +301,11 @@ pub fn read_lock_metadata(lock_path: &Path) -> std::io::Result<Option<LockMetada
             },
             Err(_) => 0,
         };
-        return Ok(Some(LockMetadata { device: 0, inode: 0, ctime_ms: changed }));
+        return Ok(Some(LockMetadata {
+            device: 0,
+            inode: 0,
+            ctime_ms: changed,
+        }));
     }
 }
 
@@ -293,7 +320,10 @@ pub fn read_lock_metadata(lock_path: &Path) -> std::io::Result<Option<LockMetada
 /// error.code === 'ENOENT' || error.code === 'ENOTDIR'
 /// ```
 fn is_missing(error: &std::io::Error) -> bool {
-    return matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory);
+    return matches!(
+        error.kind(),
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+    );
 }
 
 /// What:
@@ -336,7 +366,10 @@ pub fn host_pid_process(pid: i64) -> PidProcess {
         }
         Err(_) => None,
     };
-    return PidProcess { start: resolve_process_start(pid), command };
+    return PidProcess {
+        start: resolve_process_start(pid),
+        command,
+    };
 }
 
 /// What:
@@ -382,12 +415,16 @@ fn quoted_prefix(text: &str) -> String {
 /// ```ts
 /// async function readPidFileEvidence({ pidPath, readProcess }): Promise<PidFileEvidence>;
 /// ```
-pub fn read_pid_file_evidence(pid_path: &Path, resolve: fn(i64) -> PidProcess) -> PidFile {
-    let text: String = match crate::plain_file::read_plain_file(pid_path, crate::plain_file::SMALL_FILE_LIMIT) {
-        Ok(bytes) => String::from_utf8_lossy(bytes.as_slice()).into_owned(),
-        Err(error) if is_missing(&error) => return PidFile::Absent,
-        Err(error) => return PidFile::Unreadable(error.to_string()),
-    };
+pub fn read_pid_file_evidence(
+    pid_path: &Path,
+    resolve: fn(i64) -> PidProcess,
+) -> PidFile {
+    let text: String =
+        match crate::plain_file::read_plain_file(pid_path, crate::plain_file::SMALL_FILE_LIMIT) {
+            Ok(bytes) => String::from_utf8_lossy(bytes.as_slice()).into_owned(),
+            Err(error) if is_missing(&error) => return PidFile::Absent,
+            Err(error) => return PidFile::Unreadable(error.to_string()),
+        };
     let Some(pid) = parse_pid_file_text(text.as_str()) else {
         return PidFile::Malformed(quoted_prefix(text.as_str()));
     };
@@ -444,7 +481,13 @@ pub fn classify_index_lock(evidence: &Evidence) -> Verdict {
         // the lock: Git records no PID namespace, so the writer may be a live Git of another one holding the lock through
         // its editor with no descriptor open (cross-vendor review of 2026-11-09, findings 2 and 4). A committing service
         // waits for such an owner instead of acting on this verdict.
-        PidFile::Owner(pid, process) if process.gone() && !evidence.holders.as_ref().is_some_and(HolderEvidence::unresolved) => {
+        PidFile::Owner(pid, process)
+            if process.gone()
+                && !evidence
+                    .holders
+                    .as_ref()
+                    .is_some_and(HolderEvidence::unresolved) =>
+        {
             return Verdict::Dead(*pid);
         }
         _ => return Verdict::EvidenceFree,
@@ -480,7 +523,12 @@ pub fn gather_with(
             "gatherIndexLockEvidence",
             format!("PID file proves live owner {pid}").as_str(),
         );
-        return Ok(Some(Evidence { lock_path, lock, pid_file, holders: None }));
+        return Ok(Some(Evidence {
+            lock_path,
+            lock,
+            pid_file,
+            holders: None,
+        }));
     }
     let holders: HolderEvidence = scan(lock_path.as_path(), lock.device, lock.inode);
     return Ok(Some(Evidence {

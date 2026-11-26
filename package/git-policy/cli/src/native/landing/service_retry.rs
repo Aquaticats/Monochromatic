@@ -18,7 +18,10 @@
 //! ```
 
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Added to a wait so that the lease is over when the service looks,
 /// not exactly at its edge.
@@ -50,7 +53,10 @@ impl RetrySchedule {
 
     /// How long until the first entry is due (nothing at all when the schedule is empty,
     /// zero for one already due).
-    pub fn next_wait(&self, now: Instant) -> Option<Duration> {
+    pub fn next_wait(
+        &self,
+        now: Instant,
+    ) -> Option<Duration> {
         let mut least: Option<Duration> = None;
         for (_directory, when) in &self.due {
             let wait: Duration = when.saturating_duration_since(now);
@@ -63,7 +69,10 @@ impl RetrySchedule {
     }
 
     /// Removes and returns the repositories that are due at `now`.
-    pub fn take_due(&mut self, now: Instant) -> Vec<PathBuf> {
+    pub fn take_due(
+        &mut self,
+        now: Instant,
+    ) -> Vec<PathBuf> {
         // The entries due now leave the schedule in order; the others stay in order.
         let mut due: Vec<PathBuf> = Vec::new();
         let mut waiting: Vec<(PathBuf, Instant)> = Vec::new();
@@ -80,7 +89,12 @@ impl RetrySchedule {
 
     /// Forgets what was scheduled for the repositories a round just ran,
     /// and schedules what that round asked for.
-    pub fn replace(&mut self, ran: &[PathBuf], retries: Vec<(PathBuf, Duration)>, now: Instant) {
+    pub fn replace(
+        &mut self,
+        ran: &[PathBuf],
+        retries: Vec<(PathBuf, Duration)>,
+        now: Instant,
+    ) {
         let mut kept: Vec<(PathBuf, Instant)> = Vec::new();
         for entry in std::mem::take(&mut self.due) {
             if !ran.contains(&entry.0) {

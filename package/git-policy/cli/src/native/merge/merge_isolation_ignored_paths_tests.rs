@@ -4,7 +4,13 @@
 //! Each control that needs a repository runs real Git in a disposable one.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -31,15 +37,28 @@ fn the_batches_cover_every_path_once_under_the_argument_bound() {
         assert_eq!(start, covered, "the batches are adjacent and ordered");
         assert!(end > start, "a batch holds at least one path");
         let bytes: usize = many[start..end].iter().map(Vec::len).sum();
-        assert!(bytes <= PATH_TEXT_PER_CALL, "a batch's path text stays under the bound: {bytes}");
+        assert!(
+            bytes <= PATH_TEXT_PER_CALL,
+            "a batch's path text stays under the bound: {bytes}"
+        );
         if end < many.len() {
-            assert!(bytes + many[end].len() > PATH_TEXT_PER_CALL, "a batch ends only where the next path would break the bound");
+            assert!(
+                bytes + many[end].len() > PATH_TEXT_PER_CALL,
+                "a batch ends only where the next path would break the bound"
+            );
         }
         covered = end;
     }
     assert_eq!(covered, many.len(), "every path is in a batch exactly once");
-    assert!(spans.len() > 1, "path text this long takes more than one call");
-    assert_eq!(batches(&[]), [(0usize, 0usize)], "an empty list is one empty batch");
+    assert!(
+        spans.len() > 1,
+        "path text this long takes more than one call"
+    );
+    assert_eq!(
+        batches(&[]),
+        [(0usize, 0usize)],
+        "an empty list is one empty batch"
+    );
 }
 
 /// What:
@@ -51,14 +70,25 @@ fn the_batches_cover_every_path_once_under_the_argument_bound() {
 fn a_repository_with_ignored_paths(name: &str) -> (PathBuf, PathBuf) {
     let parent: PathBuf = fixture(name);
     let repo: PathBuf = repository(parent.as_path(), "repo");
-    std::fs::write(repo.join(".gitignore"), "added.txt\nbuild/\ntracked-ignored.txt\n").expect(".gitignore");
+    std::fs::write(
+        repo.join(".gitignore"),
+        "added.txt\nbuild/\ntracked-ignored.txt\n",
+    )
+    .expect(".gitignore");
     std::fs::write(repo.join("tracked-ignored.txt"), b"tracked\n").expect("tracked-ignored.txt");
     std::fs::write(repo.join("plain.txt"), b"plain\n").expect("plain.txt");
     git(repo.as_path(), &["add", "--", ".gitignore", "plain.txt"]);
-    git(repo.as_path(), &["add", "--force", "--", "tracked-ignored.txt"]);
+    git(
+        repo.as_path(),
+        &["add", "--force", "--", "tracked-ignored.txt"],
+    );
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     std::fs::create_dir(repo.join("build")).expect("build");
-    std::fs::write(repo.join("build").join("out.txt"), b"the person's build output\n").expect("build/out.txt");
+    std::fs::write(
+        repo.join("build").join("out.txt"),
+        b"the person's build output\n",
+    )
+    .expect("build/out.txt");
     std::fs::write(repo.join("added.txt"), b"the person's ignored file\n").expect("added.txt");
     return (parent, repo);
 }
@@ -78,18 +108,37 @@ fn a_repository_with_ignored_paths(name: &str) -> (PathBuf, PathBuf) {
 /// misread as the person's.
 #[test]
 fn only_the_ignored_untracked_files_among_the_paths_given_are_answered() {
-    let (parent, repo): (PathBuf, PathBuf) = a_repository_with_ignored_paths("merge-ignored-paths-read");
+    let (parent, repo): (PathBuf, PathBuf) =
+        a_repository_with_ignored_paths("merge-ignored-paths-read");
     let context: GitContext = git_context();
-    let written: Vec<Vec<u8>> = ["added.txt", "build/out.txt", "tracked-ignored.txt", "plain.txt", "missing.txt"]
-        .iter()
-        .map(|name| { return name.as_bytes().to_vec(); })
-        .collect();
-    let mut found: Vec<Vec<u8>> = ignored_untracked_among(&context, repo.as_path(), written.as_slice()).expect("the read answers");
+    let written: Vec<Vec<u8>> = [
+        "added.txt",
+        "build/out.txt",
+        "tracked-ignored.txt",
+        "plain.txt",
+        "missing.txt",
+    ]
+    .iter()
+    .map(|name| {
+        return name.as_bytes().to_vec();
+    })
+    .collect();
+    let mut found: Vec<Vec<u8>> =
+        ignored_untracked_among(&context, repo.as_path(), written.as_slice())
+            .expect("the read answers");
     found.sort();
     let expected: Vec<Vec<u8>> = [b"added.txt".to_vec(), b"build/out.txt".to_vec()].to_vec();
     assert_eq!(found, expected, "the files a rule covers, and nothing else");
     let outside: Vec<Vec<u8>> = [b"other.txt".to_vec()].to_vec();
-    assert_eq!(ignored_untracked_among(&context, repo.as_path(), outside.as_slice()), Ok(Vec::new()), "a path no rule covers is no work of theirs");
-    assert_eq!(ignored_untracked_among(&context, repo.as_path(), &[]), Ok(Vec::new()), "a merge that writes nothing asks nothing");
+    assert_eq!(
+        ignored_untracked_among(&context, repo.as_path(), outside.as_slice()),
+        Ok(Vec::new()),
+        "a path no rule covers is no work of theirs"
+    );
+    assert_eq!(
+        ignored_untracked_among(&context, repo.as_path(), &[]),
+        Ok(Vec::new()),
+        "a merge that writes nothing asks nothing"
+    );
     remove(parent.as_path());
 }

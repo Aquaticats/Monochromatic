@@ -20,14 +20,30 @@
 #![cfg(unix)]
 
 use super::*;
+use crate::process_tree::{
+    TreeMember,
+    member_of,
+};
 /// What a look at a tree reads of `/proc`,
 /// and the identities it keeps,
 /// which live in `push_progress_meter.rs`.
-use crate::push_progress_meter::{bytes_moved_by, is_working, parse_activity, system_measures};
+use crate::push_progress_meter::{
+    bytes_moved_by,
+    is_working,
+    parse_activity,
+    system_measures,
+};
 use crate::push_progress_signs::Signs;
-use crate::process_tree::{TreeMember, member_of};
-use crate::test_support::{fixture, remove, spawn_owned};
-use std::process::{Child, Command, Stdio};
+use crate::test_support::{
+    fixture,
+    remove,
+    spawn_owned,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 /// The name the control gives the probe test in order to run it as a process of its own.
 const PROBE_NAME: &str = "push::push_progress::tests::disk_wait_probe";
 
@@ -62,7 +78,10 @@ const PATIENCE: Duration = Duration::from_secs(20);
 
 /// A shell command running `script` in `directory`,
 /// with its output discarded.
-fn shell(script: &str, directory: &std::path::Path) -> Child {
+fn shell(
+    script: &str,
+    directory: &std::path::Path,
+) -> Child {
     return spawn_owned(
         Command::new("sh")
             .arg("-c")
@@ -82,7 +101,10 @@ fn end(child: Child) {
 
 /// Look at the tree until a sample shows nothing new,
 /// which an idle tree does within a few looks of its start.
-fn settle(meter: &mut Meter, root: i32) {
+fn settle(
+    meter: &mut Meter,
+    root: i32,
+) {
     let began: Instant = Instant::now();
     while meter.sample(root) {
         assert!(began.elapsed() < PATIENCE, "the tree never went idle");
@@ -114,17 +136,26 @@ fn settle(meter: &mut Meter, root: i32) {
 fn a_write_of_the_root_is_progress_and_an_idle_tree_is_not() {
     let root: std::path::PathBuf = fixture("progress-root");
     // The child says it has started and is about to sleep, so the tree is settled after the shell's own start and not before.
-    let child: Child = shell(": > started; sleep 0.6; echo a >> log; sleep 60", root.as_path());
+    let child: Child = shell(
+        ": > started; sleep 0.6; echo a >> log; sleep 60",
+        root.as_path(),
+    );
     let pid: i32 = i32::try_from(child.id()).expect("pid");
     let began_waiting: Instant = Instant::now();
     while !root.join("started").exists() {
-        assert!(began_waiting.elapsed() < PATIENCE, "the child never said it had started");
+        assert!(
+            began_waiting.elapsed() < PATIENCE,
+            "the child never said it had started"
+        );
         std::thread::sleep(POLL);
     }
     let mut meter: Meter = Meter::new();
     settle(&mut meter, pid);
     let idle: u64 = meter.moved();
-    assert!(!meter.sample(pid), "nothing moved between two looks of an idle tree");
+    assert!(
+        !meter.sample(pid),
+        "nothing moved between two looks of an idle tree"
+    );
     assert_eq!(meter.moved(), idle);
     let began: Instant = Instant::now();
     let mut seen: bool = false;
@@ -143,7 +174,10 @@ fn a_write_of_the_root_is_progress_and_an_idle_tree_is_not() {
 #[test]
 fn a_write_of_a_process_the_root_started_is_progress() {
     let root: std::path::PathBuf = fixture("progress-descendant");
-    let child: Child = shell("(sleep 0.6; echo a >> log; sleep 60) & wait", root.as_path());
+    let child: Child = shell(
+        "(sleep 0.6; echo a >> log; sleep 60) & wait",
+        root.as_path(),
+    );
     let pid: i32 = i32::try_from(child.id()).expect("pid");
     let mut meter: Meter = Meter::new();
     settle(&mut meter, pid);
@@ -176,19 +210,28 @@ fn a_write_of_a_process_the_root_started_is_progress() {
 #[test]
 fn ending_a_child_ends_the_processes_it_started_too() {
     let root: std::path::PathBuf = fixture("progress-end-group");
-    let child: Child = shell("(sleep 0.3; echo a >> log; sleep 60) & wait", root.as_path());
+    let child: Child = shell(
+        "(sleep 0.3; echo a >> log; sleep 60) & wait",
+        root.as_path(),
+    );
     let pid: i32 = i32::try_from(child.id()).expect("pid");
     // The subshell must exist before the child is ended, or there is nothing left running to find.
     let began: Instant = Instant::now();
     while crate::process_tree::descendants_of(pid).is_empty() {
-        assert!(began.elapsed() < PATIENCE, "the shell never started its subshell");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the shell never started its subshell"
+        );
         std::thread::sleep(Duration::from_millis(5));
     }
     end(child);
     std::thread::sleep(Duration::from_millis(600));
     let left_running: bool = root.join("log").exists();
     remove(root.as_path());
-    assert!(!left_running, "a process the ended child had started was left running and wrote into the fixture");
+    assert!(
+        !left_running,
+        "a process the ended child had started was left running and wrote into the fixture"
+    );
 }
 
 /// A process that ends takes its counters with it,
@@ -203,7 +246,11 @@ fn the_bytes_of_a_process_that_ended_stay_counted() {
     let counted: u64 = meter.moved();
     assert!(counted > 0, "the shell and its subshell moved bytes");
     assert!(!meter.sample(pid));
-    assert_eq!(meter.moved(), counted, "a subshell that has ended does not take its bytes away");
+    assert_eq!(
+        meter.moved(),
+        counted,
+        "a subshell that has ended does not take its bytes away"
+    );
     end(child);
     remove(root.as_path());
 }
@@ -246,7 +293,12 @@ fn a_fixed_patience_stops_at_its_limit() {
 fn a_tree_that_moves_nothing_stalls_at_its_window() {
     let child: Child = spawn_owned(Command::new("sleep").arg("60")).expect("sleep");
     let stall: Duration = Duration::from_millis(1200);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall });
+    let mut clock: Clock = Clock::start(
+        child.id(),
+        Patience::Progress {
+            stall,
+        },
+    );
     let began: Instant = Instant::now();
     let cause: StopCause = loop {
         if let Some(cause) = clock.check() {
@@ -255,16 +307,26 @@ fn a_tree_that_moves_nothing_stalls_at_its_window() {
         assert!(began.elapsed() < PATIENCE);
         std::thread::sleep(LOOK);
     };
-    let StopCause::Stalled(report) = cause else { panic!("a stall, not another limit") };
+    let StopCause::Stalled(report) = cause else {
+        panic!("a stall, not another limit")
+    };
     assert_eq!(report.limit, stall);
     assert!(report.elapsed >= stall, "{:?}", report.elapsed);
     // Progress, and not a clock: the report carries the bytes the meter counted, which is what says the stop was measured from
     //  the tree and not from a constant.
-    assert_eq!(Some(report.moved), clock.meter.as_ref().map(Meter::moved), "the report carries the bytes the meter counted");
+    assert_eq!(
+        Some(report.moved),
+        clock.meter.as_ref().map(Meter::moved),
+        "the report carries the bytes the meter counted"
+    );
     // The ceiling below is the one place this control still reads the clock, because the detector reads it too: nothing about
     //  the tree's progress bounds how late this host wakes the poll loop. Measured on this host at a load average of 47: the
     //  control reported at 1.7 s for a window of 1.2 s, so the 4.2 s ceiling carries 2.4 times the figure it was measured at.
-    assert!(report.elapsed < stall + SAMPLE_INTERVAL * 6, "{:?}", report.elapsed);
+    assert!(
+        report.elapsed < stall + SAMPLE_INTERVAL * 6,
+        "{:?}",
+        report.elapsed
+    );
     end(child);
 }
 
@@ -276,14 +338,22 @@ fn a_tree_that_keeps_moving_is_never_stopped_for_time() {
     let child: Child = shell("while :; do echo x >> log; sleep 0.1; done", root.as_path());
     let stall: Duration = Duration::from_millis(1500);
     let watched: Duration = stall * 3;
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall });
+    let mut clock: Clock = Clock::start(
+        child.id(),
+        Patience::Progress {
+            stall,
+        },
+    );
     let began: Instant = Instant::now();
     let mut stopped: Option<StopCause> = None;
     while stopped.is_none() && began.elapsed() < watched {
         stopped = clock.check();
         std::thread::sleep(LOOK);
     }
-    assert!(stopped.is_none(), "data kept moving, so nothing stops the tree");
+    assert!(
+        stopped.is_none(),
+        "data kept moving, so nothing stops the tree"
+    );
     end(child);
     remove(root.as_path());
 }
@@ -293,8 +363,12 @@ fn a_tree_that_keeps_moving_is_never_stopped_for_time() {
 /// or ended and waiting to be reaped,
 /// does not.
 fn process_runs(pid: u32) -> bool {
-    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else { return false };
-    return stat.rsplit_once(')').and_then(|(_, rest)| { return rest.trim_start().chars().next(); }) != Some('Z');
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+        return false;
+    };
+    return stat.rsplit_once(')').and_then(|(_, rest)| {
+        return rest.trim_start().chars().next();
+    }) != Some('Z');
 }
 
 /// The loop that leaked for 87 minutes,
@@ -326,7 +400,10 @@ fn a_loop_started_by_a_panicking_test_is_gone_when_the_test_ends() {
         // SAFETY: `kill` takes a pid and a signal and touches no memory.
         unsafe { libc::kill(libc::pid_t::try_from(pid).expect("pid"), libc::SIGKILL) };
     }
-    assert!(!left, "the loop of process {pid} outlived the test that started it");
+    assert!(
+        !left,
+        "the loop of process {pid} outlived the test that started it"
+    );
 }
 
 /// A process that product code started in the fixture,
@@ -364,7 +441,10 @@ fn a_process_working_in_a_fixture_is_gone_when_the_test_ends() {
         // SAFETY: `kill` takes a pid and a signal and touches no memory.
         unsafe { libc::kill(libc::pid_t::try_from(pid).expect("pid"), libc::SIGKILL) };
     }
-    assert!(!left, "the sleeper of process {pid} outlived the test that started it");
+    assert!(
+        !left,
+        "the sleeper of process {pid} outlived the test that started it"
+    );
 }
 
 /// Where nothing is measured the stall window is a fixed deadline,
@@ -374,7 +454,13 @@ fn without_a_measure_the_stall_window_is_a_fixed_deadline() {
     let root: std::path::PathBuf = fixture("progress-unmeasured");
     let child: Child = shell("while :; do echo x >> log; sleep 0.1; done", root.as_path());
     let stall: Duration = Duration::from_millis(600);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).unmeasured();
+    let mut clock: Clock = Clock::start(
+        child.id(),
+        Patience::Progress {
+            stall,
+        },
+    )
+    .unmeasured();
     let began: Instant = Instant::now();
     let cause: StopCause = loop {
         if let Some(cause) = clock.check() {
@@ -383,7 +469,10 @@ fn without_a_measure_the_stall_window_is_a_fixed_deadline() {
         assert!(began.elapsed() < PATIENCE);
         std::thread::sleep(LOOK);
     };
-    assert!(matches!(cause, StopCause::Deadline), "no measure, so the window is the whole deadline");
+    assert!(
+        matches!(cause, StopCause::Deadline),
+        "no measure, so the window is the whole deadline"
+    );
     assert!(began.elapsed() >= stall);
     end(child);
     remove(root.as_path());
@@ -444,8 +533,11 @@ extern "C" fn hold_in_vfork_child(note: *mut libc::c_void) -> libc::c_int {
         let hold: &DiskWaitHold = &*note.cast::<DiskWaitHold>();
         sleep_for_the_hold(hold.announce_after_milliseconds);
         if !hold.announce.is_null() {
-            let made: libc::c_int =
-                libc::open(hold.announce, libc::O_WRONLY | libc::O_CREAT | libc::O_TRUNC | libc::O_CLOEXEC, 0o644 as libc::mode_t);
+            let made: libc::c_int = libc::open(
+                hold.announce,
+                libc::O_WRONLY | libc::O_CREAT | libc::O_TRUNC | libc::O_CLOEXEC,
+                0o644 as libc::mode_t,
+            );
             if made >= 0 {
                 let _closed: libc::c_int = libc::close(made);
             }
@@ -464,14 +556,22 @@ extern "C" fn hold_in_vfork_child(note: *mut libc::c_void) -> libc::c_int {
 /// device or FUSE mount is needed to make.
 ///  `announce` is created from inside the hold,
 /// so whoever waits for that file knows the thread is suspended.
-fn hold_in_disk_wait(milliseconds: usize, announce: Option<&std::path::Path>) {
+fn hold_in_disk_wait(
+    milliseconds: usize,
+    announce: Option<&std::path::Path>,
+) {
     let path: Option<std::ffi::CString> = announce.map(|named: &std::path::Path| {
-        return std::ffi::CString::new(named.as_os_str().as_encoded_bytes()).expect("a path without a nul byte");
+        return std::ffi::CString::new(named.as_os_str().as_encoded_bytes())
+            .expect("a path without a nul byte");
     });
     let note: DiskWaitHold = DiskWaitHold {
         milliseconds,
         announce_after_milliseconds: usize::try_from(ANNOUNCE_AFTER.as_millis()).unwrap_or(0),
-        announce: path.as_ref().map_or(std::ptr::null(), |held: &std::ffi::CString| { return held.as_ptr(); }),
+        announce: path
+            .as_ref()
+            .map_or(std::ptr::null(), |held: &std::ffi::CString| {
+                return held.as_ptr();
+            }),
     };
     let mut stack: Vec<u8> = vec![0; 64 * 1024];
     // SAFETY: the child gets its own stack (`stack` outlives the call, which returns only after the child ended) and runs
@@ -480,8 +580,17 @@ fn hold_in_disk_wait(milliseconds: usize, announce: Option<&std::path::Path>) {
     unsafe {
         let top: *mut libc::c_void = stack.as_mut_ptr().add(stack.len()).cast();
         let held: *mut libc::c_void = std::ptr::from_ref(&note).cast_mut().cast();
-        let child: libc::pid_t = libc::clone(hold_in_vfork_child, top, libc::CLONE_VM | libc::CLONE_VFORK | libc::SIGCHLD, held);
-        assert!(child > 0, "clone failed: {}", std::io::Error::last_os_error());
+        let child: libc::pid_t = libc::clone(
+            hold_in_vfork_child,
+            top,
+            libc::CLONE_VM | libc::CLONE_VFORK | libc::SIGCHLD,
+            held,
+        );
+        assert!(
+            child > 0,
+            "clone failed: {}",
+            std::io::Error::last_os_error()
+        );
         libc::waitpid(child, std::ptr::null_mut(), 0);
     }
 }
@@ -496,10 +605,13 @@ fn hold_in_disk_wait(milliseconds: usize, announce: Option<&std::path::Path>) {
 /// suspended rather than still starting up.
 #[test]
 fn disk_wait_probe() {
-    let Some(hold) = std::env::var(PROBE_HOLD_VARIABLE).ok().and_then(|text| { return text.parse::<usize>().ok(); }) else {
+    let Some(hold) = std::env::var(PROBE_HOLD_VARIABLE).ok().and_then(|text| {
+        return text.parse::<usize>().ok();
+    }) else {
         return;
     };
-    let announce: Option<std::path::PathBuf> = std::env::var_os(PROBE_ANNOUNCE_VARIABLE).map(std::path::PathBuf::from);
+    let announce: Option<std::path::PathBuf> =
+        std::env::var_os(PROBE_ANNOUNCE_VARIABLE).map(std::path::PathBuf::from);
     hold_in_disk_wait(hold, announce.as_deref());
     if std::env::var(PROBE_THEN_VARIABLE).as_deref() == Ok("idle") {
         std::thread::sleep(Duration::from_secs(600));
@@ -512,10 +624,19 @@ fn disk_wait_probe() {
 /// holding for `hold`,
 /// then `then`,
 /// and creating `announce` from inside the hold when it names a path.
-pub(crate) fn disk_wait_command(hold: Duration, then: &str, announce: Option<&std::path::Path>) -> Command {
+pub(crate) fn disk_wait_command(
+    hold: Duration,
+    then: &str,
+    announce: Option<&std::path::Path>,
+) -> Command {
     let hold_text: String = hold.as_millis().to_string();
-    let mut environment: Vec<(&str, &std::ffi::OsStr)> =
-        vec![(PROBE_HOLD_VARIABLE, std::ffi::OsStr::new(hold_text.as_str())), (PROBE_THEN_VARIABLE, std::ffi::OsStr::new(then))];
+    let mut environment: Vec<(&str, &std::ffi::OsStr)> = vec![
+        (
+            PROBE_HOLD_VARIABLE,
+            std::ffi::OsStr::new(hold_text.as_str()),
+        ),
+        (PROBE_THEN_VARIABLE, std::ffi::OsStr::new(then)),
+    ];
     if let Some(path) = announce {
         environment.push((PROBE_ANNOUNCE_VARIABLE, path.as_os_str()));
     }
@@ -537,7 +658,11 @@ pub(crate) fn disk_wait_command(hold: Duration, then: &str, announce: Option<&st
 fn wait_for_announcement(announced: &std::path::Path) {
     let began: Instant = Instant::now();
     while !announced.exists() {
-        assert!(began.elapsed() < PATIENCE, "the probe never announced its hold: {}", announced.display());
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the probe never announced its hold: {}",
+            announced.display()
+        );
         std::thread::sleep(POLL);
     }
 }
@@ -558,7 +683,11 @@ fn wait_for_announcement(announced: &std::path::Path) {
 fn a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends() {
     let root: std::path::PathBuf = fixture("progress-disk-wait");
     let announced: std::path::PathBuf = root.join("in-disk-wait");
-    let mut probe: Command = disk_wait_command(Duration::from_millis(4000), "idle", Some(announced.as_path()));
+    let mut probe: Command = disk_wait_command(
+        Duration::from_millis(4000),
+        "idle",
+        Some(announced.as_path()),
+    );
     probe.stdout(Stdio::null()).stderr(Stdio::null());
     let child: Child = spawn_owned(&mut probe).expect("start the probe");
     let pid: i32 = i32::try_from(child.id()).expect("pid");
@@ -566,10 +695,16 @@ fn a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends() {
     wait_for_announcement(announced.as_path());
     // The counters and the states of the tree as the hold began: what the looks below find is a change since this look, so a
     //  process seen for the first time cannot pass one of them by being new.
-    assert!(meter.sample(pid), "the probe moved bytes on its way into the hold, and this look records them");
+    assert!(
+        meter.sample(pid),
+        "the probe moved bytes on its way into the hold, and this look records them"
+    );
     for look in 0..4 {
         std::thread::sleep(Duration::from_millis(400));
-        assert!(meter.sample(pid), "look {look}: a thread in uninterruptible sleep is alive");
+        assert!(
+            meter.sample(pid),
+            "look {look}: a thread in uninterruptible sleep is alive"
+        );
     }
     let began: Instant = Instant::now();
     let mut idle: bool = false;
@@ -577,7 +712,10 @@ fn a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends() {
         std::thread::sleep(Duration::from_millis(400));
         idle = !meter.sample(pid);
     }
-    assert!(idle, "once the hold is over and the probe sleeps, the tree is idle");
+    assert!(
+        idle,
+        "once the hold is over and the probe sleeps, the tree is idle"
+    );
     end(child);
     remove(root.as_path());
 }
@@ -590,7 +728,12 @@ fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
     probe.stdout(Stdio::null()).stderr(Stdio::null());
     let child: Child = spawn_owned(&mut probe).expect("start the probe");
     let stall: Duration = Duration::from_millis(1500);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall });
+    let mut clock: Clock = Clock::start(
+        child.id(),
+        Patience::Progress {
+            stall,
+        },
+    );
     // The probe's own start-up counts as work; the hold begins after it and lasts well past the window.
     let began: Instant = Instant::now();
     let cause: StopCause = loop {
@@ -600,7 +743,9 @@ fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
         assert!(began.elapsed() < PATIENCE);
         std::thread::sleep(LOOK);
     };
-    let StopCause::Stalled(report) = cause else { panic!("a stall, not another limit") };
+    let StopCause::Stalled(report) = cause else {
+        panic!("a stall, not another limit")
+    };
     assert!(
         report.elapsed >= Duration::from_millis(4000),
         "the hold of 4 s in disk wait is no stall, and the stall came only after it: {:?}",
@@ -620,16 +765,29 @@ fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
 /// service's retry plan keeps the push.
 #[test]
 fn a_silent_open_connection_is_ended_at_the_connected_window() {
-    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let listener: std::net::TcpListener =
+        std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
     let port: u16 = listener.local_addr().expect("address").port();
     // The child holds an established connection to the listener and then does nothing: the remote that has not answered.
     let mut holder: Command = Command::new("bash");
-    holder.args(["-c", format!("exec 3<>/dev/tcp/127.0.0.1/{port}; sleep 30").as_str()]).stdout(Stdio::null()).stderr(Stdio::null());
+    holder
+        .args([
+            "-c",
+            format!("exec 3<>/dev/tcp/127.0.0.1/{port}; sleep 30").as_str(),
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     let child: Child = spawn_owned(&mut holder).expect("start the holder");
     let (_accepted, _) = listener.accept().expect("the holder connects");
     let stall: Duration = Duration::from_millis(1500);
     let window: Duration = Duration::from_millis(3500);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).with_connected_window(window);
+    let mut clock: Clock = Clock::start(
+        child.id(),
+        Patience::Progress {
+            stall,
+        },
+    )
+    .with_connected_window(window);
     let began: Instant = Instant::now();
     let cause: Option<StopCause> = loop {
         if let Some(cause) = clock.check() {
@@ -641,18 +799,40 @@ fn a_silent_open_connection_is_ended_at_the_connected_window() {
         std::thread::sleep(LOOK);
     };
     end(child);
-    let Some(StopCause::Stalled(report)) = cause else { panic!("the silent connection was not ended within {:?}", began.elapsed()) };
-    assert!(report.limit == window && began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+    let Some(StopCause::Stalled(report)) = cause else {
+        panic!(
+            "the silent connection was not ended within {:?}",
+            began.elapsed()
+        )
+    };
+    assert!(
+        report.limit == window && began.elapsed() >= window,
+        "ended at the connected window: {:?}",
+        began.elapsed()
+    );
     // The words of the stop name the window that fired, and never offer the stall setting as its remedy: the setting does
     //  not change the connected window, so advice to set it sends its reader to a limit that cannot be moved.
-    let words: String = crate::lfs_upload_explanations::stopped_upload_words(&StopCause::Stalled(report), None);
-    assert!(!words.contains("to allow longer"), "a connected stop does not offer a setting that cannot change its window: {words}");
+    let words: String =
+        crate::lfs_upload_explanations::stopped_upload_words(&StopCause::Stalled(report), None);
     assert!(
-        words.contains(&format!("{} does not change this window", crate::bounded_push::PUSH_DEADLINE_VARIABLE)),
+        !words.contains("to allow longer"),
+        "a connected stop does not offer a setting that cannot change its window: {words}"
+    );
+    assert!(
+        words.contains(&format!(
+            "{} does not change this window",
+            crate::bounded_push::PUSH_DEADLINE_VARIABLE
+        )),
         "the setting is named as one that does not move this window: {words}"
     );
-    assert!(words.contains("fixed at"), "the window it was ended by is named: {words}");
-    assert!(words.contains("git lfs push --all"), "a remedy that works is named: {words}");
+    assert!(
+        words.contains("fixed at"),
+        "the window it was ended by is named: {words}"
+    );
+    assert!(
+        words.contains("git lfs push --all"),
+        "a remedy that works is named: {words}"
+    );
 }
 
 /// What:
@@ -674,7 +854,8 @@ fn a_silent_open_connection_is_ended_at_the_connected_window() {
 /// and the tree is still waiting.
 #[test]
 fn a_connected_tree_that_only_uses_processor_time_is_waiting() {
-    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let listener: std::net::TcpListener =
+        std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
     let port: u16 = listener.local_addr().expect("address").port();
     // No fork and no write: the holder only burns the processor between two timed reads of the socket it holds.
     let mut holder: Command = Command::new("bash");
@@ -691,7 +872,13 @@ fn a_connected_tree_that_only_uses_processor_time_is_waiting() {
     let (_accepted, _) = listener.accept().expect("the holder connects");
     let stall: Duration = Duration::from_millis(1500);
     let window: Duration = Duration::from_secs(4);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).with_connected_window(window);
+    let mut clock: Clock = Clock::start(
+        child.id(),
+        Patience::Progress {
+            stall,
+        },
+    )
+    .with_connected_window(window);
     let began: Instant = Instant::now();
     let cause: Option<StopCause> = loop {
         if let Some(cause) = clock.check() {
@@ -704,10 +891,22 @@ fn a_connected_tree_that_only_uses_processor_time_is_waiting() {
     };
     end(child);
     let Some(StopCause::Stalled(report)) = cause else {
-        panic!("a tree whose only sign of life is its holder's processor time was not ended within {:?}", began.elapsed())
+        panic!(
+            "a tree whose only sign of life is its holder's processor time was not ended within {:?}",
+            began.elapsed()
+        )
     };
-    assert_eq!(report.window, StopWindow::Connected, "ended by the connected window after {:?}", began.elapsed());
-    assert!(began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+    assert_eq!(
+        report.window,
+        StopWindow::Connected,
+        "ended by the connected window after {:?}",
+        began.elapsed()
+    );
+    assert!(
+        began.elapsed() >= window,
+        "ended at the connected window: {:?}",
+        began.elapsed()
+    );
 }
 
 /// What:
@@ -728,7 +927,8 @@ fn a_connected_tree_that_only_uses_processor_time_is_waiting() {
 #[test]
 fn a_connected_tree_that_only_writes_its_own_meter_is_waiting() {
     let root: std::path::PathBuf = fixture("progress-connected-meter");
-    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let listener: std::net::TcpListener =
+        std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
     let port: u16 = listener.local_addr().expect("address").port();
     let meter_file: std::path::PathBuf = root.join("meter");
     // The handler runs inside the holder's own process, so the write is the holder's: one line every fifth of a second.
@@ -751,7 +951,13 @@ fn a_connected_tree_that_only_writes_its_own_meter_is_waiting() {
     let (_accepted, _) = listener.accept().expect("the holder connects");
     let stall: Duration = Duration::from_millis(1500);
     let window: Duration = Duration::from_secs(4);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).with_connected_window(window);
+    let mut clock: Clock = Clock::start(
+        child.id(),
+        Patience::Progress {
+            stall,
+        },
+    )
+    .with_connected_window(window);
     let began: Instant = Instant::now();
     let cause: Option<StopCause> = loop {
         if let Some(cause) = clock.check() {
@@ -763,13 +969,30 @@ fn a_connected_tree_that_only_writes_its_own_meter_is_waiting() {
         std::thread::sleep(LOOK);
     };
     end(child);
-    let metered: u64 = std::fs::metadata(meter_file.as_path()).map(|about| return about.len()).unwrap_or(0);
-    assert!(metered > 0, "the holder wrote its meter, so the tree moved bytes");
+    let metered: u64 = std::fs::metadata(meter_file.as_path())
+        .map(|about| return about.len())
+        .unwrap_or(0);
+    assert!(
+        metered > 0,
+        "the holder wrote its meter, so the tree moved bytes"
+    );
     let Some(StopCause::Stalled(report)) = cause else {
-        panic!("a tree whose only movement is the holder's own meter was not ended within {:?}", began.elapsed())
+        panic!(
+            "a tree whose only movement is the holder's own meter was not ended within {:?}",
+            began.elapsed()
+        )
     };
-    assert_eq!(report.window, StopWindow::Connected, "ended by the connected window after {:?}", began.elapsed());
-    assert!(began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+    assert_eq!(
+        report.window,
+        StopWindow::Connected,
+        "ended by the connected window after {:?}",
+        began.elapsed()
+    );
+    assert!(
+        began.elapsed() >= window,
+        "ended at the connected window: {:?}",
+        began.elapsed()
+    );
 }
 
 /// What:
@@ -788,12 +1011,16 @@ fn a_connected_tree_that_only_writes_its_own_meter_is_waiting() {
 #[test]
 fn a_holder_is_remembered_after_a_look_that_finds_no_socket() {
     let root: std::path::PathBuf = fixture("progress-holder-remembered");
-    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let listener: std::net::TcpListener =
+        std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
     let port: u16 = listener.local_addr().expect("address").port();
     // The holder keeps its connection open and writes nothing: it is the remote's silent peer.
     let mut holder: Command = Command::new("bash");
     holder
-        .args(["-c", format!("exec 3<>/dev/tcp/127.0.0.1/{port}; exec sleep 30").as_str()])
+        .args([
+            "-c",
+            format!("exec 3<>/dev/tcp/127.0.0.1/{port}; exec sleep 30").as_str(),
+        ])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -803,15 +1030,34 @@ fn a_holder_is_remembered_after_a_look_that_finds_no_socket() {
     let members: Vec<TreeMember> = member_of(pid).into_iter().collect();
     let mut meter: Meter = Meter::new();
     // The first look records the holder, and its own socket carries nothing yet.
-    assert!(!meter.observe_sockets(members.as_slice()), "a socket seen for the first time carries no progress");
-    assert!(meter.connected(), "the holder's connection is open");
-    let holder_member: TreeMember = members.first().expect("the holder is a member of its own tree").clone();
-    assert!(meter.holders.contains(&(holder_member.pid, holder_member.started)), "the holder is remembered");
-    // A look that cannot read the socket list finds no socket, and must not forget who held one.
-    assert!(!meter.observe_sockets(&[]), "a look with no socket carries no progress");
-    assert!(!meter.connected(), "nothing says the connection is open on that look");
     assert!(
-        meter.holders.contains(&(holder_member.pid, holder_member.started)),
+        !meter.observe_sockets(members.as_slice()),
+        "a socket seen for the first time carries no progress"
+    );
+    assert!(meter.connected(), "the holder's connection is open");
+    let holder_member: TreeMember = members
+        .first()
+        .expect("the holder is a member of its own tree")
+        .clone();
+    assert!(
+        meter
+            .holders
+            .contains(&(holder_member.pid, holder_member.started)),
+        "the holder is remembered"
+    );
+    // A look that cannot read the socket list finds no socket, and must not forget who held one.
+    assert!(
+        !meter.observe_sockets(&[]),
+        "a look with no socket carries no progress"
+    );
+    assert!(
+        !meter.connected(),
+        "nothing says the connection is open on that look"
+    );
+    assert!(
+        meter
+            .holders
+            .contains(&(holder_member.pid, holder_member.started)),
         "a holder stays remembered across a look that could not read the socket list: {:?}",
         meter.holders
     );
@@ -826,7 +1072,11 @@ fn a_holder_is_remembered_after_a_look_that_finds_no_socket() {
 fn a_stat_line_gives_its_state_and_its_processor_ticks() {
     let line: &str = "4242 (a (odd) name) D 1 4242 4242 0 -1 4194560 100 0 0 0 7 5 0 0 20 0 1 0 12345 1000 10 18446744073709551615";
     assert_eq!(parse_activity(line), Some(('D', 12)));
-    assert_eq!(parse_activity("1 (x) S 0 1"), None, "a line cut short gives nothing");
+    assert_eq!(
+        parse_activity("1 (x) S 0 1"),
+        None,
+        "a line cut short gives nothing"
+    );
     assert_eq!(parse_activity("no parenthesis"), None);
     assert!(is_working('R') && is_working('D'));
     for resting in ['S', 'T', 't', 'Z', 'I'] {
@@ -848,23 +1098,74 @@ fn each_sign_of_work_counts_alone_and_nothing_counts_for_nothing() {
     let key: (i32, u64) = (100, 1);
     let mut meter: Meter = Meter::new();
     let idle: Signs = Signs::default();
-    assert_eq!(meter.observe(key, 0, 0, false), idle, "a process that has done nothing is idle at its first look");
+    assert_eq!(
+        meter.observe(key, 0, 0, false),
+        idle,
+        "a process that has done nothing is idle at its first look"
+    );
     assert_eq!(meter.observe(key, 0, 0, false), idle);
-    assert_eq!(meter.observe(key, 10, 0, false), Signs { moved: true, moved_bytes: 10, busy: false }, "bytes");
+    assert_eq!(
+        meter.observe(key, 10, 0, false),
+        Signs {
+            moved: true,
+            moved_bytes: 10,
+            busy: false
+        },
+        "bytes"
+    );
     assert_eq!(meter.moved(), 10);
-    assert_eq!(meter.observe(key, 10, 0, false), idle, "the same bytes are not new work");
-    assert_eq!(meter.observe(key, 10, 1, false), Signs { moved: false, moved_bytes: 0, busy: true }, "one processor tick");
+    assert_eq!(
+        meter.observe(key, 10, 0, false),
+        idle,
+        "the same bytes are not new work"
+    );
+    assert_eq!(
+        meter.observe(key, 10, 1, false),
+        Signs {
+            moved: false,
+            moved_bytes: 0,
+            busy: true
+        },
+        "one processor tick"
+    );
     assert_eq!(meter.observe(key, 10, 1, false), idle);
     assert_eq!(
         meter.observe(key, 10, 1, true),
-        Signs { moved: false, moved_bytes: 0, busy: true },
+        Signs {
+            moved: false,
+            moved_bytes: 0,
+            busy: true
+        },
         "a task able to run or waiting for the disk, at every look it is found"
     );
-    assert_eq!(meter.observe(key, 10, 1, true), Signs { moved: false, moved_bytes: 0, busy: true });
-    assert_eq!(meter.observe(key, 10, 1, false), idle, "and idle when it is not");
+    assert_eq!(
+        meter.observe(key, 10, 1, true),
+        Signs {
+            moved: false,
+            moved_bytes: 0,
+            busy: true
+        }
+    );
+    assert_eq!(
+        meter.observe(key, 10, 1, false),
+        idle,
+        "and idle when it is not"
+    );
     assert_eq!(meter.moved(), 10, "processor time and states are not bytes");
-    assert_eq!(meter.observe((200, 1), 0, 3, false), Signs { moved: false, moved_bytes: 0, busy: true }, "a new process that has already used time");
-    assert_eq!(meter.observe(key, 5, 1, false), idle, "a counter that fell (a number reused) is not work");
+    assert_eq!(
+        meter.observe((200, 1), 0, 3, false),
+        Signs {
+            moved: false,
+            moved_bytes: 0,
+            busy: true
+        },
+        "a new process that has already used time"
+    );
+    assert_eq!(
+        meter.observe(key, 5, 1, false),
+        idle,
+        "a counter that fell (a number reused) is not work"
+    );
 }
 
 /// A child that ends before the first sample interval has passed is never looked for among the machine's processes:
@@ -883,14 +1184,33 @@ fn a_child_that_has_just_started_is_looked_at_without_listing_the_machine() {
     let root: std::path::PathBuf = fixture("progress-first-look");
     let child: Child = shell("sleep 60", root.as_path());
     let pid: u32 = child.id();
-    let mut clock: Clock = Clock::start(pid, Patience::Progress { stall: PATIENCE });
-    assert!(clock.measures(), "this system counts what a child moves, so the clock samples");
-    assert!(clock.check().is_none(), "a child that has just started is not stalled");
-    assert_eq!(clock.meter.as_ref().map(Meter::scans), Some(0), "the first look listed the machine's processes");
+    let mut clock: Clock = Clock::start(
+        pid,
+        Patience::Progress {
+            stall: PATIENCE,
+        },
+    );
+    assert!(
+        clock.measures(),
+        "this system counts what a child moves, so the clock samples"
+    );
+    assert!(
+        clock.check().is_none(),
+        "a child that has just started is not stalled"
+    );
+    assert_eq!(
+        clock.meter.as_ref().map(Meter::scans),
+        Some(0),
+        "the first look listed the machine's processes"
+    );
     // Positive control: the clock does list the machine's processes once the sample interval has passed.
     std::thread::sleep(SAMPLE_INTERVAL + LOOK);
     assert!(clock.check().is_none(), "a child at work is not stalled");
-    assert_eq!(clock.meter.as_ref().map(Meter::scans), Some(1), "the next look, one interval later, lists them");
+    assert_eq!(
+        clock.meter.as_ref().map(Meter::scans),
+        Some(1),
+        "the next look, one interval later, lists them"
+    );
     end(child);
     remove(root.as_path());
 }

@@ -27,43 +27,72 @@ thread_local! {
 
 /// Make the step at `point` fail on this thread's landings until `clear_failures`.
 pub(crate) fn fail_at(point: &str) {
-    FAILING.with(|failing| { failing.borrow_mut().push(point.to_string()); });
+    FAILING.with(|failing| {
+        failing.borrow_mut().push(point.to_string());
+    });
 }
 
 /// Let every step succeed again.
 pub(crate) fn clear_failures() {
-    FAILING.with(|failing| { failing.borrow_mut().clear(); });
+    FAILING.with(|failing| {
+        failing.borrow_mut().clear();
+    });
 }
 
 /// Whether the step at `point` fails.
 pub(super) fn failing(point: &str) -> bool {
-    return FAILING.with(|failing| { return failing.borrow().iter().any(|named| { return named == point; }); });
+    return FAILING.with(|failing| {
+        return failing.borrow().iter().any(|named| {
+            return named == point;
+        });
+    });
 }
 
 /// Run nothing at any point again.
 pub(crate) fn clear() {
-    HOOK.with(|hook| { *hook.borrow_mut() = None; });
+    HOOK.with(|hook| {
+        *hook.borrow_mut() = None;
+    });
 }
 
 /// Run `code` whenever the landing of this thread reaches `point`.
-pub(crate) fn set(point: &str, code: std::rc::Rc<dyn Fn()>) {
-    HOOK.with(|hook| { *hook.borrow_mut() = Some((point.to_string(), code)); });
+pub(crate) fn set(
+    point: &str,
+    code: std::rc::Rc<dyn Fn()>,
+) {
+    HOOK.with(|hook| {
+        *hook.borrow_mut() = Some((point.to_string(), code));
+    });
 }
 
 /// Remember that `event` happened.
 pub(super) fn record(event: &str) {
-    EVENTS.with(|events| { events.borrow_mut().push(event.to_string()); });
+    EVENTS.with(|events| {
+        events.borrow_mut().push(event.to_string());
+    });
 }
 
 /// The steps reported on this thread since the last call,
 /// in order.
 pub(crate) fn take_events() -> Vec<String> {
-    return EVENTS.with(|events| { return std::mem::take(&mut *events.borrow_mut()); });
+    return EVENTS.with(|events| {
+        return std::mem::take(&mut *events.borrow_mut());
+    });
 }
 
 /// Run the hook if it is for `point`.
 pub(super) fn run(point: &str) {
-    let found: Option<std::rc::Rc<dyn Fn()>> = HOOK.with(|hook| { return hook.borrow().as_ref().filter(|(named, _)| { return named == point; }).map(|(_, code)| { return std::rc::Rc::clone(code); }); });
+    let found: Option<std::rc::Rc<dyn Fn()>> = HOOK.with(|hook| {
+        return hook
+            .borrow()
+            .as_ref()
+            .filter(|(named, _)| {
+                return named == point;
+            })
+            .map(|(_, code)| {
+                return std::rc::Rc::clone(code);
+            });
+    });
     if let Some(hook) = found {
         hook();
     }
@@ -127,10 +156,19 @@ pub(crate) fn hold_on_any_thread(held: HoldOnAnyThread) {
 /// ```ts
 /// const [reached, letGo] = holdThePoint('the-read-at-a-start');
 /// ```
-pub(crate) fn hold_the_point(point: &str) -> (tokio::sync::oneshot::Receiver<()>, std::sync::mpsc::Sender<()>) {
+pub(crate) fn hold_the_point(
+    point: &str
+) -> (
+    tokio::sync::oneshot::Receiver<()>,
+    std::sync::mpsc::Sender<()>,
+) {
     let (reached, reached_wait) = tokio::sync::oneshot::channel::<()>();
     let (let_go, held) = std::sync::mpsc::channel::<()>();
-    hold_on_any_thread(HoldOnAnyThread { point: String::from(point), reached, let_go: held });
+    hold_on_any_thread(HoldOnAnyThread {
+        point: String::from(point),
+        reached,
+        let_go: held,
+    });
     return (reached_wait, let_go);
 }
 
@@ -163,7 +201,8 @@ pub(crate) struct HoldAwaitingOnAnyThread {
 /// The hold awaited at a point,
 /// if any,
 /// taken by the task that reaches it so a second reach passes.
-static HELD_AWAITING: std::sync::Mutex<Option<HoldAwaitingOnAnyThread>> = std::sync::Mutex::new(None);
+static HELD_AWAITING: std::sync::Mutex<Option<HoldAwaitingOnAnyThread>> =
+    std::sync::Mutex::new(None);
 
 /// What:
 ///  Holds `point` on whichever task reaches it,

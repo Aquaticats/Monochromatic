@@ -27,16 +27,39 @@
 //! ```
 
 use super::commit::remove_settled;
-use super::support::{Fixture, cpu_ticks, fixture, git, give_service_environment, repository, start_fixture_service, ticks_per_second, FixtureService};
+use super::support::{
+    Fixture,
+    FixtureService,
+    cpu_ticks,
+    fixture,
+    git,
+    give_service_environment,
+    repository,
+    start_fixture_service,
+    ticks_per_second,
+};
 use git_policy_cli::service_claim_watch::LOOK_AGAIN_AFTER;
 use git_policy_cli::service_fault::AFTER_PROMOTE;
 use git_policy_cli::service_work::work_directory;
 use git_policy_cli::service_work_handlers_replanning_and_acceptance::SERVICE_KINDS;
-use git_policy_cli::work_item::{DONE, FAILED, PENDING, WorkItem, enqueue, state_directory};
+use git_policy_cli::work_item::{
+    DONE,
+    FAILED,
+    PENDING,
+    WorkItem,
+    enqueue,
+    state_directory,
+};
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::process::{Command, Output};
-use std::time::{Duration, Instant};
+use std::process::{
+    Command,
+    Output,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// A repository with one tracked file,
 /// a bare remote that has the branch,
@@ -52,16 +75,43 @@ fn setup(name: &str) -> Setup {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let remote: PathBuf = fixture.root.join("remote.git");
-    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", remote.to_str().expect("UTF-8")]);
+    git(
+        &fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            remote.to_str().expect("UTF-8"),
+        ],
+    );
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
     git(&fixture, &repo, &["add", "a.txt"]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
-    git(&fixture, &repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
-    git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(
+        &fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("UTF-8")],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "main"],
+    );
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    return Setup { fixture, repo, remote, service };
+    return Setup {
+        fixture,
+        repo,
+        remote,
+        service,
+    };
 }
 
 /// What:
@@ -80,21 +130,57 @@ fn setup_that_knows_its_worktree(name: &str) -> Setup {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let remote: PathBuf = fixture.root.join("remote.git");
-    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", remote.to_str().expect("UTF-8")]);
+    git(
+        &fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            remote.to_str().expect("UTF-8"),
+        ],
+    );
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
     git(&fixture, &repo, &["add", "a.txt"]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
-    git(&fixture, &repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
-    git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(
+        &fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("UTF-8")],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "main"],
+    );
     let service: FixtureService = start_fixture_service(&fixture);
     let real: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the Git directory");
     let instance: String = git_policy_cli::service_instance::instance_of(real.as_path());
-    git_policy_cli::service_units_of_removed_worktrees::record_worktree(service.runtime.as_path(), instance.as_str(), real.as_path()).expect("the note of the worktree");
+    git_policy_cli::service_units_of_removed_worktrees::record_worktree(
+        service.runtime.as_path(),
+        instance.as_str(),
+        real.as_path(),
+    )
+    .expect("the note of the worktree");
     // The service reads the note from the runtime directory of its account, which is this fixture's.
-    give_service_environment(&fixture, "XDG_RUNTIME_DIR", service.runtime.to_str().expect("UTF-8"));
+    give_service_environment(
+        &fixture,
+        "XDG_RUNTIME_DIR",
+        service.runtime.to_str().expect("UTF-8"),
+    );
     service.serve(&fixture, real.as_path());
-    return Setup { fixture, repo, remote, service };
+    return Setup {
+        fixture,
+        repo,
+        remote,
+        service,
+    };
 }
 
 fn git_dir(setup: &Setup) -> PathBuf {
@@ -107,20 +193,41 @@ fn work_dir(setup: &Setup) -> PathBuf {
 
 /// The names of the records waiting in one state directory,
 /// and nothing when the directory is not there.
-fn records_in(setup: &Setup, state: &str) -> Vec<String> {
-    let mut names: Vec<String> = std::fs::read_dir(state_directory(work_dir(setup).as_path(), state))
-        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
-        .unwrap_or_default();
+fn records_in(
+    setup: &Setup,
+    state: &str,
+) -> Vec<String> {
+    let mut names: Vec<String> =
+        std::fs::read_dir(state_directory(work_dir(setup).as_path(), state))
+            .map(|listing| {
+                return listing
+                    .flatten()
+                    .map(|entry| {
+                        return entry.file_name().to_string_lossy().into_owned();
+                    })
+                    .collect();
+            })
+            .unwrap_or_default();
     names.sort();
     return names;
 }
 
-fn head_of(setup: &Setup, reference: &str) -> String {
-    return String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", reference]).stdout).trim().to_string();
+fn head_of(
+    setup: &Setup,
+    reference: &str,
+) -> String {
+    return String::from_utf8_lossy(
+        &git(&setup.fixture, &setup.repo, &["rev-parse", reference]).stdout,
+    )
+    .trim()
+    .to_string();
 }
 
 /// Whether the bare remote holds `commit`.
-fn remote_has(setup: &Setup, commit: &str) -> bool {
+fn remote_has(
+    setup: &Setup,
+    commit: &str,
+) -> bool {
     let asked: Output = super::support::direct(&setup.fixture)
         .current_dir(setup.remote.as_path())
         .args(["cat-file", "-e", format!("{commit}^{{commit}}").as_str()])
@@ -129,7 +236,11 @@ fn remote_has(setup: &Setup, commit: &str) -> bool {
     return asked.status.success();
 }
 
-fn wait_until(what: &str, patience: Duration, condition: &dyn Fn() -> bool) {
+fn wait_until(
+    what: &str,
+    patience: Duration,
+    condition: &dyn Fn() -> bool,
+) {
     let began: Instant = Instant::now();
     while !condition() {
         assert!(began.elapsed() < patience, "never happened: {what}");
@@ -143,23 +254,45 @@ fn wait_until(what: &str, patience: Duration, condition: &dyn Fn() -> bool) {
 /// Why:
 ///   The fault point is the only way to stand inside that window,
 /// and it is inert unless the variable names it.
-fn commit_and_die_after_promote(setup: &Setup, content: &str) -> String {
+fn commit_and_die_after_promote(
+    setup: &Setup,
+    content: &str,
+) -> String {
     std::fs::write(setup.repo.join("a.txt"), content).expect("edit");
-    let mut command: Command = super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"]);
+    let mut command: Command = super::commit::wrapped_commit(
+        &setup.fixture,
+        setup.repo.as_path(),
+        &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
     command.env(git_policy_cli::service_fault::FAULT_VARIABLE, AFTER_PROMOTE);
     let output: Output = command.output().expect("the wrapped commit runs");
-    assert!(!output.status.success(), "the wrapper was killed at the fault point: {:?}", output.status);
+    assert!(
+        !output.status.success(),
+        "the wrapper was killed at the fault point: {:?}",
+        output.status
+    );
     return head_of(setup, "HEAD");
 }
 
 /// Commits `content` through the service and answers the new commit's name.
-fn commit_through(setup: &Setup, content: &str) -> String {
+fn commit_through(
+    setup: &Setup,
+    content: &str,
+) -> String {
     std::fs::write(setup.repo.join("a.txt"), content).expect("edit");
-    let mut command: Command = super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"]);
+    let mut command: Command = super::commit::wrapped_commit(
+        &setup.fixture,
+        setup.repo.as_path(),
+        &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
     let output: Output = command.output().expect("the wrapped commit runs");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     return head_of(setup, "HEAD");
 }
 
@@ -171,9 +304,17 @@ fn commit_through(setup: &Setup, content: &str) -> String {
 /// not the
 ///  remote's state,
 /// which is the same whether a push was made once or twice.
-fn push_lines_naming(setup: &Setup, commit: &str) -> usize {
+fn push_lines_naming(
+    setup: &Setup,
+    commit: &str,
+) -> usize {
     let log: String = crate::support_fixture_service_log::service_log(setup.fixture.root.as_path());
-    return log.lines().filter(|line| { return line.contains("pushed branch=") && line.contains(commit); }).count();
+    return log
+        .lines()
+        .filter(|line| {
+            return line.contains("pushed branch=") && line.contains(commit);
+        })
+        .count();
 }
 
 /// What:
@@ -192,10 +333,27 @@ fn push_lines_naming(setup: &Setup, commit: &str) -> usize {
 fn a_running_service_pushes_a_promoted_record_within_the_bound() {
     let setup: Setup = setup("nothing-announced-push");
     let commit: String = commit_and_die_after_promote(&setup, "one\n");
-    assert_eq!(records_in(&setup, PENDING).len(), 1, "the promotion left one record waiting");
-    assert!(!remote_has(&setup, commit.as_str()), "nothing pushed it before the look");
-    wait_until("the running service pushed the record", LOOK_AGAIN_AFTER * 3, &|| { return remote_has(&setup, commit.as_str()); });
-    assert!(records_in(&setup, PENDING).is_empty(), "the record no longer waits: {:?}", records_in(&setup, PENDING));
+    assert_eq!(
+        records_in(&setup, PENDING).len(),
+        1,
+        "the promotion left one record waiting"
+    );
+    assert!(
+        !remote_has(&setup, commit.as_str()),
+        "nothing pushed it before the look"
+    );
+    wait_until(
+        "the running service pushed the record",
+        LOOK_AGAIN_AFTER * 3,
+        &|| {
+            return remote_has(&setup, commit.as_str());
+        },
+    );
+    assert!(
+        records_in(&setup, PENDING).is_empty(),
+        "the record no longer waits: {:?}",
+        records_in(&setup, PENDING)
+    );
     remove_settled(&setup.fixture);
 }
 
@@ -238,18 +396,32 @@ fn every_kind_of_record_waiting_with_no_wake_is_claimed_within_the_bound() {
         written.push(item.id());
         enqueue(work_dir(&setup).as_path(), &item).expect("the record is written");
     }
-    assert_eq!(records_in(&setup, PENDING).len(), written.len(), "every kind waits, and nothing was woken for any of them");
+    assert_eq!(
+        records_in(&setup, PENDING).len(),
+        written.len(),
+        "every kind waits, and nothing was woken for any of them"
+    );
     // The kinds whose steps can take minutes are claimed by one lane, one at a time, so the bound each record is found in is
     //  the look's bound and each may wait for the ones beside it.
     let patience: Duration = LOOK_AGAIN_AFTER * 3;
     for (id, kind) in written.iter().zip(SERVICE_KINDS) {
         wait_until(
-            format!("the running service claimed the {} record within the bound", kind.name()).as_str(),
+            format!(
+                "the running service claimed the {} record within the bound",
+                kind.name()
+            )
+            .as_str(),
             patience,
-            &|| { return !records_in(&setup, PENDING).contains(id); },
+            &|| {
+                return !records_in(&setup, PENDING).contains(id);
+            },
         );
     }
-    assert!(records_in(&setup, PENDING).is_empty(), "every kind was claimed: {:?}", records_in(&setup, PENDING));
+    assert!(
+        records_in(&setup, PENDING).is_empty(),
+        "every kind was claimed: {:?}",
+        records_in(&setup, PENDING)
+    );
     remove_settled(&setup.fixture);
 }
 
@@ -267,16 +439,53 @@ fn every_kind_of_record_waiting_with_no_wake_is_claimed_within_the_bound() {
 fn a_record_the_look_ran_is_not_run_again_by_a_late_wake() {
     let setup: Setup = setup("nothing-announced-late-wake");
     let looked: String = commit_and_die_after_promote(&setup, "one\n");
-    wait_until("the running service pushed the record", LOOK_AGAIN_AFTER * 3, &|| { return remote_has(&setup, looked.as_str()); });
+    wait_until(
+        "the running service pushed the record",
+        LOOK_AGAIN_AFTER * 3,
+        &|| {
+            return remote_has(&setup, looked.as_str());
+        },
+    );
     // The service's line about its push is copied to its log by a thread of the fixture, so the line is waited for.
-    wait_until("the service said it pushed the record", LOOK_AGAIN_AFTER, &|| { return push_lines_naming(&setup, looked.as_str()) > 0; });
-    assert_eq!(push_lines_naming(&setup, looked.as_str()), 1, "the look made the push once");
+    wait_until(
+        "the service said it pushed the record",
+        LOOK_AGAIN_AFTER,
+        &|| {
+            return push_lines_naming(&setup, looked.as_str()) > 0;
+        },
+    );
+    assert_eq!(
+        push_lines_naming(&setup, looked.as_str()),
+        1,
+        "the look made the push once"
+    );
     // A later commit wakes the service for the same repository, which is the late wake the record's own wake would have been.
     let later: String = commit_through(&setup, "two\n");
-    wait_until("the later commit's push settled", LOOK_AGAIN_AFTER * 6, &|| { return records_in(&setup, PENDING).is_empty(); });
-    wait_until("the later commit reached the remote", LOOK_AGAIN_AFTER * 6, &|| { return remote_has(&setup, later.as_str()); });
-    assert_eq!(push_lines_naming(&setup, looked.as_str()), 1, "the late wake did not push the settled record again");
-    assert!(records_in(&setup, DONE).iter().any(|name| { return name.starts_with(format!("push-{looked}").as_str()); }), "the record is where a push that was made is kept");
+    wait_until(
+        "the later commit's push settled",
+        LOOK_AGAIN_AFTER * 6,
+        &|| {
+            return records_in(&setup, PENDING).is_empty();
+        },
+    );
+    wait_until(
+        "the later commit reached the remote",
+        LOOK_AGAIN_AFTER * 6,
+        &|| {
+            return remote_has(&setup, later.as_str());
+        },
+    );
+    assert_eq!(
+        push_lines_naming(&setup, looked.as_str()),
+        1,
+        "the late wake did not push the settled record again"
+    );
+    assert!(
+        records_in(&setup, DONE).iter().any(|name| {
+            return name.starts_with(format!("push-{looked}").as_str());
+        }),
+        "the record is where a push that was made is kept"
+    );
     remove_settled(&setup.fixture);
 }
 
@@ -310,13 +519,28 @@ fn an_idle_service_runs_no_work() {
     let after: u64 = cpu_ticks(pid).expect("the service is still there");
     let used: Duration = Duration::from_secs_f64((after - before) as f64 / ticks_per_second());
     let log: String = crate::support_fixture_service_log::service_log(setup.fixture.root.as_path());
-    assert!(!log.contains("pushed branch="), "an idle service made no push: {log}");
-    assert!(!log.contains("claim"), "an idle service claimed nothing: {log}");
-    assert!(records_in(&setup, PENDING).is_empty() && records_in(&setup, DONE).is_empty() && records_in(&setup, FAILED).is_empty(), "no record was written and none was settled");
+    assert!(
+        !log.contains("pushed branch="),
+        "an idle service made no push: {log}"
+    );
+    assert!(
+        !log.contains("claim"),
+        "an idle service claimed nothing: {log}"
+    );
+    assert!(
+        records_in(&setup, PENDING).is_empty()
+            && records_in(&setup, DONE).is_empty()
+            && records_in(&setup, FAILED).is_empty(),
+        "no record was written and none was settled"
+    );
     assert!(
         used * 10 < waited,
         "an idle service used {used:?} of {waited:?}, which is more than a tenth: {}",
-        log.lines().filter(|line| { return !line.contains("ready") && !line.contains("started"); }).count()
+        log.lines()
+            .filter(|line| {
+                return !line.contains("ready") && !line.contains("started");
+            })
+            .count()
     );
     remove_settled(&setup.fixture);
 }

@@ -16,9 +16,22 @@
 //! ```
 
 use crate::journald_native::Priority;
-use crate::service_protocol::{CommitRequest, LandingFigures, LandingSync};
-use crate::service_timing::{Answered, Arrival, LandTiming, answered_line, log_entry};
-use std::time::{Duration, Instant};
+use crate::service_protocol::{
+    CommitRequest,
+    LandingFigures,
+    LandingSync,
+};
+use crate::service_timing::{
+    Answered,
+    Arrival,
+    LandTiming,
+    answered_line,
+    log_entry,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The times of one batch that every request of it shares,
 /// and the moment the landing ended.
@@ -50,7 +63,16 @@ pub(crate) struct BatchTimes {
 impl BatchTimes {
     /// The times of a request that no batch landed.
     pub(crate) fn not_landed(group_began: Instant) -> Self {
-        return Self { batch: 0, size: 0, group_began, settle: Duration::ZERO, landing: LandTiming::default(), land_total: Duration::ZERO, landed_at: Instant::now(), queued_behind: 0 };
+        return Self {
+            batch: 0,
+            size: 0,
+            group_began,
+            settle: Duration::ZERO,
+            landing: LandTiming::default(),
+            land_total: Duration::ZERO,
+            landed_at: Instant::now(),
+            queued_behind: 0,
+        };
     }
 }
 
@@ -82,7 +104,10 @@ pub(crate) fn landing_figures_of(times: &BatchTimes) -> LandingFigures {
     ];
     let mut reads: Vec<(String, u64)> = Vec::new();
     for (name, took) in named {
-        reads.push((String::from(name), u64::try_from(took.as_millis()).unwrap_or(u64::MAX)));
+        reads.push((
+            String::from(name),
+            u64::try_from(took.as_millis()).unwrap_or(u64::MAX),
+        ));
     }
     let mut syncs: Vec<LandingSync> = Vec::new();
     for sync in &times.landing.syncs {
@@ -95,7 +120,8 @@ pub(crate) fn landing_figures_of(times: &BatchTimes) -> LandingFigures {
     return LandingFigures {
         lock_hold_ms: u64::try_from(times.landing.hold.as_millis()).unwrap_or(u64::MAX),
         queued_behind: u64::try_from(times.queued_behind).unwrap_or(u64::MAX),
-        reads_ms: u64::try_from(times.landing.reads(times.land_total).as_millis()).unwrap_or(u64::MAX),
+        reads_ms: u64::try_from(times.landing.reads(times.land_total).as_millis())
+            .unwrap_or(u64::MAX),
         reads,
         syncs,
     };
@@ -109,18 +135,29 @@ pub(crate) fn landing_figures_of(times: &BatchTimes) -> LandingFigures {
 /// which only decides whether a rule is looked at early;
 /// the entry that is written keeps the name's bytes.
 pub(crate) fn path_of_change(change: &crate::service_protocol::Change) -> String {
-    return crate::path_bytes::path_message_text(crate::path_bytes::path_bytes_of(change.path.as_path()));
+    return crate::path_bytes::path_message_text(crate::path_bytes::path_bytes_of(
+        change.path.as_path(),
+    ));
 }
 
 /// Writes the log line for an answered request:
 /// the phases of its wait,
 /// from the acceptance of its connection to the answer.
-pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, position: usize, outcome: &str) {
-    let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
+pub(crate) fn log_answer(
+    times: &BatchTimes,
+    request: &CommitRequest,
+    arrival: &Arrival,
+    position: usize,
+    outcome: &str,
+) {
+    let queued: Duration = times
+        .group_began
+        .saturating_duration_since(arrival.accepted + arrival.read);
     // What the Git steps and tools since the previous answer showed; the answer that finds them takes them.
     let quiet: Vec<(String, Duration)> = crate::quiet_ledger::drain();
     // The Git steps since the previous answer, with their offsets from this request's acceptance.
-    let (steps, steps_dropped): (Vec<crate::transaction_step_durations::StepFigure>, usize) = crate::transaction_step_durations::drain_steps(arrival.accepted);
+    let (steps, steps_dropped): (Vec<crate::transaction_step_durations::StepFigure>, usize) =
+        crate::transaction_step_durations::drain_steps(arrival.accepted);
     let line: String = answered_line(&Answered {
         request: request.id.as_str(),
         reference: request.reference.spoken().as_str(),
@@ -142,7 +179,11 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
         steps_dropped,
     });
     // A request that was answered with a failure is a warning, so `journalctl --priority=warning` finds the commits that failed.
-    let priority: Priority = if outcome.starts_with("failed") { Priority::Warning } else { Priority::Info };
+    let priority: Priority = if outcome.starts_with("failed") {
+        Priority::Warning
+    } else {
+        Priority::Info
+    };
     let fields: [(&str, String); 4] = [
         ("CLI_GIT_REQUEST_ID", request.id.clone()),
         ("CLI_GIT_BRANCH", request.reference.spoken()),

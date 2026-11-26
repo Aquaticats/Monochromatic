@@ -44,14 +44,16 @@ use std::path::PathBuf;
 /// the kernel's copy of the descriptor in a judgement,
 /// or a control's own read of a link for a table the kernel does not know.
 #[cfg(unix)]
-pub type OpenedFileReader = fn(&Path, &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile>;
+pub type OpenedFileReader =
+    fn(&Path, &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile>;
 
 /// The incumbent's Restart Manager script,
 ///  byte for byte.
 pub const RESTART_MANAGER_SCRIPT: &str = include_str!("index_lock_restart_manager.ps1");
 
 /// Partial-evidence note every unprivileged macOS scan carries.
-pub const SILENT_DENIAL_NOTE: &str = "lsof omits other users' processes on macOS without reporting it";
+pub const SILENT_DENIAL_NOTE: &str =
+    "lsof omits other users' processes on macOS without reporting it";
 
 /// What:
 ///  One process holding the lock open.
@@ -174,7 +176,13 @@ fn exited(error: &std::io::Error) -> bool {
 /// async function scanProcess({ procRoot, pid, device, inode }): Promise<{ holds: boolean; partial?: string }>;
 /// ```
 #[cfg(unix)]
-fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64, opened: OpenedFileReader) -> (bool, Option<String>, Option<String>) {
+fn scan_process(
+    proc_root: &Path,
+    pid: &str,
+    device: u64,
+    inode: u64,
+    opened: OpenedFileReader,
+) -> (bool, Option<String>, Option<String>) {
     let process: PathBuf = proc_root.join(pid);
     let listing: std::fs::ReadDir = match std::fs::read_dir(process.join("fd")) {
         Ok(found) => found,
@@ -182,8 +190,17 @@ fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64, opened: Op
         // A process of this account whose descriptors the kernel refuses may hold the file, so its reason is kept as one a
         //  removal does not act through; another account's process cannot write into a file of this account's, and that reason
         //  is the one the commit service's lock removal tolerates.
-        Err(error) if crate::index_lock_holders_accounts::another_account_owns(process.as_path()) => {
-            return (false, Some(format!("{}{pid}: {error}", crate::index_lock_holders_accounts::OTHER_ACCOUNTS_PROCESS_REASON)), None);
+        Err(error)
+            if crate::index_lock_holders_accounts::another_account_owns(process.as_path()) =>
+        {
+            return (
+                false,
+                Some(format!(
+                    "{}{pid}: {error}",
+                    crate::index_lock_holders_accounts::OTHER_ACCOUNTS_PROCESS_REASON
+                )),
+                None,
+            );
         }
         Err(error) => return (false, Some(format!("PID {pid}: {error}")), None),
     };
@@ -194,20 +211,32 @@ fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64, opened: Op
         let Ok(entry) = item else {
             continue;
         };
-        match crate::process_use::descriptor_is_file_with(process.as_path(), entry.file_name().as_os_str(), device, inode, opened) {
+        match crate::process_use::descriptor_is_file_with(
+            process.as_path(),
+            entry.file_name().as_os_str(),
+            device,
+            inode,
+            opened,
+        ) {
             Ok(true) => holds = true,
             Ok(false) => {}
             // The record of this descriptor could not be read: the process's descriptors are what the scan could not look
             // at, which the service tolerates as it always has (the owner, 2026-11-07, "Service removes it").
             Err(crate::process_use::Unread::Process(reason)) => {
                 if partial.is_none() {
-                    partial = Some(format!("PID {pid} fd {}: {reason}", entry.file_name().to_string_lossy()));
+                    partial = Some(format!(
+                        "PID {pid} fd {}: {reason}",
+                        entry.file_name().to_string_lossy()
+                    ));
                 }
             }
             // The record named the file, and the file could not be identified: the process may hold it.
             Err(crate::process_use::Unread::File(reason)) => {
                 if unresolvable.is_none() {
-                    unresolvable = Some(format!("PID {pid} fd {}: {reason}", entry.file_name().to_string_lossy()));
+                    unresolvable = Some(format!(
+                        "PID {pid} fd {}: {reason}",
+                        entry.file_name().to_string_lossy()
+                    ));
                 }
             }
         }
@@ -231,7 +260,12 @@ fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64, opened: Op
 /// async function scanProcFdHolders({ device, inode, procRoot, selfPid }): Promise<LockHolderEvidence>;
 /// ```
 #[cfg(unix)]
-pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid: u32) -> HolderEvidence {
+pub fn scan_proc_fd_holders(
+    proc_root: &Path,
+    device: u64,
+    inode: u64,
+    self_pid: u32,
+) -> HolderEvidence {
     return scan_proc_fd_holders_until(proc_root, device, inode, self_pid, None);
 }
 
@@ -248,8 +282,21 @@ pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid:
 /// scanProcFdHoldersWith({ procRoot, device, inode, selfPid, opened });
 /// ```
 #[cfg(unix)]
-pub fn scan_proc_fd_holders_with(proc_root: &Path, device: u64, inode: u64, self_pid: u32, opened: OpenedFileReader) -> HolderEvidence {
-    return scan_proc_fd_holders_stopping_with(proc_root, device, inode, self_pid, ScanLimit::default(), opened);
+pub fn scan_proc_fd_holders_with(
+    proc_root: &Path,
+    device: u64,
+    inode: u64,
+    self_pid: u32,
+    opened: OpenedFileReader,
+) -> HolderEvidence {
+    return scan_proc_fd_holders_stopping_with(
+        proc_root,
+        device,
+        inode,
+        self_pid,
+        ScanLimit::default(),
+        opened,
+    );
 }
 
 /// What:
@@ -266,8 +313,23 @@ pub fn scan_proc_fd_holders_with(proc_root: &Path, device: u64, inode: u64, self
 /// await scanProcFdHolders({ device, inode, procRoot, selfPid, deadline });
 /// ```
 #[cfg(unix)]
-pub fn scan_proc_fd_holders_until(proc_root: &Path, device: u64, inode: u64, self_pid: u32, deadline: Option<std::time::Instant>) -> HolderEvidence {
-    return scan_proc_fd_holders_stopping(proc_root, device, inode, self_pid, ScanLimit { deadline, processes: None });
+pub fn scan_proc_fd_holders_until(
+    proc_root: &Path,
+    device: u64,
+    inode: u64,
+    self_pid: u32,
+    deadline: Option<std::time::Instant>,
+) -> HolderEvidence {
+    return scan_proc_fd_holders_stopping(
+        proc_root,
+        device,
+        inode,
+        self_pid,
+        ScanLimit {
+            deadline,
+            processes: None,
+        },
+    );
 }
 
 /// The sort key that puts the highest process number first;
@@ -294,7 +356,10 @@ pub struct ScanLimit {
 
 /// Whether a scan that has looked at `reached` processes must stop now.
 #[cfg(unix)]
-fn limit_reached(limit: &ScanLimit, reached: usize) -> bool {
+fn limit_reached(
+    limit: &ScanLimit,
+    reached: usize,
+) -> bool {
     if let Some(most) = limit.processes
         && reached >= most
     {
@@ -323,8 +388,21 @@ fn past(moment: std::time::Instant) -> bool {
 /// await scanProcFdHolders({ device, inode, procRoot, selfPid, limit: { processes: 5 } });
 /// ```
 #[cfg(unix)]
-pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, self_pid: u32, limit: ScanLimit) -> HolderEvidence {
-    return scan_proc_fd_holders_stopping_with(proc_root, device, inode, self_pid, limit, crate::open_file_of_a_descriptor::opened_file_of);
+pub fn scan_proc_fd_holders_stopping(
+    proc_root: &Path,
+    device: u64,
+    inode: u64,
+    self_pid: u32,
+    limit: ScanLimit,
+) -> HolderEvidence {
+    return scan_proc_fd_holders_stopping_with(
+        proc_root,
+        device,
+        inode,
+        self_pid,
+        limit,
+        crate::open_file_of_a_descriptor::opened_file_of,
+    );
 }
 
 /// What:
@@ -338,7 +416,14 @@ pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, 
 /// scanProcFdHoldersStoppingWith({ procRoot, device, inode, selfPid, limit, opened });
 /// ```
 #[cfg(unix)]
-pub fn scan_proc_fd_holders_stopping_with(proc_root: &Path, device: u64, inode: u64, self_pid: u32, limit: ScanLimit, opened: OpenedFileReader) -> HolderEvidence {
+pub fn scan_proc_fd_holders_stopping_with(
+    proc_root: &Path,
+    device: u64,
+    inode: u64,
+    self_pid: u32,
+    limit: ScanLimit,
+    opened: OpenedFileReader,
+) -> HolderEvidence {
     let mut evidence: HolderEvidence = HolderEvidence {
         method: "proc-fd",
         holders: Vec::new(),
@@ -348,7 +433,9 @@ pub fn scan_proc_fd_holders_stopping_with(proc_root: &Path, device: u64, inode: 
     let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
         Ok(found) => found,
         Err(error) => {
-            evidence.partial.push(format!("{}: {error}", proc_root.display()));
+            evidence
+                .partial
+                .push(format!("{}: {error}", proc_root.display()));
             return evidence;
         }
     };
@@ -372,15 +459,22 @@ pub fn scan_proc_fd_holders_stopping_with(proc_root: &Path, device: u64, inode: 
     }
     for (reached, pid) in pids.iter().enumerate() {
         if limit_reached(&limit, reached) {
-            evidence.partial.push(format!("stopped at the time bound after {reached} of {} processes", pids.len()));
+            evidence.partial.push(format!(
+                "stopped at the time bound after {reached} of {} processes",
+                pids.len()
+            ));
             break;
         }
-        let (holds, partial, unresolvable) = scan_process(proc_root, pid.as_str(), device, inode, opened);
+        let (holds, partial, unresolvable) =
+            scan_process(proc_root, pid.as_str(), device, inode, opened);
         if holds && let Ok(number) = pid.parse::<i64>() {
             let command: Option<String> = std::fs::read_to_string(proc_root.join(pid).join("comm"))
                 .ok()
                 .map(trimmed);
-            evidence.holders.push(Holder { pid: number, command });
+            evidence.holders.push(Holder {
+                pid: number,
+                command,
+            });
         }
         if let Some(reason) = partial {
             evidence.partial.push(reason);
@@ -442,11 +536,21 @@ pub const SERVICE_SCAN_BUDGET: std::time::Duration = std::time::Duration::from_s
 /// The scan for open holders that the commit service makes:
 /// the host's,
 /// bounded in time where the host's is `/proc`.
-pub fn scan_platform_holders_bounded(lock_path: &Path, device: u64, inode: u64) -> HolderEvidence {
+pub fn scan_platform_holders_bounded(
+    lock_path: &Path,
+    device: u64,
+    inode: u64,
+) -> HolderEvidence {
     #[cfg(target_os = "linux")]
     {
         let _ = lock_path;
-        return scan_proc_fd_holders_until(Path::new("/proc"), device, inode, std::process::id(), Some(std::time::Instant::now() + SERVICE_SCAN_BUDGET));
+        return scan_proc_fd_holders_until(
+            Path::new("/proc"),
+            device,
+            inode,
+            std::process::id(),
+            Some(std::time::Instant::now() + SERVICE_SCAN_BUDGET),
+        );
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -463,7 +567,11 @@ pub fn scan_platform_holders_bounded(lock_path: &Path, device: u64, inode: u64) 
 /// ```ts
 /// async function scanPlatformHolders({ lockPath, lock }): Promise<LockHolderEvidence>;
 /// ```
-pub fn scan_platform_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidence {
+pub fn scan_platform_holders(
+    lock_path: &Path,
+    device: u64,
+    inode: u64,
+) -> HolderEvidence {
     #[cfg(target_os = "linux")]
     {
         let _ = lock_path;
@@ -503,7 +611,11 @@ pub fn scan_platform_holders(lock_path: &Path, device: u64, inode: u64) -> Holde
 /// async function scanLsofHolders({ lockPath, device, inode }): Promise<LockHolderEvidence>;
 /// ```
 #[cfg(target_os = "macos")]
-fn scan_lsof_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidence {
+fn scan_lsof_holders(
+    lock_path: &Path,
+    device: u64,
+    inode: u64,
+) -> HolderEvidence {
     let output: std::io::Result<std::process::Output> = std::process::Command::new("lsof")
         .args(["-n", "-P", "-w", "-F", "pcDi", "--"])
         .arg(lock_path)
@@ -536,7 +648,11 @@ fn scan_lsof_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidenc
     return HolderEvidence {
         method: "lsof",
         holders: matching_holders(parse_lsof_fields(stdout.as_str()).as_slice(), device, inode),
-        partial: if root { Vec::new() } else { vec![String::from(SILENT_DENIAL_NOTE)] },
+        partial: if root {
+            Vec::new()
+        } else {
+            vec![String::from(SILENT_DENIAL_NOTE)]
+        },
         unresolvable: Vec::new(),
     };
 }
@@ -554,16 +670,25 @@ fn scan_lsof_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidenc
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(windows)]
 fn scan_restart_manager_holders(lock_path: &Path) -> HolderEvidence {
-    let output: std::io::Result<std::process::Output> = std::process::Command::new("powershell.exe")
-        .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", RESTART_MANAGER_SCRIPT])
-        .env("CLI_GIT_RM_TARGET", lock_path)
-        .stdin(std::process::Stdio::null())
-        .output();
+    let output: std::io::Result<std::process::Output> =
+        std::process::Command::new("powershell.exe")
+            .args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                RESTART_MANAGER_SCRIPT,
+            ])
+            .env("CLI_GIT_RM_TARGET", lock_path)
+            .stdin(std::process::Stdio::null())
+            .output();
     match output {
         Ok(finished) if finished.status.success() => {
             return HolderEvidence {
                 method: "restart-manager",
-                holders: parse_restart_manager_output(String::from_utf8_lossy(finished.stdout.as_slice()).as_ref()),
+                holders: parse_restart_manager_output(
+                    String::from_utf8_lossy(finished.stdout.as_slice()).as_ref(),
+                ),
                 partial: Vec::new(),
                 unresolvable: Vec::new(),
             };
@@ -572,7 +697,10 @@ fn scan_restart_manager_holders(lock_path: &Path) -> HolderEvidence {
             return HolderEvidence {
                 method: "restart-manager",
                 holders: Vec::new(),
-                partial: vec![format!("Restart Manager query failed: exit {:?}", finished.status.code())],
+                partial: vec![format!(
+                    "Restart Manager query failed: exit {:?}",
+                    finished.status.code()
+                )],
                 unresolvable: Vec::new(),
             };
         }
@@ -589,7 +717,13 @@ fn scan_restart_manager_holders(lock_path: &Path) -> HolderEvidence {
 
 /// Holders found by the parsers,
 ///  re-exported for the scans and their controls.
-pub use crate::index_lock_holder_parsers::{LsofProcess, matching_holders, parse_lsof_fields, parse_lsof_number, parse_restart_manager_output};
+pub use crate::index_lock_holder_parsers::{
+    LsofProcess,
+    matching_holders,
+    parse_lsof_fields,
+    parse_lsof_number,
+    parse_restart_manager_output,
+};
 
 /// Holder-scan controls stay out of the release executable.
 #[cfg(test)]

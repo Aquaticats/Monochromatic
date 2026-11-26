@@ -19,28 +19,13 @@
 //! await createShadowRepository({ gitPath, cwd, capture, transactionId, transactionDirectory });
 //! ```
 
-/// Shadow path.
-use crate::shadow_git::shadow_repository_path;
 /// Invocation capture.
 use crate::capture_invocation::InvocationCapture;
-/// What a tree must be for this invocation,
-/// which is the question a claim and a hand-out both ask.
-use crate::shadow_pool_member::refusal;
-/// The in-process entries of an empty bare repository.
-use crate::shadow_skeleton::create_shadow_skeleton;
-/// Entry links.
-use crate::shadow_links::link_shadow_entries;
-/// Conclusion copy and ref snapshot.
-use crate::conclusion_copy::copy_conclusion_state;
-use crate::shadow_refs::SnapshotSources;
-use crate::shadow_ref_write::write_shadow_refs;
-/// Process context and the failure of a step.
-use crate::transaction_git::{GitContext, GitFailure};
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
 /// The build phase's stretches,
 /// which the creation marks as it goes.
 use crate::commit_build_part_durations::BuildPartClock;
+/// Conclusion copy and ref snapshot.
+use crate::conclusion_copy::copy_conclusion_state;
 /// The `git init` a reftable shadow is made by,
 /// re-exported under the path it had in this file.
 pub(crate) use crate::shadow_create_init::init_with_git;
@@ -49,10 +34,10 @@ pub(crate) use crate::shadow_create_init::init_with_git;
 /// re-exported under the paths they had in this file;
 /// only the controls of this module name them.
 #[cfg(test)]
-pub(crate) use crate::shadow_create_init::{SHADOW_CREATION_ATTEMPTS, start_was_cut_or_refused};
-/// The facts a shadow is made from,
-/// re-exported under the path it had in this file.
-pub use crate::shadow_create_template::ShadowTemplate;
+pub(crate) use crate::shadow_create_init::{
+    SHADOW_CREATION_ATTEMPTS,
+    start_was_cut_or_refused,
+};
 /// The private directory a shadow is made in,
 /// re-exported under the path it had in this file.
 pub use crate::shadow_create_private_storage::ensure_private_directory;
@@ -60,7 +45,33 @@ pub use crate::shadow_create_private_storage::ensure_private_directory;
 /// and the mode of its files and of its directory,
 /// re-exported under the paths they had in this file.
 pub(crate) use crate::shadow_create_private_storage::{
-    create_parent, overwrite_private, set_private_directory_mode,
+    create_parent,
+    overwrite_private,
+    set_private_directory_mode,
+};
+/// The facts a shadow is made from,
+/// re-exported under the path it had in this file.
+pub use crate::shadow_create_template::ShadowTemplate;
+/// Shadow path.
+use crate::shadow_git::shadow_repository_path;
+/// Entry links.
+use crate::shadow_links::link_shadow_entries;
+/// What a tree must be for this invocation,
+/// which is the question a claim and a hand-out both ask.
+use crate::shadow_pool_member::refusal;
+use crate::shadow_ref_write::write_shadow_refs;
+use crate::shadow_refs::SnapshotSources;
+/// The in-process entries of an empty bare repository.
+use crate::shadow_skeleton::create_shadow_skeleton;
+/// Process context and the failure of a step.
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+};
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
+use std::path::{
+    Path,
+    PathBuf,
 };
 
 /// What:
@@ -77,16 +88,26 @@ pub(crate) use crate::shadow_create_private_storage::{
 /// ```ts
 /// function stepFailure<T>(attempt: () => T, verb: string, shadow: string): T; // throws GitFailure(`${verb} ${shadow} failed: ${error}`)
 /// ```
-fn step_failure<T>(result: std::io::Result<T>, verb: &str, shadow: &Path) -> Result<T, GitFailure> {
+fn step_failure<T>(
+    result: std::io::Result<T>,
+    verb: &str,
+    shadow: &Path,
+) -> Result<T, GitFailure> {
     return match result {
         Ok(value) => Ok(value),
-        Err(error) => Err(GitFailure(format!("{verb} {} failed: {error}", shadow.display()))),
+        Err(error) => Err(GitFailure(format!(
+            "{verb} {} failed: {error}",
+            shadow.display()
+        ))),
     };
 }
 
 /// The same for a step that is named by a phrase and not by a verb and the shadow:
 /// `<phrase> failed: <error>`.
-fn named_step_failure<T>(result: std::io::Result<T>, phrase: &str) -> Result<T, GitFailure> {
+fn named_step_failure<T>(
+    result: std::io::Result<T>,
+    phrase: &str,
+) -> Result<T, GitFailure> {
     return match result {
         Ok(value) => Ok(value),
         Err(error) => Err(GitFailure(format!("{phrase} failed: {error}"))),
@@ -112,11 +133,23 @@ pub fn create_shadow_repository(
     transaction_id: &str,
     transaction_directory: &Path,
 ) -> Result<PathBuf, GitFailure> {
-    let shadow: PathBuf = shadow_repository_path(capture.layout.common_dir.as_path(), transaction_id);
+    let shadow: PathBuf =
+        shadow_repository_path(capture.layout.common_dir.as_path(), transaction_id);
     // No Git child runs here, so the stretch is named for the record a commit writes.
     let mut clock: BuildPartClock = BuildPartClock::begin("shadow parent");
-    step_failure(create_parent(shadow.as_path()), "creating", shadow.as_path())?;
-    create_shadow_repository_at(context, cwd, capture, shadow.as_path(), transaction_directory, &mut clock)?;
+    step_failure(
+        create_parent(shadow.as_path()),
+        "creating",
+        shadow.as_path(),
+    )?;
+    create_shadow_repository_at(
+        context,
+        cwd,
+        capture,
+        shadow.as_path(),
+        transaction_directory,
+        &mut clock,
+    )?;
     return Ok(shadow);
 }
 
@@ -143,7 +176,15 @@ pub fn create_shadow_repository_at(
     transaction_directory: &Path,
     clock: &mut BuildPartClock,
 ) -> Result<(), GitFailure> {
-    return create_shadow_repository_carrying(context, cwd, capture, shadow, transaction_directory, true, clock);
+    return create_shadow_repository_carrying(
+        context,
+        cwd,
+        capture,
+        shadow,
+        transaction_directory,
+        true,
+        clock,
+    );
 }
 
 /// What:
@@ -174,7 +215,15 @@ pub fn create_shadow_repository_carrying(
 ) -> Result<(), GitFailure> {
     let template: ShadowTemplate = ShadowTemplate::of(context, &capture.layout)?;
     create_shadow_template(context, &template, shadow, clock)?;
-    return carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock);
+    return carry_the_commit_parts(
+        context,
+        cwd,
+        capture,
+        shadow,
+        transaction_directory,
+        carry_conclusion,
+        clock,
+    );
 }
 
 /// What:
@@ -244,14 +293,21 @@ fn conclusion_state_present(git_dir: &Path) -> bool {
 /// ```ts
 /// const mayBeHandedATree = (template, carryConclusion) => template.refFormat !== 'reftable' && !keepsItsOwnInfo(template) && !carryConclusion;
 /// ```
-pub(crate) fn may_be_handed_a_tree(template: &ShadowTemplate, carry_conclusion: bool) -> bool {
+pub(crate) fn may_be_handed_a_tree(
+    template: &ShadowTemplate,
+    carry_conclusion: bool,
+) -> bool {
     if carry_conclusion {
         return false;
     }
     if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
         return false;
     }
-    return !crate::shadow_links::keeps_its_own_info(template.common_dir.as_path(), template.git_dir.as_path()).unwrap_or(false);
+    return !crate::shadow_links::keeps_its_own_info(
+        template.common_dir.as_path(),
+        template.git_dir.as_path(),
+    )
+    .unwrap_or(false);
 }
 
 /// What:
@@ -297,17 +353,33 @@ pub fn take_or_create_shadow(
     //       this invocation refuses is handed back and the commit takes the pool's member or makes its own: nothing about
     //       the question can fail a commit.
     clock.next("shadow hand-out");
-    let concludes: bool = carry_conclusion && conclusion_state_present(capture.layout.git_dir.as_path());
+    let concludes: bool =
+        carry_conclusion && conclusion_state_present(capture.layout.git_dir.as_path());
     let asked: Option<PathBuf> = match may_be_handed_a_tree(&template, concludes) {
-        true => crate::service_client_shadow_hand_out::ask_for_a_drawn_shadow(service, &template, transaction_directory),
+        true => crate::service_client_shadow_hand_out::ask_for_a_drawn_shadow(
+            service,
+            &template,
+            transaction_directory,
+        ),
         false => None,
     };
     if let Some(drawn) = asked {
         match refusal(&template, drawn.as_path()) {
             Ok(None) => {
                 let handed = crate::shadow_drawn::HandedShadow::hold(drawn.clone());
-                carry_the_commit_parts(context, cwd, capture, drawn.as_path(), transaction_directory, carry_conclusion, clock)?;
-                return Ok(ShadowTree { path: drawn, handed: Some(handed) });
+                carry_the_commit_parts(
+                    context,
+                    cwd,
+                    capture,
+                    drawn.as_path(),
+                    transaction_directory,
+                    carry_conclusion,
+                    clock,
+                )?;
+                return Ok(ShadowTree {
+                    path: drawn,
+                    handed: Some(handed),
+                });
             }
             Ok(Some(reason)) => crate::diagnostic_log::debug(
                 "shadowDrawn",
@@ -323,13 +395,35 @@ pub fn take_or_create_shadow(
     }
     clock.next("shadow pool");
     if crate::shadow_pool::take(&template, shadow) {
-        carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock)?;
-        return Ok(ShadowTree { path: shadow.to_path_buf(), handed: None });
+        carry_the_commit_parts(
+            context,
+            cwd,
+            capture,
+            shadow,
+            transaction_directory,
+            carry_conclusion,
+            clock,
+        )?;
+        return Ok(ShadowTree {
+            path: shadow.to_path_buf(),
+            handed: None,
+        });
     }
     clock.next("shadow skeleton");
     create_shadow_template(context, &template, shadow, clock)?;
-    carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock)?;
-    return Ok(ShadowTree { path: shadow.to_path_buf(), handed: None });
+    carry_the_commit_parts(
+        context,
+        cwd,
+        capture,
+        shadow,
+        transaction_directory,
+        carry_conclusion,
+        clock,
+    )?;
+    return Ok(ShadowTree {
+        path: shadow.to_path_buf(),
+        handed: None,
+    });
 }
 
 /// What:
@@ -361,19 +455,30 @@ pub fn create_shadow_template(
     step_failure(set_private_directory_mode(shadow), "protecting", shadow)?;
     clock.next("shadow config");
     named_step_failure(
-        overwrite_private(shadow.join("config").as_path(), template.config_bytes().as_slice()),
+        overwrite_private(
+            shadow.join("config").as_path(),
+            template.config_bytes().as_slice(),
+        ),
         "writing the shadow config",
     )?;
     named_step_failure(
         overwrite_private(
-            shadow.join("objects").join("info").join("alternates").as_path(),
+            shadow
+                .join("objects")
+                .join("info")
+                .join("alternates")
+                .as_path(),
             template.alternates_bytes().as_slice(),
         ),
         "writing the shadow alternates",
     )?;
     clock.next("shadow links");
     named_step_failure(
-        link_shadow_entries(shadow, template.common_dir.as_path(), template.git_dir.as_path()),
+        link_shadow_entries(
+            shadow,
+            template.common_dir.as_path(),
+            template.git_dir.as_path(),
+        ),
         "linking the shadow entries",
     )?;
     return Ok(());
@@ -416,7 +521,12 @@ fn carry_the_commit_parts(
         context,
         cwd,
         shadow,
-        &SnapshotSources::of(layout.git_dir.clone(), layout.common_dir.clone(), layout.ref_format, layout.object_format.as_str()),
+        &SnapshotSources::of(
+            layout.git_dir.clone(),
+            layout.common_dir.clone(),
+            layout.ref_format,
+            layout.object_format.as_str(),
+        ),
         &layout.target_ref,
         &layout.symbolic_head,
         &capture.base,

@@ -46,7 +46,10 @@ fn manifest_bin_tables(manifest: &str) -> Vec<(String, String)> {
         let trimmed: &str = line.trim();
         if trimmed.starts_with('[') {
             if in_bin {
-                tables.push((name.take().unwrap_or_default(), path.take().unwrap_or_default()));
+                tables.push((
+                    name.take().unwrap_or_default(),
+                    path.take().unwrap_or_default(),
+                ));
             }
             in_bin = trimmed == "[[bin]]";
             continue;
@@ -62,7 +65,10 @@ fn manifest_bin_tables(manifest: &str) -> Vec<(String, String)> {
         }
     }
     if in_bin {
-        tables.push((name.take().unwrap_or_default(), path.take().unwrap_or_default()));
+        tables.push((
+            name.take().unwrap_or_default(),
+            path.take().unwrap_or_default(),
+        ));
     }
     return tables;
 }
@@ -70,18 +76,30 @@ fn manifest_bin_tables(manifest: &str) -> Vec<(String, String)> {
 /// The names of the `[[bin]]` tables of a manifest:
 /// the name of each pair the reader above answers.
 fn manifest_bins(manifest: &str) -> Vec<String> {
-    return manifest_bin_tables(manifest).into_iter().map(|(name, _path)| { return name; }).collect();
+    return manifest_bin_tables(manifest)
+        .into_iter()
+        .map(|(name, _path)| {
+            return name;
+        })
+        .collect();
 }
 
 /// The crate's declared executables are the one released one and no other.
 #[test]
 fn the_crate_declares_only_the_executables_the_release_archive_holds() {
-    let manifest: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")).expect("the manifest");
+    let manifest: String =
+        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
+            .expect("the manifest");
     let mut declared: Vec<String> = manifest_bins(manifest.as_str());
     declared.sort();
     assert_eq!(
         declared,
-        RELEASED_BINS.iter().map(|name| { return (*name).to_string(); }).collect::<Vec<String>>(),
+        RELEASED_BINS
+            .iter()
+            .map(|name| {
+                return (*name).to_string();
+            })
+            .collect::<Vec<String>>(),
         "every [[bin]] must be in the release archive, or cargo-binstall refuses the archive; make a second program a mode of monochromatic-git-policy-cli, or package it in .github/workflows/cargo-publish.yml and add it here, in releasable-crates.json and in toolchain.lock.json"
     );
 }
@@ -91,17 +109,43 @@ fn the_crate_declares_only_the_executables_the_release_archive_holds() {
 #[test]
 fn every_bin_table_is_read() {
     let planted: &str = "[package]\nname = \"x\"\n\n[[bin]]\nname = \"monochromatic-git-policy-cli\"\npath = \"a.rs\"\n\n[[test]]\nname = \"not-a-bin\"\n\n[[bin]]\npath = \"b.rs\"\nname = \"second\"\n";
-    assert_eq!(manifest_bins(planted), vec![String::from("monochromatic-git-policy-cli"), String::from("second")]);
+    assert_eq!(
+        manifest_bins(planted),
+        vec![
+            String::from("monochromatic-git-policy-cli"),
+            String::from("second")
+        ]
+    );
     assert_eq!(
         manifest_bin_tables(planted),
-        vec![(String::from("monochromatic-git-policy-cli"), String::from("a.rs")), (String::from("second"), String::from("b.rs"))]
+        vec![
+            (
+                String::from("monochromatic-git-policy-cli"),
+                String::from("a.rs")
+            ),
+            (String::from("second"), String::from("b.rs"))
+        ]
     );
 }
 
 /// The wrapper's `[[bin]]` compiles the file the entry pin holds.
 #[test]
 fn the_wrappers_bin_compiles_the_pinned_main() {
-    let manifest: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")).expect("the manifest");
-    let wrapper: Vec<(String, String)> = manifest_bin_tables(manifest.as_str()).into_iter().filter(|(name, _path)| { return name == "monochromatic-git-policy-cli"; }).collect();
-    assert_eq!(wrapper, vec![(String::from("monochromatic-git-policy-cli"), String::from("src/native/main.rs"))], "the wrapper's `[[bin]]` must compile src/native/main.rs, the one file the entry pin reads; a `path` that moves makes the pinned text guard a file the release does not build");
+    let manifest: String =
+        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
+            .expect("the manifest");
+    let wrapper: Vec<(String, String)> = manifest_bin_tables(manifest.as_str())
+        .into_iter()
+        .filter(|(name, _path)| {
+            return name == "monochromatic-git-policy-cli";
+        })
+        .collect();
+    assert_eq!(
+        wrapper,
+        vec![(
+            String::from("monochromatic-git-policy-cli"),
+            String::from("src/native/main.rs")
+        )],
+        "the wrapper's `[[bin]]` must compile src/native/main.rs, the one file the entry pin reads; a `path` that moves makes the pinned text guard a file the release does not build"
+    );
 }

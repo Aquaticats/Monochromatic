@@ -18,7 +18,6 @@
 //! type Base = { kind: 'unborn' } | { kind: 'commit'; oid: string };
 //! ```
 
-
 /// What:
 ///  The target at invocation,
 ///  or the expected old target of a landing.
@@ -114,7 +113,6 @@ pub enum RefFormat {
     /// The reftable backend.
     Reftable,
 }
-
 
 /// What:
 ///  One policy-added path,

@@ -7,7 +7,10 @@
 use super::*;
 use crate::service_protocol::decode_service;
 use crate::ticker_beside_a_wait::with_a_ticker_beside;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{
+    AsyncBufReadExt,
+    BufReader,
+};
 use tokio::net::UnixStream;
 use tokio::task::JoinHandle;
 
@@ -24,7 +27,9 @@ const BEATS_WANTED: usize = 3;
 fn connected() -> (Reply, JoinHandle<()>, BufReader<UnixStream>) {
     let (mut service, client) = UnixStream::pair().expect("a connected pair");
     let (reply, mut messages) = Reply::new();
-    let writer = tokio::spawn(async move { write_until_answered(&mut service, &mut messages, QUICK_BEAT).await; });
+    let writer = tokio::spawn(async move {
+        write_until_answered(&mut service, &mut messages, QUICK_BEAT).await;
+    });
     return (reply, writer, BufReader::new(client));
 }
 
@@ -58,7 +63,12 @@ fn a_waiting_client_is_sent_heartbeats_until_it_is_answered() {
         for _ in 0..BEATS_WANTED {
             assert_eq!(next(&mut client).await, ServiceMessage::Heartbeat);
         }
-        let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("x"), commit: String::from("c"), already: false, landing: None };
+        let landed: ServiceMessage = ServiceMessage::Landed {
+            id: String::from("x"),
+            commit: String::from("c"),
+            already: false,
+            landing: None,
+        };
         reply.send(&landed);
         loop {
             let heard: ServiceMessage = next(&mut client).await;
@@ -68,9 +78,14 @@ fn a_waiting_client_is_sent_heartbeats_until_it_is_answered() {
             }
         }
         drop(reply);
-        writer.await.expect("the writer ends once the reply is gone");
+        writer
+            .await
+            .expect("the writer ends once the reply is gone");
     });
-    assert!(ticks > 0, "the writer waited for its beats on the runtime, so the counting task ran beside it");
+    assert!(
+        ticks > 0,
+        "the writer waited for its beats on the runtime, so the counting task ran beside it"
+    );
 }
 
 /// Dropping the reply,
@@ -85,7 +100,11 @@ fn the_beat_ends_with_the_reply_and_the_connection_closes() {
         let (reply, writer, mut client) = connected();
         drop(reply);
         writer.await.expect("the writer ends");
-        assert_eq!(only_beats_until_the_end(&mut client).await, Ok(()), "only beats may arrive after the reply is dropped");
+        assert_eq!(
+            only_beats_until_the_end(&mut client).await,
+            Ok(()),
+            "only beats may arrive after the reply is dropped"
+        );
     });
 }
 
@@ -112,7 +131,12 @@ fn the_beat_ends_with_the_reply_and_the_connection_closes() {
 fn queued_answer_is_written_before_the_connection_closes(delay: Duration) {
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (reply, writer, mut client) = connected();
-        let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("x"), commit: String::from("c"), already: false, landing: None };
+        let landed: ServiceMessage = ServiceMessage::Landed {
+            id: String::from("x"),
+            commit: String::from("c"),
+            already: false,
+            landing: None,
+        };
         tokio::time::sleep(delay).await;
         reply.send(&landed);
         drop(reply);
@@ -122,7 +146,11 @@ fn queued_answer_is_written_before_the_connection_closes(delay: Duration) {
             first_answer = next(&mut client).await;
         }
         assert_eq!(first_answer, landed);
-        assert_eq!(only_beats_until_the_end(&mut client).await, Ok(()), "only beats may follow the answer");
+        assert_eq!(
+            only_beats_until_the_end(&mut client).await,
+            Ok(()),
+            "only beats may follow the answer"
+        );
     });
 }
 
@@ -151,7 +179,9 @@ fn the_beat_ends_when_the_client_is_gone() {
     let ((), _ticks) = with_a_ticker_beside(async {
         let (reply, writer, client) = connected();
         drop(client);
-        writer.await.expect("a write to a closed client ends the writer");
+        writer
+            .await
+            .expect("a write to a closed client ends the writer");
         drop(reply);
     });
 }
@@ -170,22 +200,32 @@ fn beats_and_answers_never_interleave_their_bytes_and_keep_their_order() {
         // The sender is another thread, as the landing thread is.
         let answerer = std::thread::spawn(move || {
             for number in 0..BEATS_WANTED * 10 {
-                reply.send(&ServiceMessage::Waiting { text: format!("{number}:{long_text}") });
+                reply.send(&ServiceMessage::Waiting {
+                    text: format!("{number}:{long_text}"),
+                });
             }
         });
         let mut waits: usize = 0;
         while waits < BEATS_WANTED * 10 {
             match next(&mut client).await {
                 ServiceMessage::Heartbeat => {}
-                ServiceMessage::Waiting { text } => {
-                    assert!(text.starts_with(format!("{waits}:").as_str()), "answers keep their order: {}", &text[..8]);
+                ServiceMessage::Waiting {
+                    text,
+                } => {
+                    assert!(
+                        text.starts_with(format!("{waits}:").as_str()),
+                        "answers keep their order: {}",
+                        &text[..8]
+                    );
                     waits += 1;
                 }
                 other => panic!("unexpected {other:?}"),
             }
         }
         answerer.join().expect("answerer");
-        writer.await.expect("the writer ends when the reply is dropped with the answerer");
+        writer
+            .await
+            .expect("the writer ends when the reply is dropped with the answerer");
     });
 }
 
@@ -207,7 +247,9 @@ fn a_note_that_takes_a_while_is_written_after_the_beat() {
     impl NoteSource for SlowNote {
         async fn note(&mut self) -> Option<ServiceMessage> {
             tokio::time::sleep(QUICK_BEAT / 2).await;
-            return Some(ServiceMessage::Waiting { text: String::from("slow") });
+            return Some(ServiceMessage::Waiting {
+                text: String::from("slow"),
+            });
         }
     }
 
@@ -217,9 +259,22 @@ fn a_note_that_takes_a_while_is_written_after_the_beat() {
             (service, BufReader::new(client))
         };
         let (reply, mut messages) = Reply::new();
-        let writer = tokio::spawn(async move { write_until_answered_noting(&mut service, &mut messages, QUICK_BEAT, &mut SlowNote).await; });
-        assert_eq!(next(&mut client).await, ServiceMessage::Heartbeat, "the beat is written before its note is asked");
-        assert_eq!(next(&mut client).await, ServiceMessage::Waiting { text: String::from("slow") }, "the note follows the beat it rides on");
+        let writer = tokio::spawn(async move {
+            write_until_answered_noting(&mut service, &mut messages, QUICK_BEAT, &mut SlowNote)
+                .await;
+        });
+        assert_eq!(
+            next(&mut client).await,
+            ServiceMessage::Heartbeat,
+            "the beat is written before its note is asked"
+        );
+        assert_eq!(
+            next(&mut client).await,
+            ServiceMessage::Waiting {
+                text: String::from("slow")
+            },
+            "the note follows the beat it rides on"
+        );
         drop(reply);
         drop(client);
         writer.await.expect("the writer ends");
@@ -245,7 +300,9 @@ fn a_note_that_outlives_its_beat_is_left_for_the_next_beat() {
     impl NoteSource for StuckNote {
         async fn note(&mut self) -> Option<ServiceMessage> {
             tokio::time::sleep(QUICK_BEAT.saturating_mul(8)).await;
-            return Some(ServiceMessage::Waiting { text: String::from("stuck") });
+            return Some(ServiceMessage::Waiting {
+                text: String::from("stuck"),
+            });
         }
     }
 
@@ -255,12 +312,20 @@ fn a_note_that_outlives_its_beat_is_left_for_the_next_beat() {
             (service, BufReader::new(client))
         };
         let (reply, mut messages) = Reply::new();
-        let writer = tokio::spawn(async move { write_until_answered_noting(&mut service, &mut messages, QUICK_BEAT, &mut StuckNote).await; });
+        let writer = tokio::spawn(async move {
+            write_until_answered_noting(&mut service, &mut messages, QUICK_BEAT, &mut StuckNote)
+                .await;
+        });
         for _ in 0..BEATS_WANTED {
-            let heard: ServiceMessage = tokio::time::timeout(QUICK_BEAT.saturating_mul(20), next(&mut client))
-                .await
-                .expect("a beat arrives while the note waits");
-            assert_eq!(heard, ServiceMessage::Heartbeat, "only beats come while the note is held");
+            let heard: ServiceMessage =
+                tokio::time::timeout(QUICK_BEAT.saturating_mul(20), next(&mut client))
+                    .await
+                    .expect("a beat arrives while the note waits");
+            assert_eq!(
+                heard,
+                ServiceMessage::Heartbeat,
+                "only beats come while the note is held"
+            );
         }
         drop(reply);
         drop(client);
@@ -278,7 +343,13 @@ fn a_note_that_outlives_its_beat_is_left_for_the_next_beat() {
 #[test]
 fn a_reply_whose_client_went_away_says_so() {
     let (reply, messages) = Reply::new();
-    assert!(!reply.client_is_gone(), "the writer of the connection is there");
+    assert!(
+        !reply.client_is_gone(),
+        "the writer of the connection is there"
+    );
     drop(messages);
-    assert!(reply.client_is_gone(), "nothing reads an answer, so the client is gone");
+    assert!(
+        reply.client_is_gone(),
+        "nothing reads an answer, so the client is gone"
+    );
 }

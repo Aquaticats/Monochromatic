@@ -27,9 +27,22 @@
 
 use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_removal_proof_and_plan::removal_inventory::{LiveInventory, LiveObject};
-use crate::zfs_compatibility_gate::{BeforeRequests, LiveGate, Verdict, verdict_line};
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, NvData, NvList, ZfsDevice};
+use crate::worktree_clone_removal_proof_and_plan::removal_inventory::{
+    LiveInventory,
+    LiveObject,
+};
+use crate::zfs_compatibility_gate::{
+    BeforeRequests,
+    LiveGate,
+    Verdict,
+    verdict_line,
+};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    NvData,
+    NvList,
+    ZfsDevice,
+};
 
 /// What:
 ///  The three reads one removal's proof makes of the pool.
@@ -47,7 +60,10 @@ pub trait RemovalPoolReads {
     /// # Throws
     ///
     /// What the name that does not answer says.
-    fn identity(&self, name: &str) -> Result<DatasetIdentity, String>;
+    fn identity(
+        &self,
+        name: &str,
+    ) -> Result<DatasetIdentity, String>;
 
     /// Every snapshot of `dataset`,
     /// each with the dataset it is listed under.
@@ -56,7 +72,11 @@ pub trait RemovalPoolReads {
     ///
     /// The listing step that failed,
     /// which makes the inventory incomplete and therefore a refusal.
-    fn snapshots_of(&self, dataset: &str, dataset_guid: DatasetGuid) -> Result<Vec<LiveObject>, String>;
+    fn snapshots_of(
+        &self,
+        dataset: &str,
+        dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String>;
 
     /// Every bookmark of `dataset`,
     /// each with its owning dataset.
@@ -65,7 +85,11 @@ pub trait RemovalPoolReads {
     ///
     /// The bookmark read that failed,
     /// or one bookmark whose reply carries no GUID or creation group.
-    fn bookmarks_of(&self, dataset: &str, dataset_guid: DatasetGuid) -> Result<Vec<LiveObject>, String>;
+    fn bookmarks_of(
+        &self,
+        dataset: &str,
+        dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String>;
 }
 
 /// What:
@@ -99,19 +123,37 @@ impl LiveRemovalReads {
             ));
         }
         let device: ZfsDevice = ZfsDevice::open().map_err(|error| return format!("the kernel's ZFS device cannot be opened ({error}), so the removal cannot prove its lineage"))?;
-        return Ok(LiveRemovalReads { device });
+        return Ok(LiveRemovalReads {
+            device,
+        });
     }
 }
 
 impl RemovalPoolReads for LiveRemovalReads {
-    fn identity(&self, name: &str) -> Result<DatasetIdentity, String> {
-        return self.device.objset_stats(name).map_err(|error| return format!("{name} does not answer the pool ({error})"));
+    fn identity(
+        &self,
+        name: &str,
+    ) -> Result<DatasetIdentity, String> {
+        return self
+            .device
+            .objset_stats(name)
+            .map_err(|error| return format!("{name} does not answer the pool ({error})"));
     }
 
-    fn snapshots_of(&self, dataset: &str, dataset_guid: DatasetGuid) -> Result<Vec<LiveObject>, String> {
+    fn snapshots_of(
+        &self,
+        dataset: &str,
+        dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String> {
         let mut objects: Vec<LiveObject> = Vec::new();
         let mut cursor: u64 = 0;
-        while let Some(listed) = self.device.snapshot_list_next(dataset, cursor).map_err(|error| return format!("the snapshots of {dataset} could not be listed ({error})"))? {
+        while let Some(listed) =
+            self.device
+                .snapshot_list_next(dataset, cursor)
+                .map_err(|error| {
+                    return format!("the snapshots of {dataset} could not be listed ({error})");
+                })?
+        {
             cursor = listed.cursor;
             objects.push(LiveObject {
                 kind: EntryKind::Snapshot,
@@ -125,13 +167,30 @@ impl RemovalPoolReads for LiveRemovalReads {
         return Ok(objects);
     }
 
-    fn bookmarks_of(&self, dataset: &str, dataset_guid: DatasetGuid) -> Result<Vec<LiveObject>, String> {
-        let reply: NvList = self.device.get_bookmarks(dataset, &[]).map_err(|error| return format!("the bookmarks of {dataset} could not be listed ({error})"))?;
+    fn bookmarks_of(
+        &self,
+        dataset: &str,
+        dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String> {
+        let reply: NvList = self.device.get_bookmarks(dataset, &[]).map_err(|error| {
+            return format!("the bookmarks of {dataset} could not be listed ({error})");
+        })?;
         let mut objects: Vec<LiveObject> = Vec::new();
         for pair in reply.iter() {
-            let NvData::List { value } = &pair.data else { continue };
-            let guid: u64 = nested_u64(value, "guid").ok_or_else(|| return format!("the bookmark {} carries no GUID", pair.name))?;
-            let createtxg: u64 = nested_u64(value, "createtxg").ok_or_else(|| return format!("the bookmark {} carries no creation transaction group", pair.name))?;
+            let NvData::List {
+                value,
+            } = &pair.data
+            else {
+                continue;
+            };
+            let guid: u64 = nested_u64(value, "guid")
+                .ok_or_else(|| return format!("the bookmark {} carries no GUID", pair.name))?;
+            let createtxg: u64 = nested_u64(value, "createtxg").ok_or_else(|| {
+                return format!(
+                    "the bookmark {} carries no creation transaction group",
+                    pair.name
+                );
+            })?;
             objects.push(LiveObject {
                 kind: EntryKind::Bookmark,
                 name: the_bookmarks_own_name(pair.name.as_str(), dataset)?,
@@ -161,20 +220,36 @@ impl RemovalPoolReads for LiveRemovalReads {
 /// ```ts
 /// const inventory = wholeInventory(reads, clone, guid);
 /// ```
-pub fn whole_inventory(reads: &dyn RemovalPoolReads, dataset: &str, dataset_guid: DatasetGuid) -> Result<LiveInventory, String> {
+pub fn whole_inventory(
+    reads: &dyn RemovalPoolReads,
+    dataset: &str,
+    dataset_guid: DatasetGuid,
+) -> Result<LiveInventory, String> {
     let mut objects: Vec<LiveObject> = reads.snapshots_of(dataset, dataset_guid)?;
     objects.extend(reads.bookmarks_of(dataset, dataset_guid)?);
-    return Ok(LiveInventory { dataset: String::from(dataset), dataset_guid, objects });
+    return Ok(LiveInventory {
+        dataset: String::from(dataset),
+        dataset_guid,
+        objects,
+    });
 }
 
 /// The name one listing reports below its dataset,
 /// refused when it is not that dataset's object.
-fn name_below(full: &str, dataset: &str, separator: char) -> Result<String, String> {
+fn name_below(
+    full: &str,
+    dataset: &str,
+    separator: char,
+) -> Result<String, String> {
     let Some((owner, name)) = full.split_once(separator) else {
-        return Err(format!("the pool listed `{full}`, which is not a {separator} object"));
+        return Err(format!(
+            "the pool listed `{full}`, which is not a {separator} object"
+        ));
     };
     if owner != dataset {
-        return Err(format!("the pool listed `{full}` under {dataset}, and its owner is {owner}"));
+        return Err(format!(
+            "the pool listed `{full}` under {dataset}, and its owner is {owner}"
+        ));
     }
     return Ok(String::from(name));
 }
@@ -196,7 +271,10 @@ fn name_below(full: &str, dataset: &str, separator: char) -> Result<String, Stri
 /// ```ts
 /// const name = bookmarksOwnName(pair.name, dataset);
 /// ```
-fn the_bookmarks_own_name(reported: &str, dataset: &str) -> Result<String, String> {
+fn the_bookmarks_own_name(
+    reported: &str,
+    dataset: &str,
+) -> Result<String, String> {
     let Some((owner, name)) = reported.split_once('#') else {
         if reported.is_empty() {
             return Err(String::from("the pool listed a bookmark with no name"));
@@ -204,7 +282,9 @@ fn the_bookmarks_own_name(reported: &str, dataset: &str) -> Result<String, Strin
         return Ok(String::from(reported));
     };
     if owner != dataset {
-        return Err(format!("the pool listed the bookmark `{reported}` for {dataset}, and its owner is {owner}"));
+        return Err(format!(
+            "the pool listed the bookmark `{reported}` for {dataset}, and its owner is {owner}"
+        ));
     }
     return Ok(String::from(name));
 }
@@ -220,18 +300,29 @@ fn the_bookmarks_own_name(reported: &str, dataset: &str) -> Result<String, Strin
 /// ```ts
 /// const number = (entry, key) => entry.getList(key)?.getU64('value');
 /// ```
-fn nested_u64(entry: &NvList, key: &str) -> Option<u64> {
-    return entry.get_list(key).and_then(|value| return value.get_u64("value"));
+fn nested_u64(
+    entry: &NvList,
+    key: &str,
+) -> Option<u64> {
+    return entry
+        .get_list(key)
+        .and_then(|value| return value.get_u64("value"));
 }
 
 /// A GUID the kernel reported,
 /// refused when it is zero,
 /// which no live object answers.
-fn guid_of(value: u64, name: &str) -> Result<DatasetGuid, String> {
+fn guid_of(
+    value: u64,
+    name: &str,
+) -> Result<DatasetGuid, String> {
     if value == 0 {
-        return Err(format!("the pool reported GUID 0 for {name}, and no live object has that identity"));
+        return Err(format!(
+            "the pool reported GUID 0 for {name}, and no live object has that identity"
+        ));
     }
-    return DatasetGuid::parse(value.to_string().as_str()).map_err(|_| return format!("the pool's GUID for {name} is not canonical"));
+    return DatasetGuid::parse(value.to_string().as_str())
+        .map_err(|_| return format!("the pool's GUID for {name} is not canonical"));
 }
 
 /// Controls stay out of the release executable.

@@ -2,9 +2,13 @@
 //! a file that grows under the read may not hand over a byte the caller's bound never counted.
 
 use super::*;
-use crate::worktree_clean_content_attribute_sources::ConversionEnvironment;
 use crate::repo_read_layout::ObjectFormat;
-use crate::test_support::{fixture, git, remove};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+};
+use crate::worktree_clean_content_attribute_sources::ConversionEnvironment;
 use std::cell::Cell;
 
 /// What:
@@ -18,9 +22,15 @@ use std::cell::Cell;
 /// ```ts
 /// const { root, judge } = fixtureWithBound(spent);
 /// ```
-fn fixture_root(name: &str, attributes: &[u8]) -> std::path::PathBuf {
+fn fixture_root(
+    name: &str,
+    attributes: &[u8],
+) -> std::path::PathBuf {
     let root: std::path::PathBuf = fixture(name);
-    git(root.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        root.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     std::fs::write(root.join(".gitattributes"), attributes).expect("attributes");
     return root;
 }
@@ -32,9 +42,12 @@ fn an_attributes_file_that_grows_under_the_read_takes_no_byte_past_the_room() {
     let root: std::path::PathBuf = fixture_root("attributes-grown", b"# eight\n");
     // The attributes file is written a moment before this control, and the proof trusts only a settled one, so the
     // control states the instant instead of waiting.
-    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin = crate::worktree_copy_stage_leaf_copying::clock_reads(
-        changed_nanos(&std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata")) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
-    );
+    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin =
+        crate::worktree_copy_stage_leaf_copying::clock_reads(
+            changed_nanos(
+                &std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata"),
+            ) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
+        );
     let handed: &Cell<u64> = Box::leak(Box::new(Cell::new(0)));
     let room: u64 = 8;
     let grown: std::path::PathBuf = root.join(".gitattributes");
@@ -49,14 +62,32 @@ fn an_attributes_file_that_grows_under_the_read_takes_no_byte_past_the_room() {
     let spent: Cell<u64> = Cell::new(CONTENT_LIMIT - room);
     let environment: ConversionEnvironment = crate::fixture_content_decision::content_environment();
     let git_dir: std::path::PathBuf = root.join(".git");
-    let held: std::fs::File = crate::fs_beneath::open_root(root.as_path()).expect("the worktree opens");
-    let mut judge: ContentJudge<'_> = ContentJudge::new(&held, git_dir.as_path(), git_dir.as_path(), &environment, ObjectFormat::Sha1);
+    let held: std::fs::File =
+        crate::fs_beneath::open_root(root.as_path()).expect("the worktree opens");
+    let mut judge: ContentJudge<'_> = ContentJudge::new(
+        &held,
+        git_dir.as_path(),
+        git_dir.as_path(),
+        &environment,
+        ObjectFormat::Sha1,
+    );
     judge.charge_attributes_to(&spent);
     judge.read_attributes_with(&read);
     let outcome: Result<(), String> = judge.conversion_is_the_identity(b"a", &[]);
-    assert!(outcome.is_err(), "a file that grew under the read sets no attributes this decision may trust");
-    assert!(handed.get() <= room, "the read takes at most the room, and took {}", handed.get());
-    assert_eq!(spent.get() - (CONTENT_LIMIT - room), handed.get(), "and every byte it took is charged");
+    assert!(
+        outcome.is_err(),
+        "a file that grew under the read sets no attributes this decision may trust"
+    );
+    assert!(
+        handed.get() <= room,
+        "the read takes at most the room, and took {}",
+        handed.get()
+    );
+    assert_eq!(
+        spent.get() - (CONTENT_LIMIT - room),
+        handed.get(),
+        "and every byte it took is charged"
+    );
     remove(root.as_path());
 }
 
@@ -69,9 +100,12 @@ fn an_attributes_file_rewritten_under_the_read_is_refused() {
     let root: std::path::PathBuf = fixture_root("attributes-rewritten", b"a -text\n");
     // The attributes file is written a moment before this control, and the proof trusts only a settled one, so the
     // control states the instant instead of waiting.
-    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin = crate::worktree_copy_stage_leaf_copying::clock_reads(
-        changed_nanos(&std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata")) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
-    );
+    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin =
+        crate::worktree_copy_stage_leaf_copying::clock_reads(
+            changed_nanos(
+                &std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata"),
+            ) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
+        );
     let handed: &Cell<u64> = Box::leak(Box::new(Cell::new(0)));
     let step: &Cell<usize> = Box::leak(Box::new(Cell::new(0)));
     let rewritten: std::path::PathBuf = root.join(".gitattributes");
@@ -95,13 +129,27 @@ fn an_attributes_file_rewritten_under_the_read_is_refused() {
     let spent: Cell<u64> = Cell::new(0);
     let environment: ConversionEnvironment = crate::fixture_content_decision::content_environment();
     let git_dir: std::path::PathBuf = root.join(".git");
-    let held: std::fs::File = crate::fs_beneath::open_root(root.as_path()).expect("the worktree opens");
-    let mut judge: ContentJudge<'_> = ContentJudge::new(&held, git_dir.as_path(), git_dir.as_path(), &environment, ObjectFormat::Sha1);
+    let held: std::fs::File =
+        crate::fs_beneath::open_root(root.as_path()).expect("the worktree opens");
+    let mut judge: ContentJudge<'_> = ContentJudge::new(
+        &held,
+        git_dir.as_path(),
+        git_dir.as_path(),
+        &environment,
+        ObjectFormat::Sha1,
+    );
     judge.charge_attributes_to(&spent);
     judge.read_attributes_with(&read);
     let outcome: Result<(), String> = judge.conversion_is_the_identity(b"a", &[]);
-    assert!(outcome.is_err(), "a file rewritten under the read sets no attributes this decision may trust, and answered {outcome:?}");
-    assert_eq!(spent.get(), handed.get(), "every byte the file handed over is charged");
+    assert!(
+        outcome.is_err(),
+        "a file rewritten under the read sets no attributes this decision may trust, and answered {outcome:?}"
+    );
+    assert_eq!(
+        spent.get(),
+        handed.get(),
+        "every byte the file handed over is charged"
+    );
     remove(root.as_path());
 }
 
@@ -113,9 +161,12 @@ fn an_interrupted_attribute_read_is_tried_again() {
     let root: std::path::PathBuf = fixture_root("attributes-interrupted", b"a -text\n");
     // The attributes file is written a moment before this control, and the proof trusts only a settled one, so the
     // control states the instant instead of waiting.
-    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin = crate::worktree_copy_stage_leaf_copying::clock_reads(
-        changed_nanos(&std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata")) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
-    );
+    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin =
+        crate::worktree_copy_stage_leaf_copying::clock_reads(
+            changed_nanos(
+                &std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata"),
+            ) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
+        );
     let attempts: &Cell<usize> = Box::leak(Box::new(Cell::new(0)));
     let read = move |file: &std::fs::File, buffer: &mut [u8]| -> std::io::Result<usize> {
         attempts.set(attempts.get() + 1);
@@ -128,13 +179,27 @@ fn an_interrupted_attribute_read_is_tried_again() {
     let spent: Cell<u64> = Cell::new(0);
     let environment: ConversionEnvironment = crate::fixture_content_decision::content_environment();
     let git_dir: std::path::PathBuf = root.join(".git");
-    let held: std::fs::File = crate::fs_beneath::open_root(root.as_path()).expect("the worktree opens");
-    let mut judge: ContentJudge<'_> = ContentJudge::new(&held, git_dir.as_path(), git_dir.as_path(), &environment, ObjectFormat::Sha1);
+    let held: std::fs::File =
+        crate::fs_beneath::open_root(root.as_path()).expect("the worktree opens");
+    let mut judge: ContentJudge<'_> = ContentJudge::new(
+        &held,
+        git_dir.as_path(),
+        git_dir.as_path(),
+        &environment,
+        ObjectFormat::Sha1,
+    );
     judge.charge_attributes_to(&spent);
     judge.read_attributes_with(&read);
     let outcome: Result<(), String> = judge.conversion_is_the_identity(b"a", &[]);
-    assert!(outcome.is_ok(), "an interrupted read is tried again, so this file's attributes are read, and answered {outcome:?}");
-    assert!(attempts.get() > 1, "the read was tried again, and was tried {} time(s)", attempts.get());
+    assert!(
+        outcome.is_ok(),
+        "an interrupted read is tried again, so this file's attributes are read, and answered {outcome:?}"
+    );
+    assert!(
+        attempts.get() > 1,
+        "the read was tried again, and was tried {} time(s)",
+        attempts.get()
+    );
     remove(root.as_path());
 }
 
@@ -149,13 +214,22 @@ fn an_interrupted_attribute_read_is_tried_again() {
 /// ```ts
 /// function judgeAt(root: string, clock: bigint, read?: Read): Result<void, string>;
 /// ```
-fn identity_at(root: &std::path::Path, clock: i128) -> Result<(), String> {
+fn identity_at(
+    root: &std::path::Path,
+    clock: i128,
+) -> Result<(), String> {
     let _pin = crate::worktree_copy_stage_leaf_copying::clock_reads(clock);
     let spent: Cell<u64> = Cell::new(0);
     let environment: ConversionEnvironment = crate::fixture_content_decision::content_environment();
     let git_dir: std::path::PathBuf = root.join(".git");
     let held: std::fs::File = crate::fs_beneath::open_root(root).expect("the worktree opens");
-    let mut judge: ContentJudge<'_> = ContentJudge::new(&held, git_dir.as_path(), git_dir.as_path(), &environment, ObjectFormat::Sha1);
+    let mut judge: ContentJudge<'_> = ContentJudge::new(
+        &held,
+        git_dir.as_path(),
+        git_dir.as_path(),
+        &environment,
+        ObjectFormat::Sha1,
+    );
     judge.charge_attributes_to(&spent);
     return judge.conversion_is_the_identity(b"a", &[]);
 }
@@ -171,13 +245,21 @@ fn return_target(metadata: &std::fs::Metadata) -> u64 {
 /// or the largest one when it cannot be looked at.
 fn read_inode_of(file: &std::fs::File) -> u64 {
     use std::os::unix::fs::MetadataExt as _;
-    return file.metadata().map(|metadata| { return metadata.ino(); }).unwrap_or(u64::MAX);
+    return file
+        .metadata()
+        .map(|metadata| {
+            return metadata.ino();
+        })
+        .unwrap_or(u64::MAX);
 }
 
 /// The change time of a path's metadata in nanoseconds since the epoch.
 fn changed_nanos(metadata: &std::fs::Metadata) -> i128 {
     use std::os::unix::fs::MetadataExt as _;
-    return crate::worktree_copy_stage_leaf_copying::stamp_nanos((metadata.ctime(), metadata.ctime_nsec()));
+    return crate::worktree_copy_stage_leaf_copying::stamp_nanos((
+        metadata.ctime(),
+        metadata.ctime_nsec(),
+    ));
 }
 
 /// An attributes file changed within one timestamp granularity of the clock proves nothing,
@@ -186,11 +268,21 @@ fn changed_nanos(metadata: &std::fs::Metadata) -> i128 {
 #[test]
 fn an_attributes_file_changed_within_the_granularity_is_refused_while_a_settled_one_is_trusted() {
     let root: std::path::PathBuf = fixture_root("attributes-settled", b"a -text\n");
-    let changed: i128 = changed_nanos(&std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata"));
+    let changed: i128 =
+        changed_nanos(&std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata"));
     let settled: i128 = changed + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS;
-    assert!(identity_at(root.as_path(), settled).is_ok(), "an attributes file changed a whole granularity ago is trusted");
-    assert!(identity_at(root.as_path(), changed).is_err(), "one changed at the clock's own instant proves nothing");
-    assert!(identity_at(root.as_path(), settled - 1).is_err(), "one nanosecond short of the granularity proves nothing either");
+    assert!(
+        identity_at(root.as_path(), settled).is_ok(),
+        "an attributes file changed a whole granularity ago is trusted"
+    );
+    assert!(
+        identity_at(root.as_path(), changed).is_err(),
+        "one changed at the clock's own instant proves nothing"
+    );
+    assert!(
+        identity_at(root.as_path(), settled - 1).is_err(),
+        "one nanosecond short of the granularity proves nothing either"
+    );
     remove(root.as_path());
 }
 
@@ -199,19 +291,29 @@ fn an_attributes_file_changed_within_the_granularity_is_refused_while_a_settled_
 /// the name is looked at again after the read and must still hold the file that was read.
 #[test]
 fn a_configured_attributes_link_swapped_under_the_read_is_refused() {
-    let root: std::path::PathBuf = fixture_root("attributes-link-swapped", b"# the worktree's own file\n");
+    let root: std::path::PathBuf =
+        fixture_root("attributes-link-swapped", b"# the worktree's own file\n");
     std::fs::write(root.join("one"), b"a -text\n").expect("first target");
     std::fs::write(root.join("two"), b"a ident\n").expect("second target");
     let configured: std::path::PathBuf = root.join("configured");
     std::os::unix::fs::symlink(root.join("one"), configured.as_path()).expect("the link");
-    git(root.as_path(), &["config", "core.attributesFile", configured.to_str().expect("a path")]);
-    let settled: i128 = changed_nanos(&std::fs::symlink_metadata(root.join("one")).expect("metadata"))
-        + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS;
+    git(
+        root.as_path(),
+        &[
+            "config",
+            "core.attributesFile",
+            configured.to_str().expect("a path"),
+        ],
+    );
+    let settled: i128 =
+        changed_nanos(&std::fs::symlink_metadata(root.join("one")).expect("metadata"))
+            + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS;
     let _pin = crate::worktree_copy_stage_leaf_copying::clock_reads(settled);
     let swapping: std::path::PathBuf = configured.clone();
     let other: std::path::PathBuf = root.join("two");
     // The configured target, so the control swaps the link only while that file is being read.
-    let target: u64 = return_target(&std::fs::symlink_metadata(root.join("one")).expect("metadata"));
+    let target: u64 =
+        return_target(&std::fs::symlink_metadata(root.join("one")).expect("metadata"));
     let read = move |file: &std::fs::File, buffer: &mut [u8]| -> std::io::Result<usize> {
         if read_inode_of(file) == target {
             // The link is replaced while the file it named is being read.
@@ -224,11 +326,21 @@ fn a_configured_attributes_link_swapped_under_the_read_is_refused() {
     let spent: Cell<u64> = Cell::new(0);
     let environment: ConversionEnvironment = crate::fixture_content_decision::content_environment();
     let git_dir: std::path::PathBuf = root.join(".git");
-    let held: std::fs::File = crate::fs_beneath::open_root(root.as_path()).expect("the worktree opens");
-    let mut judge: ContentJudge<'_> = ContentJudge::new(&held, git_dir.as_path(), git_dir.as_path(), &environment, ObjectFormat::Sha1);
+    let held: std::fs::File =
+        crate::fs_beneath::open_root(root.as_path()).expect("the worktree opens");
+    let mut judge: ContentJudge<'_> = ContentJudge::new(
+        &held,
+        git_dir.as_path(),
+        git_dir.as_path(),
+        &environment,
+        ObjectFormat::Sha1,
+    );
     judge.charge_attributes_to(&spent);
     judge.read_attributes_with(&read);
-    assert!(judge.conversion_is_the_identity(b"a", &[]).is_err(), "the configured name holds another file after the read");
+    assert!(
+        judge.conversion_is_the_identity(b"a", &[]).is_err(),
+        "the configured name holds another file after the read"
+    );
     remove(root.as_path());
 }
 
@@ -240,9 +352,12 @@ fn repeatedly_interrupted_attribute_reads_end_in_a_refusal() {
     let root: std::path::PathBuf = fixture_root("attributes-interrupted-forever", b"a -text\n");
     // The attributes file is written a moment before this control, and the proof trusts only a settled one, so the
     // control states the instant instead of waiting.
-    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin = crate::worktree_copy_stage_leaf_copying::clock_reads(
-        changed_nanos(&std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata")) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
-    );
+    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin =
+        crate::worktree_copy_stage_leaf_copying::clock_reads(
+            changed_nanos(
+                &std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata"),
+            ) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
+        );
     let attempts: &Cell<usize> = Box::leak(Box::new(Cell::new(0)));
     let read = move |_file: &std::fs::File, _buffer: &mut [u8]| -> std::io::Result<usize> {
         attempts.set(attempts.get() + 1);
@@ -255,12 +370,22 @@ fn repeatedly_interrupted_attribute_reads_end_in_a_refusal() {
     let spent: Cell<u64> = Cell::new(0);
     let environment: ConversionEnvironment = crate::fixture_content_decision::content_environment();
     let git_dir: std::path::PathBuf = root.join(".git");
-    let held: std::fs::File = crate::fs_beneath::open_root(root.as_path()).expect("the worktree opens");
-    let mut judge: ContentJudge<'_> = ContentJudge::new(&held, git_dir.as_path(), git_dir.as_path(), &environment, ObjectFormat::Sha1);
+    let held: std::fs::File =
+        crate::fs_beneath::open_root(root.as_path()).expect("the worktree opens");
+    let mut judge: ContentJudge<'_> = ContentJudge::new(
+        &held,
+        git_dir.as_path(),
+        git_dir.as_path(),
+        &environment,
+        ObjectFormat::Sha1,
+    );
     judge.charge_attributes_to(&spent);
     judge.read_attributes_with(&read);
     let outcome: Result<(), String> = judge.conversion_is_the_identity(b"a", &[]);
-    assert!(outcome.is_err(), "a read that never gets through refuses the attributes, and answered {outcome:?}");
+    assert!(
+        outcome.is_err(),
+        "a read that never gets through refuses the attributes, and answered {outcome:?}"
+    );
     assert!(
         attempts.get() <= 1 + super::INTERRUPTED_TRIES,
         "at most {} tries, and the read was tried {} times",

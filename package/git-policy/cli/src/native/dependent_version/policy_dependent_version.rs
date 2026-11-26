@@ -46,43 +46,73 @@ use crate::candidate_object::CandidateMode;
 /// The candidate's change kinds.
 use crate::candidate_record::CandidateChange as RecordChange;
 /// The candidate and version types.
-use crate::candidate_version::{Candidate as LayerCandidate, CandidateVersion};
+use crate::candidate_version::{
+    Candidate as LayerCandidate,
+    CandidateVersion,
+};
 /// The planner's failures,
 ///  modes and messages.
 use crate::dependent_version_content::{
-    ContentUnavailable, PlanError, TrackedMode, display_path, plan_error_message,
+    ContentUnavailable,
+    PlanError,
+    TrackedMode,
+    display_path,
+    plan_error_message,
 };
 /// The planner's view of the candidate state.
-use crate::dependent_version_lifecycle::{LifecycleWorkspace, lifecycle_workspace};
+use crate::dependent_version_lifecycle::{
+    LifecycleWorkspace,
+    lifecycle_workspace,
+};
 /// The planner's bump of one manifest.
 use crate::dependent_version_plan::ManifestBump;
 /// The planner's request,
 ///  decision and findings.
 use crate::dependent_version_policy::{
-    Candidate, CandidateChange, DependentFinding, DependentRequest, find_dependent_bumps,
+    Candidate,
+    CandidateChange,
+    DependentFinding,
+    DependentRequest,
+    find_dependent_bumps,
     should_plan,
 };
+use crate::diagnostics::EngineFailureCode;
 /// The engine's failure codes.
 /// The event pathname type the outcome and finding carry.
 use crate::event_path::EventPath;
-use crate::diagnostics::EngineFailureCode;
 /// The pathname conversion every worktree read uses.
 use crate::git_metadata::path_from_git_bytes;
 /// The precondition for a file a direct fix did not select,
 ///  its reasons and its message.
 use crate::policy_added_path::{
-    ADDED_PATH_STAGED_REASON, added_path_message, head_mode, worktree_refusal,
+    ADDED_PATH_STAGED_REASON,
+    added_path_message,
+    head_mode,
+    worktree_refusal,
+};
+/// The lifecycle's candidates and the correction a fix applies.
+use crate::policy_content::{
+    ContentState,
+    Correction,
+    LifecycleContent,
 };
 /// The commit path's notes,
 ///  real-index listing and per-bump correction.
 use crate::policy_dependent_version_commit::{
-    RealIndexListing, added_entries, committed_correction, left_behind, note_of, noted,
+    RealIndexListing,
+    added_entries,
+    committed_correction,
+    left_behind,
+    note_of,
+    noted,
 };
-/// The lifecycle's candidates and the correction a fix applies.
-use crate::policy_content::{ContentState, Correction, LifecycleContent};
 /// The finding,
 ///  note and outcome types of a check.
-use crate::policy_engine::{PolicyFinding, PolicyNote, PolicyOutcome};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyNote,
+    PolicyOutcome,
+};
 /// The lifecycle points.
 use crate::policy_trigger::Trigger;
 /// The facts interface that prepares candidates and locates the worktree.
@@ -92,7 +122,10 @@ use crate::repository_location::RepositoryLocation;
 /// The worktree's top level.
 use crate::worktree_identity::worktree_root;
 /// Borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// `Rc<T>` is a shared,
 ///  read-only handle.
 use std::rc::Rc;
@@ -120,7 +153,10 @@ fn clean() -> PolicyOutcome {
 /// ```ts
 /// const failed = (code, message): PolicyOutcome => ({ kind: 'failed', code, message });
 /// ```
-fn failed(code: EngineFailureCode, message: String) -> PolicyOutcome {
+fn failed(
+    code: EngineFailureCode,
+    message: String,
+) -> PolicyOutcome {
     return PolicyOutcome::Failed {
         code,
         message,
@@ -204,7 +240,10 @@ fn policy_finding(finding: &DependentFinding) -> PolicyFinding {
 /// ```ts
 /// const conflict = (path, reason): PolicyOutcome => ({ kind: 'failed', code: 'patch-conflict', message: directFixMessage({ path, reason }) });
 /// ```
-fn conflict(path: &str, reason: &str) -> PolicyOutcome {
+fn conflict(
+    path: &str,
+    reason: &str,
+) -> PolicyOutcome {
     return failed(
         EngineFailureCode::PatchConflict,
         added_path_message(path, reason),
@@ -278,10 +317,15 @@ fn correction_of(
         return Ok(correction);
     };
     let shown: String = display_path(bump.path.as_slice());
-    let Some(index) = workspace.index_entry(&bump.path).map_err(unreadable_failure)? else {
+    let Some(index) = workspace
+        .index_entry(&bump.path)
+        .map_err(unreadable_failure)?
+    else {
         return Err(conflict(shown.as_str(), ADDED_PATH_STAGED_REASON));
     };
-    let head = workspace.head_entry(&bump.path).map_err(unreadable_failure)?;
+    let head = workspace
+        .head_entry(&bump.path)
+        .map_err(unreadable_failure)?;
     let head_file_mode: CandidateMode = match head_mode(head.as_ref(), &index) {
         Ok(found) => found,
         Err(reason) => return Err(conflict(shown.as_str(), reason)),
@@ -375,7 +419,9 @@ pub struct DependentCheck<'a, 'index, F: RepositoryFacts> {
 /// ```ts
 /// async function checkDependentVersion(check: DependentCheck): Promise<PolicyOutcome>;
 /// ```
-pub fn check_dependent_version<F: RepositoryFacts>(check: DependentCheck<'_, '_, F>) -> PolicyOutcome {
+pub fn check_dependent_version<F: RepositoryFacts>(
+    check: DependentCheck<'_, '_, F>
+) -> PolicyOutcome {
     let DependentCheck {
         content,
         lifecycle,

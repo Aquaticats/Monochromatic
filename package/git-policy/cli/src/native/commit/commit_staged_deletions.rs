@@ -17,10 +17,21 @@
 //! const present = stagedDeletions.filter((path) => existsSync(join(repositoryRoot, path)));
 //! ```
 
-use crate::commit_selection_staging::{ITEMS_BYTES_LIMIT, excludes_paths};
-use crate::path_bytes::{os_from_path_bytes, path_message_text};
+use crate::commit_selection_staging::{
+    ITEMS_BYTES_LIMIT,
+    excludes_paths,
+};
+use crate::path_bytes::{
+    os_from_path_bytes,
+    path_message_text,
+};
 use crate::private_index_request::caller_pathspec_request;
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    run_git_checked,
+};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -65,18 +76,33 @@ pub fn staged_deletions_present_on_disk(
 ) -> Result<Vec<Vec<u8>>, GitFailure> {
     let mut remaining: Vec<Vec<u8>> = Vec::new();
     for chunk in element_chunks(elements) {
-        let mut arguments: Vec<OsString> = ["diff-index", "--cached", "--name-only", "--diff-filter=D", "-z", base_revision, "--"]
-            .iter()
-            .map(OsString::from)
-            .collect();
+        let mut arguments: Vec<OsString> = [
+            "diff-index",
+            "--cached",
+            "--name-only",
+            "--diff-filter=D",
+            "-z",
+            base_revision,
+            "--",
+        ]
+        .iter()
+        .map(OsString::from)
+        .collect();
         arguments.extend(chunk.iter().cloned());
-        let output: GitOutput = run_git_checked(context, &caller_pathspec_request(context, cwd, arguments.as_slice(), Some(real_index), None))?;
+        let output: GitOutput = run_git_checked(
+            context,
+            &caller_pathspec_request(context, cwd, arguments.as_slice(), Some(real_index), None),
+        )?;
         for path in output.stdout.split(is_nul_byte) {
             if path.is_empty() {
                 continue;
             }
             // A path whose file is still on disk keeps its staged deletion, as the earlier filter kept it.
-            if repository_root.join(os_from_path_bytes(path)).symlink_metadata().is_ok() {
+            if repository_root
+                .join(os_from_path_bytes(path))
+                .symlink_metadata()
+                .is_ok()
+            {
                 remaining.push(path.to_vec());
             }
         }

@@ -21,13 +21,16 @@
 //! const hooks = configuredHooks(snapshot); if (hooks.length > 0) stderr.write(renderConfigurationWarning(0, code, message, names));
 //! ```
 
+/// The configuration the command read once.
+use crate::config_snapshot::{
+    ConfigSnapshot,
+    Lookup,
+};
 /// Debug logging of a stream that refused the warning.
 use crate::diagnostic_log::debug;
 /// The warning's JSONL rendering,
 /// shared with the other configuration warnings.
 use crate::diagnostics::render_configuration_warning;
-/// The configuration the command read once.
-use crate::config_snapshot::{ConfigSnapshot, Lookup};
 /// The longest this optional line may take to reach the stream it is written to.
 use crate::wait_ceilings::WARNING_WRITE_CEILING;
 /// The line given to the stream on a thread of its own,
@@ -106,8 +109,14 @@ fn lossy(value: Option<&Vec<u8>>) -> String {
 /// ```ts
 /// snapshot.boolValueFromFiles(`hook.${event}.enabled`) === false
 /// ```
-fn event_is_off(snapshot: &ConfigSnapshot, event: &str) -> bool {
-    return matches!(snapshot.bool_value_from_files(format!("hook.{event}.enabled").as_str()), Lookup::Found(false));
+fn event_is_off(
+    snapshot: &ConfigSnapshot,
+    event: &str,
+) -> bool {
+    return matches!(
+        snapshot.bool_value_from_files(format!("hook.{event}.enabled").as_str()),
+        Lookup::Found(false)
+    );
 }
 
 /// What:
@@ -123,7 +132,10 @@ fn event_is_off(snapshot: &ConfigSnapshot, event: &str) -> bool {
 /// ```ts
 /// hook.events.length > 0 && hook.events.every((event) => eventIsOff(snapshot, event))
 /// ```
-fn every_event_is_off(snapshot: &ConfigSnapshot, hook: &ConfiguredHook) -> bool {
+fn every_event_is_off(
+    snapshot: &ConfigSnapshot,
+    hook: &ConfiguredHook,
+) -> bool {
     if hook.events.is_empty() {
         return false;
     }
@@ -175,7 +187,11 @@ pub fn configured_hooks(snapshot: &ConfigSnapshot) -> Vec<ConfiguredHook> {
         let position: usize = match known_position {
             Some(found) => found,
             None => {
-                hooks.push(ConfiguredHook { name: String::from(name), events: Vec::new(), has_command: false });
+                hooks.push(ConfiguredHook {
+                    name: String::from(name),
+                    events: Vec::new(),
+                    has_command: false,
+                });
                 hooks.len() - 1
             }
         };
@@ -197,7 +213,10 @@ pub fn configured_hooks(snapshot: &ConfigSnapshot) -> Vec<ConfiguredHook> {
     //  command scope comes last and wins and a caller's `-c` is their own choice.
     let mut enabled: Vec<ConfiguredHook> = Vec::new();
     for hook in hooks {
-        if matches!(snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)) {
+        if matches!(
+            snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()),
+            Lookup::Found(false)
+        ) {
             continue;
         }
         if every_event_is_off(snapshot, &hook) {
@@ -298,7 +317,10 @@ pub fn external_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<Strin
 /// ```ts
 /// const line = externalHooksWarning(snapshot); if (line !== undefined) writeWithin(WARNING_WRITE_CEILING, stream, line);
 /// ```
-pub fn warn_external_hooks(snapshot: Option<&ConfigSnapshot>, stream: impl Write + Send + 'static) -> bool {
+pub fn warn_external_hooks(
+    snapshot: Option<&ConfigSnapshot>,
+    stream: impl Write + Send + 'static,
+) -> bool {
     let Some(line) = external_hooks_warning(snapshot) else {
         // A configuration with nothing to warn about lost nothing.
         return true;
@@ -307,11 +329,17 @@ pub fn warn_external_hooks(snapshot: Option<&ConfigSnapshot>, stream: impl Write
     return match delivered {
         Some(Ok(())) => true,
         Some(Err(error)) => {
-            debug(TAG, format!("the warning could not be written: {error}").as_str());
+            debug(
+                TAG,
+                format!("the warning could not be written: {error}").as_str(),
+            );
             false
         }
         None => {
-            debug(TAG, format!("the warning was not written within {WARNING_WRITE_CEILING:?}").as_str());
+            debug(
+                TAG,
+                format!("the warning was not written within {WARNING_WRITE_CEILING:?}").as_str(),
+            );
             false
         }
     };

@@ -11,7 +11,10 @@
 //! ```
 
 /// The hint that follows an engine failure line.
-use crate::event_hints::{engine_failure_hint, push_hint_field};
+use crate::event_hints::{
+    engine_failure_hint,
+    push_hint_field,
+};
 
 /// What:
 ///  The event schema version every line carries.
@@ -192,8 +195,17 @@ pub fn json_string(text: &str) -> String {
 /// ```ts
 /// function renderEngineFailure(sequence: number, code: EngineFailureCode, message: string): string;
 /// ```
-pub fn render_engine_failure(sequence: u64, code: EngineFailureCode, message: &str) -> String {
-    return render_engine_failure_with_hint(sequence, code, message, engine_failure_hint(engine_failure_code_name(code)));
+pub fn render_engine_failure(
+    sequence: u64,
+    code: EngineFailureCode,
+    message: &str,
+) -> String {
+    return render_engine_failure_with_hint(
+        sequence,
+        code,
+        message,
+        engine_failure_hint(engine_failure_code_name(code)),
+    );
 }
 
 /// What:

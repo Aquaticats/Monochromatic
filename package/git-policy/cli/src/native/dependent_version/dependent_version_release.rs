@@ -179,7 +179,10 @@ fn increment_decimal(digits: &[u16]) -> String {
 /// ```ts
 /// function patchBumpVersion({ name, version }): string; // throws UnsupportedVersionError
 /// ```
-pub fn patch_bump_version(name: &str, version: &[u16]) -> Result<ReleaseBump, UnsupportedVersion> {
+pub fn patch_bump_version(
+    name: &str,
+    version: &[u16],
+) -> Result<ReleaseBump, UnsupportedVersion> {
     let components: Vec<&[u16]> = version.split(is_dot_unit).collect();
     let [major, minor, patch] = components.as_slice() else {
         return Err(UnsupportedVersion {

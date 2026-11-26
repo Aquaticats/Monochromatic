@@ -22,7 +22,6 @@
 //! // { decision: { kind: 'adopt' | 'clear' | 'refuse' | 'rerun' | 'leave'; ... } }
 //! ```
 
-
 use std::path::PathBuf;
 
 /// How many candidate names a slot's finder considers,
@@ -164,7 +163,9 @@ pub fn git_sanitized_name(name: &str) -> String {
 
 /// Whether one byte may not stand in a refname (`check_refname_character`).
 fn forbidden_refname_byte(byte: u8) -> bool {
-    return byte < 0x20 || byte == 0x7f || matches!(byte, b' ' | b'~' | b'^' | b':' | b'?' | b'*' | b'[' | b'\\');
+    return byte < 0x20
+        || byte == 0x7f
+        || matches!(byte, b' ' | b'~' | b'^' | b':' | b'?' | b'*' | b'[' | b'\\');
 }
 
 /// What:
@@ -191,8 +192,17 @@ pub fn candidate_names(slot: &str) -> Vec<String> {
 
 /// Whether one slot's binding owns `name`,
 /// which is any name that slot's own candidates hold.
-pub fn owned_by_another_slot(name: &str, slot: &str, other_slots: &[String]) -> bool {
-    return other_slots.iter().any(|other| return other != slot && candidate_names(other).iter().any(|candidate| return candidate == name));
+pub fn owned_by_another_slot(
+    name: &str,
+    slot: &str,
+    other_slots: &[String],
+) -> bool {
+    return other_slots.iter().any(|other| {
+        return other != slot
+            && candidate_names(other)
+                .iter()
+                .any(|candidate| return candidate == name);
+    });
 }
 
 /// Controls stay out of the release executable.

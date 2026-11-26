@@ -320,7 +320,13 @@ pub const SCRATCH_COMMIT_STEP_CEILING_FLOOR: Duration = Duration::from_secs(60);
 /// the message is on the command line,
 /// and the same command can be run again.
 /// `CLI_GIT_SCRATCH_COMMIT_CEILING_SECONDS` sets another ceiling in whole seconds.
-pub const SCRATCH_COMMIT_STEP_CEILING: Duration = at_least(SCRATCH_COMMIT_STEP_CEILING_FLOOR, Duration::from_millis(SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF.as_millis() as u64 * SCRATCH_COMMIT_STEP_MARGIN as u64));
+pub const SCRATCH_COMMIT_STEP_CEILING: Duration = at_least(
+    SCRATCH_COMMIT_STEP_CEILING_FLOOR,
+    Duration::from_millis(
+        SLOWEST_COMMIT_STEP_THAT_ENDED_BY_ITSELF.as_millis() as u64
+            * SCRATCH_COMMIT_STEP_MARGIN as u64,
+    ),
+);
 
 /// The longest the scratch repository's `git commit` is waited for while the kernel holds it in a call a signal cannot
 /// end:
@@ -351,10 +357,17 @@ pub const SCRATCH_COMMIT_STEP_STALL_CEILING: Duration = Duration::from_secs(300)
 /// ```ts
 /// const atLeast = (floor, span) => span < floor ? floor : span;
 /// ```
-const fn at_least(floor: Duration, span: Duration) -> Duration {
+const fn at_least(
+    floor: Duration,
+    span: Duration,
+) -> Duration {
     let floor_millis: u128 = floor.as_millis();
     let span_millis: u128 = span.as_millis();
-    return Duration::from_millis(if span_millis < floor_millis { floor_millis as u64 } else { span_millis as u64 });
+    return Duration::from_millis(if span_millis < floor_millis {
+        floor_millis as u64
+    } else {
+        span_millis as u64
+    });
 }
 
 /// What:
@@ -406,7 +419,9 @@ pub const LONGEST_SETTLE_WAIT: Duration = Duration::from_millis(172);
 /// The commit timing log holds no settle at all (the settling is the management command
 /// `service settle-earlier-batches`),
 /// so the journal stays its only sample.
-pub const SETTLE_LOCK_CEILING: Duration = whole_minutes_at_least(Duration::from_millis(LONGEST_SETTLE_WAIT.as_millis() as u64 * CEILING_MARGIN as u64));
+pub const SETTLE_LOCK_CEILING: Duration = whole_minutes_at_least(Duration::from_millis(
+    LONGEST_SETTLE_WAIT.as_millis() as u64 * CEILING_MARGIN as u64,
+));
 
 /// The longest a merge waits for a foreign `index.lock` before it changes anything:
 /// the ceiling of the other foreign-holder wait
@@ -922,7 +937,8 @@ pub const LADDER_READ_TREE_CEILING: Duration = OBJECT_STEP_CEILING;
 /// the index lock a stopped
 ///  Git leaves (when it stands),
 /// and the two commands that finish or remove it.
-pub const LADDER_CHECKOUT_CEILING: Duration = whole_minutes_at_least(Duration::from_millis(229_386 * CEILING_MARGIN as u64));
+pub const LADDER_CHECKOUT_CEILING: Duration =
+    whole_minutes_at_least(Duration::from_millis(229_386 * CEILING_MARGIN as u64));
 
 /// The longest the Markdown linter checks one file,
 /// whatever it shows,
@@ -1070,8 +1086,10 @@ pub const LOOKING_FOR_A_LANDED_COMMIT: Duration = Duration::from_secs(10);
 /// which is taken when the batch's intent is written,
 /// after the client sent its request and before its record is published,
 /// so the age a record has is never longer than the wait its client has been inside.
-pub const A_FINISHED_RECORD_IS_READ: Duration =
-    ANSWER_CEILING.saturating_add(SHORT_EXTRA_WAIT).saturating_add(WITHDRAW_CEILING).saturating_add(LOOKING_FOR_A_LANDED_COMMIT);
+pub const A_FINISHED_RECORD_IS_READ: Duration = ANSWER_CEILING
+    .saturating_add(SHORT_EXTRA_WAIT)
+    .saturating_add(WITHDRAW_CEILING)
+    .saturating_add(LOOKING_FOR_A_LANDED_COMMIT);
 
 /// How long a command that stopped an instance's service waits for the manager to report its processes gone
 /// before it leaves the instance's journal to a later sweep.
@@ -1140,7 +1158,10 @@ pub const WAITING_NOTICE_VARIABLE: &str = "CLI_GIT_STANDING_NOTICE_SECONDS";
 /// waitingNoticeAfter() // Duration
 /// ```
 pub fn waiting_notice_after() -> Duration {
-    return notice_after_from(std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref(), WAITING_NOTICE_AFTER);
+    return notice_after_from(
+        std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref(),
+        WAITING_NOTICE_AFTER,
+    );
 }
 
 /// How long a `git worktree add` runs before it says which step it is in,
@@ -1194,7 +1215,10 @@ pub const ADD_STANDING_NOTICE_VARIABLE: &str = "CLI_GIT_ADD_NOTICE_SECONDS";
 /// addStandingNoticeAfter() // Duration
 /// ```
 pub fn add_standing_notice_after() -> Duration {
-    return notice_after_from(std::env::var(ADD_STANDING_NOTICE_VARIABLE).ok().as_deref(), ADD_STANDING_NOTICE_AFTER);
+    return notice_after_from(
+        std::env::var(ADD_STANDING_NOTICE_VARIABLE).ok().as_deref(),
+        ADD_STANDING_NOTICE_AFTER,
+    );
 }
 
 /// What:
@@ -1224,7 +1248,10 @@ pub fn notice_after_of(setting: Option<&str>) -> Duration {
 /// ```ts
 /// noticeAfterFrom('30', shipped) // 30 s
 /// ```
-pub fn notice_after_from(setting: Option<&str>, shipped: Duration) -> Duration {
+pub fn notice_after_from(
+    setting: Option<&str>,
+    shipped: Duration,
+) -> Duration {
     let seconds: Option<u64> = match setting {
         Some(text) => text.trim().parse::<u64>().ok(),
         None => None,

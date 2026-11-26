@@ -24,22 +24,55 @@
 
 use crate::json_record::quote;
 use crate::path_bytes_in_records::path_of_the_two_fields;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
-use crate::worktree_copy_recovery::RecoveryDestinations;
-use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals, temporary_writer_token};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+    raw_failure,
+    raw_failure_of,
+};
+use crate::worktree_copy_journal::{
+    Role,
+    assert_private_path,
+    journal_root,
+    read_pending_journals,
+    temporary_writer_token,
+};
 use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
-use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage};
+use crate::worktree_copy_journal_removal::{
+    remove_file_if_present,
+    remove_stage,
+};
 use crate::worktree_copy_owner::token_owner_is_dead;
-use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
-use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, CONTAINER_HEX_PREFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
+use crate::worktree_copy_recovery::RecoveryDestinations;
+use crate::worktree_copy_selection::{
+    STAGE_PREFIX,
+    js_order,
+};
+use crate::worktree_copy_stage_claim::{
+    COMPLETE_SUFFIX,
+    CONTAINER_HEX_PREFIX,
+    DESTINATION_SUFFIX,
+    OWNER_LINE_PREFIX,
+    claim_names,
+};
 use crate::worktree_copy_stage_claim_owed_copy_elsewhere::copy_owed_to_another_worktree;
 use crate::worktree_copy_stage_made_object::remove_made;
-use crate::worktree_copy_stage_reaping_proof_and_words::{Provenance, kept_stage_words, provenance_of, removed_copy_stage_words, removed_stage_words, still_there};
+use crate::worktree_copy_stage_reaping_proof_and_words::{
+    Provenance,
+    kept_stage_words,
+    provenance_of,
+    removed_copy_stage_words,
+    removed_stage_words,
+    still_there,
+};
 // The sweeps that remove files rather than stages live beside this file, so this one stays under the line limit.
 pub use crate::worktree_copy_stage_claim_swept_files::remove_dead_temporaries;
 pub(crate) use crate::worktree_copy_stage_claim_swept_files::remove_records_nothing_claims;
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What an interrupted `git worktree add` settles to,
 /// the proof its checkout is whole or gone,
@@ -112,20 +145,32 @@ fn claim_fields(text: &str) -> Result<ClaimFields<'_>, String> {
     let read: usize = usize::from(named_text.is_some()) + usize::from(named_bytes.is_some());
     // A line of container bytes past those is a path that ended early, not a line a writer put there.
     if lines.iter().skip(read).copied().any(holds_bytes) {
-        return Err(String::from("its line of container bytes is not where this release writes one"));
+        return Err(String::from(
+            "its line of container bytes is not where this release writes one",
+        ));
     }
     // The owner, when the record names one, is the last line.
     let mut following = lines.iter().skip(read);
     let Some(first) = following.next() else {
-        return Ok(ClaimFields { text: named_text, bytes: named_bytes, owner: None });
+        return Ok(ClaimFields {
+            text: named_text,
+            bytes: named_bytes,
+            owner: None,
+        });
     };
     let Some(token) = first.strip_prefix(OWNER_LINE_PREFIX) else {
-        return Err(String::from("a line this release does not write follows its container"));
+        return Err(String::from(
+            "a line this release does not write follows its container",
+        ));
     };
     if following.next().is_some() {
         return Err(String::from("more lines follow its owner"));
     }
-    return Ok(ClaimFields { text: named_text, bytes: named_bytes, owner: Some(token.to_string()) });
+    return Ok(ClaimFields {
+        text: named_text,
+        bytes: named_bytes,
+        owner: Some(token.to_string()),
+    });
 }
 
 /// What:
@@ -188,7 +233,9 @@ pub fn claim_file_reading(claim: &Path) -> Result<Option<ClaimFile>, WorktreeCop
         Ok(text) => text,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
-            return Ok(Some(ClaimFile::Unreadable { reason: String::from("its bytes are not text") }));
+            return Ok(Some(ClaimFile::Unreadable {
+                reason: String::from("its bytes are not text"),
+            }));
         }
         Err(error) => {
             let message: String = format!(
@@ -200,13 +247,19 @@ pub fn claim_file_reading(claim: &Path) -> Result<Option<ClaimFile>, WorktreeCop
     };
     let fields: ClaimFields<'_> = match claim_fields(text.as_str()) {
         Ok(fields) => fields,
-        Err(reason) => return Ok(Some(ClaimFile::Unreadable { reason: reason.to_string() })),
+        Err(reason) => {
+            return Ok(Some(ClaimFile::Unreadable {
+                reason: reason.to_string(),
+            }));
+        }
     };
     let container: PathBuf = match path_of_the_two_fields(fields.bytes, fields.text) {
         Ok(Some(path)) => path,
         Ok(None) => PathBuf::new(),
         Err(reason) => {
-            return Ok(Some(ClaimFile::Unreadable { reason: format!("it holds a container in bytes that is not a path ({reason})") }));
+            return Ok(Some(ClaimFile::Unreadable {
+                reason: format!("it holds a container in bytes that is not a path ({reason})"),
+            }));
         }
     };
     // Both lines of a claim this release writes name one path; a line of text that says otherwise is a shorter path
@@ -214,7 +267,11 @@ pub fn claim_file_reading(claim: &Path) -> Result<Option<ClaimFile>, WorktreeCop
     if let (Some(named), Some(_)) = (fields.text, fields.bytes)
         && container.as_path() != Path::new(named)
     {
-        return Ok(Some(ClaimFile::Unreadable { reason: String::from("its line of text and its line of container bytes name different paths") }));
+        return Ok(Some(ClaimFile::Unreadable {
+            reason: String::from(
+                "its line of text and its line of container bytes name different paths",
+            ),
+        }));
     }
     let stage_named: bool = match container.file_name() {
         Some(name) => name.to_string_lossy().starts_with(STAGE_PREFIX),
@@ -222,9 +279,14 @@ pub fn claim_file_reading(claim: &Path) -> Result<Option<ClaimFile>, WorktreeCop
     };
     let named: bool = container.is_absolute() && stage_named;
     if !named {
-        return Ok(Some(ClaimFile::Unreadable { reason: String::from("it does not name a stage container") }));
+        return Ok(Some(ClaimFile::Unreadable {
+            reason: String::from("it does not name a stage container"),
+        }));
     }
-    return Ok(Some(ClaimFile::Named { container, owner: fields.owner }));
+    return Ok(Some(ClaimFile::Named {
+        container,
+        owner: fields.owner,
+    }));
 }
 
 /// What:
@@ -248,11 +310,16 @@ pub fn claim_file_reading(claim: &Path) -> Result<Option<ClaimFile>, WorktreeCop
 /// ```
 pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, WorktreeCopyError> {
     return match claim_file_reading(claim)? {
-        Some(ClaimFile::Named { container, owner }) => Ok(Some((container, owner))),
-        Some(ClaimFile::Unreadable { .. }) | None => Ok(None),
+        Some(ClaimFile::Named {
+            container,
+            owner,
+        }) => Ok(Some((container, owner))),
+        Some(ClaimFile::Unreadable {
+            ..
+        })
+        | None => Ok(None),
     };
 }
-
 
 /// Which owners were found dead,
 /// decided before anything is removed.
@@ -277,7 +344,10 @@ impl StageVerdicts {
     /// ```ts
     /// verdicts.namesDeadClaim(name)
     /// ```
-    pub fn names_dead_claim(&self, name: &str) -> bool {
+    pub fn names_dead_claim(
+        &self,
+        name: &str,
+    ) -> bool {
         return self.dead_claims.contains(name);
     }
 
@@ -294,7 +364,10 @@ impl StageVerdicts {
     /// ```ts
     /// verdicts.recordDeadClaim(name)
     /// ```
-    pub fn record_dead_claim(&mut self, name: &str) {
+    pub fn record_dead_claim(
+        &mut self,
+        name: &str,
+    ) {
         let _inserted: bool = self.dead_claims.insert(name.to_string());
     }
 
@@ -347,7 +420,10 @@ fn scratch_writer_token(name: &str) -> Option<String> {
 /// ```ts
 /// temporaries.sort(([left], [right]) => compareJs(left, right))
 /// ```
-fn by_temporary_name(left: &(String, PathBuf), right: &(String, PathBuf)) -> std::cmp::Ordering {
+fn by_temporary_name(
+    left: &(String, PathBuf),
+    right: &(String, PathBuf),
+) -> std::cmp::Ordering {
     return js_order(&left.0, &right.0);
 }
 
@@ -462,7 +538,11 @@ pub fn absent_is_fine(outcome: std::io::Result<()>) -> Result<(), WorktreeCopyEr
 /// const notices = await reapAbandonedStages(commonDir);
 /// ```
 pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeCopyError> {
-    return reap_judged_stages(common_dir, &judge_stage_owners(common_dir)?, &RecoveryDestinations::EveryDestination);
+    return reap_judged_stages(
+        common_dir,
+        &judge_stage_owners(common_dir)?,
+        &RecoveryDestinations::EveryDestination,
+    );
 }
 
 /// `reap_abandoned_stages` on verdicts that were made before the command changed anything;
@@ -500,7 +580,11 @@ pub fn reap_judged_stages(
             // command may do it wherever it runs. A stage name that is already clear is settled here too.
             if of_an_add
                 && !journaled.contains(&container)
-                && crate::worktree_copy_swapped_add_settlement::settle_before_the_stage_proof(claim.as_path(), container.as_path(), &mut notices)?
+                && crate::worktree_copy_swapped_add_settlement::settle_before_the_stage_proof(
+                    claim.as_path(),
+                    container.as_path(),
+                    &mut notices,
+                )?
             {
                 continue;
             }
@@ -536,7 +620,12 @@ pub fn reap_judged_stages(
             // there makes the copy, and the pending check has already named the worktree. Nothing here settles it, so the
             // obligation outlives this command. The stage above is a partial copy nothing may resume, so its removal stays
             // open to every command: a worktree that is gone has no command left to clean up its own stage.
-            if copy_owed_to_another_worktree(common_dir, claim.as_path(), record.as_path(), destinations) {
+            if copy_owed_to_another_worktree(
+                common_dir,
+                claim.as_path(),
+                record.as_path(),
+                destinations,
+            ) {
                 continue;
             }
             let settled: Settlement = settle_interrupted_add(record.as_path());
@@ -558,6 +647,8 @@ pub fn reap_judged_stages(
     remove_records_nothing_claims(root.as_path())?;
     // A claim this command moved aside leaves the record of its destination unread by every sweep, because a record of
     // an add is read through the claim beside it; settling that record is what still names the worktree.
-    notices.extend(crate::worktree_copy_unreadable_records::settle_records_without_a_claim(root.as_path())?);
+    notices.extend(
+        crate::worktree_copy_unreadable_records::settle_records_without_a_claim(root.as_path())?,
+    );
     return Ok(notices);
 }

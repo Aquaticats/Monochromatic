@@ -10,6 +10,10 @@
 //! // parseConfig(source) returns CliGitConfig or throws ConfigError naming the key.
 //! ```
 
+use crate::config_discarded::{
+    SECTION,
+    parse_discarded_copies,
+};
 /// What:
 ///  `use super::...` imports sibling modules of this crate.
 /// Why:
@@ -23,10 +27,18 @@
 /// import { ConfigError } from './config-error.ts';
 /// ```
 use crate::config_error::ConfigError;
-use crate::config_discarded::{SECTION, parse_discarded_copies};
 use crate::config_policies::parse_policies;
-use crate::config_schema::{CliGitConfig, ConcurrencyConfig};
-use crate::config_values::{boolean, member_keys, member_path, safe_integer, wrong_kind};
+use crate::config_schema::{
+    CliGitConfig,
+    ConcurrencyConfig,
+};
+use crate::config_values::{
+    boolean,
+    member_keys,
+    member_path,
+    safe_integer,
+    wrong_kind,
+};
 /// What:
 ///  Import the repository's JSONC parser and its value type.
 /// Why:
@@ -36,7 +48,10 @@ use crate::config_values::{boolean, member_keys, member_path, safe_integer, wron
 /// ```ts
 /// import { parseJsonc, type JsoncValue } from 'jsonc-edit';
 /// ```
-use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncValue,
+    parse_jsonc,
+};
 
 /// What:
 ///  Every accepted top-level key,

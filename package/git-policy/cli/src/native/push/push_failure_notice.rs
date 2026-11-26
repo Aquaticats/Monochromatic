@@ -38,28 +38,51 @@
 //! await recordPushFailure(gitDir, { branchRef, oid, reason }); stderr.write(await takePushFailures(gitDir));
 //! ```
 
-use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::auto_push_branch_key::encode_branch_key;
+use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::lfs_output_mask::mask_url_secrets_text;
+use crate::private_storage::{
+    create_private_directory_all,
+    replace_private_file_unsynced,
+    write_private_file_unsynced,
+};
+/// The name a command holds a record under while it shows it,
+/// and who may take one over.
+use crate::push_failure_notice_claimed_by_one_command::{
+    CLAIM_SUFFIX,
+    ClaimToken,
+    claim,
+    claimed_by_a_live_command,
+    give_back,
+    record_of_claim,
+    take_over,
+};
 pub use crate::push_failure_notice_machine_output::is_machine_read;
-use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced, write_private_file_unsynced};
-/// One record as a command holds it before it shows it,
-/// with the claim it was taken under and the step that removes that claim.
-pub use crate::push_failure_notice_shown_then_removed::Notice;
+use crate::push_failure_notice_reports::REPORT_MAGIC;
 /// The record of what a push that succeeded did,
 /// and the first line that tells it from a failure.
 pub use crate::push_failure_notice_reports::record_push_report;
-use crate::push_failure_notice_reports::REPORT_MAGIC;
+/// One record as a command holds it before it shows it,
+/// with the claim it was taken under and the step that removes that claim.
+pub use crate::push_failure_notice_shown_then_removed::Notice;
 /// The words a notice carries,
 /// the text of the failed backup push,
 /// and what the push came to.
-pub use crate::push_failure_notice_words::{PushOutcome, push_failure_text};
-pub(crate) use crate::push_failure_notice_words::{worded, worded_lost, worded_report, worded_skipped};
-/// The name a command holds a record under while it shows it,
-/// and who may take one over.
-use crate::push_failure_notice_claimed_by_one_command::{CLAIM_SUFFIX, ClaimToken, claim, claimed_by_a_live_command, give_back, record_of_claim, take_over};
+pub use crate::push_failure_notice_words::{
+    PushOutcome,
+    push_failure_text,
+};
+pub(crate) use crate::push_failure_notice_words::{
+    worded,
+    worded_lost,
+    worded_report,
+    worded_skipped,
+};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Directory under the worktree's own Git directory that holds the records for the person.
 pub const NOTICE_DIRECTORY: &str = "monochromatic-git-policy-cli/notices";
@@ -130,7 +153,6 @@ const UNFINISHED_NO_RETRY_MAGIC: &str = "monochromatic-git-policy-cli push unfin
 /// and its reason is the service's own words.
 const SKIPPED_MAGIC: &str = "monochromatic-git-policy-cli push skipped 1";
 
-
 /// The field names of a record's header lines.
 pub(crate) const BRANCH_FIELD: &str = "branch: ";
 pub(crate) const COMMIT_FIELD: &str = "commit: ";
@@ -157,15 +179,21 @@ pub fn fnv_hex(text: &str) -> String {
 /// The part of every record name that belongs to one branch.
 fn branch_prefix(branch_ref: &str) -> String {
     let key: String = encode_branch_key(branch_ref);
-    let shown: String = if key.len() > LONGEST_KEY { format!("{}~{}", &key[..LONGEST_KEY], fnv_hex(key.as_str())) } else { key };
+    let shown: String = if key.len() > LONGEST_KEY {
+        format!("{}~{}", &key[..LONGEST_KEY], fnv_hex(key.as_str()))
+    } else {
+        key
+    };
     return format!("push{NAME_SEPARATOR}{shown}{NAME_SEPARATOR}");
 }
 
 /// The file name of the record of one failed push.
-pub fn record_name(branch_ref: &str, commit: &str) -> String {
+pub fn record_name(
+    branch_ref: &str,
+    commit: &str,
+) -> String {
     return format!("{}{commit}.txt", branch_prefix(branch_ref));
 }
-
 
 /// What:
 ///  Git's words for the person:
@@ -284,13 +312,21 @@ fn bounded(mut text: String) -> String {
 /// ```ts
 /// await recordPushSkip(gitDir, { branchRef, commit, said })
 /// ```
-pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
+pub fn record_push_skip(
+    git_dir: &Path,
+    branch_ref: &str,
+    commit: &str,
+    said: &str,
+) -> Result<(), String> {
     let directory: PathBuf = notice_directory(git_dir);
     if let Err(error) = create_private_directory_all(directory.as_path()) {
         return Err(format!("creating the notice directory failed: {error}"));
     }
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
-    let text: String = format!("{SKIPPED_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
+    let text: String = format!(
+        "{SKIPPED_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}",
+        clean_reason(said)
+    );
     return match replace_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),
@@ -313,7 +349,13 @@ pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &s
 /// ```ts
 /// await recordPushFailure(gitDir, { branchRef, commit, outcome, said })
 /// ```
-pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, outcome: PushOutcome, said: &str) -> Result<(), String> {
+pub fn record_push_failure(
+    git_dir: &Path,
+    branch_ref: &str,
+    commit: &str,
+    outcome: PushOutcome,
+    said: &str,
+) -> Result<(), String> {
     let directory: PathBuf = notice_directory(git_dir);
     if let Err(error) = create_private_directory_all(directory.as_path()) {
         return Err(format!("creating the notice directory failed: {error}"));
@@ -324,7 +366,10 @@ pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, outco
         PushOutcome::Unfinished => UNFINISHED_MAGIC,
         PushOutcome::UnfinishedWithNoRetry => UNFINISHED_NO_RETRY_MAGIC,
     };
-    let text: String = format!("{magic}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
+    let text: String = format!(
+        "{magic}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}",
+        clean_reason(said)
+    );
     return match replace_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),
@@ -343,7 +388,11 @@ pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, outco
 /// ```ts
 /// await recordLostPush(commonDir, { branchRef, commit })
 /// ```
-pub fn record_lost_push(common_dir: &Path, branch_ref: &str, commit: &str) -> Result<(), String> {
+pub fn record_lost_push(
+    common_dir: &Path,
+    branch_ref: &str,
+    commit: &str,
+) -> Result<(), String> {
     let directory: PathBuf = common_dir.join(ORPHAN_NOTICE_DIRECTORY);
     if let Err(error) = create_private_directory_all(directory.as_path()) {
         return Err(format!("creating the notice directory failed: {error}"));
@@ -352,9 +401,12 @@ pub fn record_lost_push(common_dir: &Path, branch_ref: &str, commit: &str) -> Re
     if path.exists() {
         return Ok(());
     }
-    let text: String = format!("{LOST_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n");
+    let text: String =
+        format!("{LOST_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n");
     return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
-        Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => Err(format!("writing the notice failed: {error}")),
+        Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => {
+            Err(format!("writing the notice failed: {error}"))
+        }
         Ok(()) | Err(_) => Ok(()),
     };
 }
@@ -403,8 +455,17 @@ fn earlier_spelling(rest: &str) -> String {
 /// const currentMagic = (line: string) => MAGICS.find((magic) => line === magic || line === magic.replace(CURRENT, EARLIER))
 /// ```
 fn current_magic_of(line: &str) -> Option<&'static str> {
-    for current in [RECORD_MAGIC, UNFINISHED_MAGIC, UNFINISHED_NO_RETRY_MAGIC, SKIPPED_MAGIC, REPORT_MAGIC, LOST_MAGIC] {
-        let earlier: Option<String> = current.strip_prefix(DATA_FOLDER.current).map(earlier_spelling);
+    for current in [
+        RECORD_MAGIC,
+        UNFINISHED_MAGIC,
+        UNFINISHED_NO_RETRY_MAGIC,
+        SKIPPED_MAGIC,
+        REPORT_MAGIC,
+        LOST_MAGIC,
+    ] {
+        let earlier: Option<String> = current
+            .strip_prefix(DATA_FOLDER.current)
+            .map(earlier_spelling);
         if line == current || earlier.as_deref() == Some(line) {
             return Some(current);
         }
@@ -423,14 +484,18 @@ fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
         return None;
     }
     let reason: &str = lines.next().unwrap_or("");
-    return Some((branch, commit, match magic {
-        LOST_MAGIC => RecordKind::Lost,
-        SKIPPED_MAGIC => RecordKind::Skipped(reason),
-        REPORT_MAGIC => RecordKind::Reported(reason),
-        UNFINISHED_MAGIC => RecordKind::Unfinished(reason),
-        UNFINISHED_NO_RETRY_MAGIC => RecordKind::UnfinishedWithNoRetry(reason),
-        _ => RecordKind::Failed(reason),
-    }));
+    return Some((
+        branch,
+        commit,
+        match magic {
+            LOST_MAGIC => RecordKind::Lost,
+            SKIPPED_MAGIC => RecordKind::Skipped(reason),
+            REPORT_MAGIC => RecordKind::Reported(reason),
+            UNFINISHED_MAGIC => RecordKind::Unfinished(reason),
+            UNFINISHED_NO_RETRY_MAGIC => RecordKind::UnfinishedWithNoRetry(reason),
+            _ => RecordKind::Failed(reason),
+        },
+    ));
 }
 
 /// What:
@@ -444,7 +509,10 @@ fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
 /// ```ts
 /// await clearPushFailures(gitDir, branchRef)
 /// ```
-pub fn clear_push_failures(git_dir: &Path, branch_ref: &str) {
+pub fn clear_push_failures(
+    git_dir: &Path,
+    branch_ref: &str,
+) {
     clear_push_failures_before(git_dir, branch_ref, std::time::SystemTime::now());
 }
 
@@ -464,8 +532,14 @@ pub fn clear_push_failures(git_dir: &Path, branch_ref: &str) {
 /// ```ts
 /// await clearPushFailuresBefore(gitDir, branchRef, pushBegan)
 /// ```
-pub fn clear_push_failures_before(git_dir: &Path, branch_ref: &str, cutoff: std::time::SystemTime) {
-    let Ok(listing) = std::fs::read_dir(notice_directory(git_dir)) else { return };
+pub fn clear_push_failures_before(
+    git_dir: &Path,
+    branch_ref: &str,
+    cutoff: std::time::SystemTime,
+) {
+    let Ok(listing) = std::fs::read_dir(notice_directory(git_dir)) else {
+        return;
+    };
     let prefix: String = branch_prefix(branch_ref);
     for entry in listing.flatten() {
         let older: bool = match entry.metadata() {
@@ -539,7 +613,10 @@ pub fn checked_out_branches(common_dir: &Path) -> Vec<String> {
 /// Whether a record of `branch_ref` is for the asking worktree:
 /// it has the branch checked out,
 /// or no worktree has.
-fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
+fn is_for(
+    worktrees: &Worktrees,
+    branch_ref: &str,
+) -> bool {
     if worktrees.here.as_deref() == Some(branch_ref) {
         return true;
     }
@@ -568,7 +645,10 @@ fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
 /// ```
 pub trait CommitNamer {
     /// The name to show for `commit`.
-    fn name_of(&self, commit: &str) -> String;
+    fn name_of(
+        &self,
+        commit: &str,
+    ) -> String;
 }
 
 /// What:
@@ -592,7 +672,11 @@ pub trait CommitNamer {
 /// ```ts
 /// const notices = await readPushFailuresFor(gitDir, worktrees, abbreviate)
 /// ```
-pub fn push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
+pub fn push_failures_for(
+    git_dir: &Path,
+    worktrees: Option<&Worktrees>,
+    abbreviate: &dyn CommitNamer,
+) -> Vec<Notice> {
     return read_records_from(notice_directory(git_dir).as_path(), worktrees, abbreviate);
 }
 
@@ -609,15 +693,28 @@ pub fn push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbrevia
 /// ```ts
 /// const notices = await readOrphanedPushFailures(commonDir, abbreviate)
 /// ```
-pub fn orphaned_push_failures(common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
-    return read_records_from(common_dir.join(ORPHAN_NOTICE_DIRECTORY).as_path(), None, abbreviate);
+pub fn orphaned_push_failures(
+    common_dir: &Path,
+    abbreviate: &dyn CommitNamer,
+) -> Vec<Notice> {
+    return read_records_from(
+        common_dir.join(ORPHAN_NOTICE_DIRECTORY).as_path(),
+        None,
+        abbreviate,
+    );
 }
 
 /// Reads the records in one directory that are for the asking worktree,
 /// oldest name first,
 /// without removing any.
-fn read_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
-    let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
+fn read_records_from(
+    directory: &Path,
+    worktrees: Option<&Worktrees>,
+    abbreviate: &dyn CommitNamer,
+) -> Vec<Notice> {
+    let Ok(listing) = std::fs::read_dir(directory) else {
+        return Vec::new();
+    };
     let token: ClaimToken = ClaimToken::of_this_command();
     let mut paths: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
@@ -633,12 +730,16 @@ fn read_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
             if claimed_by_a_live_command(name.as_str()) {
                 continue;
             }
-            let Some(claimed) = take_over(path.as_path(), &token) else { continue };
+            let Some(claimed) = take_over(path.as_path(), &token) else {
+                continue;
+            };
             notices.extend(word_records_at(claimed.as_path(), worktrees, abbreviate));
             continue;
         }
         // A notice that is a named pipe answers as unreadable at once instead of holding the command that shows notices.
-        let Ok(text) = crate::plain_file::read_plain_text(path.as_path()) else { continue };
+        let Ok(text) = crate::plain_file::read_plain_text(path.as_path()) else {
+            continue;
+        };
         let parsed: Option<(&str, &str, RecordKind<'_>)> = parse_record(text.as_str());
         if let (Some((branch, _, _)), Some(asking)) = (&parsed, worktrees)
             && !is_for(asking, branch)
@@ -648,7 +749,9 @@ fn read_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
         // The record is claimed before its words are made: two commands that start together both read it, and only the one
         //  whose rename wins shows it. A command killed while it words the notice leaves the claim, which a later command takes
         //  over once this one is gone.
-        let Some(claimed) = claim(path.as_path(), &token) else { continue };
+        let Some(claimed) = claim(path.as_path(), &token) else {
+            continue;
+        };
         notices.extend(word_records_at(claimed.as_path(), worktrees, abbreviate));
     }
     return notices;
@@ -682,8 +785,14 @@ fn file_name_of(path: &Path) -> String {
 /// ```ts
 /// const text = await readFile(claim); const parsed = parseRecord(text); return parsed ? worded(parsed) : text
 /// ```
-fn word_records_at(path: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
-    let Ok(text) = crate::plain_file::read_plain_text(path) else { return Vec::new() };
+fn word_records_at(
+    path: &Path,
+    worktrees: Option<&Worktrees>,
+    abbreviate: &dyn CommitNamer,
+) -> Vec<Notice> {
+    let Ok(text) = crate::plain_file::read_plain_text(path) else {
+        return Vec::new();
+    };
     let parsed: Option<(&str, &str, RecordKind<'_>)> = parse_record(text.as_str());
     if let (Some((branch, _, _)), Some(asking)) = (&parsed, worktrees)
         && !is_for(asking, branch)
@@ -695,20 +804,43 @@ fn word_records_at(path: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn 
         return Vec::new();
     }
     let shown: String = match parsed {
-        Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::Refused, reason),
-        Some((branch, commit, RecordKind::Unfinished(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::Unfinished, reason),
-        Some((branch, commit, RecordKind::UnfinishedWithNoRetry(reason))) => {
-            worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::UnfinishedWithNoRetry, reason)
+        Some((branch, commit, RecordKind::Failed(reason))) => worded(
+            branch,
+            abbreviate.name_of(commit).as_str(),
+            PushOutcome::Refused,
+            reason,
+        ),
+        Some((branch, commit, RecordKind::Unfinished(reason))) => worded(
+            branch,
+            abbreviate.name_of(commit).as_str(),
+            PushOutcome::Unfinished,
+            reason,
+        ),
+        Some((branch, commit, RecordKind::UnfinishedWithNoRetry(reason))) => worded(
+            branch,
+            abbreviate.name_of(commit).as_str(),
+            PushOutcome::UnfinishedWithNoRetry,
+            reason,
+        ),
+        Some((branch, commit, RecordKind::Skipped(reason))) => {
+            worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason)
         }
-        Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
-        Some((branch, commit, RecordKind::Reported(reason))) => worded_report(branch, abbreviate.name_of(commit).as_str(), reason),
-        Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
+        Some((branch, commit, RecordKind::Reported(reason))) => {
+            worded_report(branch, abbreviate.name_of(commit).as_str(), reason)
+        }
+        Some((branch, commit, RecordKind::Lost)) => {
+            worded_lost(branch, abbreviate.name_of(commit).as_str())
+        }
         // The finished text an earlier release wrote.
         None => text.clone(),
     };
     let record: String = file_name_of(path);
     let record_name: &str = record_of_claim(record.as_str()).unwrap_or(record.as_str());
-    return vec![Notice { record: path.with_file_name(record_name), claim: path.to_path_buf(), text: shown }];
+    return vec![Notice {
+        record: path.with_file_name(record_name),
+        claim: path.to_path_buf(),
+        text: shown,
+    }];
 }
 
 /// What:
@@ -730,7 +862,10 @@ pub fn push_failures(git_dir: &Path) -> Vec<Notice> {
 struct FullCommitName;
 
 impl CommitNamer for FullCommitName {
-    fn name_of(&self, commit: &str) -> String {
+    fn name_of(
+        &self,
+        commit: &str,
+    ) -> String {
         return commit.to_string();
     }
 }

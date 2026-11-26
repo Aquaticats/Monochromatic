@@ -23,14 +23,31 @@
 //! ```
 
 use crate::git_metadata::path_from_git_bytes;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
-use crate::worktree_add_binding::{Binding, Bound, RegistrationOwner, bind_registration, claim_registration};
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::json_record::quote;
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
+use crate::worktree_add_binding::{
+    Binding,
+    Bound,
+    RegistrationOwner,
+    bind_registration,
+    claim_registration,
+};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    raw_failure,
+    raw_failure_of,
+};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_identity::WorktreeIdentity;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The facts captured before real Git runs for an applicable invocation.
@@ -119,11 +136,22 @@ pub fn observe_worktree_repository(
 ) -> Result<Option<WorktreeCopyObservation>, WorktreeCopyError> {
     // `match` decides applicability from the identity alone; only the two repository kinds are observed.
     match identity {
-        WorktreeIdentity::OutsideWorktree | WorktreeIdentity::MainWorktree { .. } => {
+        WorktreeIdentity::OutsideWorktree
+        | WorktreeIdentity::MainWorktree {
+            ..
+        } => {
             return Ok(None);
         }
-        WorktreeIdentity::BareRepository { common_dir, .. } => {
-            return Ok(Some(observation(common_dir.as_path(), None, effective_cwd, CopySelection::Ignored)));
+        WorktreeIdentity::BareRepository {
+            common_dir,
+            ..
+        } => {
+            return Ok(Some(observation(
+                common_dir.as_path(),
+                None,
+                effective_cwd,
+                CopySelection::Ignored,
+            )));
         }
         WorktreeIdentity::LinkedWorktree {
             common_dir,
@@ -214,7 +242,10 @@ fn observation(
 /// ```ts
 /// function destinationIsRegistered(commonDir: string, destination: string): boolean;
 /// ```
-pub fn destination_is_registered(common_dir: &Path, destination: &Path) -> bool {
+pub fn destination_is_registered(
+    common_dir: &Path,
+    destination: &Path,
+) -> bool {
     return bind_registration(common_dir, destination).is_ok();
 }
 
@@ -342,13 +373,20 @@ pub fn find_created_worktree(
     {
         return Ok(nothing_created(None));
     }
-    let owner: RegistrationOwner = claim_registration(&bound.admin, mine).map_err(raw_failure_of)?;
-    let Bound { binding, .. } = bound;
+    let owner: RegistrationOwner =
+        claim_registration(&bound.admin, mine).map_err(raw_failure_of)?;
+    let Bound {
+        binding,
+        ..
+    } = bound;
     if let RegistrationOwner::Another(other) = owner {
         return Ok(nothing_created(Some(other)));
     }
     return Ok(CreatedWorktrees {
-        created: vec![CreatedWorktree { root: destination.to_path_buf(), binding }],
+        created: vec![CreatedWorktree {
+            root: destination.to_path_buf(),
+            binding,
+        }],
         registered_roots: read_registered_roots(context, observation)?,
         other_commands: None,
     });
@@ -388,16 +426,25 @@ fn nothing_created(other_commands: Option<String>) -> CreatedWorktrees {
 /// ```ts
 /// async function registeredByAnother({ commonDir, destination, mine }): Promise<boolean>;
 /// ```
-pub fn registered_by_another(common_dir: &Path, destination: &Path, mine: &str) -> Result<bool, WorktreeCopyError> {
+pub fn registered_by_another(
+    common_dir: &Path,
+    destination: &Path,
+    mine: &str,
+) -> Result<bool, WorktreeCopyError> {
     let Ok(bound) = bind_registration(common_dir, destination) else {
         return Ok(false);
     };
-    let Ok(mut proof) = crate::fs_beneath::open_file_at(&bound.admin, std::ffi::OsStr::new(crate::worktree_add_binding::REGISTRATION_OWNER_NAME)) else {
+    let Ok(mut proof) = crate::fs_beneath::open_file_at(
+        &bound.admin,
+        std::ffi::OsStr::new(crate::worktree_add_binding::REGISTRATION_OWNER_NAME),
+    ) else {
         return Ok(false);
     };
     let mut recorded: Vec<u8> = Vec::new();
     std::io::Read::read_to_end(&mut proof, &mut recorded).map_err(raw_failure_of)?;
-    let owner: String = String::from_utf8_lossy(recorded.as_slice()).trim().to_string();
+    let owner: String = String::from_utf8_lossy(recorded.as_slice())
+        .trim()
+        .to_string();
     return Ok(!owner.is_empty() && owner != mine);
 }
 
@@ -420,7 +467,10 @@ mod tests;
 /// ```ts
 /// `${claim?.identifier() ?? randomUuid()}\n${currentCopyOwner().token()}`
 /// ```
-pub(crate) fn command_token(recorded: Option<&StageClaim>, destination: &Path) -> Result<String, WorktreeCopyError> {
+pub(crate) fn command_token(
+    recorded: Option<&StageClaim>,
+    destination: &Path,
+) -> Result<String, WorktreeCopyError> {
     let name: String = match recorded {
         Some(claim) => claim.identifier(),
         None => match crate::random_id::random_uuid() {
@@ -430,7 +480,10 @@ pub(crate) fn command_token(recorded: Option<&StageClaim>, destination: &Path) -
                     "monochromatic-git-policy-cli: could not name the worktree add of {}.",
                     quote(destination.to_string_lossy().as_ref())
                 );
-                return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), Some(&error.0)));
+                return Err(crate::worktree_copy_error::failure_with_cause(
+                    message.as_str(),
+                    Some(&error.0),
+                ));
             }
         },
     };

@@ -19,13 +19,25 @@
 //! const usage = `usage: <file> monochromatic-git-policy-cli zfs-root <mode>`; // one row per mode word
 //! ```
 
-use crate::worktree_clone_mount_handler::handler_install_paths::{ROOT_MODE_INSTALL_PATH, ZEDLET_INSTALL_PATH, root_modes_name};
+use crate::worktree_clone_mount_handler::handler_install_paths::{
+    ROOT_MODE_INSTALL_PATH,
+    ZEDLET_INSTALL_PATH,
+    root_modes_name,
+};
 use crate::worktree_clone_mount_handler::root_mode_names::ZEDLET_START_NAME;
 use monochromatic_zfs_request_to_openzfs_kernel_device::DEVICE_PATH;
 
 /// The mode words this build accepts,
 /// in the order the help lists them.
-pub const MODE_WORDS: [&str; 7] = ["boot-reconcile", "start-probe", "shutdown-unmount", "holder-scan", "adopt-worktree-parent", "record-checkout", "mount-path-descendant"];
+pub const MODE_WORDS: [&str; 7] = [
+    "boot-reconcile",
+    "start-probe",
+    "shutdown-unmount",
+    "holder-scan",
+    "adopt-worktree-parent",
+    "record-checkout",
+    "mount-path-descendant",
+];
 
 /// The word that prints the help.
 pub const HELP_WORD: &str = "--help";

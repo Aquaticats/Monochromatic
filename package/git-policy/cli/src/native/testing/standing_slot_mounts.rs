@@ -27,9 +27,18 @@
 //! ```
 
 use crate::fs_mount_options::MountFacts;
-use crate::worktree_clone_mount_handler::sweep_one_clone::{LiveMountTableSource, LiveStandingMounts, MountSourceAnswer, MountSourceByNumber, MountTableSource};
+use crate::worktree_clone_mount_handler::sweep_one_clone::{
+    LiveMountTableSource,
+    LiveStandingMounts,
+    MountSourceAnswer,
+    MountSourceByNumber,
+    MountTableSource,
+};
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The source name a control's tmpfs is mounted with,
 /// which the shaper knows its own row by.
@@ -80,16 +89,39 @@ impl MountedSlot {
     }
 
     /// Mount one tmpfs at `path` with `flags`.
-    pub(crate) fn with_flags(path: &Path, flags: libc::c_ulong) -> Self {
-        let source: std::ffi::CString = std::ffi::CString::new(SHAPED_SOURCE).expect("no NUL in the source");
-        let target: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in the path");
+    pub(crate) fn with_flags(
+        path: &Path,
+        flags: libc::c_ulong,
+    ) -> Self {
+        let source: std::ffi::CString =
+            std::ffi::CString::new(SHAPED_SOURCE).expect("no NUL in the source");
+        let target: std::ffi::CString =
+            std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in the path");
         let kind: std::ffi::CString = std::ffi::CString::new("tmpfs").expect("no NUL in the type");
         // SAFETY: all three strings outlive the call, the type is a NUL-terminated name, and no data pointer is read.
-        let mounted: libc::c_int = unsafe { libc::mount(source.as_ptr(), target.as_ptr(), kind.as_ptr(), flags, std::ptr::null()) };
-        assert_eq!(mounted, 0, "the control's tmpfs mounts at {}: {}", path.display(), std::io::Error::last_os_error());
+        let mounted: libc::c_int = unsafe {
+            libc::mount(
+                source.as_ptr(),
+                target.as_ptr(),
+                kind.as_ptr(),
+                flags,
+                std::ptr::null(),
+            )
+        };
+        assert_eq!(
+            mounted,
+            0,
+            "the control's tmpfs mounts at {}: {}",
+            path.display(),
+            std::io::Error::last_os_error()
+        );
         let folder: std::fs::File = std::fs::File::open(path).expect("the mounted folder opens");
-        let id: u64 = crate::fs_beneath_mount_facts::mount_id_of(&folder).expect("the mounted folder's own mount reads");
-        return Self { at: path.to_path_buf(), id };
+        let id: u64 = crate::fs_beneath_mount_facts::mount_id_of(&folder)
+            .expect("the mounted folder's own mount reads");
+        return Self {
+            at: path.to_path_buf(),
+            id,
+        };
     }
 
     /// What:
@@ -103,12 +135,29 @@ impl MountedSlot {
     /// ```ts
     /// slot.remount(0); // the two attributes off
     /// ```
-    pub(crate) fn remount(&self, flags: libc::c_ulong) {
-        let target: std::ffi::CString = std::ffi::CString::new(self.at.as_os_str().as_bytes()).expect("no NUL in the path");
+    pub(crate) fn remount(
+        &self,
+        flags: libc::c_ulong,
+    ) {
+        let target: std::ffi::CString =
+            std::ffi::CString::new(self.at.as_os_str().as_bytes()).expect("no NUL in the path");
         // SAFETY: the target is a NUL-terminated path that outlives the call, and `MS_REMOUNT|MS_BIND` with no type or
         // data changes the per-mount flags in place.
-        let changed: libc::c_int = unsafe { libc::mount(std::ptr::null(), target.as_ptr(), std::ptr::null(), libc::MS_REMOUNT | libc::MS_BIND | flags, std::ptr::null()) };
-        assert_eq!(changed, 0, "the control's tmpfs remounts in place: {}", std::io::Error::last_os_error());
+        let changed: libc::c_int = unsafe {
+            libc::mount(
+                std::ptr::null(),
+                target.as_ptr(),
+                std::ptr::null(),
+                libc::MS_REMOUNT | libc::MS_BIND | flags,
+                std::ptr::null(),
+            )
+        };
+        assert_eq!(
+            changed,
+            0,
+            "the control's tmpfs remounts in place: {}",
+            std::io::Error::last_os_error()
+        );
     }
 
     /// The folder the tmpfs is mounted on.
@@ -125,12 +174,14 @@ impl MountedSlot {
 
 impl Drop for MountedSlot {
     fn drop(&mut self) {
-        let target: std::ffi::CString = std::ffi::CString::new(self.at.as_os_str().as_bytes()).expect("no NUL in the path");
+        let target: std::ffi::CString =
+            std::ffi::CString::new(self.at.as_os_str().as_bytes()).expect("no NUL in the path");
         // SAFETY: `target` is a NUL-terminated path that outlives both calls.
         let plain: libc::c_int = unsafe { libc::umount2(target.as_ptr(), 0) };
         if plain != 0 {
             // SAFETY: the same string, with the flag that detaches a busy mount.
-            let _detached: libc::c_int = unsafe { libc::umount2(target.as_ptr(), libc::MNT_DETACH) };
+            let _detached: libc::c_int =
+                unsafe { libc::umount2(target.as_ptr(), libc::MNT_DETACH) };
         }
     }
 }
@@ -170,7 +221,10 @@ impl MountTableSource for CloneShapedTable {
     fn read(&self) -> Result<Vec<MountFacts>, String> {
         let mut facts: Vec<MountFacts> = self.live.read()?;
         for mount in &mut facts {
-            if mount.source == SHAPED_SOURCE && mount.has_option("nosuid") && mount.has_option("nodev") {
+            if mount.source == SHAPED_SOURCE
+                && mount.has_option("nosuid")
+                && mount.has_option("nodev")
+            {
                 mount.filesystem_type = String::from("zfs");
                 mount.source = self.clone.clone();
                 mount.root = self.root.clone();
@@ -199,7 +253,10 @@ struct SourceSaysTheClone {
 }
 
 impl MountSourceByNumber for SourceSaysTheClone {
-    fn source_of(&self, _unique_mount_number: Option<u64>) -> MountSourceAnswer {
+    fn source_of(
+        &self,
+        _unique_mount_number: Option<u64>,
+    ) -> MountSourceAnswer {
         return MountSourceAnswer::Source(self.clone.clone());
     }
 }
@@ -217,7 +274,19 @@ impl MountSourceByNumber for SourceSaysTheClone {
 /// ```ts
 /// const standing = theSlotsMountReads('pool/clones/one', '/');
 /// ```
-pub(crate) fn the_slots_mount_reads(clone: &str, root: &str) -> LiveStandingMounts {
-    let table: CloneShapedTable = CloneShapedTable { live: LiveMountTableSource::open(), clone: String::from(clone), root: PathBuf::from(root) };
-    return LiveStandingMounts::from_sources(Box::new(table), Box::new(SourceSaysTheClone { clone: String::from(clone) }));
+pub(crate) fn the_slots_mount_reads(
+    clone: &str,
+    root: &str,
+) -> LiveStandingMounts {
+    let table: CloneShapedTable = CloneShapedTable {
+        live: LiveMountTableSource::open(),
+        clone: String::from(clone),
+        root: PathBuf::from(root),
+    };
+    return LiveStandingMounts::from_sources(
+        Box::new(table),
+        Box::new(SourceSaysTheClone {
+            clone: String::from(clone),
+        }),
+    );
 }

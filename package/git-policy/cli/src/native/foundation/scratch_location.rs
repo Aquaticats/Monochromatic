@@ -33,23 +33,39 @@
 use crate::child_environment::environment_value;
 /// Debug lines for problems that never fail a command.
 use crate::diagnostic_log::debug;
-/// The private creation primitives shared by every durable record.
-use crate::private_storage::{create_private_directory, create_private_directory_all};
-/// Removing one scratch entry within its ceiling,
-/// and which commit scratch trees a later command takes for abandoned.
-use crate::scratch_entry_removal::{Removal, SCRATCH_REMOVAL_CEILING, remove_within};
 /// The mode a private directory ends with,
 /// and the call that sets it,
 /// which only Unix has.
 #[cfg(unix)]
-use crate::private_storage::{PRIVATE_DIRECTORY_MODE, protect_path};
+use crate::private_storage::{
+    PRIVATE_DIRECTORY_MODE,
+    protect_path,
+};
+/// The private creation primitives shared by every durable record.
+use crate::private_storage::{
+    create_private_directory,
+    create_private_directory_all,
+};
+/// Removing one scratch entry within its ceiling,
+/// and which commit scratch trees a later command takes for abandoned.
+use crate::scratch_entry_removal::{
+    Removal,
+    SCRATCH_REMOVAL_CEILING,
+    remove_within,
+};
 /// The names the wrapper keeps on disk.
 use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 /// OS strings,
 /// paths and time.
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// The tag of this module's diagnostics.
 const TAG: &str = "monochromatic-git-policy-cli";
@@ -90,7 +106,8 @@ const REFRESHES_PER_STALE_AGE: u64 = 24;
 /// and a directory whose waiter died stops being renewed
 ///  and ages out as before.
 /// The renewal is one `utimensat` call an hour.
-pub const SCRATCH_REFRESH_EVERY: Duration = Duration::from_secs(SCRATCH_STALE_AFTER.as_secs() / REFRESHES_PER_STALE_AGE);
+pub const SCRATCH_REFRESH_EVERY: Duration =
+    Duration::from_secs(SCRATCH_STALE_AFTER.as_secs() / REFRESHES_PER_STALE_AGE);
 
 /// What:
 ///  Sets the modification time of `path` to now.
@@ -114,7 +131,10 @@ pub fn renew(path: &Path) {
         Err(error) => Err(error),
     };
     if let Err(error) = renewed {
-        debug(TAG, format!("could not renew {}: {error}", path.display()).as_str());
+        debug(
+            TAG,
+            format!("could not renew {}: {error}", path.display()).as_str(),
+        );
     }
 }
 
@@ -143,7 +163,12 @@ pub fn state_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> 
     if home.is_empty() {
         return None;
     }
-    return Some(PathBuf::from(home).join(".local").join("state").join("monochromatic-git-policy-cli"));
+    return Some(
+        PathBuf::from(home)
+            .join(".local")
+            .join("state")
+            .join("monochromatic-git-policy-cli"),
+    );
 }
 
 /// What:
@@ -202,7 +227,12 @@ pub fn prepare_user_scratch(environment: &[(OsString, OsString)]) -> Result<Path
             directory.display()
         ));
     }
-    sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
+    sweep_stale(
+        directory.as_path(),
+        SystemTime::now(),
+        SCRATCH_STALE_AFTER,
+        SCRATCH_REMOVAL_CEILING,
+    );
     return Ok(directory);
 }
 
@@ -290,7 +320,12 @@ fn append_only(file: &std::fs::File) -> std::io::Result<()> {
 /// ```ts
 /// const tree = prepareCommitScratch(commonDir, gitDir, name);
 /// ```
-pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, ceiling: Duration) -> std::io::Result<PathBuf> {
+pub fn prepare_commit_scratch(
+    common_dir: &Path,
+    git_dir: &Path,
+    name: &str,
+    ceiling: Duration,
+) -> std::io::Result<PathBuf> {
     let covered: Option<PathBuf> = match prepare_repository_scratch_for_a_commit(common_dir) {
         Ok(directory) => Some(directory),
         Err(error) => {
@@ -335,7 +370,10 @@ pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, cei
         // The old tree is moved aside before anything removes it, and only the aside's name is given to the removal: a removal
         //  that outlives its ceiling keeps the pathname it was given and never learns that the tree moved, so one handed this
         //  attempt's name could empty the tree this attempt makes next. The aside's name is one no attempt ever makes.
-        let aside: PathBuf = directory.join(format!("{name}.removing-{}", crate::random_id::random_uuid().unwrap_or_default()));
+        let aside: PathBuf = directory.join(format!(
+            "{name}.removing-{}",
+            crate::random_id::random_uuid().unwrap_or_default()
+        ));
         match std::fs::rename(tree.as_path(), aside.as_path()) {
             Ok(()) => {
                 // A control checks which name the removal below is given (`scratch_location_removal_targets_test_support.rs`).
@@ -362,11 +400,21 @@ pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, cei
                 // The name cannot be moved aside, so this attempt cannot have it while a removal of the old tree may still run:
                 //  the old tree is removed where it is, and an attempt that cannot wait for that takes a name of its own instead,
                 //  which no removal was ever given and which the wrapper's scratch rules accept.
-                debug(TAG, format!("the leftover {} cannot be moved aside: {error}", tree.display()).as_str());
+                debug(
+                    TAG,
+                    format!(
+                        "the leftover {} cannot be moved aside: {error}",
+                        tree.display()
+                    )
+                    .as_str(),
+                );
                 #[cfg(test)]
                 test_targets::note(tree.as_path());
                 if !remove_within(tree.as_path(), ceiling).finished() {
-                    let fresh: PathBuf = directory.join(format!("{name}-again-{}", crate::random_id::random_uuid().unwrap_or_default()));
+                    let fresh: PathBuf = directory.join(format!(
+                        "{name}-again-{}",
+                        crate::random_id::random_uuid().unwrap_or_default()
+                    ));
                     debug(
                         TAG,
                         format!("the leftover {} is still being removed, so this attempt makes {} instead", tree.display(), fresh.display()).as_str(),
@@ -462,7 +510,9 @@ fn proved_or_made_private(directory: &Path) -> std::io::Result<()> {
     match create_private_directory(directory) {
         Ok(()) => return Ok(()),
         // Another process made it between the proof and this creation, so it is proved as any directory found there is.
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return assert_private_directory(directory),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return assert_private_directory(directory);
+        }
         Err(error) => return Err(error),
     }
 }
@@ -486,7 +536,12 @@ fn proved_or_made_private(directory: &Path) -> std::io::Result<()> {
 /// ```
 pub fn sweep_repository_scratch(common_dir: &Path) -> usize {
     let directory: PathBuf = common_dir.join(REPOSITORY_SCRATCH_NAME);
-    let removed: usize = sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
+    let removed: usize = sweep_stale(
+        directory.as_path(),
+        SystemTime::now(),
+        SCRATCH_STALE_AFTER,
+        SCRATCH_REMOVAL_CEILING,
+    );
     sweep_earlier_repository_scratch(common_dir);
     return removed;
 }
@@ -524,15 +579,26 @@ fn sweep_earlier_repository_scratch(common_dir: &Path) {
         Ok(_) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
         Err(error) => {
-            debug(TAG, format!("could not inspect {}: {error}", earlier.display()).as_str());
+            debug(
+                TAG,
+                format!("could not inspect {}: {error}", earlier.display()).as_str(),
+            );
             return;
         }
     }
     if let Err(error) = assert_private_directory(earlier.as_path()) {
-        debug(TAG, format!("will not sweep {}: {error}", earlier.display()).as_str());
+        debug(
+            TAG,
+            format!("will not sweep {}: {error}", earlier.display()).as_str(),
+        );
         return;
     }
-    sweep_stale(earlier.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
+    sweep_stale(
+        earlier.as_path(),
+        SystemTime::now(),
+        SCRATCH_STALE_AFTER,
+        SCRATCH_REMOVAL_CEILING,
+    );
 }
 
 /// What:
@@ -556,7 +622,9 @@ fn assert_private_directory(path: &Path) -> std::io::Result<()> {
     test_proofs::note(path);
     let metadata: std::fs::Metadata = std::fs::symlink_metadata(path)?;
     if !metadata.is_dir() {
-        return Err(std::io::Error::other("it is a link or a file, not a directory"));
+        return Err(std::io::Error::other(
+            "it is a link or a file, not a directory",
+        ));
     }
     // SAFETY: `geteuid` has no preconditions.
     let owner: u32 = unsafe { libc::geteuid() };
@@ -583,7 +651,9 @@ fn assert_private_directory(path: &Path) -> std::io::Result<()> {
 #[cfg(not(unix))]
 fn assert_private_directory(path: &Path) -> std::io::Result<()> {
     if !std::fs::symlink_metadata(path)?.is_dir() {
-        return Err(std::io::Error::other("it is a link or a file, not a directory"));
+        return Err(std::io::Error::other(
+            "it is a link or a file, not a directory",
+        ));
     }
     return Ok(());
 }
@@ -591,7 +661,10 @@ fn assert_private_directory(path: &Path) -> std::io::Result<()> {
 /// The order two stale entries are removed in:
 /// the older one first,
 /// so a machine that keeps making them loses the oldest.
-fn older_first(left: &(SystemTime, PathBuf), right: &(SystemTime, PathBuf)) -> std::cmp::Ordering {
+fn older_first(
+    left: &(SystemTime, PathBuf),
+    right: &(SystemTime, PathBuf),
+) -> std::cmp::Ordering {
     return left.0.cmp(&right.0);
 }
 
@@ -623,11 +696,23 @@ fn older_first(left: &(SystemTime, PathBuf), right: &(SystemTime, PathBuf)) -> s
 /// const stale = (await readdir(dir)).filter(mayGo).sort(byAge).slice(0, 8);
 /// for (const entry of stale) await removeWithin(entry, ceiling);
 /// ```
-pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling: Duration) -> usize {
+pub fn sweep_stale(
+    directory: &Path,
+    now: SystemTime,
+    max_age: Duration,
+    ceiling: Duration,
+) -> usize {
     let entries: std::fs::ReadDir = match std::fs::read_dir(directory) {
         Ok(found) => found,
         Err(error) => {
-            debug(TAG, format!("could not list {} for stale entries: {error}", directory.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "could not list {} for stale entries: {error}",
+                    directory.display()
+                )
+                .as_str(),
+            );
             return 0;
         }
     };
@@ -637,7 +722,14 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
         let entry: std::fs::DirEntry = match listed {
             Ok(found) => found,
             Err(error) => {
-                debug(TAG, format!("could not read an entry of {}: {error}", directory.display()).as_str());
+                debug(
+                    TAG,
+                    format!(
+                        "could not read an entry of {}: {error}",
+                        directory.display()
+                    )
+                    .as_str(),
+                );
                 continue;
             }
         };
@@ -645,7 +737,10 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
         let metadata: std::fs::Metadata = match std::fs::symlink_metadata(&path) {
             Ok(found) => found,
             Err(error) => {
-                debug(TAG, format!("could not inspect {}: {error}", path.display()).as_str());
+                debug(
+                    TAG,
+                    format!("could not inspect {}: {error}", path.display()).as_str(),
+                );
                 continue;
             }
         };
@@ -658,13 +753,26 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
     }
     stale.sort_by(older_first);
     let mut removed: usize = 0;
-    for (_, path) in stale.iter().take(crate::service_scratch_abandonment::SCRATCH_TREES_REMOVED_PER_COMMAND) {
+    for (_, path) in stale
+        .iter()
+        .take(crate::service_scratch_abandonment::SCRATCH_TREES_REMOVED_PER_COMMAND)
+    {
         // The removal is bounded like every other one: a device that stalls costs this call the ceiling and leaves the entry to the
         //  next sweep, instead of holding the command that asked for scratch for as long as the device takes.
         match remove_within(path.as_path(), ceiling) {
             Removal::Finished => removed += 1,
-            Removal::Unfinished => debug(TAG, format!("the stale {} was still being removed after {ceiling:?}", path.display()).as_str()),
-            Removal::Failed(error) => debug(TAG, format!("could not remove the stale {}: {error}", path.display()).as_str()),
+            Removal::Unfinished => debug(
+                TAG,
+                format!(
+                    "the stale {} was still being removed after {ceiling:?}",
+                    path.display()
+                )
+                .as_str(),
+            ),
+            Removal::Failed(error) => debug(
+                TAG,
+                format!("could not remove the stale {}: {error}", path.display()).as_str(),
+            ),
         }
     }
     return removed;

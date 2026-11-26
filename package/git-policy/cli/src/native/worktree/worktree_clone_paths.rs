@@ -15,11 +15,18 @@
 //! const directories = new Map<string[], File>();
 //! ```
 
-use crate::fs_beneath::{make_directory_at, open_directory_at, plain_components};
+use crate::fs_beneath::{
+    make_directory_at,
+    open_directory_at,
+    plain_components,
+};
 use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::worktree_path_failure_message::subject_failure;
 use std::collections::HashMap;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
@@ -36,7 +43,10 @@ use std::path::Path;
 /// `the index path ${path} is not a plain path`
 /// ```
 fn index_path_refusal(path: &[u8]) -> String {
-    return format!("the index path {} is not a plain path", String::from_utf8_lossy(path));
+    return format!(
+        "the index path {} is not a plain path",
+        String::from_utf8_lossy(path)
+    );
 }
 
 /// What:
@@ -73,7 +83,11 @@ pub(crate) fn entry_names(path: &[u8]) -> Result<Vec<OsString>, String> {
         Ok(found) => found,
         Err(_not_plain) => return Err(index_path_refusal(path)),
     };
-    return if names.is_empty() || names_dot_git(names.as_slice()) { Err(index_path_refusal(path)) } else { Ok(names) };
+    return if names.is_empty() || names_dot_git(names.as_slice()) {
+        Err(index_path_refusal(path))
+    } else {
+        Ok(names)
+    };
 }
 
 /// What:
@@ -89,8 +103,14 @@ pub(crate) fn entry_names(path: &[u8]) -> Result<Vec<OsString>, String> {
 /// ```
 pub(crate) fn times_of(from: &std::fs::Metadata) -> [libc::timespec; 2] {
     return [
-        libc::timespec { tv_sec: from.atime() as libc::time_t, tv_nsec: from.atime_nsec() as libc::c_long },
-        libc::timespec { tv_sec: from.mtime() as libc::time_t, tv_nsec: from.mtime_nsec() as libc::c_long },
+        libc::timespec {
+            tv_sec: from.atime() as libc::time_t,
+            tv_nsec: from.atime_nsec() as libc::c_long,
+        },
+        libc::timespec {
+            tv_sec: from.mtime() as libc::time_t,
+            tv_nsec: from.mtime_nsec() as libc::c_long,
+        },
     ];
 }
 
@@ -109,7 +129,16 @@ pub(crate) fn times_of(from: &std::fs::Metadata) -> [libc::timespec; 2] {
 /// type Identity = [dev, ino, size, mtime, ctime];
 /// ```
 pub(crate) fn identity_of_metadata(from: &std::fs::Metadata) -> [i64; 8] {
-    return [from.dev() as i64, from.ino() as i64, from.size() as i64, from.mtime(), from.mtime_nsec(), from.ctime(), from.ctime_nsec(), i64::from(from.mode())];
+    return [
+        from.dev() as i64,
+        from.ino() as i64,
+        from.size() as i64,
+        from.mtime(),
+        from.mtime_nsec(),
+        from.ctime(),
+        from.ctime_nsec(),
+        i64::from(from.mode()),
+    ];
 }
 
 /// What:
@@ -165,7 +194,11 @@ pub(crate) type Directories = HashMap<Vec<OsString>, File>;
 /// ```ts
 /// const parent = ensureParents(directories, names, created);
 /// ```
-pub(crate) fn ensure_parents<'a>(directories: &'a mut Directories, names: &[OsString], created: &mut Vec<Created>) -> Result<&'a File, String> {
+pub(crate) fn ensure_parents<'a>(
+    directories: &'a mut Directories,
+    names: &[OsString],
+    created: &mut Vec<Created>,
+) -> Result<&'a File, String> {
     let parent: &[OsString] = &names[..names.len() - 1];
     if !directories.contains_key(parent) {
         let mut key: Vec<OsString> = Vec::new();
@@ -179,19 +212,32 @@ pub(crate) fn ensure_parents<'a>(directories: &'a mut Directories, names: &[OsSt
                 None => return Err(String::from("the destination is not held")),
             };
             let name: &OsString = &parent[index];
-            let made: bool = subject_failure(make_directory_at(held, name.as_os_str(), 0o777), &name.to_string_lossy(), "cannot be created")?;
-            let next: File = subject_failure(open_directory_at(held, name.as_os_str()), &name.to_string_lossy(), "cannot be entered")?;
+            let made: bool = subject_failure(
+                make_directory_at(held, name.as_os_str(), 0o777),
+                &name.to_string_lossy(),
+                "cannot be created",
+            )?;
+            let next: File = subject_failure(
+                open_directory_at(held, name.as_os_str()),
+                &name.to_string_lossy(),
+                "cannot be entered",
+            )?;
             if crate::fs_beneath::device_of(&next).ok() != crate::fs_beneath::device_of(held).ok() {
                 return Err(format!("{} is on another device", name.to_string_lossy()));
             }
             if made {
-                created.push(Created { names: key.clone(), directory: true });
+                created.push(Created {
+                    names: key.clone(),
+                    directory: true,
+                });
             }
             directories.insert(key.clone(), next);
         }
         // The index is sorted by path, so a directory this entry left is never needed again;
         // dropping it keeps one descriptor per level of one entry, whichever engine holds the map.
-        directories.retain(|held: &Vec<OsString>, _file: &mut File| { return parent.starts_with(held.as_slice()); });
+        directories.retain(|held: &Vec<OsString>, _file: &mut File| {
+            return parent.starts_with(held.as_slice());
+        });
     }
     return match directories.get(parent) {
         Some(found) => Ok(found),
@@ -215,12 +261,22 @@ pub(crate) fn ensure_parents<'a>(directories: &'a mut Directories, names: &[OsSt
 /// ```ts
 /// const sourceDirectory = (held, root, names) => held?.[0].join('#') === names.join('#') ? held[1] : (held = [names, openDirectoryBeneath(root, names)])[1];
 /// ```
-pub(crate) fn source_directory<'a>(held: &'a mut Option<(Vec<OsString>, File)>, root: &File, names: &[OsString], shown: &[u8]) -> Result<&'a File, String> {
+pub(crate) fn source_directory<'a>(
+    held: &'a mut Option<(Vec<OsString>, File)>,
+    root: &File,
+    names: &[OsString],
+    shown: &[u8],
+) -> Result<&'a File, String> {
     let shared: bool = matches!(held.as_ref(), Some((key, _file)) if key.as_slice() == names);
     if !shared {
         let opened: File = match open_directory_beneath(root, names) {
             Ok(found) => found,
-            Err(error) => return Err(format!("the source directory of {} cannot be opened ({error})", String::from_utf8_lossy(shown))),
+            Err(error) => {
+                return Err(format!(
+                    "the source directory of {} cannot be opened ({error})",
+                    String::from_utf8_lossy(shown)
+                ));
+            }
         };
         *held = Some((names.to_vec(), opened));
     }

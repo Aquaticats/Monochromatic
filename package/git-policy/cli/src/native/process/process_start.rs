@@ -23,7 +23,10 @@
 #[cfg(unix)]
 use crate::process_identity::signal_probe;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Clock ticks per second in `/proc/<pid>/stat`,
 ///  the kernel's fixed `USER_HZ`.
@@ -127,7 +130,11 @@ pub fn parse_uptime(text: &str) -> Option<f64> {
     let first: &str = text.split(' ').next()?;
     let trimmed: &str = crate::js_text::trim_javascript(first);
     // `Number('')` is zero, so an empty first field reads as no time since boot.
-    let seconds: f64 = if trimmed.is_empty() { 0.0 } else { trimmed.parse::<f64>().ok()? };
+    let seconds: f64 = if trimmed.is_empty() {
+        0.0
+    } else {
+        trimmed.parse::<f64>().ok()?
+    };
     if !seconds.is_finite() {
         return None;
     }
@@ -160,14 +167,23 @@ pub fn now_ms() -> f64 {
 /// ```ts
 /// async function linuxStart({ pid, procRoot, now }): Promise<ProcessStart>;
 /// ```
-pub fn linux_start(pid: i64, proc_root: &Path, now: f64) -> ProcessStart {
+pub fn linux_start(
+    pid: i64,
+    proc_root: &Path,
+    now: f64,
+) -> ProcessStart {
     let stat_path: PathBuf = proc_root.join(pid.to_string()).join("stat");
     let stat: String = match std::fs::read(&stat_path) {
         Ok(bytes) => String::from_utf8_lossy(bytes.as_slice()).into_owned(),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return ProcessStart::Missing,
         #[cfg(unix)]
         Err(error) if error.raw_os_error() == Some(libc::ESRCH) => return ProcessStart::Missing,
-        Err(error) => return ProcessStart::Unknown(format!("reading {} failed: {error}", stat_path.display())),
+        Err(error) => {
+            return ProcessStart::Unknown(format!(
+                "reading {} failed: {error}",
+                stat_path.display()
+            ));
+        }
     };
     let Some((state, ticks)) = parse_linux_stat(stat.as_str()) else {
         return ProcessStart::Unknown(String::from("Malformed Linux process stat."));
@@ -176,7 +192,11 @@ pub fn linux_start(pid: i64, proc_root: &Path, now: f64) -> ProcessStart {
         return ProcessStart::Missing;
     }
     let uptime_path: PathBuf = proc_root.join("uptime");
-    let uptime: f64 = match std::fs::read_to_string(&uptime_path).ok().as_deref().and_then(parse_uptime) {
+    let uptime: f64 = match std::fs::read_to_string(&uptime_path)
+        .ok()
+        .as_deref()
+        .and_then(parse_uptime)
+    {
         Some(seconds) => seconds,
         None => return ProcessStart::Unknown(String::from("Malformed /proc/uptime.")),
     };
@@ -192,7 +212,9 @@ pub fn linux_start(pid: i64, proc_root: &Path, now: f64) -> ProcessStart {
 ///  Month numbers of the C locale's abbreviated month names.
 /// Why:
 ///   `ps -o lstart=` prints `Fri Sep 26 10:00:00 2026`.
-const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
 
 /// What:
 ///  The fields of a `ps -o lstart=` line:
@@ -326,7 +348,9 @@ fn darwin_start(pid: i64) -> ProcessStart {
         Ok(finished) => finished,
         Err(error) => return ProcessStart::Unknown(format!("ps could not start: {error}")),
     };
-    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_string();
     let Some((year, month, day, hour, minute, second)) = parse_lstart(text.as_str()) else {
         return ProcessStart::Unknown(format!("unparsable ps start time {text:?}"));
     };
@@ -365,14 +389,22 @@ fn darwin_start(pid: i64) -> ProcessStart {
 fn windows_start(pid: i64) -> ProcessStart {
     let command: String = format!("(Get-Process -Id {pid}).StartTime.ToUniversalTime().Ticks");
     let output: std::process::Output = match std::process::Command::new("powershell.exe")
-        .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command.as_str()])
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            command.as_str(),
+        ])
         .stdin(std::process::Stdio::null())
         .output()
     {
         Ok(finished) => finished,
         Err(error) => return ProcessStart::Unknown(format!("powershell could not start: {error}")),
     };
-    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_string();
     let Ok(ticks) = text.parse::<i128>() else {
         return ProcessStart::Unknown(format!("unparsable start ticks {text:?}"));
     };

@@ -10,12 +10,27 @@
 //!  sentence both ways round,
 //! and the refusal's words are what an operator acts on.
 
-use super::gate_verdict::{Facts, Verdict};
-use super::gate_words::{TESTED_MODULE_VERSION, compatible_line, refusal_line, release_sentence, verdict_line};
-use monochromatic_zfs_request_to_openzfs_kernel_device::{CompatibilityRefusal as Refusal, CompatibilityStep as Step};
+use super::gate_verdict::{
+    Facts,
+    Verdict,
+};
+use super::gate_words::{
+    TESTED_MODULE_VERSION,
+    compatible_line,
+    refusal_line,
+    release_sentence,
+    verdict_line,
+};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    CompatibilityRefusal as Refusal,
+    CompatibilityStep as Step,
+};
 
 /// The facts of one compatible verdict.
-fn facts(version: Option<&str>, absent: Vec<&'static str>) -> Facts {
+fn facts(
+    version: Option<&str>,
+    absent: Vec<&'static str>,
+) -> Facts {
     return Facts {
         target: "x86_64",
         version: version.map(str::to_string),
@@ -50,7 +65,10 @@ fn a_module_with_no_release_text_gets_its_own_sentence() {
     let sentence: String = release_sentence(None).expect("the absent text is reported");
     assert!(sentence.contains("no release text"), "{sentence}");
     assert!(sentence.contains(TESTED_MODULE_VERSION), "{sentence}");
-    assert!(!sentence.contains("reports the release text no"), "{sentence}");
+    assert!(
+        !sentence.contains("reports the release text no"),
+        "{sentence}"
+    );
 }
 
 #[test]
@@ -68,10 +86,16 @@ fn a_refusal_names_the_step_the_disabled_requests_and_no_bypass() {
         detail: String::from("zfs_cmd.zc_objset_stats.dds_flags is missing"),
     };
     let words: String = refusal_line(&refusal);
-    assert!(words.contains("member refused whilst reading /sys/kernel/btf/zfs"), "{words}");
+    assert!(
+        words.contains("member refused whilst reading /sys/kernel/btf/zfs"),
+        "{words}"
+    );
     assert!(words.contains("dds_flags"), "{words}");
     assert!(words.contains("reads included"), "{words}");
-    assert!(words.contains("registrations and durable recovery state"), "{words}");
+    assert!(
+        words.contains("registrations and durable recovery state"),
+        "{words}"
+    );
     assert!(!words.contains("no mode is entered"), "{words}");
     assert!(!words.contains("not a failure of the command"), "{words}");
     assert!(!words.contains("reflink or ordinary Git route"), "{words}");

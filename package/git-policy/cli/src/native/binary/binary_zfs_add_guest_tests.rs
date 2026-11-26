@@ -37,15 +37,38 @@
 
 #![cfg(target_os = "linux")]
 
-use git_policy_cli::worktree_clone_binding_record::{BindingRecord, FolderIdentity, Phase, parse_binding};
-use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness::{ReadyState, ReadinessRecord, SweepState};
+use git_policy_cli::worktree_clone_binding_record::{
+    BindingRecord,
+    FolderIdentity,
+    Phase,
+    parse_binding,
+};
+use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness::{
+    ReadinessRecord,
+    ReadyState,
+    SweepState,
+};
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_readiness_file::ReadinessFile;
 use std::io::Write as _;
-use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+use std::os::unix::fs::{
+    MetadataExt as _,
+    PermissionsExt as _,
+};
 use std::os::unix::process::ExitStatusExt as _;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The variable the guest driver sets.
 const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_ADD_GUEST";
@@ -113,17 +136,23 @@ const POLL: Duration = Duration::from_millis(100);
 /// or a skip line on every other machine.
 fn guest() -> bool {
     let Ok(name) = std::env::var(GUEST_VARIABLE) else {
-        println!("SKIP binary_zfs_add_guest: {GUEST_VARIABLE} is unset, so this arm runs only in the throwaway mvm guest");
+        println!(
+            "SKIP binary_zfs_add_guest: {GUEST_VARIABLE} is unset, so this arm runs only in the throwaway mvm guest"
+        );
         return false;
     };
-    let running: String = std::fs::read_to_string("/etc/hostname").map(|text| return text.trim().to_string()).unwrap_or_default();
+    let running: String = std::fs::read_to_string("/etc/hostname")
+        .map(|text| return text.trim().to_string())
+        .unwrap_or_default();
     assert_eq!(running, name, "this arm runs only in the guest {name}");
     return true;
 }
 
 /// One required fixture variable.
 fn required(variable: &str) -> String {
-    return std::env::var(variable).unwrap_or_else(|_error| panic!("{variable} is unset inside the guest, so this arm has no fixture to run against"));
+    return std::env::var(variable).unwrap_or_else(|_error| {
+        panic!("{variable} is unset inside the guest, so this arm has no fixture to run against")
+    });
 }
 
 /// The fixture the arm drives.
@@ -167,7 +196,11 @@ impl Fixture {
         let root: PathBuf = PathBuf::from(required(ROOT_VARIABLE));
         let pool: String = required(POOL_VARIABLE);
         let sbin: String = required(SBIN_VARIABLE);
-        return Fixture { root, pool, sbin };
+        return Fixture {
+            root,
+            pool,
+            sbin,
+        };
     }
 
     /// The checkout's dataset name.
@@ -187,16 +220,26 @@ impl Fixture {
 
     /// The records' home.
     fn home(&self) -> PathBuf {
-        return self.common().join("monochromatic-git-policy-cli").join("worktree-clones").join("v1");
+        return self
+            .common()
+            .join("monochromatic-git-policy-cli")
+            .join("worktree-clones")
+            .join("v1");
     }
 
     /// The slot at one name.
-    fn slot(&self, name: &str) -> PathBuf {
+    fn slot(
+        &self,
+        name: &str,
+    ) -> PathBuf {
         return self.root.join(".claude").join("worktrees").join(name);
     }
 
     /// The clone dataset at one name.
-    fn clone(&self, name: &str) -> String {
+    fn clone(
+        &self,
+        name: &str,
+    ) -> String {
         return format!("{}/{}", self.container(), name);
     }
 
@@ -215,14 +258,24 @@ impl Fixture {
         std::thread::sleep(std::time::Duration::from_secs(1));
         self.git(&["init", "--quiet", "--initial-branch=main"]);
         self.git(&["add", "."]);
-        self.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "one"]);
+        self.git(&[
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "one",
+        ]);
     }
 
     /// The folder the route's slots live in.
     fn make_the_worktrees_folder(&self) {
         let parent: PathBuf = self.root.join(".claude").join("worktrees");
         std::fs::create_dir_all(parent.as_path()).expect("the worktrees folder");
-        std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the folder's mode");
+        std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o755))
+            .expect("the folder's mode");
     }
 
     /// The readiness report the add's preflight requires,
@@ -230,7 +283,10 @@ impl Fixture {
     fn publish_the_readiness(&self) {
         let file: ReadinessFile = ReadinessFile::live();
         file.prepare().expect("the readiness directory");
-        let boot: String = std::fs::read_to_string("/proc/sys/kernel/random/boot_id").expect("this boot's identifier").trim().to_string();
+        let boot: String = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")
+            .expect("this boot's identifier")
+            .trim()
+            .to_string();
         let record: ReadinessRecord = ReadinessRecord {
             boot,
             pool_name: self.pool.clone(),
@@ -262,7 +318,8 @@ impl Fixture {
     fn runtime_folder(&self) -> PathBuf {
         let folder: PathBuf = PathBuf::from("/root/zfs-add-runtime");
         std::fs::create_dir_all(folder.as_path()).expect("the runtime folder");
-        std::fs::set_permissions(folder.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the runtime folder's mode");
+        std::fs::set_permissions(folder.as_path(), std::fs::Permissions::from_mode(0o700))
+            .expect("the runtime folder's mode");
         return folder;
     }
 
@@ -277,64 +334,117 @@ impl Fixture {
     }
 
     /// Run one `zfs` command and answer its output.
-    fn zfs(&self, arguments: &[&str]) -> Output {
+    fn zfs(
+        &self,
+        arguments: &[&str],
+    ) -> Output {
         return self.openzfs("zfs", arguments);
     }
 
     /// Run one OpenZFS program and answer its output.
-    fn openzfs(&self, program: &str, arguments: &[&str]) -> Output {
+    fn openzfs(
+        &self,
+        program: &str,
+        arguments: &[&str],
+    ) -> Output {
         return Command::new(program)
             .args(arguments)
-            .env("PATH", format!("{}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", self.sbin))
-            .env("LD_LIBRARY_PATH", format!("{}/lib", self.sbin.trim_end_matches("/sbin")))
+            .env(
+                "PATH",
+                format!(
+                    "{}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    self.sbin
+                ),
+            )
+            .env(
+                "LD_LIBRARY_PATH",
+                format!("{}/lib", self.sbin.trim_end_matches("/sbin")),
+            )
             .output()
             .unwrap_or_else(|error| panic!("{program} {arguments:?} could not start: {error}"));
     }
 
     /// Run one `zfs` command and require success.
-    fn zfs_ok(&self, arguments: &[&str]) {
+    fn zfs_ok(
+        &self,
+        arguments: &[&str],
+    ) {
         let output: Output = self.zfs(arguments);
-        assert!(output.status.success(), "zfs {arguments:?} was refused: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+        assert!(
+            output.status.success(),
+            "zfs {arguments:?} was refused: {}",
+            String::from_utf8_lossy(output.stderr.as_slice())
+        );
     }
 
     /// Run one `zpool` command and require success.
-    fn zpool_ok(&self, arguments: &[&str]) {
+    fn zpool_ok(
+        &self,
+        arguments: &[&str],
+    ) {
         let output: Output = self.openzfs("zpool", arguments);
-        assert!(output.status.success(), "zpool {arguments:?} was refused: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+        assert!(
+            output.status.success(),
+            "zpool {arguments:?} was refused: {}",
+            String::from_utf8_lossy(output.stderr.as_slice())
+        );
     }
 
     /// One `zfs get -H -o value <property>` answer,
     /// trimmed.
-    fn zfs_value(&self, property: &str, dataset: &str) -> String {
+    fn zfs_value(
+        &self,
+        property: &str,
+        dataset: &str,
+    ) -> String {
         let output: Output = self.zfs(&["get", "-H", "-o", "value", property, dataset]);
         assert!(
             output.status.success(),
             "zfs get {property} {dataset} was refused: {}",
             String::from_utf8_lossy(output.stderr.as_slice())
         );
-        return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+        return String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_string();
     }
 
     /// The live GUID of one dataset,
     /// as the record writes it.
-    fn dataset_guid(&self, dataset: &str) -> String {
+    fn dataset_guid(
+        &self,
+        dataset: &str,
+    ) -> String {
         return self.zfs_value("guid", dataset);
     }
 
     /// The device number the kernel assigned the checkout's mount,
     /// which `F16` says is anonymous and need not come back,
     /// and which the record therefore never holds.
-    fn device_of_the_slot(&self, name: &str) -> u64 {
-        return std::fs::metadata(self.slot(name).as_path()).expect("the slot folder's metadata").dev();
+    fn device_of_the_slot(
+        &self,
+        name: &str,
+    ) -> u64 {
+        return std::fs::metadata(self.slot(name).as_path())
+            .expect("the slot folder's metadata")
+            .dev();
     }
 
     /// Whether a dataset answers the pool.
-    fn dataset_stands(&self, dataset: &str) -> bool {
-        return self.zfs(&["list", "-H", "-o", "name", dataset]).status.success();
+    fn dataset_stands(
+        &self,
+        dataset: &str,
+    ) -> bool {
+        return self
+            .zfs(&["list", "-H", "-o", "name", dataset])
+            .status
+            .success();
     }
 
     /// Run one real Git command in the checkout and require success.
-    fn git(&self, arguments: &[&str]) {
+    fn git(
+        &self,
+        arguments: &[&str],
+    ) {
         let output: Output = Command::new("/usr/bin/git")
             .current_dir(self.root.as_path())
             .env_clear()
@@ -360,20 +470,37 @@ impl Fixture {
 
     /// The binding one slot holds,
     /// or nothing.
-    fn binding(&self, name: &str) -> Option<BindingRecord> {
+    fn binding(
+        &self,
+        name: &str,
+    ) -> Option<BindingRecord> {
         let path: PathBuf = self.home().join(format!("{name}.binding"));
         let text: String = std::fs::read_to_string(path.as_path()).ok()?;
-        return Some(parse_binding(text.as_bytes()).unwrap_or_else(|refusal| panic!("the binding of {name} is refused: {refusal:?}")));
+        return Some(
+            parse_binding(text.as_bytes())
+                .unwrap_or_else(|refusal| panic!("the binding of {name} is refused: {refusal:?}")),
+        );
     }
 
     /// One add's command, with the harness's hermetic environment.
-    fn add_command(&self, name: &str, stop_after: Option<&str>) -> Command {
+    fn add_command(
+        &self,
+        name: &str,
+        stop_after: Option<&str>,
+    ) -> Command {
         let mut command: Command = Command::new(self.bin_folder().join("git"));
         command
-            .args(["worktree", "add", self.slot(name).to_str().expect("a text path")])
+            .args([
+                "worktree",
+                "add",
+                self.slot(name).to_str().expect("a text path"),
+            ])
             .current_dir(self.root.as_path())
             .env_clear()
-            .env("PATH", format!("{}:/usr/bin:/bin", self.bin_folder().display()))
+            .env(
+                "PATH",
+                format!("{}:/usr/bin:/bin", self.bin_folder().display()),
+            )
             .env("HOME", self.home_folder())
             .env("XDG_RUNTIME_DIR", self.runtime_folder())
             .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -393,14 +520,24 @@ impl Fixture {
 
     /// Run one add to its end,
     /// mounting the clone when it appears.
-    fn run_add(&self, name: &str) -> Output {
-        let mut child: Child = self.add_command(name, None).spawn().expect("the add starts");
+    fn run_add(
+        &self,
+        name: &str,
+    ) -> Output {
+        let mut child: Child = self
+            .add_command(name, None)
+            .spawn()
+            .expect("the add starts");
         self.mount_when_the_clone_appears(name, &mut child);
         return child.wait_with_output().expect("the add ends");
     }
 
     /// While the add runs, mount the clone at the slot as root when it answers.
-    fn mount_when_the_clone_appears(&self, name: &str, child: &mut Child) {
+    fn mount_when_the_clone_appears(
+        &self,
+        name: &str,
+        child: &mut Child,
+    ) {
         let clone: String = self.clone(name);
         let slot: PathBuf = self.slot(name);
         let started: Instant = Instant::now();
@@ -408,9 +545,20 @@ impl Fixture {
             if let Some(_status) = child.try_wait().expect("the add is asked how it is") {
                 return;
             }
-            if self.dataset_stands(clone.as_str()) && self.intent_says_mount(clone.as_str()) && slot.is_dir() && !self.mounted_at(slot.as_path()) {
+            if self.dataset_stands(clone.as_str())
+                && self.intent_says_mount(clone.as_str())
+                && slot.is_dir()
+                && !self.mounted_at(slot.as_path())
+            {
                 let mounted: Output = Command::new("/usr/bin/mount")
-                    .args(["-t", "zfs", "-o", "nosuid,nodev", clone.as_str(), slot.to_str().expect("a text path")])
+                    .args([
+                        "-t",
+                        "zfs",
+                        "-o",
+                        "nosuid,nodev",
+                        clone.as_str(),
+                        slot.to_str().expect("a text path"),
+                    ])
                     .output()
                     .expect("mount starts");
                 let _ = mounted;
@@ -420,28 +568,55 @@ impl Fixture {
     }
 
     /// Whether the add wrote the clone's durable mount request.
-    fn intent_says_mount(&self, clone: &str) -> bool {
-        let output: Output = self.zfs(&["get", "-H", "-o", "value", "org.monochromatic:git-worktree-clone-mount-desired-state", clone]);
+    fn intent_says_mount(
+        &self,
+        clone: &str,
+    ) -> bool {
+        let output: Output = self.zfs(&[
+            "get",
+            "-H",
+            "-o",
+            "value",
+            "org.monochromatic:git-worktree-clone-mount-desired-state",
+            clone,
+        ]);
         return String::from_utf8_lossy(output.stdout.as_slice()).contains(":mount");
     }
 
     /// Whether a mount stands at one path in this process's table.
-    fn mounted_at(&self, path: &Path) -> bool {
-        let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the mount table");
+    fn mounted_at(
+        &self,
+        path: &Path,
+    ) -> bool {
+        let table: String =
+            std::fs::read_to_string("/proc/self/mountinfo").expect("the mount table");
         let wanted: String = path.display().to_string();
-        return table.lines().any(|line| return line.split(' ').nth(4) == Some(wanted.as_str()));
+        return table
+            .lines()
+            .any(|line| return line.split(' ').nth(4) == Some(wanted.as_str()));
     }
 
     /// Unmount the slot, destroy the clone and the origin snapshot, remove the
     /// registration and the records, so the next arm starts from nothing.
-    fn clear_the_slot(&self, name: &str) {
+    fn clear_the_slot(
+        &self,
+        name: &str,
+    ) {
         let slot: PathBuf = self.slot(name);
         if self.mounted_at(slot.as_path()) {
             let _unmounted = Command::new("/usr/bin/umount").arg(slot.as_path()).status();
         }
         let clone: String = self.clone(name);
         let _destroyed: Output = self.zfs(&["destroy", clone.as_str()]);
-        let snapshots: Output = self.zfs(&["list", "-H", "-o", "name", "-t", "snapshot", self.checkout().as_str()]);
+        let snapshots: Output = self.zfs(&[
+            "list",
+            "-H",
+            "-o",
+            "name",
+            "-t",
+            "snapshot",
+            self.checkout().as_str(),
+        ]);
         for snapshot in String::from_utf8_lossy(snapshots.stdout.as_slice()).lines() {
             if snapshot.contains("git-worktree-clone-origin-") {
                 let _gone: Output = self.zfs(&["destroy", snapshot]);
@@ -453,9 +628,18 @@ impl Fixture {
             .env("PATH", "/usr/bin:/bin")
             .env("HOME", self.home_folder())
             .env("GIT_CONFIG_NOSYSTEM", "1")
-            .args(["worktree", "remove", "--force", "--force", slot.to_str().expect("a text path")])
+            .args([
+                "worktree",
+                "remove",
+                "--force",
+                "--force",
+                slot.to_str().expect("a text path"),
+            ])
             .status();
-        let records: PathBuf = self.common().join("monochromatic-git-policy-cli").join("worktree-clones");
+        let records: PathBuf = self
+            .common()
+            .join("monochromatic-git-policy-cli")
+            .join("worktree-clones");
         let _cleared: std::io::Result<()> = std::fs::remove_dir_all(records.as_path());
     }
 
@@ -468,7 +652,10 @@ impl Fixture {
     ///  A split arm's `before` half is run again for the red control,
     ///  and the filled slot it left would refuse the second add,
     ///  while another slot's record and clone must stand.
-    fn clear_one_slot(&self, name: &str) {
+    fn clear_one_slot(
+        &self,
+        name: &str,
+    ) {
         self.unmount(name);
         let clone: String = self.clone(name);
         let _destroyed: Output = self.zfs(&["destroy", clone.as_str()]);
@@ -479,23 +666,41 @@ impl Fixture {
             .env("PATH", "/usr/bin:/bin")
             .env("HOME", self.home_folder())
             .env("GIT_CONFIG_NOSYSTEM", "1")
-            .args(["worktree", "remove", "--force", "--force", slot.to_str().expect("a text path")])
+            .args([
+                "worktree",
+                "remove",
+                "--force",
+                "--force",
+                slot.to_str().expect("a text path"),
+            ])
             .status();
         for form in ["binding", "origin-inventory", "clone-inventory"] {
-            let _gone: std::io::Result<()> = std::fs::remove_file(self.home().join(format!("{name}.{form}")));
+            let _gone: std::io::Result<()> =
+                std::fs::remove_file(self.home().join(format!("{name}.{form}")));
         }
     }
 
     /// Unmount one slot's clone,
     /// so the folder below it answers again,
     /// and answer whether a mount was there.
-    fn unmount(&self, name: &str) -> bool {
+    fn unmount(
+        &self,
+        name: &str,
+    ) -> bool {
         let slot: PathBuf = self.slot(name);
         if !self.mounted_at(slot.as_path()) {
             return false;
         }
-        let unmounted: Output = Command::new("/usr/bin/umount").arg(slot.as_path()).output().expect("the unmount runs");
-        assert!(unmounted.status.success(), "the clone at {} cannot be unmounted: {}", slot.display(), String::from_utf8_lossy(unmounted.stderr.as_slice()));
+        let unmounted: Output = Command::new("/usr/bin/umount")
+            .arg(slot.as_path())
+            .output()
+            .expect("the unmount runs");
+        assert!(
+            unmounted.status.success(),
+            "the clone at {} cannot be unmounted: {}",
+            slot.display(),
+            String::from_utf8_lossy(unmounted.stderr.as_slice())
+        );
         return true;
     }
 
@@ -513,13 +718,24 @@ impl Fixture {
     ///  so the half after a cut may run against a pool another half already imported.
     fn import_the_pool(&self) {
         self.load_the_module();
-        let listed: Output = self.openzfs("zpool", &["list", "-H", "-o", "name", self.pool.as_str()]);
+        let listed: Output =
+            self.openzfs("zpool", &["list", "-H", "-o", "name", self.pool.as_str()]);
         if !listed.status.success() {
-            let folder: &Path = self.root.parent().expect("the folder the pool's image sits beside the checkout's mountpoint");
+            let folder: &Path = self
+                .root
+                .parent()
+                .expect("the folder the pool's image sits beside the checkout's mountpoint");
             // `-f` because a guest that did not export the pool before it went down leaves it importing only when it is
             // forced, and `-N` because the checkout's key is not loaded yet, so the mount is made below instead; the pool
             // is this guest's own, so nothing else can hold it.
-            self.zpool_ok(&["import", "-f", "-N", "-d", folder.to_str().expect("a text path"), self.pool.as_str()]);
+            self.zpool_ok(&[
+                "import",
+                "-f",
+                "-N",
+                "-d",
+                folder.to_str().expect("a text path"),
+                self.pool.as_str(),
+            ]);
         }
         if self.zfs_value("keystatus", self.checkout().as_str()) != "available" {
             self.zfs_ok(&["load-key", "-a"]);
@@ -539,7 +755,10 @@ impl Fixture {
     ///  because only the module the driver built carries the type information at `/sys/kernel/btf/zfs`.
     ///  So a loaded module whose release is not the pinned one is removed and the driver's own two are inserted.
     fn load_the_module(&self) {
-        let loaded: String = std::fs::read_to_string("/sys/module/zfs/version").unwrap_or_default().trim().to_string();
+        let loaded: String = std::fs::read_to_string("/sys/module/zfs/version")
+            .unwrap_or_default()
+            .trim()
+            .to_string();
         if loaded == OPENZFS_RELEASE {
             return;
         }
@@ -548,17 +767,35 @@ impl Fixture {
                 let _removed: Output = Command::new("/usr/sbin/modprobe")
                     .args(["--remove", module])
                     .output()
-                    .unwrap_or_else(|error| panic!("modprobe --remove {module} could not start: {error}"));
+                    .unwrap_or_else(|error| {
+                        panic!("modprobe --remove {module} could not start: {error}")
+                    });
             }
         }
-        let kernel: String = std::fs::read_to_string("/proc/sys/kernel/osrelease").expect("this kernel's release").trim().to_string();
+        let kernel: String = std::fs::read_to_string("/proc/sys/kernel/osrelease")
+            .expect("this kernel's release")
+            .trim()
+            .to_string();
         for module in ["spl", "zfs"] {
             let path: String = format!("/lib/modules/{kernel}/extra/{module}.ko");
-            let inserted: Output = Command::new("/usr/sbin/insmod").arg(path.as_str()).output().unwrap_or_else(|error| panic!("insmod {path} could not start: {error}"));
-            assert!(inserted.status.success(), "insmod {path} was refused: {}", String::from_utf8_lossy(inserted.stderr.as_slice()));
+            let inserted: Output = Command::new("/usr/sbin/insmod")
+                .arg(path.as_str())
+                .output()
+                .unwrap_or_else(|error| panic!("insmod {path} could not start: {error}"));
+            assert!(
+                inserted.status.success(),
+                "insmod {path} was refused: {}",
+                String::from_utf8_lossy(inserted.stderr.as_slice())
+            );
         }
-        let now: String = std::fs::read_to_string("/sys/module/zfs/version").expect("the module's release").trim().to_string();
-        assert_eq!(now, OPENZFS_RELEASE, "the guest runs the OpenZFS module the driver built");
+        let now: String = std::fs::read_to_string("/sys/module/zfs/version")
+            .expect("the module's release")
+            .trim()
+            .to_string();
+        assert_eq!(
+            now, OPENZFS_RELEASE,
+            "the guest runs the OpenZFS module the driver built"
+        );
     }
 
     /// Make the checkout's mount share nothing,
@@ -569,21 +806,29 @@ impl Fixture {
             .args(["--make-rprivate", self.root.to_str().expect("a text path")])
             .output()
             .expect("the mount runs");
-        assert!(made.status.success(), "the checkout's mount cannot be made private: {}", String::from_utf8_lossy(made.stderr.as_slice()));
+        assert!(
+            made.status.success(),
+            "the checkout's mount cannot be made private: {}",
+            String::from_utf8_lossy(made.stderr.as_slice())
+        );
     }
 
     /// Unmount everything mounted below the checkout's mountpoint,
     /// which an export refuses while it stands.
     fn unmount_below_the_checkout(&self) {
         let prefix: String = format!("{}/", self.root.display());
-        let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the mount table");
+        let table: String =
+            std::fs::read_to_string("/proc/self/mountinfo").expect("the mount table");
         for line in table.lines() {
             let Some(point) = line.split(' ').nth(4) else {
                 continue;
             };
             let path: String = point.replace("\\040", " ");
             if path.starts_with(prefix.as_str()) {
-                let _unmounted: Output = Command::new("/usr/bin/umount").arg(path.as_str()).output().expect("the unmount runs");
+                let _unmounted: Output = Command::new("/usr/bin/umount")
+                    .arg(path.as_str())
+                    .output()
+                    .expect("the unmount runs");
             }
         }
     }
@@ -603,7 +848,10 @@ impl Fixture {
 
     /// One slot's binding bytes,
     /// or nothing.
-    fn binding_bytes(&self, name: &str) -> Option<Vec<u8>> {
+    fn binding_bytes(
+        &self,
+        name: &str,
+    ) -> Option<Vec<u8>> {
         return std::fs::read(self.home().join(format!("{name}.binding"))).ok();
     }
 
@@ -615,20 +863,35 @@ impl Fixture {
     ///  The kept copy is what the after half compares the pool's record with,
     ///  so it must survive the same loss,
     ///  and a write that is not flushed there would be lost by the very cut this arm makes.
-    fn keep(&self, name: &str, bytes: &[u8]) {
+    fn keep(
+        &self,
+        name: &str,
+        bytes: &[u8],
+    ) {
         let folder: PathBuf = PathBuf::from(KEPT_FOLDER);
         std::fs::create_dir_all(folder.as_path()).expect("the kept folder");
         let path: PathBuf = folder.join(name);
-        let mut file: std::fs::File = std::fs::File::create(path.as_path()).unwrap_or_else(|error| panic!("{} cannot be made: {error}", path.display()));
-        file.write_all(bytes).unwrap_or_else(|error| panic!("{} cannot be written: {error}", path.display()));
-        file.sync_all().unwrap_or_else(|error| panic!("{} cannot be flushed: {error}", path.display()));
+        let mut file: std::fs::File = std::fs::File::create(path.as_path())
+            .unwrap_or_else(|error| panic!("{} cannot be made: {error}", path.display()));
+        file.write_all(bytes)
+            .unwrap_or_else(|error| panic!("{} cannot be written: {error}", path.display()));
+        file.sync_all()
+            .unwrap_or_else(|error| panic!("{} cannot be flushed: {error}", path.display()));
     }
 
     /// One file kept before the reboot or the cut,
     /// or a panic naming what is missing.
-    fn kept(&self, name: &str) -> Vec<u8> {
+    fn kept(
+        &self,
+        name: &str,
+    ) -> Vec<u8> {
         let path: PathBuf = PathBuf::from(KEPT_FOLDER).join(name);
-        return std::fs::read(path.as_path()).unwrap_or_else(|error| panic!("{} was kept before the reboot or the cut and cannot be read ({error})", path.display()));
+        return std::fs::read(path.as_path()).unwrap_or_else(|error| {
+            panic!(
+                "{} was kept before the reboot or the cut and cannot be read ({error})",
+                path.display()
+            )
+        });
     }
 }
 
@@ -639,46 +902,147 @@ fn the_add_makes_a_verified_clone_and_a_second_add_refuses() {
     }
     let fixture: Fixture = Fixture::prepare();
     let output: Output = fixture.run_add("whole");
-    assert!(output.status.success(), "the whole add failed: {}", String::from_utf8_lossy(output.stderr.as_slice()));
-    assert!(String::from_utf8_lossy(output.stderr.as_slice()).contains("made the worktree as a ZFS clone"), "the add says what it made");
+    assert!(
+        output.status.success(),
+        "the whole add failed: {}",
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
+    assert!(
+        String::from_utf8_lossy(output.stderr.as_slice())
+            .contains("made the worktree as a ZFS clone"),
+        "the add says what it made"
+    );
     let record: BindingRecord = fixture.binding("whole").expect("the add's binding");
     assert_eq!(record.phase, Phase::Filled);
-    assert!(record.clone_guid.is_some(), "the clone's identity is recorded");
-    assert!(record.origin_snapshot_guid.is_some(), "the snapshot's identity is recorded");
+    assert!(
+        record.clone_guid.is_some(),
+        "the clone's identity is recorded"
+    );
+    assert!(
+        record.origin_snapshot_guid.is_some(),
+        "the snapshot's identity is recorded"
+    );
     let slot: PathBuf = fixture.slot("whole");
-    assert!(slot.join(".git").is_file(), "the slot holds the saved pointer");
-    assert!(fixture.mounted_at(slot.as_path()), "the clone is mounted at the slot");
-    assert_eq!(std::fs::read_to_string(slot.join("plain.txt")).expect("the tracked file"), "plain\n");
-    let status: Output = Command::new("/usr/bin/git").current_dir(slot.as_path()).args(["status", "--porcelain"]).output().expect("status runs");
-    assert_eq!(String::from_utf8_lossy(status.stdout.as_slice()).trim(), "", "the filled worktree is clean");
-    let listed: Output = Command::new("/usr/bin/git").current_dir(fixture.root.as_path()).args(["worktree", "list", "--porcelain"]).output().expect("list runs");
-    assert!(String::from_utf8_lossy(listed.stdout.as_slice()).contains(slot.display().to_string().as_str()), "Git lists the worktree");
+    assert!(
+        slot.join(".git").is_file(),
+        "the slot holds the saved pointer"
+    );
+    assert!(
+        fixture.mounted_at(slot.as_path()),
+        "the clone is mounted at the slot"
+    );
+    assert_eq!(
+        std::fs::read_to_string(slot.join("plain.txt")).expect("the tracked file"),
+        "plain\n"
+    );
+    let status: Output = Command::new("/usr/bin/git")
+        .current_dir(slot.as_path())
+        .args(["status", "--porcelain"])
+        .output()
+        .expect("status runs");
+    assert_eq!(
+        String::from_utf8_lossy(status.stdout.as_slice()).trim(),
+        "",
+        "the filled worktree is clean"
+    );
+    let listed: Output = Command::new("/usr/bin/git")
+        .current_dir(fixture.root.as_path())
+        .args(["worktree", "list", "--porcelain"])
+        .output()
+        .expect("list runs");
+    assert!(
+        String::from_utf8_lossy(listed.stdout.as_slice())
+            .contains(slot.display().to_string().as_str()),
+        "Git lists the worktree"
+    );
     let trash: PathBuf = slot.join(".claude").join("cli-git-trash");
-    assert!(trash.is_dir(), "the copied administration was left in the wrapper's trash");
+    assert!(
+        trash.is_dir(),
+        "the copied administration was left in the wrapper's trash"
+    );
     // T22: the origin inventory is the checkout's snapshots as `zfs list` reads them.
     let home: PathBuf = fixture.home();
-    let origin: git_policy_cli::InventoryRecord = git_policy_cli::read_inventory(home.as_path(), "whole", git_policy_cli::InventoryKind::Origin).expect("the origin inventory reads");
-    let snapshots: Output = fixture.zfs(&["list", "-H", "-o", "name", "-t", "snapshot", fixture.checkout().as_str()]);
-    let listed_names: Vec<String> = String::from_utf8_lossy(snapshots.stdout.as_slice()).lines().map(|line| return line.rsplit('@').next().unwrap_or("").to_string()).filter(|name| return !name.is_empty()).collect();
-    let recorded: Vec<String> = origin.entries.iter().filter(|entry| return entry.kind == git_policy_cli::EntryKind::Snapshot).map(|entry| return entry.name.clone()).collect();
-    assert_eq!(recorded.len(), listed_names.len(), "the inventory counts the checkout's snapshots");
+    let origin: git_policy_cli::InventoryRecord = git_policy_cli::read_inventory(
+        home.as_path(),
+        "whole",
+        git_policy_cli::InventoryKind::Origin,
+    )
+    .expect("the origin inventory reads");
+    let snapshots: Output = fixture.zfs(&[
+        "list",
+        "-H",
+        "-o",
+        "name",
+        "-t",
+        "snapshot",
+        fixture.checkout().as_str(),
+    ]);
+    let listed_names: Vec<String> = String::from_utf8_lossy(snapshots.stdout.as_slice())
+        .lines()
+        .map(|line| return line.rsplit('@').next().unwrap_or("").to_string())
+        .filter(|name| return !name.is_empty())
+        .collect();
+    let recorded: Vec<String> = origin
+        .entries
+        .iter()
+        .filter(|entry| return entry.kind == git_policy_cli::EntryKind::Snapshot)
+        .map(|entry| return entry.name.clone())
+        .collect();
+    assert_eq!(
+        recorded.len(),
+        listed_names.len(),
+        "the inventory counts the checkout's snapshots"
+    );
     for name in &listed_names {
         assert!(recorded.contains(name), "the inventory records {name}");
     }
-    assert_eq!(origin.bounds, record.origin_snapshot.as_str(), "the inventory is bounded by the add's snapshot");
+    assert_eq!(
+        origin.bounds,
+        record.origin_snapshot.as_str(),
+        "the inventory is bounded by the add's snapshot"
+    );
     // T25: prune keeps a locked registration whose underlay pointer is gone.
-    let unmounted: Output = Command::new("/usr/bin/umount").arg(slot.as_path()).output().expect("the unmount runs");
+    let unmounted: Output = Command::new("/usr/bin/umount")
+        .arg(slot.as_path())
+        .output()
+        .expect("the unmount runs");
     assert!(unmounted.status.success(), "the clone unmounts");
     let _pointer_gone: std::io::Result<()> = std::fs::remove_file(slot.join(".git"));
-    let pruned: Output = Command::new("/usr/bin/git").current_dir(fixture.root.as_path()).args(["worktree", "prune", "--verbose"]).output().expect("prune runs");
-    assert!(pruned.status.success(), "prune succeeds: {}", String::from_utf8_lossy(pruned.stderr.as_slice()));
+    let pruned: Output = Command::new("/usr/bin/git")
+        .current_dir(fixture.root.as_path())
+        .args(["worktree", "prune", "--verbose"])
+        .output()
+        .expect("prune runs");
+    assert!(
+        pruned.status.success(),
+        "prune succeeds: {}",
+        String::from_utf8_lossy(pruned.stderr.as_slice())
+    );
     let registration: PathBuf = fixture.common().join("worktrees").join("whole");
-    assert!(registration.is_dir(), "the managed lock keeps the registration through prune");
-    assert!(fixture.dataset_stands(fixture.clone("whole").as_str()), "the clone stands through prune");
-    assert_eq!(fixture.binding("whole").expect("the record reads after prune").phase, Phase::Filled);
+    assert!(
+        registration.is_dir(),
+        "the managed lock keeps the registration through prune"
+    );
+    assert!(
+        fixture.dataset_stands(fixture.clone("whole").as_str()),
+        "the clone stands through prune"
+    );
+    assert_eq!(
+        fixture
+            .binding("whole")
+            .expect("the record reads after prune")
+            .phase,
+        Phase::Filled
+    );
     let again: Output = fixture.run_add("whole");
-    assert!(!again.status.success(), "a second add at a filled slot is refused");
-    assert!(String::from_utf8_lossy(again.stderr.as_slice()).contains("already a whole ZFS clone"), "the refusal says the worktree is whole");
+    assert!(
+        !again.status.success(),
+        "a second add at a filled slot is refused"
+    );
+    assert!(
+        String::from_utf8_lossy(again.stderr.as_slice()).contains("already a whole ZFS clone"),
+        "the refusal says the worktree is whole"
+    );
     fixture.clear_the_slot("whole");
 }
 
@@ -704,7 +1068,10 @@ fn a_kill_at_each_phase_leaves_that_state_and_the_next_add_resumes() {
     ];
     for (step, left) in arms {
         let name: String = format!("kill-{step}");
-        let mut child: Child = fixture.add_command(name.as_str(), Some(step)).spawn().expect("the add starts");
+        let mut child: Child = fixture
+            .add_command(name.as_str(), Some(step))
+            .spawn()
+            .expect("the add starts");
         fixture.mount_when_the_clone_appears(name.as_str(), &mut child);
         let killed: Output = child.wait_with_output().expect("the killed add ends");
         assert_eq!(
@@ -714,30 +1081,69 @@ fn a_kill_at_each_phase_leaves_that_state_and_the_next_add_resumes() {
             killed.status.code(),
             String::from_utf8_lossy(killed.stderr.as_slice())
         );
-        let record: BindingRecord = fixture.binding(name.as_str()).unwrap_or_else(|| panic!("the {step} kill left a binding"));
-        assert_eq!(record.phase, left, "the {step} kill left the phase the step before it wrote");
+        let record: BindingRecord = fixture
+            .binding(name.as_str())
+            .unwrap_or_else(|| panic!("the {step} kill left a binding"));
+        assert_eq!(
+            record.phase, left,
+            "the {step} kill left the phase the step before it wrote"
+        );
         match step {
-            "slot-identity" => assert!(fixture.slot(name.as_str()).is_dir(), "the slot stands after the kill"),
+            "slot-identity" => assert!(
+                fixture.slot(name.as_str()).is_dir(),
+                "the slot stands after the kill"
+            ),
             "git-add" => {
                 let slot: PathBuf = fixture.slot(name.as_str());
-                assert!(slot.join(".git").is_file(), "Git\'s pointer stands and no scan has adopted it");
-                assert!(!fixture.dataset_stands(fixture.clone(name.as_str()).as_str()), "no clone was made");
+                assert!(
+                    slot.join(".git").is_file(),
+                    "Git\'s pointer stands and no scan has adopted it"
+                );
+                assert!(
+                    !fixture.dataset_stands(fixture.clone(name.as_str()).as_str()),
+                    "no clone was made"
+                );
             }
             "registered" => {
                 let slot: PathBuf = fixture.slot(name.as_str());
-                assert!(slot.join(".git").is_file(), "the registration's pointer stands");
-                assert!(!fixture.dataset_stands(fixture.clone(name.as_str()).as_str()), "no clone was made");
+                assert!(
+                    slot.join(".git").is_file(),
+                    "the registration's pointer stands"
+                );
+                assert!(
+                    !fixture.dataset_stands(fixture.clone(name.as_str()).as_str()),
+                    "no clone was made"
+                );
             }
-            "clone" => assert!(fixture.dataset_stands(fixture.clone(name.as_str()).as_str()), "the clone stands although its identity is not recorded"),
+            "clone" => assert!(
+                fixture.dataset_stands(fixture.clone(name.as_str()).as_str()),
+                "the clone stands although its identity is not recorded"
+            ),
             _later => {
-                assert!(fixture.dataset_stands(fixture.clone(name.as_str()).as_str()), "the clone stands");
+                assert!(
+                    fixture.dataset_stands(fixture.clone(name.as_str()).as_str()),
+                    "the clone stands"
+                );
             }
         }
         let resumed: Output = fixture.run_add(name.as_str());
-        assert!(resumed.status.success(), "the resume after {step} failed: {}", String::from_utf8_lossy(resumed.stderr.as_slice()));
-        let finished: BindingRecord = fixture.binding(name.as_str()).expect("the resumed add's binding");
-        assert_eq!(finished.phase, Phase::Filled, "the resume after {step} filled the worktree");
-        assert!(finished.clone_guid.is_some(), "the resume after {step} recorded the clone's identity");
+        assert!(
+            resumed.status.success(),
+            "the resume after {step} failed: {}",
+            String::from_utf8_lossy(resumed.stderr.as_slice())
+        );
+        let finished: BindingRecord = fixture
+            .binding(name.as_str())
+            .expect("the resumed add's binding");
+        assert_eq!(
+            finished.phase,
+            Phase::Filled,
+            "the resume after {step} filled the worktree"
+        );
+        assert!(
+            finished.clone_guid.is_some(),
+            "the resume after {step} recorded the clone's identity"
+        );
         fixture.clear_the_slot(name.as_str());
     }
 }
@@ -751,7 +1157,16 @@ fn a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration() 
     std::fs::write(fixture.root.join("big.bin"), vec![7u8; 1024 * 1024]).expect("the big file");
     std::thread::sleep(std::time::Duration::from_secs(1));
     fixture.git(&["add", "big.bin"]);
-    fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "big"]);
+    fixture.git(&[
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "commit",
+        "--quiet",
+        "-m",
+        "big",
+    ]);
     // The capture is written before the snapshot, so the pool fills at the one
     // moment no other state can tell the test about: the add holds itself after
     // the capture until the control's release file stands.
@@ -761,37 +1176,84 @@ fn a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration() 
     let _stale: std::io::Result<()> = std::fs::remove_file(release.as_path());
     let _stale_waiting: std::io::Result<()> = std::fs::remove_file(waiting.as_path());
     let filler: String = format!("{}/filler", fixture.pool);
-    fixture.zfs_ok(&["create", "-o", "mountpoint=/root/zfs-filler", "-o", "compression=off", filler.as_str()]);
+    fixture.zfs_ok(&[
+        "create",
+        "-o",
+        "mountpoint=/root/zfs-filler",
+        "-o",
+        "compression=off",
+        filler.as_str(),
+    ]);
     let mut command: Command = fixture.add_command("full", None);
-    command.env("CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_STEP", "capture").env("CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_UNTIL", release.as_os_str());
+    command
+        .env("CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_STEP", "capture")
+        .env("CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_UNTIL", release.as_os_str());
     let child: Child = command.spawn().expect("the add starts");
     let started: Instant = Instant::now();
     while !waiting.exists() && started.elapsed() < WAIT {
         std::thread::sleep(POLL);
     }
-    assert!(waiting.exists(), "the add reached the capture before the bound");
+    assert!(
+        waiting.exists(),
+        "the add reached the capture before the bound"
+    );
     // The filler takes the pool's free space with zeros that do not compress.
-    let _filled: Output = Command::new("/usr/bin/dd").args(["if=/dev/zero", "of=/root/zfs-filler/fill", "bs=1M"]).output().expect("dd fills the pool");
+    let _filled: Output = Command::new("/usr/bin/dd")
+        .args(["if=/dev/zero", "of=/root/zfs-filler/fill", "bs=1M"])
+        .output()
+        .expect("dd fills the pool");
     std::fs::write(release.as_path(), b"release\n").expect("the control releases the add");
     let output: Output = child.wait_with_output().expect("the add ends");
     // The pool is freed before any assertion, so a failed arm never leaves the
     // next one with no space.
     let _gone: Output = fixture.zfs(&["destroy", "-r", "-f", filler.as_str()]);
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    assert!(!output.status.success(), "the add with a full pool is refused: {said}");
-    assert!(said.contains("ENOSPC") || said.contains("No space left"), "the refusal names the pool's space: {said}");
+    assert!(
+        !output.status.success(),
+        "the add with a full pool is refused: {said}"
+    );
+    assert!(
+        said.contains("ENOSPC") || said.contains("No space left"),
+        "the refusal names the pool's space: {said}"
+    );
     let record: BindingRecord = fixture.binding("full").expect("the refused add's binding");
-    assert_eq!(record.phase, Phase::Registered, "the snapshot's refusal leaves the registration phase");
-    assert!(fixture.slot("full").join(".git").is_file(), "the slot and its pointer stand");
-    assert!(!fixture.dataset_stands(fixture.clone("full").as_str()), "no clone was made");
+    assert_eq!(
+        record.phase,
+        Phase::Registered,
+        "the snapshot's refusal leaves the registration phase"
+    );
+    assert!(
+        fixture.slot("full").join(".git").is_file(),
+        "the slot and its pointer stand"
+    );
+    assert!(
+        !fixture.dataset_stands(fixture.clone("full").as_str()),
+        "no clone was made"
+    );
     let _released: std::io::Result<()> = std::fs::remove_file(release.as_path());
     let resumed: Output = fixture.run_add("full");
-    assert!(resumed.status.success(), "the resume after the full pool failed: {}", String::from_utf8_lossy(resumed.stderr.as_slice()));
-    assert_eq!(fixture.binding("full").expect("the resumed binding").phase, Phase::Filled);
+    assert!(
+        resumed.status.success(),
+        "the resume after the full pool failed: {}",
+        String::from_utf8_lossy(resumed.stderr.as_slice())
+    );
+    assert_eq!(
+        fixture.binding("full").expect("the resumed binding").phase,
+        Phase::Filled
+    );
     fixture.clear_the_slot("full");
     let _big_gone: std::io::Result<()> = std::fs::remove_file(fixture.root.join("big.bin"));
     fixture.git(&["add", "-A"]);
-    fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "big gone"]);
+    fixture.git(&[
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "commit",
+        "--quiet",
+        "-m",
+        "big gone",
+    ]);
 }
 
 //region The dirty checkout, restored to the commit the add asks for
@@ -809,7 +1271,11 @@ const CARRIED: &str = ".claude/kept-cache";
 impl Fixture {
     /// One add of a named commit-ish,
     /// with the harness's hermetic environment.
-    fn add_command_at(&self, name: &str, commit: Option<&str>) -> Command {
+    fn add_command_at(
+        &self,
+        name: &str,
+        commit: Option<&str>,
+    ) -> Command {
         let mut command: Command = self.add_command(name, None);
         if let Some(wanted) = commit {
             command.arg(wanted);
@@ -819,8 +1285,15 @@ impl Fixture {
 
     /// Run one add of a named commit-ish to its end,
     /// mounting the clone when it appears.
-    fn run_add_at(&self, name: &str, commit: Option<&str>) -> Output {
-        let mut child: Child = self.add_command_at(name, commit).spawn().expect("the add starts");
+    fn run_add_at(
+        &self,
+        name: &str,
+        commit: Option<&str>,
+    ) -> Output {
+        let mut child: Child = self
+            .add_command_at(name, commit)
+            .spawn()
+            .expect("the add starts");
         self.mount_when_the_clone_appears(name, &mut child);
         return child.wait_with_output().expect("the add ends");
     }
@@ -836,16 +1309,31 @@ impl Fixture {
             .args(["rev-parse", "HEAD"])
             .output()
             .expect("rev-parse runs");
-        assert!(output.status.success(), "the checkout's HEAD cannot be read: {}", String::from_utf8_lossy(output.stderr.as_slice()));
-        return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+        assert!(
+            output.status.success(),
+            "the checkout's HEAD cannot be read: {}",
+            String::from_utf8_lossy(output.stderr.as_slice())
+        );
+        return String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_string();
     }
 
     /// A clean worktree of one slot,
     /// as the person's own Git reads it.
-    fn porcelain(&self, name: &str) -> String {
+    fn porcelain(
+        &self,
+        name: &str,
+    ) -> String {
         let slot: PathBuf = self.slot(name);
-        let output: Output = Command::new("/usr/bin/git").current_dir(slot.as_path()).args(["status", "--porcelain"]).output().expect("status runs");
-        return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+        let output: Output = Command::new("/usr/bin/git")
+            .current_dir(slot.as_path())
+            .args(["status", "--porcelain"])
+            .output()
+            .expect("status runs");
+        return String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_string();
     }
 }
 
@@ -871,45 +1359,99 @@ fn a_dirty_checkout_is_restored_to_the_commit_the_add_asks_for() {
     let fixture: Fixture = Fixture::prepare();
     let first: String = fixture.head_commit();
     // The commit the add asks for, which the checkout does not stand on.
-    std::fs::write(fixture.root.join("plain.txt"), b"second plain\n").expect("the second commit's file");
+    std::fs::write(fixture.root.join("plain.txt"), b"second plain\n")
+        .expect("the second commit's file");
     fixture.git(&["add", "--", "plain.txt"]);
-    fixture.git(&["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "second"]);
+    fixture.git(&[
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "commit",
+        "--quiet",
+        "-m",
+        "second",
+    ]);
     let second: String = fixture.head_commit();
     // The main checkout as the person left it: the first commit's tree and edits.
     fixture.git(&["reset", "--hard", first.as_str()]);
     std::fs::write(fixture.root.join("plain.txt"), b"an uncommitted edit\n").expect("the edit");
-    std::fs::remove_file(fixture.root.join("second.txt")).expect("the tracked file is deleted in the source");
-    std::fs::write(fixture.root.join("notes.txt"), b"untracked\n").expect("an untracked file no rule ignores");
+    std::fs::remove_file(fixture.root.join("second.txt"))
+        .expect("the tracked file is deleted in the source");
+    std::fs::write(fixture.root.join("notes.txt"), b"untracked\n")
+        .expect("an untracked file no rule ignores");
     std::fs::create_dir_all(fixture.root.join(".claude")).expect("the ignored folder");
-    std::fs::write(fixture.root.join(CARRIED), b"kept\n").expect("an ignored file the clone carries");
+    std::fs::write(fixture.root.join(CARRIED), b"kept\n")
+        .expect("an ignored file the clone carries");
     fixture.clear_the_slot(DIRTY_SLOT);
     let dirty: Output = fixture.run_add_at(DIRTY_SLOT, Some(second.as_str()));
     let said: String = String::from_utf8_lossy(dirty.stderr.as_slice()).into_owned();
-    assert!(dirty.status.success(), "the add of a dirty checkout failed: {said}");
-    assert!(said.contains("made the worktree as a ZFS clone"), "the dirty add took the clone route: {said}");
+    assert!(
+        dirty.status.success(),
+        "the add of a dirty checkout failed: {said}"
+    );
+    assert!(
+        said.contains("made the worktree as a ZFS clone"),
+        "the dirty add took the clone route: {said}"
+    );
     let slot: PathBuf = fixture.slot(DIRTY_SLOT);
-    assert_eq!(std::fs::read_to_string(slot.join("plain.txt")).expect("the tracked file"), "second plain\n", "the worktree holds the commit's bytes, not the source's edit");
-    assert_eq!(std::fs::read_to_string(slot.join("second.txt")).expect("the tracked file the source deleted"), "second\n", "a tracked file the source deleted is restored");
-    assert!(!slot.join("notes.txt").exists(), "an untracked file no ignore rule covers goes, as Git's own checkout leaves it");
-    assert_eq!(std::fs::read_to_string(slot.join(CARRIED)).expect("the ignored file"), "kept\n", "the ignored state the snapshot carried stays");
-    assert_eq!(fixture.porcelain(DIRTY_SLOT), "", "the filled worktree is what a clean checkout of that commit is");
+    assert_eq!(
+        std::fs::read_to_string(slot.join("plain.txt")).expect("the tracked file"),
+        "second plain\n",
+        "the worktree holds the commit's bytes, not the source's edit"
+    );
+    assert_eq!(
+        std::fs::read_to_string(slot.join("second.txt"))
+            .expect("the tracked file the source deleted"),
+        "second\n",
+        "a tracked file the source deleted is restored"
+    );
+    assert!(
+        !slot.join("notes.txt").exists(),
+        "an untracked file no ignore rule covers goes, as Git's own checkout leaves it"
+    );
+    assert_eq!(
+        std::fs::read_to_string(slot.join(CARRIED)).expect("the ignored file"),
+        "kept\n",
+        "the ignored state the snapshot carried stays"
+    );
+    assert_eq!(
+        fixture.porcelain(DIRTY_SLOT),
+        "",
+        "the filled worktree is what a clean checkout of that commit is"
+    );
     // The clean control: the same commit, the same fixture, no edits.
     fixture.git(&["reset", "--hard", second.as_str()]);
     let _notes_gone: std::io::Result<()> = std::fs::remove_file(fixture.root.join("notes.txt"));
     fixture.clear_the_slot(CLEAN_SLOT);
     let clean: Output = fixture.run_add_at(CLEAN_SLOT, Some(second.as_str()));
     let control_said: String = String::from_utf8_lossy(clean.stderr.as_slice()).into_owned();
-    assert!(clean.status.success(), "the control's add failed: {control_said}");
-    assert!(control_said.contains("made the worktree as a ZFS clone"), "the control takes the clone route: {control_said}");
-    assert_eq!(std::fs::read_to_string(fixture.slot(CLEAN_SLOT).join("plain.txt")).expect("the control's file"), "second plain\n");
-    assert_eq!(fixture.porcelain(CLEAN_SLOT), "", "the control's worktree is clean");
+    assert!(
+        clean.status.success(),
+        "the control's add failed: {control_said}"
+    );
+    assert!(
+        control_said.contains("made the worktree as a ZFS clone"),
+        "the control takes the clone route: {control_said}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(fixture.slot(CLEAN_SLOT).join("plain.txt"))
+            .expect("the control's file"),
+        "second plain\n"
+    );
+    assert_eq!(
+        fixture.porcelain(CLEAN_SLOT),
+        "",
+        "the control's worktree is clean"
+    );
     fixture.clear_the_slot(DIRTY_SLOT);
     fixture.clear_the_slot(CLEAN_SLOT);
     // The checkout goes back to what every other arm expects: the first commit's
     // tree and no untracked or edited file.
     fixture.git(&["reset", "--hard", first.as_str()]);
     let _carried_gone: std::io::Result<()> = std::fs::remove_file(fixture.root.join(CARRIED));
-    let _the_untracked_file_gone: std::io::Result<()> = std::fs::remove_file(fixture.root.join("notes.txt"));
+    let _the_untracked_file_gone: std::io::Result<()> =
+        std::fs::remove_file(fixture.root.join("notes.txt"));
 }
 
 //endregion The dirty checkout, restored to the commit the add asks for
@@ -919,7 +1461,10 @@ fn a_dirty_checkout_is_restored_to_the_commit_the_add_asks_for() {
 /// This boot's identifier,
 /// which a reboot and a power cut both change.
 fn this_boot() -> String {
-    return std::fs::read_to_string("/proc/sys/kernel/random/boot_id").expect("this boot's identifier").trim().to_string();
+    return std::fs::read_to_string("/proc/sys/kernel/random/boot_id")
+        .expect("this boot's identifier")
+        .trim()
+        .to_string();
 }
 
 /// What:
@@ -931,10 +1476,15 @@ fn this_boot() -> String {
 ///  and the driver's steps name the half they run.
 fn requested_half(arm: &str) -> Option<String> {
     let Ok(half) = std::env::var(PHASE_VARIABLE) else {
-        println!("UNRUN {arm} is split across a reboot or a power cut and runs only in its own driver step ({PHASE_VARIABLE} is unset)");
+        println!(
+            "UNRUN {arm} is split across a reboot or a power cut and runs only in its own driver step ({PHASE_VARIABLE} is unset)"
+        );
         return None;
     };
-    assert!(half == BEFORE || half == AFTER, "{PHASE_VARIABLE}={half} names no half of {arm}; it takes {BEFORE} or {AFTER}");
+    assert!(
+        half == BEFORE || half == AFTER,
+        "{PHASE_VARIABLE}={half} names no half of {arm}; it takes {BEFORE} or {AFTER}"
+    );
     return Some(half);
 }
 
@@ -946,19 +1496,36 @@ fn requested_half(arm: &str) -> Option<String> {
 ///  The whole point of an identity is that it still names the same object after a boot or an export,
 ///  so a comparison against a value read in the same breath would prove nothing;
 ///  the record's bytes are compared with the copy taken before the reboot or the cut.
-fn read_the_record_back(fixture: &Fixture, slot: &str, when: &str) -> BindingRecord {
+fn read_the_record_back(
+    fixture: &Fixture,
+    slot: &str,
+    when: &str,
+) -> BindingRecord {
     let kept: Vec<u8> = fixture.kept(format!("{slot}.binding").as_str());
     let path: PathBuf = fixture.home().join(format!("{slot}.binding"));
-    let bytes: Vec<u8> = std::fs::read(path.as_path())
-        .unwrap_or_else(|error| panic!("{} cannot be read {when} ({error}), so the record this arm wrote before it is gone", path.display()));
+    let bytes: Vec<u8> = std::fs::read(path.as_path()).unwrap_or_else(|error| {
+        panic!(
+            "{} cannot be read {when} ({error}), so the record this arm wrote before it is gone",
+            path.display()
+        )
+    });
     assert_eq!(
         bytes, kept,
         "the record at {slot} differs from the copy this arm kept {when}, so the write the route flushed did not read back"
     );
-    let record: BindingRecord = parse_binding(bytes.as_slice()).unwrap_or_else(|refusal| panic!("the record at {slot} is not this grammar's {when}: {refusal:?}"));
-    assert_eq!(record.phase, Phase::Filled, "the record at {slot} still records the fill {when}");
-    let recorded: FolderIdentity = record.slot_identity.unwrap_or_else(|| panic!("the record at {slot} keeps no slotIdentity= {when}"));
-    let live: FolderIdentity = FolderIdentity::of_folder(fixture.slot(slot).as_path()).expect("the slot folder's identity");
+    let record: BindingRecord = parse_binding(bytes.as_slice()).unwrap_or_else(|refusal| {
+        panic!("the record at {slot} is not this grammar's {when}: {refusal:?}")
+    });
+    assert_eq!(
+        record.phase,
+        Phase::Filled,
+        "the record at {slot} still records the fill {when}"
+    );
+    let recorded: FolderIdentity = record
+        .slot_identity
+        .unwrap_or_else(|| panic!("the record at {slot} keeps no slotIdentity= {when}"));
+    let live: FolderIdentity = FolderIdentity::of_folder(fixture.slot(slot).as_path())
+        .expect("the slot folder's identity");
     assert_eq!(
         recorded,
         live,
@@ -976,7 +1543,10 @@ fn read_the_record_back(fixture: &Fixture, slot: &str, when: &str) -> BindingRec
     println!(
         "MEASUREMENT read-back slot={slot} when=\"{when}\" slot-identity={} checkout-guid={guid} clone-guid={} device={} bytes-match=yes",
         recorded.encode(),
-        record.clone_guid.map(|clone| return clone.file_name()).unwrap_or_else(|| return String::from("-")),
+        record
+            .clone_guid
+            .map(|clone| return clone.file_name())
+            .unwrap_or_else(|| return String::from("-")),
         fixture.device_of_the_slot(slot)
     );
     return record;
@@ -1002,22 +1572,43 @@ fn boot_before(fixture: &Fixture) {
             said.contains("made the worktree as a ZFS clone"),
             "the add at {name} took the ordinary worktree path instead of the clone route, so no record was written: {said}"
         );
-        let record: BindingRecord = fixture.binding(name).unwrap_or_else(|| panic!("the filled add at {name} wrote no binding"));
-        assert_eq!(record.phase, Phase::Filled, "the add at {name} filled the worktree");
+        let record: BindingRecord = fixture
+            .binding(name)
+            .unwrap_or_else(|| panic!("the filled add at {name} wrote no binding"));
+        assert_eq!(
+            record.phase,
+            Phase::Filled,
+            "the add at {name} filled the worktree"
+        );
         // The recorded identity is the empty slot folder's, and the clone now covers that path:
         // the unmount makes the folder answer again, and nothing below writes to it.
         fixture.unmount(name);
-        let recorded: FolderIdentity = record.slot_identity.unwrap_or_else(|| panic!("the record at {name} keeps no slotIdentity="));
-        let live: FolderIdentity = FolderIdentity::of_folder(fixture.slot(name).as_path()).expect("the slot folder's identity");
-        assert_eq!(recorded, live, "the record at {name} names the slot folder's own inode and birth time");
+        let recorded: FolderIdentity = record
+            .slot_identity
+            .unwrap_or_else(|| panic!("the record at {name} keeps no slotIdentity="));
+        let live: FolderIdentity = FolderIdentity::of_folder(fixture.slot(name).as_path())
+            .expect("the slot folder's identity");
+        assert_eq!(
+            recorded, live,
+            "the record at {name} names the slot folder's own inode and birth time"
+        );
         let guid: String = fixture.dataset_guid(fixture.checkout().as_str());
-        assert_eq!(record.checkout_dataset_guid.file_name(), guid, "the record at {name} names the checkout dataset's live GUID");
-        let bytes: Vec<u8> = fixture.binding_bytes(name).unwrap_or_else(|| panic!("the record at {name} cannot be read"));
+        assert_eq!(
+            record.checkout_dataset_guid.file_name(),
+            guid,
+            "the record at {name} names the checkout dataset's live GUID"
+        );
+        let bytes: Vec<u8> = fixture
+            .binding_bytes(name)
+            .unwrap_or_else(|| panic!("the record at {name} cannot be read"));
         fixture.keep(format!("{name}.binding").as_str(), bytes.as_slice());
         println!(
             "MEASUREMENT before-reboot slot={name} slot-identity={} checkout-guid={guid} clone-guid={} device={} bytes={} boot-id={}",
             recorded.encode(),
-            record.clone_guid.map(|clone| return clone.file_name()).unwrap_or_else(|| return String::from("-")),
+            record
+                .clone_guid
+                .map(|clone| return clone.file_name())
+                .unwrap_or_else(|| return String::from("-")),
             fixture.device_of_the_slot(name),
             bytes.len(),
             this_boot()
@@ -1034,12 +1625,20 @@ fn boot_before(fixture: &Fixture) {
 ///  That is T27's second sentence,
 ///  and the boot identifier kept before the reboot is what proves the guest really booted.
 fn boot_after(fixture: &Fixture) {
-    let before: String = String::from_utf8(fixture.kept("boot-id")).expect("the kept boot identifier");
+    let before: String =
+        String::from_utf8(fixture.kept("boot-id")).expect("the kept boot identifier");
     let now: String = this_boot();
-    assert_ne!(now, before, "the boot identifier is still {now}, so this half ran without the guest booting");
+    assert_ne!(
+        now, before,
+        "the boot identifier is still {now}, so this half ran without the guest booting"
+    );
     read_the_record_back(fixture, BOOT_SLOT, "after the guest rebooted");
     fixture.export_and_import_the_pool();
-    read_the_record_back(fixture, BOOT_SLOT, "after the dataset was exported and imported");
+    read_the_record_back(
+        fixture,
+        BOOT_SLOT,
+        "after the dataset was exported and imported",
+    );
 }
 
 /// What:
@@ -1051,9 +1650,14 @@ fn boot_after(fixture: &Fixture) {
 ///  An arm whose comparison cannot fail proves nothing;
 ///  the driver's own step plants the replacement and requires this run's refusal.
 fn boot_plant(fixture: &Fixture) {
-    let record: BindingRecord = fixture.binding(BOOT_PLANT_SLOT).unwrap_or_else(|| panic!("the planted slot's record cannot be read"));
-    let recorded: FolderIdentity = record.slot_identity.unwrap_or_else(|| panic!("the planted slot's record keeps no slotIdentity="));
-    let live: FolderIdentity = FolderIdentity::of_folder(fixture.slot(BOOT_PLANT_SLOT).as_path()).expect("the planted slot folder's identity");
+    let record: BindingRecord = fixture
+        .binding(BOOT_PLANT_SLOT)
+        .unwrap_or_else(|| panic!("the planted slot's record cannot be read"));
+    let recorded: FolderIdentity = record
+        .slot_identity
+        .unwrap_or_else(|| panic!("the planted slot's record keeps no slotIdentity="));
+    let live: FolderIdentity = FolderIdentity::of_folder(fixture.slot(BOOT_PLANT_SLOT).as_path())
+        .expect("the planted slot folder's identity");
     assert_eq!(
         recorded,
         live,
@@ -1081,23 +1685,39 @@ fn power_before(fixture: &Fixture) {
     fixture.clear_one_slot(POWER_SLOT);
     let output: Output = fixture.run_add(POWER_SLOT);
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    assert!(output.status.success(), "the add at {POWER_SLOT} failed: {said}");
+    assert!(
+        output.status.success(),
+        "the add at {POWER_SLOT} failed: {said}"
+    );
     assert!(
         said.contains("made the worktree as a ZFS clone"),
         "the add at {POWER_SLOT} took the ordinary worktree path instead of the clone route, so there is no record to lose: {said}"
     );
-    let bytes: Vec<u8> = fixture.binding_bytes(POWER_SLOT).unwrap_or_else(|| panic!("the filled add at {POWER_SLOT} wrote no binding"));
-    let record: BindingRecord = parse_binding(bytes.as_slice()).unwrap_or_else(|refusal| panic!("the record at {POWER_SLOT} is not this grammar's: {refusal:?}"));
-    assert_eq!(record.phase, Phase::Filled, "the add at {POWER_SLOT} filled the worktree, so its last record write is the filled one");
+    let bytes: Vec<u8> = fixture
+        .binding_bytes(POWER_SLOT)
+        .unwrap_or_else(|| panic!("the filled add at {POWER_SLOT} wrote no binding"));
+    let record: BindingRecord = parse_binding(bytes.as_slice()).unwrap_or_else(|refusal| {
+        panic!("the record at {POWER_SLOT} is not this grammar's: {refusal:?}")
+    });
+    assert_eq!(
+        record.phase,
+        Phase::Filled,
+        "the add at {POWER_SLOT} filled the worktree, so its last record write is the filled one"
+    );
     fixture.keep("power.binding", bytes.as_slice());
     fixture.keep("power.boot-id", this_boot().as_bytes());
     println!(
         "MEASUREMENT before-cut slot={POWER_SLOT} phase={:?} bytes={} slot-identity={} device={} sysrq-mask={} boot-id={}",
         record.phase,
         bytes.len(),
-        record.slot_identity.expect("the filled record keeps the slot's identity").encode(),
+        record
+            .slot_identity
+            .expect("the filled record keeps the slot's identity")
+            .encode(),
         fixture.device_of_the_slot(POWER_SLOT),
-        std::fs::read_to_string("/proc/sys/kernel/sysrq").expect("the sysrq mask").trim(),
+        std::fs::read_to_string("/proc/sys/kernel/sysrq")
+            .expect("the sysrq mask")
+            .trim(),
         this_boot()
     );
     if std::env::var(CUT_VARIABLE).is_ok() {
@@ -1132,9 +1752,13 @@ fn cut_the_power() {
 ///  That is T28,
 ///  and the guest's boot identifier is what proves it really lost power.
 fn power_after(fixture: &Fixture) {
-    let before: String = String::from_utf8(fixture.kept("power.boot-id")).expect("the kept boot identifier");
+    let before: String =
+        String::from_utf8(fixture.kept("power.boot-id")).expect("the kept boot identifier");
     let now: String = this_boot();
-    assert_ne!(now, before, "the boot identifier is still {now}, so this half ran without the guest losing power");
+    assert_ne!(
+        now, before,
+        "the boot identifier is still {now}, so this half ran without the guest losing power"
+    );
     read_the_record_back(fixture, POWER_SLOT, "after the guest lost power");
 }
 

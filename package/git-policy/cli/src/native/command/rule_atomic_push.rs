@@ -29,9 +29,19 @@
 /// import { parseGlobalOptions } from '../parse-global-options.ts';
 /// ```
 use crate::command_options::OptionError;
-use crate::command_push::{PushRegion, parse_push_region};
-use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
-use crate::rule_argument_rewrite::{ArgumentRewrite, insert_tokens};
+use crate::command_push::{
+    PushRegion,
+    parse_push_region,
+};
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+    global_layout,
+};
+use crate::rule_argument_rewrite::{
+    ArgumentRewrite,
+    insert_tokens,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 

@@ -25,8 +25,7 @@
 /// ```ts
 /// 'monochromatic-git-policy-cli: automatic ignored-state worktree copy failed.'
 /// ```
-pub const AUTOMATIC_FAILURE_MESSAGE: &str =
-    "monochromatic-git-policy-cli: automatic ignored-state worktree copy failed. Hint: if you just created a worktree, it works without \
+pub const AUTOMATIC_FAILURE_MESSAGE: &str = "monochromatic-git-policy-cli: automatic ignored-state worktree copy failed. Hint: if you just created a worktree, it works without \
      the copied caches and build output; rebuild them there or copy the ones you need by hand.";
 
 /// What:
@@ -127,7 +126,10 @@ pub fn is_raw_failure(error: &WorktreeCopyError) -> bool {
 /// ```ts
 /// error instanceof WorktreeCopyError ? error : new WorktreeCopyError(message, error)
 /// ```
-pub fn wrap_raw(error: WorktreeCopyError, message: &str) -> WorktreeCopyError {
+pub fn wrap_raw(
+    error: WorktreeCopyError,
+    message: &str,
+) -> WorktreeCopyError {
     // `if` keeps owned messages untouched and words only raw text.
     if is_raw_failure(&error) {
         return failure_with_cause(message, Some(&error.0));

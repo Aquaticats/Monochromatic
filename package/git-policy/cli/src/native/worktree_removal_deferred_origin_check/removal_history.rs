@@ -50,7 +50,10 @@ pub enum RemovalHistory {
 /// Each name in backticks,
 /// separated by commas and joined by `and` before the last one.
 fn quote_and_join(names: &[String]) -> String {
-    let quoted: Vec<String> = names.iter().map(|name| return format!("`{name}`")).collect();
+    let quoted: Vec<String> = names
+        .iter()
+        .map(|name| return format!("`{name}`"))
+        .collect();
     let Some((last, rest)) = quoted.split_last() else {
         return String::new();
     };
@@ -75,7 +78,9 @@ impl RemovalHistory {
         if snapshots.is_empty() {
             return RemovalHistory::NothingDestroyed;
         }
-        return RemovalHistory::Lost { snapshots };
+        return RemovalHistory::Lost {
+            snapshots,
+        };
     }
 
     /// The snapshot names the history names,
@@ -83,7 +88,9 @@ impl RemovalHistory {
     pub fn lost_snapshots(&self) -> &[String] {
         return match self {
             RemovalHistory::NothingDestroyed => &[],
-            RemovalHistory::Lost { snapshots } => snapshots.as_slice(),
+            RemovalHistory::Lost {
+                snapshots,
+            } => snapshots.as_slice(),
         };
     }
 
@@ -103,13 +110,18 @@ impl RemovalHistory {
             return String::from("This removal has not destroyed anything yet.");
         }
         let named: String = quote_and_join(snapshots);
-        let comeback: &str = if snapshots.len() == 1 { "it does not come back" } else { "they do not come back" };
-        return format!("This clone has already lost {named}, in this removal or an earlier one, and {comeback}.");
+        let comeback: &str = if snapshots.len() == 1 {
+            "it does not come back"
+        } else {
+            "they do not come back"
+        };
+        return format!(
+            "This clone has already lost {named}, in this removal or an earlier one, and {comeback}."
+        );
     }
 }
 
 //endregion
-
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

@@ -30,12 +30,26 @@
 
 use crate::hooks_path_values::without_trailing_newlines;
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
-use crate::worktree_clone_managed_lock::reading_a_bounded_file::{Reading, read_a_bounded_file};
-use crate::worktree_clone_managed_lock::registration_proof_two_facts::{GITDIR_FILE_NAME, REGISTRATION_RECORD_MAXIMUM_BYTES};
-use crate::worktree_clone_prune_pointer::pointer_state::{PointerSite, PointerState, pointer_site_of, read_pointer_state_at};
+use crate::worktree_clone_managed_lock::reading_a_bounded_file::{
+    Reading,
+    read_a_bounded_file,
+};
+use crate::worktree_clone_managed_lock::registration_proof_two_facts::{
+    GITDIR_FILE_NAME,
+    REGISTRATION_RECORD_MAXIMUM_BYTES,
+};
+use crate::worktree_clone_prune_pointer::pointer_state::{
+    PointerSite,
+    PointerState,
+    pointer_site_of,
+    read_pointer_state_at,
+};
 use crate::worktree_clone_slot_state::slot_state_mounts::CloneMount;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The three facts a record holds about one link:
@@ -134,8 +148,14 @@ pub fn recorded_link_of(record: &BindingRecord) -> RecordedLink<'_> {
 /// ```ts
 /// const names = registrationNamesTheSlot(registration, slotPath);
 /// ```
-pub fn registration_names_the_slot(registration: &Path, slot_path: &Path) -> bool {
-    let reading: Reading = read_a_bounded_file(registration.join(GITDIR_FILE_NAME).as_path(), REGISTRATION_RECORD_MAXIMUM_BYTES);
+pub fn registration_names_the_slot(
+    registration: &Path,
+    slot_path: &Path,
+) -> bool {
+    let reading: Reading = read_a_bounded_file(
+        registration.join(GITDIR_FILE_NAME).as_path(),
+        REGISTRATION_RECORD_MAXIMUM_BYTES,
+    );
     let Reading::Bytes(bytes) = reading else {
         return false;
     };
@@ -174,7 +194,11 @@ pub fn the_registration_stands(registration: Option<&Path>) -> bool {
 /// ```ts
 /// const facts = linkFactsOf('one', recordedLinkOf(record), cloneMountOf(rows, slotMount, clone, slot));
 /// ```
-pub fn link_facts_of(slot: &str, link: &RecordedLink<'_>, mount: &CloneMount) -> LinkFacts {
+pub fn link_facts_of(
+    slot: &str,
+    link: &RecordedLink<'_>,
+    mount: &CloneMount,
+) -> LinkFacts {
     let stands: bool = the_registration_stands(link.registration.as_deref());
     let names: Option<bool> = match link.registration.as_deref() {
         Some(path) if stands => Some(registration_names_the_slot(path, link.slot_path.as_path())),

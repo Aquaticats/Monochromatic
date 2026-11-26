@@ -15,18 +15,38 @@
 
 /// The provider under test,
 ///  the fact types and the real-Git fixture helpers.
-use super::{GitFacts, RepositoryFacts, git_facts, head_file_exists};
+use super::{
+    GitFacts,
+    RepositoryFacts,
+    git_facts,
+    head_file_exists,
+};
 use crate::command_test_support::{
-    git, git_status, repository, repository_with_tracked_file, start_conflicted_merge,
+    git,
+    git_status,
+    repository,
+    repository_with_tracked_file,
+    start_conflicted_merge,
 };
 use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_sequencer::SequencerState;
-use crate::test_support::{REAL_GIT, executable, fixture, remove};
+use crate::test_support::{
+    REAL_GIT,
+    executable,
+    fixture,
+    remove,
+};
 use crate::worktree_identity::WorktreeIdentity;
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A provider for real Git after `-C <directory>` for each given directory.
 fn facts_in(directories: &[&Path]) -> GitFacts {
@@ -36,7 +56,11 @@ fn facts_in(directories: &[&Path]) -> GitFacts {
         prefix.push(directory.as_os_str().to_os_string());
     }
     // The hermetic overlay removes the system file, which the readers would otherwise have to learn from Git first.
-    return git_facts(Path::new(REAL_GIT), prefix.as_slice(), crate::test_support::isolated_overlay().as_slice());
+    return git_facts(
+        Path::new(REAL_GIT),
+        prefix.as_slice(),
+        crate::test_support::isolated_overlay().as_slice(),
+    );
 }
 
 /// The location real Git reports after `-C <directory>` for each given directory.
@@ -164,12 +188,18 @@ fn queries_are_lazy_and_the_location_is_asked_once() {
     let mut facts: GitFacts = facts_in(&[root.as_path()]);
     assert_eq!(facts.queries, 0);
     let first: RepositoryLocation = facts.location().expect("first answer");
-    assert_eq!(facts.queries, 0, "a plain location is read from the file system");
+    assert_eq!(
+        facts.queries, 0,
+        "a plain location is read from the file system"
+    );
     assert_eq!(facts.location().expect("remembered answer"), first);
     assert_eq!(facts.index_vs_head(), Ok(IndexVsHead::Matches));
     assert_eq!(facts.queries, 1);
     assert_eq!(facts.sequencer_state(), Ok(SequencerState::NotInProgress));
-    assert_eq!(facts.queries, 1, "the head files are looked up in the file system");
+    assert_eq!(
+        facts.queries, 1,
+        "the head files are looked up in the file system"
+    );
     assert_eq!(
         facts.remote_guess_creates_branch(OsStr::new("topic")),
         Ok(false)
@@ -179,8 +209,13 @@ fn queries_are_lazy_and_the_location_is_asked_once() {
     assert_eq!(facts.queries, 2);
     // A location the reader declines (a global option it does not read) is asked of Git once,
     //  and a failed answer is remembered too: the provider does not ask again.
-    let declined_prefix: Vec<OsString> = vec![OsString::from("-c"), OsString::from("core.pager=cat")];
-    let mut missing: GitFacts = git_facts(directory.join("no-git").as_path(), declined_prefix.as_slice(), &[]);
+    let declined_prefix: Vec<OsString> =
+        vec![OsString::from("-c"), OsString::from("core.pager=cat")];
+    let mut missing: GitFacts = git_facts(
+        directory.join("no-git").as_path(),
+        declined_prefix.as_slice(),
+        &[],
+    );
     let failure: String = missing.location().expect_err("missing executable");
     assert_eq!(missing.location(), Err(failure));
     assert_eq!(missing.queries, 1);
@@ -407,7 +442,10 @@ fn a_selection_is_counted_against_the_repository_and_the_callers_directory() {
             directory: 3,
         })
     );
-    assert_eq!(at_top.queries, 2, "one listing of the spellings and one of the worktree");
+    assert_eq!(
+        at_top.queries, 2,
+        "one listing of the spellings and one of the worktree"
+    );
     // From `sub` the top of the worktree is three paths and the caller's directory is one, so only the
     //  top-level spelling reaches everything.
     let below: PathBuf = main.join("sub");
@@ -504,7 +542,10 @@ fn an_unstartable_git_fails_every_fact() {
     let root: PathBuf = fixture("facts-missing");
     let missing: PathBuf = root.join("no-git");
     let mut facts: GitFacts = git_facts(missing.as_path(), &[], &[]);
-    let prefix: String = format!("monochromatic-git-policy-cli could not start {} to read ", missing.display());
+    let prefix: String = format!(
+        "monochromatic-git-policy-cli could not start {} to read ",
+        missing.display()
+    );
     // `.err()` keeps only the failure text of each answer.
     let failures: [(Option<String>, &str); 4] = [
         (facts.location().err(), "the repository location"),
@@ -544,7 +585,10 @@ fn uninterpretable_answers_are_failures() {
         ))
     );
     let location: String = facts.location().expect_err("garbled location");
-    assert!(location.starts_with("monochromatic-git-policy-cli could not "), "{location}");
+    assert!(
+        location.starts_with("monochromatic-git-policy-cli could not "),
+        "{location}"
+    );
     // An exit status of 0 from the index query means "equal", whatever was printed.
     assert_eq!(facts.index_vs_head(), Ok(IndexVsHead::Matches));
     assert_eq!(
@@ -588,7 +632,13 @@ fn the_main_worktree_is_what_real_git_lists_first() {
     for place in [inside.as_path(), outside.as_path()] {
         git(
             main.as_path(),
-            &["worktree", "add", "--detach", place.to_str().expect("text path"), "HEAD"],
+            &[
+                "worktree",
+                "add",
+                "--detach",
+                place.to_str().expect("text path"),
+                "HEAD",
+            ],
         );
         assert_eq!(
             facts_in(&[place]).main_worktree_root(),
@@ -611,8 +661,14 @@ fn a_main_worktree_path_that_holds_a_line_feed_is_read_whole() {
     let root: PathBuf = fixture("facts-main-worktree-newline");
     let main: PathBuf = root.join("main\nworktree");
     std::fs::create_dir_all(&main).expect("repository directory");
-    git(main.as_path(), &["init", "--quiet", "--initial-branch=main"]);
-    git(main.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        main.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
+    git(
+        main.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     assert_eq!(
         facts_in(&[main.as_path()]).main_worktree_root(),
         Ok(main.clone())

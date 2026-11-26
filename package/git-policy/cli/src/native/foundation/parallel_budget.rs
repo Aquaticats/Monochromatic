@@ -149,8 +149,12 @@ impl HostResources {
     /// const host = HostResources.read();
     /// ```
     pub fn read() -> HostResources {
-        let parallelism: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        return HostResources { parallelism, memory_available: memory_available_now() };
+        let parallelism: usize =
+            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        return HostResources {
+            parallelism,
+            memory_available: memory_available_now(),
+        };
     }
 }
 
@@ -213,9 +217,16 @@ pub fn cpu_margin(parallelism: usize) -> usize {
 /// const workers = Math.max(1, Math.min(items, cpus - margin, memoryShare / perItem, ceiling, cap));
 /// ```
 pub fn worker_budget(request: &BudgetRequest<'_>) -> usize {
-    let by_cpu: usize = request.host.parallelism.saturating_sub(cpu_margin(request.host.parallelism)).max(1);
+    let by_cpu: usize = request
+        .host
+        .parallelism
+        .saturating_sub(cpu_margin(request.host.parallelism))
+        .max(1);
     let by_memory: usize = match request.host.memory_available {
-        Some(bytes) => usize::try_from((bytes / MEMORY_SHARE_DIVISOR) / request.per_item_memory.max(1)).unwrap_or(usize::MAX),
+        Some(bytes) => {
+            usize::try_from((bytes / MEMORY_SHARE_DIVISOR) / request.per_item_memory.max(1))
+                .unwrap_or(usize::MAX)
+        }
         None => usize::MAX,
     };
     return request
@@ -257,8 +268,18 @@ pub const SLICE_MEMORY: u64 = 16 << 20;
 /// ```ts
 /// const workers = slicedWorkers({ items, ceiling: 8, host });
 /// ```
-pub fn sliced_workers(items: usize, ceiling: usize, host: &HostResources) -> usize {
-    return worker_budget(&BudgetRequest { items, per_item_memory: SLICE_MEMORY, ceiling: Some(ceiling), cap: None, host });
+pub fn sliced_workers(
+    items: usize,
+    ceiling: usize,
+    host: &HostResources,
+) -> usize {
+    return worker_budget(&BudgetRequest {
+        items,
+        per_item_memory: SLICE_MEMORY,
+        ceiling: Some(ceiling),
+        cap: None,
+        host,
+    });
 }
 
 /// Budget controls stay out of the release executable.

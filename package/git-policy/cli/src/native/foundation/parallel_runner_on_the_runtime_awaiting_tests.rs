@@ -8,8 +8,16 @@
 use super::*;
 use crate::line_sink::LineSink;
 use crate::parallel_runner::Event;
-use crate::parallel_test_support::{PATIENCE, Rendezvous};
-use crate::test_support::{fixture, git_context, remove, repository};
+use crate::parallel_test_support::{
+    PATIENCE,
+    Rendezvous,
+};
+use crate::test_support::{
+    fixture,
+    git_context,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -34,22 +42,33 @@ fn lane_of_one_item(index: usize) -> Vec<usize> {
 }
 
 /// A run over one lane per item.
-fn run_beside_each_other<R: Send + 'static>(items: Vec<u64>, work: Arc<dyn OrderedAwaitingWork<u64, R>>, on_event: &mut dyn OrderedEvents<R>) -> Result<(), OrderedRunError> {
+fn run_beside_each_other<R: Send + 'static>(
+    items: Vec<u64>,
+    work: Arc<dyn OrderedAwaitingWork<u64, R>>,
+    on_event: &mut dyn OrderedEvents<R>,
+) -> Result<(), OrderedRunError> {
     let count: usize = items.len();
-    return crate::lazy_runtime::run_on_runtime(run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
-        items: Arc::from(items),
-        lanes: single_lanes(count),
-        workers: count,
-        work,
-        on_event,
-    }))
+    return crate::lazy_runtime::run_on_runtime(run_ordered_awaiting_on_the_runtime(
+        OrderedRunOfAwaitingOwned {
+            items: Arc::from(items),
+            lanes: single_lanes(count),
+            workers: count,
+            work,
+            on_event,
+        },
+    ))
     .expect("the runtime");
 }
 
 /// Items that wait for the time they are given say one line and return ten times their index.
 struct WaitThenSay;
 impl OrderedAwaitingWork<u64, u64> for WaitThenSay {
-    fn run<'a>(&'a self, index: usize, item: &'a u64, mut say: LinesToTheConsumer<u64>) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        index: usize,
+        item: &'a u64,
+        mut say: LinesToTheConsumer<u64>,
+    ) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
         return Box::pin(async move {
             tokio::time::sleep(Duration::from_millis(*item)).await;
             say.say(format!("item {index}").as_str());
@@ -68,7 +87,10 @@ struct SeenText {
 }
 
 impl OrderedEvents<u64> for SeenText {
-    fn on_event(&mut self, event: Event<'_, u64>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, u64>,
+    ) {
         self.seen.push(match event {
             Event::Begin(index) => format!("begin {index}"),
             Event::Line(index, text) => format!("line {index} {text}"),
@@ -81,7 +103,12 @@ impl OrderedEvents<u64> for SeenText {
 #[test]
 fn every_item_runs_and_the_report_keeps_input_order() {
     let mut seen: SeenText = SeenText::default();
-    run_beside_each_other(vec![4 * BUSY_MILLIS, 1, 2 * BUSY_MILLIS, 2], Arc::new(WaitThenSay), &mut seen).expect("the run finished");
+    run_beside_each_other(
+        vec![4 * BUSY_MILLIS, 1, 2 * BUSY_MILLIS, 2],
+        Arc::new(WaitThenSay),
+        &mut seen,
+    )
+    .expect("the run finished");
     let expected: Vec<String> = vec![
         String::from("begin 0"),
         String::from("line 0 item 0"),
@@ -96,7 +123,10 @@ fn every_item_runs_and_the_report_keeps_input_order() {
         String::from("line 3 item 3"),
         String::from("end 3 30"),
     ];
-    assert_eq!(seen.seen, expected, "the consumer saw the events out of input order");
+    assert_eq!(
+        seen.seen, expected,
+        "the consumer saw the events out of input order"
+    );
 }
 
 /// An item that waits for every other item at a point a serial run can never pass:
@@ -108,9 +138,16 @@ struct MeetTheOthers {
 }
 
 impl OrderedAwaitingWork<u64, bool> for MeetTheOthers {
-    fn run<'a>(&'a self, _index: usize, _item: &'a u64, _say: LinesToTheConsumer<bool>) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        _index: usize,
+        _item: &'a u64,
+        _say: LinesToTheConsumer<bool>,
+    ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
         return Box::pin(async move {
-            return tokio::time::timeout(PATIENCE, self.point.wait()).await.is_ok();
+            return tokio::time::timeout(PATIENCE, self.point.wait())
+                .await
+                .is_ok();
         });
     }
 }
@@ -123,7 +160,10 @@ struct CountArrived {
 }
 
 impl OrderedEvents<bool> for CountArrived {
-    fn on_event(&mut self, event: Event<'_, bool>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, bool>,
+    ) {
         if let Event::End(_index, came) = event
             && came
         {
@@ -137,9 +177,14 @@ impl OrderedEvents<bool> for CountArrived {
 #[test]
 fn items_run_at_the_same_time() {
     let mut counted: CountArrived = CountArrived::default();
-    let work: Arc<MeetTheOthers> = Arc::new(MeetTheOthers { point: Arc::new(tokio::sync::Barrier::new(ITEMS)) });
+    let work: Arc<MeetTheOthers> = Arc::new(MeetTheOthers {
+        point: Arc::new(tokio::sync::Barrier::new(ITEMS)),
+    });
     run_beside_each_other(vec![0; ITEMS], work, &mut counted).expect("the run finished");
-    assert_eq!(counted.arrived, ITEMS, "a run whose items overlap has every item at the meeting point");
+    assert_eq!(
+        counted.arrived, ITEMS,
+        "a run whose items overlap has every item at the meeting point"
+    );
 }
 
 /// A lane's items run one after another:
@@ -151,11 +196,22 @@ struct EnterAndLeave {
 }
 
 impl OrderedAwaitingWork<u64, u64> for EnterAndLeave {
-    fn run<'a>(&'a self, index: usize, _item: &'a u64, _say: LinesToTheConsumer<u64>) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        index: usize,
+        _item: &'a u64,
+        _say: LinesToTheConsumer<u64>,
+    ) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
         return Box::pin(async move {
-            self.order.lock().expect("lock").push(format!("enter {index}"));
+            self.order
+                .lock()
+                .expect("lock")
+                .push(format!("enter {index}"));
             tokio::time::sleep(Duration::from_millis(BUSY_MILLIS)).await;
-            self.order.lock().expect("lock").push(format!("leave {index}"));
+            self.order
+                .lock()
+                .expect("lock")
+                .push(format!("leave {index}"));
             return index as u64;
         });
     }
@@ -167,7 +223,11 @@ impl OrderedAwaitingWork<u64, u64> for EnterAndLeave {
 struct CountNothing;
 
 impl OrderedEvents<u64> for CountNothing {
-    fn on_event(&mut self, _event: Event<'_, u64>) {}
+    fn on_event(
+        &mut self,
+        _event: Event<'_, u64>,
+    ) {
+    }
 }
 
 /// The two items of one lane never overlap,
@@ -175,21 +235,38 @@ impl OrderedEvents<u64> for CountNothing {
 #[test]
 fn a_lane_runs_its_items_one_after_another() {
     let order: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-    let work: Arc<EnterAndLeave> = Arc::new(EnterAndLeave { order: Arc::clone(&order) });
+    let work: Arc<EnterAndLeave> = Arc::new(EnterAndLeave {
+        order: Arc::clone(&order),
+    });
     let mut counted: CountNothing = CountNothing::default();
-    crate::lazy_runtime::run_on_runtime(run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
-        items: Arc::from(vec![0; ITEMS]),
-        lanes: Arc::from(vec![vec![0, 1], vec![2, 3]]),
-        workers: 2,
-        work,
-        on_event: &mut counted,
-    }))
+    crate::lazy_runtime::run_on_runtime(run_ordered_awaiting_on_the_runtime(
+        OrderedRunOfAwaitingOwned {
+            items: Arc::from(vec![0; ITEMS]),
+            lanes: Arc::from(vec![vec![0, 1], vec![2, 3]]),
+            workers: 2,
+            work,
+            on_event: &mut counted,
+        },
+    ))
     .expect("the runtime")
     .expect("the run finished");
     let seen: Vec<String> = order.lock().expect("lock").clone();
-    let first_of_the_first_lane: usize = seen.iter().position(|said| { return said == "leave 0"; }).expect("the first item left");
-    let second_of_the_first_lane: usize = seen.iter().position(|said| { return said == "enter 1"; }).expect("the second item entered");
-    assert!(first_of_the_first_lane < second_of_the_first_lane, "the second item of the lane entered before the first left: {seen:?}");
+    let first_of_the_first_lane: usize = seen
+        .iter()
+        .position(|said| {
+            return said == "leave 0";
+        })
+        .expect("the first item left");
+    let second_of_the_first_lane: usize = seen
+        .iter()
+        .position(|said| {
+            return said == "enter 1";
+        })
+        .expect("the second item entered");
+    assert!(
+        first_of_the_first_lane < second_of_the_first_lane,
+        "the second item of the lane entered before the first left: {seen:?}"
+    );
 }
 
 /// A Git question asked by an item of this run is answered,
@@ -204,11 +281,26 @@ struct AskGit {
 }
 
 impl OrderedAwaitingWork<u64, Option<String>> for AskGit {
-    fn run<'a>(&'a self, _index: usize, _item: &'a u64, _say: LinesToTheConsumer<Option<String>>) -> Pin<Box<dyn Future<Output = Option<String>> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        _index: usize,
+        _item: &'a u64,
+        _say: LinesToTheConsumer<Option<String>>,
+    ) -> Pin<Box<dyn Future<Output = Option<String>> + Send + 'a>> {
         return Box::pin(async move {
-            let request: crate::transaction_git::GitRequest = crate::transaction_git::GitRequest::new(self.directory.as_path(), &["rev-parse", "--show-toplevel"]);
-            let output = crate::transaction_git_awaiting::run_git_awaiting(&self.context, &request).await.ok()?;
-            return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+            let request: crate::transaction_git::GitRequest =
+                crate::transaction_git::GitRequest::new(
+                    self.directory.as_path(),
+                    &["rev-parse", "--show-toplevel"],
+                );
+            let output = crate::transaction_git_awaiting::run_git_awaiting(&self.context, &request)
+                .await
+                .ok()?;
+            return Some(
+                String::from_utf8_lossy(output.stdout.as_slice())
+                    .trim()
+                    .to_string(),
+            );
         });
     }
 }
@@ -222,9 +314,13 @@ struct SeenAnswers {
 }
 
 impl OrderedEvents<Option<String>> for SeenAnswers {
-    fn on_event(&mut self, event: Event<'_, Option<String>>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, Option<String>>,
+    ) {
         if let Event::End(_index, answer) = event {
-            self.answers.push(answer.unwrap_or_else(|| return String::from("no answer")));
+            self.answers
+                .push(answer.unwrap_or_else(|| return String::from("no answer")));
         }
     }
 }
@@ -235,19 +331,28 @@ impl OrderedEvents<Option<String>> for SeenAnswers {
 fn an_item_may_await_a_git_child() {
     let root: PathBuf = fixture("parallel-runner-awaiting-git");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    let work: Arc<AskGit> = Arc::new(AskGit { context: git_context(), directory: repo.clone() });
+    let work: Arc<AskGit> = Arc::new(AskGit {
+        context: git_context(),
+        directory: repo.clone(),
+    });
     let mut seen: SeenAnswers = SeenAnswers::default();
-    let finished: Result<(), OrderedRunError> = crate::lazy_runtime::run_on_runtime(run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
-        items: Arc::from(vec![0; ITEMS]),
-        lanes: single_lanes(ITEMS),
-        workers: ITEMS,
-        work,
-        on_event: &mut seen,
-    }))
+    let finished: Result<(), OrderedRunError> = crate::lazy_runtime::run_on_runtime(
+        run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
+            items: Arc::from(vec![0; ITEMS]),
+            lanes: single_lanes(ITEMS),
+            workers: ITEMS,
+            work,
+            on_event: &mut seen,
+        }),
+    )
     .expect("the runtime");
     finished.expect("the run finished");
     let expected: String = repo.display().to_string();
-    assert_eq!(seen.answers, vec![expected; ITEMS], "every item is answered by the Git child it awaited");
+    assert_eq!(
+        seen.answers,
+        vec![expected; ITEMS],
+        "every item is answered by the Git child it awaited"
+    );
     remove(root.as_path());
 }
 
@@ -263,17 +368,25 @@ struct SayFromThePool {
 }
 
 impl OrderedAwaitingWork<u64, u64> for SayFromThePool {
-    fn run<'a>(&'a self, index: usize, _item: &'a u64, say: LinesToTheConsumer<u64>) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        index: usize,
+        _item: &'a u64,
+        say: LinesToTheConsumer<u64>,
+    ) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
         return Box::pin(async move {
             let seen: Arc<Rendezvous> = Arc::clone(&self.seen_by_the_consumer);
             // The job takes the sink: it is `'static`, and a sink the item owns may travel with it.
-            let said: bool = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
-                let mut sink: LinesToTheConsumer<u64> = say;
-                sink.say("halfway");
-                return seen.wait_for_target();
-            })
-            .await
-            .expect("the job ran");
+            let said: bool =
+                crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(
+                    move || {
+                        let mut sink: LinesToTheConsumer<u64> = say;
+                        sink.say("halfway");
+                        return seen.wait_for_target();
+                    },
+                )
+                .await
+                .expect("the job ran");
             assert!(said, "the consumer saw the line only after the job ended");
             return index as u64;
         });
@@ -290,7 +403,10 @@ struct ArriveOnTheFirstLine {
 }
 
 impl OrderedEvents<u64> for ArriveOnTheFirstLine {
-    fn on_event(&mut self, event: Event<'_, u64>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, u64>,
+    ) {
         self.seen.push(match event {
             Event::Begin(index) => format!("begin {index}"),
             Event::Line(index, text) => {
@@ -306,11 +422,23 @@ impl OrderedEvents<u64> for ArriveOnTheFirstLine {
 #[test]
 fn a_line_said_inside_a_blocking_job_reaches_the_consumer_as_it_happens() {
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(1, PATIENCE));
-    let mut seen: ArriveOnTheFirstLine = ArriveOnTheFirstLine { point: Arc::clone(&point), seen: Vec::new() };
-    let work: Arc<SayFromThePool> = Arc::new(SayFromThePool { seen_by_the_consumer: Arc::clone(&point) });
+    let mut seen: ArriveOnTheFirstLine = ArriveOnTheFirstLine {
+        point: Arc::clone(&point),
+        seen: Vec::new(),
+    };
+    let work: Arc<SayFromThePool> = Arc::new(SayFromThePool {
+        seen_by_the_consumer: Arc::clone(&point),
+    });
     run_beside_each_other(vec![0], work, &mut seen).expect("the run finished");
-    let expected: Vec<String> = vec![String::from("begin 0"), String::from("line 0 halfway"), String::from("end 0 0")];
-    assert_eq!(seen.seen, expected, "the line of a job of the blocking pool did not reach the consumer as it happened");
+    let expected: Vec<String> = vec![
+        String::from("begin 0"),
+        String::from("line 0 halfway"),
+        String::from("end 0 0"),
+    ];
+    assert_eq!(
+        seen.seen, expected,
+        "the line of a job of the blocking pool did not reach the consumer as it happened"
+    );
 }
 
 /// The item of the lane that panics,
@@ -330,11 +458,19 @@ struct PanicAtTheFirst {
 }
 
 impl OrderedAwaitingWork<u64, u64> for PanicAtTheFirst {
-    fn run<'a>(&'a self, index: usize, _item: &'a u64, _say: LinesToTheConsumer<u64>) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        index: usize,
+        _item: &'a u64,
+        _say: LinesToTheConsumer<u64>,
+    ) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
         let ran: Arc<Mutex<Vec<usize>>> = Arc::clone(&self.ran);
         return Box::pin(async move {
             ran.lock().expect("the indexes that began").push(index);
-            assert!(index != THE_INDEX_THAT_PANICS, "a step of this run panicked, which is what the control measures");
+            assert!(
+                index != THE_INDEX_THAT_PANICS,
+                "a step of this run panicked, which is what the control measures"
+            );
             return index as u64;
         });
     }
@@ -359,18 +495,31 @@ impl OrderedAwaitingWork<u64, u64> for PanicAtTheFirst {
 #[test]
 fn a_lane_task_that_panics_ends_the_run_and_the_item_behind_it_is_not_run() {
     let ran: Arc<Mutex<Vec<usize>>> = Arc::new(Mutex::new(Vec::new()));
-    let work: Arc<PanicAtTheFirst> = Arc::new(PanicAtTheFirst { ran: Arc::clone(&ran) });
+    let work: Arc<PanicAtTheFirst> = Arc::new(PanicAtTheFirst {
+        ran: Arc::clone(&ran),
+    });
     let mut seen: SeenText = SeenText::default();
-    let finished: Result<(), OrderedRunError> = crate::lazy_runtime::run_on_runtime(run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
-        items: Arc::from(vec![0, 1, 2]),
-        lanes: Arc::from(vec![vec![0, 1], vec![2]]),
-        workers: 2,
-        work,
-        on_event: &mut seen,
-    }))
+    let finished: Result<(), OrderedRunError> = crate::lazy_runtime::run_on_runtime(
+        run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
+            items: Arc::from(vec![0, 1, 2]),
+            lanes: Arc::from(vec![vec![0, 1], vec![2]]),
+            workers: 2,
+            work,
+            on_event: &mut seen,
+        }),
+    )
     .expect("the runtime");
     let began: Vec<usize> = ran.lock().expect("the indexes that began").clone();
-    assert!(matches!(finished, Err(OrderedRunError::Panicked)), "the run names the step that panicked: {finished:?}");
-    assert!(began.contains(&THE_INDEX_THAT_PANICS) && began.contains(&2), "the item of the other lane ran: {began:?}");
-    assert!(!began.contains(&1), "the item behind the one that stopped its lane was run as if the lane had finished: {began:?}");
+    assert!(
+        matches!(finished, Err(OrderedRunError::Panicked)),
+        "the run names the step that panicked: {finished:?}"
+    );
+    assert!(
+        began.contains(&THE_INDEX_THAT_PANICS) && began.contains(&2),
+        "the item of the other lane ran: {began:?}"
+    );
+    assert!(
+        !began.contains(&1),
+        "the item behind the one that stopped its lane was run as if the lane had finished: {began:?}"
+    );
 }

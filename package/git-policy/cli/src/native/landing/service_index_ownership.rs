@@ -19,8 +19,14 @@
 //! const ownership = await inspectOwnership(lockPath, heldHandle, marker) // 'owned' | 'replaced' | Error
 //! ```
 
-use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
-use std::os::unix::fs::{FileExt, MetadataExt};
+use crate::landing_state_carried_by_its_task::{
+    LandingState,
+    on_the_landing_state,
+};
+use std::os::unix::fs::{
+    FileExt,
+    MetadataExt,
+};
 use std::path::Path;
 
 /// What the lock at a path is to the holder that placed it.
@@ -52,7 +58,11 @@ pub enum Ownership {
 /// ```ts
 /// const same = (await stat(lock)).ino === (await held.stat()).ino && (await held.read()) === marker
 /// ```
-pub fn inspect_ownership(lock: &Path, held: &std::fs::File, marker: &str) -> Ownership {
+pub fn inspect_ownership(
+    lock: &Path,
+    held: &std::fs::File,
+    marker: &str,
+) -> Ownership {
     let ours = match held.metadata() {
         Ok(metadata) => metadata,
         Err(error) => return Ownership::Unreadable(error),
@@ -76,7 +86,11 @@ pub fn inspect_ownership(lock: &Path, held: &std::fs::File, marker: &str) -> Own
             Err(error) => return Ownership::Unreadable(error),
         }
     }
-    return if &text[..filled] == marker.as_bytes() { Ownership::Owned } else { Ownership::Replaced };
+    return if &text[..filled] == marker.as_bytes() {
+        Ownership::Owned
+    } else {
+        Ownership::Replaced
+    };
 }
 
 /// Records that a lock this landing held could not be settled,
@@ -86,12 +100,18 @@ pub fn note_unsettled() {
 }
 
 /// Counts one more lock the landing could not settle.
-fn count_one_more_unsettled_lock(state: &LandingState, (): ()) {
+fn count_one_more_unsettled_lock(
+    state: &LandingState,
+    (): (),
+) {
     state.unsettled_locks.set(state.unsettled_locks.get() + 1);
 }
 
 /// The locks the landing could not settle so far.
-fn unsettled_lock_count(state: &LandingState, (): ()) -> usize {
+fn unsettled_lock_count(
+    state: &LandingState,
+    (): (),
+) -> usize {
     return state.unsettled_locks.get();
 }
 

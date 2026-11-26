@@ -6,11 +6,21 @@
 
 use crate::action::Action;
 use crate::entry::plan_invocation;
-use crate::real_git::{Platform, ResolutionInputs};
+use crate::real_git::{
+    Platform,
+    ResolutionInputs,
+};
 use crate::repository_link_identity::IDENTITY_RELATIVE_PATH;
-use crate::test_support::{executable, fixture, remove};
+use crate::test_support::{
+    executable,
+    fixture,
+    remove,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Inputs selecting the image's real Git,
 /// with a fixture file standing in for this wrapper.
@@ -71,19 +81,36 @@ fn world(name: &str) -> World {
         ),
     )
     .expect("identity file");
-    return World { root, link, environment: vec![(OsString::from("HOME"), home.into_os_string())] };
+    return World {
+        root,
+        link,
+        environment: vec![(OsString::from("HOME"), home.into_os_string())],
+    };
 }
 
 /// The message and status the invocation stops with.
-fn stopped_with(world: &World, arguments: &[&str]) -> (i32, String) {
+fn stopped_with(
+    world: &World,
+    arguments: &[&str],
+) -> (i32, String) {
     let mut owned: Vec<OsString> = text(arguments);
     // `LINK` stands for the link path wherever an argument holds it.
     for argument in &mut owned {
-        let spelled: String = argument.to_string_lossy().replace("LINK", world.link.to_string_lossy().as_ref());
+        let spelled: String = argument
+            .to_string_lossy()
+            .replace("LINK", world.link.to_string_lossy().as_ref());
         *argument = OsString::from(spelled);
     }
-    return match plan_invocation(owned.as_slice(), world.environment.as_slice(), &inputs(world.root.as_path())) {
-        Action::Exit { code, stderr, .. } => (code, stderr),
+    return match plan_invocation(
+        owned.as_slice(),
+        world.environment.as_slice(),
+        &inputs(world.root.as_path()),
+    ) {
+        Action::Exit {
+            code,
+            stderr,
+            ..
+        } => (code, stderr),
         other => panic!("expected the gate to stop, got {other:?}"),
     };
 }
@@ -101,8 +128,14 @@ fn each_way_of_naming_a_dangling_repository_prints_the_plain_message() {
     ] {
         let (code, stderr) = stopped_with(&world, arguments.as_slice());
         assert_eq!(code, GIT_FATAL, "{arguments:?}: {stderr}");
-        assert!(stderr.starts_with("fatal: the 860 drive is not mounted yet ("), "{arguments:?}: {stderr}");
-        assert!(stderr.contains(world.link.to_string_lossy().as_ref()), "{arguments:?}: {stderr}");
+        assert!(
+            stderr.starts_with("fatal: the 860 drive is not mounted yet ("),
+            "{arguments:?}: {stderr}"
+        );
+        assert!(
+            stderr.contains(world.link.to_string_lossy().as_ref()),
+            "{arguments:?}: {stderr}"
+        );
     }
     remove(world.root.as_path());
 }
@@ -114,9 +147,26 @@ fn a_command_elsewhere_is_planned_as_before() {
     let world: World = world("entry-link-elsewhere");
     let elsewhere: PathBuf = world.root.join("elsewhere");
     std::fs::create_dir_all(elsewhere.as_path()).expect("folder");
-    let arguments: Vec<OsString> = vec![OsString::from("-C"), elsewhere.into_os_string(), OsString::from("--version")];
-    let action: Action = plan_invocation(arguments.as_slice(), world.environment.as_slice(), &inputs(world.root.as_path()));
-    assert!(!matches!(action, Action::Exit { code: GIT_FATAL, .. }), "{action:?}");
+    let arguments: Vec<OsString> = vec![
+        OsString::from("-C"),
+        elsewhere.into_os_string(),
+        OsString::from("--version"),
+    ];
+    let action: Action = plan_invocation(
+        arguments.as_slice(),
+        world.environment.as_slice(),
+        &inputs(world.root.as_path()),
+    );
+    assert!(
+        !matches!(
+            action,
+            Action::Exit {
+                code: GIT_FATAL,
+                ..
+            }
+        ),
+        "{action:?}"
+    );
     remove(world.root.as_path());
 }
 
@@ -127,9 +177,20 @@ fn without_the_identity_file_the_dangling_path_goes_on_to_git() {
     let world: World = world("entry-link-no-identity");
     let home: PathBuf = world.root.join("home");
     std::fs::remove_file(home.join(IDENTITY_RELATIVE_PATH)).expect("remove identity");
-    let arguments: Vec<OsString> = vec![OsString::from("-C"), world.link.clone().into_os_string(), OsString::from("status")];
-    let action: Action = plan_invocation(arguments.as_slice(), world.environment.as_slice(), &inputs(world.root.as_path()));
-    assert!(!matches!(&action, Action::Exit { code: GIT_FATAL, stderr, .. } if stderr.contains("860")), "{action:?}");
+    let arguments: Vec<OsString> = vec![
+        OsString::from("-C"),
+        world.link.clone().into_os_string(),
+        OsString::from("status"),
+    ];
+    let action: Action = plan_invocation(
+        arguments.as_slice(),
+        world.environment.as_slice(),
+        &inputs(world.root.as_path()),
+    );
+    assert!(
+        !matches!(&action, Action::Exit { code: GIT_FATAL, stderr, .. } if stderr.contains("860")),
+        "{action:?}"
+    );
     let _unused: &Path = home.as_path();
     remove(world.root.as_path());
 }

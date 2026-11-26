@@ -27,31 +27,47 @@
 //! ```
 
 /// Private directory creation and tree removal.
-use crate::private_storage::{create_private_directory_all, remove_tree};
+use crate::private_storage::{
+    create_private_directory_all,
+    remove_tree,
+};
 /// Random names for the trees.
 use crate::random_id::random_uuid;
+/// The renewal that keeps a tree a command holds from aging out,
+/// and the age it is written against.
+use crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER;
+use crate::service_scratch_renewal::ScratchRenewal;
 /// The facts a creation is made from.
 use crate::shadow_create::ShadowTemplate;
 /// The entries a shadow of a worktree shares,
 /// and whether the worktree keeps its own `info`.
 use crate::shadow_links::keeps_its_own_info;
 /// The pool a member is drawn out of.
-use crate::shadow_pool::{members, pool_key, pool_root};
+use crate::shadow_pool::{
+    members,
+    pool_key,
+    pool_root,
+};
 /// What a tree must be for this invocation,
 /// which is the question a claim asks and a draw asks the same way.
 use crate::shadow_pool_member::refusal;
 /// One Git start.
-use crate::transaction_git::{GitContext, GitFailure};
-/// The renewal that keeps a tree a command holds from aging out,
-/// and the age it is written against.
-use crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER;
-use crate::service_scratch_renewal::ScratchRenewal;
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+};
 /// What the folder beside the pool is called.
 use crate::wrapper_names_old_and_new::SHADOW_DRAWN_FOLDER;
 /// Paths,
 /// the moment and the ages.
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// How many drawn trees one worktree keeps ready.
 /// Measured:
@@ -100,8 +116,13 @@ pub fn drawn_root(template: &ShadowTemplate) -> PathBuf {
 /// ```ts
 /// drawnRootFor(commonDir, gitDir)
 /// ```
-pub fn drawn_root_for(common_dir: &Path, git_dir: &Path) -> PathBuf {
-    return common_dir.join(SHADOW_DRAWN_FOLDER).join(pool_key(common_dir, git_dir));
+pub fn drawn_root_for(
+    common_dir: &Path,
+    git_dir: &Path,
+) -> PathBuf {
+    return common_dir
+        .join(SHADOW_DRAWN_FOLDER)
+        .join(pool_key(common_dir, git_dir));
 }
 
 /// What:
@@ -115,7 +136,9 @@ pub fn drawn_root_for(common_dir: &Path, git_dir: &Path) -> PathBuf {
 /// drawnMembers(root)
 /// ```
 pub fn drawn_members(root: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = std::fs::read_dir(root) else { return Vec::new() };
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return Vec::new();
+    };
     let mut found: Vec<PathBuf> = Vec::new();
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
@@ -141,13 +164,22 @@ pub fn drawn_members(root: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// isADrawnTree(tree, commonDir, gitDir) // tree is one of the wrapper's drawn trees of that worktree
 /// ```
-pub fn is_a_drawn_tree(tree: &Path, common_dir: &Path, git_dir: &Path) -> bool {
+pub fn is_a_drawn_tree(
+    tree: &Path,
+    common_dir: &Path,
+    git_dir: &Path,
+) -> bool {
     let root: PathBuf = drawn_root_for(common_dir, git_dir);
-    let Some(name) = tree.file_name().and_then(std::ffi::OsStr::to_str) else { return false };
+    let Some(name) = tree.file_name().and_then(std::ffi::OsStr::to_str) else {
+        return false;
+    };
     let identity: &str = name.strip_prefix(DRAWN_PREFIX).unwrap_or("");
     return tree.parent() == Some(root.as_path())
         && !identity.is_empty()
-        && identity.as_bytes().iter().all(crate::wrapper_names_old_and_new::is_identity_byte)
+        && identity
+            .as_bytes()
+            .iter()
+            .all(crate::wrapper_names_old_and_new::is_identity_byte)
         && common_dir.is_absolute()
         && git_dir.is_absolute()
         && !tree.to_string_lossy().contains('\0');
@@ -178,18 +210,28 @@ pub fn is_a_drawn_tree(tree: &Path, common_dir: &Path, git_dir: &Path) -> bool {
 ///
 /// `GitFailure` when the folder of drawn trees cannot be made,
 /// or when a member cannot be renamed into it.
-pub fn draw(_context: &GitContext, template: &ShadowTemplate) -> Result<Option<PathBuf>, GitFailure> {
+pub fn draw(
+    _context: &GitContext,
+    template: &ShadowTemplate,
+) -> Result<Option<PathBuf>, GitFailure> {
     if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
         return Ok(None);
     }
     match keeps_its_own_info(template.common_dir.as_path(), template.git_dir.as_path()) {
         Ok(false) => {}
         Ok(true) => return Ok(None),
-        Err(error) => return Err(GitFailure(format!("whether the worktree keeps its own info directory cannot be read: {error}"))),
+        Err(error) => {
+            return Err(GitFailure(format!(
+                "whether the worktree keeps its own info directory cannot be read: {error}"
+            )));
+        }
     }
     let root: PathBuf = drawn_root(template);
     if let Err(error) = create_private_directory_all(root.as_path()) {
-        return Err(GitFailure(format!("the folder of drawn shadows {} cannot be made: {error}", root.display())));
+        return Err(GitFailure(format!(
+            "the folder of drawn shadows {} cannot be made: {error}",
+            root.display()
+        )));
     }
     let mut examined: usize = 0;
     for member in members(pool_root(template).as_path()) {
@@ -197,7 +239,10 @@ pub fn draw(_context: &GitContext, template: &ShadowTemplate) -> Result<Option<P
             break;
         }
         examined += 1;
-        let drawn: PathBuf = root.join(format!("{DRAWN_PREFIX}{}", random_uuid().unwrap_or_default()));
+        let drawn: PathBuf = root.join(format!(
+            "{DRAWN_PREFIX}{}",
+            random_uuid().unwrap_or_default()
+        ));
         // One `rename` is the whole of the draw: a second draw of the same member fails, and nothing reads a half-drawn tree.
         if std::fs::rename(member.as_path(), drawn.as_path()).is_err() {
             continue;
@@ -226,8 +271,14 @@ pub fn draw(_context: &GitContext, template: &ShadowTemplate) -> Result<Option<P
 /// ```ts
 /// noteRefusal(path, reason); // one debug line
 /// ```
-fn note_refusal(drawn: &Path, reason: &str) {
-    crate::diagnostic_log::debug("shadowDrawn", format!("refused the drawn shadow {}: {reason}", drawn.display()).as_str());
+fn note_refusal(
+    drawn: &Path,
+    reason: &str,
+) {
+    crate::diagnostic_log::debug(
+        "shadowDrawn",
+        format!("refused the drawn shadow {}: {reason}", drawn.display()).as_str(),
+    );
 }
 
 /// What:
@@ -250,9 +301,14 @@ fn note_refusal(drawn: &Path, reason: &str) {
 /// ```ts
 /// sweepDrawn(commonDir, now) // the trees it removed
 /// ```
-pub fn sweep_drawn(common_dir: &Path, now: SystemTime) -> Vec<PathBuf> {
+pub fn sweep_drawn(
+    common_dir: &Path,
+    now: SystemTime,
+) -> Vec<PathBuf> {
     let root: PathBuf = common_dir.join(SHADOW_DRAWN_FOLDER);
-    let Ok(entries) = std::fs::read_dir(root.as_path()) else { return Vec::new() };
+    let Ok(entries) = std::fs::read_dir(root.as_path()) else {
+        return Vec::new();
+    };
     let mut removed: Vec<PathBuf> = Vec::new();
     for entry in entries.flatten() {
         let folder: PathBuf = entry.path();
@@ -275,7 +331,11 @@ pub fn sweep_drawn(common_dir: &Path, now: SystemTime) -> Vec<PathBuf> {
 /// ```ts
 /// sweepDrawnOf(commonDir, gitDir, now) // the trees it removed
 /// ```
-pub fn sweep_drawn_of(common_dir: &Path, git_dir: &Path, now: SystemTime) -> Vec<PathBuf> {
+pub fn sweep_drawn_of(
+    common_dir: &Path,
+    git_dir: &Path,
+    now: SystemTime,
+) -> Vec<PathBuf> {
     return sweep_drawn_folder(drawn_root_for(common_dir, git_dir).as_path(), now);
 }
 
@@ -290,7 +350,10 @@ pub fn sweep_drawn_of(common_dir: &Path, git_dir: &Path, now: SystemTime) -> Vec
 /// ```ts
 /// sweepDrawnFolder(folder, now) // the trees it removed
 /// ```
-fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
+fn sweep_drawn_folder(
+    folder: &Path,
+    now: SystemTime,
+) -> Vec<PathBuf> {
     let mut removed: Vec<PathBuf> = Vec::new();
     for drawn in drawn_members(folder) {
         if !nothing_holds(drawn.as_path(), now) {
@@ -298,11 +361,25 @@ fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
         }
         match remove_tree(drawn.as_path()) {
             Ok(()) => {
-                crate::diagnostic_log::debug("shadowDrawn", format!("removed the drawn shadow nothing renewed: {}", drawn.display()).as_str());
+                crate::diagnostic_log::debug(
+                    "shadowDrawn",
+                    format!(
+                        "removed the drawn shadow nothing renewed: {}",
+                        drawn.display()
+                    )
+                    .as_str(),
+                );
                 removed.push(drawn);
             }
             Err(error) => {
-                crate::diagnostic_log::warn("shadowDrawn", format!("the drawn shadow {} was not removed: {error}", drawn.display()).as_str());
+                crate::diagnostic_log::warn(
+                    "shadowDrawn",
+                    format!(
+                        "the drawn shadow {} was not removed: {error}",
+                        drawn.display()
+                    )
+                    .as_str(),
+                );
             }
         }
     }
@@ -326,10 +403,19 @@ fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
 /// ```ts
 /// const nothingHolds = (tree, now) => age(tree, now) > TWO_HOURS;
 /// ```
-fn nothing_holds(drawn: &Path, now: SystemTime) -> bool {
-    let Ok(metadata) = std::fs::symlink_metadata(drawn) else { return false };
-    let Ok(modified) = metadata.modified() else { return false };
-    let Ok(age) = now.duration_since(modified) else { return false };
+fn nothing_holds(
+    drawn: &Path,
+    now: SystemTime,
+) -> bool {
+    let Ok(metadata) = std::fs::symlink_metadata(drawn) else {
+        return false;
+    };
+    let Ok(modified) = metadata.modified() else {
+        return false;
+    };
+    let Ok(age) = now.duration_since(modified) else {
+        return false;
+    };
     return age > nothing_holds_after();
 }
 
@@ -408,9 +494,16 @@ impl HandedShadow {
     /// ```ts
     /// HandedShadow.holdRenewedEvery(tree, 20)
     /// ```
-    pub fn hold_renewed_every(path: PathBuf, every: Duration) -> Self {
+    pub fn hold_renewed_every(
+        path: PathBuf,
+        every: Duration,
+    ) -> Self {
         let renewal: ScratchRenewal = ScratchRenewal::start(path.as_path(), every);
-        return Self { path, _renewal: renewal, the_service_removes_it: false };
+        return Self {
+            path,
+            _renewal: renewal,
+            the_service_removes_it: false,
+        };
     }
 
     /// Where the tree is.

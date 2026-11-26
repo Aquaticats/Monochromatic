@@ -68,7 +68,10 @@ pub enum BatchRefusal {
 /// How the refusal prints to a person.
 impl fmt::Display for BatchRefusal {
     /// Prints the input to correct and the effect of refusing.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
             BatchRefusal::OneNameOverTheBudget {
                 name,
@@ -78,15 +81,22 @@ impl fmt::Display for BatchRefusal {
                 formatter,
                 "`{name}` needs {request_bytes} bytes of encoded request on its own, and the budget is {budget_bytes} bytes, so no request can carry it. Raise the budget, or leave this snapshot out of the set this removal destroys. No snapshot was destroyed."
             ),
-            BatchRefusal::RepeatedName { name } => write!(
+            BatchRefusal::RepeatedName {
+                name,
+            } => write!(
                 formatter,
                 "`{name}` appears more than once in the verified set, so one request would submit that name twice and no per-name outcome could be attributed to one object. Correct the set from a fresh inventory. No snapshot was destroyed."
             ),
-            BatchRefusal::Unbuildable { pool, source } => write!(
+            BatchRefusal::Unbuildable {
+                pool,
+                source,
+            } => write!(
                 formatter,
                 "the snapshot-destroy request for '{pool}' could not be built ({source}), so it was not sent. Correct the name the binding refused. No snapshot was destroyed."
             ),
-            BatchRefusal::WouldDefer { pool } => write!(
+            BatchRefusal::WouldDefer {
+                pool,
+            } => write!(
                 formatter,
                 "the snapshot-destroy request for '{pool}' carries a `defer` key, so it would mark every snapshot it cannot destroy for deferred destruction instead of naming it. The request was not sent. Restore the binding's defer-free request before any removal runs. No snapshot was destroyed."
             ),
@@ -100,10 +110,19 @@ impl std::error::Error for BatchRefusal {
     /// when the request could not be packed.
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         return match self {
-            BatchRefusal::Unbuildable { source, .. } => Some(source),
-            BatchRefusal::OneNameOverTheBudget { .. }
-            | BatchRefusal::RepeatedName { .. }
-            | BatchRefusal::WouldDefer { .. } => None,
+            BatchRefusal::Unbuildable {
+                source,
+                ..
+            } => Some(source),
+            BatchRefusal::OneNameOverTheBudget {
+                ..
+            }
+            | BatchRefusal::RepeatedName {
+                ..
+            }
+            | BatchRefusal::WouldDefer {
+                ..
+            } => None,
         };
     }
 }

@@ -13,7 +13,10 @@
 //! const everyoneCame = await point.arrive();
 //! ```
 
-use std::sync::{Condvar, Mutex};
+use std::sync::{
+    Condvar,
+    Mutex,
+};
 use std::time::Duration;
 
 /// How long an arrival waits for the others when the control expects them to come.
@@ -45,7 +48,10 @@ const NO_CLOCK: Duration = Duration::from_secs(60 * 60);
 /// ```ts
 /// const result = await finishedWithinAt(150_000, () => refresh()); // undefined when the deadline passed
 /// ```
-pub(crate) fn finished_within_at<T: Send + 'static>(deadline: Duration, work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+pub(crate) fn finished_within_at<T: Send + 'static>(
+    deadline: Duration,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Option<T> {
     let (sender, receiver) = std::sync::mpsc::channel::<std::thread::Result<T>>();
     std::thread::spawn(move || {
         let _ = sender.send(std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)));
@@ -76,12 +82,23 @@ pub(crate) struct Rendezvous {
 impl Rendezvous {
     /// A point for `target` threads.
     pub(crate) fn new(target: usize) -> Rendezvous {
-        return Rendezvous { arrived: Mutex::new(0), changed: Condvar::new(), target, patience: PATIENCE };
+        return Rendezvous {
+            arrived: Mutex::new(0),
+            changed: Condvar::new(),
+            target,
+            patience: PATIENCE,
+        };
     }
 
     /// A point for `target` threads whose arrivals give up after `patience`.
-    pub(crate) fn impatient(target: usize, patience: Duration) -> Rendezvous {
-        return Rendezvous { patience, ..Rendezvous::new(target) };
+    pub(crate) fn impatient(
+        target: usize,
+        patience: Duration,
+    ) -> Rendezvous {
+        return Rendezvous {
+            patience,
+            ..Rendezvous::new(target)
+        };
     }
 
     /// Arrive and wait for the others;
@@ -109,7 +126,10 @@ impl Rendezvous {
     /// ```ts
     /// point.arriveAtTheBound(allowed); // throws unless the bound was reached
     /// ```
-    pub(crate) fn arrive_at_the_bound(&self, bound: usize) {
+    pub(crate) fn arrive_at_the_bound(
+        &self,
+        bound: usize,
+    ) {
         assert!(
             self.arrive(),
             "the work under test never brought {bound} of its jobs together inside the same work, so the overlap this control measures against a bound of {bound} was not reached"
@@ -164,7 +184,12 @@ impl Rendezvous {
     /// ```
     pub(crate) fn wait_for_target_without_a_clock(&self) {
         let count = self.arrived.lock().expect("lock");
-        let (_guard, _elapsed) = self.changed.wait_timeout_while(count, NO_CLOCK, |seen: &mut usize| { return *seen < self.target; }).expect("wait");
+        let (_guard, _elapsed) = self
+            .changed
+            .wait_timeout_while(count, NO_CLOCK, |seen: &mut usize| {
+                return *seen < self.target;
+            })
+            .expect("wait");
     }
 
     /// How many threads have arrived at the point;
@@ -183,8 +208,16 @@ impl Rendezvous {
 
     /// Wait on a held count until it reaches the target;
     /// false when the patience ran out first.
-    fn wait_while_short(&self, count: std::sync::MutexGuard<'_, usize>) -> bool {
-        let (guard, timeout) = self.changed.wait_timeout_while(count, self.patience, |seen: &mut usize| { return *seen < self.target; }).expect("wait");
+    fn wait_while_short(
+        &self,
+        count: std::sync::MutexGuard<'_, usize>,
+    ) -> bool {
+        let (guard, timeout) = self
+            .changed
+            .wait_timeout_while(count, self.patience, |seen: &mut usize| {
+                return *seen < self.target;
+            })
+            .expect("wait");
         drop(guard);
         return !timeout.timed_out();
     }
@@ -206,10 +239,16 @@ impl Rendezvous {
 /// ```ts
 /// roomFor('the indexes are rewritten side by side', 4); // it runs at any CPU quota now
 /// ```
-pub(crate) fn room_for(_control: &str, jobs: usize) -> usize {
+pub(crate) fn room_for(
+    _control: &str,
+    jobs: usize,
+) -> usize {
     let given: usize = crate::room_for_blocking_jobs_in_a_control::for_a_control(jobs);
     let allowed: usize = crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs();
-    assert_eq!(allowed, given, "the control asked for room for {given} blocking jobs at once, and the process took {allowed}");
+    assert_eq!(
+        allowed, given,
+        "the control asked for room for {given} blocking jobs at once, and the process took {allowed}"
+    );
     return given;
 }
 
@@ -240,14 +279,23 @@ pub(crate) const ONE_PLACE: usize = 1;
 /// ```ts
 /// const [givenBack, finished] = holdTheOnlyPlace(); const asked = finished.recv(); // true when the work asked
 /// ```
-pub(crate) fn hold_the_only_place() -> (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::mpsc::Receiver<bool>) {
-    use std::sync::atomic::{AtomicBool, Ordering};
+pub(crate) fn hold_the_only_place() -> (
+    std::sync::Arc<std::sync::atomic::AtomicBool>,
+    std::sync::mpsc::Receiver<bool>,
+) {
+    use std::sync::atomic::{
+        AtomicBool,
+        Ordering,
+    };
     crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
     // The runtime must have a worker before a place of its blocking pool can be held. A build that arrived after its
     //  deadline still takes the work (`lazy_runtime`), so the wait is for that arrival, and it ends when the run shows no
     //  sign of work rather than on a clock.
     assert!(
-        crate::lazy_runtime::tasks_can_run() || crate::test_support::wait_until(&|| { return crate::lazy_runtime::tasks_can_run(); }),
+        crate::lazy_runtime::tasks_can_run()
+            || crate::test_support::wait_until(&|| {
+                return crate::lazy_runtime::tasks_can_run();
+            }),
         "this process's runtime came up {:?}, so it has no worker to hold a place of its blocking pool, and a build that arrived late never did: the system left no room for one",
         crate::lazy_runtime::built_flavor()
     );
@@ -265,7 +313,13 @@ pub(crate) fn hold_the_only_place() -> (std::sync::Arc<std::sync::atomic::Atomic
         })
         .await;
     });
-    assert!(holder.is_some(), "the runtime has workers, so a place of the blocking pool can be held");
-    assert!(has_taken.recv_timeout(PATIENCE).is_ok(), "the job that holds the only place never started");
+    assert!(
+        holder.is_some(),
+        "the runtime has workers, so a place of the blocking pool can be held"
+    );
+    assert!(
+        has_taken.recv_timeout(PATIENCE).is_ok(),
+        "the job that holds the only place never started"
+    );
     return (given_back, finished);
 }

@@ -14,8 +14,12 @@
 //! expect(parseTestSwitch(undefined)).toEqual({ kind: 'none' }); expect(parseTestSwitch('hold-move')).toEqual({ kind: 'hold', step: 'move' });
 //! ```
 
-use super::{TestSwitch, keep_descriptor_from_words, parse_test_switch};
 use super::super::probe_arms::ProbeStep;
+use super::{
+    TestSwitch,
+    keep_descriptor_from_words,
+    parse_test_switch,
+};
 
 /// No value is no switch,
 /// and `disabled` is the control arm.
@@ -37,9 +41,22 @@ fn the_descriptor_fixture_is_its_own_value() {
 /// and an unknown step or word is no switch.
 #[test]
 fn a_hold_names_a_step_and_anything_else_is_no_switch() {
-    assert_eq!(parse_test_switch(Some("hold-move")), TestSwitch::Hold { step: ProbeStep::Move });
-    assert_eq!(parse_test_switch(Some("hold-teardown")), TestSwitch::Hold { step: ProbeStep::Teardown });
-    assert_eq!(parse_test_switch(Some("hold-no-such-step")), TestSwitch::None);
+    assert_eq!(
+        parse_test_switch(Some("hold-move")),
+        TestSwitch::Hold {
+            step: ProbeStep::Move
+        }
+    );
+    assert_eq!(
+        parse_test_switch(Some("hold-teardown")),
+        TestSwitch::Hold {
+            step: ProbeStep::Teardown
+        }
+    );
+    assert_eq!(
+        parse_test_switch(Some("hold-no-such-step")),
+        TestSwitch::None
+    );
     assert_eq!(parse_test_switch(Some("hold-mode")), TestSwitch::None);
     assert_eq!(parse_test_switch(Some("please")), TestSwitch::None);
 }

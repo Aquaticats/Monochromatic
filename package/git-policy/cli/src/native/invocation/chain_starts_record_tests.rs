@@ -19,8 +19,19 @@
 #![cfg(unix)]
 
 /// The record under test.
-use super::{MARKER_ROOM, RECORD_NAME, create_descriptor, for_this_start_with, inherited_descriptor_in, read_parts, write_part};
-use std::path::{Path, PathBuf};
+use super::{
+    MARKER_ROOM,
+    RECORD_NAME,
+    create_descriptor,
+    for_this_start_with,
+    inherited_descriptor_in,
+    read_parts,
+    write_part,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A directory under the build directory for a fixture.
 fn fixture(name: &str) -> PathBuf {
@@ -45,17 +56,48 @@ fn fixture(name: &str) -> PathBuf {
 #[test]
 fn a_record_keeps_the_marker_and_the_file_written_into_it() {
     let descriptor: i32 = create_descriptor().expect("a record is made");
-    assert_eq!(read_parts(descriptor), (None, None), "a record nothing wrote");
+    assert_eq!(
+        read_parts(descriptor),
+        (None, None),
+        "a record nothing wrote"
+    );
     let marker: &str = "4242\u{1f}linux:9\u{1f}child\u{1f}3";
-    assert!(write_part(descriptor, 0, MARKER_ROOM, std::ffi::OsStr::new(marker)));
-    assert_eq!(read_parts(descriptor).0.as_deref(), Some(marker), "the marker the record keeps");
+    assert!(write_part(
+        descriptor,
+        0,
+        MARKER_ROOM,
+        std::ffi::OsStr::new(marker)
+    ));
+    assert_eq!(
+        read_parts(descriptor).0.as_deref(),
+        Some(marker),
+        "the marker the record keeps"
+    );
     assert_eq!(read_parts(descriptor).1, None, "and nothing beside it, yet");
     // The file is written into its own room by a later moment of the same start.
-    assert!(write_part(descriptor, i32::try_from(MARKER_ROOM).expect("room"), super::CHOSEN_ROOM, std::ffi::OsStr::new("/opt/launchers/git")));
-    assert_eq!(read_parts(descriptor).0.as_deref(), Some(marker), "the marker is undisturbed");
-    assert_eq!(read_parts(descriptor).1.as_deref(), Some("/opt/launchers/git"), "the file that start chose");
+    assert!(write_part(
+        descriptor,
+        i32::try_from(MARKER_ROOM).expect("room"),
+        super::CHOSEN_ROOM,
+        std::ffi::OsStr::new("/opt/launchers/git")
+    ));
+    assert_eq!(
+        read_parts(descriptor).0.as_deref(),
+        Some(marker),
+        "the marker is undisturbed"
+    );
+    assert_eq!(
+        read_parts(descriptor).1.as_deref(),
+        Some("/opt/launchers/git"),
+        "the file that start chose"
+    );
     // A shorter text ends at its own NUL, so the bytes of the longer one behind it are read as nothing.
-    assert!(write_part(descriptor, i32::try_from(MARKER_ROOM).expect("room"), super::CHOSEN_ROOM, std::ffi::OsStr::new("/bin/git")));
+    assert!(write_part(
+        descriptor,
+        i32::try_from(MARKER_ROOM).expect("room"),
+        super::CHOSEN_ROOM,
+        std::ffi::OsStr::new("/bin/git")
+    ));
     assert_eq!(read_parts(descriptor).1.as_deref(), Some("/bin/git"));
 }
 
@@ -72,13 +114,23 @@ fn a_record_keeps_the_marker_and_the_file_written_into_it() {
 /// ```
 #[test]
 fn a_made_record_names_no_start_above() {
-    let made: super::ChainRecord = for_this_start_with(|| { return None }).expect("a record is made");
+    let made: super::ChainRecord = for_this_start_with(|| return None).expect("a record is made");
     assert_eq!(made.marker(), None);
     assert_eq!(made.chosen(), None);
     let inherited: i32 = create_descriptor().expect("a record is made");
-    assert!(write_part(inherited, 0, MARKER_ROOM, std::ffi::OsStr::new("7\u{1f}linux:1\u{1f}query\u{1f}1")));
-    let read: super::ChainRecord = for_this_start_with(|| { return Some(inherited) }).expect("the inherited record is used");
-    assert_eq!(read.marker(), Some("7\u{1f}linux:1\u{1f}query\u{1f}1"), "what the start above wrote");
+    assert!(write_part(
+        inherited,
+        0,
+        MARKER_ROOM,
+        std::ffi::OsStr::new("7\u{1f}linux:1\u{1f}query\u{1f}1")
+    ));
+    let read: super::ChainRecord =
+        for_this_start_with(|| return Some(inherited)).expect("the inherited record is used");
+    assert_eq!(
+        read.marker(),
+        Some("7\u{1f}linux:1\u{1f}query\u{1f}1"),
+        "what the start above wrote"
+    );
 }
 
 /// What:
@@ -101,10 +153,26 @@ fn the_lookup_finds_the_record_by_the_name_it_carries() {
     let table: PathBuf = root.join("fd");
     std::fs::create_dir_all(&table).expect("table");
     std::os::unix::fs::symlink("/dev/null", table.join("3")).expect("a descriptor of the person's");
-    assert_eq!(inherited_descriptor_in(table.as_path()), None, "no record in this table");
-    std::os::unix::fs::symlink(format!("/memfd:{RECORD_NAME} (deleted)").as_str(), table.join("7")).expect("the record");
-    assert_eq!(inherited_descriptor_in(table.as_path()), Some(7), "the record, at the number the process gave it");
-    assert_eq!(inherited_descriptor_in(root.join("absent").as_path()), None, "a table that cannot be read");
+    assert_eq!(
+        inherited_descriptor_in(table.as_path()),
+        None,
+        "no record in this table"
+    );
+    std::os::unix::fs::symlink(
+        format!("/memfd:{RECORD_NAME} (deleted)").as_str(),
+        table.join("7"),
+    )
+    .expect("the record");
+    assert_eq!(
+        inherited_descriptor_in(table.as_path()),
+        Some(7),
+        "the record, at the number the process gave it"
+    );
+    assert_eq!(
+        inherited_descriptor_in(root.join("absent").as_path()),
+        None,
+        "a table that cannot be read"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -121,8 +189,14 @@ fn the_lookup_finds_the_record_by_the_name_it_carries() {
 /// ```
 #[test]
 fn the_record_name_is_the_one_a_descriptor_table_shows() {
-    assert_eq!(format!("/memfd:{RECORD_NAME} (deleted)"), "/memfd:monochromatic-git-policy-cli-chain-start (deleted)");
-    assert_eq!(inherited_descriptor_in(Path::new("/nonexistent-descriptor-table")), None);
+    assert_eq!(
+        format!("/memfd:{RECORD_NAME} (deleted)"),
+        "/memfd:monochromatic-git-policy-cli-chain-start (deleted)"
+    );
+    assert_eq!(
+        inherited_descriptor_in(Path::new("/nonexistent-descriptor-table")),
+        None
+    );
 }
 
 /// The variable that marks the child of the descriptors control.
@@ -162,7 +236,8 @@ fn a_record_never_takes_the_descriptor_a_child_reads_as_standard_input() {
     if std::env::var_os(DESCRIPTOR_CHILD_VARIABLE).is_some() {
         // SAFETY: `close` takes a descriptor and touches no memory of this process.
         let _closed = unsafe { libc::close(FIRST_STANDARD_DESCRIPTOR) };
-        let record: super::ChainRecord = for_this_start_with(|| { return None }).expect("a record is made");
+        let record: super::ChainRecord =
+            for_this_start_with(|| return None).expect("a record is made");
         let descriptor: i32 = record.descriptor();
         assert!(
             descriptor >= FIRST_RECORD_DESCRIPTOR,
@@ -172,7 +247,8 @@ fn a_record_never_takes_the_descriptor_a_child_reads_as_standard_input() {
         return;
     }
     // The child's pass is this control's assertion: a record that took the descriptor a child reads makes the child fail.
-    let environment: [(&str, &std::ffi::OsStr); 1] = [(DESCRIPTOR_CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
+    let environment: [(&str, &std::ffi::OsStr); 1] =
+        [(DESCRIPTOR_CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
     crate::child_test_process::passed(crate::child_test_process::ChildTest {
         exact_test: "invocation::chain_starts_record::tests::a_record_never_takes_the_descriptor_a_child_reads_as_standard_input",
         environment: environment.as_slice(),

@@ -51,7 +51,12 @@ pub(crate) const WRITER_SETTLE_CEILING: Duration = Duration::from_millis(500);
 /// # Errors
 ///
 /// A thread that cannot be started.
-pub(crate) fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>, window: Duration, hold: Option<Box<dyn Fn() + Send + 'static>>) -> Result<InputWriter, String> {
+pub(crate) fn feed_standard_input(
+    pipe: Option<ChildStdin>,
+    bytes: Vec<u8>,
+    window: Duration,
+    hold: Option<Box<dyn Fn() + Send + 'static>>,
+) -> Result<InputWriter, String> {
     let progress: InputProgress = InputProgress::default();
     let reported: InputProgress = progress.clone();
     reported.started(bytes.len());
@@ -68,8 +73,15 @@ pub(crate) fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>, wind
         }),
     };
     return match written {
-        Ok(handle) => Ok(InputWriter { handle, progress, completion }),
-        Err(error) => Err(crate::scoped_start::refused_thread_sentence("give the command its input", &error)),
+        Ok(handle) => Ok(InputWriter {
+            handle,
+            progress,
+            completion,
+        }),
+        Err(error) => Err(crate::scoped_start::refused_thread_sentence(
+            "give the command its input",
+            &error,
+        )),
     };
 }
 /// What:
@@ -89,7 +101,13 @@ pub(crate) struct InputWriter {
     /// and closes the command's end when it ends.
     /// A query waits for its child and lets this thread end by itself;
     /// a control joins it to see that it did.
-    #[cfg_attr(not(test), expect(dead_code, reason = "only a control joins the writer; a query waits for its child"))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "only a control joins the writer; a query waits for its child"
+        )
+    )]
     handle: std::thread::JoinHandle<()>,
     /// What the thread has written of the request,
     /// and why it stopped short when it did.
@@ -126,21 +144,30 @@ struct Progress {
 impl InputProgress {
     /// The request this writer was given,
     /// so a reader can count from the start.
-    fn started(&self, total: usize) {
+    fn started(
+        &self,
+        total: usize,
+    ) {
         if let Ok(mut slot) = self.0.lock() {
             slot.total = total;
         }
     }
 
     /// Records the bytes handed to the kernel so far.
-    fn advanced(&self, written: usize) {
+    fn advanced(
+        &self,
+        written: usize,
+    ) {
         if let Ok(mut slot) = self.0.lock() {
             slot.written = written;
         }
     }
 
     /// Records why the request could not be written whole.
-    fn record(&self, reason: String) {
+    fn record(
+        &self,
+        reason: String,
+    ) {
         if let Ok(mut slot) = self.0.lock() {
             slot.failure = Some(reason);
         }
@@ -159,7 +186,9 @@ impl InputProgress {
     /// ```
     fn cut_short(&self) -> Option<String> {
         let Ok(slot) = self.0.lock() else {
-            return Some(String::from("how much of its request was written could not be read"));
+            return Some(String::from(
+                "how much of its request was written could not be read",
+            ));
         };
         if let Some(reason) = slot.failure.as_ref() {
             return Some(reason.clone());
@@ -197,8 +226,13 @@ impl InputWriter {
     /// ```ts
     /// await Promise.race([writer.finished, delay(ceiling)]).then(() => writer.finishedRan)
     /// ```
-    pub(crate) async fn settled(&mut self, ceiling: Duration) -> bool {
-        return tokio::time::timeout(ceiling, &mut self.completion).await.is_ok();
+    pub(crate) async fn settled(
+        &mut self,
+        ceiling: Duration,
+    ) -> bool {
+        return tokio::time::timeout(ceiling, &mut self.completion)
+            .await
+            .is_ok();
     }
 
     /// Why the request could not be written whole,
@@ -207,7 +241,6 @@ impl InputWriter {
         return self.progress.cut_short();
     }
 }
-
 
 /// What:
 ///  Writes `bytes` into `open` while the command keeps taking them,
@@ -231,15 +264,27 @@ impl InputWriter {
 /// ```ts
 /// setNonBlocking(fd); while (written < bytes.length) { const n = tryWrite(fd, bytes.subarray(written)); if (n > 0) { written += n; last = Date.now() } else if (Date.now() - last > windowMs) return; else await sleep(POLL) }
 /// ```
-fn write_within_the_window(mut open: ChildStdin, bytes: &[u8], window: Duration, progress: InputProgress, hold: Option<Box<dyn Fn() + Send + 'static>>) {
+fn write_within_the_window(
+    mut open: ChildStdin,
+    bytes: &[u8],
+    window: Duration,
+    progress: InputProgress,
+    hold: Option<Box<dyn Fn() + Send + 'static>>,
+) {
     // The writing end is the only place that waits: making it non-blocking turns a full pipe into a report of it, and the
     //  command's own end is a different description of the same pipe.
     let descriptor: std::os::fd::RawFd = open.as_fd().as_raw_fd();
     // SAFETY: `fcntl` reads and writes an integer of the descriptor's own flags and touches no memory of this process.
     let flags: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
-    if flags < 0 || unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
-        crate::diagnostic_log::debug("monochromatic-git-policy-cli", "the input of a second-pass command could not be written without blocking");
-        progress.record(String::from("its input could not be written without blocking"));
+    if flags < 0 || unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0
+    {
+        crate::diagnostic_log::debug(
+            "monochromatic-git-policy-cli",
+            "the input of a second-pass command could not be written without blocking",
+        );
+        progress.record(String::from(
+            "its input could not be written without blocking",
+        ));
         let _closed = open.flush();
         return;
     }
@@ -266,7 +311,10 @@ fn write_within_the_window(mut open: ChildStdin, bytes: &[u8], window: Duration,
                         bytes.len().saturating_sub(written),
                         bytes.len()
                     );
-                    crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("a second-pass command {reason}").as_str());
+                    crate::diagnostic_log::debug(
+                        "monochromatic-git-policy-cli",
+                        format!("a second-pass command {reason}").as_str(),
+                    );
                     progress.record(reason);
                     break;
                 }
@@ -281,13 +329,19 @@ fn write_within_the_window(mut open: ChildStdin, bytes: &[u8], window: Duration,
                     bytes.len(),
                     bytes.len().saturating_sub(written)
                 );
-                crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("a second-pass command {reason}").as_str());
+                crate::diagnostic_log::debug(
+                    "monochromatic-git-policy-cli",
+                    format!("a second-pass command {reason}").as_str(),
+                );
                 progress.record(reason);
                 break;
             }
             Err(error) => {
                 let reason: String = format!("its input could not be written: {error}");
-                crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("a second-pass command {reason}").as_str());
+                crate::diagnostic_log::debug(
+                    "monochromatic-git-policy-cli",
+                    format!("a second-pass command {reason}").as_str(),
+                );
                 progress.record(reason);
                 break;
             }

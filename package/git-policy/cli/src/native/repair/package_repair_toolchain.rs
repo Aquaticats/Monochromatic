@@ -61,38 +61,48 @@
 //!   the install,
 //!   its report and the two faces that wait for it.
 
-/// The words and bounds this module reads and prints with.
-#[path = "package_repair_toolchain_names_and_bounds.rs"]
-mod names_and_bounds;
-/// The objects a launcher record names.
-#[path = "package_repair_toolchain_object_identity.rs"]
-mod object_identity;
-/// The one reading of a worktree's launcher directory both faces decide from.
-#[path = "package_repair_toolchain_launcher_records.rs"]
-mod launcher_records;
 /// The removal of the records and launchers no install rewrites.
 #[path = "package_repair_toolchain_copy_removal.rs"]
 mod copy_removal;
 /// The install and the two faces that wait for it.
 #[path = "package_repair_toolchain_install.rs"]
 mod install;
+/// The one reading of a worktree's launcher directory both faces decide from.
+#[path = "package_repair_toolchain_launcher_records.rs"]
+mod launcher_records;
+/// The words and bounds this module reads and prints with.
+#[path = "package_repair_toolchain_names_and_bounds.rs"]
+mod names_and_bounds;
+/// The objects a launcher record names.
+#[path = "package_repair_toolchain_object_identity.rs"]
+mod object_identity;
 
+/// What the add needs of the toolchain repair.
+pub(crate) use self::install::{
+    ToolchainNeed,
+    need_within_the_budget,
+};
+/// The toolchain repair,
+/// for a caller on its own thread and for one on the runtime.
+pub use self::install::{
+    repair_toolchain,
+    repair_toolchain_awaiting,
+};
+/// The launcher records of a worktree that name another checkout's lock file.
+pub use self::launcher_records::stale_launch_records;
 /// The command a person runs to finish the repair,
 /// which is the repository's own task.
 pub use self::names_and_bounds::MANUAL_COMMAND;
-/// The launcher records of a worktree that name another checkout's lock file.
-pub use self::launcher_records::stale_launch_records;
-/// The toolchain repair,
-/// for a caller on its own thread and for one on the runtime.
-pub use self::install::{repair_toolchain, repair_toolchain_awaiting};
-/// What the add needs of the toolchain repair.
-pub(crate) use self::install::{ToolchainNeed, need_within_the_budget};
 
 // The slots this module's controls reach through `super::`,
 // re-exported so a control sees the whole module;
 // a control build is the only build that has them.
 #[cfg(test)]
-pub(crate) use self::names_and_bounds::{KILLED_AFTER_THE_RECORD_IS_ASIDE, WHEN_THE_RECORD_IS_OPENED, WHEN_THE_REMOVAL_BEGINS};
+pub(crate) use self::names_and_bounds::{
+    KILLED_AFTER_THE_RECORD_IS_ASIDE,
+    WHEN_THE_RECORD_IS_OPENED,
+    WHEN_THE_REMOVAL_BEGINS,
+};
 
 /// Toolchain repair controls stay out of the release executable.
 #[cfg(test)]

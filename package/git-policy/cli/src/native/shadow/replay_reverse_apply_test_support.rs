@@ -14,11 +14,26 @@
 //! ```
 
 use crate::replay_patch::split_keeping_newlines;
-use crate::test_support::{REAL_GIT, git, git_output, isolated_overlay};
+use crate::test_support::{
+    REAL_GIT,
+    git,
+    git_output,
+    isolated_overlay,
+};
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+    Stdio,
+};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// How many `git apply` checks run at the same time.
 const WORKERS: usize = 4;
@@ -41,7 +56,11 @@ pub(super) struct ReverseCase {
 
 /// Run real Git in a fixture with `input` on its standard input,
 /// and require success.
-fn git_with_input(directory: &Path, arguments: &[&str], input: &[u8]) -> Output {
+fn git_with_input(
+    directory: &Path,
+    arguments: &[&str],
+    input: &[u8],
+) -> Output {
     let mut command: Command = Command::new(REAL_GIT);
     command
         .current_dir(directory)
@@ -53,15 +72,22 @@ fn git_with_input(directory: &Path, arguments: &[&str], input: &[u8]) -> Output 
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     // Owned, so a case that fails while the input is written leaves no Git waiting for it.
-    let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("native Git fixture command");
+    let mut child: std::process::Child =
+        crate::test_support::spawn_owned(&mut command).expect("native Git fixture command");
     let mut stdin: std::process::ChildStdin = child.stdin.take().expect("piped standard input");
     // A writer thread keeps a large input from blocking on a full pipe while Git writes its output.
     let (output, written): (Output, std::io::Result<()>) = std::thread::scope(|scope| {
-        let writer = scope.spawn(move || { return stdin.write_all(input); });
+        let writer = scope.spawn(move || {
+            return stdin.write_all(input);
+        });
         let output: Output = child.wait_with_output().expect("Git output");
         return (output, writer.join().expect("input writer"));
     });
-    assert!(output.status.success(), "git {arguments:?} failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "git {arguments:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     written.expect("input written to Git");
     return output;
 }
@@ -71,15 +97,23 @@ fn git_with_input(directory: &Path, arguments: &[&str], input: &[u8]) -> Output 
 fn import_stream(pairs: &[(&[u8], &[u8])]) -> Vec<u8> {
     let mut stream: Vec<u8> = Vec::new();
     for (index, (base, landed)) in pairs.iter().enumerate() {
-        for (step, (message, text)) in [("base", *base), ("landed", *landed)].into_iter().enumerate() {
+        for (step, (message, text)) in [("base", *base), ("landed", *landed)]
+            .into_iter()
+            .enumerate()
+        {
             let mark: usize = 2 * index + 1 + step;
-            stream.extend_from_slice(format!("commit refs/heads/case-{index}\nmark :{mark}\n").as_bytes());
-            stream.extend_from_slice(format!("committer Fixture <fixture@example.invalid> {mark} +0000\n").as_bytes());
+            stream.extend_from_slice(
+                format!("commit refs/heads/case-{index}\nmark :{mark}\n").as_bytes(),
+            );
+            stream.extend_from_slice(
+                format!("committer Fixture <fixture@example.invalid> {mark} +0000\n").as_bytes(),
+            );
             stream.extend_from_slice(format!("data {}\n{message}\n", message.len()).as_bytes());
             if step == 1 {
                 stream.extend_from_slice(format!("from :{}\n", mark - 1).as_bytes());
             }
-            stream.extend_from_slice(format!("M 100644 inline 0\ndata {}\n", text.len()).as_bytes());
+            stream
+                .extend_from_slice(format!("M 100644 inline 0\ndata {}\n", text.len()).as_bytes());
             stream.extend_from_slice(text);
             stream.push(b'\n');
         }
@@ -90,7 +124,10 @@ fn import_stream(pairs: &[(&[u8], &[u8])]) -> Vec<u8> {
 /// The commit ids of the landed commits,
 /// in pair order,
 /// from the marks file `git fast-import` exported.
-fn landed_commits(marks: &str, count: usize) -> Vec<String> {
+fn landed_commits(
+    marks: &str,
+    count: usize,
+) -> Vec<String> {
     let all: std::collections::HashMap<usize, &str> = marks
         .lines()
         .filter_map(|line| {
@@ -98,7 +135,11 @@ fn landed_commits(marks: &str, count: usize) -> Vec<String> {
             return Some((mark.parse::<usize>().ok()?, id));
         })
         .collect();
-    return (0..count).map(|index| { return String::from(all[&(2 * index + 2)]); }).collect();
+    return (0..count)
+        .map(|index| {
+            return String::from(all[&(2 * index + 2)]);
+        })
+        .collect();
 }
 
 /// The raw patch `git diff-tree -p --text` prints for each pair between the trees of its base and landed commits,
@@ -106,10 +147,17 @@ fn landed_commits(marks: &str, count: usize) -> Vec<String> {
 /// One repository named `batch` is made in `directory`;
 /// the pairs are committed by one `git fast-import`
 ///  and diffed by one `git diff-tree --stdin`.
-pub(super) fn patches_between_all(directory: &Path, pairs: &[(&[u8], &[u8])], context: u32) -> Vec<Vec<u8>> {
+pub(super) fn patches_between_all(
+    directory: &Path,
+    pairs: &[(&[u8], &[u8])],
+    context: u32,
+) -> Vec<Vec<u8>> {
     let repo: PathBuf = directory.join("batch");
     std::fs::create_dir(&repo).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     git_with_input(
         repo.as_path(),
         &["fast-import", "--quiet", "--export-marks=marks.txt"],
@@ -118,7 +166,13 @@ pub(super) fn patches_between_all(directory: &Path, pairs: &[(&[u8], &[u8])], co
     let marks: String = std::fs::read_to_string(repo.join("marks.txt")).expect("exported marks");
     let landed: Vec<String> = landed_commits(marks.as_str(), pairs.len());
     let unified: String = format!("--unified={context}");
-    let listing: Vec<u8> = landed.iter().map(|id| { return format!("{id}\n"); }).collect::<String>().into_bytes();
+    let listing: Vec<u8> = landed
+        .iter()
+        .map(|id| {
+            return format!("{id}\n");
+        })
+        .collect::<String>()
+        .into_bytes();
     let output: Output = git_with_input(
         repo.as_path(),
         &[
@@ -139,10 +193,15 @@ pub(super) fn patches_between_all(directory: &Path, pairs: &[(&[u8], &[u8])], co
     // because every patch line starts with a marker or a keyword.
     let mut patches: Vec<Vec<u8>> = Vec::new();
     for line in split_keeping_newlines(&output.stdout) {
-        if landed.get(patches.len()).is_some_and(|id| { return line == format!("{id}\n").as_bytes(); }) {
+        if landed.get(patches.len()).is_some_and(|id| {
+            return line == format!("{id}\n").as_bytes();
+        }) {
             patches.push(Vec::new());
         } else {
-            patches.last_mut().expect("a commit id line starts the output").extend_from_slice(&line);
+            patches
+                .last_mut()
+                .expect("a commit id line starts the output")
+                .extend_from_slice(&line);
         }
     }
     assert_eq!(patches.len(), pairs.len(), "one patch per pair");
@@ -152,14 +211,23 @@ pub(super) fn patches_between_all(directory: &Path, pairs: &[(&[u8], &[u8])], co
 /// Whether `git apply --reverse --check` accepts the patch of one case against its prepared text,
 ///  in a directory of its own under `root`.
 /// A failure to prepare the directory panics with the case number.
-fn git_accepts(root: &Path, case: &ReverseCase, patch: &[u8]) -> bool {
+fn git_accepts(
+    root: &Path,
+    case: &ReverseCase,
+    patch: &[u8],
+) -> bool {
     let number: usize = case.number;
     let case_directory: PathBuf = root.join(format!("case-{number}"));
-    std::fs::create_dir(&case_directory).unwrap_or_else(|error| { panic!("case {number}: case directory: {error}"); });
-    std::fs::write(case_directory.join("0"), &case.prepared)
-        .unwrap_or_else(|error| { panic!("case {number}: prepared entry: {error}"); });
+    std::fs::create_dir(&case_directory).unwrap_or_else(|error| {
+        panic!("case {number}: case directory: {error}");
+    });
+    std::fs::write(case_directory.join("0"), &case.prepared).unwrap_or_else(|error| {
+        panic!("case {number}: prepared entry: {error}");
+    });
     let patch_path: PathBuf = case_directory.join("landed.patch");
-    std::fs::write(&patch_path, patch).unwrap_or_else(|error| { panic!("case {number}: patch file: {error}"); });
+    std::fs::write(&patch_path, patch).unwrap_or_else(|error| {
+        panic!("case {number}: patch file: {error}");
+    });
     let patch_argument: String = patch_path.to_string_lossy().into_owned();
     return git_output(
         case_directory.as_path(),
@@ -176,7 +244,11 @@ fn git_accepts(root: &Path, case: &ReverseCase, patch: &[u8]) -> bool {
 /// A panic in a worker,
 /// which names its case,
 /// ends the run with the same message.
-pub(super) fn git_verdicts(root: &Path, cases: &[ReverseCase], patches: &[Vec<u8>]) -> Vec<bool> {
+pub(super) fn git_verdicts(
+    root: &Path,
+    cases: &[ReverseCase],
+    patches: &[Vec<u8>],
+) -> Vec<bool> {
     let next: AtomicUsize = AtomicUsize::new(0);
     // `mut` lets each finished worker fill in the verdicts it reached.
     let mut verdicts: Vec<Option<bool>> = vec![None; cases.len()];
@@ -206,5 +278,10 @@ pub(super) fn git_verdicts(root: &Path, cases: &[ReverseCase], patches: &[Vec<u8
             }
         }
     });
-    return verdicts.into_iter().map(|verdict| { return verdict.expect("every case reached"); }).collect();
+    return verdicts
+        .into_iter()
+        .map(|verdict| {
+            return verdict.expect("every case reached");
+        })
+        .collect();
 }

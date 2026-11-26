@@ -20,18 +20,44 @@
 //! expect(proveTheLineage(pool, fixture.recorded, fixture.originInventory)).toThrow();
 //! ```
 
-use crate::worktree_clone_binding_record::binding_encoding::{FolderIdentity, bytes_as_hexadecimal, path_as_hexadecimal};
-use crate::worktree_clone_binding_record::binding_inventory::{EntryKind, InventoryEntry, InventoryKind, InventoryRecord};
+use crate::testing::test_support::fixture;
+use crate::worktree_clone_binding_record::binding_encoding::{
+    FolderIdentity,
+    bytes_as_hexadecimal,
+    path_as_hexadecimal,
+};
+use crate::worktree_clone_binding_record::binding_inventory::{
+    EntryKind,
+    InventoryEntry,
+    InventoryKind,
+    InventoryRecord,
+};
 use crate::worktree_clone_binding_record::binding_words::BINDING_HEADER;
-use crate::worktree_clone_binding_record::registration_home::{binding_name, home_folder, origin_inventory_name};
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    home_folder,
+    origin_inventory_name,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_removal_proof_and_plan::removal_identities::{RecordedBinding, read_the_recorded_binding};
+use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
+    RecordedBinding,
+    read_the_recorded_binding,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
-use crate::testing::test_support::fixture;
-use crate::worktree_removal_deferred_origin_check::fixtures::{origin_properties, stats};
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DmuObjsetStats, NvList};
-use std::path::{Path, PathBuf};
+use crate::worktree_removal_deferred_origin_check::fixtures::{
+    origin_properties,
+    stats,
+};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    DmuObjsetStats,
+    NvList,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The slot every control removes.
 pub const SLOT: &str = "fix-flaky-test";
@@ -75,13 +101,31 @@ pub fn guid(value: u64) -> DatasetGuid {
 }
 
 /// The statistics one identity reply carries.
-pub fn the_stats(guid_value: u64, is_snapshot: bool, creation_txg: u64, clones: u64, origin: &str) -> DmuObjsetStats {
+pub fn the_stats(
+    guid_value: u64,
+    is_snapshot: bool,
+    creation_txg: u64,
+    clones: u64,
+    origin: &str,
+) -> DmuObjsetStats {
     return stats(guid_value, is_snapshot, creation_txg, clones, origin);
 }
 
 /// One live object of the clone's inventory.
-pub fn an_object(kind: EntryKind, name: &str, guid_value: u64, createtxg: u64) -> LiveObject {
-    return LiveObject { kind, name: String::from(name), guid: guid(guid_value), createtxg, owning_dataset: String::from(CLONE), owning_dataset_guid: guid(CLONE_GUID) };
+pub fn an_object(
+    kind: EntryKind,
+    name: &str,
+    guid_value: u64,
+    createtxg: u64,
+) -> LiveObject {
+    return LiveObject {
+        kind,
+        name: String::from(name),
+        guid: guid(guid_value),
+        createtxg,
+        owning_dataset: String::from(CLONE),
+        owning_dataset_guid: guid(CLONE_GUID),
+    };
 }
 
 /// What:
@@ -125,14 +169,31 @@ impl ScriptedPool {
         let identities: Vec<(String, DatasetIdentity)> = self
             .identities
             .iter()
-            .map(|(name, identity)| return (name.clone(), DatasetIdentity { stats: identity.stats, properties: identity.properties.clone() }))
+            .map(|(name, identity)| {
+                return (
+                    name.clone(),
+                    DatasetIdentity {
+                        stats: identity.stats,
+                        properties: identity.properties.clone(),
+                    },
+                );
+            })
             .collect();
-        return ScriptedPool { identities, snapshots: self.snapshots.clone(), bookmarks: self.bookmarks.clone(), listing_refusal: self.listing_refusal.clone() };
+        return ScriptedPool {
+            identities,
+            snapshots: self.snapshots.clone(),
+            bookmarks: self.bookmarks.clone(),
+            listing_refusal: self.listing_refusal.clone(),
+        };
     }
 
     /// Replace one name's identity reply.
     #[allow(dead_code)]
-    pub fn with(mut self, name: &str, identity: DatasetIdentity) -> ScriptedPool {
+    pub fn with(
+        mut self,
+        name: &str,
+        identity: DatasetIdentity,
+    ) -> ScriptedPool {
         for pair in &mut self.identities {
             if pair.0 == name {
                 pair.1 = identity;
@@ -144,7 +205,10 @@ impl ScriptedPool {
     }
 
     /// One name's identity as this pool would answer it.
-    fn identity_at(&self, name: &str) -> Option<&DatasetIdentity> {
+    fn identity_at(
+        &self,
+        name: &str,
+    ) -> Option<&DatasetIdentity> {
         for (scripted, identity) in &self.identities {
             if scripted == name {
                 return Some(identity);
@@ -155,21 +219,35 @@ impl ScriptedPool {
 }
 
 impl RemovalPoolReads for ScriptedPool {
-    fn identity(&self, name: &str) -> Result<DatasetIdentity, String> {
+    fn identity(
+        &self,
+        name: &str,
+    ) -> Result<DatasetIdentity, String> {
         let Some(found) = self.identity_at(name) else {
             return Err(format!("`{name}` does not answer this scripted pool"));
         };
-        return Ok(DatasetIdentity { stats: found.stats, properties: found.properties.clone() });
+        return Ok(DatasetIdentity {
+            stats: found.stats,
+            properties: found.properties.clone(),
+        });
     }
 
-    fn snapshots_of(&self, _dataset: &str, _dataset_guid: DatasetGuid) -> Result<Vec<LiveObject>, String> {
+    fn snapshots_of(
+        &self,
+        _dataset: &str,
+        _dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String> {
         if let Some(reason) = &self.listing_refusal {
             return Err(reason.clone());
         }
         return Ok(self.snapshots.clone());
     }
 
-    fn bookmarks_of(&self, _dataset: &str, _dataset_guid: DatasetGuid) -> Result<Vec<LiveObject>, String> {
+    fn bookmarks_of(
+        &self,
+        _dataset: &str,
+        _dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String> {
         if let Some(reason) = &self.listing_refusal {
             return Err(reason.clone());
         }
@@ -229,8 +307,10 @@ impl RemovalFixture {
         std::fs::create_dir_all(slot_path.as_path()).expect("the slot folder");
         let registration: PathBuf = common_dir.join("worktrees").join("fix-flaky-test");
         std::fs::create_dir_all(registration.as_path()).expect("the registration");
-        let repository_identity: FolderIdentity = FolderIdentity::of_folder(common_dir.as_path()).expect("the common directory's identity");
-        let registration_identity: FolderIdentity = FolderIdentity::of_folder(registration.as_path()).expect("the registration's identity");
+        let repository_identity: FolderIdentity = FolderIdentity::of_folder(common_dir.as_path())
+            .expect("the common directory's identity");
+        let registration_identity: FolderIdentity =
+            FolderIdentity::of_folder(registration.as_path()).expect("the registration's identity");
         let lines: Vec<String> = vec![
             String::from(BINDING_HEADER),
             String::from("claim=1"),
@@ -243,7 +323,10 @@ impl RemovalFixture {
             format!("repositoryIdentity={}", repository_identity.encode()),
             format!("slot={}", path_as_hexadecimal(slot_path.as_path())),
             format!("slotIdentity={}", registration_identity.encode()),
-            format!("registration={}", path_as_hexadecimal(registration.as_path())),
+            format!(
+                "registration={}",
+                path_as_hexadecimal(registration.as_path())
+            ),
             format!("registrationIdentity={}", registration_identity.encode()),
             format!("pool={POOL}"),
             format!("poolGuid={POOL_GUID}"),
@@ -257,7 +340,13 @@ impl RemovalFixture {
             format!("cloneCreatetxg={CLONE_CREATETXG}"),
             format!("pointer={}", bytes_as_hexadecimal(b"gitdir: /nowhere\n")),
         ];
-        let fixture: RemovalFixture = RemovalFixture { common_dir, slot_path, registration, binding_lines: lines, origin_snapshot: String::from(ORIGIN_SNAPSHOT) };
+        let fixture: RemovalFixture = RemovalFixture {
+            common_dir,
+            slot_path,
+            registration,
+            binding_lines: lines,
+            origin_snapshot: String::from(ORIGIN_SNAPSHOT),
+        };
         fixture.write_the_binding();
         fixture.write_the_origin_inventory();
         return fixture;
@@ -275,7 +364,10 @@ impl RemovalFixture {
     /// ```ts
     /// const fixture = RemovalFixture.healthy('x').withOriginSnapshot(fullName);
     /// ```
-    pub fn with_origin_snapshot(mut self, full: &str) -> RemovalFixture {
+    pub fn with_origin_snapshot(
+        mut self,
+        full: &str,
+    ) -> RemovalFixture {
         let prefix: String = String::from("originSnapshot=");
         for line in &mut self.binding_lines {
             if line.starts_with(prefix.as_str()) {
@@ -302,11 +394,19 @@ impl RemovalFixture {
     }
 
     /// Drop one binding line.
-    pub fn drop_binding_line(&mut self, key: &str) {
+    pub fn drop_binding_line(
+        &mut self,
+        key: &str,
+    ) {
         let prefix: String = format!("{key}=");
         let before: usize = self.binding_lines.len();
-        self.binding_lines.retain(|line| return !line.starts_with(prefix.as_str()));
-        assert_eq!(self.binding_lines.len(), before - 1, "the binding holds one `{key}` line");
+        self.binding_lines
+            .retain(|line| return !line.starts_with(prefix.as_str()));
+        assert_eq!(
+            self.binding_lines.len(),
+            before - 1,
+            "the binding holds one `{key}` line"
+        );
     }
 
     /// The origin-side inventory the add wrote.
@@ -319,7 +419,12 @@ impl RemovalFixture {
             bounds: self.origin_snapshot.clone(),
             bounds_guid: guid(ORIGIN_SNAPSHOT_GUID),
             bounds_createtxg: ORIGIN_CREATETXG,
-            entries: vec![InventoryEntry { kind: EntryKind::Snapshot, guid: guid(ORIGIN_SNAPSHOT_GUID), createtxg: ORIGIN_CREATETXG, name: String::from("origin") }],
+            entries: vec![InventoryEntry {
+                kind: EntryKind::Snapshot,
+                guid: guid(ORIGIN_SNAPSHOT_GUID),
+                createtxg: ORIGIN_CREATETXG,
+                name: String::from("origin"),
+            }],
         };
     }
 
@@ -333,7 +438,8 @@ impl RemovalFixture {
 
     /// The identities the removal reads from the written binding.
     pub fn recorded(&self) -> RecordedBinding {
-        return read_the_recorded_binding(self.common_dir.as_path(), SLOT).expect("the fixture's binding reads");
+        return read_the_recorded_binding(self.common_dir.as_path(), SLOT)
+            .expect("the fixture's binding reads");
     }
 
     /// What:
@@ -351,23 +457,46 @@ impl RemovalFixture {
     /// ```
     pub fn healthy_pool(&self) -> ScriptedPool {
         let identities: Vec<(String, DatasetIdentity)> = vec![
-            (String::from(POOL), DatasetIdentity { stats: the_stats(POOL_GUID, false, 1, 0, ""), properties: NvList::new() }),
+            (
+                String::from(POOL),
+                DatasetIdentity {
+                    stats: the_stats(POOL_GUID, false, 1, 0, ""),
+                    properties: NvList::new(),
+                },
+            ),
             (
                 String::from(CLONE),
-                DatasetIdentity { stats: the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, ORIGIN_SNAPSHOT), properties: NvList::new() },
+                DatasetIdentity {
+                    stats: the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, ORIGIN_SNAPSHOT),
+                    properties: NvList::new(),
+                },
             ),
             (
                 String::from(ORIGIN_DATASET),
-                DatasetIdentity { stats: the_stats(ORIGIN_DATASET_GUID, false, 2, 1, ""), properties: NvList::new() },
+                DatasetIdentity {
+                    stats: the_stats(ORIGIN_DATASET_GUID, false, 2, 1, ""),
+                    properties: NvList::new(),
+                },
             ),
             (
                 String::from(ORIGIN_SNAPSHOT),
-                DatasetIdentity { stats: the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, 1, ""), properties: origin_properties(Some(0), Some(0)) },
+                DatasetIdentity {
+                    stats: the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG, 1, ""),
+                    properties: origin_properties(Some(0), Some(0)),
+                },
             ),
         ];
         return ScriptedPool {
             identities,
-            snapshots: vec![an_object(EntryKind::Snapshot, OWN_SNAPSHOT, OWN_GUID, OWN_CREATETXG), an_object(EntryKind::Snapshot, SANOID_SNAPSHOT, SANOID_GUID, SANOID_CREATETXG)],
+            snapshots: vec![
+                an_object(EntryKind::Snapshot, OWN_SNAPSHOT, OWN_GUID, OWN_CREATETXG),
+                an_object(
+                    EntryKind::Snapshot,
+                    SANOID_SNAPSHOT,
+                    SANOID_GUID,
+                    SANOID_CREATETXG,
+                ),
+            ],
             bookmarks: Vec::new(),
             listing_refusal: None,
         };
@@ -376,7 +505,9 @@ impl RemovalFixture {
     /// The folder the removal writes its plan into,
     /// which the entry makes.
     pub fn plan_folder(&self) -> PathBuf {
-        return crate::worktree_clone_binding_record::registration_home::plans_folder(self.common_dir.as_path());
+        return crate::worktree_clone_binding_record::registration_home::plans_folder(
+            self.common_dir.as_path(),
+        );
     }
 
     /// Whether the plan folder holds anything.

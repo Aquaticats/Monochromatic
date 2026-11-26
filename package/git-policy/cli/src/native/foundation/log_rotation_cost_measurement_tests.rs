@@ -34,14 +34,40 @@
 //! which is what put it on a thread of its own.
 #![cfg(unix)]
 
-use crate::command_test_support::{fixture, os_arguments, remove};
-use crate::discard_audit::{AUDIT_RETENTION, AuditOutcome};
-use crate::discard_audit_record::{AuditRecord, DecidedForm, audit_line};
-use crate::log_generations_kept_to_a_bound::{LOG_HISTORY_BYTES, LogRetention, UNPINNED_LOG, a_pass_is_running, trim_generations};
-use crate::log_lines_appended_without_a_lock::{ROTATE_AT_BYTES, append_line};
+use crate::command_test_support::{
+    fixture,
+    os_arguments,
+    remove,
+};
+use crate::discard_audit::{
+    AUDIT_RETENTION,
+    AuditOutcome,
+};
+use crate::discard_audit_record::{
+    AuditRecord,
+    DecidedForm,
+    audit_line,
+};
+use crate::log_generations_kept_to_a_bound::{
+    LOG_HISTORY_BYTES,
+    LogRetention,
+    UNPINNED_LOG,
+    a_pass_is_running,
+    trim_generations,
+};
+use crate::log_lines_appended_without_a_lock::{
+    ROTATE_AT_BYTES,
+    append_line,
+};
 use crate::rule_linked_worktree::GuardedCommand;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The line an audit record writes,
 /// near enough to the shipped length that the read of a generation costs what a real one costs.
@@ -64,10 +90,21 @@ fn kept_generations() -> u64 {
 /// the middle,
 /// the 99th percentile and the largest,
 /// in microseconds.
-fn print_spread(label: &str, mut micros: Vec<u128>) {
+fn print_spread(
+    label: &str,
+    mut micros: Vec<u128>,
+) {
     micros.sort_unstable();
-    let at = |per_thousand: usize| -> u128 { return micros[(micros.len() * per_thousand / 1000).min(micros.len() - 1)]; };
-    println!("{label}: n={} median={}us p99={}us max={}us", micros.len(), at(500), at(990), micros.last().copied().unwrap_or(0));
+    let at = |per_thousand: usize| -> u128 {
+        return micros[(micros.len() * per_thousand / 1000).min(micros.len() - 1)];
+    };
+    println!(
+        "{label}: n={} median={}us p99={}us max={}us",
+        micros.len(),
+        at(500),
+        at(990),
+        micros.last().copied().unwrap_or(0)
+    );
 }
 
 /// What one rotated append cost on the command's path,
@@ -76,7 +113,11 @@ fn print_spread(label: &str, mut micros: Vec<u128>) {
 /// the check of the size,
 /// the rotation,
 /// the scheduling of the pass and the line's own write.
-fn time_rotations(target: &Path, live: &[u8], retention: &LogRetention) -> Vec<u128> {
+fn time_rotations(
+    target: &Path,
+    live: &[u8],
+    retention: &LogRetention,
+) -> Vec<u128> {
     let mut micros: Vec<u128> = Vec::with_capacity(ROTATIONS);
     for _ in 0..ROTATIONS {
         std::fs::write(target, live).expect("a full live file");
@@ -95,18 +136,30 @@ fn time_rotations(target: &Path, live: &[u8], retention: &LogRetention) -> Vec<u
 fn wait_for_the_pass(target: &Path) {
     let deadline: Instant = Instant::now() + Duration::from_secs(600);
     while a_pass_is_running(target) {
-        assert!(Instant::now() < deadline, "the pass for {} did not end within its deadline", target.display());
+        assert!(
+            Instant::now() < deadline,
+            "the pass for {} did not end within its deadline",
+            target.display()
+        );
         std::thread::sleep(Duration::from_millis(5));
     }
 }
 
 /// What one pass cost on its own thread,
 /// timed around the call that removes the generations the bound does not keep.
-fn time_passes(target: &Path, live: &[u8], retention: &LogRetention) -> Vec<u128> {
+fn time_passes(
+    target: &Path,
+    live: &[u8],
+    retention: &LogRetention,
+) -> Vec<u128> {
     let mut micros: Vec<u128> = Vec::with_capacity(ROTATIONS);
     for _ in 0..ROTATIONS {
         std::fs::write(target, live).expect("a full live file");
-        let taken: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(target).expect("open");
+        let taken: std::fs::File = std::fs::OpenOptions::new()
+            .read(true)
+            .append(true)
+            .open(target)
+            .expect("open");
         rotate_now(target, &taken);
         let started: Instant = Instant::now();
         trim_generations(target, retention).expect("the pass");
@@ -118,8 +171,16 @@ fn time_passes(target: &Path, live: &[u8], retention: &LogRetention) -> Vec<u128
 /// The rotation alone,
 /// on this thread,
 /// as the pass would find it.
-fn rotate_now(target: &Path, opened: &std::fs::File) {
-    crate::log_lines_appended_without_a_lock::move_aside_between(target, opened, &mut |_step: crate::log_lines_appended_without_a_lock::RotationStep| {}).expect("the rotation");
+fn rotate_now(
+    target: &Path,
+    opened: &std::fs::File,
+) {
+    crate::log_lines_appended_without_a_lock::move_aside_between(
+        target,
+        opened,
+        &mut |_step: crate::log_lines_appended_without_a_lock::RotationStep| {},
+    )
+    .expect("the rotation");
 }
 
 /// A file of exactly `ROTATE_AT_BYTES` bytes,
@@ -127,9 +188,14 @@ fn rotate_now(target: &Path, opened: &std::fs::File) {
 /// which ends it if there is room,
 /// every line ended,
 /// so that the next append rotates it.
-fn full_file(line: &str, ends_with: Option<&str>) -> Vec<u8> {
+fn full_file(
+    line: &str,
+    ends_with: Option<&str>,
+) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::with_capacity(ROTATE_AT_BYTES as usize);
-    let tail: usize = ends_with.map_or(0, |ending| { return ending.len() + 1; });
+    let tail: usize = ends_with.map_or(0, |ending| {
+        return ending.len() + 1;
+    });
     while bytes.len() + line.len() + 1 + tail <= ROTATE_AT_BYTES as usize {
         bytes.extend_from_slice(line.as_bytes());
         bytes.push(b'\n');
@@ -148,7 +214,11 @@ fn full_file(line: &str, ends_with: Option<&str>) -> Vec<u8> {
 
 /// Writes `count` generations of `target`,
 /// each of `bytes`.
-fn generations(target: &Path, count: u64, bytes: &[u8]) {
+fn generations(
+    target: &Path,
+    count: u64,
+    bytes: &[u8],
+) {
     for number in 1..=count {
         let mut name: std::ffi::OsString = target.as_os_str().to_os_string();
         name.push(format!(".{number}"));
@@ -164,16 +234,29 @@ fn count_generations(target: &Path) -> usize {
     return std::fs::read_dir(directory)
         .expect("directory")
         .filter(|entry| {
-            let name: String = entry.as_ref().expect("entry").file_name().to_string_lossy().into_owned();
-            let Some(rest) = name.strip_prefix(prefix.as_str()) else { return false };
-            return !rest.is_empty() && rest.bytes().all(|byte| { return byte.is_ascii_digit(); });
+            let name: String = entry
+                .as_ref()
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned();
+            let Some(rest) = name.strip_prefix(prefix.as_str()) else {
+                return false;
+            };
+            return !rest.is_empty()
+                && rest.bytes().all(|byte| {
+                    return byte.is_ascii_digit();
+                });
         })
         .count();
 }
 
 /// A real audit line of a `saved-conflict` decision that saved the copy at `place`,
 /// so a generation holding it pins.
-fn saved_conflict_line(root: &Path, place: &Path) -> String {
+fn saved_conflict_line(
+    root: &Path,
+    place: &Path,
+) -> String {
     let held: (PathBuf, &'static str) = (root.join(".git"), "main");
     let arguments = os_arguments(&["checkout", "--theirs", "--", "a.rs"]);
     let line: String = audit_line(&AuditRecord {
@@ -221,8 +304,15 @@ fn measure_a_rotation_of_the_audit_log_over_the_bound() {
     let live: Vec<u8> = full_file(AUDIT_LIKE_LINE, None);
     generations(target.as_path(), kept_generations(), live.as_slice());
     let micros: Vec<u128> = time_rotations(target.as_path(), live.as_slice(), &AUDIT_RETENTION);
-    print_spread("rotation of the audit log over the bound, on the command's path", micros);
-    println!("generations left: {} of {}", count_generations(target.as_path()), kept_generations());
+    print_spread(
+        "rotation of the audit log over the bound, on the command's path",
+        micros,
+    );
+    println!(
+        "generations left: {} of {}",
+        count_generations(target.as_path()),
+        kept_generations()
+    );
     remove(root.as_path());
 }
 
@@ -238,8 +328,15 @@ fn measure_the_pass_of_the_audit_log_over_the_bound() {
     let live: Vec<u8> = full_file(AUDIT_LIKE_LINE, None);
     generations(target.as_path(), kept_generations(), live.as_slice());
     let micros: Vec<u128> = time_passes(target.as_path(), live.as_slice(), &AUDIT_RETENTION);
-    print_spread("pass of the audit log over the bound, on its own thread", micros);
-    println!("generations left: {} of {}", count_generations(target.as_path()), kept_generations());
+    print_spread(
+        "pass of the audit log over the bound, on its own thread",
+        micros,
+    );
+    println!(
+        "generations left: {} of {}",
+        count_generations(target.as_path()),
+        kept_generations()
+    );
     remove(root.as_path());
 }
 
@@ -260,6 +357,9 @@ fn measure_the_pass_of_the_audit_log_whose_generations_all_pin() {
     let micros: Vec<u128> = time_passes(target.as_path(), live.as_slice(), &AUDIT_RETENTION);
     let total: u64 = kept_generations() + u64::try_from(ROTATIONS).expect("small");
     print_spread("pass of the audit log whose generations all pin", micros);
-    println!("generations left: {} of {total}", count_generations(target.as_path()));
+    println!(
+        "generations left: {} of {total}",
+        count_generations(target.as_path())
+    );
     remove(root.as_path());
 }

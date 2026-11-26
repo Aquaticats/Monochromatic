@@ -19,17 +19,29 @@
 //! await writeSteps({ context, root, gitDir, steps, out }); // one update-index call, then one file at a time
 //! ```
 
-use crate::merge_isolation_carry_place::{JudgedFile, Placed, SetAsides, is_still_the_judged_entry, place_file_awaiting};
+use crate::merge_isolation_carry_place::{
+    JudgedFile,
+    Placed,
+    SetAsides,
+    is_still_the_judged_entry,
+    place_file_awaiting,
+};
 use crate::merge_isolation_carry_reads::run_bytes_awaiting;
-use crate::merge_isolation_kept_copies::keep_the_copy;
 use crate::merge_isolation_changes::worktree_path;
-use crate::transaction_git::{GitContext, GitOutput};
+use crate::merge_isolation_kept_copies::keep_the_copy;
 /// The one owner of a path spelled for a shell,
 /// so a command the line prints takes the path as one word.
 use crate::shell_quote::shell_quote;
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+};
 use crate::transaction_phase::Phase;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The mode an `update-index --index-info` record gives a path it removes.
 const REMOVAL_MODE: &str = "0";
@@ -142,13 +154,19 @@ pub enum CarryFailure {
 /// ```ts
 /// function indexRecords(steps: Step[], width: number): Uint8Array;
 /// ```
-fn index_records(steps: &[Step], width: usize) -> Vec<u8> {
+fn index_records(
+    steps: &[Step],
+    width: usize,
+) -> Vec<u8> {
     let mut records: Vec<u8> = Vec::new();
     for step in steps {
         match &step.index {
             IndexWrite::Leave => continue,
-            IndexWrite::Entry(mode, oid) => records.extend_from_slice(format!("{mode} {oid}\t").as_bytes()),
-            IndexWrite::Remove => records.extend_from_slice(format!("{REMOVAL_MODE} {}\t", "0".repeat(width)).as_bytes()),
+            IndexWrite::Entry(mode, oid) => {
+                records.extend_from_slice(format!("{mode} {oid}\t").as_bytes())
+            }
+            IndexWrite::Remove => records
+                .extend_from_slice(format!("{REMOVAL_MODE} {}\t", "0".repeat(width)).as_bytes()),
         }
         records.extend_from_slice(step.path.as_slice());
         records.push(0);
@@ -184,10 +202,16 @@ pub(crate) struct StepMarks {
 }
 
 /// The markers of the clear's writes.
-const CLEAR_MARKS: StepMarks = StepMarks { index: Phase::MergeClearIndex, file: Phase::MergeClearFile };
+const CLEAR_MARKS: StepMarks = StepMarks {
+    index: Phase::MergeClearIndex,
+    file: Phase::MergeClearFile,
+};
 
 /// The markers of the carry back's writes.
-const CARRY_MARKS: StepMarks = StepMarks { index: Phase::MergeCarryIndex, file: Phase::MergeCarryFile };
+const CARRY_MARKS: StepMarks = StepMarks {
+    index: Phase::MergeCarryIndex,
+    file: Phase::MergeCarryFile,
+};
 
 /// What:
 ///  Which step of a carry these writes are,
@@ -220,7 +244,10 @@ pub(crate) enum Batch {
 /// Why:
 ///   The write step is the only place the instant between its parts exists,
 /// so the marker is reached from inside it.
-fn reach_mark(phase: Phase, occurrence: Option<u64>) -> Result<(), CarryFailure> {
+fn reach_mark(
+    phase: Phase,
+    occurrence: Option<u64>,
+) -> Result<(), CarryFailure> {
     return match crate::transaction_phase::reach_transaction_phase(phase, occurrence) {
         Ok(()) => Ok(()),
         Err(error) => Err(CarryFailure::Failed(format!("{error}"))),
@@ -258,7 +285,10 @@ impl Batch {
 /// ```ts
 /// for (const step of steps) if (!isStillTheJudgedEntry(root, step.path, step.judged)) throw { kind: 'changed', path: step.path };
 /// ```
-fn every_path_is_the_one_judged(root: &Path, steps: &[Step]) -> Result<(), CarryFailure> {
+fn every_path_is_the_one_judged(
+    root: &Path,
+    steps: &[Step],
+) -> Result<(), CarryFailure> {
     for step in steps {
         // A step whose worktree write is nothing takes nothing away, so its path is not checked and cannot stop the step.
         if matches!(step.worktree, FileWrite::Leave) {
@@ -279,8 +309,12 @@ fn every_path_is_the_one_judged(root: &Path, steps: &[Step]) -> Result<(), Carry
 /// ```
 fn failure_detail(failure: &CarryFailure) -> String {
     return match failure {
-        CarryFailure::Failed(detail) | CarryFailure::IndexHeld(detail) => String::from(detail.as_str()),
-        CarryFailure::Foreign(path) | CarryFailure::Changed(path) => crate::path_bytes::path_message_text(path.as_slice()),
+        CarryFailure::Failed(detail) | CarryFailure::IndexHeld(detail) => {
+            String::from(detail.as_str())
+        }
+        CarryFailure::Foreign(path) | CarryFailure::Changed(path) => {
+            crate::path_bytes::path_message_text(path.as_slice())
+        }
     };
 }
 
@@ -298,10 +332,15 @@ fn failure_detail(failure: &CarryFailure) -> String {
 /// ```ts
 /// const commands = (aside, path) => `mv -- ${shellQuote(aside)} ${shellQuote(path)} puts the copy back over what is there, rm -- ${shellQuote(aside)} drops the copy`;
 /// ```
-fn commands_that_end_the_copy(aside: &Path, path: &[u8]) -> String {
+fn commands_that_end_the_copy(
+    aside: &Path,
+    path: &[u8],
+) -> String {
     let shown_aside: String = shell_quote(aside.as_os_str().as_encoded_bytes());
     let shown_path: String = shell_quote(path);
-    return format!("`mv -- {shown_aside} {shown_path}` puts the copy back over what is there, `rm -- {shown_aside}` drops the copy");
+    return format!(
+        "`mv -- {shown_aside} {shown_path}` puts the copy back over what is there, `rm -- {shown_aside}` drops the copy"
+    );
 }
 
 /// What:
@@ -346,11 +385,21 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     let waited = match wait {
         // The merge's own apply never waits for another program's command: one look names the dead owner whose lock it clears,
         //  and a live one ends the step so the merge is saved for a later finish instead (a cross-vendor audit of alpha.12).
-        LockWait::BeforeTheApply => crate::index_holder_wait::look_at_the_index_before_a_merge(git_dir.join("index").as_path(), out),
-        LockWait::WhileFinishing => crate::index_holder_wait::wait_for_index_release_while_finishing_a_merge(git_dir.join("index").as_path(), out),
+        LockWait::BeforeTheApply => crate::index_holder_wait::look_at_the_index_before_a_merge(
+            git_dir.join("index").as_path(),
+            out,
+        ),
+        LockWait::WhileFinishing => {
+            crate::index_holder_wait::wait_for_index_release_while_finishing_a_merge(
+                git_dir.join("index").as_path(),
+                out,
+            )
+        }
     };
     if !crate::merge_isolation_recovery_index_lock::may_install(git_dir, waited) {
-        return Err(CarryFailure::IndexHeld(git_dir.join("index.lock").display().to_string()));
+        return Err(CarryFailure::IndexHeld(
+            git_dir.join("index.lock").display().to_string(),
+        ));
     }
     if batch.stops_when_a_path_moved() {
         every_path_is_the_one_judged(root, steps)?;
@@ -358,8 +407,15 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     let width: usize = steps.iter().find_map(entry_width).unwrap_or(40);
     let records: Vec<u8> = index_records(steps, width);
     if !records.is_empty() {
-        let arguments: Vec<OsString> = vec![OsString::from("update-index"), OsString::from("-z"), OsString::from("--index-info")];
-        let written: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), Some(records)).await.map_err(CarryFailure::Failed)?;
+        let arguments: Vec<OsString> = vec![
+            OsString::from("update-index"),
+            OsString::from("-z"),
+            OsString::from("--index-info"),
+        ];
+        let written: GitOutput =
+            run_bytes_awaiting(context, root, arguments.as_slice(), Some(records))
+                .await
+                .map_err(CarryFailure::Failed)?;
         if !written.succeeded() {
             let detail: String = written.error_text();
             if detail.contains("index.lock") {
@@ -386,8 +442,22 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
         let mut held: Vec<PathBuf> = Vec::new();
         // The private names this write leaves because nothing proves they are Git's own entries, which stay beside the path.
         let mut unproven: Vec<PathBuf> = Vec::new();
-        let mut set_asides: SetAsides<'_> = SetAsides { held_open: &mut held, unproven: &mut unproven, keep_the_planned_bytes: step.keep_the_planned_bytes };
-        let placed: Placed = match place_file_awaiting(context, root, step.path.as_slice(), &step.judged, &step.worktree, transaction_id, &mut set_asides).await {
+        let mut set_asides: SetAsides<'_> = SetAsides {
+            held_open: &mut held,
+            unproven: &mut unproven,
+            keep_the_planned_bytes: step.keep_the_planned_bytes,
+        };
+        let placed: Placed = match place_file_awaiting(
+            context,
+            root,
+            step.path.as_slice(),
+            &step.judged,
+            &step.worktree,
+            transaction_id,
+            &mut set_asides,
+        )
+        .await
+        {
             Ok(found) => found,
             Err(failure) => {
                 let _ = out.write_all(
@@ -433,7 +503,9 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
         }
         match placed {
             Placed::Written | Placed::Nothing => {}
-            Placed::Changed { kept } => {
+            Placed::Changed {
+                kept,
+            } => {
                 if let Some(waits) = kept {
                     // The copy holds bytes the merge never had, so it is recorded and named, and a later command ends it.
                     keep_the_copy(git_dir, location.as_path(), waits.as_path());
@@ -462,13 +534,21 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     //  file before it updates a path (`read-tree` refuses an entry that is not up to date). The refresh re-reads the record for
     //  every entry whose content still hashes to what the index says, so the next step reads the checkout as it is.
     if wrote_a_file {
-        let arguments: Vec<OsString> = vec![OsString::from("update-index"), OsString::from("-q"), OsString::from("--refresh")];
-        let refreshed: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), None).await.map_err(CarryFailure::Failed)?;
+        let arguments: Vec<OsString> = vec![
+            OsString::from("update-index"),
+            OsString::from("-q"),
+            OsString::from("--refresh"),
+        ];
+        let refreshed: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), None)
+            .await
+            .map_err(CarryFailure::Failed)?;
         if !refreshed.succeeded() && refreshed.code != Some(1) {
             return Err(CarryFailure::Failed(refreshed.error_text()));
         }
     }
-    return Ok(StepResult { changed });
+    return Ok(StepResult {
+        changed,
+    });
 }
 
 /// What one step of writes came to,

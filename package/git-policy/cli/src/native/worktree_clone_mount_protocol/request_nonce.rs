@@ -64,13 +64,20 @@ impl NonceRefusal {
     /// the place and the way forward.
     pub fn message(&self) -> String {
         return match self {
-            NonceRefusal::Length { found } => format!(
+            NonceRefusal::Length {
+                found,
+            } => format!(
                 "the nonce is {found} bytes long, and every nonce this route carries is exactly {NONCE_HEX_DIGITS} lowercase ASCII hexadecimal digits. Nothing was read as an intent and nothing was done on its behalf. Ways forward: write the nonce as {NONCE_HEX_DIGITS} digits from 0 to 9 and a to f, with no dashes, spaces or uppercase letters."
             ),
-            NonceRefusal::NotLowercaseHex { place, shown } => format!(
+            NonceRefusal::NotLowercaseHex {
+                place,
+                shown,
+            } => format!(
                 "byte {place} of the nonce is `{shown}`, and every nonce byte is a lowercase ASCII hexadecimal digit from 0 to 9 or a to f. Nothing was read as an intent and nothing was done on its behalf. Ways forward: write the byte as a lowercase hexadecimal digit; an uppercase letter is a different value here and is not folded."
             ),
-            NonceRefusal::RandomSource { reason } => format!(
+            NonceRefusal::RandomSource {
+                reason,
+            } => format!(
                 "no fresh nonce could be made because the operating system's random source failed ({reason}). Nothing was requested and nothing was done. Ways forward: run the command again; if the source keeps failing, the machine has nothing this route can use to tell one request from another, and an administrator has to repair it."
             ),
         };
@@ -105,14 +112,21 @@ impl RequestNonce {
     pub fn parse(text: &str) -> Result<Self, NonceRefusal> {
         let bytes: &[u8] = text.as_bytes();
         if bytes.len() != NONCE_HEX_DIGITS {
-            return Err(NonceRefusal::Length { found: bytes.len() });
+            return Err(NonceRefusal::Length {
+                found: bytes.len(),
+            });
         }
         for (index, byte) in bytes.iter().enumerate() {
             if !is_lowercase_hexadecimal(*byte) {
-                return Err(NonceRefusal::NotLowercaseHex { place: index + 1, shown: shown_byte(*byte) });
+                return Err(NonceRefusal::NotLowercaseHex {
+                    place: index + 1,
+                    shown: shown_byte(*byte),
+                });
             }
         }
-        return Ok(RequestNonce { digits: String::from(text) });
+        return Ok(RequestNonce {
+            digits: String::from(text),
+        });
     }
 
     /// A fresh nonce from the operating system's random source.
@@ -123,13 +137,17 @@ impl RequestNonce {
     pub fn fresh() -> Result<Self, NonceRefusal> {
         let mut bytes: [u8; NONCE_HEX_DIGITS / 2] = [0; NONCE_HEX_DIGITS / 2];
         if let Err(error) = getrandom::fill(&mut bytes) {
-            return Err(NonceRefusal::RandomSource { reason: error.to_string() });
+            return Err(NonceRefusal::RandomSource {
+                reason: error.to_string(),
+            });
         }
         let mut digits: String = String::with_capacity(NONCE_HEX_DIGITS);
         for byte in bytes {
             write_hexadecimal(&mut digits, byte);
         }
-        return Ok(RequestNonce { digits });
+        return Ok(RequestNonce {
+            digits,
+        });
     }
 
     /// The digits as a caller writes them,

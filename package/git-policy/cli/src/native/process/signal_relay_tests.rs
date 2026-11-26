@@ -8,16 +8,34 @@
 
 use super::*;
 
-use crate::test_support::{executable, fixture, isolated_overlay, remove};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitStatus};
-use std::time::{Duration, Instant};
+use crate::test_support::{
+    executable,
+    fixture,
+    isolated_overlay,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    ExitStatus,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The sender codes the tests feed in;
 /// macOS relays every signal whatever its code,
 /// so its tests need none.
 #[cfg(all(unix, not(target_os = "macos")))]
-use libc::{SI_QUEUE, SI_USER};
+use libc::{
+    SI_QUEUE,
+    SI_USER,
+};
 
 /// A code that no process sends:
 /// the kernel's own on Linux.
@@ -44,15 +62,17 @@ fn helper_entry() {
     let Some(mode) = std::env::var_os(MODE_VAR) else {
         return;
     };
-    let directory: PathBuf = PathBuf::from(
-        std::env::var_os(DIR_VAR).expect("helper directory is set with the mode"),
-    );
+    let directory: PathBuf =
+        PathBuf::from(std::env::var_os(DIR_VAR).expect("helper directory is set with the mode"));
     // The mode as owned text, so the guard scenarios below read one value however it arrived.
     let helper_mode: String = mode.to_string_lossy().into_owned();
     // A body of a control the tests above run here answers its sentences; the guard scenarios answer `None`.
     if let Some(failures) = moved_body(helper_mode.as_str()) {
         // The exit status says the same as the file, so a parent that read only one of them still learns the answer.
-        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(directory.as_path(), failures));
+        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(
+            directory.as_path(),
+            failures,
+        ));
     }
     if helper_mode == "service" {
         leave_signals_to_the_service();
@@ -87,12 +107,15 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
     let mut failures: Vec<String> = Vec::new();
     match mode {
         "disposition" => {
-            let earlier: libc::sighandler_t = earlier_handler as extern "C" fn(libc::c_int) as libc::sighandler_t;
+            let earlier: libc::sighandler_t =
+                earlier_handler as extern "C" fn(libc::c_int) as libc::sighandler_t;
             // SAFETY: installs a handler that does nothing for a valid signal number.
             unsafe { libc::signal(libc::SIGHUP, earlier) };
             let guard: SignalGuard = SignalGuard::install().expect("guard");
             if disposition_of(libc::SIGHUP) != relay_handler as *const () as libc::sighandler_t {
-                failures.push(String::from("the guard replaces the earlier handler while it lives"));
+                failures.push(String::from(
+                    "the guard replaces the earlier handler while it lives",
+                ));
             }
             drop(guard);
             if disposition_of(libc::SIGHUP) != earlier {
@@ -106,11 +129,15 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
             unsafe { libc::signal(libc::SIGHUP, libc::SIG_IGN) };
             let guard: SignalGuard = SignalGuard::install().expect("guard");
             if disposition_of(libc::SIGHUP) != libc::SIG_IGN {
-                failures.push(String::from("an ignored signal is not replaced while the guard lives"));
+                failures.push(String::from(
+                    "an ignored signal is not replaced while the guard lives",
+                ));
             }
             drop(guard);
             if disposition_of(libc::SIGHUP) != libc::SIG_IGN {
-                failures.push(String::from("an ignored signal is still ignored after the drop"));
+                failures.push(String::from(
+                    "an ignored signal is still ignored after the drop",
+                ));
             }
             // SAFETY: returns the signal to its default so nothing of this helper outlives it.
             unsafe { libc::signal(libc::SIGHUP, libc::SIG_DFL) };
@@ -139,13 +166,18 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
             if !first.relaying {
                 failures.push(String::from("the first guard owns the handlers"));
             }
-            let second: SignalGuard = SignalGuard::install().expect("a second guard is not refused");
+            let second: SignalGuard =
+                SignalGuard::install().expect("a second guard is not refused");
             if second.relaying {
-                failures.push(String::from("the second guard relays nothing while the first owns the handlers"));
+                failures.push(String::from(
+                    "the second guard relays nothing while the first owns the handlers",
+                ));
             }
             drop(second);
             if !RELAYING.load(std::sync::atomic::Ordering::SeqCst) {
-                failures.push(String::from("dropping the second guard leaves the first one's handlers"));
+                failures.push(String::from(
+                    "dropping the second guard leaves the first one's handlers",
+                ));
             }
             drop(first);
             let again: SignalGuard = SignalGuard::install().expect("guard after drop");
@@ -158,7 +190,8 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
             let owner: SignalGuard = SignalGuard::install().expect("first guard");
             let other: SignalGuard = SignalGuard::install().expect("second guard");
             let watching: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
-            let published_once: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+            let published_once: std::sync::atomic::AtomicBool =
+                std::sync::atomic::AtomicBool::new(false);
             std::thread::scope(|scope| {
                 scope.spawn(|| {
                     while watching.load(std::sync::atomic::Ordering::SeqCst) {
@@ -177,7 +210,9 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
                 watching.store(false, std::sync::atomic::Ordering::SeqCst);
             });
             if published_once.load(std::sync::atomic::Ordering::SeqCst) {
-                failures.push(String::from("the second guard's child was published to the handler"));
+                failures.push(String::from(
+                    "the second guard's child was published to the handler",
+                ));
             }
             drop(other);
             drop(owner);
@@ -185,7 +220,8 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
         "interrupted-wait" => {
             // SAFETY: a zeroed `sigaction` is a valid starting value; the fields used below are set first.
             let mut action: libc::sigaction = unsafe { std::mem::zeroed() };
-            action.sa_sigaction = earlier_handler as extern "C" fn(libc::c_int) as libc::sighandler_t;
+            action.sa_sigaction =
+                earlier_handler as extern "C" fn(libc::c_int) as libc::sighandler_t;
             action.sa_flags = 0;
             // SAFETY: `sigemptyset` initializes the mask in place.
             unsafe { libc::sigemptyset(&mut action.sa_mask) };
@@ -203,8 +239,14 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
                     unsafe { libc::pthread_kill(waiting_thread, libc::SIGUSR1) };
                 }
             });
-            let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-            let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None, while_held: None, stall: None };
+            let told: crate::child_number_told_at_start::ChildNumber =
+                crate::child_number_told_at_start::ChildNumber::not_started();
+            let duty: CeilingDuty<'_> = CeilingDuty {
+                told: &told,
+                bound: None,
+                while_held: None,
+                stall: None,
+            };
             let waited = run_on_runtime(run_relayed(&mut command, false, duty));
             interrupter.join().expect("the interrupter finishes");
             if !matches!(waited, Ok(Ok((ChildOutcome::Exited(0), _no_ceiling)))) {
@@ -215,7 +257,13 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
             }
         }
         "service-stop" => {
-            use crate::stop_of_the_service_noticed_by_its_children::{prepare_to_notice, record_from_a_signal_handler, tell_the_stop_and_wait_for_the_work, wake_the_shutdown_from_a_signal_handler, Settled};
+            use crate::stop_of_the_service_noticed_by_its_children::{
+                Settled,
+                prepare_to_notice,
+                record_from_a_signal_handler,
+                tell_the_stop_and_wait_for_the_work,
+                wake_the_shutdown_from_a_signal_handler,
+            };
             if let Err(error) = prepare_to_notice() {
                 failures.push(format!("the wake pipe: {error}"));
             }
@@ -231,7 +279,8 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
                     if !wake_the_shutdown_from_a_signal_handler() {
                         failures.push(String::from("the shutdown is woken"));
                     }
-                    return tell_the_stop_and_wait_for_the_work(std::time::Duration::from_secs(60)).await;
+                    return tell_the_stop_and_wait_for_the_work(std::time::Duration::from_secs(60))
+                        .await;
                 });
             });
             match joined {
@@ -240,7 +289,9 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
                         failures.push(format!("a stopped step has no outcome: {error}"));
                     }
                 }
-                _ => failures.push(String::from("a stopped step ends by the stop and its shutdown finds nothing left")),
+                _ => failures.push(String::from(
+                    "a stopped step ends by the stop and its shutdown finds nothing left",
+                )),
             }
         }
         _ => return None,
@@ -264,13 +315,17 @@ fn moved_body(mode: &str) -> Option<Vec<String>> {
 fn failures_of_the_moved_body(mode: &str) -> Vec<String> {
     let root: PathBuf = fixture(format!("signal-{mode}").as_str());
     let helper: Child = spawn_helper(mode, root.as_path());
-    let failures: Vec<String> = crate::helper_process_test_support::settle_after_a_helper(helper, root.as_path());
+    let failures: Vec<String> =
+        crate::helper_process_test_support::settle_after_a_helper(helper, root.as_path());
     remove(root.as_path());
     return failures;
 }
 
 /// The child each helper scenario runs under the guard.
-fn helper_command(mode: &str, directory: &Path) -> Command {
+fn helper_command(
+    mode: &str,
+    directory: &Path,
+) -> Command {
     let mut command: Command = match mode {
         // A direct `sleep`, with no shell in front of it: the relay reaches the process that will wait.
         // A shell that runs a foreground command first ignores SIGINT until that command ends,
@@ -342,15 +397,25 @@ fn describe(outcome: ChildOutcome) -> String {
 fn wait_for(path: &Path) {
     let started: Instant = Instant::now();
     while !path.exists() {
-        assert!(started.elapsed() < STEP_TIMEOUT, "{} never appeared", path.display());
+        assert!(
+            started.elapsed() < STEP_TIMEOUT,
+            "{} never appeared",
+            path.display()
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
 }
 
 /// Start this test executable as the helper for one scenario.
-fn spawn_helper(mode: &str, directory: &Path) -> Child {
+fn spawn_helper(
+    mode: &str,
+    directory: &Path,
+) -> Child {
     // Owned, so a helper that waits for a signal a failing control never sent does not outlive the control.
-    let environment: [(&str, &std::ffi::OsStr); 2] = [(MODE_VAR, std::ffi::OsStr::new(mode)), (DIR_VAR, directory.as_os_str())];
+    let environment: [(&str, &std::ffi::OsStr); 2] = [
+        (MODE_VAR, std::ffi::OsStr::new(mode)),
+        (DIR_VAR, directory.as_os_str()),
+    ];
     return crate::child_test_process::started(crate::child_test_process::ChildTest {
         exact_test: "process::signal_relay::tests::helper_entry",
         environment: environment.as_slice(),
@@ -362,7 +427,10 @@ fn spawn_helper(mode: &str, directory: &Path) -> Child {
 
 /// Send one signal from this test process,
 /// so the kernel records it as sent by a process.
-fn send(pid: u32, signal: libc::c_int) {
+fn send(
+    pid: u32,
+    signal: libc::c_int,
+) {
     let target: libc::pid_t = libc::pid_t::try_from(pid).expect("helper pid fits");
     // SAFETY: `kill` names a child this test started and sends one signal; it reads no memory.
     let status: libc::c_int = unsafe { libc::kill(target, signal) };
@@ -495,7 +563,9 @@ static RELAY_STATICS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 ///  so the lock is taken through the poison.
 #[cfg(unix)]
 fn hold_the_relay_statics() -> std::sync::MutexGuard<'static, ()> {
-    return RELAY_STATICS.lock().unwrap_or_else(|poisoned| return poisoned.into_inner());
+    return RELAY_STATICS
+        .lock()
+        .unwrap_or_else(|poisoned| return poisoned.into_inner());
 }
 
 /// A signal caught before the child exists is relayed the moment the child's PID is published.
@@ -514,8 +584,21 @@ fn a_signal_pending_before_spawn_is_relayed_when_the_pid_is_published() {
     PENDING[1].store(libc::SIGTERM, std::sync::atomic::Ordering::SeqCst);
     let mut command: Command = Command::new("sleep");
     command.arg("30");
-    let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, true, CeilingDuty { told: &told, bound: None, while_held: None, stall: None })).expect("the runtime runs the child").expect("child runs").0;
+    let told: crate::child_number_told_at_start::ChildNumber =
+        crate::child_number_told_at_start::ChildNumber::not_started();
+    let outcome: ChildOutcome = run_on_runtime(run_relayed(
+        &mut command,
+        true,
+        CeilingDuty {
+            told: &told,
+            bound: None,
+            while_held: None,
+            stall: None,
+        },
+    ))
+    .expect("the runtime runs the child")
+    .expect("child runs")
+    .0;
     assert_eq!(
         outcome,
         ChildOutcome::Signaled(libc::SIGTERM),
@@ -553,16 +636,29 @@ fn the_relay_descriptor_names_the_child_while_it_runs_and_nothing_after() {
     let _statics: std::sync::MutexGuard<'_, ()> = hold_the_relay_statics();
     ensure_relay_descriptor().expect("the relay descriptor is made");
     let number: std::os::fd::RawFd = *RELAY_FD.get().expect("the relay descriptor exists");
-    let target = || { return std::fs::read_link(format!("/proc/self/fd/{number}")).expect("the descriptor is open").display().to_string(); };
+    let target = || {
+        return std::fs::read_link(format!("/proc/self/fd/{number}"))
+            .expect("the descriptor is open")
+            .display()
+            .to_string();
+    };
     let mut command: Command = Command::new("sleep");
     command.arg("30");
     // Owned, so a control that failed before it ended its child does not leave it running.
     let mut child: Child = crate::test_support::spawn_owned(&mut command).expect("sleep starts");
     let published: bool = publish(child.id());
     assert!(published, "the child is published");
-    assert!(target().contains("pidfd"), "the descriptor names the child's pidfd while it runs: {}", target());
+    assert!(
+        target().contains("pidfd"),
+        "the descriptor names the child's pidfd while it runs: {}",
+        target()
+    );
     retire(published);
-    assert_eq!(target(), "/dev/null", "the descriptor names nothing once the child is retired");
+    assert_eq!(
+        target(),
+        "/dev/null",
+        "the descriptor names nothing once the child is retired"
+    );
     child.kill().expect("the control ends its child");
     child.wait().expect("the child is reaped");
 }
@@ -581,10 +677,18 @@ fn a_stop_of_a_service_is_not_relayed_to_the_child_of_a_commit() {
     let helper: Child = spawn_helper("service", root.as_path());
     let pid: u32 = helper.id();
     wait_for(root.join("started").as_path());
-    let child_pid: libc::pid_t = std::fs::read_to_string(root.join("child-pid")).expect("the child's pid").trim().parse().expect("a pid");
+    let child_pid: libc::pid_t = std::fs::read_to_string(root.join("child-pid"))
+        .expect("the child's pid")
+        .trim()
+        .parse()
+        .expect("a pid");
     send(pid, libc::SIGTERM);
     let status: ExitStatus = finish(helper);
-    assert_eq!(std::os::unix::process::ExitStatusExt::signal(&status), Some(libc::SIGTERM), "the stop reached the service's own handling: {status:?}");
+    assert_eq!(
+        std::os::unix::process::ExitStatusExt::signal(&status),
+        Some(libc::SIGTERM),
+        "the stop reached the service's own handling: {status:?}"
+    );
     // SAFETY: signal 0 only asks whether the process exists.
     let alive: bool = unsafe { libc::kill(child_pid, 0) } == 0;
     // SAFETY: the control ends the child it started.
@@ -604,12 +708,18 @@ fn process_signal_is_relayed_and_the_child_outcome_is_reported() {
     wait_for(root.join("started").as_path());
     send(pid, libc::SIGTERM);
     let status: ExitStatus = finish(helper);
-    assert!(status.success(), "the wrapper survived the signal: {status:?}");
+    assert!(
+        status.success(),
+        "the wrapper survived the signal: {status:?}"
+    );
     assert_eq!(
         std::fs::read_to_string(root.join("outcome")).expect("outcome"),
         format!("signaled {}", libc::SIGTERM)
     );
-    assert!(root.join("cleanup").exists(), "the wrapper continued after the child");
+    assert!(
+        root.join("cleanup").exists(),
+        "the wrapper continued after the child"
+    );
     remove(root.as_path());
 }
 
@@ -623,7 +733,10 @@ fn signal_during_start_is_relayed_after_the_child_starts() {
     wait_for(root.join("installed").as_path());
     send(pid, libc::SIGINT);
     let status: ExitStatus = finish(helper);
-    assert!(status.success(), "the wrapper survived the signal: {status:?}");
+    assert!(
+        status.success(),
+        "the wrapper survived the signal: {status:?}"
+    );
     assert_eq!(
         std::fs::read_to_string(root.join("outcome")).expect("outcome"),
         format!("signaled {}", libc::SIGINT)
@@ -650,7 +763,10 @@ fn terminal_interrupt_is_not_relayed_a_second_time() {
     // Long enough for a second, relayed delivery to reach the child's trap.
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(
-        std::fs::read_to_string(root.join("interrupts")).expect("interrupt log").lines().count(),
+        std::fs::read_to_string(root.join("interrupts"))
+            .expect("interrupt log")
+            .lines()
+            .count(),
         1,
         "the interrupt reached the child exactly once"
     );
@@ -667,7 +783,10 @@ fn terminal_interrupt_is_not_relayed_a_second_time() {
 /// Start the terminal helper with a pseudo-terminal as its controlling terminal and return the master side.
 #[cfg(target_os = "linux")]
 fn spawn_terminal_helper(directory: &Path) -> (std::fs::File, Child) {
-    use std::os::fd::{FromRawFd, OwnedFd};
+    use std::os::fd::{
+        FromRawFd,
+        OwnedFd,
+    };
     let mut master: libc::c_int = -1;
     let mut slave: libc::c_int = -1;
     // SAFETY: `openpty` writes one descriptor per out-pointer; the null name, termios and window pointers are allowed.
@@ -686,7 +805,10 @@ fn spawn_terminal_helper(directory: &Path) -> (std::fs::File, Child) {
     // SAFETY: as above; the slave is owned once and cloned into the helper's standard streams.
     let slave_owned: OwnedFd = unsafe { OwnedFd::from_raw_fd(slave) };
     // The helper answers on the pseudo-terminal, and it must lead a session of its own to control that terminal.
-    let environment: [(&str, &std::ffi::OsStr); 2] = [(MODE_VAR, std::ffi::OsStr::new("terminal")), (DIR_VAR, directory.as_os_str())];
+    let environment: [(&str, &std::ffi::OsStr); 2] = [
+        (MODE_VAR, std::ffi::OsStr::new("terminal")),
+        (DIR_VAR, directory.as_os_str()),
+    ];
     let helper: Child = crate::child_test_process::started(crate::child_test_process::ChildTest {
         exact_test: "process::signal_relay::tests::helper_entry",
         environment: environment.as_slice(),
@@ -777,12 +899,24 @@ fn waiting_ends_at_the_childs_exit_and_reports_it() {
     command.arg("1");
     // The clock starts before the child does, so a host that starts the waiting late cannot shorten what is measured.
     let started: Instant = Instant::now();
-    let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-    let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None, while_held: None, stall: None };
+    let told: crate::child_number_told_at_start::ChildNumber =
+        crate::child_number_told_at_start::ChildNumber::not_started();
+    let duty: CeilingDuty<'_> = CeilingDuty {
+        told: &told,
+        bound: None,
+        while_held: None,
+        stall: None,
+    };
     // The wait publishes the child's number to the relay statics, so it holds the same lock the other in-process controls do.
     let _statics: std::sync::MutexGuard<'_, ()> = hold_the_relay_statics();
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, duty)).expect("the runtime runs the child").expect("the child runs").0;
-    assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
+    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, duty))
+        .expect("the runtime runs the child")
+        .expect("the child runs")
+        .0;
+    assert!(
+        started.elapsed() >= Duration::from_millis(800),
+        "the wait lasted until the child exited"
+    );
     assert_eq!(outcome, ChildOutcome::Exited(0));
 }
 

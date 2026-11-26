@@ -31,14 +31,23 @@
 ///  the binding reader's cap,
 /// and the reply list and value types.
 use monochromatic_zfs_request_to_openzfs_kernel_device::requests::{
-    ElementError, MAXIMUM_ELEMENTS_KEPT,
+    ElementError,
+    MAXIMUM_ELEMENTS_KEPT,
 };
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DeviceError, Error, NvData, NvList};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DeviceError,
+    Error,
+    NvData,
+    NvList,
+};
 
 /// One request's outcome as a value.
 use super::snapshot_batch_outcome::BatchOutcome;
 /// The per-name vocabulary the outcome is read into.
-use super::snapshot_name_outcome::{NameOutcome, SubmittedName};
+use super::snapshot_name_outcome::{
+    NameOutcome,
+    SubmittedName,
+};
 
 /// The kernel's own marker that its per-name list was shortened.
 ///
@@ -76,16 +85,36 @@ pub fn outcome_of_answer(
 }
 
 /// The outcome of a request the kernel answered without an error.
-fn from_success(pool: &str, submitted: &[String], reply: Option<&NvList>) -> BatchOutcome {
+fn from_success(
+    pool: &str,
+    submitted: &[String],
+    reply: Option<&NvList>,
+) -> BatchOutcome {
     let said: String = match reply.map(read_success_reply) {
         None => String::new(),
         Some(Ok(())) => String::new(),
         Some(Err(reason)) => reason,
     };
     if said.is_empty() {
-        return every(pool, submitted, NameOutcome::Destroyed, Vec::new(), true, None);
+        return every(
+            pool,
+            submitted,
+            NameOutcome::Destroyed,
+            Vec::new(),
+            true,
+            None,
+        );
     }
-    return every(pool, submitted, NameOutcome::Unknown { said }, Vec::new(), false, None);
+    return every(
+        pool,
+        submitted,
+        NameOutcome::Unknown {
+            said,
+        },
+        Vec::new(),
+        false,
+        None,
+    );
 }
 
 /// Whether a success reply names no failure at all.
@@ -104,12 +133,24 @@ fn read_success_reply(reply: &NvList) -> Result<(), String> {
             ));
         }
         let errno: i32 = match &pair.data {
-            NvData::Int32 { value } => *value,
-            NvData::Int64 { value } => i32::try_from(*value).map_err(|_| {
-                return format!("the success reply's `{}` holds {value}, which is not an error number", pair.name);
+            NvData::Int32 {
+                value,
+            } => *value,
+            NvData::Int64 {
+                value,
+            } => i32::try_from(*value).map_err(|_| {
+                return format!(
+                    "the success reply's `{}` holds {value}, which is not an error number",
+                    pair.name
+                );
             })?,
-            NvData::Uint64 { value } => i32::try_from(*value).map_err(|_| {
-                return format!("the success reply's `{}` holds {value}, which is not an error number", pair.name);
+            NvData::Uint64 {
+                value,
+            } => i32::try_from(*value).map_err(|_| {
+                return format!(
+                    "the success reply's `{}` holds {value}, which is not an error number",
+                    pair.name
+                );
             })?,
             _ => {
                 return Err(format!(
@@ -131,12 +172,20 @@ fn read_success_reply(reply: &NvList) -> Result<(), String> {
 }
 
 /// The outcome of a request the kernel refused.
-fn from_failure(pool: &str, submitted: &[String], error: DeviceError) -> BatchOutcome {
-    let Some(Error::Elements { errno, elements, .. }) = error.request() else {
+fn from_failure(
+    pool: &str,
+    submitted: &[String],
+    error: DeviceError,
+) -> BatchOutcome {
+    let Some(Error::Elements {
+        errno,
+        elements,
+        ..
+    }) = error.request()
+    else {
         let request_errno: Option<i32> = error.request().and_then(Error::errno);
-        let said: String = format!(
-            "{error}, and its answer names no snapshot, so no name can be settled"
-        );
+        let said: String =
+            format!("{error}, and its answer names no snapshot, so no name can be settled");
         return it_is_unknown(pool, submitted, said, request_errno);
     };
     let (failures, shortened): (Vec<ElementError>, bool) = split_failures(elements);
@@ -154,7 +203,16 @@ fn from_failure(pool: &str, submitted: &[String], error: DeviceError) -> BatchOu
             "the kernel's per-name list names `{}`, which this request did not submit, so no name can be settled",
             named[0].name
         );
-        return every(pool, submitted, NameOutcome::Unknown { said }, failures, complete, Some(*errno));
+        return every(
+            pool,
+            submitted,
+            NameOutcome::Unknown {
+                said,
+            },
+            failures,
+            complete,
+            Some(*errno),
+        );
     }
     let names: Vec<SubmittedName> = submitted
         .iter()
@@ -177,13 +235,7 @@ fn from_failure(pool: &str, submitted: &[String], error: DeviceError) -> BatchOu
             };
         })
         .collect();
-    return BatchOutcome::new(
-        pool.to_string(),
-        names,
-        failures,
-        complete,
-        Some(*errno),
-    );
+    return BatchOutcome::new(pool.to_string(), names, failures, complete, Some(*errno));
 }
 
 /// Split the reader's elements into the per-name failures and whether the list
@@ -236,7 +288,16 @@ fn it_is_unknown(
     said: String,
     errno: Option<i32>,
 ) -> BatchOutcome {
-    return every(pool, submitted, NameOutcome::Unknown { said }, Vec::new(), false, errno);
+    return every(
+        pool,
+        submitted,
+        NameOutcome::Unknown {
+            said,
+        },
+        Vec::new(),
+        false,
+        errno,
+    );
 }
 
 /// The controls of the per-name outcome.

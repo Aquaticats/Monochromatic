@@ -38,28 +38,64 @@
 //! test('the removal destruction guest arm', () => { /* zpool, checkout, clone, mark, replacement */ });
 //! ```
 
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ListedChild, ReadFailure, ZfsDatasetReader};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ListedChild,
+    ReadFailure,
+    ZfsDatasetReader,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountIntent;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_the_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
-use crate::worktree_clone_removal_proof_and_plan::removal_destruction::{DestructionUnderway, RemovalDestruction, destroy_the_removal};
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{RemovalEntry, TheLiveClock};
+use crate::worktree_clone_removal_proof_and_plan::removal_destruction::{
+    DestructionUnderway,
+    RemovalDestruction,
+    destroy_the_removal,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
+    RemovalEntry,
+    TheLiveClock,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
-use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{HookedDevice, LivePoolFixture, PoolVariables, SLOT};
+use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{
+    HookedDevice,
+    LivePoolFixture,
+    PoolVariables,
+    SLOT,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use crate::worktree_clone_removal_proof_and_plan::unmount_request::{RemovalUnmount, UnmountAnswer};
+use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
+    RemovalUnmount,
+    UnmountAnswer,
+};
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_send::SnapshotDestroyDevice;
 use crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes;
-use crate::worktree_removal_deferred_origin_check::origin_mark::{MARK_OFF, MARK_ON, OriginMark, origin_mark};
+use crate::worktree_removal_deferred_origin_check::origin_mark::{
+    MARK_OFF,
+    MARK_ON,
+    OriginMark,
+    origin_mark,
+};
 use crate::worktree_removal_deferred_origin_check::origin_refusal::OriginRefusal;
-use crate::worktree_removal_deferred_origin_check::origin_refusals::{RefusalForm, WhatARefusalLeaves};
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DeviceError, NvList, ZfsDevice};
-use std::cell::{Cell, RefCell};
+use crate::worktree_removal_deferred_origin_check::origin_refusals::{
+    RefusalForm,
+    WhatARefusalLeaves,
+};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    DeviceError,
+    NvList,
+    ZfsDevice,
+};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 use std::path::PathBuf;
 
 /// The variable naming the guest this arm may run in.
@@ -103,8 +139,19 @@ struct ADoneUnmount {
 }
 
 impl RemovalUnmount for ADoneUnmount {
-    fn request_the_unmount(&self, intent: &MountIntent) -> Result<UnmountAnswer, RemovalStop> {
-        return Ok(UnmountAnswer { dataset: self.clone_guid, operation: intent.operation, nonce: intent.nonce.clone(), outcome: ReceiptOutcome::Done, mount_id: None, failed_step: None, errno: None });
+    fn request_the_unmount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<UnmountAnswer, RemovalStop> {
+        return Ok(UnmountAnswer {
+            dataset: self.clone_guid,
+            operation: intent.operation,
+            nonce: intent.nonce.clone(),
+            outcome: ReceiptOutcome::Done,
+            mount_id: None,
+            failed_step: None,
+            errno: None,
+        });
     }
 }
 
@@ -125,7 +172,10 @@ struct MarkingReader<'a> {
 }
 
 impl DatasetReader for MarkingReader<'_> {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure> {
         let seen: usize = self.reads.get();
         self.reads.set(seen + 1);
         if seen == 0 {
@@ -134,7 +184,11 @@ impl DatasetReader for MarkingReader<'_> {
         return self.live.identity(dataset);
     }
 
-    fn next_child(&self, parent: &str, cursor: u64) -> Result<Option<ListedChild>, String> {
+    fn next_child(
+        &self,
+        parent: &str,
+        cursor: u64,
+    ) -> Result<Option<ListedChild>, String> {
         return self.live.next_child(parent, cursor);
     }
 }
@@ -151,17 +205,46 @@ struct Run<'a> {
 }
 
 impl<'a> Run<'a> {
-    fn over(fixture: &LivePoolFixture, reads: &'a LiveRemovalReads) -> Run<'a> {
+    fn over(
+        fixture: &LivePoolFixture,
+        reads: &'a LiveRemovalReads,
+    ) -> Run<'a> {
         let recorded: RecordedBinding = fixture.recorded();
-        let names: Vec<String> = vec![format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()), format!("{}@{SANOID_SNAPSHOT}", fixture.clone())];
-        let bytes: usize = encoded_request_bytes(fixture.pool.as_str(), names.as_slice()).expect("both names pack into one request");
-        return Run { common: fixture.common(), reads, unmount: ADoneUnmount { clone_guid: recorded.clone_guid }, budget: RequestBudget::of_input_bytes(bytes) };
+        let names: Vec<String> = vec![
+            format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()),
+            format!("{}@{SANOID_SNAPSHOT}", fixture.clone()),
+        ];
+        let bytes: usize = encoded_request_bytes(fixture.pool.as_str(), names.as_slice())
+            .expect("both names pack into one request");
+        return Run {
+            common: fixture.common(),
+            reads,
+            unmount: ADoneUnmount {
+                clone_guid: recorded.clone_guid,
+            },
+            budget: RequestBudget::of_input_bytes(bytes),
+        };
     }
 
     /// One whole removal's destruction over the checks' own reader.
-    fn destroy(&self, check: &dyn DatasetReader, device: &dyn SnapshotDestroyDevice) -> Result<DestructionUnderway, RemovalStop> {
-        let at: RemovalEntry<'_> = RemovalEntry { common_dir: self.common.as_path(), slot: SLOT };
-        return destroy_the_removal(&RemovalDestruction { entry: &at, reads: self.reads, unmount: &self.unmount, clock: &TheLiveClock, check, device, budget: self.budget });
+    fn destroy(
+        &self,
+        check: &dyn DatasetReader,
+        device: &dyn SnapshotDestroyDevice,
+    ) -> Result<DestructionUnderway, RemovalStop> {
+        let at: RemovalEntry<'_> = RemovalEntry {
+            common_dir: self.common.as_path(),
+            slot: SLOT,
+        };
+        return destroy_the_removal(&RemovalDestruction {
+            entry: &at,
+            reads: self.reads,
+            unmount: &self.unmount,
+            clock: &TheLiveClock,
+            check,
+            device,
+            budget: self.budget,
+        });
     }
 }
 
@@ -175,15 +258,22 @@ fn the_live_device() -> ZfsDevice {
 /// or a panic naming the state the arm expected instead.
 fn cause_of(stop: &RemovalStop) -> OriginRefusal {
     return match stop {
-        RemovalStop::OriginCheckRefused { refusal, .. } => (**refusal).clone(),
-        other => panic!("the arm expected one of step 15's refusals, and the removal stopped with {other:?}"),
+        RemovalStop::OriginCheckRefused {
+            refusal,
+            ..
+        } => (**refusal).clone(),
+        other => panic!(
+            "the arm expected one of step 15's refusals, and the removal stopped with {other:?}"
+        ),
     };
 }
 
 #[test]
 #[ignore = "live: needs the mvm guest fixture; run it through the package's e2e recipe"]
 fn the_removal_destruction_guest_arms() {
-    let Some(fixture) = LivePoolFixture::from_environment("the_removal_destruction_guest_arms", &variables()) else {
+    let Some(fixture) =
+        LivePoolFixture::from_environment("the_removal_destruction_guest_arms", &variables())
+    else {
         return;
     };
     println!("DESTRUCTION guest={} pool={}", fixture.guest, fixture.pool);
@@ -199,19 +289,48 @@ fn the_removal_destruction_guest_arms() {
     let reads: LiveRemovalReads = LiveRemovalReads::open().expect("the guest has /dev/zfs");
     let healthy_run: Run<'_> = Run::over(&fixture, &reads);
     println!("DESTRUCTION step=arm-1-enter");
-    let underway: DestructionUnderway = healthy_run.destroy(&reader, &live).expect("the healthy removal destroys its own snapshots");
+    let underway: DestructionUnderway = healthy_run
+        .destroy(&reader, &live)
+        .expect("the healthy removal destroys its own snapshots");
     assert_eq!(underway.requests.len(), 1, "the whole set fits one request");
     for snapshot in underway.plan.named_snapshots() {
-        let state = underway.plan.current_state(snapshot.name.as_str()).expect("the plan holds the name the request carried");
-        assert_eq!(state.outcome, SnapshotOutcome::Destroyed, "every submitted name's answer is the state its history ends on");
+        let state = underway
+            .plan
+            .current_state(snapshot.name.as_str())
+            .expect("the plan holds the name the request carried");
+        assert_eq!(
+            state.outcome,
+            SnapshotOutcome::Destroyed,
+            "every submitted name's answer is the state its history ends on"
+        );
     }
-    assert!(underway.remaining_snapshots.is_empty(), "the fresh enumeration finds no snapshot left");
-    assert!(!fixture.exists(format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str()), "the batch destroyed the clone's own snapshot");
-    assert!(!fixture.exists(format!("{}@{SANOID_SNAPSHOT}", fixture.clone()).as_str()), "the batch destroyed the clone's other own snapshot");
-    assert!(fixture.exists(fixture.clone().as_str()), "the head stands, because this release sends no head destroy");
-    assert!(fixture.exists(fixture.origin().as_str()), "an unmarked origin stands after the batch");
-    let healthy_filed: DestructionPlan = read_the_plan(fixture.common().as_path(), healthy_recorded.clone_guid).expect("the plan reads back");
-    assert_eq!(healthy_filed, underway.plan, "the file holds every answer this run received");
+    assert!(
+        underway.remaining_snapshots.is_empty(),
+        "the fresh enumeration finds no snapshot left"
+    );
+    assert!(
+        !fixture.exists(format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str()),
+        "the batch destroyed the clone's own snapshot"
+    );
+    assert!(
+        !fixture.exists(format!("{}@{SANOID_SNAPSHOT}", fixture.clone()).as_str()),
+        "the batch destroyed the clone's other own snapshot"
+    );
+    assert!(
+        fixture.exists(fixture.clone().as_str()),
+        "the head stands, because this release sends no head destroy"
+    );
+    assert!(
+        fixture.exists(fixture.origin().as_str()),
+        "an unmarked origin stands after the batch"
+    );
+    let healthy_filed: DestructionPlan =
+        read_the_plan(fixture.common().as_path(), healthy_recorded.clone_guid)
+            .expect("the plan reads back");
+    assert_eq!(
+        healthy_filed, underway.plan,
+        "the file holds every answer this run received"
+    );
     println!("DESTRUCTION healthy=destroyed snapshots=2 remaining=0 head=present");
 
     // Arm 2: the mark is already there, so the look inside the entry refuses before anything is taken down.
@@ -223,20 +342,53 @@ fn the_removal_destruction_guest_arms() {
     fixture.run("zfs", &["destroy", "-d", fixture.origin().as_str()]);
     assert_eq!(
         origin_mark(&reader, fixture.origin().as_str()),
-        OriginMark::Marked { clones: 1, holds: crate::worktree_removal_deferred_origin_check::origin_mark::UserHolds::Counted(0) },
+        OriginMark::Marked {
+            clones: 1,
+            holds: crate::worktree_removal_deferred_origin_check::origin_mark::UserHolds::Counted(
+                0
+            )
+        },
         "the mark reads {MARK_ON} with one clone and no hold"
     );
     let look_run: Run<'_> = Run::over(&fixture, &reads);
     println!("DESTRUCTION step=arm-2-enter");
-    let look_stop: RemovalStop = look_run.destroy(&reader, &live).expect_err("a marked origin refuses at the look");
+    let look_stop: RemovalStop = look_run
+        .destroy(&reader, &live)
+        .expect_err("a marked origin refuses at the look");
     let look_cause: OriginRefusal = cause_of(&look_stop);
-    assert_eq!(look_cause.cause_name(), "origin-marked-before-the-unmount", "the look is what refused, and the mark was there before the run");
-    assert_eq!(look_cause.form(), RefusalForm::NothingTakenDown, "the look's message claims nothing was taken down");
-    assert_eq!(look_cause.what_it_leaves(), WhatARefusalLeaves::NothingPending);
-    assert!(look_stop.message().contains("nothing is pending and there is nothing to cancel"), "the look's sentence says nothing is pending");
-    assert!(fixture.exists(format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str()), "no snapshot was destroyed");
-    assert_eq!(fixture.plan_entries(), 0, "the look's refusal wrote no plan");
-    println!("DESTRUCTION look=refused cause={} pending=none plan=none", look_cause.cause_name());
+    assert_eq!(
+        look_cause.cause_name(),
+        "origin-marked-before-the-unmount",
+        "the look is what refused, and the mark was there before the run"
+    );
+    assert_eq!(
+        look_cause.form(),
+        RefusalForm::NothingTakenDown,
+        "the look's message claims nothing was taken down"
+    );
+    assert_eq!(
+        look_cause.what_it_leaves(),
+        WhatARefusalLeaves::NothingPending
+    );
+    assert!(
+        look_stop
+            .message()
+            .contains("nothing is pending and there is nothing to cancel"),
+        "the look's sentence says nothing is pending"
+    );
+    assert!(
+        fixture.exists(format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str()),
+        "no snapshot was destroyed"
+    );
+    assert_eq!(
+        fixture.plan_entries(),
+        0,
+        "the look's refusal wrote no plan"
+    );
+    println!(
+        "DESTRUCTION look=refused cause={} pending=none plan=none",
+        look_cause.cause_name()
+    );
 
     // Arm 3: the mark appears after the look and before the first check, which refuses with nothing sent.
     println!("DESTRUCTION step=arm-3-build");
@@ -246,21 +398,58 @@ fn the_removal_destruction_guest_arms() {
     fixture.write_the_adds_records(&first_recorded);
     let first_run: Run<'_> = Run::over(&fixture, &reads);
     let origin: String = fixture.origin();
-    let marking: MarkingReader<'_> = MarkingReader { live: &reader, fixture: &fixture, origin: origin.as_str(), reads: Cell::new(0) };
+    let marking: MarkingReader<'_> = MarkingReader {
+        live: &reader,
+        fixture: &fixture,
+        origin: origin.as_str(),
+        reads: Cell::new(0),
+    };
     let quiet_device: RecordingDevice = RecordingDevice::new();
     println!("DESTRUCTION step=arm-3-enter");
-    let first_stop: RemovalStop = first_run.destroy(&marking, &quiet_device).expect_err("the first check refuses the mark that appeared after the look");
+    let first_stop: RemovalStop = first_run
+        .destroy(&marking, &quiet_device)
+        .expect_err("the first check refuses the mark that appeared after the look");
     let first_cause: OriginRefusal = cause_of(&first_stop);
-    assert_eq!(first_cause.cause_name(), "origin-marked-for-deferred-destroy", "the first check is what refused");
+    assert_eq!(
+        first_cause.cause_name(),
+        "origin-marked-for-deferred-destroy",
+        "the first check is what refused"
+    );
     assert_eq!(first_cause.form(), RefusalForm::PendingAfterTheUnmount);
-    assert_eq!(first_cause.what_it_leaves(), WhatARefusalLeaves::PendingWithItsRecord, "the intent and the plan are kept");
-    assert!(first_stop.message().contains("This removal has not destroyed anything yet."), "nothing was sent, so the sentence says nothing was destroyed");
+    assert_eq!(
+        first_cause.what_it_leaves(),
+        WhatARefusalLeaves::PendingWithItsRecord,
+        "the intent and the plan are kept"
+    );
+    assert!(
+        first_stop
+            .message()
+            .contains("This removal has not destroyed anything yet."),
+        "nothing was sent, so the sentence says nothing was destroyed"
+    );
     assert!(quiet_device.sent.borrow().is_empty(), "no request was sent");
-    assert!(fixture.exists(format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str()), "the clone keeps both its own snapshots");
-    assert!(fixture.exists(fixture.origin().as_str()), "the origin snapshot stands");
-    let first_filed: DestructionPlan = read_the_plan(fixture.common().as_path(), first_recorded.clone_guid).expect("the plan stands");
-    assert!(first_filed.attempts.iter().all(|line| return line.outcome == SnapshotOutcome::Planned), "the plan records no answer");
-    println!("DESTRUCTION first-check=refused cause={} sent=0 lost=nothing", first_cause.cause_name());
+    assert!(
+        fixture.exists(format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str()),
+        "the clone keeps both its own snapshots"
+    );
+    assert!(
+        fixture.exists(fixture.origin().as_str()),
+        "the origin snapshot stands"
+    );
+    let first_filed: DestructionPlan =
+        read_the_plan(fixture.common().as_path(), first_recorded.clone_guid)
+            .expect("the plan stands");
+    assert!(
+        first_filed
+            .attempts
+            .iter()
+            .all(|line| return line.outcome == SnapshotOutcome::Planned),
+        "the plan records no answer"
+    );
+    println!(
+        "DESTRUCTION first-check=refused cause={} sent=0 lost=nothing",
+        first_cause.cause_name()
+    );
 
     // Arm 4: the owed measurement's second half: the mark appears after the batch and before the head check.
     println!("DESTRUCTION step=arm-4-build");
@@ -277,25 +466,67 @@ fn the_removal_destruction_guest_arms() {
         calls: Cell::new(0),
     };
     println!("DESTRUCTION step=arm-4-enter");
-    let head_stop: RemovalStop = head_run.destroy(&reader, &marking_device).expect_err("the head check refuses the mark the batch's own request made");
+    let head_stop: RemovalStop = head_run
+        .destroy(&reader, &marking_device)
+        .expect_err("the head check refuses the mark the batch's own request made");
     let head_cause: OriginRefusal = cause_of(&head_stop);
-    assert_eq!(head_cause.cause_name(), "origin-marked-for-deferred-destroy", "the head check is what refused");
+    assert_eq!(
+        head_cause.cause_name(),
+        "origin-marked-for-deferred-destroy",
+        "the head check is what refused"
+    );
     assert_eq!(head_cause.form(), RefusalForm::PendingAfterTheUnmount);
     let head_message: String = head_stop.message();
-    assert!(head_message.contains("has already lost"), "the head check's sentence names what the batch destroyed: {head_message}");
-    assert!(!head_message.contains("has not destroyed anything yet"), "the sentence never claims nothing was destroyed: {head_message}");
-    assert!(fixture.exists(fixture.origin().as_str()), "the origin snapshot stands");
-    assert!(fixture.exists(fixture.clone().as_str()), "the clone head stands, so no head request was sent");
-    assert!(!fixture.exists(format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str()), "the batch destroyed the first own snapshot");
-    assert!(!fixture.exists(format!("{}@{SANOID_SNAPSHOT}", fixture.clone()).as_str()), "the batch destroyed the second own snapshot");
-    assert!(fixture.registration().exists(), "the Git registration survives the refusal");
-    let head_filed: DestructionPlan = read_the_plan(fixture.common().as_path(), head_recorded.clone_guid).expect("the plan stands");
+    assert!(
+        head_message.contains("has already lost"),
+        "the head check's sentence names what the batch destroyed: {head_message}"
+    );
+    assert!(
+        !head_message.contains("has not destroyed anything yet"),
+        "the sentence never claims nothing was destroyed: {head_message}"
+    );
+    assert!(
+        fixture.exists(fixture.origin().as_str()),
+        "the origin snapshot stands"
+    );
+    assert!(
+        fixture.exists(fixture.clone().as_str()),
+        "the clone head stands, so no head request was sent"
+    );
+    assert!(
+        !fixture.exists(format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str()),
+        "the batch destroyed the first own snapshot"
+    );
+    assert!(
+        !fixture.exists(format!("{}@{SANOID_SNAPSHOT}", fixture.clone()).as_str()),
+        "the batch destroyed the second own snapshot"
+    );
+    assert!(
+        fixture.registration().exists(),
+        "the Git registration survives the refusal"
+    );
+    let head_filed: DestructionPlan =
+        read_the_plan(fixture.common().as_path(), head_recorded.clone_guid)
+            .expect("the plan stands");
     for snapshot in head_filed.named_snapshots() {
-        let state = head_filed.current_state(snapshot.name.as_str()).expect("the plan holds every name the batch submitted");
-        assert_eq!(state.outcome, SnapshotOutcome::Destroyed, "the plan keeps every name the batch destroyed");
+        let state = head_filed
+            .current_state(snapshot.name.as_str())
+            .expect("the plan holds every name the batch submitted");
+        assert_eq!(
+            state.outcome,
+            SnapshotOutcome::Destroyed,
+            "the plan keeps every name the batch destroyed"
+        );
     }
-    assert_eq!(fixture.plan_entries(), 1, "the refusal kept the plan, which is the record of what the batch destroyed");
-    println!("DESTRUCTION head-check=refused cause={} plan=kept registration=kept", head_cause.cause_name());
+    assert_eq!(
+        fixture.plan_entries(),
+        1,
+        "the refusal kept the plan, which is the record of what the batch destroyed"
+    );
+    println!(
+        "DESTRUCTION head-check=refused cause={} plan=kept registration=kept",
+        head_cause.cause_name()
+    );
 
     // Arm 5: a replacement clone whose different origin is marked, in place before the run.
     println!("DESTRUCTION step=arm-5-build");
@@ -304,24 +535,72 @@ fn the_removal_destruction_guest_arms() {
     let replacement_recorded: RecordedBinding = fixture.recorded();
     fixture.write_the_adds_records(&replacement_recorded);
     let replacement_run: Run<'_> = Run::over(&fixture, &reads);
-    fixture.run("zfs", &["destroy", format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str()]);
-    fixture.run("zfs", &["destroy", format!("{}@{SANOID_SNAPSHOT}", fixture.clone()).as_str()]);
+    fixture.run(
+        "zfs",
+        &[
+            "destroy",
+            format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str(),
+        ],
+    );
+    fixture.run(
+        "zfs",
+        &[
+            "destroy",
+            format!("{}@{SANOID_SNAPSHOT}", fixture.clone()).as_str(),
+        ],
+    );
     fixture.run("zfs", &["destroy", fixture.clone().as_str()]);
     let checkout: String = fixture.checkout();
-    fixture.run("zfs", &["snapshot", format!("{checkout}@{OTHER_ORIGIN}").as_str()]);
-    fixture.run("zfs", &["clone", format!("{checkout}@{OTHER_ORIGIN}").as_str(), fixture.clone().as_str()]);
-    fixture.run("zfs", &["destroy", "-d", format!("{checkout}@{OTHER_ORIGIN}").as_str()]);
+    fixture.run(
+        "zfs",
+        &["snapshot", format!("{checkout}@{OTHER_ORIGIN}").as_str()],
+    );
+    fixture.run(
+        "zfs",
+        &[
+            "clone",
+            format!("{checkout}@{OTHER_ORIGIN}").as_str(),
+            fixture.clone().as_str(),
+        ],
+    );
+    fixture.run(
+        "zfs",
+        &[
+            "destroy",
+            "-d",
+            format!("{checkout}@{OTHER_ORIGIN}").as_str(),
+        ],
+    );
     let replacement_device: RecordingDevice = RecordingDevice::new();
     println!("DESTRUCTION step=arm-5-enter");
-    let replacement_stop: RemovalStop = replacement_run.destroy(&reader, &replacement_device).expect_err("a replacement clone is not the planned one");
+    let replacement_stop: RemovalStop = replacement_run
+        .destroy(&reader, &replacement_device)
+        .expect_err("a replacement clone is not the planned one");
     let replacement_message: String = replacement_stop.message();
     match &replacement_stop {
-        RemovalStop::IdentityDiffers { field, .. } => assert_eq!(*field, "cloneGuid", "the entry's own proof refuses the replacement's GUID before any mark is judged: {replacement_message}"),
-        other => panic!("the entry's proof refuses a replacement clone, and this run stopped with {other:?}"),
+        RemovalStop::IdentityDiffers {
+            field,
+            ..
+        } => assert_eq!(
+            *field, "cloneGuid",
+            "the entry's own proof refuses the replacement's GUID before any mark is judged: {replacement_message}"
+        ),
+        other => panic!(
+            "the entry's proof refuses a replacement clone, and this run stopped with {other:?}"
+        ),
     }
-    assert!(replacement_device.sent.borrow().is_empty(), "no request was sent");
-    assert!(fixture.exists(fixture.clone().as_str()), "the replacement clone stands");
-    assert!(fixture.exists(format!("{checkout}@{OTHER_ORIGIN}").as_str()), "the marked origin the replacement stands on stands");
+    assert!(
+        replacement_device.sent.borrow().is_empty(),
+        "no request was sent"
+    );
+    assert!(
+        fixture.exists(fixture.clone().as_str()),
+        "the replacement clone stands"
+    );
+    assert!(
+        fixture.exists(format!("{checkout}@{OTHER_ORIGIN}").as_str()),
+        "the marked origin the replacement stands on stands"
+    );
     assert_eq!(fixture.plan_entries(), 0, "the refusal wrote no plan");
     println!("DESTRUCTION replacement=refused field=cloneGuid sent=0");
 
@@ -345,13 +624,24 @@ struct RecordingDevice {
 
 impl RecordingDevice {
     fn new() -> RecordingDevice {
-        return RecordingDevice { sent: RefCell::new(Vec::new()) };
+        return RecordingDevice {
+            sent: RefCell::new(Vec::new()),
+        };
     }
 }
 
 impl SnapshotDestroyDevice for RecordingDevice {
-    fn destroy_snaps(&self, _pool: &str, names: &[&str]) -> Result<Option<NvList>, DeviceError> {
-        self.sent.borrow_mut().push(names.iter().map(|name| return String::from(*name)).collect());
+    fn destroy_snaps(
+        &self,
+        _pool: &str,
+        names: &[&str],
+    ) -> Result<Option<NvList>, DeviceError> {
+        self.sent.borrow_mut().push(
+            names
+                .iter()
+                .map(|name| return String::from(*name))
+                .collect(),
+        );
         return Ok(None);
     }
 }

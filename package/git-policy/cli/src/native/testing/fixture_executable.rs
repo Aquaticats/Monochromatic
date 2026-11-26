@@ -13,7 +13,12 @@
 /// Native process types used by the writer.
 use std::io::Write;
 use std::path::Path;
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{
+    Child,
+    ChildStdin,
+    Command,
+    Stdio,
+};
 
 /// What:
 ///  Write an executable file,
@@ -34,7 +39,10 @@ use std::process::{Child, ChildStdin, Command, Stdio};
 /// ```ts
 /// spawnSync('tee', [path], { input: content }); chmodSync(path, 0o755);
 /// ```
-pub fn executable(path: &Path, content: &[u8]) {
+pub fn executable(
+    path: &Path,
+    content: &[u8],
+) {
     use std::os::unix::fs::PermissionsExt;
     // `Stdio::piped()` connects this process to `tee`'s input; its copy to standard output is discarded.
     let mut writer: Child = Command::new("tee")

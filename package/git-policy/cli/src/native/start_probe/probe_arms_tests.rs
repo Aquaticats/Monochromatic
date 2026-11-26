@@ -15,7 +15,10 @@
 //! expect(new Set(ALL.map(name)).size).toBe(ALL.length);
 //! ```
 
-use super::{ProbeArm, ProbeStep};
+use super::{
+    ProbeArm,
+    ProbeStep,
+};
 
 /// Every arm and step has a name a reader can parse back.
 #[test]
@@ -38,7 +41,11 @@ fn the_worker_order_holds_every_step_but_the_holders() {
     for step in ProbeStep::ALL {
         let in_worker: bool = worker.contains(&step);
         let in_holder: bool = holder.contains(&step);
-        assert!(in_worker != in_holder, "{} is in both orders or in neither", step.name());
+        assert!(
+            in_worker != in_holder,
+            "{} is in both orders or in neither",
+            step.name()
+        );
     }
     assert_eq!(worker.len() + holder.len(), ProbeStep::ALL.len());
 }
@@ -49,7 +56,14 @@ fn the_worker_order_holds_every_step_but_the_holders() {
 fn only_the_move_unmount_and_scans_refuse_a_removal() {
     for step in ProbeStep::ALL {
         let refuses: bool = step.refuses_removal_of_a_mounted_clone();
-        let expected: bool = matches!(step, ProbeStep::Move | ProbeStep::Unmount | ProbeStep::ScanWhileHeld | ProbeStep::ScanAfterHolder | ProbeStep::ClosingScan);
+        let expected: bool = matches!(
+            step,
+            ProbeStep::Move
+                | ProbeStep::Unmount
+                | ProbeStep::ScanWhileHeld
+                | ProbeStep::ScanAfterHolder
+                | ProbeStep::ClosingScan
+        );
         assert_eq!(refuses, expected, "{}", step.name());
     }
 }
@@ -59,7 +73,11 @@ fn only_the_move_unmount_and_scans_refuse_a_removal() {
 #[test]
 fn every_arm_owns_a_step() {
     for arm in ProbeArm::ALL {
-        let owned: Vec<ProbeStep> = ProbeStep::ALL.iter().copied().filter(|step| return step.arm() == arm).collect();
+        let owned: Vec<ProbeStep> = ProbeStep::ALL
+            .iter()
+            .copied()
+            .filter(|step| return step.arm() == arm)
+            .collect();
         assert!(!owned.is_empty(), "{} owns no step", arm.name());
     }
 }

@@ -217,8 +217,14 @@ fn is_not_a_label(attribute: &&Attribute) -> bool {
 /// ```ts
 /// const sameData = (left, right) => left.filter(isNotALabel).equals(right.filter(isNotALabel));
 /// ```
-pub(crate) fn same_data(left: &[Attribute], right: &[Attribute]) -> bool {
-    return left.iter().filter(is_not_a_label).eq(right.iter().filter(is_not_a_label));
+pub(crate) fn same_data(
+    left: &[Attribute],
+    right: &[Attribute],
+) -> bool {
+    return left
+        .iter()
+        .filter(is_not_a_label)
+        .eq(right.iter().filter(is_not_a_label));
 }
 
 /// What:
@@ -240,7 +246,10 @@ pub(crate) fn same_data(left: &[Attribute], right: &[Attribute]) -> bool {
 /// const attributesOf = (path, step) => listxattr(path).sort().map((name) => ({ name, value: getxattr(path, name) }));
 /// ```
 #[cfg(unix)]
-pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, String> {
+pub(crate) fn attributes_of(
+    path: &Path,
+    step: &str,
+) -> Result<Vec<Attribute>, String> {
     let names: Vec<Vec<u8>> = match reading::names_of_attributes(path) {
         Ok(listed) => listed,
         Err(error) => return Err(unreadable_list(step, &error)),
@@ -254,7 +263,10 @@ pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, S
             Ok(read) => read,
             Err(error) => return Err(unreadable_value(step, name.as_slice(), &error)),
         };
-        found.push(Attribute { name, value });
+        found.push(Attribute {
+            name,
+            value,
+        });
     }
     found.sort();
     return Ok(found);
@@ -271,7 +283,10 @@ pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, S
 /// const unreadableList = (step, error) => `${step} failed (${error})`;
 /// ```
 #[cfg(unix)]
-fn unreadable_list(step: &str, error: &std::io::Error) -> String {
+fn unreadable_list(
+    step: &str,
+    error: &std::io::Error,
+) -> String {
     return format!("{step} failed ({error})");
 }
 
@@ -303,7 +318,11 @@ fn unaddressable_name(step: &str) -> String {
 /// const unreadableValue = (step, name, error) => `${step} failed (its extended attribute ${name} could not be read: ${error})`;
 /// ```
 #[cfg(unix)]
-fn unreadable_value(step: &str, name: &[u8], error: &std::io::Error) -> String {
+fn unreadable_value(
+    step: &str,
+    name: &[u8],
+    error: &std::io::Error,
+) -> String {
     return format!(
         "{step} failed (its extended attribute {} could not be read: {error})",
         String::from_utf8_lossy(name)
@@ -326,7 +345,10 @@ fn unreadable_value(step: &str, name: &[u8], error: &std::io::Error) -> String {
 /// const attributesOf = () => [];
 /// ```
 #[cfg(not(unix))]
-pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, String> {
+pub(crate) fn attributes_of(
+    path: &Path,
+    step: &str,
+) -> Result<Vec<Attribute>, String> {
     let _ = (path, step);
     return Ok(Vec::new());
 }
@@ -363,7 +385,10 @@ pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, S
 /// takeOffEveryExtra(file, attributes);
 /// ```
 #[cfg(unix)]
-pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), AttributeRefusal> {
+pub(crate) fn give_to(
+    file: &File,
+    attributes: &[Attribute],
+) -> Result<(), AttributeRefusal> {
     let descriptor: libc::c_int = file.as_raw_fd();
     for attribute in attributes {
         let Ok(text) = CString::new(attribute.name.as_slice()) else {
@@ -414,7 +439,10 @@ pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), Attri
 /// const namesIt = (kept, name) => kept.some((attribute) => attribute.name === name);
 /// ```
 #[cfg(unix)]
-fn names_it(kept: &[Attribute], name: &[u8]) -> bool {
+fn names_it(
+    kept: &[Attribute],
+    name: &[u8],
+) -> bool {
     for attribute in kept {
         if attribute.name.as_slice() == name {
             return true;
@@ -449,11 +477,18 @@ fn names_it(kept: &[Attribute], name: &[u8]) -> bool {
 /// for (const name of flistxattr(file)) if (!kept.some((attribute) => attribute.name === name)) fremovexattr(file, name);
 /// ```
 #[cfg(unix)]
-fn take_off_every_extra(file: &File, kept: &[Attribute]) -> Result<(), AttributeRefusal> {
+fn take_off_every_extra(
+    file: &File,
+    kept: &[Attribute],
+) -> Result<(), AttributeRefusal> {
     let descriptor: libc::c_int = file.as_raw_fd();
     let names: Vec<Vec<u8>> = match reading::names_on_descriptor(descriptor) {
         Ok(listed) => listed,
-        Err(reason) => return Err(AttributeRefusal::ListFailed { reason }),
+        Err(reason) => {
+            return Err(AttributeRefusal::ListFailed {
+                reason,
+            });
+        }
     };
     for name in names {
         if names_it(kept, name.as_slice()) {
@@ -507,7 +542,10 @@ fn take_off_every_extra(file: &File, kept: &[Attribute]) -> Result<(), Attribute
 /// const giveTo = (file, attributes) => attributes.length === 0 ? undefined : { kind: 'not-given', attribute: attributes[0], error: unsupported };
 /// ```
 #[cfg(not(unix))]
-pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), AttributeRefusal> {
+pub(crate) fn give_to(
+    file: &File,
+    attributes: &[Attribute],
+) -> Result<(), AttributeRefusal> {
     let _ = file;
     return match attributes.first() {
         Some(attribute) => Err(AttributeRefusal::NotGiven {

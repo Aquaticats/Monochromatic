@@ -33,9 +33,15 @@
 //! if (plan !== 'left-to-git' && writeSideReference(gitDir, name, tip, plan.here) === 'left-to-git') await keepOnTheScratchReference(git, repo, name, tip);
 //! ```
 
-use crate::config_snapshot::{ConfigSnapshot, Lookup};
+use crate::config_snapshot::{
+    ConfigSnapshot,
+    Lookup,
+};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What the landing decided about a batch's side reference before it writes anything.
 /// Why:
@@ -129,11 +135,15 @@ const PREFIX: &str = "refs/worktree/cli-git-service/";
 /// const plan = (snapshot) => !snapshot?.provesFilesRefStorage() || snapshot.fsyncNamesReference() || snapshot.hasSharedRepository() ? 'left-to-git' : { here: lockMarkOf(snapshot) };
 /// ```
 pub(crate) fn the_plan_of(snapshot: Option<&ConfigSnapshot>) -> SideReferenceWritePlan {
-    let Some(found) = snapshot else { return SideReferenceWritePlan::LeftToGit };
+    let Some(found) = snapshot else {
+        return SideReferenceWritePlan::LeftToGit;
+    };
     if !found.proves_files_ref_storage() {
         return SideReferenceWritePlan::LeftToGit;
     }
-    let Some(fsync) = found.fsync_components() else { return SideReferenceWritePlan::LeftToGit };
+    let Some(fsync) = found.fsync_components() else {
+        return SideReferenceWritePlan::LeftToGit;
+    };
     if fsync.names_reference() {
         return SideReferenceWritePlan::LeftToGit;
     }
@@ -242,7 +252,11 @@ fn made_fresh(path: &Path) -> Option<std::fs::File> {
 /// ```ts
 /// const held = exclusive(`${dir}/${batch}.lock`); if (!held) return undefined; if (mark === 'pid' && !writeMark(`${dir}/${batch}~pid.lock`)) { unlink(lock); return undefined; } return held;
 /// ```
-fn lock_beside_the_reference(directory: &Path, batch: &str, mark: LockMark) -> Option<std::fs::File> {
+fn lock_beside_the_reference(
+    directory: &Path,
+    batch: &str,
+    mark: LockMark,
+) -> Option<std::fs::File> {
     let lock: PathBuf = directory.join(format!("{batch}.lock"));
     let held: std::fs::File = made_fresh(lock.as_path())?;
     if matches!(mark, LockMark::None) {
@@ -293,10 +307,16 @@ fn write_the_mark(mut mark: std::fs::File) -> bool {
 /// ```ts
 /// const giveBack = (dir, batch, mark, held) => { held.close(); if (mark === 'pid') unlink(`${batch}~pid.lock`); unlink(`${batch}.lock`); };
 /// ```
-fn give_the_lock_back(directory: &Path, batch: &str, mark: LockMark, held: std::fs::File) {
+fn give_the_lock_back(
+    directory: &Path,
+    batch: &str,
+    mark: LockMark,
+    held: std::fs::File,
+) {
     drop(held);
     if matches!(mark, LockMark::Pid) {
-        let _removed = std::fs::remove_file(directory.join(format!("{batch}{PID_MARK_END}")).as_path());
+        let _removed =
+            std::fs::remove_file(directory.join(format!("{batch}{PID_MARK_END}")).as_path());
     }
     let _given_back = std::fs::remove_file(directory.join(format!("{batch}.lock")).as_path());
 }
@@ -326,8 +346,15 @@ fn give_the_lock_back(directory: &Path, batch: &str, mark: LockMark, held: std::
 /// ```ts
 /// const answer = writeSideReference(gitDir, name, tip, mark); // 'written' | 'left-to-git'
 /// ```
-pub(crate) fn write_side_reference(git_dir: &Path, name: &str, tip: &str, mark: LockMark) -> SideReferenceWrite {
-    let Some(batch) = the_batch_of(name) else { return SideReferenceWrite::LeftToGit };
+pub(crate) fn write_side_reference(
+    git_dir: &Path,
+    name: &str,
+    tip: &str,
+    mark: LockMark,
+) -> SideReferenceWrite {
+    let Some(batch) = the_batch_of(name) else {
+        return SideReferenceWrite::LeftToGit;
+    };
     if !is_a_whole_object_name(tip) {
         return SideReferenceWrite::LeftToGit;
     }
@@ -339,7 +366,9 @@ pub(crate) fn write_side_reference(git_dir: &Path, name: &str, tip: &str, mark: 
     // This writer replaces no name: the reference that is already there may be the only thing naming its commit
     //  (the owner's rule "never discard user data"), and a symbolic reference or a directory at this name is a shape only Git's own
     //  words refuse. Every writer of this exact name takes the same lock, so the question is asked where no other write of it can run.
-    let Some(mut held) = lock_beside_the_reference(directory.as_path(), batch, mark) else { return SideReferenceWrite::LeftToGit };
+    let Some(mut held) = lock_beside_the_reference(directory.as_path(), batch, mark) else {
+        return SideReferenceWrite::LeftToGit;
+    };
     let free: bool = matches!(std::fs::symlink_metadata(reference.as_path()), Err(error) if error.kind() == std::io::ErrorKind::NotFound);
     if !free {
         give_the_lock_back(directory.as_path(), batch, mark, held);
@@ -351,16 +380,23 @@ pub(crate) fn write_side_reference(git_dir: &Path, name: &str, tip: &str, mark: 
         return SideReferenceWrite::LeftToGit;
     }
     drop(held);
-    if std::fs::rename(directory.join(format!("{batch}.lock")).as_path(), reference.as_path()).is_err() {
+    if std::fs::rename(
+        directory.join(format!("{batch}.lock")).as_path(),
+        reference.as_path(),
+    )
+    .is_err()
+    {
         let _given_back = std::fs::remove_file(directory.join(format!("{batch}.lock")).as_path());
         if matches!(mark, LockMark::Pid) {
-            let _removed = std::fs::remove_file(directory.join(format!("{batch}{PID_MARK_END}")).as_path());
+            let _removed =
+                std::fs::remove_file(directory.join(format!("{batch}{PID_MARK_END}")).as_path());
         }
         return SideReferenceWrite::LeftToGit;
     }
     // The mark goes the way Git's goes, once the rename is what names the commit.
     if matches!(mark, LockMark::Pid) {
-        let _removed = std::fs::remove_file(directory.join(format!("{batch}{PID_MARK_END}")).as_path());
+        let _removed =
+            std::fs::remove_file(directory.join(format!("{batch}{PID_MARK_END}")).as_path());
     }
     return SideReferenceWrite::Written;
 }

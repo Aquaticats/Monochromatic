@@ -15,20 +15,40 @@
 /// Import the store under test,
 ///  its sibling fixtures and shared fixtures.
 use super::CandidateStore;
-use super::tests::{at, paths, store, write};
+use super::tests::{
+    at,
+    paths,
+    store,
+    write,
+};
 use crate::candidate_record::CandidateChange;
-use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion};
-use crate::test_support::{REAL_GIT, fixture, git, remove, repository};
+use crate::candidate_version::{
+    Candidate,
+    CandidateSource,
+    CandidateVersion,
+};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// Without any commit every index entry is an addition,
 ///  listed against the empty tree.
 #[test]
 fn unborn_head_lists_every_index_entry_as_added() {
-    if !in_a_fixture_root_taking_any_name("candidate::candidate_store::baseline_tests::unborn_head_lists_every_index_entry_as_added") {
+    if !in_a_fixture_root_taking_any_name(
+        "candidate::candidate_store::baseline_tests::unborn_head_lists_every_index_entry_as_added",
+    ) {
         return;
     }
     let root: PathBuf = fixture("store-unborn");

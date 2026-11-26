@@ -19,14 +19,20 @@
 //! const record = pushRecordItem(repo, gitDir, 'refs/heads/main', tip, parent); enqueue(workDir, record); await wake({ pushPrograms: [[record.id, programsOfThisProcess()]] });
 //! ```
 
-
 use crate::iso_time::now_iso;
 use crate::service_client::wake;
+use crate::service_handoff::{
+    ServiceHandoff,
+    unqueued_branch_note,
+};
 use crate::service_messages::ClientFailure;
 use crate::service_messages_of_a_work_that_was_not_handed_over::not_handed_over;
-use crate::service_handoff::{ServiceHandoff, unqueued_branch_note};
-use crate::work_item::{WorkItem, WorkKind, enqueue};
 use crate::service_work::work_directory;
+use crate::work_item::{
+    WorkItem,
+    WorkKind,
+    enqueue,
+};
 use std::io::Write;
 
 /// What:
@@ -47,7 +53,13 @@ use std::io::Write;
 /// ```ts
 /// const pushRecordItem = (repository, gitDir, reference, tip, parent) => ({ kind: 'push', repository, gitDir, branchRef: reference, oid: tip, parent, created: nowIso(), tries: 0, transport: ofThisProcess().transport });
 /// ```
-pub(crate) fn push_record_item(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, tip: &str, parent: &str) -> WorkItem {
+pub(crate) fn push_record_item(
+    repository: &std::path::Path,
+    git_dir: &std::path::Path,
+    reference: &str,
+    tip: &str,
+    parent: &str,
+) -> WorkItem {
     // The command that moved the branch is what asks for this push, so its own environment answers whether a transport was
     //  chosen; the values themselves travel with the wake and are written nowhere (`service_push_programs_held_in_memory`).
     return WorkItem {
@@ -92,8 +104,12 @@ pub fn write_push_record(
 ) -> Result<Option<String>, ClientFailure> {
     // A push record names its branch in text, and a spelling with replacement characters would push another branch, so a branch
     //  whose name is not text has none; `hand_over_push` tells the person that instead.
-    let Some(name) = reference.text() else { return Ok(None) };
-    let item: WorkItem = crate::push_record_of_a_moved_branch::push_record_item(repository, git_dir, name, tip, parent);
+    let Some(name) = reference.text() else {
+        return Ok(None);
+    };
+    let item: WorkItem = crate::push_record_of_a_moved_branch::push_record_item(
+        repository, git_dir, name, tip, parent,
+    );
     let id: String = item.id();
     enqueue(work_directory(git_dir).as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
     return Ok(Some(id));
@@ -110,19 +126,46 @@ pub fn write_push_record(
 /// ```ts
 /// await handOverPush(handoff, tip)
 /// ```
-pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+pub fn hand_over_push(
+    handoff: &ServiceHandoff,
+    tip: &str,
+    notices: &mut dyn Write,
+) -> Result<(), ClientFailure> {
     if !handoff.reference.is_text() {
-        let _said = writeln!(notices, "{}", unqueued_branch_note(handoff.reference.as_os_str(), tip));
+        let _said = writeln!(
+            notices,
+            "{}",
+            unqueued_branch_note(handoff.reference.as_os_str(), tip)
+        );
         return Ok(());
     }
-    let record: Option<String> = write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), &handoff.reference, tip, handoff.parent.as_str())?;
+    let record: Option<String> = write_push_record(
+        handoff.repository.as_path(),
+        handoff.git_dir.as_path(),
+        &handoff.reference,
+        tip,
+        handoff.parent.as_str(),
+    )?;
     // What: The programs of this command, and whether it chose the transport the push speaks through, go with the wake.
     // Why:  Nothing of them may be written (the two command lines can hold a password), and the push runs after this command has
     //  gone, so the message that announces the record is the last moment they can reach the service that runs it, which holds them
     //  in its memory alone (`service_push_programs_held_in_memory`).
-    let programs: Vec<(String, crate::service_push_programs_held_in_memory::PushPrograms)> = match record {
-        Some(id) => vec![(id, crate::service_push_programs_held_in_memory::of_this_process())],
+    let programs: Vec<(
+        String,
+        crate::service_push_programs_held_in_memory::PushPrograms,
+    )> = match record {
+        Some(id) => vec![(
+            id,
+            crate::service_push_programs_held_in_memory::of_this_process(),
+        )],
         None => Vec::new(),
     };
-    return wake(&handoff.config, handoff.git_dir.as_path(), None, programs.as_slice(), notices).map_err(not_handed_over);
+    return wake(
+        &handoff.config,
+        handoff.git_dir.as_path(),
+        None,
+        programs.as_slice(),
+        notices,
+    )
+    .map_err(not_handed_over);
 }

@@ -22,10 +22,21 @@
 //! const rows = new LiveMountedDatasets().mountedDatasets(); // MountedDatasetInstance[]
 //! ```
 
-use crate::fs_mount_options::{parse_mount_table, read_mount_facts, MountFacts, MOUNTINFO_PATH};
-use crate::plain_file::{read_plain_file, MOUNT_TABLE_LIMIT};
+use crate::fs_mount_options::{
+    MOUNTINFO_PATH,
+    MountFacts,
+    parse_mount_table,
+    read_mount_facts,
+};
+use crate::plain_file::{
+    MOUNT_TABLE_LIMIT,
+    read_plain_file,
+};
 use crate::worktree_clone_mount::attach_the_clone::ZFS_FILE_SYSTEM_TYPE;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The root a mount of the dataset's own root shows,
 /// which a bind mount of a subtree shows deeper.
@@ -95,7 +106,10 @@ impl MountedDatasetInstance {
     /// The last `/`-separated component of the dataset's name,
     /// which is the leaf name the design fixes.
     pub fn last_name_component(&self) -> &str {
-        return self.dataset.rsplit_once('/').map_or(self.dataset.as_str(), |(_parent, leaf)| return leaf);
+        return self
+            .dataset
+            .rsplit_once('/')
+            .map_or(self.dataset.as_str(), |(_parent, leaf)| return leaf);
     }
 
     /// The instance in words,
@@ -104,7 +118,12 @@ impl MountedDatasetInstance {
         return if self.shows_the_datasets_own_root() {
             format!("`{}` at {}", self.dataset, self.mount_point.display())
         } else {
-            format!("`{}` at {} with root {}", self.dataset, self.mount_point.display(), self.root.display())
+            format!(
+                "`{}` at {} with root {}",
+                self.dataset,
+                self.mount_point.display(),
+                self.root.display()
+            )
         };
     }
 }
@@ -136,7 +155,10 @@ pub trait MountedDatasets {
     ///
     /// # Errors
     /// The table or the path could not be read.
-    fn mount_holding(&self, path: &Path) -> Result<Option<MountHoldingAPath>, String>;
+    fn mount_holding(
+        &self,
+        path: &Path,
+    ) -> Result<Option<MountHoldingAPath>, String>;
 }
 
 /// What:
@@ -156,11 +178,15 @@ pub struct LiveMountedDatasets;
 
 impl MountedDatasets for LiveMountedDatasets {
     fn mounted_datasets(&self) -> Result<Vec<MountedDatasetInstance>, String> {
-        let text: Vec<u8> = read_plain_file(Path::new(MOUNTINFO_PATH), MOUNT_TABLE_LIMIT).map_err(|error| return format!("cannot read {MOUNTINFO_PATH}: {error}"))?;
+        let text: Vec<u8> = read_plain_file(Path::new(MOUNTINFO_PATH), MOUNT_TABLE_LIMIT)
+            .map_err(|error| return format!("cannot read {MOUNTINFO_PATH}: {error}"))?;
         return Ok(dataset_mounts_of(text.as_slice()));
     }
 
-    fn mount_holding(&self, path: &Path) -> Result<Option<MountHoldingAPath>, String> {
+    fn mount_holding(
+        &self,
+        path: &Path,
+    ) -> Result<Option<MountHoldingAPath>, String> {
         let facts: Option<MountFacts> = read_mount_facts(path)?;
         return Ok(facts.map(|mount| return holding_of(&mount)));
     }
@@ -180,8 +206,16 @@ impl MountedDatasets for LiveMountedDatasets {
 /// const holding = { dataset: facts.filesystemType === 'zfs' ? facts.source : undefined, filesystemType: facts.filesystemType, mountPoint: facts.mountPoint };
 /// ```
 pub fn holding_of(facts: &MountFacts) -> MountHoldingAPath {
-    let dataset: Option<String> = if facts.filesystem_type == ZFS_FILE_SYSTEM_TYPE { Some(facts.source.clone()) } else { None };
-    return MountHoldingAPath { dataset, filesystem_type: facts.filesystem_type.clone(), mount_point: facts.mount_point.clone() };
+    let dataset: Option<String> = if facts.filesystem_type == ZFS_FILE_SYSTEM_TYPE {
+        Some(facts.source.clone())
+    } else {
+        None
+    };
+    return MountHoldingAPath {
+        dataset,
+        filesystem_type: facts.filesystem_type.clone(),
+        mount_point: facts.mount_point.clone(),
+    };
 }
 
 /// What:
@@ -199,7 +233,11 @@ pub fn dataset_mounts_of(text: &[u8]) -> Vec<MountedDatasetInstance> {
         .into_iter()
         .filter(|facts| return facts.filesystem_type == ZFS_FILE_SYSTEM_TYPE)
         .map(|facts| {
-            return MountedDatasetInstance { dataset: facts.source, mount_point: facts.mount_point, root: facts.root };
+            return MountedDatasetInstance {
+                dataset: facts.source,
+                mount_point: facts.mount_point,
+                root: facts.root,
+            };
         })
         .collect();
 }

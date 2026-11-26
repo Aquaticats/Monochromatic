@@ -64,8 +64,14 @@ fn the_last_word_decides_and_the_negation_is_a_real_prune() {
     ] {
         assert!(!removes_nothing(values), "Git prunes for {values:?}");
     }
-    assert!(removes_nothing(&["prune", "--no-dry-run", "--dry"]), "the last word is the dry run again");
-    assert!(removes_nothing(&["prune", "--no-dry-r", "-n"]), "the short dry run after Git's negation");
+    assert!(
+        removes_nothing(&["prune", "--no-dry-run", "--dry"]),
+        "the last word is the dry run again"
+    );
+    assert!(
+        removes_nothing(&["prune", "--no-dry-r", "-n"]),
+        "the short dry run after Git's negation"
+    );
 }
 
 /// What:
@@ -79,11 +85,30 @@ fn the_last_word_decides_and_the_negation_is_a_real_prune() {
 ///  because a spelling a later Git adds would then skip the guard.
 #[test]
 fn a_refused_form_removes_nothing_and_an_unknown_option_is_guarded() {
-    for values in [&["prune", "--dry-run=1"][..], &["prune", "--no-dry-run=0"], &["prune", "one"], &["prune", "--", "one"], &["prune", "-n", "one"]] {
-        assert!(removes_nothing(values), "Git refuses this form and prunes nothing: {values:?}");
+    for values in [
+        &["prune", "--dry-run=1"][..],
+        &["prune", "--no-dry-run=0"],
+        &["prune", "one"],
+        &["prune", "--", "one"],
+        &["prune", "-n", "one"],
+    ] {
+        assert!(
+            removes_nothing(values),
+            "Git refuses this form and prunes nothing: {values:?}"
+        );
     }
-    for values in [&["prune", "--frobnicate"][..], &["prune", "-x"], &["prune", "--verbose", "--frobnicate"]] {
-        assert!(!removes_nothing(values), "an option this reading does not know still goes through the guard: {values:?}");
+    for values in [
+        &["prune", "--frobnicate"][..],
+        &["prune", "-x"],
+        &["prune", "--verbose", "--frobnicate"],
+    ] {
+        assert!(
+            !removes_nothing(values),
+            "an option this reading does not know still goes through the guard: {values:?}"
+        );
     }
-    assert!(!removes_nothing(&["--verbose", "prune"]), "the subcommand word is the first word that is no option");
+    assert!(
+        !removes_nothing(&["--verbose", "prune"]),
+        "the subcommand word is the first word that is no option"
+    );
 }

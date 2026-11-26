@@ -14,22 +14,49 @@
 
 /// Import the functions under test and the values they judge.
 use super::{
-    DEFAULT_RULES_FILE, RULES_VARIABLE, SCANNER_SELF_MATCH_PATHS, is_scannable,
-    rules_candidate_path, rules_candidate_paths, rules_source,
+    DEFAULT_RULES_FILE,
+    RULES_VARIABLE,
+    SCANNER_SELF_MATCH_PATHS,
+    is_scannable,
+    rules_candidate_path,
+    rules_candidate_paths,
+    rules_source,
 };
-use crate::candidate_object::{CandidateMode, parse_object_id};
-use crate::config_schema::RulesFileEntry;
-use forbidden_strings::{RulesEntry, parse_rules_list};
+use crate::candidate_object::{
+    CandidateMode,
+    parse_object_id,
+};
 use crate::candidate_record::CandidateChange;
-use crate::candidate_version::{Candidate, CandidateIdentity};
+use crate::candidate_version::{
+    Candidate,
+    CandidateIdentity,
+};
+use crate::config_schema::RulesFileEntry;
 use crate::scanner_adapter::RulesSource;
-use std::ffi::{OsStr, OsString};
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::path::{Path, PathBuf};
+use forbidden_strings::{
+    RulesEntry,
+    parse_rules_list,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::os::unix::ffi::{
+    OsStrExt,
+    OsStringExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// One candidate with a pathname,
 ///  a change kind and a mode.
-fn candidate(path: &[u8], change: CandidateChange, mode: CandidateMode) -> Candidate {
+fn candidate(
+    path: &[u8],
+    change: CandidateChange,
+    mode: CandidateMode,
+) -> Candidate {
     return Candidate {
         identity: CandidateIdentity {
             generation: 0,
@@ -58,18 +85,33 @@ fn names_match_the_standalone_scanner() {
 }
 
 /// One entry for a path and an optional flag.
-fn entry(path: &str, optional: bool) -> RulesEntry {
-    return RulesEntry { path: PathBuf::from(path), optional };
+fn entry(
+    path: &str,
+    optional: bool,
+) -> RulesEntry {
+    return RulesEntry {
+        path: PathBuf::from(path),
+        optional,
+    };
 }
 
 /// One configured file for a path and an optional flag.
-fn configured(path: &str, optional: bool) -> RulesFileEntry {
-    return RulesFileEntry { path: String::from(path), optional };
+fn configured(
+    path: &str,
+    optional: bool,
+) -> RulesFileEntry {
+    return RulesFileEntry {
+        path: String::from(path),
+        optional,
+    };
 }
 
 /// The source of a variable or default,
 /// which cannot fail for a value that parses.
-fn source(variable: Option<&OsStr>, root: &Path) -> RulesSource {
+fn source(
+    variable: Option<&OsStr>,
+    root: &Path,
+) -> RulesSource {
     return rules_source(None, variable, root).expect("a valid source");
 }
 
@@ -125,7 +167,10 @@ fn rules_file_precedence_matches_the_standalone_scanner() {
 fn the_variable_is_read_as_the_scanners_rules_list() {
     let root: &Path = Path::new("/repo/root");
     assert_eq!(
-        source(Some(OsStr::new("shared.txt,/abs/local.txt?,sub/x.txt")), root),
+        source(
+            Some(OsStr::new("shared.txt,/abs/local.txt?,sub/x.txt")),
+            root
+        ),
         RulesSource {
             entries: vec![
                 entry("/repo/root/shared.txt", false),
@@ -145,7 +190,10 @@ fn the_variable_is_read_as_the_scanners_rules_list() {
         assert_eq!(resolved.path, root.join(&original.path));
     }
     // A value without a comma or a trailing question mark is one required file, as it was before lists existed.
-    assert_eq!(source(Some(OsStr::new("odd?name.txt")), root).entries, vec![entry("/repo/root/odd?name.txt", false)]);
+    assert_eq!(
+        source(Some(OsStr::new("odd?name.txt")), root).entries,
+        vec![entry("/repo/root/odd?name.txt", false)]
+    );
 }
 
 /// A malformed variable is a refusal,
@@ -154,11 +202,17 @@ fn the_variable_is_read_as_the_scanners_rules_list() {
 fn a_malformed_variable_is_refused() {
     let root: &Path = Path::new("/repo/root");
     for value in ["", ",", "a,,b", "a,", ",a", "?", "a.txt,a.txt?"] {
-        assert!(rules_source(None, Some(OsStr::new(value)), root).is_err(), "{value:?}");
+        assert!(
+            rules_source(None, Some(OsStr::new(value)), root).is_err(),
+            "{value:?}"
+        );
     }
     // The configuration is never parsed as a list, so a comma in a configured path stays in the path.
-    let configured_commas: Result<RulesSource, _> =
-        rules_source(Some([configured("dir/a,b.txt", false)].as_slice()), None, root);
+    let configured_commas: Result<RulesSource, _> = rules_source(
+        Some([configured("dir/a,b.txt", false)].as_slice()),
+        None,
+        root,
+    );
     assert_eq!(
         configured_commas.expect("configured path").entries,
         vec![entry("/repo/root/dir/a,b.txt", false)]
@@ -174,7 +228,10 @@ fn a_variable_that_is_not_utf8_is_one_required_path() {
     let selected: RulesSource = source(Some(bytes.as_os_str()), root);
     assert_eq!(selected.entries.len(), 1);
     assert!(!selected.entries[0].optional);
-    assert_eq!(selected.entries[0].path.as_os_str().as_bytes(), b"/repo/root/r\xffu,les.txt?");
+    assert_eq!(
+        selected.entries[0].path.as_os_str().as_bytes(),
+        b"/repo/root/r\xffu,les.txt?"
+    );
     assert!(selected.explicit);
 }
 
@@ -184,12 +241,21 @@ fn configured_files_keep_order_and_flags() {
     let root: &Path = Path::new("/repo/root");
     assert_eq!(
         rules_source(
-            Some([configured("shared.txt", false), configured("local.txt", true)].as_slice()),
+            Some(
+                [
+                    configured("shared.txt", false),
+                    configured("local.txt", true)
+                ]
+                .as_slice()
+            ),
             None,
             root
         ),
         Ok(RulesSource {
-            entries: vec![entry("/repo/root/shared.txt", false), entry("/repo/root/local.txt", true)],
+            entries: vec![
+                entry("/repo/root/shared.txt", false),
+                entry("/repo/root/local.txt", true)
+            ],
             explicit: true,
         })
     );
@@ -212,7 +278,16 @@ fn every_rules_file_inside_the_repository_has_a_candidate_pathname() {
         rules_candidate_paths(&rules, root),
         vec![b"shared.txt".to_vec(), b"dir/local.txt".to_vec()]
     );
-    assert!(rules_candidate_paths(&RulesSource { entries: Vec::new(), explicit: true }, root).is_empty());
+    assert!(
+        rules_candidate_paths(
+            &RulesSource {
+                entries: Vec::new(),
+                explicit: true
+            },
+            root
+        )
+        .is_empty()
+    );
 }
 
 /// A rules file inside the repository has a candidate pathname;
@@ -298,7 +373,10 @@ fn eligibility_excludes_only_deletions_and_rule_sources() {
     let own: Candidate = candidate(rules, CandidateChange::Modified, CandidateMode::Regular);
     assert!(!is_scannable(&own, named.as_slice()));
     // Any of several rules files is excluded, not only the first.
-    assert!(!is_scannable(&own, &[b"shared.txt".to_vec(), rules.to_vec()]));
+    assert!(!is_scannable(
+        &own,
+        &[b"shared.txt".to_vec(), rules.to_vec()]
+    ));
     // The same pathname is scanned when it is not the rules file, and near misses of every exclusion are scanned.
     assert!(is_scannable(&own, &[]));
     assert!(is_scannable(&own, &[b"config/rules.txt.bak".to_vec()]));

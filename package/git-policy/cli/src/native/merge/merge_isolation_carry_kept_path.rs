@@ -152,9 +152,24 @@ fn holds_of(entry: &CapturedPath) -> Holds {
 /// ```ts
 /// const keptPath = (entry, change, why, staged) => ({ path: entry.path, why, worktree: holdsOf(entry), merge: change.existsAfter ? 'version' : 'nothing', staged });
 /// ```
-pub(crate) fn kept_path(entry: &CapturedPath, change: &Change, why: &'static str, staged: Staged) -> Kept {
-    let merge: MergeHolds = if change.exists_after() { MergeHolds::Version } else { MergeHolds::Nothing };
-    return Kept { path: entry.path.clone(), why, worktree: holds_of(entry), merge, staged };
+pub(crate) fn kept_path(
+    entry: &CapturedPath,
+    change: &Change,
+    why: &'static str,
+    staged: Staged,
+) -> Kept {
+    let merge: MergeHolds = if change.exists_after() {
+        MergeHolds::Version
+    } else {
+        MergeHolds::Nothing
+    };
+    return Kept {
+        path: entry.path.clone(),
+        why,
+        worktree: holds_of(entry),
+        merge,
+        staged,
+    };
 }
 
 /// The object of one index entry.
@@ -175,7 +190,11 @@ fn object_of(entry: &(String, String)) -> &str {
 /// ```ts
 /// const indexAfter = (index, ours, current) => ours ? (index.kind === 'entry' ? index.oid : index.kind === 'remove' ? null : current) : current;
 /// ```
-pub(crate) fn index_after<'a>(index: &'a IndexWrite, index_is_ours: bool, current: Option<&'a (String, String)>) -> Option<&'a str> {
+pub(crate) fn index_after<'a>(
+    index: &'a IndexWrite,
+    index_is_ours: bool,
+    current: Option<&'a (String, String)>,
+) -> Option<&'a str> {
     return match index {
         IndexWrite::Entry(_, oid) if index_is_ours => Some(oid.as_str()),
         IndexWrite::Remove if index_is_ours => None,
@@ -199,8 +218,14 @@ pub(crate) fn index_after<'a>(index: &'a IndexWrite, index_is_ours: bool, curren
 /// ```ts
 /// const stagedOf = (indexed, worktree, merge) => indexed === undefined ? 'nothing' : indexed === worktree ? 'the-paths-bytes' : indexed === merge ? 'the-merges-version' : 'own-version';
 /// ```
-pub(crate) fn staged_of(indexed: Option<&str>, worktree: Option<&str>, merge: Option<&str>) -> Staged {
-    let Some(held) = indexed else { return Staged::Nothing };
+pub(crate) fn staged_of(
+    indexed: Option<&str>,
+    worktree: Option<&str>,
+    merge: Option<&str>,
+) -> Staged {
+    let Some(held) = indexed else {
+        return Staged::Nothing;
+    };
     if Some(held) == worktree {
         return Staged::ThePathsBytes;
     }
@@ -231,9 +256,14 @@ fn stands_words(holds: Holds) -> &'static str {
 /// ```ts
 /// const mergeWords = (path, merge) => merge === 'version' ? `The merge's version of ${path} is in the merge commit, not in the checkout` : `The merge commit holds no ${path}`;
 /// ```
-fn merge_words(path: &str, merge: MergeHolds) -> String {
+fn merge_words(
+    path: &str,
+    merge: MergeHolds,
+) -> String {
     return match merge {
-        MergeHolds::Version => format!("The merge's version of {path} is in the merge commit, not in the checkout"),
+        MergeHolds::Version => {
+            format!("The merge's version of {path} is in the merge commit, not in the checkout")
+        }
         MergeHolds::Nothing => format!("The merge commit holds no {path}"),
     };
 }
@@ -267,7 +297,11 @@ fn held_noun(holds: Holds) -> &'static str {
 /// ```ts
 /// const insteadWords = (path, holds, staged) => `${staged === 'nothing' ? `rm -- ${path}` : `git rm --force -- ${path}`} takes the merge's deletion, and ...`;
 /// ```
-fn instead_words(path: &str, holds: Holds, staged: Staged) -> String {
+fn instead_words(
+    path: &str,
+    holds: Holds,
+    staged: Staged,
+) -> String {
     // The wrapper's own worktree policy guards a forced `git rm` in a main worktree, so the command names the flag that
     //  policy asks for; `rm` is not Git and takes no flag.
     let take: String = if staged == Staged::Nothing {
@@ -280,10 +314,14 @@ fn instead_words(path: &str, holds: Holds, staged: Staged) -> String {
         // Nothing of the person's is in the index, so `git add` replaces nothing there; the merge's own version is no entry
         //  here, because it deletes the path.
         Staged::Nothing | Staged::TheMergesVersion => {
-            format!("{take} takes the merge's deletion, and `git add -- {path}` keeps your {noun} in the index instead")
+            format!(
+                "{take} takes the merge's deletion, and `git add -- {path}` keeps your {noun} in the index instead"
+            )
         }
         // The index holds the bytes at the path already, so staging them again says nothing new.
-        Staged::ThePathsBytes => format!("{take} takes the merge's deletion, and the index already holds your {noun}"),
+        Staged::ThePathsBytes => {
+            format!("{take} takes the merge's deletion, and the index already holds your {noun}")
+        }
         // `git add` would put the bytes at the path in the index in place of the version the person staged there.
         Staged::OwnVersion => format!(
             "{take} takes the merge's deletion; leave the path as it is and both stand, because `git add -- {path}` would \
@@ -304,7 +342,10 @@ fn instead_words(path: &str, holds: Holds, staged: Staged) -> String {
 /// ```ts
 /// const restoreWords = (path, staged) => staged === 'own-version' ? `git restore --source=HEAD -- ${path} puts it in the checkout, and the version the index holds stays` : `git restore --source=HEAD --staged --worktree -- ${path} puts it in the checkout and the index`;
 /// ```
-fn restore_words(path: &str, staged: Staged) -> String {
+fn restore_words(
+    path: &str,
+    staged: Staged,
+) -> String {
     return match staged {
         // A version of the person's stands in the index, so the command writes the checkout alone.
         Staged::OwnVersion => format!(
@@ -344,7 +385,10 @@ fn restore_words(path: &str, staged: Staged) -> String {
 /// ```ts
 /// function keptLine(reference: string, kept: Kept): string;
 /// ```
-pub(crate) fn kept_line(reference: &str, kept: &Kept) -> String {
+pub(crate) fn kept_line(
+    reference: &str,
+    kept: &Kept,
+) -> String {
     let path: String = path_message_text(kept.path.as_slice());
     let quoted: String = shell_quote(kept.path.as_slice());
     let named: String = format!("monochromatic-git-policy-cli: {reference}: {path}");

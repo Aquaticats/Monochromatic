@@ -20,10 +20,17 @@
 //! namedRepositories(directory) // the decoded paths of the notes, each once
 //! ```
 
-use super::service_claim_watch_note_format::{WATCH_EXTENSION, decode, read_file};
+use super::service_claim_watch_note_format::{
+    WATCH_EXTENSION,
+    decode,
+    read_file,
+};
 use crate::private_storage::ReadRefusal;
 use crate::service_work::work_directory;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What the notes of one instance's claim watch say about the repositories they name.
@@ -116,37 +123,63 @@ pub fn watched_repositories(directory: &Path) -> WatchedRepositories {
     let notes: Vec<PathBuf> = match notes_of(directory) {
         Ok(notes) => notes,
         Err(reason) => {
-            return WatchedRepositories::Unexplained { entry: name_of(directory), reason };
+            return WatchedRepositories::Unexplained {
+                entry: name_of(directory),
+                reason,
+            };
         }
     };
     let mut still_there: Option<(PathBuf, String)> = None;
     for note in notes {
         let entry: String = name_of(note.as_path());
         if note.extension().and_then(std::ffi::OsStr::to_str) != Some(WATCH_EXTENSION) {
-            return WatchedRepositories::Unexplained { entry, reason: String::from("a file in the claim watch that this release does not explain") };
+            return WatchedRepositories::Unexplained {
+                entry,
+                reason: String::from(
+                    "a file in the claim watch that this release does not explain",
+                ),
+            };
         }
         let bytes: Vec<u8> = match read_file(note.as_path()) {
             Ok(bytes) => bytes,
             // Removed between the listing and the read.
             Err(ReadRefusal::Missing) => continue,
             Err(ReadRefusal::NotRegular) => {
-                return WatchedRepositories::Unexplained { entry, reason: String::from("a note that is not a regular file, which this release leaves where it is") };
+                return WatchedRepositories::Unexplained {
+                    entry,
+                    reason: String::from(
+                        "a note that is not a regular file, which this release leaves where it is",
+                    ),
+                };
             }
             Err(ReadRefusal::TooLarge) => {
-                return WatchedRepositories::Unexplained { entry, reason: String::from("a note that holds more than a note can, which this release leaves where it is") };
+                return WatchedRepositories::Unexplained {
+                    entry,
+                    reason: String::from(
+                        "a note that holds more than a note can, which this release leaves where it is",
+                    ),
+                };
             }
             Err(ReadRefusal::Io(error)) => {
-                return WatchedRepositories::Unexplained { entry, reason: format!("it could not be read ({error})") };
+                return WatchedRepositories::Unexplained {
+                    entry,
+                    reason: format!("it could not be read ({error})"),
+                };
             }
         };
         // A note that holds no whole path is one the store removes itself (`scan`), so it points at nothing.
-        let Ok(git_dir) = decode(bytes.as_slice()) else { continue };
+        let Ok(git_dir) = decode(bytes.as_slice()) else {
+            continue;
+        };
         if still_there.is_none() && holds_work_a_look_would_read(git_dir.as_path()) {
             still_there = Some((git_dir, entry));
         }
     }
     return match still_there {
-        Some((git_dir, note)) => WatchedRepositories::StillThere { git_dir, note },
+        Some((git_dir, note)) => WatchedRepositories::StillThere {
+            git_dir,
+            note,
+        },
         None => WatchedRepositories::AllGone,
     };
 }
@@ -178,8 +211,12 @@ pub fn named_repositories(directory: &Path) -> Vec<PathBuf> {
         if note.extension().and_then(std::ffi::OsStr::to_str) != Some(WATCH_EXTENSION) {
             continue;
         }
-        let Ok(bytes) = read_file(note.as_path()) else { continue };
-        let Ok(git_dir) = decode(bytes.as_slice()) else { continue };
+        let Ok(bytes) = read_file(note.as_path()) else {
+            continue;
+        };
+        let Ok(git_dir) = decode(bytes.as_slice()) else {
+            continue;
+        };
         if !named.contains(&git_dir) {
             named.push(git_dir);
         }

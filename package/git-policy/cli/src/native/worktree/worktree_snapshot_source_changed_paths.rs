@@ -16,7 +16,11 @@
 //! const changed = await changedPaths(context, root); // throws the reason Git could not say
 //! ```
 
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -64,7 +68,11 @@ pub struct ChangedPaths {
 pub fn plain(text: &str) -> String {
     let mut shown: String = String::new();
     for character in text.chars() {
-        shown.push(if character.is_control() { '?' } else { character });
+        shown.push(if character.is_control() {
+            '?'
+        } else {
+            character
+        });
     }
     return shown;
 }
@@ -120,8 +128,11 @@ fn plain_path_text(path: &&[u8]) -> String {
 /// ```
 fn subcommand_word(arguments: &[OsString]) -> String {
     // `global_layout` is the crate's one reader of Git's global options, so no second list here can drift from it.
-    let layout: crate::global_arguments::GlobalLayout = crate::global_arguments::global_layout(arguments);
-    return arguments.get(layout.prefix_len).map_or_else(String::new, word_text);
+    let layout: crate::global_arguments::GlobalLayout =
+        crate::global_arguments::global_layout(arguments);
+    return arguments
+        .get(layout.prefix_len)
+        .map_or_else(String::new, word_text);
 }
 
 /// What:
@@ -142,7 +153,11 @@ fn word_text(word: &OsString) -> String {
 /// ```ts
 /// await git(root, arguments) // throws a sentence
 /// ```
-fn ask_git(context: &GitContext, root: &Path, arguments: &[&str]) -> Result<Vec<u8>, String> {
+fn ask_git(
+    context: &GitContext,
+    root: &Path,
+    arguments: &[&str],
+) -> Result<Vec<u8>, String> {
     return ask_git_request(context, GitRequest::new(root, arguments));
 }
 
@@ -158,7 +173,11 @@ fn ask_git(context: &GitContext, root: &Path, arguments: &[&str]) -> Result<Vec<
 /// ```ts
 /// await gitOwnPathspecs(root, arguments) // throws a sentence
 /// ```
-fn ask_git_own_pathspecs(context: &GitContext, root: &Path, arguments: &[&str]) -> Result<Vec<u8>, String> {
+fn ask_git_own_pathspecs(
+    context: &GitContext,
+    root: &Path,
+    arguments: &[&str],
+) -> Result<Vec<u8>, String> {
     return ask_git_request(context, GitRequest::new(root, arguments).own_pathspecs());
 }
 
@@ -171,22 +190,37 @@ fn ask_git_own_pathspecs(context: &GitContext, root: &Path, arguments: &[&str]) 
 /// ```ts
 /// await gitRequest(request) // throws a sentence
 /// ```
-fn ask_git_request(context: &GitContext, mut request: GitRequest) -> Result<Vec<u8>, String> {
+fn ask_git_request(
+    context: &GitContext,
+    mut request: GitRequest,
+) -> Result<Vec<u8>, String> {
     request.without_prefix = true;
     let words: String = subcommand_word(request.arguments.as_slice());
     return match run_git(context, &request) {
         Ok(found) if found.code == Some(0) => Ok(found.stdout),
         Ok(found) => {
-            let said: String = String::from_utf8_lossy(found.stderr.as_slice()).trim().to_string();
+            let said: String = String::from_utf8_lossy(found.stderr.as_slice())
+                .trim()
+                .to_string();
             let code: String = match found.code {
                 Some(number) => format!("ended with exit code {number}"),
                 None => String::from("was stopped by a signal"),
             };
-            crate::diagnostic_log::debug("changedPaths", format!("Git could not list the changes (`git {words}` {code}: {said})").as_str());
-            Err(if said.is_empty() { format!("`git {words}` {code} and said nothing") } else { format!("`git {words}` {code}: {}", plain(said.as_str())) })
+            crate::diagnostic_log::debug(
+                "changedPaths",
+                format!("Git could not list the changes (`git {words}` {code}: {said})").as_str(),
+            );
+            Err(if said.is_empty() {
+                format!("`git {words}` {code} and said nothing")
+            } else {
+                format!("`git {words}` {code}: {}", plain(said.as_str()))
+            })
         }
         Err(error) => {
-            crate::diagnostic_log::debug("changedPaths", format!("Git could not list the changes ({error})").as_str());
+            crate::diagnostic_log::debug(
+                "changedPaths",
+                format!("Git could not list the changes ({error})").as_str(),
+            );
             Err(format!("`git {words}` could not be started ({error})"))
         }
     };
@@ -218,13 +252,39 @@ fn ask_git_request(context: &GitContext, mut request: GitRequest) -> Result<Vec<
 /// ```ts
 /// const changed = await changedPaths(context, root); // throws the reason Git could not say
 /// ```
-pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, String> {
-    let listing: Vec<u8> = ask_git(context, root, &["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=normal", "--no-renames"])?;
+pub fn changed_paths(
+    context: &GitContext,
+    root: &Path,
+) -> Result<ChangedPaths, String> {
+    let listing: Vec<u8> = ask_git(
+        context,
+        root,
+        &[
+            "--no-optional-locks",
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=normal",
+            "--no-renames",
+        ],
+    )?;
     // `:(glob)**/.gitattributes` is pathspec magic the wrapper writes, so every pathspec mode the caller set is
     // removed from this start: under literal mode the pattern would match nothing and an untracked attributes file
     // deep in the tree would go unnoticed, two glob modes at once make Git refuse the listing, and case-insensitive
     // matching would let it reach a file of another name.
-    let untracked_attributes: Vec<u8> = ask_git_own_pathspecs(context, root, &["--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z", "--", ":(glob)**/.gitattributes"])?;
+    let untracked_attributes: Vec<u8> = ask_git_own_pathspecs(
+        context,
+        root,
+        &[
+            "--no-optional-locks",
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+            "-z",
+            "--",
+            ":(glob)**/.gitattributes",
+        ],
+    )?;
     // Each status entry is two status letters, a space, then the path; `??` is the one pair that names a path nobody
     //  tracks, and every other pair names a tracked path whose change a checkout has to write.
     let mut paths: Vec<&[u8]> = Vec::new();
@@ -249,7 +309,12 @@ pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, 
     }
     let attributes_changed: bool = !untracked_attributes.is_empty() || names_attributes;
     let first: Option<String> = paths.first().map(plain_path_text);
-    return Ok(ChangedPaths { count: paths.len(), tracked, first, attributes_changed });
+    return Ok(ChangedPaths {
+        count: paths.len(),
+        tracked,
+        first,
+        attributes_changed,
+    });
 }
 
 /// Controls for the two listings.

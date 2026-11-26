@@ -103,11 +103,17 @@ impl StagedFolderIdentity {
     /// The descriptor's metadata could not be read.
     pub fn of(folder: &std::fs::File) -> Result<Self, StagedFolderRefusal> {
         let facts: std::fs::Metadata = folder.metadata().map_err(|error| {
-            return StagedFolderRefusal::Unreadable { path: String::from("the staging folder's descriptor"), reason: error.to_string() };
+            return StagedFolderRefusal::Unreadable {
+                path: String::from("the staging folder's descriptor"),
+                reason: error.to_string(),
+            };
         })?;
         let birth: Option<(i64, u32)> = facts.created().ok().and_then(|created| {
             let since: std::time::Duration = created.duration_since(std::time::UNIX_EPOCH).ok()?;
-            return Some((i64::try_from(since.as_secs()).unwrap_or(i64::MAX), since.subsec_nanos()));
+            return Some((
+                i64::try_from(since.as_secs()).unwrap_or(i64::MAX),
+                since.subsec_nanos(),
+            ));
         });
         return Ok(StagedFolderIdentity {
             device: facts.dev(),
@@ -119,7 +125,10 @@ impl StagedFolderIdentity {
     }
 
     /// Every field in which this identity differs from `recorded`.
-    pub fn differences(&self, recorded: &StagedFolderIdentity) -> Vec<StagedFolderField> {
+    pub fn differences(
+        &self,
+        recorded: &StagedFolderIdentity,
+    ) -> Vec<StagedFolderField> {
         let mut fields: Vec<StagedFolderField> = Vec::new();
         if self.device != recorded.device {
             fields.push(StagedFolderField::Device);
@@ -156,7 +165,13 @@ impl StagedFolderIdentity {
     /// const identity = StagedFolderIdentity.fromCloneFolder(recorded);
     /// ```
     pub fn from_clone_folder(recorded: &crate::worktree_clone_mount::CloneFolderIdentity) -> Self {
-        return StagedFolderIdentity { device: recorded.device, inode: recorded.inode, birth: None, owner: recorded.owner, mode: recorded.mode & 0o7777 };
+        return StagedFolderIdentity {
+            device: recorded.device,
+            inode: recorded.inode,
+            birth: None,
+            owner: recorded.owner,
+            mode: recorded.mode & 0o7777,
+        };
     }
 
     /// The fields as one phrase,
@@ -176,7 +191,10 @@ impl StagedFolderIdentity {
             Some((seconds, nanos)) => format!("{seconds}.{nanos:09}"),
             None => String::from("not reported"),
         };
-        return format!("device {}, inode {}, birth {}, owner {}, mode {:04o}", self.device, self.inode, birth, self.owner, self.mode);
+        return format!(
+            "device {}, inode {}, birth {}, owner {}, mode {:04o}",
+            self.device, self.inode, birth, self.owner, self.mode
+        );
     }
 }
 

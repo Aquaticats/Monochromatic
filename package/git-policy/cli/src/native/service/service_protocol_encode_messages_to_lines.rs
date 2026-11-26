@@ -10,10 +10,24 @@
 //! socket.write(JSON.stringify(encodeRequest(request)) + '\n');
 //! ```
 
-use serde_json::{Map, Value};
 use crate::path_bytes_in_records as path_bytes;
+use crate::service_protocol_messages_and_name_checks::{
+    Change,
+    Cleanup,
+    ClientMessage,
+    CommitRequest,
+    LandedCapture,
+    LandingFigures,
+    LandingSync,
+    MAX_LINE_BYTES,
+    PROTOCOL_VERSION,
+    ServiceMessage,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::path::Path;
-use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, Change, Cleanup, CommitRequest, LandedCapture, ClientMessage, LandingFigures, LandingSync, ServiceMessage};
 
 /// What:
 ///  One field of a message,
@@ -26,7 +40,11 @@ use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LIN
 /// ```ts
 /// const put = (fields, key, value) => { fields[key] = value; };
 /// ```
-fn put(fields: &mut Map<String, Value>, key: &str, value: Value) {
+fn put(
+    fields: &mut Map<String, Value>,
+    key: &str,
+    value: Value,
+) {
     fields.insert(String::from(key), value);
 }
 
@@ -50,10 +68,18 @@ fn change_json(change: &Change) -> Value {
     //  a request of `MAX_CHANGES` changes stays inside `MAX_LINE_BYTES` at the path length that bound was measured for.
     put(&mut fields, "path", Value::from(path.display().to_string()));
     if path.to_str().is_none() {
-        put(&mut fields, "pathHex", Value::from(path_bytes::hex_of_path(path)));
+        put(
+            &mut fields,
+            "pathHex",
+            Value::from(path_bytes::hex_of_path(path)),
+        );
     }
     put(&mut fields, "mode", Value::from(change.mode));
-    put(&mut fields, "blob", change.blob.as_deref().map_or(Value::Null, Value::from));
+    put(
+        &mut fields,
+        "blob",
+        change.blob.as_deref().map_or(Value::Null, Value::from),
+    );
     return Value::Object(fields);
 }
 
@@ -121,8 +147,14 @@ fn landing_figures_json(figures: &LandingFigures) -> Value {
     }
     let syncs: Vec<Value> = figures.syncs.iter().map(one_sync_json).collect();
     return Value::Object(Map::from_iter([
-        (String::from("lockHoldMs"), Value::from(figures.lock_hold_ms)),
-        (String::from("queuedBehind"), Value::from(figures.queued_behind)),
+        (
+            String::from("lockHoldMs"),
+            Value::from(figures.lock_hold_ms),
+        ),
+        (
+            String::from("queuedBehind"),
+            Value::from(figures.queued_behind),
+        ),
         (String::from("readsMs"), Value::from(figures.reads_ms)),
         (String::from("reads"), Value::Object(reads)),
         (String::from("syncs"), Value::Array(syncs)),
@@ -155,7 +187,10 @@ fn object(entries: Vec<(&str, Value)>) -> String {
 /// JSON.stringify({ type: 'retire', version: announcedVersion })
 /// ```
 pub fn encode_retire(version: u32) -> String {
-    return object(vec![("type", Value::from("retire")), ("version", Value::from(version))]);
+    return object(vec![
+        ("type", Value::from("retire")),
+        ("version", Value::from(version)),
+    ]);
 }
 
 /// What:
@@ -171,12 +206,17 @@ pub fn encode_retire(version: u32) -> String {
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
         ClientMessage::Retire => encode_retire(PROTOCOL_VERSION),
-        ClientMessage::Withdraw { id } => object(vec![
+        ClientMessage::Withdraw {
+            id,
+        } => object(vec![
             ("type", Value::from("withdraw")),
             ("version", Value::from(PROTOCOL_VERSION)),
             ("id", Value::from(id.as_str())),
         ]),
-        ClientMessage::Shadow { git_dir, scratch } => {
+        ClientMessage::Shadow {
+            git_dir,
+            scratch,
+        } => {
             let mut fields: Map<String, Value> = Map::new();
             put(&mut fields, "type", Value::from("shadow"));
             put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
@@ -184,7 +224,10 @@ pub fn encode_client(message: &ClientMessage) -> String {
             path_bytes::write_field(&mut fields, "scratch", scratch.as_path());
             Value::Object(fields).to_string()
         }
-        ClientMessage::Warm { git_dir, repository } => {
+        ClientMessage::Warm {
+            git_dir,
+            repository,
+        } => {
             let mut fields: Map<String, Value> = Map::new();
             put(&mut fields, "type", Value::from("warm"));
             put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
@@ -192,7 +235,11 @@ pub fn encode_client(message: &ClientMessage) -> String {
             path_bytes::write_field(&mut fields, "repository", repository.as_path());
             Value::Object(fields).to_string()
         }
-        ClientMessage::Work { git_dir, review_key, push_programs } => {
+        ClientMessage::Work {
+            git_dir,
+            review_key,
+            push_programs,
+        } => {
             let mut fields: Map<String, Value> = Map::new();
             put(&mut fields, "type", Value::from("work"));
             put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
@@ -214,12 +261,26 @@ pub fn encode_client(message: &ClientMessage) -> String {
             }
             Value::Object(fields).to_string()
         }
-        ClientMessage::ForgetPrograms { git_dir, records } => {
+        ClientMessage::ForgetPrograms {
+            git_dir,
+            records,
+        } => {
             let mut fields: Map<String, Value> = Map::new();
             put(&mut fields, "type", Value::from("forgetPrograms"));
             put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
             path_bytes::write_field(&mut fields, "gitDir", git_dir.as_path());
-            put(&mut fields, "records", Value::Array(records.iter().map(|id| { return Value::from(id.as_str()); }).collect()));
+            put(
+                &mut fields,
+                "records",
+                Value::Array(
+                    records
+                        .iter()
+                        .map(|id| {
+                            return Value::from(id.as_str());
+                        })
+                        .collect(),
+                ),
+            );
             Value::Object(fields).to_string()
         }
         ClientMessage::Commit(request) => commit_line(request.as_ref()),
@@ -253,21 +314,60 @@ pub fn commit_line(request: &CommitRequest) -> String {
     // A name that is not text travels as its bytes in the field the reader prefers, and the plain field holds the text
     //  spelling only when text spells every byte of the name (`path_bytes_in_records`).
     if request.reference.is_text() {
-        put(&mut fields, "reference", Value::from(request.reference.to_string()));
+        put(
+            &mut fields,
+            "reference",
+            Value::from(request.reference.to_string()),
+        );
     }
-    fields.insert(String::from("referenceHex"), Value::from(request.reference.hex()));
+    fields.insert(
+        String::from("referenceHex"),
+        Value::from(request.reference.hex()),
+    );
     put(&mut fields, "base", Value::from(request.base.as_str()));
-    put(&mut fields, "changes", Value::Array(request.changes.iter().map(change_json).collect()));
-    put(&mut fields, "message", Value::from(request.message.as_str()));
-    put(&mut fields, "author", request.author.as_deref().map_or(Value::Null, Value::from));
-    put(&mut fields, "committer", Value::from(request.committer.as_str()));
+    put(
+        &mut fields,
+        "changes",
+        Value::Array(request.changes.iter().map(change_json).collect()),
+    );
+    put(
+        &mut fields,
+        "message",
+        Value::from(request.message.as_str()),
+    );
+    put(
+        &mut fields,
+        "author",
+        request.author.as_deref().map_or(Value::Null, Value::from),
+    );
+    put(
+        &mut fields,
+        "committer",
+        Value::from(request.committer.as_str()),
+    );
     put(&mut fields, "amend", Value::from(request.amend));
-    put(&mut fields, "tree", request.tree.as_deref().map_or(Value::Null, Value::from));
-    put(&mut fields, "commit", request.commit.as_deref().map_or(Value::Null, Value::from));
+    put(
+        &mut fields,
+        "tree",
+        request.tree.as_deref().map_or(Value::Null, Value::from),
+    );
+    put(
+        &mut fields,
+        "commit",
+        request.commit.as_deref().map_or(Value::Null, Value::from),
+    );
     put(&mut fields, "captured", Value::from(request.captured));
     put(&mut fields, "holder", Value::from(request.holder.as_str()));
-    put(&mut fields, "programs", programs_json(request.programs.as_ref()));
-    put(&mut fields, "cleanup", request.cleanup.as_ref().map_or(Value::Null, cleanup_json));
+    put(
+        &mut fields,
+        "programs",
+        programs_json(request.programs.as_ref()),
+    );
+    put(
+        &mut fields,
+        "cleanup",
+        request.cleanup.as_ref().map_or(Value::Null, cleanup_json),
+    );
     return Value::Object(fields).to_string();
 }
 
@@ -286,7 +386,9 @@ pub fn commit_line(request: &CommitRequest) -> String {
 /// ```ts
 /// const programsJson = (programs) => programs === null ? null : ({ transport: programs.transport, variables: programs.variables, notText: programs.notText });
 /// ```
-fn programs_json(programs: Option<&crate::service_push_programs_held_in_memory::PushPrograms>) -> Value {
+fn programs_json(
+    programs: Option<&crate::service_push_programs_held_in_memory::PushPrograms>
+) -> Value {
     let Some(carried) = programs else {
         return Value::Null;
     };
@@ -294,12 +396,25 @@ fn programs_json(programs: Option<&crate::service_push_programs_held_in_memory::
         carried
             .variables
             .iter()
-            .map(|(name, value)| { return Value::Array(vec![Value::from(name.as_str()), Value::from(value.as_str())]); })
+            .map(|(name, value)| {
+                return Value::Array(vec![
+                    Value::from(name.as_str()),
+                    Value::from(value.as_str()),
+                ]);
+            })
             .collect(),
     );
     // The names whose value this release cannot write in a line, never the values themselves: the service keeps the
     //  manager's own value for such a name, and a value no line can hold cannot be written here either.
-    let not_text: Value = Value::Array(carried.not_text.iter().map(|name| { return Value::from(name.as_str()); }).collect());
+    let not_text: Value = Value::Array(
+        carried
+            .not_text
+            .iter()
+            .map(|name| {
+                return Value::from(name.as_str());
+            })
+            .collect(),
+    );
     return Value::Object(Map::from_iter([
         (String::from("transport"), Value::from(carried.transport)),
         (String::from("variables"), variables),
@@ -346,58 +461,109 @@ pub fn commit_request_fits(request: &CommitRequest) -> bool {
 /// ```
 pub fn encode_service(message: &ServiceMessage) -> String {
     return match message {
-        ServiceMessage::Welcome { version, release } => {
-            let mut entries: Vec<(&str, Value)> = vec![("type", Value::from("welcome")), ("version", Value::from(*version))];
+        ServiceMessage::Welcome {
+            version,
+            release,
+        } => {
+            let mut entries: Vec<(&str, Value)> = vec![
+                ("type", Value::from("welcome")),
+                ("version", Value::from(*version)),
+            ];
             if let Some(text) = release {
                 entries.push(("release", Value::from(text.as_str())));
             }
             object(entries)
         }
-        ServiceMessage::Drawn { tree } => {
+        ServiceMessage::Drawn {
+            tree,
+        } => {
             let mut fields: Map<String, Value> = Map::new();
             put(&mut fields, "type", Value::from("drawn"));
             path_bytes::write_field(&mut fields, "tree", tree.as_path());
             Value::Object(fields).to_string()
         }
         ServiceMessage::NoShadow => object(vec![("type", Value::from("no-shadow"))]),
-        ServiceMessage::Position { number, of } => {
-            object(vec![("type", Value::from("position")), ("number", Value::from(*number)), ("of", Value::from(*of))])
-        }
-        ServiceMessage::Landed { id, commit, already, landing } => {
-            let mut entries: Vec<(&str, Value)> =
-                vec![("type", Value::from("landed")), ("id", Value::from(id.as_str())), ("commit", Value::from(commit.as_str())), ("already", Value::from(*already))];
+        ServiceMessage::Position {
+            number,
+            of,
+        } => object(vec![
+            ("type", Value::from("position")),
+            ("number", Value::from(*number)),
+            ("of", Value::from(*of)),
+        ]),
+        ServiceMessage::Landed {
+            id,
+            commit,
+            already,
+            landing,
+        } => {
+            let mut entries: Vec<(&str, Value)> = vec![
+                ("type", Value::from("landed")),
+                ("id", Value::from(id.as_str())),
+                ("commit", Value::from(commit.as_str())),
+                ("already", Value::from(*already)),
+            ];
             if let Some(figures) = landing {
                 entries.push(("landing", landing_figures_json(figures)));
             }
             object(entries)
         }
-        ServiceMessage::Held { id, commit, words } => object(vec![
+        ServiceMessage::Held {
+            id,
+            commit,
+            words,
+        } => object(vec![
             ("type", Value::from("held")),
             ("id", Value::from(id.as_str())),
             ("commit", Value::from(commit.as_str())),
             ("words", Value::from(words.as_str())),
         ]),
-        ServiceMessage::RetryPrepare { id, base, landed } => object(vec![
+        ServiceMessage::RetryPrepare {
+            id,
+            base,
+            landed,
+        } => object(vec![
             ("type", Value::from("retry-prepare")),
             ("id", Value::from(id.as_str())),
             ("base", Value::from(base.as_str())),
             (
                 "landed",
-                Value::Array(
-                    landed
-                        .iter()
-                        .map(landed_json)
-                        .collect(),
-                ),
+                Value::Array(landed.iter().map(landed_json).collect()),
             ),
         ]),
-        ServiceMessage::Waiting { text } => object(vec![("type", Value::from("waiting")), ("text", Value::from(text.as_str()))]),
-        ServiceMessage::InsideWrite { text } => object(vec![("type", Value::from("waiting")), ("text", Value::from(text.as_str())), ("inside_write", Value::from(true))]),
-        ServiceMessage::Holder { who } => object(vec![("type", Value::from("holder")), ("who", Value::from(who.as_str()))]),
+        ServiceMessage::Waiting {
+            text,
+        } => object(vec![
+            ("type", Value::from("waiting")),
+            ("text", Value::from(text.as_str())),
+        ]),
+        ServiceMessage::InsideWrite {
+            text,
+        } => object(vec![
+            ("type", Value::from("waiting")),
+            ("text", Value::from(text.as_str())),
+            ("inside_write", Value::from(true)),
+        ]),
+        ServiceMessage::Holder {
+            who,
+        } => object(vec![
+            ("type", Value::from("holder")),
+            ("who", Value::from(who.as_str())),
+        ]),
         ServiceMessage::Heartbeat => object(vec![("type", Value::from("heartbeat"))]),
-        ServiceMessage::Withdrawn { id } => object(vec![("type", Value::from("withdrawn")), ("id", Value::from(id.as_str()))]),
-        ServiceMessage::Failed { id, code } => {
-            object(vec![("type", Value::from("failed")), ("id", Value::from(id.as_str())), ("code", Value::from(code.word()))])
-        }
+        ServiceMessage::Withdrawn {
+            id,
+        } => object(vec![
+            ("type", Value::from("withdrawn")),
+            ("id", Value::from(id.as_str())),
+        ]),
+        ServiceMessage::Failed {
+            id,
+            code,
+        } => object(vec![
+            ("type", Value::from("failed")),
+            ("id", Value::from(id.as_str())),
+            ("code", Value::from(code.word())),
+        ]),
     };
 }

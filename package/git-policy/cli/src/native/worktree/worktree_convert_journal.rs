@@ -26,7 +26,10 @@ use crate::process_identity::process_birth_identity;
 use crate::subvolume_error::MigrateError;
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The name of the journal inside the worktree's administrative directory.
 pub const JOURNAL_NAME: &str = "cli-git-convert";
@@ -99,7 +102,14 @@ impl Phase {
 
     /// The phase a journal line names.
     fn parse(text: &str) -> Option<Phase> {
-        for phase in [Phase::Started, Phase::Creating, Phase::Synced, Phase::Exchanged, Phase::Refreshed, Phase::Removed] {
+        for phase in [
+            Phase::Started,
+            Phase::Creating,
+            Phase::Synced,
+            Phase::Exchanged,
+            Phase::Refreshed,
+            Phase::Removed,
+        ] {
             if phase.name() == text {
                 return Some(phase);
             }
@@ -163,7 +173,9 @@ pub struct Journal {
 /// new JournalError('the conversion journal has a shape this command does not know; nothing was changed')
 /// ```
 fn unknown_shape() -> MigrateError {
-    return MigrateError::Journal(String::from("the conversion journal has a shape this command does not know; nothing was changed"));
+    return MigrateError::Journal(String::from(
+        "the conversion journal has a shape this command does not know; nothing was changed",
+    ));
 }
 
 /// What:
@@ -177,7 +189,10 @@ fn unknown_shape() -> MigrateError {
 /// ```ts
 /// text.split('\n').map((line) => line.startsWith(`${name}=`) ? line.slice(name.length + 1) : undefined).find((value) => value !== undefined)
 /// ```
-fn field_of(text: &str, name: &str) -> Option<String> {
+fn field_of(
+    text: &str,
+    name: &str,
+) -> Option<String> {
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix(name)
             && let Some(value) = rest.strip_prefix('=')
@@ -235,7 +250,11 @@ pub fn now_milliseconds() -> i64 {
 /// ```ts
 /// function ioStep<T>(outcome: () => T, action: string, path: string): T { try { return outcome(); } catch (error) { throw migrateIo(action, path, error); } }
 /// ```
-pub fn io_step<T>(outcome: std::io::Result<T>, action: &str, path: &Path) -> Result<T, MigrateError> {
+pub fn io_step<T>(
+    outcome: std::io::Result<T>,
+    action: &str,
+    path: &Path,
+) -> Result<T, MigrateError> {
     return match outcome {
         Ok(value) => Ok(value),
         Err(error) => Err(MigrateError::io(action, path, &error)),
@@ -338,12 +357,18 @@ fn maker_of(name: &str) -> Option<u32> {
 /// ```
 pub fn sweep_temporary_files(admin: &Path) -> usize {
     // Nothing to sweep when the directory cannot be read; the journal write that follows reports the real failure.
-    let Ok(entries) = std::fs::read_dir(admin) else { return 0 };
+    let Ok(entries) = std::fs::read_dir(admin) else {
+        return 0;
+    };
     let mut removed: usize = 0;
     for entry in entries.flatten() {
         // A name that is not text under a home this command wrote is no temporary file of its own.
-        let Ok(name) = entry.file_name().into_string() else { continue };
-        let Some(pid) = maker_of(name.as_str()) else { continue };
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        let Some(pid) = maker_of(name.as_str()) else {
+            continue;
+        };
         // `Ok(None)` is the one answer that proves no process of this number runs; anything else proves nothing.
         if !matches!(process_birth_identity(i64::from(pid)), Ok(None)) {
             continue;
@@ -390,17 +415,28 @@ impl Journal {
         let old_identity: ObjectId = match field_of(text, "old_identity") {
             Some(encoded) => ObjectId::decode(encoded.as_str()).ok_or_else(unknown_shape)?,
             None => ObjectId {
-                device: field_of(text, "old_device").and_then(number_from_digits).ok_or_else(unknown_shape)?,
-                inode: field_of(text, "old_inode").and_then(number_from_digits).ok_or_else(unknown_shape)?,
+                device: field_of(text, "old_device")
+                    .and_then(number_from_digits)
+                    .ok_or_else(unknown_shape)?,
+                inode: field_of(text, "old_inode")
+                    .and_then(number_from_digits)
+                    .ok_or_else(unknown_shape)?,
                 birth: None,
             },
         };
         return Ok(Journal {
-            phase: Phase::parse(field_of(text, "phase").ok_or_else(unknown_shape)?.as_str()).ok_or_else(unknown_shape)?,
+            phase: Phase::parse(field_of(text, "phase").ok_or_else(unknown_shape)?.as_str())
+                .ok_or_else(unknown_shape)?,
             token: field_of(text, "token").ok_or_else(unknown_shape)?,
-            path: unhex(field_of(text, "path").ok_or_else(unknown_shape)?.as_str()).ok_or_else(unknown_shape)?,
+            path: unhex(field_of(text, "path").ok_or_else(unknown_shape)?.as_str())
+                .ok_or_else(unknown_shape)?,
             old_identity,
-            git_file: unhex(field_of(text, "git_file").ok_or_else(unknown_shape)?.as_str()).ok_or_else(unknown_shape)?,
+            git_file: unhex(
+                field_of(text, "git_file")
+                    .ok_or_else(unknown_shape)?
+                    .as_str(),
+            )
+            .ok_or_else(unknown_shape)?,
             new_identity,
             // A journal written by an earlier release has no proof time; the removal then compares every file's contents.
             synced_ms: field_of(text, "synced_ms").and_then(number_from_digits),
@@ -410,16 +446,32 @@ impl Journal {
     /// Write the journal into a file made for it alone:
     /// created exclusively,
     /// so nothing that is there is truncated or followed.
-    fn write_temporary(&self, admin: &Path) -> std::io::Result<PathBuf> {
+    fn write_temporary(
+        &self,
+        admin: &Path,
+    ) -> std::io::Result<PathBuf> {
         // A conversion killed between its write and its rename leaves the temporary file behind; every write sweeps the
         // leftovers of its own worktree first, and only those whose maker is gone.
         let swept: usize = sweep_temporary_files(admin);
         if swept > 0 {
-            debug(TAG, format!("removed {swept} temporary journal file(s) left by a conversion that is gone").as_str());
+            debug(
+                TAG,
+                format!(
+                    "removed {swept} temporary journal file(s) left by a conversion that is gone"
+                )
+                .as_str(),
+            );
         }
         let temporary: PathBuf = admin.join(temporary_name());
-        let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temporary)?;
-        let written: std::io::Result<()> = crate::subvolume_file_write_steps::write_all_then_sync(&mut file, self.encode().as_bytes());
+        let mut file: std::fs::File = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&temporary)?;
+        let written: std::io::Result<()> = crate::subvolume_file_write_steps::write_all_then_sync(
+            &mut file,
+            self.encode().as_bytes(),
+        );
         if let Err(error) = written {
             let _removed: std::io::Result<()> = std::fs::remove_file(&temporary);
             return Err(error);
@@ -431,14 +483,25 @@ impl Journal {
     /// written beside it,
     /// synchronized,
     /// renamed into place.
-    pub fn save(&self, admin: &Path) -> Result<(), MigrateError> {
+    pub fn save(
+        &self,
+        admin: &Path,
+    ) -> Result<(), MigrateError> {
         let target: PathBuf = admin.join(JOURNAL_NAME);
-        return io_step(self.write_and_publish(admin, target.as_path()), "write the conversion journal", target.as_path());
+        return io_step(
+            self.write_and_publish(admin, target.as_path()),
+            "write the conversion journal",
+            target.as_path(),
+        );
     }
 
     /// Write the journal to a temporary file,
     /// rename it over `target` and make the directory durable.
-    fn write_and_publish(&self, admin: &Path, target: &Path) -> std::io::Result<()> {
+    fn write_and_publish(
+        &self,
+        admin: &Path,
+        target: &Path,
+    ) -> std::io::Result<()> {
         let temporary: PathBuf = self.write_temporary(admin)?;
         if let Err(error) = std::fs::rename(&temporary, target) {
             let _removed: std::io::Result<()> = std::fs::remove_file(&temporary);
@@ -451,14 +514,25 @@ impl Journal {
     /// it fails when any journal exists,
     /// so a journal another command
     ///  made is never replaced.
-    pub fn create_new(&self, admin: &Path) -> Result<(), MigrateError> {
+    pub fn create_new(
+        &self,
+        admin: &Path,
+    ) -> Result<(), MigrateError> {
         let target: PathBuf = admin.join(JOURNAL_NAME);
-        return io_step(self.write_and_link(admin, target.as_path()), "create the conversion journal", target.as_path());
+        return io_step(
+            self.write_and_link(admin, target.as_path()),
+            "create the conversion journal",
+            target.as_path(),
+        );
     }
 
     /// Write the journal to a temporary file,
     /// link it at `target` only if nothing is there and make the directory durable.
-    fn write_and_link(&self, admin: &Path, target: &Path) -> std::io::Result<()> {
+    fn write_and_link(
+        &self,
+        admin: &Path,
+        target: &Path,
+    ) -> std::io::Result<()> {
         let temporary: PathBuf = self.write_temporary(admin)?;
         let linked: std::io::Result<()> = std::fs::hard_link(&temporary, target);
         let _removed: std::io::Result<()> = std::fs::remove_file(&temporary);
@@ -470,10 +544,22 @@ impl Journal {
     /// if one exists.
     pub fn load(admin: &Path) -> Result<Option<Journal>, MigrateError> {
         let path: PathBuf = admin.join(JOURNAL_NAME);
-        match crate::plain_file::read_plain_file(path.as_path(), crate::plain_file::SMALL_FILE_LIMIT) {
-            Ok(bytes) => return Journal::decode(String::from_utf8_lossy(bytes.as_slice()).as_ref()).map(Some),
+        match crate::plain_file::read_plain_file(
+            path.as_path(),
+            crate::plain_file::SMALL_FILE_LIMIT,
+        ) {
+            Ok(bytes) => {
+                return Journal::decode(String::from_utf8_lossy(bytes.as_slice()).as_ref())
+                    .map(Some);
+            }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(MigrateError::io("read the conversion journal", path.as_path(), &error)),
+            Err(error) => {
+                return Err(MigrateError::io(
+                    "read the conversion journal",
+                    path.as_path(),
+                    &error,
+                ));
+            }
         }
     }
 }
@@ -483,8 +569,13 @@ impl Journal {
 /// when a birth time was
 ///  recorded,
 /// the same birth time.
-pub fn is_recorded_object(recorded: &ObjectId, found: &ObjectId) -> bool {
-    return recorded.device == found.device && recorded.inode == found.inode && (recorded.birth.is_none() || recorded.birth == found.birth);
+pub fn is_recorded_object(
+    recorded: &ObjectId,
+    found: &ObjectId,
+) -> bool {
+    return recorded.device == found.device
+        && recorded.inode == found.inode
+        && (recorded.birth.is_none() || recorded.birth == found.birth);
 }
 
 /// What:
@@ -512,28 +603,54 @@ pub fn is_recorded_object(recorded: &ObjectId, found: &ObjectId) -> bool {
 /// ```
 pub fn legacy_lock_is_held(admin: &Path) -> Result<bool, MigrateError> {
     let path: PathBuf = admin.join(LOCK_NAME);
-    let file: std::fs::File = match std::fs::OpenOptions::new().read(true).write(true).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC).open(&path) {
+    let file: std::fs::File = match std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&path)
+    {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(MigrateError::io("open the conversion lock an older release left", path.as_path(), &error)),
+        Err(error) => {
+            return Err(MigrateError::io(
+                "open the conversion lock an older release left",
+                path.as_path(),
+                &error,
+            ));
+        }
     };
-    let plain: bool = io_step(file.metadata(), "examine the conversion lock an older release left", path.as_path())?.file_type().is_file();
+    let plain: bool = io_step(
+        file.metadata(),
+        "examine the conversion lock an older release left",
+        path.as_path(),
+    )?
+    .file_type()
+    .is_file();
     if !plain {
         return Ok(false);
     }
     // SAFETY: `flock` takes an open descriptor, which `file` keeps open for the call.
-    let result: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    let result: libc::c_int =
+        unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
     if result != 0 {
         let error: std::io::Error = std::io::Error::last_os_error();
         if error.kind() == std::io::ErrorKind::WouldBlock {
             return Ok(true);
         }
-        return Err(MigrateError::io("probe the conversion lock an older release left", path.as_path(), &error));
+        return Err(MigrateError::io(
+            "probe the conversion lock an older release left",
+            path.as_path(),
+            &error,
+        ));
     }
     // Removed while the probe still holds it, so no older command can take the name between the probe and the removal.
     return match std::fs::remove_file(&path) {
         Ok(()) => Ok(false),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(MigrateError::io("remove the conversion lock an older release left", path.as_path(), &error)),
+        Err(error) => Err(MigrateError::io(
+            "remove the conversion lock an older release left",
+            path.as_path(),
+            &error,
+        )),
     };
 }

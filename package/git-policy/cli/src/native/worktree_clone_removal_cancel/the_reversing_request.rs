@@ -24,17 +24,30 @@
 //! ```
 
 use crate::lazy_runtime::run_on_runtime;
-use crate::worktree_clone_mount_protocol::clone_mount_intent::{MountIntent, MountOperation};
+use crate::worktree_clone_mount_protocol::clone_mount_intent::{
+    MountIntent,
+    MountOperation,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_intent_write::CloneIntentWriter;
-use crate::worktree_clone_mount_protocol::clone_mount_receipt::{CloneMountReceipt, ReceiptOutcome};
+use crate::worktree_clone_mount_protocol::clone_mount_receipt::{
+    CloneMountReceipt,
+    ReceiptOutcome,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder::ReceiptsFolder;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_mount_protocol::mount_request_wait::{MountRequest, PROVISIONAL_MOUNT_REQUEST_DEADLINE, wait_for_answer};
+use crate::worktree_clone_mount_protocol::mount_request_wait::{
+    MountRequest,
+    PROVISIONAL_MOUNT_REQUEST_DEADLINE,
+    wait_for_answer,
+};
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
 use crate::worktree_clone_unmount::staging_calls::BOOT_ID_PATH;
 use crate::zfs_compatibility_gate::LiveGate;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// What:
@@ -98,7 +111,11 @@ impl MountAnswer {
             nonce: receipt.nonce.clone(),
             outcome: receipt.outcome,
             mount: receipt.mount.as_ref().map(|mount| {
-                return MountIdentity { mount_id: mount.mount_id, source: mount.source.clone(), canonical_path: mount.canonical_path.clone() };
+                return MountIdentity {
+                    mount_id: mount.mount_id,
+                    source: mount.source.clone(),
+                    canonical_path: mount.canonical_path.clone(),
+                };
             }),
             failed_step: receipt.failed_step.clone(),
             errno: receipt.errno.clone(),
@@ -166,7 +183,10 @@ pub trait TheMountRequest {
     /// # Errors
     /// The property write that was refused,
     /// or the wait that ended without a matching answer.
-    fn request_the_mount(&self, intent: &MountIntent) -> Result<MountAnswer, CancelRefusal>;
+    fn request_the_mount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<MountAnswer, CancelRefusal>;
 }
 
 /// What:
@@ -206,34 +226,69 @@ impl LiveTheMountRequest {
     /// ```ts
     /// const request = LiveTheMountRequest.open('pool/clones/one', guid);
     /// ```
-    pub fn open(clone: &str, clone_guid: DatasetGuid) -> Result<LiveTheMountRequest, CancelRefusal> {
+    pub fn open(
+        clone: &str,
+        clone_guid: DatasetGuid,
+    ) -> Result<LiveTheMountRequest, CancelRefusal> {
         let boot: String = std::fs::read_to_string(BOOT_ID_PATH).map(|text| return text.trim().to_string()).map_err(|error| {
             return CancelRefusal::NoAnswerAtTheDeadline { said: format!("the answer would be matched by this boot's identifier, and {BOOT_ID_PATH} could not be read ({error}).") };
         })?;
-        return Ok(LiveTheMountRequest { clone: String::from(clone), clone_guid, boot, deadline: PROVISIONAL_MOUNT_REQUEST_DEADLINE });
+        return Ok(LiveTheMountRequest {
+            clone: String::from(clone),
+            clone_guid,
+            boot,
+            deadline: PROVISIONAL_MOUNT_REQUEST_DEADLINE,
+        });
     }
 
     /// The deadline one wait takes,
     /// which a caller may narrow for a control.
-    pub fn with_the_deadline(mut self, deadline: Duration) -> LiveTheMountRequest {
+    pub fn with_the_deadline(
+        mut self,
+        deadline: Duration,
+    ) -> LiveTheMountRequest {
         self.deadline = deadline;
         return self;
     }
 }
 
 impl TheMountRequest for LiveTheMountRequest {
-    fn request_the_mount(&self, intent: &MountIntent) -> Result<MountAnswer, CancelRefusal> {
-        let writer: CloneIntentWriter = CloneIntentWriter::open(&LiveGate, self.clone.as_str()).map_err(|refusal| {
-            return CancelRefusal::TheMountRequestCouldNotBeWritten { said: refusal.message() };
+    fn request_the_mount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<MountAnswer, CancelRefusal> {
+        let writer: CloneIntentWriter = CloneIntentWriter::open(&LiveGate, self.clone.as_str())
+            .map_err(|refusal| {
+                return CancelRefusal::TheMountRequestCouldNotBeWritten {
+                    said: refusal.message(),
+                };
+            })?;
+        writer.request(intent).map_err(|refusal| {
+            return CancelRefusal::TheMountRequestCouldNotBeWritten {
+                said: refusal.message(),
+            };
         })?;
-        writer.request(intent).map_err(|refusal| return CancelRefusal::TheMountRequestCouldNotBeWritten { said: refusal.message() })?;
         let folder: ReceiptsFolder = ReceiptsFolder::live();
-        let request: MountRequest = MountRequest { dataset: self.clone_guid, operation: intent.operation, nonce: intent.nonce.clone(), boot: self.boot.clone() };
-        let receipt: CloneMountReceipt = match run_on_runtime(wait_for_answer(&folder, &request, self.deadline)) {
-            Ok(Ok(found)) => found,
-            Ok(Err(refusal)) => return Err(CancelRefusal::NoAnswerAtTheDeadline { said: refusal.message() }),
-            Err(refusal) => return Err(CancelRefusal::NoAnswerAtTheDeadline { said: format!("the wait could not run ({refusal}).") }),
+        let request: MountRequest = MountRequest {
+            dataset: self.clone_guid,
+            operation: intent.operation,
+            nonce: intent.nonce.clone(),
+            boot: self.boot.clone(),
         };
+        let receipt: CloneMountReceipt =
+            match run_on_runtime(wait_for_answer(&folder, &request, self.deadline)) {
+                Ok(Ok(found)) => found,
+                Ok(Err(refusal)) => {
+                    return Err(CancelRefusal::NoAnswerAtTheDeadline {
+                        said: refusal.message(),
+                    });
+                }
+                Err(refusal) => {
+                    return Err(CancelRefusal::NoAnswerAtTheDeadline {
+                        said: format!("the wait could not run ({refusal})."),
+                    });
+                }
+            };
         return Ok(MountAnswer::of_receipt(&receipt));
     }
 }
@@ -255,9 +310,17 @@ impl TheMountRequest for LiveTheMountRequest {
 /// ```
 pub fn the_reversing_intent() -> Result<MountIntent, CancelRefusal> {
     let nonce: RequestNonce = RequestNonce::fresh().map_err(|refusal| {
-        return CancelRefusal::TheMountRequestCouldNotBeWritten { said: format!("this process cannot make the nonce its request carries ({})", refusal.message()) };
+        return CancelRefusal::TheMountRequestCouldNotBeWritten {
+            said: format!(
+                "this process cannot make the nonce its request carries ({})",
+                refusal.message()
+            ),
+        };
     })?;
-    return Ok(MountIntent { operation: MountOperation::Mount, nonce });
+    return Ok(MountIntent {
+        operation: MountOperation::Mount,
+        nonce,
+    });
 }
 
 /// What:
@@ -280,7 +343,10 @@ pub fn the_reversing_intent() -> Result<MountIntent, CancelRefusal> {
 /// ```ts
 /// const proof = verifyTheMountAnswer(answer, expected);
 /// ```
-pub fn verify_the_mount_answer(answer: &MountAnswer, expected: &ExpectedMount) -> Result<MountProof, CancelRefusal> {
+pub fn verify_the_mount_answer(
+    answer: &MountAnswer,
+    expected: &ExpectedMount,
+) -> Result<MountProof, CancelRefusal> {
     if answer.dataset != expected.clone_guid {
         return Err(CancelRefusal::TheRecordsDisagree {
             what: String::from("the answer is filed for a dataset this command did not ask about"),
@@ -290,7 +356,9 @@ pub fn verify_the_mount_answer(answer: &MountAnswer, expected: &ExpectedMount) -
     }
     if answer.operation != MountOperation::Mount {
         return Err(CancelRefusal::TheRecordsDisagree {
-            what: String::from("the answer answers another operation than the `mount` this command asked for"),
+            what: String::from(
+                "the answer answers another operation than the `mount` this command asked for",
+            ),
             first: answer.operation.word().to_string(),
             second: MountOperation::Mount.word().to_string(),
         });
@@ -305,18 +373,29 @@ pub fn verify_the_mount_answer(answer: &MountAnswer, expected: &ExpectedMount) -
     if answer.outcome != ReceiptOutcome::Done {
         return Err(CancelRefusal::TheHandlerRefused {
             outcome: String::from(answer.outcome.word()),
-            step: answer.failed_step.clone().unwrap_or_else(|| return String::from("answer")),
-            errno: answer.errno.clone().unwrap_or_else(|| return String::from("none")),
+            step: answer
+                .failed_step
+                .clone()
+                .unwrap_or_else(|| return String::from("answer")),
+            errno: answer
+                .errno
+                .clone()
+                .unwrap_or_else(|| return String::from("none")),
         });
     }
     let Some(mount) = &answer.mount else {
         return Err(CancelRefusal::TheMountStateIsNotTheAnswers {
-            said: String::from("the handler answered `done` and named no mount, so nothing proves the clone stands at its slot."),
+            said: String::from(
+                "the handler answered `done` and named no mount, so nothing proves the clone stands at its slot.",
+            ),
         });
     };
     if mount.source != expected.clone_dataset {
         return Err(CancelRefusal::TheMountStateIsNotTheAnswers {
-            said: format!("the answer's mount is a mount of `{}`, and the clone is `{}`.", mount.source, expected.clone_dataset),
+            said: format!(
+                "the answer's mount is a mount of `{}`, and the clone is `{}`.",
+                mount.source, expected.clone_dataset
+            ),
         });
     }
     if Path::new(mount.canonical_path.as_str()) != expected.slot_path {
@@ -328,7 +407,10 @@ pub fn verify_the_mount_answer(answer: &MountAnswer, expected: &ExpectedMount) -
             ),
         });
     }
-    return Ok(MountProof { nonce: answer.nonce.clone(), mount: mount.clone() });
+    return Ok(MountProof {
+        nonce: answer.nonce.clone(),
+        mount: mount.clone(),
+    });
 }
 
 /// Controls stay out of the release executable.

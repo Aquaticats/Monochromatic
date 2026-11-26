@@ -42,13 +42,19 @@
 /// import { runtimeUnitDir, SERVICE_UNIT_NAME } from './service-provision.ts';
 /// ```
 use crate::real_git_candidate::MAX_SCRIPT_INSPECTION_BYTES;
-use crate::service_provision::{SERVICE_UNIT_NAME, runtime_unit_dir};
+use crate::service_provision::{
+    SERVICE_UNIT_NAME,
+    runtime_unit_dir,
+};
 /// `Read` supplies `read_to_end` and `take`,
 /// the bounded read below.
 use std::io::Read;
 /// `Path` is a borrowed filesystem path;
 ///  `PathBuf` is the owned sibling a function returns.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The option of the service program that names the Git it starts.
 const GIT_OPTION: &str = "--git";

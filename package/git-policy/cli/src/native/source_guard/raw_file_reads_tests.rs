@@ -25,7 +25,12 @@ use std::path::Path;
 /// so a new binary or test target is covered through the manifest rather than a second list.
 use super::release_sources_in;
 /// The shared scan base: the crate root record, the roots `Cargo.toml` lists, the source root and a fixture writer.
-use crate::source_scan_tests::{CrateRoot, real_roots, source_root, write_tree};
+use crate::source_scan_tests::{
+    CrateRoot,
+    real_roots,
+    source_root,
+    write_tree,
+};
 
 /// The two calls that open a file and read it whole,
 /// as a line spells them,
@@ -88,7 +93,11 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("candidate/candidate_private_index.rs", 1, "own-record"),
     ("commit/conclusion_cleanup.rs", 2, "own-record"),
     ("dependent_version/policy_added_path.rs", 1, "person-path"),
-    ("foundation/earlier_log_lines_added_to_current_log.rs", 1, "own-record"),
+    (
+        "foundation/earlier_log_lines_added_to_current_log.rs",
+        1,
+        "own-record",
+    ),
     ("foundation/runtime_limits.rs", 5, "system"),
     ("health/doctor_filesystem.rs", 1, "system"),
     ("invocation/real_git_candidate.rs", 2, "person-path"),
@@ -102,7 +111,11 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("landing/service_land_objects_of_batch.rs", 2, "own-record"),
     ("landing/service_message.rs", 1, "person-path"),
     ("landing/service_rules_precompile.rs", 2, "own-record"),
-    ("landing/service_scratch_ref_marker_of_a_batch.rs", 1, "own-record"),
+    (
+        "landing/service_scratch_ref_marker_of_a_batch.rs",
+        1,
+        "own-record",
+    ),
     ("lock/index_lock_evidence.rs", 1, "system"),
     ("lock/index_lock_holder_words.rs", 1, "system"),
     ("lock/index_lock_holders.rs", 1, "system"),
@@ -112,10 +125,18 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("merge/merge_isolation_carry_landed.rs", 1, "own-record"),
     ("merge/merge_isolation_editor.rs", 1, "own-record"),
     ("merge/merge_isolation_kept_copies.rs", 1, "own-record"),
-    ("merge/merge_isolation_kept_copies_decisions.rs", 1, "own-record"),
+    (
+        "merge/merge_isolation_kept_copies_decisions.rs",
+        1,
+        "own-record",
+    ),
     ("merge/merge_isolation_recovery_records.rs", 2, "own-record"),
     ("merge/merge_second_pass_finish.rs", 1, "git-directory"),
-    ("merge/merge_second_pass_finish_stops.rs", 1, "git-directory"),
+    (
+        "merge/merge_second_pass_finish_stops.rs",
+        1,
+        "git-directory",
+    ),
     ("policy/direct_fix_install.rs", 1, "git-directory"),
     ("policy/direct_fix_install_journal.rs", 2, "own-record"),
     ("policy/direct_fix_install_judging.rs", 1, "person-path"),
@@ -125,60 +146,196 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("process/thread_quiet.rs", 2, "system"),
     ("push/push_progress_meter.rs", 3, "system"),
     ("repair/package_repair_cargo_lock.rs", 5, "person-path"),
-    ("repair/package_repair_prewarm_job_staged_state.rs", 1, "git-directory"),
+    (
+        "repair/package_repair_prewarm_job_staged_state.rs",
+        1,
+        "git-directory",
+    ),
     ("repair/package_repair_start.rs", 1, "test-stand-in"),
     ("repo_read/repo_read_odb.rs", 1, "git-directory"),
     ("repo_read/sequencer_marker.rs", 1, "git-directory"),
-    ("repository_link_check/repository_link_identity.rs", 1, "own-record"),
-    ("repository_link_check/repository_move_freeze.rs", 1, "own-record"),
-    ("repository_link_check/repository_link_probe.rs", 1, "person-path"),
+    (
+        "repository_link_check/repository_link_identity.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "repository_link_check/repository_move_freeze.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "repository_link_check/repository_link_probe.rs",
+        1,
+        "person-path",
+    ),
     ("service/earlier_unix_sockets_that_listen.rs", 2, "system"),
     ("service/service_journal.rs", 4, "own-record"),
     ("service/service_journal_record_age.rs", 1, "own-record"),
     ("service/service_provision.rs", 2, "own-record"),
-    ("service/service_provision_earlier_service_retirement.rs", 1, "person-path"),
-    ("service/service_provision_unit_file_ownership_and_writes.rs", 1, "own-record"),
+    (
+        "service/service_provision_earlier_service_retirement.rs",
+        1,
+        "person-path",
+    ),
+    (
+        "service/service_provision_unit_file_ownership_and_writes.rs",
+        1,
+        "own-record",
+    ),
     ("shadow/shadow_pool_member.rs", 1, "person-path"),
-    ("standards_review/standards_review_append.rs", 2, "own-record"),
+    (
+        "standards_review/standards_review_append.rs",
+        2,
+        "own-record",
+    ),
     ("start_probe/probe_mount_calls.rs", 1, "system"),
     ("subvolume/fs_beneath_mount_facts.rs", 1, "system"),
     ("subvolume/subvolume_lock.rs", 1, "own-record"),
     ("transaction/recovery_files.rs", 1, "own-record"),
     ("worktree/worktree_clone_block_cloning.rs", 1, "system"),
-    ("worktree/worktree_clone_conversion_fence.rs", 2, "git-directory"),
+    (
+        "worktree/worktree_clone_conversion_fence.rs",
+        2,
+        "git-directory",
+    ),
     ("worktree/worktree_dirty_restore.rs", 1, "git-directory"),
     ("worktree/worktree_ladder_target.rs", 1, "person-path"),
     ("worktree/worktree_process_inside.rs", 2, "system"),
     ("worktree/worktree_snapshot_source.rs", 1, "git-directory"),
-    ("worktree/worktree_trash_exclude_line.rs", 1, "git-directory"),
+    (
+        "worktree/worktree_trash_exclude_line.rs",
+        1,
+        "git-directory",
+    ),
     ("worktree_clone_add_route/add_preflight.rs", 1, "system"),
-    ("worktree_clone_add_route/add_route_steps_snapshot_and_capture.rs", 1, "git-directory"),
-    ("worktree_clone_binding_record/plan_folder_read.rs", 1, "own-record"),
-    ("worktree_clone_forced_removal/process_session_record.rs", 1, "system"),
-    ("worktree_clone_mount/attached_mount_identity.rs", 1, "system"),
-    ("worktree_clone_mount_handler/sweep_preconditions.rs", 1, "system"),
-    ("worktree_clone_mount_handler/sweep_preconditions.rs", 1, "own-record"),
-    ("worktree_clone_origin_cleanup/origin_cleanup_reading.rs", 1, "own-record"),
-    ("worktree_clone_prune_pointer/pointer_restore.rs", 1, "own-record"),
-    ("worktree_clone_record_settling/settling_removals.rs", 1, "own-record"),
-    ("worktree_clone_record_settling/settling_slot.rs", 1, "own-record"),
-    ("worktree_clone_removal_cancel/the_reversing_request.rs", 1, "system"),
-    ("worktree_clone_removal_cancel/the_staged_state.rs", 1, "system"),
-    ("worktree_clone_removal_proof_and_plan/unmount_request.rs", 1, "system"),
+    (
+        "worktree_clone_add_route/add_route_steps_snapshot_and_capture.rs",
+        1,
+        "git-directory",
+    ),
+    (
+        "worktree_clone_binding_record/plan_folder_read.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_clone_forced_removal/process_session_record.rs",
+        1,
+        "system",
+    ),
+    (
+        "worktree_clone_mount/attached_mount_identity.rs",
+        1,
+        "system",
+    ),
+    (
+        "worktree_clone_mount_handler/sweep_preconditions.rs",
+        1,
+        "system",
+    ),
+    (
+        "worktree_clone_mount_handler/sweep_preconditions.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_clone_origin_cleanup/origin_cleanup_reading.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_clone_prune_pointer/pointer_restore.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_clone_record_settling/settling_removals.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_clone_record_settling/settling_slot.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_clone_removal_cancel/the_reversing_request.rs",
+        1,
+        "system",
+    ),
+    (
+        "worktree_clone_removal_cancel/the_staged_state.rs",
+        1,
+        "system",
+    ),
+    (
+        "worktree_clone_removal_proof_and_plan/unmount_request.rs",
+        1,
+        "system",
+    ),
     ("worktree_clone_unmount/staging_calls.rs", 3, "system"),
-    ("worktree_copying/worktree_copy_interrupted_add_settlement.rs", 1, "own-record"),
-    ("worktree_copying/worktree_copy_interrupted_checkout.rs", 2, "person-path"),
+    (
+        "worktree_copying/worktree_copy_interrupted_add_settlement.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_copying/worktree_copy_interrupted_checkout.rs",
+        2,
+        "person-path",
+    ),
     ("worktree_copying/worktree_copy_journal.rs", 1, "own-record"),
-    ("worktree_copying/worktree_copy_owed_copy.rs", 1, "own-record"),
-    ("worktree_copying/worktree_copy_owed_taking.rs", 1, "own-record"),
-    ("worktree_copying/worktree_copy_source_still_being_filled.rs", 1, "own-record"),
-    ("worktree_copying/worktree_copy_stage_claim.rs", 2, "own-record"),
-    ("worktree_copying/worktree_copy_stage_claim_owed_copy_elsewhere.rs", 1, "own-record"),
-    ("worktree_copying/worktree_copy_stage_claim_reaping.rs", 1, "own-record"),
-    ("worktree_copying/worktree_copy_stage_made_object.rs", 1, "own-record"),
-    ("worktree_copying/worktree_copy_swapped_add_settlement.rs", 1, "own-record"),
-    ("worktree_copying/worktree_copy_unfilled_record.rs", 1, "own-record"),
-    ("worktree_copying/worktree_copy_unreadable_records.rs", 2, "own-record"),
+    (
+        "worktree_copying/worktree_copy_owed_copy.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_copying/worktree_copy_owed_taking.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_copying/worktree_copy_source_still_being_filled.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_copying/worktree_copy_stage_claim.rs",
+        2,
+        "own-record",
+    ),
+    (
+        "worktree_copying/worktree_copy_stage_claim_owed_copy_elsewhere.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_copying/worktree_copy_stage_claim_reaping.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_copying/worktree_copy_stage_made_object.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_copying/worktree_copy_swapped_add_settlement.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_copying/worktree_copy_unfilled_record.rs",
+        1,
+        "own-record",
+    ),
+    (
+        "worktree_copying/worktree_copy_unreadable_records.rs",
+        2,
+        "own-record",
+    ),
 ];
 
 /// What:
@@ -199,7 +356,9 @@ fn calls_on_a_line(line: &str) -> usize {
         let mut remaining: &str = line;
         loop {
             // Where the next call of this word starts, or nothing when the rest of the line holds none.
-            let Some(place) = remaining.find(call) else { break };
+            let Some(place) = remaining.find(call) else {
+                break;
+            };
             counted += 1;
             remaining = &remaining[place + call.len()..];
         }
@@ -240,13 +399,17 @@ fn calls_in(text: &str) -> usize {
 /// ```ts
 /// const counts = releaseSources(root).map((p) => [p, callsIn(readFileSync(p))]).filter(([, n]) => n > 0)
 /// ```
-fn counts_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<(String, usize)>, String> {
+fn counts_in(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<(String, usize)>, String> {
     let mut found: Vec<(String, usize)> = Vec::new();
     for path in release_sources_in(root, roots)? {
         if path == THE_PLAIN_FILE_READER {
             continue;
         }
-        let text: String = std::fs::read_to_string(root.join(path.as_str())).map_err(|error| return format!("cannot read {path}: {error}"))?;
+        let text: String = std::fs::read_to_string(root.join(path.as_str()))
+            .map_err(|error| return format!("cannot read {path}: {error}"))?;
         let counted: usize = calls_in(text.as_str());
         if counted > 0 {
             found.push((path, counted));
@@ -299,25 +462,39 @@ fn listed() -> Vec<(String, usize)> {
 /// ```ts
 /// const found = countsIn(root); const allowed = new Map(entries); return [...drift, ...entries.filter(([p]) => !found.has(p))]
 /// ```
-fn findings_in(root: &Path, roots: &[CrateRoot], allowed: &[(String, usize)]) -> Result<Vec<String>, String> {
+fn findings_in(
+    root: &Path,
+    roots: &[CrateRoot],
+    allowed: &[(String, usize)],
+) -> Result<Vec<String>, String> {
     let counted: Vec<(String, usize)> = counts_in(root, roots)?;
     let mut findings: Vec<String> = Vec::new();
     for (path, calls) in counted.iter() {
-        let allowed_here: usize = allowed.iter().find(|(named, _total)| return named == path).map(|(_named, total)| return *total).unwrap_or(0);
+        let allowed_here: usize = allowed
+            .iter()
+            .find(|(named, _total)| return named == path)
+            .map(|(_named, total)| return *total)
+            .unwrap_or(0);
         if *calls == allowed_here {
             continue;
         }
         if allowed_here == 0 {
-            findings.push(format!("{path}: makes {calls} call(s) that can wait and is not on the list"));
+            findings.push(format!(
+                "{path}: makes {calls} call(s) that can wait and is not on the list"
+            ));
         } else {
-            findings.push(format!("{path}: the list gives {allowed_here} call(s) and the file makes {calls}"));
+            findings.push(format!(
+                "{path}: the list gives {allowed_here} call(s) and the file makes {calls}"
+            ));
         }
     }
     for (path, allowed_here) in allowed {
         if counted.iter().any(|(named, _calls)| return named == path) {
             continue;
         }
-        findings.push(format!("{path}: the list gives {allowed_here} call(s) and the file makes none"));
+        findings.push(format!(
+            "{path}: the list gives {allowed_here} call(s) and the file makes none"
+        ));
     }
     return Ok(findings);
 }
@@ -347,29 +524,50 @@ fn no_release_file_outside_the_plain_file_reader_makes_a_call_that_can_wait() {
 fn every_listed_class_carries_a_reason_and_keeps_a_site() {
     let unused: Vec<String> = KEPT_CLASSES
         .iter()
-        .filter(|(class, _why)| return !KEPT_SITES.iter().any(|(_path, _count, named)| return named == class))
+        .filter(|(class, _why)| {
+            return !KEPT_SITES
+                .iter()
+                .any(|(_path, _count, named)| return named == class);
+        })
         .map(|(class, _why)| return String::from(*class))
         .collect();
-    assert!(unused.is_empty(), "these classes keep no site, so remove them from `KEPT_CLASSES`:\n{}", unused.join("\n"));
+    assert!(
+        unused.is_empty(),
+        "these classes keep no site, so remove them from `KEPT_CLASSES`:\n{}",
+        unused.join("\n")
+    );
     let unreasoned: Vec<String> = KEPT_SITES
         .iter()
-        .filter(|(_path, _count, class)| return !KEPT_CLASSES.iter().any(|(named, _why)| return named == class))
+        .filter(|(_path, _count, class)| {
+            return !KEPT_CLASSES
+                .iter()
+                .any(|(named, _why)| return named == class);
+        })
         .map(|(path, _count, class)| return format!("{path}: `{class}`"))
         .collect();
-    assert!(unreasoned.is_empty(), "these entries name a class `KEPT_CLASSES` gives no reason for:\n{}", unreasoned.join("\n"));
+    assert!(
+        unreasoned.is_empty(),
+        "these entries name a class `KEPT_CLASSES` gives no reason for:\n{}",
+        unreasoned.join("\n")
+    );
 }
 
 /// Every listed file is still a release source,
 /// so a file that moved or became test-only does not go on excusing a count.
 #[test]
 fn every_listed_file_is_a_release_source() {
-    let sources: Vec<String> = release_sources_in(&source_root(), &real_roots()).expect("the crate's sources");
+    let sources: Vec<String> =
+        release_sources_in(&source_root(), &real_roots()).expect("the crate's sources");
     let stale: Vec<String> = listed()
         .into_iter()
         .filter(|(path, _total)| return !sources.iter().any(|file| return file == path))
         .map(|(path, total)| return format!("{path}: {total}"))
         .collect();
-    assert!(stale.is_empty(), "these entries name no release source of this crate, so remove them:\n{}", stale.join("\n"));
+    assert!(
+        stale.is_empty(),
+        "these entries name no release source of this crate, so remove them:\n{}",
+        stale.join("\n")
+    );
 }
 
 /// The scan fires on a planted read and stays quiet for the same module reading through `plain_file`,
@@ -380,18 +578,38 @@ fn the_scan_finds_a_planted_read_and_passes_a_plain_one() {
     write_tree(
         root.as_path(),
         &[
-            ("raw.rs", "pub fn read(path: &std::path::Path) -> Vec<u8> {\n    return std::fs::read(path).unwrap_or_default();\n}\n"),
+            (
+                "raw.rs",
+                "pub fn read(path: &std::path::Path) -> Vec<u8> {\n    return std::fs::read(path).unwrap_or_default();\n}\n",
+            ),
             (
                 "plain.rs",
                 "pub fn read(path: &std::path::Path) -> Vec<u8> {\n    return crate::plain_file::read_plain_file(path, \
                  crate::plain_file::SMALL_FILE_LIMIT).unwrap_or_default();\n}\n",
             ),
-            ("commented.rs", "// A comment that names std::fs::read(path) is not a call.\npub fn read() -> usize {\n    return 0;\n}\n"),
-            ("lib.rs", "pub mod commented;\npub mod plain;\npub mod raw;\n"),
+            (
+                "commented.rs",
+                "// A comment that names std::fs::read(path) is not a call.\npub fn read() -> usize {\n    return 0;\n}\n",
+            ),
+            (
+                "lib.rs",
+                "pub mod commented;\npub mod plain;\npub mod raw;\n",
+            ),
         ],
     );
-    let found: Vec<String> = findings_in(root.as_path(), &[crate::source_scan_tests::release_root("lib.rs")], &[]).expect("the fixture");
-    assert_eq!(found, vec![String::from("raw.rs: makes 1 call(s) that can wait and is not on the list")], "one read is planted and one reads a plain file");
+    let found: Vec<String> = findings_in(
+        root.as_path(),
+        &[crate::source_scan_tests::release_root("lib.rs")],
+        &[],
+    )
+    .expect("the fixture");
+    assert_eq!(
+        found,
+        vec![String::from(
+            "raw.rs: makes 1 call(s) that can wait and is not on the list"
+        )],
+        "one read is planted and one reads a plain file"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -399,7 +617,8 @@ fn the_scan_finds_a_planted_read_and_passes_a_plain_one() {
 /// so a second read cannot ride along beside a listed one.
 #[test]
 fn a_file_that_makes_more_calls_than_the_list_gives_is_a_finding() {
-    let root: std::path::PathBuf = crate::test_support::fixture("source-guard-raw-file-reads-count");
+    let root: std::path::PathBuf =
+        crate::test_support::fixture("source-guard-raw-file-reads-count");
     write_tree(
         root.as_path(),
         &[(
@@ -409,8 +628,19 @@ fn a_file_that_makes_more_calls_than_the_list_gives_is_a_finding() {
         )],
     );
     let allowed: Vec<(String, usize)> = vec![(String::from("twice.rs"), 1)];
-    let found: Vec<String> = findings_in(root.as_path(), &[crate::source_scan_tests::release_root("twice.rs")], &allowed).expect("the fixture");
-    assert_eq!(found, vec![String::from("twice.rs: the list gives 1 call(s) and the file makes 2")], "both calls of one file are counted");
+    let found: Vec<String> = findings_in(
+        root.as_path(),
+        &[crate::source_scan_tests::release_root("twice.rs")],
+        &allowed,
+    )
+    .expect("the fixture");
+    assert_eq!(
+        found,
+        vec![String::from(
+            "twice.rs: the list gives 1 call(s) and the file makes 2"
+        )],
+        "both calls of one file are counted"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -428,7 +658,18 @@ fn a_listed_site_that_is_gone_is_a_finding() {
         )],
     );
     let allowed: Vec<(String, usize)> = vec![(String::from("moved.rs"), 1)];
-    let found: Vec<String> = findings_in(root.as_path(), &[crate::source_scan_tests::release_root("moved.rs")], &allowed).expect("the fixture");
-    assert_eq!(found, vec![String::from("moved.rs: the list gives 1 call(s) and the file makes none")], "a moved site lowers the list");
+    let found: Vec<String> = findings_in(
+        root.as_path(),
+        &[crate::source_scan_tests::release_root("moved.rs")],
+        &allowed,
+    )
+    .expect("the fixture");
+    assert_eq!(
+        found,
+        vec![String::from(
+            "moved.rs: the list gives 1 call(s) and the file makes none"
+        )],
+        "a moved site lowers the list"
+    );
     crate::test_support::remove(root.as_path());
 }

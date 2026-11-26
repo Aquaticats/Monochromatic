@@ -13,9 +13,18 @@
 //! const print = ProbeFingerprint.read(paths); expect(print.moduleBuildId).toBeUndefined();
 //! ```
 
-use super::{FingerprintPaths, FingerprintRefusal, ProbeFingerprint, binary_identity, hexadecimal};
+use super::{
+    FingerprintPaths,
+    FingerprintRefusal,
+    ProbeFingerprint,
+    binary_identity,
+    hexadecimal,
+};
 use crate::testing::test_support::fixture;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// One fixture set,
 /// every file written,
@@ -42,7 +51,8 @@ fn paths(root: &Path) -> FingerprintPaths {
 #[test]
 fn a_complete_set_reads_with_its_absences_absent() {
     let root: PathBuf = fixture("start-probe-fingerprint");
-    let print: ProbeFingerprint = ProbeFingerprint::read(&paths(root.as_path())).expect("the fingerprint is read");
+    let print: ProbeFingerprint =
+        ProbeFingerprint::read(&paths(root.as_path())).expect("the fingerprint is read");
     assert_eq!(print.kernel_release, "6.8.0-147-generic");
     assert_eq!(print.module_version.as_deref(), Some("2.4.4-1"));
     assert_eq!(print.boot_id, "6f0f1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b");
@@ -57,10 +67,16 @@ fn a_missing_required_attribute_refuses() {
     let root: PathBuf = fixture("start-probe-fingerprint-missing");
     let mut without_release: FingerprintPaths = paths(root.as_path());
     without_release.kernel_release = root.join("no-such-release");
-    assert!(matches!(ProbeFingerprint::read(&without_release), Err(FingerprintRefusal::KernelRelease { .. })));
+    assert!(matches!(
+        ProbeFingerprint::read(&without_release),
+        Err(FingerprintRefusal::KernelRelease { .. })
+    ));
     let mut without_boot: FingerprintPaths = paths(root.as_path());
     without_boot.boot_id = root.join("no-such-boot");
-    assert!(matches!(ProbeFingerprint::read(&without_boot), Err(FingerprintRefusal::BootId { .. })));
+    assert!(matches!(
+        ProbeFingerprint::read(&without_boot),
+        Err(FingerprintRefusal::BootId { .. })
+    ));
 }
 
 /// A build ID note reads as lowercase hexadecimal,
@@ -72,5 +88,13 @@ fn bytes_are_hexadecimal_and_a_file_has_an_identity() {
     let handler: PathBuf = root.join("handler");
     std::fs::write(&handler, b"text").expect("the fixture file is written");
     let identity: String = binary_identity(handler.as_path()).expect("the file has an identity");
-    assert!(identity.starts_with(root.canonicalize().expect("canonical root").join("handler").to_str().expect("text path")));
+    assert!(
+        identity.starts_with(
+            root.canonicalize()
+                .expect("canonical root")
+                .join("handler")
+                .to_str()
+                .expect("text path")
+        )
+    );
 }

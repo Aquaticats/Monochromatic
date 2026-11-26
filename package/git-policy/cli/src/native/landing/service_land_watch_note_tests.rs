@@ -12,17 +12,46 @@
 //! The service and its clients are the ones `service_land_hung_write_tests.rs` runs,
 //! and the fixtures are the ones the landing's controls make.
 
-use super::hung_write_tests::{PATIENCE, Serving, Submitting, client, serve_on_a_thread_with_settings, submit_on_a_thread, wait_until_settled};
-use super::tests::{World, request, world};
+use super::hung_write_tests::{
+    PATIENCE,
+    Serving,
+    Submitting,
+    client,
+    serve_on_a_thread_with_settings,
+    submit_on_a_thread,
+    wait_until_settled,
+};
+use super::tests::{
+    World,
+    request,
+    world,
+};
 use super::*;
-use crate::service_claim_watch::{ClaimWatch, IN_THE_NEXT_SERVICE_NOTE, WATCH_DIRECTORY};
+use crate::service_claim_watch::{
+    ClaimWatch,
+    IN_THE_NEXT_SERVICE_NOTE,
+    WATCH_DIRECTORY,
+};
 use crate::service_client::Submitted;
-use crate::service_fault::hooks::{HoldOnAnyThread, hold_on_any_thread};
-use crate::service_handoff::{ServiceHandoff, hand_over, promote_the_push};
+use crate::service_fault::hooks::{
+    HoldOnAnyThread,
+    hold_on_any_thread,
+};
+use crate::service_handoff::{
+    ServiceHandoff,
+    hand_over,
+    promote_the_push,
+};
 use crate::service_messages::ClientFailure;
 use crate::service_server::ServeSettings;
-use crate::test_support::{git_text, remove};
-use std::time::{Duration, Instant};
+use crate::test_support::{
+    git_text,
+    remove,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The ceiling the landings of these controls grant a note's write:
 /// short,
@@ -47,14 +76,21 @@ const ANSWER_CEILING: Duration = Duration::from_millis(6000);
 
 /// A service serving on a thread of its own,
 /// whose landings grant `ceiling` for a note.
-fn serving_with_ceiling(world: &World, name: &str, ceiling: Duration) -> Serving {
+fn serving_with_ceiling(
+    world: &World,
+    name: &str,
+    ceiling: Duration,
+) -> Serving {
     let mut settings: ServeSettings = ServeSettings::new(PATIENCE);
     settings.note_ceiling = ceiling;
     return serve_on_a_thread_with_settings(world.context.clone(), name, settings);
 }
 
 /// `serving_with_ceiling` with the ceiling these controls hold a write past.
-fn serving(world: &World, name: &str) -> Serving {
+fn serving(
+    world: &World,
+    name: &str,
+) -> Serving {
     return serving_with_ceiling(world, name, NOTE_CEILING);
 }
 
@@ -84,17 +120,30 @@ impl HeldNoteWrite {
     fn arm() -> Self {
         let (reached, reached_wait) = tokio::sync::oneshot::channel();
         let (let_go, held) = std::sync::mpsc::channel();
-        hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_NEXT_SERVICE_NOTE), reached, let_go: held });
-        return Self { reached: Some(reached_wait), let_go };
+        hold_on_any_thread(HoldOnAnyThread {
+            point: String::from(IN_THE_NEXT_SERVICE_NOTE),
+            reached,
+            let_go: held,
+        });
+        return Self {
+            reached: Some(reached_wait),
+            let_go,
+        };
     }
 
     /// Waits,
     /// no longer than the longest a control waits,
     /// for the note's write to begin.
     fn wait_until_written(&mut self) {
-        let reached: tokio::sync::oneshot::Receiver<()> = self.reached.take().expect("the hold was armed");
-        let waited = crate::lazy_runtime::run_on_runtime(async move { return tokio::time::timeout(PATIENCE, reached).await; });
-        assert!(matches!(waited, Ok(Ok(Ok(())))), "the note's write was not reached within {PATIENCE:?}");
+        let reached: tokio::sync::oneshot::Receiver<()> =
+            self.reached.take().expect("the hold was armed");
+        let waited = crate::lazy_runtime::run_on_runtime(async move {
+            return tokio::time::timeout(PATIENCE, reached).await;
+        });
+        assert!(
+            matches!(waited, Ok(Ok(Ok(())))),
+            "the note's write was not reached within {PATIENCE:?}"
+        );
     }
 
     /// Lets the held write go on,
@@ -106,28 +155,56 @@ impl HeldNoteWrite {
 
 /// The subjects on the branch after `base`,
 /// oldest first.
-fn subjects_since(world: &World, base: &str) -> String {
-    return git_text(world.repo.as_path(), &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]);
+fn subjects_since(
+    world: &World,
+    base: &str,
+) -> String {
+    return git_text(
+        world.repo.as_path(),
+        &[
+            "log",
+            "--reverse",
+            "--format=%s",
+            format!("{base}..HEAD").as_str(),
+        ],
+    );
 }
 
 /// Waits,
 /// no longer than the longest a control waits,
 /// until a watch of `store` names `git_dir`,
 /// which is what the service that starts next would look at.
-fn wait_until_the_next_service_would_look(store: &Path, git_dir: &Path) {
+fn wait_until_the_next_service_would_look(
+    store: &Path,
+    git_dir: &Path,
+) {
     let began: Instant = Instant::now();
     loop {
-        if ClaimWatch::restored(store, None).directories().iter().any(|named| { return named == git_dir; }) {
+        if ClaimWatch::restored(store, None)
+            .directories()
+            .iter()
+            .any(|named| {
+                return named == git_dir;
+            })
+        {
             return;
         }
-        assert!(began.elapsed() < PATIENCE, "no note in {} names {}", store.display(), git_dir.display());
+        assert!(
+            began.elapsed() < PATIENCE,
+            "no note in {} names {}",
+            store.display(),
+            git_dir.display()
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
 }
 
 /// One client's answer,
 /// with the words it printed.
-fn answered(submitting: Submitting, what: &str) -> (Result<Submitted, ClientFailure>, String) {
+fn answered(
+    submitting: Submitting,
+    what: &str,
+) -> (Result<Submitted, ClientFailure>, String) {
     return match submitting.join() {
         Ok(answered) => answered,
         Err(_) => panic!("{what}: still waiting after {PATIENCE:?}"),
@@ -136,9 +213,15 @@ fn answered(submitting: Submitting, what: &str) -> (Result<Submitted, ClientFail
 
 /// The commit an answer of `Landed` carries,
 /// or a failure naming the answer the client was given instead.
-fn landed_commit(answer: Result<Submitted, ClientFailure>, notices: &str) -> String {
+fn landed_commit(
+    answer: Result<Submitted, ClientFailure>,
+    notices: &str,
+) -> String {
     return match answer {
-        Ok(Submitted::Landed { commit, .. }) => commit,
+        Ok(Submitted::Landed {
+            commit,
+            ..
+        }) => commit,
         other => panic!("the commit did not land: {other:?} {notices}"),
     };
 }
@@ -165,7 +248,12 @@ fn store_of(world: &World) -> PathBuf {
 /// ```ts
 /// await promoteThePush(handoff, landed); await handOver(handoff, landed, notices);
 /// ```
-fn after_the_gate(world: &World, serving: &Serving, landed: &str, parent: &str) {
+fn after_the_gate(
+    world: &World,
+    serving: &Serving,
+    landed: &str,
+    parent: &str,
+) {
     let handoff: ServiceHandoff = ServiceHandoff {
         config: client(serving, ANSWER_CEILING, PATIENCE),
         repository: world.repo.clone(),
@@ -175,7 +263,8 @@ fn after_the_gate(world: &World, serving: &Serving, landed: &str, parent: &str) 
     };
     promote_the_push(&handoff, landed).expect("the push the landing held is promoted");
     let mut printed: Vec<u8> = Vec::new();
-    hand_over(&handoff, landed, &mut printed).expect("the service is woken for the commit's after-commit work");
+    hand_over(&handoff, landed, &mut printed)
+        .expect("the service is woken for the commit's after-commit work");
 }
 
 /// What:
@@ -193,7 +282,10 @@ fn the_commit_whose_note_the_store_has_not_answered_is_answered_within_the_ceili
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let serving: Serving = serving(&world, "note-held");
     let mut held: HeldNoteWrite = HeldNoteWrite::arm();
-    let only: Submitting = submit_on_a_thread(client(&serving, ANSWER_CEILING, PATIENCE), request(&world, "only", "only.txt", "only\n"));
+    let only: Submitting = submit_on_a_thread(
+        client(&serving, ANSWER_CEILING, PATIENCE),
+        request(&world, "only", "only.txt", "only\n"),
+    );
     held.wait_until_written();
     let write_began: Instant = Instant::now();
     let (answer, notices) = answered(only, "the client of the held note");
@@ -204,7 +296,11 @@ fn the_commit_whose_note_the_store_has_not_answered_is_answered_within_the_ceili
         "the commit was answered {waited:?} after its note's write began, and that write is granted {NOTE_CEILING:?}"
     );
     // The commit that landed stays landed, and is reported so.
-    assert_eq!(subjects_since(&world, base.as_str()), "message of only", "the commit is on the branch");
+    assert_eq!(
+        subjects_since(&world, base.as_str()),
+        "message of only",
+        "the commit is on the branch"
+    );
     // What the note is for: the service that starts next looks at this repository, and the note that says so was written
     //  by the work loop's own look, because the landing's own write has still not returned.
     after_the_gate(&world, &serving, landed.as_str(), base.as_str());
@@ -229,20 +325,33 @@ fn the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it()
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let serving: Serving = serving(&world, "note-queued");
     let mut held: HeldNoteWrite = HeldNoteWrite::arm();
-    let first: Submitting = submit_on_a_thread(client(&serving, ANSWER_CEILING, PATIENCE), request(&world, "first", "first.txt", "first\n"));
+    let first: Submitting = submit_on_a_thread(
+        client(&serving, ANSWER_CEILING, PATIENCE),
+        request(&world, "first", "first.txt", "first\n"),
+    );
     held.wait_until_written();
     let second_began: Instant = Instant::now();
-    let second: Submitting = submit_on_a_thread(client(&serving, ANSWER_CEILING, PATIENCE), request(&world, "second", "second.txt", "second\n"));
+    let second: Submitting = submit_on_a_thread(
+        client(&serving, ANSWER_CEILING, PATIENCE),
+        request(&world, "second", "second.txt", "second\n"),
+    );
     let (first_answer, first_notices) = answered(first, "the client of the first commit");
     let (second_answer, second_notices) = answered(second, "the client of the second commit");
     let second_waited: Duration = second_began.elapsed();
     let first_landed: String = landed_commit(first_answer, first_notices.as_str());
-    assert!(matches!(second_answer, Ok(Submitted::Landed { .. })), "{second_answer:?} {second_notices}");
+    assert!(
+        matches!(second_answer, Ok(Submitted::Landed { .. })),
+        "{second_answer:?} {second_notices}"
+    );
     assert!(
         second_waited < NOTE_CEILING + BESIDE_THE_CEILING,
         "the commit behind the held note was answered after {second_waited:?}, and that note's write is granted {NOTE_CEILING:?}"
     );
-    assert_eq!(subjects_since(&world, base.as_str()), "message of first\nmessage of second", "both commits are on the branch, in their order");
+    assert_eq!(
+        subjects_since(&world, base.as_str()),
+        "message of first\nmessage of second",
+        "both commits are on the branch, in their order"
+    );
     // What the note is for: the work loop's look writes the note the first landing gave up on, and the held write has
     //  still not returned.
     after_the_gate(&world, &serving, first_landed.as_str(), base.as_str());
@@ -260,17 +369,28 @@ fn the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it()
 fn a_commit_whose_note_the_store_answers_does_not_wait_for_that_ceiling() {
     let world: World = world("service-watch-note-answered");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let serving: Serving = serving_with_ceiling(&world, "note-answered", A_CEILING_NOBODY_WAITS_FOR);
+    let serving: Serving =
+        serving_with_ceiling(&world, "note-answered", A_CEILING_NOBODY_WAITS_FOR);
     let began: Instant = Instant::now();
-    let only: Submitting = submit_on_a_thread(client(&serving, ANSWER_CEILING, PATIENCE), request(&world, "only", "only.txt", "only\n"));
+    let only: Submitting = submit_on_a_thread(
+        client(&serving, ANSWER_CEILING, PATIENCE),
+        request(&world, "only", "only.txt", "only\n"),
+    );
     let (answer, notices) = answered(only, "the client of the answered note");
     let waited: Duration = began.elapsed();
-    assert!(matches!(answer, Ok(Submitted::Landed { .. })), "{answer:?} {notices}");
+    assert!(
+        matches!(answer, Ok(Submitted::Landed { .. })),
+        "{answer:?} {notices}"
+    );
     assert!(
         waited < A_CEILING_NOBODY_WAITS_FOR / 4,
         "the commit took {waited:?} where its note answered at once, and the landing grants that write {A_CEILING_NOBODY_WAITS_FOR:?}"
     );
-    assert_eq!(subjects_since(&world, base.as_str()), "message of only", "the commit is on the branch");
+    assert_eq!(
+        subjects_since(&world, base.as_str()),
+        "message of only",
+        "the commit is on the branch"
+    );
     let store: PathBuf = store_of(&world);
     wait_until_the_next_service_would_look(store.as_path(), world.repo.join(".git").as_path());
     wait_until_settled(&world);

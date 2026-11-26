@@ -26,7 +26,6 @@
 //! if (verdict.kind === 'refused') console.error(verdict.cause.message(history));
 //! ```
 
-
 //region The objects and fields a cause names
 
 /// What:
@@ -67,7 +66,9 @@ impl PlanField {
             PlanField::OriginDatasetGuid => "the origin dataset's GUID",
             PlanField::OriginSnapshotName => "the origin snapshot's name",
             PlanField::OriginSnapshotGuid => "the origin snapshot's GUID",
-            PlanField::OriginSnapshotCreatetxg => "the transaction group the origin snapshot was created in",
+            PlanField::OriginSnapshotCreatetxg => {
+                "the transaction group the origin snapshot was created in"
+            }
         };
     }
 }
@@ -201,9 +202,14 @@ impl WhatARefusalLeaves {
     /// ```ts
     /// state.sentence('fix-flaky-test');
     /// ```
-    pub fn sentence(&self, slot: &str) -> String {
+    pub fn sentence(
+        &self,
+        slot: &str,
+    ) -> String {
         return match self {
-            WhatARefusalLeaves::NothingPending => String::from("nothing is pending and there is nothing to cancel"),
+            WhatARefusalLeaves::NothingPending => {
+                String::from("nothing is pending and there is nothing to cancel")
+            }
             WhatARefusalLeaves::PendingWithItsRecord => format!(
                 "the removal stays pending with its own record and the clone stays unmounted; `cancel-worktree-removal {slot}` is the way back for a removal that is not forced, and it reports any snapshot already destroyed"
             ),

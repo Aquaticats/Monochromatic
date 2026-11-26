@@ -46,7 +46,10 @@
 #![cfg(unix)]
 
 use super::*;
-use crate::service_claim_watch_note_within_a_ceiling::{NoteForTheNextService, note_for_the_next_service_within};
+use crate::service_claim_watch_note_within_a_ceiling::{
+    NoteForTheNextService,
+    note_for_the_next_service_within,
+};
 use crate::service_instance::instance_of;
 use std::time::Instant;
 
@@ -68,7 +71,9 @@ const ROOT_VARIABLE: &str = "CLI_GIT_WATCH_NOTE_COST_ROOT";
 fn scratch(name: &str) -> PathBuf {
     let base: PathBuf = match std::env::var_os(ROOT_VARIABLE) {
         Some(named) => PathBuf::from(named),
-        None => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target").join("claim-watch-cost"),
+        None => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("claim-watch-cost"),
     };
     let directory: PathBuf = base.join(format!("{name}-{}", std::process::id()));
     let _cleared = std::fs::remove_dir_all(&directory);
@@ -79,7 +84,11 @@ fn scratch(name: &str) -> PathBuf {
 /// A directory one note names,
 /// made so the instance check inside the write answers for a real one,
 /// and named after the round and the arm so every sample writes a note that is not there yet.
-fn a_named_directory(root: &Path, arm: &str, number: usize) -> PathBuf {
+fn a_named_directory(
+    root: &Path,
+    arm: &str,
+    number: usize,
+) -> PathBuf {
     let git_dir: PathBuf = root.join("named").join(format!("{arm}-{number}.git"));
     std::fs::create_dir_all(git_dir.join(WORK_DIRECTORY)).expect("the work directory of the note");
     return git_dir;
@@ -90,13 +99,23 @@ fn a_named_directory(root: &Path, arm: &str, number: usize) -> PathBuf {
 /// with the count.
 fn spread(mut micros: Vec<u128>) -> (u128, u128, u128, usize) {
     micros.sort_unstable();
-    let at = |per_thousand: usize| -> u128 { return micros[(micros.len() * per_thousand / 1000).min(micros.len() - 1)]; };
-    return (at(500), at(990), *micros.last().expect("at least one sample"), micros.len());
+    let at = |per_thousand: usize| -> u128 {
+        return micros[(micros.len() * per_thousand / 1000).min(micros.len() - 1)];
+    };
+    return (
+        at(500),
+        at(990),
+        *micros.last().expect("at least one sample"),
+        micros.len(),
+    );
 }
 
 /// The text of one arm's spread,
 /// in microseconds.
-fn words(label: &str, micros: Vec<u128>) -> String {
+fn words(
+    label: &str,
+    micros: Vec<u128>,
+) -> String {
     let (median, p99, largest, count): (u128, u128, u128, usize) = spread(micros);
     return format!("{label}: n={count} median={median}us p99={p99}us max={largest}us");
 }
@@ -104,7 +123,10 @@ fn words(label: &str, micros: Vec<u128>) -> String {
 /// The ratio of two middles,
 /// to two decimals,
 /// so a cost is read as the multiple it is.
-fn ratio(before: u128, after: u128) -> String {
+fn ratio(
+    before: u128,
+    after: u128,
+) -> String {
     return format!("{:.2}", after as f64 / before.max(1) as f64);
 }
 
@@ -127,13 +149,22 @@ fn rounds(writes: usize) -> (Vec<u128>, Vec<u128>) {
     // One write on the landing's own thread, timed around the call.
     let control_arm = |git_dir: &Path| -> u128 {
         let began: Instant = Instant::now();
-        note_for_the_next_service(control_store.as_path(), Some(instance_of(git_dir).as_str()), git_dir);
+        note_for_the_next_service(
+            control_store.as_path(),
+            Some(instance_of(git_dir).as_str()),
+            git_dir,
+        );
         return began.elapsed().as_micros();
     };
     // One write handed to a thread of its own, timed around the same call and its wait.
     let bounded_arm = |git_dir: &Path| -> u128 {
         let began: Instant = Instant::now();
-        let _the_note: NoteForTheNextService = note_for_the_next_service_within(GENEROUS, bounded_store.as_path(), Some(instance_of(git_dir).as_str()), git_dir);
+        let _the_note: NoteForTheNextService = note_for_the_next_service_within(
+            GENEROUS,
+            bounded_store.as_path(),
+            Some(instance_of(git_dir).as_str()),
+            git_dir,
+        );
         return began.elapsed().as_micros();
     };
     let mut control: Vec<u128> = Vec::with_capacity(writes);
@@ -151,8 +182,12 @@ fn rounds(writes: usize) -> (Vec<u128>, Vec<u128>) {
         }
     }
     // What each store answered: one note per write, which is what a bound that gives up on never-written notes would lose.
-    let kept: usize = std::fs::read_dir(control_store.as_path()).map_or(0, |listing| { return listing.count(); });
-    let kept_bounded: usize = std::fs::read_dir(bounded_store.as_path()).map_or(0, |listing| { return listing.count(); });
+    let kept: usize = std::fs::read_dir(control_store.as_path()).map_or(0, |listing| {
+        return listing.count();
+    });
+    let kept_bounded: usize = std::fs::read_dir(bounded_store.as_path()).map_or(0, |listing| {
+        return listing.count();
+    });
     println!("notes in the store of the arm on this thread: {kept}");
     println!("notes in the store of the arm on a thread of its own: {kept_bounded}");
     let _removed = std::fs::remove_dir_all(root.as_path());
@@ -169,11 +204,22 @@ fn the_note_a_landing_writes_costs_this_on_this_machine() {
     let (control, bounded): (Vec<u128>, Vec<u128>) = rounds(WRITES);
     let control_words: String = words("the note written on the landing's thread", control.clone());
     let bounded_words: String = words("the note written on a thread of its own", bounded.clone());
-    let (control_middle, control_p99, control_largest, _): (u128, u128, u128, usize) = spread(control);
-    let (bounded_middle, bounded_p99, bounded_largest, _): (u128, u128, u128, usize) = spread(bounded);
+    let (control_middle, control_p99, control_largest, _): (u128, u128, u128, usize) =
+        spread(control);
+    let (bounded_middle, bounded_p99, bounded_largest, _): (u128, u128, u128, usize) =
+        spread(bounded);
     println!("{control_words}");
     println!("{bounded_words}");
-    println!("cost of the bound, median: {}", ratio(control_middle, bounded_middle));
-    println!("cost of the bound, p99: {}", ratio(control_p99, bounded_p99));
-    println!("cost of the bound, largest: {}", ratio(control_largest, bounded_largest));
+    println!(
+        "cost of the bound, median: {}",
+        ratio(control_middle, bounded_middle)
+    );
+    println!(
+        "cost of the bound, p99: {}",
+        ratio(control_p99, bounded_p99)
+    );
+    println!(
+        "cost of the bound, largest: {}",
+        ratio(control_largest, bounded_largest)
+    );
 }

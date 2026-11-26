@@ -29,8 +29,19 @@
 //! ```
 
 use crate::fs_mount_options::MountFacts;
-use crate::mount_namespace_scan::{ListingRequest, MOUNT_TABLE_FILE, MountNamespaceTasks, TaskTableAttempt, is_of_source, read_one_namespace, threads_by_mount_namespace};
-use std::path::{Path, PathBuf};
+use crate::mount_namespace_scan::{
+    ListingRequest,
+    MOUNT_TABLE_FILE,
+    MountNamespaceTasks,
+    TaskTableAttempt,
+    is_of_source,
+    read_one_namespace,
+    threads_by_mount_namespace,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The bound one representative mount table is read within,
 /// the wrapper's own bound for a table another namespace holds.
@@ -70,11 +81,17 @@ impl ScanRefusal {
     /// naming the file and what to change.
     pub fn message(&self) -> String {
         return match self {
-            ScanRefusal::Proc { path, reason } => format!(
+            ScanRefusal::Proc {
+                path,
+                reason,
+            } => format!(
                 "the probe could not list {} ({reason}), so it cannot say which mount namespaces hold the source it attached. The namespace arm failed rather than reporting a clear result.",
                 path.display()
             ),
-            ScanRefusal::Table { path, reason } => format!(
+            ScanRefusal::Table {
+                path,
+                reason,
+            } => format!(
                 "the probe could not read {} ({reason}), so the namespace it belongs to cannot be compared. The namespace arm failed rather than reporting a clear result.",
                 path.display()
             ),
@@ -106,8 +123,14 @@ pub struct NamespaceTable {
 
 impl NamespaceTable {
     /// Whether this namespace lists the exact ZFS source.
-    pub fn mentions(&self, source: &str) -> bool {
-        return self.mounts.iter().any(|facts| return is_of_source(facts, source));
+    pub fn mentions(
+        &self,
+        source: &str,
+    ) -> bool {
+        return self
+            .mounts
+            .iter()
+            .any(|facts| return is_of_source(facts, source));
     }
 }
 
@@ -142,11 +165,17 @@ impl ScanDifference {
     /// The difference in words.
     pub fn message(&self) -> String {
         return match self {
-            ScanDifference::Unexpected { namespace } => format!(
+            ScanDifference::Unexpected {
+                namespace,
+            } => format!(
                 "mount namespace {namespace} lists the probe's source, and it is not one the probe made: either the probe leaked its mount or another root process mounted the same source during the run."
             ),
-            ScanDifference::Missing { namespace } => {
-                format!("mount namespace {namespace} was expected to list the probe's source, and the scan found it nowhere, so the mount the probe made is not visible where it must be.")
+            ScanDifference::Missing {
+                namespace,
+            } => {
+                format!(
+                    "mount namespace {namespace} was expected to list the probe's source, and the scan found it nowhere, so the mount the probe made is not visible where it must be."
+                )
             }
         };
     }
@@ -169,7 +198,10 @@ impl ScanDifference {
 /// # Errors
 /// The `/proc` root could not be listed or a representative table could not
 ///  be read.
-pub fn scan_namespaces(proc_root: &Path, source: &str) -> Result<Vec<String>, ScanRefusal> {
+pub fn scan_namespaces(
+    proc_root: &Path,
+    source: &str,
+) -> Result<Vec<String>, ScanRefusal> {
     let namespaces: Vec<NamespaceTable> = namespaces_outside(proc_root)?;
     let mut mentioned: Vec<String> = Vec::new();
     for namespace in namespaces {
@@ -201,23 +233,44 @@ pub fn scan_namespaces(proc_root: &Path, source: &str) -> Result<Vec<String>, Sc
 ///  namespace that thread is in is unknown,
 ///  and an arm that compared a set it could not read would compare nothing.
 pub fn namespaces_outside(proc_root: &Path) -> Result<Vec<NamespaceTable>, ScanRefusal> {
-    let listing = threads_by_mount_namespace(&ListingRequest { proc_root, readers_root: None })
-        .map_err(|refusal| return ScanRefusal::Proc { path: refusal.path, reason: refusal.reason })?;
+    let listing = threads_by_mount_namespace(&ListingRequest {
+        proc_root,
+        readers_root: None,
+    })
+    .map_err(|refusal| {
+        return ScanRefusal::Proc {
+            path: refusal.path,
+            reason: refusal.reason,
+        };
+    })?;
     if let Some(link) = listing.unreadable.first() {
-        return Err(ScanRefusal::Table { path: link.thread.clone(), reason: link.reason.clone() });
+        return Err(ScanRefusal::Table {
+            path: link.thread.clone(),
+            reason: link.reason.clone(),
+        });
     }
     let groups: Vec<MountNamespaceTasks> = listing.namespaces;
     let mut tables: Vec<NamespaceTable> = Vec::with_capacity(groups.len());
     for group in groups {
         let read = read_one_namespace(&group, None);
         for attempt in &read.attempts {
-            if let TaskTableAttempt::Unreadable { thread, reason } = attempt {
-                return Err(ScanRefusal::Table { path: thread.join(MOUNT_TABLE_FILE), reason: reason.clone() });
+            if let TaskTableAttempt::Unreadable {
+                thread,
+                reason,
+            } = attempt
+            {
+                return Err(ScanRefusal::Table {
+                    path: thread.join(MOUNT_TABLE_FILE),
+                    reason: reason.clone(),
+                });
             }
         }
         if let Some((_thread, mounts)) = read.table() {
             let copied: Vec<MountFacts> = mounts.to_vec();
-            tables.push(NamespaceTable { namespace: read.namespace, mounts: copied });
+            tables.push(NamespaceTable {
+                namespace: read.namespace,
+                mounts: copied,
+            });
         }
     }
     return Ok(tables);
@@ -236,12 +289,25 @@ pub fn namespaces_outside(proc_root: &Path) -> Result<Vec<NamespaceTable>, ScanR
 /// ```ts
 /// const difference = compare(mentioned, expected);
 /// ```
-pub fn compare_namespaces(mentioned: &[String], expected: &[&str]) -> Option<ScanDifference> {
-    if let Some(namespace) = mentioned.iter().find(|namespace| return !expected.contains(&namespace.as_str())) {
-        return Some(ScanDifference::Unexpected { namespace: namespace.clone() });
+pub fn compare_namespaces(
+    mentioned: &[String],
+    expected: &[&str],
+) -> Option<ScanDifference> {
+    if let Some(namespace) = mentioned
+        .iter()
+        .find(|namespace| return !expected.contains(&namespace.as_str()))
+    {
+        return Some(ScanDifference::Unexpected {
+            namespace: namespace.clone(),
+        });
     }
-    if let Some(namespace) = expected.iter().find(|namespace| return !mentioned.iter().any(|found| return found == *namespace)) {
-        return Some(ScanDifference::Missing { namespace: String::from(*namespace) });
+    if let Some(namespace) = expected
+        .iter()
+        .find(|namespace| return !mentioned.iter().any(|found| return found == *namespace))
+    {
+        return Some(ScanDifference::Missing {
+            namespace: String::from(*namespace),
+        });
     }
     return None;
 }

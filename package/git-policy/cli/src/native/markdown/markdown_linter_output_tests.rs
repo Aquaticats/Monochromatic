@@ -13,12 +13,28 @@
 //! ```
 
 use super::{
-    EXPLANATION_LIMIT, INCOMPLETE_STATUS, LintRun, MAX_FINDINGS_BYTES, MAX_FIXED_BYTES, RemainingFinding, explanation,
+    EXPLANATION_LIMIT,
+    INCOMPLETE_STATUS,
+    LintRun,
+    MAX_FINDINGS_BYTES,
+    MAX_FIXED_BYTES,
+    RemainingFinding,
+    explanation,
     interpret_embedded_run,
 };
-use crate::config_schema::{MarkdownRule, markdown_rule_name};
-use monochromatic_lint::diagnostic::{Diagnostic, Severity, Span};
-use monochromatic_lint::run_embedded::{EmbeddedFailure, EmbeddedRun};
+use crate::config_schema::{
+    MarkdownRule,
+    markdown_rule_name,
+};
+use monochromatic_lint::diagnostic::{
+    Diagnostic,
+    Severity,
+    Span,
+};
+use monochromatic_lint::run_embedded::{
+    EmbeddedFailure,
+    EmbeddedRun,
+};
 
 /// The rules the policy's configuration selects.
 const RULES: &[MarkdownRule] = &[MarkdownRule::LfsImageUrl];
@@ -29,7 +45,13 @@ fn selected_code() -> String {
 }
 
 /// A finding of `code` at `severity` with its first label at `line` and `column`.
-fn finding(code: &str, severity: Severity, message: &str, line: usize, column: usize) -> Diagnostic {
+fn finding(
+    code: &str,
+    severity: Severity,
+    message: &str,
+    line: usize,
+    column: usize,
+) -> Diagnostic {
     return Diagnostic::new(
         code,
         severity,
@@ -45,7 +67,10 @@ fn finding(code: &str, severity: Severity, message: &str, line: usize, column: u
 }
 
 /// A usable run with this fixed text and these findings.
-fn run(fixed: &str, findings: Vec<Diagnostic>) -> Result<EmbeddedRun, EmbeddedFailure> {
+fn run(
+    fixed: &str,
+    findings: Vec<Diagnostic>,
+) -> Result<EmbeddedRun, EmbeddedFailure> {
     return Ok(EmbeddedRun {
         fixed: String::from(fixed),
         findings,
@@ -53,7 +78,10 @@ fn run(fixed: &str, findings: Vec<Diagnostic>) -> Result<EmbeddedRun, EmbeddedFa
 }
 
 /// A run that ended with `status` and this explanation.
-fn failed(status: u8, explanation_text: &str) -> Result<EmbeddedRun, EmbeddedFailure> {
+fn failed(
+    status: u8,
+    explanation_text: &str,
+) -> Result<EmbeddedRun, EmbeddedFailure> {
     return Err(EmbeddedFailure {
         exit_status: status,
         explanation: String::from(explanation_text),
@@ -115,7 +143,9 @@ fn other_statuses_are_refused_by_cause() {
     let reason: &str = "Cannot inspect /r/.lfsconfig.";
     assert_eq!(
         interpret_embedded_run(b"x", RULES, failed(INCOMPLETE_STATUS, reason)),
-        Err(format!("monochromatic-lint could not finish (exit status {INCOMPLETE_STATUS}): {reason}"))
+        Err(format!(
+            "monochromatic-lint could not finish (exit status {INCOMPLETE_STATUS}): {reason}"
+        ))
     );
     let other: u8 = INCOMPLETE_STATUS + 1;
     assert_eq!(
@@ -146,14 +176,24 @@ fn findings_the_policy_cannot_use_are_refused_with_their_number() {
     let mut unlabeled: Diagnostic = finding(code.as_str(), Severity::Warn, "no label", 1, 1);
     unlabeled.labels.clear();
     let cases: Vec<(Diagnostic, &str)> = vec![
-        (finding("markdown/other-rule", Severity::Warn, "m", 1, 1), "is not a selected rule"),
-        (finding("rust/max-lines", Severity::Warn, "m", 1, 1), "is not a selected rule"),
-        (finding(code.as_str(), Severity::Error, "m", 1, 1), "severity is not the configured"),
+        (
+            finding("markdown/other-rule", Severity::Warn, "m", 1, 1),
+            "is not a selected rule",
+        ),
+        (
+            finding("rust/max-lines", Severity::Warn, "m", 1, 1),
+            "is not a selected rule",
+        ),
+        (
+            finding(code.as_str(), Severity::Error, "m", 1, 1),
+            "severity is not the configured",
+        ),
         (unlabeled, "no label with a position"),
     ];
     for (bad, needle) in cases {
-        let refusal: String = interpret_embedded_run(b"x", RULES, run("x", vec![usable.clone(), bad]))
-            .expect_err("refused");
+        let refusal: String =
+            interpret_embedded_run(b"x", RULES, run("x", vec![usable.clone(), bad]))
+                .expect_err("refused");
         assert!(refusal.contains("finding 2 "), "{refusal}");
         assert!(refusal.contains(needle), "{refusal}");
     }
@@ -179,7 +219,10 @@ fn the_explanation_stays_short() {
     let exact: String = "a".repeat(EXPLANATION_LIMIT);
     assert_eq!(explanation(exact.as_str()), exact);
     let long: String = "b".repeat(EXPLANATION_LIMIT + 1);
-    assert_eq!(explanation(long.as_str()), format!("{}...", "b".repeat(EXPLANATION_LIMIT)));
+    assert_eq!(
+        explanation(long.as_str()),
+        format!("{}...", "b".repeat(EXPLANATION_LIMIT))
+    );
 }
 
 /// A fixed source at the bound is accepted and one byte over it is refused,
@@ -191,7 +234,10 @@ fn the_fixed_source_is_bounded() {
     let over: String = "a".repeat(MAX_FIXED_BYTES + 1);
     let refusal: String =
         interpret_embedded_run(b"a", RULES, run(over.as_str(), Vec::new())).expect_err("refused");
-    assert!(refusal.contains(MAX_FIXED_BYTES.to_string().as_str()), "{refusal}");
+    assert!(
+        refusal.contains(MAX_FIXED_BYTES.to_string().as_str()),
+        "{refusal}"
+    );
 }
 
 /// Findings whose text passes the bound are refused,
@@ -203,8 +249,14 @@ fn the_findings_are_bounded() {
     let refusal: String = interpret_embedded_run(
         b"x",
         RULES,
-        run("x", vec![finding(code.as_str(), Severity::Warn, huge.as_str(), 1, 1)]),
+        run(
+            "x",
+            vec![finding(code.as_str(), Severity::Warn, huge.as_str(), 1, 1)],
+        ),
     )
     .expect_err("refused");
-    assert!(refusal.contains(MAX_FINDINGS_BYTES.to_string().as_str()), "{refusal}");
+    assert!(
+        refusal.contains(MAX_FINDINGS_BYTES.to_string().as_str()),
+        "{refusal}"
+    );
 }

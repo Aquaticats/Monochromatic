@@ -29,12 +29,25 @@
 //! const done: boolean = resetPaths(index, names, treeEntries, settings, stamp, stat); // false: ask Git
 //! ```
 
+use crate::index_full::{
+    FullEntry,
+    FullIndex,
+    SKIP_WORKTREE,
+};
 use crate::index_reset_path_names::path_is_plain;
-use crate::index_full::{FullEntry, FullIndex, SKIP_WORKTREE};
-use crate::index_settings::{IndexSettings, UntrackedMode};
-use crate::index_stat::{IndexStamp, StatData};
 use crate::index_reset_worktree_stat_source::WorktreeStat;
-use crate::repo_read_tree::{FlatEntry, MODE_GITLINK};
+use crate::index_settings::{
+    IndexSettings,
+    UntrackedMode,
+};
+use crate::index_stat::{
+    IndexStamp,
+    StatData,
+};
+use crate::repo_read_tree::{
+    FlatEntry,
+    MODE_GITLINK,
+};
 
 /// The mode a regular file with an executable bit gets in the index.
 const MODE_EXECUTABLE: u32 = 0o100_755;
@@ -53,14 +66,23 @@ fn index_mode(mode: u32) -> u32 {
     if mode & 0o170_000 == 0o040_000 || mode & 0o170_000 == MODE_GITLINK {
         return MODE_GITLINK;
     }
-    return if mode & 0o100 != 0 { MODE_EXECUTABLE } else { MODE_FILE };
+    return if mode & 0o100 != 0 {
+        MODE_EXECUTABLE
+    } else {
+        MODE_FILE
+    };
 }
 
 /// Whether the path is one a literal pathspec `name` selects:
 /// the name itself or anything below it.
-fn selected(path: &[u8], names: &[Vec<u8>]) -> bool {
+fn selected(
+    path: &[u8],
+    names: &[Vec<u8>],
+) -> bool {
     for name in names {
-        if path == name.as_slice() || (path.starts_with(name.as_slice()) && path.get(name.len()) == Some(&b'/')) {
+        if path == name.as_slice()
+            || (path.starts_with(name.as_slice()) && path.get(name.len()) == Some(&b'/'))
+        {
             return true;
         }
     }
@@ -68,7 +90,10 @@ fn selected(path: &[u8], names: &[Vec<u8>]) -> bool {
 }
 
 /// The position of the first entry whose path is not before `path`.
-fn first_at(entries: &[FullEntry], path: &[u8]) -> usize {
+fn first_at(
+    entries: &[FullEntry],
+    path: &[u8],
+) -> usize {
     // A binary search over the sorted entries, the same split `partition_point` finds.
     let (mut low, mut high): (usize, usize) = (0, entries.len());
     while low < high {
@@ -83,7 +108,11 @@ fn first_at(entries: &[FullEntry], path: &[u8]) -> usize {
 }
 
 /// Whether the entry at `position` exists and has exactly the path `path`.
-fn has_path_at(entries: &[FullEntry], position: usize, path: &[u8]) -> bool {
+fn has_path_at(
+    entries: &[FullEntry],
+    position: usize,
+    path: &[u8],
+) -> bool {
     return match entries.get(position) {
         Some(entry) => entry.path.as_slice() == path,
         None => false,
@@ -92,7 +121,10 @@ fn has_path_at(entries: &[FullEntry], position: usize, path: &[u8]) -> bool {
 
 /// The entry of `tree` (sorted by path,
 /// one entry per path) with exactly the path `path`.
-fn find_in_tree<'a>(tree: &'a [FlatEntry], path: &[u8]) -> Option<&'a FlatEntry> {
+fn find_in_tree<'a>(
+    tree: &'a [FlatEntry],
+    path: &[u8],
+) -> Option<&'a FlatEntry> {
     let (mut low, mut high): (usize, usize) = (0, tree.len());
     while low < high {
         let middle: usize = low + (high - low) / 2;
@@ -106,7 +138,10 @@ fn find_in_tree<'a>(tree: &'a [FlatEntry], path: &[u8]) -> Option<&'a FlatEntry>
 }
 
 /// Whether the index holds an entry below the directory `path/` or at one of the directories above `path`.
-fn has_directory_conflict(entries: &[FullEntry], path: &[u8]) -> bool {
+fn has_directory_conflict(
+    entries: &[FullEntry],
+    path: &[u8],
+) -> bool {
     let mut below: Vec<u8> = path.to_vec();
     below.push(b'/');
     let start: usize = first_at(entries, below.as_slice());
@@ -141,7 +176,10 @@ struct Edit<'a> {
 impl Edit<'_> {
     /// Clear the untracked cache for `path`,
     /// if there is one (`untracked_cache_invalidate_path`).
-    fn forget_untracked(&mut self, path: &[u8]) {
+    fn forget_untracked(
+        &mut self,
+        path: &[u8],
+    ) {
         if let Some(cache) = self.index.untracked.as_mut() {
             cache.invalidate_path(path);
         }
@@ -149,18 +187,32 @@ impl Edit<'_> {
 
     /// Take the entries named `path` out of the index,
     /// remembering unmerged ones for resolve-undo (`remove_index_entry_at`).
-    fn take_entries(&mut self, path: &[u8]) {
+    fn take_entries(
+        &mut self,
+        path: &[u8],
+    ) {
         let start: usize = first_at(self.index.entries.as_slice(), path);
         while has_path_at(self.index.entries.as_slice(), start, path) {
             let gone: FullEntry = self.index.entries.remove(start);
             if gone.stage() != 0 {
-                self.index.resolve_undo.get_or_insert_with(Default::default).record(gone.path.as_slice(), gone.stage(), gone.mode, gone.id.as_slice());
+                self.index
+                    .resolve_undo
+                    .get_or_insert_with(Default::default)
+                    .record(
+                        gone.path.as_slice(),
+                        gone.stage(),
+                        gone.mode,
+                        gone.id.as_slice(),
+                    );
             }
         }
     }
 
     /// `remove_file_from_index`.
-    fn remove(&mut self, path: &[u8]) {
+    fn remove(
+        &mut self,
+        path: &[u8],
+    ) {
         if let Some(tree) = self.index.cache_tree.as_mut() {
             tree.invalidate(path);
         }
@@ -170,7 +222,10 @@ impl Edit<'_> {
 
     /// `add_index_entry` with the add and replace options,
     /// for an entry made from the tree.
-    fn put(&mut self, wanted: &FlatEntry) {
+    fn put(
+        &mut self,
+        wanted: &FlatEntry,
+    ) {
         let path: &[u8] = wanted.path.as_slice();
         if let Some(tree) = self.index.cache_tree.as_mut() {
             tree.invalidate(path);
@@ -190,7 +245,9 @@ impl Edit<'_> {
         };
         let mode: u32 = index_mode(wanted.mode);
         let stat: StatData = match self.stat {
-            WorktreeStat::Recorded(source) => source.recorded(path, wanted.id.as_slice(), mode).unwrap_or_default(),
+            WorktreeStat::Recorded(source) => source
+                .recorded(path, wanted.id.as_slice(), mode)
+                .unwrap_or_default(),
             WorktreeStat::None => StatData::default(),
         };
         let made: FullEntry = FullEntry {
@@ -222,7 +279,10 @@ impl Edit<'_> {
 /// fsmonitor and the untracked cache as Git's read
 /// leaves them.
 /// `None` for a combination this update does not reproduce.
-fn prepare_extensions(index: &mut FullIndex, settings: IndexSettings) -> Option<()> {
+fn prepare_extensions(
+    index: &mut FullIndex,
+    settings: IndexSettings,
+) -> Option<()> {
     if settings.monitor {
         let dirty: Vec<usize> = index.fsmonitor.as_ref()?.dirty.clone();
         for position in &dirty {
@@ -271,7 +331,14 @@ fn prepare_extensions(index: &mut FullIndex, settings: IndexSettings) -> Option<
 /// ```ts
 /// function resetPaths(index: FullIndex, names: Uint8Array[], tree: FlatEntry[], settings: IndexSettings, stamp: IndexStamp, stat: WorktreeStat): void | undefined;
 /// ```
-pub fn reset_paths(index: &mut FullIndex, names: &[Vec<u8>], tree: &[FlatEntry], settings: IndexSettings, stamp: IndexStamp, stat: WorktreeStat<'_>) -> Option<()> {
+pub fn reset_paths(
+    index: &mut FullIndex,
+    names: &[Vec<u8>],
+    tree: &[FlatEntry],
+    settings: IndexSettings,
+    stamp: IndexStamp,
+    stat: WorktreeStat<'_>,
+) -> Option<()> {
     for name in names {
         if !path_is_plain(name.as_slice(), 0) || name.last() == Some(&b'/') {
             return None;
@@ -290,7 +357,11 @@ pub fn reset_paths(index: &mut FullIndex, names: &[Vec<u8>], tree: &[FlatEntry],
     }
     paths.sort();
     paths.dedup();
-    let mut edit: Edit<'_> = Edit { index, settings, stat };
+    let mut edit: Edit<'_> = Edit {
+        index,
+        settings,
+        stat,
+    };
     for path in paths {
         let wanted: Option<&FlatEntry> = find_in_tree(tree, path.as_slice());
         let start: usize = first_at(edit.index.entries.as_slice(), path.as_slice());
@@ -309,7 +380,9 @@ pub fn reset_paths(index: &mut FullIndex, names: &[Vec<u8>], tree: &[FlatEntry],
                 if same {
                     continue;
                 }
-                if !path_is_plain(entry.path.as_slice(), index_mode(entry.mode)) || has_directory_conflict(edit.index.entries.as_slice(), entry.path.as_slice()) {
+                if !path_is_plain(entry.path.as_slice(), index_mode(entry.mode))
+                    || has_directory_conflict(edit.index.entries.as_slice(), entry.path.as_slice())
+                {
                     return None;
                 }
                 edit.put(entry);

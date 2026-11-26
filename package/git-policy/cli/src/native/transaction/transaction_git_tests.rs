@@ -1,10 +1,26 @@
 //! Controls for the transaction Git runner against real Git.
 
 use super::*;
-use crate::test_support::{ActionSink, SharedSink, executable, fixture, git_context, git_text, remove, repository, while_test_lives};
 use crate::child_class::ChildClass;
-use crate::transaction_git_step_rerun_and_end_rules::{is_branch_write, is_side_ref_write};
-use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
+use crate::test_support::{
+    ActionSink,
+    SharedSink,
+    executable,
+    fixture,
+    git_context,
+    git_text,
+    remove,
+    repository,
+    while_test_lives,
+};
+use crate::transaction_git_step_rerun_and_end_rules::{
+    is_branch_write,
+    is_side_ref_write,
+};
+use crate::wait_ceilings::{
+    OBJECT_STEP_CEILING,
+    PLUMBING_STEP_CEILING,
+};
 use crate::wait_progress::Cadence;
 
 /// A function-like value with the right shape is a source of watch terms in these controls:
@@ -206,11 +222,17 @@ fn input_files_leave_nothing_behind() {
     let mut read: Vec<u8> = Vec::new();
     file.read_to_end(&mut read).expect("read");
     assert_eq!(read, b"bytes");
-    let left: Vec<std::ffi::OsString> = std::fs::read_dir(root.join("monochromatic-git-policy-cli-scratch"))
-        .expect("the repository scratch directory exists")
-        .map(|entry| { return entry.expect("entry").file_name(); })
-        .collect();
-    assert!(left.is_empty(), "nothing is left in the scratch directory: {left:?}");
+    let left: Vec<std::ffi::OsString> =
+        std::fs::read_dir(root.join("monochromatic-git-policy-cli-scratch"))
+            .expect("the repository scratch directory exists")
+            .map(|entry| {
+                return entry.expect("entry").file_name();
+            })
+            .collect();
+    assert!(
+        left.is_empty(),
+        "nothing is left in the scratch directory: {left:?}"
+    );
     remove(root.as_path());
 }
 
@@ -219,7 +241,12 @@ fn input_files_leave_nothing_behind() {
 #[test]
 fn input_without_a_repository_is_refused_naming_the_defect() {
     let error: std::io::Error = input_file(b"bytes", None).expect_err("no repository");
-    assert!(error.to_string().contains("no repository scratch directory"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains("no repository scratch directory"),
+        "{error}"
+    );
 }
 
 /// A common directory that does not exist is an error,
@@ -257,10 +284,23 @@ fn a_command_reads_its_input_from_the_repository_scratch_directory() {
     let mut request: GitRequest = GitRequest::new(root.as_path(), &["hash-object", "--stdin"]);
     request.input = Some(b"12345".to_vec());
     let output: GitOutput = run_git(&context, &request).expect("the fake runs");
-    let named: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-    let expected: String = format!("{}/monochromatic-git-policy-cli-scratch/cli-git-input-", common.display());
-    assert!(named.starts_with(expected.as_str()), "{named} should start with {expected}");
-    assert_eq!(std::fs::read_dir(common.join("monochromatic-git-policy-cli-scratch")).expect("scratch").count(), 0);
+    let named: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
+    let expected: String = format!(
+        "{}/monochromatic-git-policy-cli-scratch/cli-git-input-",
+        common.display()
+    );
+    assert!(
+        named.starts_with(expected.as_str()),
+        "{named} should start with {expected}"
+    );
+    assert_eq!(
+        std::fs::read_dir(common.join("monochromatic-git-policy-cli-scratch"))
+            .expect("scratch")
+            .count(),
+        0
+    );
     remove(root.as_path());
 }
 
@@ -285,7 +325,12 @@ echo \"read $bytes\"\n";
 /// A context running the fake Git,
 /// a request for `arguments` with the fake's counters,
 /// and the count file.
-fn fake_run(root: &Path, arguments: &[&str], refusals: u32, other_failure: bool) -> (GitContext, GitRequest, PathBuf) {
+fn fake_run(
+    root: &Path,
+    arguments: &[&str],
+    refusals: u32,
+    other_failure: bool,
+) -> (GitContext, GitRequest, PathBuf) {
     let program: PathBuf = root.join("fake-git");
     executable(program.as_path(), FAKE_GIT);
     let count: PathBuf = root.join("count");
@@ -299,15 +344,23 @@ fn fake_run(root: &Path, arguments: &[&str], refusals: u32, other_failure: bool)
     request.input = Some(b"12345".to_vec());
     request.environment = vec![
         (OsString::from("FAKE_COUNT"), count.clone().into_os_string()),
-        (OsString::from("FAKE_REFUSALS"), OsString::from(refusals.to_string())),
-        (OsString::from("FAKE_OTHER_FAILURE"), OsString::from(if other_failure { "1" } else { "" })),
+        (
+            OsString::from("FAKE_REFUSALS"),
+            OsString::from(refusals.to_string()),
+        ),
+        (
+            OsString::from("FAKE_OTHER_FAILURE"),
+            OsString::from(if other_failure { "1" } else { "" }),
+        ),
     ];
     return (context, request, count);
 }
 
 /// How many times the fake Git ran.
 fn runs_of(count: &Path) -> u32 {
-    return std::fs::read_to_string(count).map_or(0, |text| { return text.trim().parse().unwrap_or(0); });
+    return std::fs::read_to_string(count).map_or(0, |text| {
+        return text.trim().parse().unwrap_or(0);
+    });
 }
 
 /// A pause that records nothing and waits for nothing,
@@ -320,18 +373,31 @@ fn no_pause(_wait: Duration) {}
 ///  it is gone,
 /// so a failed test leaves no script waiting for a release nobody writes.
 fn slow_git(root: &Path) -> String {
-    return format!("#!/bin/sh\nwhile [ ! -e \"$FAKE_RELEASE\" ] && {}; do sleep 0.02; done\necho slow\n", while_test_lives(root));
+    return format!(
+        "#!/bin/sh\nwhile [ ! -e \"$FAKE_RELEASE\" ] && {}; do sleep 0.02; done\necho slow\n",
+        while_test_lives(root)
+    );
 }
 
 /// A context running the slow fake Git and a request whose release file is `release`.
-fn slow_run(root: &Path, release: &Path) -> (GitContext, GitRequest) {
+fn slow_run(
+    root: &Path,
+    release: &Path,
+) -> (GitContext, GitRequest) {
     let program: PathBuf = root.join("slow-git");
     executable(program.as_path(), slow_git(root).as_bytes());
     // The request sends no input, so it needs no scratch directory.
-    let context: GitContext =
-        GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
+    let context: GitContext = GitContext {
+        real_git: program,
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+        common_dir: None,
+    };
     let mut request: GitRequest = GitRequest::new(root, &["add", "--", "a.md"]);
-    request.environment = vec![(OsString::from("FAKE_RELEASE"), release.as_os_str().to_os_string())];
+    request.environment = vec![(
+        OsString::from("FAKE_RELEASE"),
+        release.as_os_str().to_os_string(),
+    )];
     return (context, request);
 }
 
@@ -366,16 +432,25 @@ fn a_fake_git_waiting_for_a_release_ends_when_its_test_is_gone() {
         let release: PathBuf = root.join("release");
         let (context, request) = slow_run(root.as_path(), release.as_path());
         let mut command: std::process::Command = std::process::Command::new(&context.real_git);
-        command.envs(request.environment.iter().map(|(name, value)| { return (name, value); })).current_dir(&root);
+        command
+            .envs(request.environment.iter().map(|(name, value)| {
+                return (name, value);
+            }))
+            .current_dir(&root);
         let mut child: std::process::Child = command.spawn().expect("the fake Git starts");
         // The premise: the script is inside its wait loop when the test fails. Until the interpreter has started it, the process
         //  is still being executed and a removed fixture would take the script file from it, which is not the leak under test.
         let waiting = |number: u32| -> bool {
-            return std::fs::read_to_string(format!("/proc/{number}/stat")).is_ok_and(|text| { return text.contains(") S "); });
+            return std::fs::read_to_string(format!("/proc/{number}/stat")).is_ok_and(|text| {
+                return text.contains(") S ");
+            });
         };
         let started: std::time::Instant = std::time::Instant::now();
         while !waiting(child.id()) {
-            assert!(started.elapsed() < SCRIPT_GONE_PATIENCE, "the fake Git never reached its wait loop");
+            assert!(
+                started.elapsed() < SCRIPT_GONE_PATIENCE,
+                "the fake Git never reached its wait loop"
+            );
             std::thread::sleep(SCRIPT_GONE_LOOK);
         }
         sender.send(child.id()).expect("send the pid");
@@ -386,7 +461,11 @@ fn a_fake_git_waiting_for_a_release_ends_when_its_test_is_gone() {
     assert!(handle.join().is_err(), "the thread panics on purpose");
     let pid: u32 = receiver.recv().expect("the pid");
     // A zombie that nothing reaped (the test thread dropped its handle) has exited and runs nothing.
-    let runs = |number: u32| { return std::fs::read_to_string(format!("/proc/{number}/stat")).is_ok_and(|text| { return !text.contains(") Z "); }); };
+    let runs = |number: u32| {
+        return std::fs::read_to_string(format!("/proc/{number}/stat")).is_ok_and(|text| {
+            return !text.contains(") Z ");
+        });
+    };
     let began: std::time::Instant = std::time::Instant::now();
     while runs(pid) && began.elapsed() < SCRIPT_GONE_PATIENCE {
         std::thread::sleep(SCRIPT_GONE_LOOK);
@@ -397,15 +476,24 @@ fn a_fake_git_waiting_for_a_release_ends_when_its_test_is_gone() {
         // SAFETY: `kill` takes a pid and a signal and touches no memory.
         unsafe { libc::kill(libc::pid_t::try_from(pid).expect("pid"), libc::SIGKILL) };
     }
-    assert!(!left, "the fake Git of process {pid} outlived the test that started it");
+    assert!(
+        !left,
+        "the fake Git of process {pid} outlived the test that started it"
+    );
 }
 
 /// Terms of a limit,
 /// a quick cadence and the given sink.
-fn quick_terms(limit: Duration, notices: Box<dyn std::io::Write + Send>) -> WatchTerms {
+fn quick_terms(
+    limit: Duration,
+    notices: Box<dyn std::io::Write + Send>,
+) -> WatchTerms {
     return WatchTerms {
         limit,
-        cadence: Cadence { grace: Duration::from_millis(20), interval: Duration::from_millis(20) },
+        cadence: Cadence {
+            grace: Duration::from_millis(20),
+            interval: Duration::from_millis(20),
+        },
         notices,
     };
 }
@@ -416,7 +504,10 @@ fn quick_terms(limit: Duration, notices: Box<dyn std::io::Write + Send>) -> Watc
 fn the_terms_of_a_request_follow_its_subcommand() {
     let query: GitRequest = GitRequest::new(Path::new("."), &["rev-parse", "HEAD"]);
     let bulk: GitRequest = GitRequest::new(Path::new("."), &["pack-objects", "--stdout"]);
-    assert_eq!(terms_for_request(&query).limit, ChildClass::Plumbing.limit());
+    assert_eq!(
+        terms_for_request(&query).limit,
+        ChildClass::Plumbing.limit()
+    );
     assert_eq!(terms_for_request(&bulk).limit, ChildClass::Object.limit());
 }
 
@@ -441,7 +532,13 @@ fn a_git_step_that_runs_long_is_announced_by_name() {
     let text: String = sink.text();
     assert!(text.lines().count() >= 3, "{text}");
     assert!(
-        text.starts_with(format!("monochromatic-git-policy-cli: still waiting for git add -- a.md, {} (process ", class_of(request.arguments.as_slice()).label()).as_str()),
+        text.starts_with(
+            format!(
+                "monochromatic-git-policy-cli: still waiting for git add -- a.md, {} (process ",
+                class_of(request.arguments.as_slice()).label()
+            )
+            .as_str()
+        ),
         "{text}"
     );
     remove(root.as_path());
@@ -460,16 +557,32 @@ echo late\n";
 
 /// A context running the silent fake Git,
 /// and a request for `arguments` that makes it sit silent in its first `hangs` runs.
-fn silent_run(root: &Path, arguments: &[&str], hangs: u32, silent_seconds: u64) -> (GitContext, GitRequest, PathBuf) {
+fn silent_run(
+    root: &Path,
+    arguments: &[&str],
+    hangs: u32,
+    silent_seconds: u64,
+) -> (GitContext, GitRequest, PathBuf) {
     let program: PathBuf = root.join("silent-git");
     executable(program.as_path(), SILENT_GIT);
     let count: PathBuf = root.join("count");
-    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
+    let context: GitContext = GitContext {
+        real_git: program,
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+        common_dir: None,
+    };
     let mut request: GitRequest = GitRequest::new(root, arguments);
     request.environment = vec![
         (OsString::from("FAKE_COUNT"), count.clone().into_os_string()),
-        (OsString::from("FAKE_HANGS"), OsString::from(hangs.to_string())),
-        (OsString::from("FAKE_SILENT_SECONDS"), OsString::from(silent_seconds.to_string())),
+        (
+            OsString::from("FAKE_HANGS"),
+            OsString::from(hangs.to_string()),
+        ),
+        (
+            OsString::from("FAKE_SILENT_SECONDS"),
+            OsString::from(silent_seconds.to_string()),
+        ),
     ];
     return (context, request, count);
 }
@@ -483,7 +596,12 @@ const FAR_PAST_THE_WINDOW_SECONDS: u64 = 30;
 #[test]
 fn a_silent_git_step_is_ended_after_the_quiet_window_and_redone() {
     let root: PathBuf = fixture("transaction-git-redo");
-    let (context, request, count) = silent_run(root.as_path(), &["rev-parse", "HEAD"], 1, FAR_PAST_THE_WINDOW_SECONDS);
+    let (context, request, count) = silent_run(
+        root.as_path(),
+        &["rev-parse", "HEAD"],
+        1,
+        FAR_PAST_THE_WINDOW_SECONDS,
+    );
     let sink: SharedSink = SharedSink::default();
     let output: GitOutput = run_git_once_with(&context, &request, &|| {
         return quick_terms(QUIET_WINDOW, Box::new(sink.clone()));
@@ -499,7 +617,12 @@ fn a_silent_git_step_is_ended_after_the_quiet_window_and_redone() {
 #[test]
 fn a_step_silent_in_its_redo_too_fails_naming_the_quiet_window() {
     let root: PathBuf = fixture("transaction-git-stuck");
-    let (context, request, count) = silent_run(root.as_path(), &["rev-parse", "HEAD"], u32::MAX, FAR_PAST_THE_WINDOW_SECONDS);
+    let (context, request, count) = silent_run(
+        root.as_path(),
+        &["rev-parse", "HEAD"],
+        u32::MAX,
+        FAR_PAST_THE_WINDOW_SECONDS,
+    );
     let sink: SharedSink = SharedSink::default();
     let failure: std::io::Error = run_git_once_with(&context, &request, &|| {
         return quick_terms(QUIET_WINDOW, Box::new(sink.clone()));
@@ -507,7 +630,13 @@ fn a_step_silent_in_its_redo_too_fails_naming_the_quiet_window() {
     .expect_err("a step silent in its redo is reported");
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
     assert!(
-        failure.to_string().starts_with(format!("git rev-parse HEAD, {} showed no sign of work for 1 seconds and was stopped", class_of(request.arguments.as_slice()).label()).as_str()),
+        failure.to_string().starts_with(
+            format!(
+                "git rev-parse HEAD, {} showed no sign of work for 1 seconds and was stopped",
+                class_of(request.arguments.as_slice()).label()
+            )
+            .as_str()
+        ),
         "{failure}"
     );
     assert_eq!(runs_of(count.as_path()), 2, "the run and its redo");
@@ -524,7 +653,12 @@ fn a_step_silent_in_its_redo_too_fails_naming_the_quiet_window() {
 fn a_silent_writer_is_waited_for_and_never_ended() {
     let root: PathBuf = fixture("transaction-git-writer");
     let silent_seconds: u64 = 3;
-    let (context, request, count) = silent_run(root.as_path(), &["update-ref", "refs/heads/main", "abc"], 1, silent_seconds);
+    let (context, request, count) = silent_run(
+        root.as_path(),
+        &["update-ref", "refs/heads/main", "abc"],
+        1,
+        silent_seconds,
+    );
     let sink: SharedSink = SharedSink::default();
     let started: std::time::Instant = std::time::Instant::now();
     let output: GitOutput = run_git_once_with(&context, &request, &|| {
@@ -532,9 +666,17 @@ fn a_silent_writer_is_waited_for_and_never_ended() {
     })
     .expect("a writer is waited for");
     assert_eq!(String::from_utf8_lossy(output.stdout.as_slice()), "late\n");
-    assert!(started.elapsed() >= Duration::from_secs(silent_seconds), "it was silent for {silent_seconds} seconds: {:?}", started.elapsed());
+    assert!(
+        started.elapsed() >= Duration::from_secs(silent_seconds),
+        "it was silent for {silent_seconds} seconds: {:?}",
+        started.elapsed()
+    );
     assert_eq!(runs_of(count.as_path()), 1, "a writer is not run twice");
-    assert!(sink.text().lines().count() >= 1, "the silence was announced: {}", sink.text());
+    assert!(
+        sink.text().lines().count() >= 1,
+        "the silence was announced: {}",
+        sink.text()
+    );
     remove(root.as_path());
 }
 
@@ -543,13 +685,19 @@ fn a_silent_writer_is_waited_for_and_never_ended() {
 fn the_checked_run_reports_a_bound_without_saying_the_step_failed_to_start() {
     let arguments: Vec<OsString> = vec![OsString::from("add")];
     let timed_out = checked_from(
-        Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "git add did not finish")),
+        Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            "git add did not finish",
+        )),
         arguments.as_slice(),
     )
     .expect_err("a bound is a failure");
     assert_eq!(timed_out.0, "git add did not finish");
-    let other = checked_from(Err(std::io::Error::other("no such file")), arguments.as_slice())
-        .expect_err("a start failure is a failure");
+    let other = checked_from(
+        Err(std::io::Error::other("no such file")),
+        arguments.as_slice(),
+    )
+    .expect_err("a start failure is a failure");
     assert_eq!(other.0, "git add could not start: no such file");
 }
 
@@ -558,10 +706,14 @@ fn the_checked_run_reports_a_bound_without_saying_the_step_failed_to_start() {
 fn a_rerunnable_command_refused_inside_git_is_run_again_with_its_input() {
     let root: PathBuf = fixture("transaction-git-rerun");
     let (context, request, count) = fake_run(root.as_path(), &["rev-parse", "HEAD"], 2, false);
-    let output: GitOutput =
-        run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause).expect("the third run works");
+    let output: GitOutput = run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause)
+        .expect("the third run works");
     assert_eq!(output.code, Some(0));
-    assert_eq!(String::from_utf8_lossy(output.stdout.as_slice()), "read 5\n", "the input file was fresh");
+    assert_eq!(
+        String::from_utf8_lossy(output.stdout.as_slice()),
+        "read 5\n",
+        "the input file was fresh"
+    );
     assert_eq!(runs_of(count.as_path()), 3);
     remove(root.as_path());
 }
@@ -571,11 +723,20 @@ fn a_rerunnable_command_refused_inside_git_is_run_again_with_its_input() {
 #[test]
 fn a_writer_that_may_not_be_rerun_runs_once() {
     let root: PathBuf = fixture("transaction-git-once");
-    let (context, request, count) = fake_run(root.as_path(), &["update-ref", "refs/heads/main", "abc"], 5, false);
-    let output: GitOutput =
-        run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause).expect("the run is reported");
+    let (context, request, count) = fake_run(
+        root.as_path(),
+        &["update-ref", "refs/heads/main", "abc"],
+        5,
+        false,
+    );
+    let output: GitOutput = run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause)
+        .expect("the run is reported");
     assert_eq!(output.code, Some(128));
-    assert!(output.error_text().contains("Resource temporarily unavailable"));
+    assert!(
+        output
+            .error_text()
+            .contains("Resource temporarily unavailable")
+    );
     assert_eq!(runs_of(count.as_path()), 1);
     remove(root.as_path());
 }
@@ -585,8 +746,8 @@ fn a_writer_that_may_not_be_rerun_runs_once() {
 fn another_failure_is_not_run_again() {
     let root: PathBuf = fixture("transaction-git-other");
     let (context, request, count) = fake_run(root.as_path(), &["rev-parse", "HEAD"], 0, true);
-    let output: GitOutput =
-        run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause).expect("the run is reported");
+    let output: GitOutput = run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause)
+        .expect("the run is reported");
     assert_eq!(output.error_text(), "fatal: bad object");
     assert_eq!(runs_of(count.as_path()), 1);
     remove(root.as_path());
@@ -598,11 +759,15 @@ fn another_failure_is_not_run_again() {
 fn a_refusal_past_the_budget_returns_gits_last_output() {
     let root: PathBuf = fixture("transaction-git-budget");
     let (context, request, count) = fake_run(root.as_path(), &["rev-parse", "HEAD"], 1000, false);
-    let output: GitOutput =
-        run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause).expect("Git's last output");
+    let output: GitOutput = run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause)
+        .expect("Git's last output");
     assert_eq!(output.code, Some(128));
     assert!(output.error_text().contains("unable to create thread"));
-    assert_eq!(runs_of(count.as_path()), 15, "the same bound as a refused start");
+    assert_eq!(
+        runs_of(count.as_path()),
+        15,
+        "the same bound as a refused start"
+    );
     remove(root.as_path());
 }
 
@@ -619,15 +784,30 @@ fn only_harmless_commands_may_be_rerun() {
         return may_be_rerun(&request);
     };
     assert!(may(&["rev-parse", "HEAD"], false));
-    assert!(may(&["-c", "core.hooksPath=/x", "pack-objects", "--revs"], false));
-    assert!(may(&["--git-dir=/shadow", "-C", "/dir", "index-pack", "--keep=m"], false));
+    assert!(may(
+        &["-c", "core.hooksPath=/x", "pack-objects", "--revs"],
+        false
+    ));
+    assert!(may(
+        &["--git-dir=/shadow", "-C", "/dir", "index-pack", "--keep=m"],
+        false
+    ));
     assert!(may(&["config", "--get", "a.b"], false));
-    assert!(may(&["config", "--file", "config", "--null", "--list"], false));
+    assert!(may(
+        &["config", "--file", "config", "--null", "--list"],
+        false
+    ));
     assert!(may(&["remote", "get-url", "origin"], false));
     assert!(may(&["add", "--all", "--", "a.txt"], true));
     assert!(may(&["reset", "--quiet", "abc", "--", "a.txt"], true));
-    assert!(!may(&["add", "--all", "--", "a.txt"], false), "the real index is not rerun");
-    assert!(!may(&["config", "a.b", "c"], false), "a config write is not a read");
+    assert!(
+        !may(&["add", "--all", "--", "a.txt"], false),
+        "the real index is not rerun"
+    );
+    assert!(
+        !may(&["config", "a.b", "c"], false),
+        "a config write is not a read"
+    );
     assert!(!may(&["remote", "add", "origin", "url"], false));
     assert!(!may(&["update-ref", "refs/heads/main", "abc"], false));
     assert!(!may(&["commit", "--message=x"], false));
@@ -660,7 +840,9 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
         }
         return step_bound(&request);
     };
-    let ends = |arguments: &[&str]| { return matches!(bound(arguments, false), StepBound::EndAt(_)); };
+    let ends = |arguments: &[&str]| {
+        return matches!(bound(arguments, false), StepBound::EndAt(_));
+    };
     // Identical after a second run at every cut.
     for same in [
         &["stash", "list", "--format=%H"][..],
@@ -673,23 +855,57 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
         &["add", "--all"],
         &["config", "--local", "a.b", "c"],
         &["checkout-index", "--all", "--force"],
-        &["restore", "--staged", "--worktree", "--source=HEAD", "--", "a.txt"],
+        &[
+            "restore",
+            "--staged",
+            "--worktree",
+            "--source=HEAD",
+            "--",
+            "a.txt",
+        ],
         &["reset", "--quiet", "abc", "--", "a.txt"],
     ] {
-        assert!(ends(same), "{same:?} ran twice to the same state and keeps its ceiling");
+        assert!(
+            ends(same),
+            "{same:?} ran twice to the same state and keeps its ceiling"
+        );
     }
     // Different after a second run at some cut, or not in the experiment.
     for differs in [
         // A write of a side ref cannot be shown to run twice, with the protections on its argv or without (sol-1 round 4, P1 B): a reflog
         //  another Git creates between any check and the write is appended to twice by a cut write and its rerun.
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"][..],
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/1"],
-        &["update-ref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "--no-deref",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ][..],
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "-d",
+            "--no-deref",
+            "refs/worktree/cli-git-service/1",
+        ],
+        &[
+            "update-ref",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
         &["update-ref", "-d", "refs/worktree/cli-git-service/1"],
         &["update-ref", "--stdin"],
         // The import is a writer of a reference whatever its stream says here: the experiment found a marks lock it left that the
         //  second run could not pass.
-        &["-c", "core.logAllRefUpdates=false", "fast-import", "--done", "--export-marks=marks-1"],
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "fast-import",
+            "--done",
+            "--export-marks=marks-1",
+        ],
         &["fast-import", "--done"],
         &["update-ref", "refs/heads/main", "new", "old"],
         &["update-ref", "refs/heads/main", "new"],
@@ -704,7 +920,10 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
         &["checkout", "--quiet", "other"],
         &["switch", "--quiet", "other"],
     ] {
-        assert!(!ends(differs), "{differs:?} came out different after a second run and has no ceiling");
+        assert!(
+            !ends(differs),
+            "{differs:?} came out different after a second run and has no ceiling"
+        );
     }
     // What:
     //  The word-level second pass's line merge keeps its ceiling,
@@ -722,13 +941,45 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     //  "The cut experiment",
     //  and "Stop only on no progress").
     // The same index changes on a private index, the readers and the object writers are not in question.
-    assert!(ends(&["merge-file", "--stdout", "--object-id", "--zdiff3", "-L", "ours", "-L", "base", "-L", "theirs", "aaaa", "bbbb", "cccc"]));
-    assert!(!ends(&["merge-file", "a.md", "base.md", "theirs.md"]), "the in-place form writes the first file, so it has no ceiling");
-    assert_eq!(bound(&["add", "--all"], true), StepBound::EndAt(OBJECT_STEP_CEILING));
-    assert_eq!(bound(&["rev-parse", "HEAD"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
-    assert_eq!(bound(&["merge-base", "a", "b"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
-    assert_eq!(bound(&["log", "-1"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
-    assert_eq!(bound(&["commit-tree", "abc", "-m", "x"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
+    assert!(ends(&[
+        "merge-file",
+        "--stdout",
+        "--object-id",
+        "--zdiff3",
+        "-L",
+        "ours",
+        "-L",
+        "base",
+        "-L",
+        "theirs",
+        "aaaa",
+        "bbbb",
+        "cccc"
+    ]));
+    assert!(
+        !ends(&["merge-file", "a.md", "base.md", "theirs.md"]),
+        "the in-place form writes the first file, so it has no ceiling"
+    );
+    assert_eq!(
+        bound(&["add", "--all"], true),
+        StepBound::EndAt(OBJECT_STEP_CEILING)
+    );
+    assert_eq!(
+        bound(&["rev-parse", "HEAD"], false),
+        StepBound::EndAt(PLUMBING_STEP_CEILING)
+    );
+    assert_eq!(
+        bound(&["merge-base", "a", "b"], false),
+        StepBound::EndAt(PLUMBING_STEP_CEILING)
+    );
+    assert_eq!(
+        bound(&["log", "-1"], false),
+        StepBound::EndAt(OBJECT_STEP_CEILING)
+    );
+    assert_eq!(
+        bound(&["commit-tree", "abc", "-m", "x"], false),
+        StepBound::EndAt(OBJECT_STEP_CEILING)
+    );
 }
 
 /// What:
@@ -743,21 +994,63 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
 fn the_reference_beside_a_kept_reference_is_a_side_reference() {
     let rescue: GitRequest = GitRequest::new(
         Path::new("/repo"),
-        &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", "refs/cli-git/kept/7-rescue", "0123456789abcdef0123456789abcdef01234567"],
+        &[
+            "-c",
+            NO_REFLOG_SETTING,
+            "update-ref",
+            "--no-deref",
+            "refs/cli-git/kept/7-rescue",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
     );
-    assert!(is_side_ref_write(&rescue), "the name beside a batch's kept reference is the wrapper's own: {}", command_text(rescue.arguments.as_slice()));
-    assert!(!is_branch_write(&rescue), "a side reference's write is not the branch write a stop waits for");
-    assert!(!matches!(step_bound(&rescue), StepBound::EndAt(_)), "a side reference's write is never cut");
-    assert!(!matches!(step_bound(&rescue), StepBound::Unbounded), "a side reference's write is never waited for without a bound");
+    assert!(
+        is_side_ref_write(&rescue),
+        "the name beside a batch's kept reference is the wrapper's own: {}",
+        command_text(rescue.arguments.as_slice())
+    );
+    assert!(
+        !is_branch_write(&rescue),
+        "a side reference's write is not the branch write a stop waits for"
+    );
+    assert!(
+        !matches!(step_bound(&rescue), StepBound::EndAt(_)),
+        "a side reference's write is never cut"
+    );
+    assert!(
+        !matches!(step_bound(&rescue), StepBound::Unbounded),
+        "a side reference's write is never waited for without a bound"
+    );
     // The create-only form the removal writes carries the empty old value, which is still the same step.
     let only_if_free: GitRequest = GitRequest::new(
         Path::new("/repo"),
-        &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", "refs/cli-git/kept/7-rescue", "0123456789abcdef0123456789abcdef01234567", ""],
+        &[
+            "-c",
+            NO_REFLOG_SETTING,
+            "update-ref",
+            "--no-deref",
+            "refs/cli-git/kept/7-rescue",
+            "0123456789abcdef0123456789abcdef01234567",
+            "",
+        ],
     );
-    assert!(is_side_ref_write(&only_if_free), "the create-only form is the same side reference's write");
+    assert!(
+        is_side_ref_write(&only_if_free),
+        "the create-only form is the same side reference's write"
+    );
     // A name that is not the wrapper's own keeps the branch write's road.
-    let branch: GitRequest = GitRequest::new(Path::new("/repo"), &["update-ref", "--no-deref", "refs/heads/main", "0123456789abcdef0123456789abcdef01234567"]);
-    assert!(!is_side_ref_write(&branch), "a branch is not a side reference");
+    let branch: GitRequest = GitRequest::new(
+        Path::new("/repo"),
+        &[
+            "update-ref",
+            "--no-deref",
+            "refs/heads/main",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
+    );
+    assert!(
+        !is_side_ref_write(&branch),
+        "a branch is not a side reference"
+    );
 }
 
 /// A step that cannot be run twice is left running by the command that started it,
@@ -771,24 +1064,54 @@ fn the_reference_beside_a_kept_reference_is_a_side_reference() {
 /// and never the extra wait
 /// of production.
 #[test]
-fn a_step_that_cannot_run_twice_is_left_running_by_a_command_and_waited_for_by_the_landing_thread() {
+fn a_step_that_cannot_run_twice_is_left_running_by_a_command_and_waited_for_by_the_landing_thread()
+{
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let merge: GitRequest = GitRequest::new(Path::new("/repo"), &["merge", "--ff-only", "abc"]);
-        assert_eq!(step_bound(&merge), StepBound::LeaveRunning { after: OBJECT_STEP_CEILING, extra: crate::wait_ceilings::SHORT_EXTRA_WAIT });
+        assert_eq!(
+            step_bound(&merge),
+            StepBound::LeaveRunning {
+                after: OBJECT_STEP_CEILING,
+                extra: crate::wait_ceilings::SHORT_EXTRA_WAIT
+            }
+        );
         let reference: GitRequest = GitRequest::new(Path::new("/repo"), &["update-ref", "--stdin"]);
-        assert_eq!(step_bound(&reference), StepBound::LeaveRunning { after: PLUMBING_STEP_CEILING, extra: crate::wait_ceilings::SHORT_EXTRA_WAIT });
+        assert_eq!(
+            step_bound(&reference),
+            StepBound::LeaveRunning {
+                after: PLUMBING_STEP_CEILING,
+                extra: crate::wait_ceilings::SHORT_EXTRA_WAIT
+            }
+        );
         let shortened: Duration = Duration::from_secs(3);
-        STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(shortened)); });
-        let ends: StepBound = step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"]));
+        STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+            cell.set(Some(shortened));
+        });
+        let ends: StepBound =
+            step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"]));
         let leaves: StepBound = step_bound(&merge);
-        STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+        STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+            cell.set(None);
+        });
         assert_eq!(ends, StepBound::EndAt(shortened));
-        assert_eq!(leaves, StepBound::LeaveRunning { after: shortened, extra: crate::wait_ceilings::SHORT_EXTRA_WAIT });
+        assert_eq!(
+            leaves,
+            StepBound::LeaveRunning {
+                after: shortened,
+                extra: crate::wait_ceilings::SHORT_EXTRA_WAIT
+            }
+        );
         // The landing thread is the one that has a record of what it is inside.
-        let board = crate::service_busy::LandingBoard::new(fixture("transaction-git-landing-thread").join("journal"), Duration::from_secs(60));
+        let board = crate::service_busy::LandingBoard::new(
+            fixture("transaction-git-landing-thread").join("journal"),
+            Duration::from_secs(60),
+        );
         crate::service_busy_step_record_on_this_thread::use_on_this_thread(board);
         assert_eq!(step_bound(&reference), StepBound::Unbounded);
-        assert_eq!(step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"])), StepBound::EndAt(PLUMBING_STEP_CEILING));
+        assert_eq!(
+            step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"])),
+            StepBound::EndAt(PLUMBING_STEP_CEILING)
+        );
         // What:
         //  The second pass's line merge ends at its class ceiling on the landing thread too.
         // Why:
@@ -798,9 +1121,26 @@ fn a_step_that_cannot_run_twice_is_left_running_by_a_command_and_waited_for_by_t
         //  so every landing job behind it stays queued for good.
         let line_merge: GitRequest = GitRequest::new(
             Path::new("/repo"),
-            &["merge-file", "--stdout", "--object-id", "--zdiff3", "-L", "ours", "-L", "base", "-L", "theirs", "aaaa", "bbbb", "cccc"],
+            &[
+                "merge-file",
+                "--stdout",
+                "--object-id",
+                "--zdiff3",
+                "-L",
+                "ours",
+                "-L",
+                "base",
+                "-L",
+                "theirs",
+                "aaaa",
+                "bbbb",
+                "cccc",
+            ],
         );
-        assert_eq!(step_bound(&line_merge), StepBound::EndAt(OBJECT_STEP_CEILING));
+        assert_eq!(
+            step_bound(&line_merge),
+            StepBound::EndAt(OBJECT_STEP_CEILING)
+        );
     });
 }
 
@@ -811,12 +1151,20 @@ fn a_step_that_cannot_run_twice_is_left_running_by_a_command_and_waited_for_by_t
 #[test]
 fn a_start_failure_keeps_its_kind_through_the_rerun_loop() {
     let root: PathBuf = fixture("transaction-git-missing");
-    let context: GitContext =
-        GitContext { real_git: root.join("no-such-git"), overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
+    let context: GitContext = GitContext {
+        real_git: root.join("no-such-git"),
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+        common_dir: None,
+    };
     let request: GitRequest = GitRequest::new(root.as_path(), &["rev-parse", "HEAD"]);
-    assert!(may_be_rerun(&request), "the command is one the loop may run again");
+    assert!(
+        may_be_rerun(&request),
+        "the command is one the loop may run again"
+    );
     let failure: std::io::Error =
-        run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause).expect_err("Git cannot start");
+        run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause)
+            .expect_err("Git cannot start");
     assert_eq!(failure.kind(), std::io::ErrorKind::NotFound, "{failure}");
     remove(root.as_path());
 }
@@ -835,10 +1183,16 @@ fn a_refused_run_followed_by_a_start_failure_reports_the_start_failure() {
         program.as_path(),
         b"#!/bin/sh\necho 'fatal: unable to create thread: Resource temporarily unavailable' >&2\nrm -- \"$0\"\nexit 128\n",
     );
-    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
+    let context: GitContext = GitContext {
+        real_git: program,
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+        common_dir: None,
+    };
     let request: GitRequest = GitRequest::new(root.as_path(), &["rev-parse", "HEAD"]);
-    let failure: std::io::Error = run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause)
-        .expect_err("the second start finds no program");
+    let failure: std::io::Error =
+        run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause)
+            .expect_err("the second start finds no program");
     assert_eq!(failure.kind(), std::io::ErrorKind::NotFound, "{failure}");
     remove(root.as_path());
 }
@@ -847,12 +1201,28 @@ fn a_refused_run_followed_by_a_start_failure_reports_the_start_failure() {
 #[test]
 fn only_a_refusal_by_the_system_counts() {
     let failure = |text: &str, code: Option<i32>| -> GitOutput {
-        return GitOutput { code, stdout: Vec::new(), stderr: text.as_bytes().to_vec() };
+        return GitOutput {
+            code,
+            stdout: Vec::new(),
+            stderr: text.as_bytes().to_vec(),
+        };
     };
-    assert!(refused_by_the_system(&failure("fatal: unable to create thread: Resource temporarily unavailable", Some(128))));
-    assert!(refused_by_the_system(&failure("fatal: cannot fork() for pack-objects: Resource temporarily unavailable", None)));
-    assert!(!refused_by_the_system(&failure("Resource temporarily unavailable", Some(0))), "a success is not a refusal");
-    assert!(!refused_by_the_system(&failure("fatal: bad object", Some(128))));
+    assert!(refused_by_the_system(&failure(
+        "fatal: unable to create thread: Resource temporarily unavailable",
+        Some(128)
+    )));
+    assert!(refused_by_the_system(&failure(
+        "fatal: cannot fork() for pack-objects: Resource temporarily unavailable",
+        None
+    )));
+    assert!(
+        !refused_by_the_system(&failure("Resource temporarily unavailable", Some(0))),
+        "a success is not a refusal"
+    );
+    assert!(!refused_by_the_system(&failure(
+        "fatal: bad object",
+        Some(128)
+    )));
 }
 
 /// No hook of the person runs below a step the wrapper starts:
@@ -866,13 +1236,27 @@ fn a_watched_step_starts_with_every_hook_switched_off() {
     // The executable switches this on before any start; the unit controls leave it off and each test has its own process.
     crate::hooks_off::activate();
     let context: GitContext = git_context();
-    let request: GitRequest = GitRequest::new(Path::new("."), &["update-ref", "refs/heads/main", "abc"]);
+    let request: GitRequest =
+        GitRequest::new(Path::new("."), &["update-ref", "refs/heads/main", "abc"]);
     let command: Command = build_command(&context, &request);
-    let arguments: Vec<String> = command.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
-    assert!(arguments.iter().any(|argument| { return argument.starts_with("core.hooksPath=/dev/null/"); }), "{arguments:?}");
+    let arguments: Vec<String> = command
+        .get_args()
+        .map(|argument| {
+            return argument.to_string_lossy().into_owned();
+        })
+        .collect();
+    assert!(
+        arguments.iter().any(|argument| {
+            return argument.starts_with("core.hooksPath=/dev/null/");
+        }),
+        "{arguments:?}"
+    );
     assert!(crate::hooks_off::HOOK_EVENTS.contains(&"reference-transaction"));
     for event in crate::hooks_off::switched_off_events() {
-        assert!(arguments.contains(&format!("hook.{event}.enabled=false")), "{event} in {arguments:?}");
+        assert!(
+            arguments.contains(&format!("hook.{event}.enabled=false")),
+            "{event} in {arguments:?}"
+        );
     }
 }
 
@@ -900,23 +1284,53 @@ fn a_merge_that_does_not_return_gives_the_not_known_error_and_is_left_running() 
         )
         .as_bytes(),
     );
-    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(root.clone()) };
-    let request: GitRequest = GitRequest::new(root.as_path(), &["merge", "--ff-only", "--no-edit", "abc"]);
-    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(500))); });
-    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(500))); });
+    let context: GitContext = GitContext {
+        real_git: program,
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+        common_dir: Some(root.clone()),
+    };
+    let request: GitRequest =
+        GitRequest::new(root.as_path(), &["merge", "--ff-only", "--no-edit", "abc"]);
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(Some(Duration::from_millis(500)));
+    });
+    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| {
+        cell.set(Some(Duration::from_millis(500)));
+    });
     let began: std::time::Instant = std::time::Instant::now();
     let failure = run_git(&context, &request).expect_err("the command stopped waiting");
     let waited: Duration = began.elapsed();
-    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
-    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(None);
+    });
+    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| {
+        cell.set(None);
+    });
     assert!(crate::child_watch::is_not_known(&failure), "{failure}");
-    assert!(failure.to_string().contains("git merge --ff-only --no-edit abc") && failure.to_string().contains("git status") && failure.to_string().contains("left running"), "{failure}");
-    assert!(waited >= Duration::from_secs(1) && waited < Duration::from_secs(30), "{waited:?}");
-    assert!(started.exists() && !finished.exists(), "the step was not ended");
+    assert!(
+        failure
+            .to_string()
+            .contains("git merge --ff-only --no-edit abc")
+            && failure.to_string().contains("git status")
+            && failure.to_string().contains("left running"),
+        "{failure}"
+    );
+    assert!(
+        waited >= Duration::from_secs(1) && waited < Duration::from_secs(30),
+        "{waited:?}"
+    );
+    assert!(
+        started.exists() && !finished.exists(),
+        "the step was not ended"
+    );
     std::fs::write(root.join("release"), b"").expect("release");
     let waiting_since: std::time::Instant = std::time::Instant::now();
     while !finished.exists() {
-        assert!(waiting_since.elapsed() < Duration::from_secs(30), "the step never finished");
+        assert!(
+            waiting_since.elapsed() < Duration::from_secs(30),
+            "the step never finished"
+        );
         std::thread::sleep(Duration::from_millis(50));
     }
     remove(root.as_path());
@@ -930,7 +1344,12 @@ fn a_merge_that_does_not_return_gives_the_not_known_error_and_is_left_running() 
 /// that a rule by the name of the step would have ended at a ceiling.
 #[test]
 fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
-    let ends = |arguments: &[&str]| -> bool { return matches!(step_bound(&GitRequest::new(Path::new("/repo"), arguments)), StepBound::EndAt(_)); };
+    let ends = |arguments: &[&str]| -> bool {
+        return matches!(
+            step_bound(&GitRequest::new(Path::new("/repo"), arguments)),
+            StepBound::EndAt(_)
+        );
+    };
     for unrun in [
         // `config --add` appends a second time when the first run had installed its update.
         &["config", "--add", "a.b", "c"][..],
@@ -941,23 +1360,107 @@ fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
         &["stash", "list", "--stat"],
         &["stash", "push", "-m", "x"],
         // A reflog introduced on a side ref is the doubling that made a branch write different.
-        &["update-ref", "--create-reflog", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
-        &["update-ref", "-m", "message", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &[
+            "update-ref",
+            "--create-reflog",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
+        &[
+            "update-ref",
+            "-m",
+            "message",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
         // The numbered ref is a plain ref only with `--no-deref`, and has no reflog only with the setting on the command line (the
         //  repository's own `core.logAllRefUpdates=always` would append a second entry in the second run).
-        &["update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
-        &["-c", "core.logAllRefUpdates=always", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
-        &["-c", "core.logAllRefUpdates=true", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "-d", "refs/worktree/cli-git-service/1"],
+        &[
+            "update-ref",
+            "--no-deref",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
+        &[
+            "-c",
+            "core.logAllRefUpdates=always",
+            "update-ref",
+            "--no-deref",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
+        &[
+            "-c",
+            "core.logAllRefUpdates=true",
+            "update-ref",
+            "--no-deref",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "-d",
+            "refs/worktree/cli-git-service/1",
+        ],
         // The last setting of the key wins in Git, a key is not case-sensitive, and `--config-env` sets one too.
-        &["-c", "core.logAllRefUpdates=false", "-c", "core.logAllRefUpdates=always", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
-        &["-c", "core.logAllRefUpdates=false", "-c", "core.logallrefupdates=true", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
-        &["-c", "core.logAllRefUpdates=false", "--config-env=core.logAllRefUpdates=LOGGING", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "--create-reflog", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "-c",
+            "core.logAllRefUpdates=always",
+            "update-ref",
+            "--no-deref",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "-c",
+            "core.logallrefupdates=true",
+            "update-ref",
+            "--no-deref",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "--config-env=core.logAllRefUpdates=LOGGING",
+            "update-ref",
+            "--no-deref",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
+        &[
+            "-c",
+            "core.logAllRefUpdates=false",
+            "update-ref",
+            "--no-deref",
+            "--create-reflog",
+            "refs/cli-git/kept/1",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
         // A ref under the prefix is not any ref under it: the wrapper makes numbered ones, and `..` is not a number.
-        &["update-ref", "refs/cli-git/../heads/main", "0123456789abcdef0123456789abcdef01234567"],
-        &["update-ref", "refs/cli-git/kept/1/../../heads/x", "0123456789abcdef0123456789abcdef01234567"],
+        &[
+            "update-ref",
+            "refs/cli-git/../heads/main",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
+        &[
+            "update-ref",
+            "refs/cli-git/kept/1/../../heads/x",
+            "0123456789abcdef0123456789abcdef01234567",
+        ],
         &["update-ref", "refs/cli-git/kept/1", "refs/heads/main"],
         // Other forms of steps that have a proven form.
         &["clean", "--force", "-d", "-x"],
@@ -978,7 +1481,10 @@ fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
         &["branch", "-f", "b", "abc"],
         &[],
     ] {
-        assert!(!ends(unrun), "{unrun:?} was not run in the experiment and has no ceiling");
+        assert!(
+            !ends(unrun),
+            "{unrun:?} was not run in the experiment and has no ceiling"
+        );
     }
     // The forms that were run are exact: the same words with the proven options, and nothing else, keep the ceiling.
     for proven in [
@@ -987,11 +1493,21 @@ fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
         &["read-tree", "--reset", "-u", "abc"],
         &["config", "--local", "a.b", "c"],
         &["reset", "--quiet", "abc", "--", "a.txt"],
-        &["restore", "--staged", "--worktree", "--source=HEAD", "--", "a.txt"],
+        &[
+            "restore",
+            "--staged",
+            "--worktree",
+            "--source=HEAD",
+            "--",
+            "a.txt",
+        ],
         &["add", "--all"],
         &["add", "--update", "--", ":/"],
     ] {
-        assert!(ends(proven), "{proven:?} is a form the experiment ran and keeps its ceiling");
+        assert!(
+            ends(proven),
+            "{proven:?} is a form the experiment ran and keeps its ceiling"
+        );
     }
 }
 
@@ -1019,20 +1535,49 @@ fn symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs() {
     assert!(may(&["symbolic-ref", "--quiet", "HEAD"], false));
     assert!(may(&["symbolic-ref", "--quiet", "--short", "HEAD"], false));
     // The wrapper's writes in a shadow repository.
-    assert!(may(&["--git-dir=/shadow", "-c", "core.hooksPath=/x", "symbolic-ref", "HEAD", "refs/heads/main"], true));
+    assert!(may(
+        &[
+            "--git-dir=/shadow",
+            "-c",
+            "core.hooksPath=/x",
+            "symbolic-ref",
+            "HEAD",
+            "refs/heads/main"
+        ],
+        true
+    ));
     // A write in the repository of the person is a branch write.
     assert!(!may(&["symbolic-ref", "HEAD", "refs/heads/other"], false));
     // A delete, a message (it writes a reflog entry) and any other option are not forms the wrapper runs.
     assert!(!may(&["symbolic-ref", "--delete", "HEAD"], true));
-    assert!(!may(&["symbolic-ref", "-m", "why", "HEAD", "refs/heads/main"], true));
-    assert!(!may(&["symbolic-ref", "--delete", "--quiet", "HEAD"], false));
+    assert!(!may(
+        &["symbolic-ref", "-m", "why", "HEAD", "refs/heads/main"],
+        true
+    ));
+    assert!(!may(
+        &["symbolic-ref", "--delete", "--quiet", "HEAD"],
+        false
+    ));
     // The shadow's creation is not run again in place: a cut `init` leaves a directory the second run fails in, and the shadow's creator
     //  discards the directory and starts a fresh one (`a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`).
-    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
+    assert!(!may(
+        &[
+            "init",
+            "--bare",
+            "--template=",
+            "--object-format=sha1",
+            "--ref-format=reftable",
+            "/shadow"
+        ],
+        true
+    ));
     // Any other `init` can relocate or re-initialize the repository of the person.
     assert!(!may(&["init", "--bare", "--template=", "/shadow"], false));
     assert!(!may(&["init", "--quiet", "--initial-branch=main"], true));
-    assert!(!may(&["init", "--separate-git-dir=/elsewhere", "--bare"], false));
+    assert!(!may(
+        &["init", "--separate-git-dir=/elsewhere", "--bare"],
+        false
+    ));
 }
 
 /// The shadow's creation keeps its ceiling only in the exact form the wrapper runs and only for a request on a shadow:
@@ -1050,12 +1595,69 @@ fn only_the_shadow_creation_init_keeps_a_ceiling() {
     };
     for object_format in ["sha1", "sha256"] {
         let format: String = format!("--object-format={object_format}");
-        assert!(ends(&["init", "--bare", "--template=", format.as_str(), "--ref-format=reftable", "/shadow"], true), "{object_format}");
+        assert!(
+            ends(
+                &[
+                    "init",
+                    "--bare",
+                    "--template=",
+                    format.as_str(),
+                    "--ref-format=reftable",
+                    "/shadow"
+                ],
+                true
+            ),
+            "{object_format}"
+        );
     }
-    assert!(!ends(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "/shadow"], false), "not a shadow request");
-    assert!(!ends(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "--separate-git-dir=/x", "/shadow"], true));
-    assert!(!ends(&["init", "--bare", "--template=/templates", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
-    assert!(!ends(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=files", "/shadow"], true));
+    assert!(
+        !ends(
+            &[
+                "init",
+                "--bare",
+                "--template=",
+                "--object-format=sha1",
+                "--ref-format=reftable",
+                "/shadow"
+            ],
+            false
+        ),
+        "not a shadow request"
+    );
+    assert!(!ends(
+        &[
+            "init",
+            "--bare",
+            "--template=",
+            "--object-format=sha1",
+            "--ref-format=reftable",
+            "--separate-git-dir=/x",
+            "/shadow"
+        ],
+        true
+    ));
+    assert!(!ends(
+        &[
+            "init",
+            "--bare",
+            "--template=/templates",
+            "--object-format=sha1",
+            "--ref-format=reftable",
+            "/shadow"
+        ],
+        true
+    ));
+    assert!(!ends(
+        &[
+            "init",
+            "--bare",
+            "--template=",
+            "--object-format=sha1",
+            "--ref-format=files",
+            "/shadow"
+        ],
+        true
+    ));
     assert!(!ends(&["init", "--quiet", "--initial-branch=main"], true));
 }
 
@@ -1079,25 +1681,57 @@ fn a_side_ref_write_that_hangs_on_the_landing_thread_is_left_running_after_a_bou
         program.as_path(),
         format!("#!/bin/sh\n: > '{started}'\nwhile [ ! -e '{release}' ] && {alive}; do sleep 0.05; done\n", started = started.display(), release = root.join("release").display(), alive = while_test_lives(root.as_path())).as_bytes(),
     );
-    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(root.clone()) };
+    let context: GitContext = GitContext {
+        real_git: program,
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+        common_dir: Some(root.clone()),
+    };
     let (sender, receiver) = std::sync::mpsc::channel();
     let journal: PathBuf = root.join("journal");
     let work_root: PathBuf = root.clone();
     // The landing thread of the control: it has a record, and the bounds are shortened on it alone.
     let landing = std::thread::Builder::new().spawn(move || {
-        STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
-        EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
+        STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+            cell.set(Some(Duration::from_millis(400)));
+        });
+        EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| {
+            cell.set(Some(Duration::from_millis(400)));
+        });
         crate::landing_state_carried_by_its_task::in_a_landing(|| {
-            crate::service_busy_step_record_on_this_thread::use_on_this_thread(crate::service_busy::LandingBoard::new(journal, Duration::from_secs(60)));
-            let side: GitRequest = GitRequest::new(work_root.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/7"]);
-            let branch: GitRequest = GitRequest::new(work_root.as_path(), &["update-ref", "--stdin"]);
-            assert_eq!(step_bound(&branch), StepBound::Unbounded, "the branch write is waited for on the landing thread");
-            assert!(matches!(step_bound(&side), StepBound::LeaveRunning { .. }), "a side ref is not a branch: {:?}", step_bound(&side));
+            crate::service_busy_step_record_on_this_thread::use_on_this_thread(
+                crate::service_busy::LandingBoard::new(journal, Duration::from_secs(60)),
+            );
+            let side: GitRequest = GitRequest::new(
+                work_root.as_path(),
+                &[
+                    "-c",
+                    NO_REFLOG_SETTING,
+                    "update-ref",
+                    "-d",
+                    "--no-deref",
+                    "refs/worktree/cli-git-service/7",
+                ],
+            );
+            let branch: GitRequest =
+                GitRequest::new(work_root.as_path(), &["update-ref", "--stdin"]);
+            assert_eq!(
+                step_bound(&branch),
+                StepBound::Unbounded,
+                "the branch write is waited for on the landing thread"
+            );
+            assert!(
+                matches!(step_bound(&side), StepBound::LeaveRunning { .. }),
+                "a side ref is not a branch: {:?}",
+                step_bound(&side)
+            );
             let _sent = sender.send(run_git(&context, &side));
         });
     });
     assert!(landing.is_ok());
-    let outcome = receiver.recv_timeout(Duration::from_secs(30)).expect("the landing thread came back from a hung side-ref write");
+    let outcome = receiver
+        .recv_timeout(Duration::from_secs(30))
+        .expect("the landing thread came back from a hung side-ref write");
     let failure = outcome.expect_err("it stopped waiting");
     assert!(crate::child_watch::is_not_known(&failure), "{failure}");
     assert!(started.exists());

@@ -12,10 +12,20 @@
 //! expect(readTheSlotPointer(slot)).toEqual({ kind: 'absent' });
 //! ```
 
-use super::{LOCK_FILE_NAME, SLOT_POINTER_NAME, lock_file_path, read_the_lock, read_the_slot_pointer, slot_pointer_path};
-use crate::worktree_clone_managed_lock::test_fixtures::{Fixture, RecordSpec};
-use crate::worktree_clone_managed_lock::Reading;
+use super::{
+    LOCK_FILE_NAME,
+    SLOT_POINTER_NAME,
+    lock_file_path,
+    read_the_lock,
+    read_the_slot_pointer,
+    slot_pointer_path,
+};
 use crate::worktree_clone_binding_record::lock_words::LOCK_WORDS_MAXIMUM_BYTES;
+use crate::worktree_clone_managed_lock::Reading;
+use crate::worktree_clone_managed_lock::test_fixtures::{
+    Fixture,
+    RecordSpec,
+};
 
 /// The fixture's nonce,
 /// which every control recomposes its sentence from.
@@ -27,8 +37,14 @@ const NONCE: &str = "9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f";
 fn the_two_names_are_gits_own() {
     let fixture: Fixture = Fixture::new("readings-paths");
     let registration: std::path::PathBuf = fixture.worktrees().join("entry");
-    assert_eq!(lock_file_path(registration.as_path()), registration.join(LOCK_FILE_NAME));
-    assert_eq!(slot_pointer_path(fixture.slot_path.as_path()), fixture.slot_path.join(SLOT_POINTER_NAME));
+    assert_eq!(
+        lock_file_path(registration.as_path()),
+        registration.join(LOCK_FILE_NAME)
+    );
+    assert_eq!(
+        slot_pointer_path(fixture.slot_path.as_path()),
+        fixture.slot_path.join(SLOT_POINTER_NAME)
+    );
     assert_eq!(LOCK_FILE_NAME, "locked");
     assert_eq!(SLOT_POINTER_NAME, ".git");
 }
@@ -39,9 +55,18 @@ fn the_two_names_are_gits_own() {
 fn a_written_lock_reads_as_its_sentence() {
     let fixture: Fixture = Fixture::new("readings-lock");
     let registration: std::path::PathBuf = fixture.write_registration("entry");
-    fixture.write_lock(registration.as_path(), fixture.the_sentence(NONCE).as_slice());
-    assert_eq!(read_the_lock(registration.as_path()), Reading::Bytes(fixture.the_sentence(NONCE)));
-    assert_eq!(fixture.the_sentence(NONCE).len() as u64, LOCK_WORDS_MAXIMUM_BYTES);
+    fixture.write_lock(
+        registration.as_path(),
+        fixture.the_sentence(NONCE).as_slice(),
+    );
+    assert_eq!(
+        read_the_lock(registration.as_path()),
+        Reading::Bytes(fixture.the_sentence(NONCE))
+    );
+    assert_eq!(
+        fixture.the_sentence(NONCE).len() as u64,
+        LOCK_WORDS_MAXIMUM_BYTES
+    );
 }
 
 /// A lock wider than the sentence is refused rather than read,
@@ -54,7 +79,10 @@ fn a_wider_lock_is_refused() {
     wider.push(b'x');
     fixture.write_lock(registration.as_path(), wider.as_slice());
     let wide: Reading = read_the_lock(registration.as_path());
-    assert!(matches!(wide, Reading::Refused(_)), "a lock wider than the sentence is refused, and it read as {wide:?}");
+    assert!(
+        matches!(wide, Reading::Refused(_)),
+        "a lock wider than the sentence is refused, and it read as {wide:?}"
+    );
 }
 
 /// A slot with no `.git` reads as absence,
@@ -62,7 +90,10 @@ fn a_wider_lock_is_refused() {
 #[test]
 fn a_slot_with_no_pointer_reads_as_absence() {
     let fixture: Fixture = Fixture::new("readings-pointer-absent");
-    assert_eq!(read_the_slot_pointer(fixture.slot_path.as_path()), Reading::Absent);
+    assert_eq!(
+        read_the_slot_pointer(fixture.slot_path.as_path()),
+        Reading::Absent
+    );
     let spec: RecordSpec = RecordSpec::for_nonce(NONCE);
     fixture.write_record(&spec);
     let registration: std::path::PathBuf = fixture.write_registration("entry");

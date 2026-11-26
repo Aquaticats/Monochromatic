@@ -23,18 +23,29 @@
 //! const copies = await setNestedRepositoriesAside({ commonDir, worktreeRoot, repositories, milliseconds });
 //! ```
 
-use crate::conflict_sides::{SavedCopy, SaveFailure, depth_deepest_first, fresh_saved_directory};
+use crate::conflict_sides::{
+    SaveFailure,
+    SavedCopy,
+    depth_deepest_first,
+    fresh_saved_directory,
+};
 use crate::fs_beneath::plain_components;
-use crate::private_storage::{create_private_directory_all, sync_directory};
+use crate::private_storage::{
+    create_private_directory_all,
+    sync_directory,
+};
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths,
+///  and a set of them keeps every directory synced once.
+use std::collections::BTreeSet;
 /// `OsStr`/`OsString` are operating-system text of raw bytes.
 use std::ffi::OsStr;
 /// `OsStrExt` gives `OsStr::from_bytes`,
 /// because a path is bytes and not text.
 use std::os::unix::ffi::OsStrExt;
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths,
-///  and a set of them keeps every directory synced once.
-use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Move each repository below the place saved copies live,
@@ -67,7 +78,12 @@ pub fn set_nested_repositories_aside(
 ) -> Result<Vec<SavedCopy>, SaveStopped> {
     let base: PathBuf = match fresh_saved_directory(common_dir, milliseconds) {
         Ok(created) => created,
-        Err(error) => return Err(SaveStopped { failure: SaveFailure::io(common_dir.display().to_string(), error.to_string()), still_moved: Vec::<SavedCopy>::new() }),
+        Err(error) => {
+            return Err(SaveStopped {
+                failure: SaveFailure::io(common_dir.display().to_string(), error.to_string()),
+                still_moved: Vec::<SavedCopy>::new(),
+            });
+        }
     };
     let mut moved: Vec<Moved> = Vec::<Moved>::new();
     let mut written: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
@@ -75,27 +91,42 @@ pub fn set_nested_repositories_aside(
         let shown: String = String::from_utf8_lossy(path).into_owned();
         let relative: &Path = Path::new(OsStr::from_bytes(path));
         if let Err(error) = plain_components(relative) {
-            return Err(stopped(SaveFailure::io(shown, error.to_string()), moved.as_slice()));
+            return Err(stopped(
+                SaveFailure::io(shown, error.to_string()),
+                moved.as_slice(),
+            ));
         }
         let source: PathBuf = worktree_root.join(relative);
         let destination: PathBuf = base.join(relative);
         let Some(parent) = destination.parent() else {
             return Err(stopped(
-                SaveFailure::io(shown, String::from("it has no directory to move the repository into")),
+                SaveFailure::io(
+                    shown,
+                    String::from("it has no directory to move the repository into"),
+                ),
                 moved.as_slice(),
             ));
         };
         if let Err(error) = create_private_directory_all(parent) {
-            return Err(stopped(SaveFailure::io(shown, error.to_string()), moved.as_slice()));
+            return Err(stopped(
+                SaveFailure::io(shown, error.to_string()),
+                moved.as_slice(),
+            ));
         }
         written.insert(parent.to_path_buf());
         if let Err(error) = std::fs::rename(source.as_path(), destination.as_path()) {
-            return Err(stopped(SaveFailure::io(shown, describe_rename_failure(error)), moved.as_slice()));
+            return Err(stopped(
+                SaveFailure::io(shown, describe_rename_failure(error)),
+                moved.as_slice(),
+            ));
         }
         moved.push(Moved {
             source,
             destination: destination.clone(),
-            copy: SavedCopy { path: shown, saved_to: Some(destination) },
+            copy: SavedCopy {
+                path: shown,
+                saved_to: Some(destination),
+            },
         });
     }
     // Deepest first, then the directories that hold the copies' root, so every moved entry is durable.
@@ -103,13 +134,19 @@ pub fn set_nested_repositories_aside(
     ordered.sort_by_key(depth_deepest_first);
     for each in ordered {
         if let Err(error) = sync_directory(each.as_path()) {
-            return Err(stopped(SaveFailure::io(each.display().to_string(), error.to_string()), moved.as_slice()));
+            return Err(stopped(
+                SaveFailure::io(each.display().to_string(), error.to_string()),
+                moved.as_slice(),
+            ));
         }
     }
     let discarded: &Path = base.parent().unwrap_or(base.as_path());
     for each in [base.as_path(), discarded] {
         if let Err(error) = sync_directory(each) {
-            return Err(stopped(SaveFailure::io(each.display().to_string(), error.to_string()), moved.as_slice()));
+            return Err(stopped(
+                SaveFailure::io(each.display().to_string(), error.to_string()),
+                moved.as_slice(),
+            ));
         }
     }
     let mut copies: Vec<SavedCopy> = Vec::<SavedCopy>::new();
@@ -175,8 +212,14 @@ struct Moved {
 /// ```ts
 /// const stopped = (failure, moved) => ({ failure, stillMoved: putBack(moved) });
 /// ```
-fn stopped(failure: SaveFailure, moved: &[Moved]) -> SaveStopped {
-    return SaveStopped { failure, still_moved: put_back(moved) };
+fn stopped(
+    failure: SaveFailure,
+    moved: &[Moved],
+) -> SaveStopped {
+    return SaveStopped {
+        failure,
+        still_moved: put_back(moved),
+    };
 }
 
 /// What:

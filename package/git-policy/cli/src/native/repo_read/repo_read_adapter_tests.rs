@@ -29,13 +29,22 @@ fn layout_of_bytes() -> RepoLayout {
 #[test]
 fn a_report_keeps_every_path_the_layout_holds() {
     let layout: RepoLayout = layout_of_bytes();
-    let report: InvocationReport = invocation_report(&layout).expect("the layout names its own Git paths");
+    let report: InvocationReport =
+        invocation_report(&layout).expect("the layout names its own Git paths");
     assert_eq!(report.top_level, layout.worktree_root, "the top level");
     assert_eq!(report.git_dir, layout.git_dir, "the Git directory");
     assert_eq!(report.common_dir, layout.common_dir, "the common directory");
     assert_eq!(report.index_path, layout.git_dir.join("index"), "the index");
-    assert_eq!(report.object_directory, layout.git_dir.join("objects"), "the objects");
-    assert_eq!(report.registry_root, layout.git_dir.join("cli-git-transactions"), "the registry");
+    assert_eq!(
+        report.object_directory,
+        layout.git_dir.join("objects"),
+        "the objects"
+    );
+    assert_eq!(
+        report.registry_root,
+        layout.git_dir.join("cli-git-transactions"),
+        "the registry"
+    );
     assert_eq!(report.object_format, "sha1");
 }
 
@@ -56,5 +65,8 @@ fn a_report_declines_a_linked_worktree() {
         prefix: Vec::new(),
         object_format: ObjectFormat::Sha256,
     };
-    assert!(invocation_report(&linked).is_none(), "a linked worktree's Git paths stay with Git");
+    assert!(
+        invocation_report(&linked).is_none(),
+        "a linked worktree's Git paths stay with Git"
+    );
 }

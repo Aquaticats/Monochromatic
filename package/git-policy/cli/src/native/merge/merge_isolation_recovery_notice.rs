@@ -35,7 +35,11 @@ use std::path::Path;
 /// ```ts
 /// `monochromatic-git-policy-cli: the merge saved on ${sideRef} waits for ${lock}; ...`
 /// ```
-pub fn saved_merge_waits_for_the_index_lock(target: &str, side_ref: &str, lock: &Path) -> String {
+pub fn saved_merge_waits_for_the_index_lock(
+    target: &str,
+    side_ref: &str,
+    lock: &Path,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the merge saved for {target} on {side_ref} waits for the index lock ({lock}), and nothing of it \
          is in the checkout yet, so this command goes on without waiting for it. A command run once that lock is free finishes the \

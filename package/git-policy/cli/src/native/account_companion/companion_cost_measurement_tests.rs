@@ -34,12 +34,24 @@
 //! and the release wrapper built by
 //! `mise run //package/git-policy/cli:native:build:release`.
 
-use super::{Switch, run_under};
+use super::{
+    Switch,
+    run_under,
+};
 use crate::account_companion::companion_deadline::COMPANION_DEADLINE;
 use crate::account_companion::companion_scratch::RuntimeFolder;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How many rounds the arms are interleaved over.
 const ROUNDS: usize = 5;
@@ -76,14 +88,21 @@ impl Arm {
     fn range(&self) -> (Duration, Duration) {
         let mut sorted: Vec<Duration> = self.samples.clone();
         sorted.sort_unstable();
-        return (sorted.first().copied().unwrap_or_default(), sorted.last().copied().unwrap_or_default());
+        return (
+            sorted.first().copied().unwrap_or_default(),
+            sorted.last().copied().unwrap_or_default(),
+        );
     }
 }
 
 /// What:
 ///  One add through the built wrapper,
 ///  timed from the start of its process to its end.
-fn time_an_add(binary: &Path, repository: &Path, slot: &Path) -> Duration {
+fn time_an_add(
+    binary: &Path,
+    repository: &Path,
+    slot: &Path,
+) -> Duration {
     let began: Instant = Instant::now();
     let started = Command::new(binary)
         .args(["worktree", "add", "--no-checkout"])
@@ -94,19 +113,36 @@ fn time_an_add(binary: &Path, repository: &Path, slot: &Path) -> Duration {
         .stderr(Stdio::null())
         .status();
     let taken: Duration = began.elapsed();
-    assert!(started.map(|status| return status.success()).unwrap_or(false), "the add at {} failed, so no sample was taken", slot.display());
-    let _removed = Command::new(binary).args(["worktree", "remove", "--force"]).arg(slot).current_dir(repository).output();
+    assert!(
+        started
+            .map(|status| return status.success())
+            .unwrap_or(false),
+        "the add at {} failed, so no sample was taken",
+        slot.display()
+    );
+    let _removed = Command::new(binary)
+        .args(["worktree", "remove", "--force"])
+        .arg(slot)
+        .current_dir(repository)
+        .output();
     return taken;
 }
 
 /// What:
 ///  One companion run,
 ///  timed as the preflight spends it.
-fn time_the_companion(switch: Switch, runtime: &RuntimeFolder) -> Duration {
+fn time_the_companion(
+    switch: Switch,
+    runtime: &RuntimeFolder,
+) -> Duration {
     let began: Instant = Instant::now();
     let verdict = run_under(runtime, switch, COMPANION_DEADLINE);
     let taken: Duration = began.elapsed();
-    assert!(verdict.the_managed_attach_goes_ahead(), "the companion refused on this host, so no sample was taken: {:?}", verdict.lines());
+    assert!(
+        verdict.the_managed_attach_goes_ahead(),
+        "the companion refused on this host, so no sample was taken: {:?}",
+        verdict.lines()
+    );
     return taken;
 }
 
@@ -122,10 +158,17 @@ fn companion_cost_measurement() {
     // The companion's runtime folder is this measurement's own, under the root it was given, so the sampling never
     // reads or writes the session's runtime directory.
     let runtime_root: PathBuf = root.join(RUNTIME_FOLDER_NAME);
-    std::fs::create_dir_all(runtime_root.as_path()).expect("the measurement's runtime folder is creatable");
-    let runtime: RuntimeFolder = RuntimeFolder::at(runtime_root.as_path()).expect("the measurement's runtime folder is a directory");
-    let binary: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/release/monochromatic-git-policy-cli");
-    assert!(binary.is_file(), "the release wrapper is not built at {}; run `mise run //package/git-policy/cli:native:build:release` first", binary.display());
+    std::fs::create_dir_all(runtime_root.as_path())
+        .expect("the measurement's runtime folder is creatable");
+    let runtime: RuntimeFolder = RuntimeFolder::at(runtime_root.as_path())
+        .expect("the measurement's runtime folder is a directory");
+    let binary: PathBuf =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("target/release/monochromatic-git-policy-cli");
+    assert!(
+        binary.is_file(),
+        "the release wrapper is not built at {}; run `mise run //package/git-policy/cli:native:build:release` first",
+        binary.display()
+    );
     make_fixture(repository.as_path());
     let mut add_first: Arm = Arm::default();
     let mut add_second: Arm = Arm::default();
@@ -136,17 +179,35 @@ fn companion_cost_measurement() {
     for round in 1..=ROUNDS {
         for sample in 0..SAMPLES {
             let slot: PathBuf = root.join(format!("slot-{round}-{sample}"));
-            add_first.samples.push(time_an_add(binary.as_path(), repository.as_path(), slot.as_path()));
-            companion_first.samples.push(time_the_companion(Switch::None, &runtime));
-            add_second.samples.push(time_an_add(binary.as_path(), repository.as_path(), slot.as_path()));
-            companion_second.samples.push(time_the_companion(Switch::None, &runtime));
-            disabled.samples.push(time_the_companion(Switch::Disabled, &runtime));
+            add_first.samples.push(time_an_add(
+                binary.as_path(),
+                repository.as_path(),
+                slot.as_path(),
+            ));
+            companion_first
+                .samples
+                .push(time_the_companion(Switch::None, &runtime));
+            add_second.samples.push(time_an_add(
+                binary.as_path(),
+                repository.as_path(),
+                slot.as_path(),
+            ));
+            companion_second
+                .samples
+                .push(time_the_companion(Switch::None, &runtime));
+            disabled
+                .samples
+                .push(time_the_companion(Switch::Disabled, &runtime));
         }
         let add: Duration = add_first.median().max(add_second.median());
         let companion: Duration = companion_first.median().max(companion_second.median());
         let ratio: f64 = ratio_of(add, companion);
         ratios.push(ratio);
-        println!("COMPANION COST round={round} add_ms={:.3} companion_ms={:.3} ratio={ratio:.6}", millis(add), millis(companion));
+        println!(
+            "COMPANION COST round={round} add_ms={:.3} companion_ms={:.3} ratio={ratio:.6}",
+            millis(add),
+            millis(companion)
+        );
     }
     println!(
         "COMPANION COST add_ms={:.3} range={:.3}..{:.3} companion_ms={:.3} range={:.3}..{:.3} disabled_ms={:.3}",
@@ -166,7 +227,10 @@ fn companion_cost_measurement() {
 /// The ratio one round reports:
 ///  the add with the companion over the add without it,
 ///  both terms measured in that round.
-fn ratio_of(add: Duration, companion: Duration) -> f64 {
+fn ratio_of(
+    add: Duration,
+    companion: Duration,
+) -> f64 {
     let without: f64 = add.as_secs_f64();
     return (add + companion).as_secs_f64() / without;
 }
@@ -180,7 +244,9 @@ fn millis(within: Duration) -> f64 {
 /// which the run names and whose absence fails rather than guessing.
 fn measurement_root() -> PathBuf {
     let Some(root) = std::env::var_os(ROOT_VARIABLE) else {
-        panic!("set {ROOT_VARIABLE} to a scratch folder outside the repository, which this measurement writes its fixture in");
+        panic!(
+            "set {ROOT_VARIABLE} to a scratch folder outside the repository, which this measurement writes its fixture in"
+        );
     };
     return PathBuf::from(root);
 }
@@ -191,9 +257,23 @@ fn measurement_root() -> PathBuf {
 fn make_fixture(repository: &Path) {
     let _ = std::fs::remove_dir_all(repository);
     std::fs::create_dir_all(repository).expect("the fixture root is creatable");
-    let steps: [&[&str]; 3] = [&["init", "--quiet", "--initial-branch", "main"], &["commit", "--quiet", "--allow-empty", "--message", "a fixture commit"], &["config", "user.name", "a fixture"]];
+    let steps: [&[&str]; 3] = [
+        &["init", "--quiet", "--initial-branch", "main"],
+        &[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "--message",
+            "a fixture commit",
+        ],
+        &["config", "user.name", "a fixture"],
+    ];
     for arguments in steps {
-        let status = Command::new("git").args(arguments).current_dir(repository).status().expect("git runs");
+        let status = Command::new("git")
+            .args(arguments)
+            .current_dir(repository)
+            .status()
+            .expect("git runs");
         assert!(status.success(), "git {arguments:?} failed in the fixture");
     }
 }

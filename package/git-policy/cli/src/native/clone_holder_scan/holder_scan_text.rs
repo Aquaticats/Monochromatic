@@ -38,14 +38,22 @@
 //! const text = scan.text(); // 'v1\nkind clone-holder-scan\ndataset 42\n…'
 //! ```
 
-use crate::clone_holder_scan::holder_scan::{HolderScan, MAXIMUM_DETAIL_LINES, MAXIMUM_MOUNTS_PER_NAMESPACE, MAXIMUM_MOUNT_NAMESPACES};
+use crate::clone_holder_scan::holder_scan::{
+    HolderScan,
+    MAXIMUM_DETAIL_LINES,
+    MAXIMUM_MOUNT_NAMESPACES,
+    MAXIMUM_MOUNTS_PER_NAMESPACE,
+};
 use crate::clone_holder_scan::incomplete_reads::IncompleteRead;
 use crate::clone_holder_scan::namespace_holder::NamespaceHolder;
 use crate::foundation::iso_time::instant_of_iso;
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The result's format version,
 /// which every reader checks first.
@@ -64,7 +72,17 @@ pub const ABSENT_WORD: &str = "none";
 
 /// The keys before the findings,
 /// in the order the file holds them.
-pub const RESULT_KEYS: [&str; 9] = ["kind", "dataset", "nonce", "source", "own-namespace", "namespaces-scanned", "own-mounts", "holder-namespaces", "incomplete-reads"];
+pub const RESULT_KEYS: [&str; 9] = [
+    "kind",
+    "dataset",
+    "nonce",
+    "source",
+    "own-namespace",
+    "namespaces-scanned",
+    "own-mounts",
+    "holder-namespaces",
+    "incomplete-reads",
+];
 
 /// The key of the result's last line.
 pub const TIME_KEY: &str = "time";
@@ -111,7 +129,10 @@ pub const MAXIMUM_KIND_BYTES: usize = 32;
 
 /// How many bytes a key,
 /// its separator and the longest value on its line take.
-const fn line_bytes(key: &str, bound: usize) -> usize {
+const fn line_bytes(
+    key: &str,
+    bound: usize,
+) -> usize {
     return key.len() + 1 + bound;
 }
 
@@ -125,7 +146,13 @@ const fn mount_bytes() -> usize {
 /// the namespace,
 /// the task and as many mounts as one namespace's line may carry.
 const fn held_line_bytes() -> usize {
-    return line_bytes(HOLDER_KEY, MAXIMUM_NAMESPACE_BYTES + 1 + MAXIMUM_PATH_BYTES + MAXIMUM_MOUNTS_PER_NAMESPACE * (1 + mount_bytes()));
+    return line_bytes(
+        HOLDER_KEY,
+        MAXIMUM_NAMESPACE_BYTES
+            + 1
+            + MAXIMUM_PATH_BYTES
+            + MAXIMUM_MOUNTS_PER_NAMESPACE * (1 + mount_bytes()),
+    );
 }
 
 /// The most bytes one own-mount line takes.
@@ -135,7 +162,16 @@ const fn own_mount_line_bytes() -> usize {
 
 /// The most bytes one incomplete read's line takes.
 const fn incomplete_line_bytes() -> usize {
-    return line_bytes(INCOMPLETE_KEY, MAXIMUM_KIND_BYTES + 1 + MAXIMUM_NAMESPACE_BYTES + 1 + MAXIMUM_PATH_BYTES + 1 + MAXIMUM_REASON_BYTES);
+    return line_bytes(
+        INCOMPLETE_KEY,
+        MAXIMUM_KIND_BYTES
+            + 1
+            + MAXIMUM_NAMESPACE_BYTES
+            + 1
+            + MAXIMUM_PATH_BYTES
+            + 1
+            + MAXIMUM_REASON_BYTES,
+    );
 }
 
 /// The header's own bytes:
@@ -209,13 +245,18 @@ pub fn escape_text(text: &str) -> String {
 /// const path = unescapePath('/a\\040b'); // '/a b'
 /// ```
 pub fn unescape_path(text: &str) -> PathBuf {
-    return PathBuf::from(OsStr::from_bytes(crate::fs_mount_options::unmangle_octal(text.as_bytes()).as_slice()));
+    return PathBuf::from(OsStr::from_bytes(
+        crate::fs_mount_options::unmangle_octal(text.as_bytes()).as_slice(),
+    ));
 }
 
 /// One dataset name or namespace as text,
 /// decoded exactly as a mount table's field is.
 pub fn unescape_text(text: &str) -> String {
-    return String::from_utf8_lossy(crate::fs_mount_options::unmangle_octal(text.as_bytes()).as_slice()).into_owned();
+    return String::from_utf8_lossy(
+        crate::fs_mount_options::unmangle_octal(text.as_bytes()).as_slice(),
+    )
+    .into_owned();
 }
 
 /// One byte string with every byte a line cannot carry escaped:
@@ -231,7 +272,9 @@ fn escape_field(bytes: &[u8]) -> String {
         match byte {
             b' ' => escaped.push_str("\\040"),
             b'\\' => escaped.push_str("\\134"),
-            control if control < 0x20 || control == 0x7f => escaped.push_str(format!("\\{control:03o}").as_str()),
+            control if control < 0x20 || control == 0x7f => {
+                escaped.push_str(format!("\\{control:03o}").as_str())
+            }
             other => escaped.push(char::from(other)),
         }
     }
@@ -259,7 +302,12 @@ fn printable_reason(reason: &str) -> String {
 /// One mount's three fields,
 /// which every line that names a mount ends with.
 fn mount_fields(mount: &crate::clone_holder_scan::held_mounts::HeldMount) -> String {
-    return format!("{} {} {}", mount.mount_id, escape_path(mount.root.as_path()), escape_path(mount.mount_point.as_path()));
+    return format!(
+        "{} {} {}",
+        mount.mount_id,
+        escape_path(mount.root.as_path()),
+        escape_path(mount.mount_point.as_path())
+    );
 }
 
 /// One namespace's mounts as one line:
@@ -271,7 +319,10 @@ fn mount_fields(mount: &crate::clone_holder_scan::held_mounts::HeldMount) -> Str
 ///  so one line per namespace keeps the count on the line above it the number
 ///  of lines that follow,
 ///  and the mount fields are three per mount with no spaces in them.
-fn namespace_line(holder: &NamespaceHolder, key: &str) -> String {
+fn namespace_line(
+    holder: &NamespaceHolder,
+    key: &str,
+) -> String {
     let namespace: String = escape_text(holder.namespace());
     let task: String = escape_path(holder.task.as_path());
     let mut line: String = format!("{key} {namespace} {task}");
@@ -285,25 +336,68 @@ fn namespace_line(holder: &NamespaceHolder, key: &str) -> String {
 /// One incomplete read as the result's line.
 fn incomplete_line(read: &IncompleteRead) -> String {
     let kind: &str = read.kind();
-    let namespace: String = read.namespace().map_or(String::from(ABSENT_WORD), escape_text);
+    let namespace: String = read
+        .namespace()
+        .map_or(String::from(ABSENT_WORD), escape_text);
     let task: String = match read.task() {
         Some(path) => escape_path(path),
         None => String::from(ABSENT_WORD),
     };
     return match read {
-        IncompleteRead::Listing { proc_root, reason } => {
-            format!("{INCOMPLETE_KEY} {kind} {} {}", escape_path(proc_root.as_path()), printable_reason(reason.as_str()))
+        IncompleteRead::Listing {
+            proc_root,
+            reason,
+        } => {
+            format!(
+                "{INCOMPLETE_KEY} {kind} {} {}",
+                escape_path(proc_root.as_path()),
+                printable_reason(reason.as_str())
+            )
         }
-        IncompleteRead::NamespaceLinkUnreadable { thread, reason } => {
-            format!("{INCOMPLETE_KEY} {kind} {} {}", escape_path(thread.as_path()), printable_reason(reason.as_str()))
+        IncompleteRead::NamespaceLinkUnreadable {
+            thread,
+            reason,
+        } => {
+            format!(
+                "{INCOMPLETE_KEY} {kind} {} {}",
+                escape_path(thread.as_path()),
+                printable_reason(reason.as_str())
+            )
         }
-        IncompleteRead::TaskEnded { reason, .. } | IncompleteRead::TableUnreadable { reason, .. } => {
-            format!("{INCOMPLETE_KEY} {kind} {namespace} {task} {}", printable_reason(reason.as_str()))
+        IncompleteRead::TaskEnded {
+            reason,
+            ..
         }
-        IncompleteRead::NoLiveMember { tasks_tried, reason, .. } => format!("{INCOMPLETE_KEY} {kind} {namespace} {tasks_tried} {}", printable_reason(reason.as_str())),
-        IncompleteRead::NoTaskAtTheNamespaceRoot { .. } => format!("{INCOMPLETE_KEY} {kind} {namespace}"),
-        IncompleteRead::NamespacesPastTheBound { bound } | IncompleteRead::DetailsPastTheBound { bound } => format!("{INCOMPLETE_KEY} {kind} {bound}"),
-        IncompleteRead::MountsPastTheBound { bound, .. } => format!("{INCOMPLETE_KEY} {kind} {namespace} {bound}"),
+        | IncompleteRead::TableUnreadable {
+            reason,
+            ..
+        } => {
+            format!(
+                "{INCOMPLETE_KEY} {kind} {namespace} {task} {}",
+                printable_reason(reason.as_str())
+            )
+        }
+        IncompleteRead::NoLiveMember {
+            tasks_tried,
+            reason,
+            ..
+        } => format!(
+            "{INCOMPLETE_KEY} {kind} {namespace} {tasks_tried} {}",
+            printable_reason(reason.as_str())
+        ),
+        IncompleteRead::NoTaskAtTheNamespaceRoot {
+            ..
+        } => format!("{INCOMPLETE_KEY} {kind} {namespace}"),
+        IncompleteRead::NamespacesPastTheBound {
+            bound,
+        }
+        | IncompleteRead::DetailsPastTheBound {
+            bound,
+        } => format!("{INCOMPLETE_KEY} {kind} {bound}"),
+        IncompleteRead::MountsPastTheBound {
+            bound,
+            ..
+        } => format!("{INCOMPLETE_KEY} {kind} {namespace} {bound}"),
     };
 }
 
@@ -320,7 +414,10 @@ impl HolderScan {
     /// The file's whole text,
     /// its final newline included.
     pub fn text(&self) -> String {
-        let own_namespace: String = self.own_namespace.as_deref().map_or(String::from(ABSENT_WORD), escape_text);
+        let own_namespace: String = self
+            .own_namespace
+            .as_deref()
+            .map_or(String::from(ABSENT_WORD), escape_text);
         let mut lines: Vec<String> = vec![
             String::from(VERSION_KEY),
             format!("kind {RESULT_KIND}"),

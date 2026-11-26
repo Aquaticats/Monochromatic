@@ -19,26 +19,55 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use crate::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// Import the candidate modes,
 ///  the validated object name and its parser.
-use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    parse_object_id,
+};
 /// Import the long-lived object reader.
-use crate::candidate_reader::{ObjectReader, start_object_reader};
+use crate::candidate_reader::{
+    ObjectReader,
+    start_object_reader,
+};
 /// Import the listing parser and its records.
-use crate::candidate_record::{CandidateRecord, parse_raw_records};
+use crate::candidate_record::{
+    CandidateRecord,
+    parse_raw_records,
+};
+use crate::candidate_stage::{
+    StageRecord,
+    parse_stage_records,
+};
 /// Import the stage-record parser of `git ls-files --stage`.
 /// The tree record a commit's listing holds.
 use crate::candidate_tree::TreeRecord;
-use crate::candidate_stage::{StageRecord, parse_stage_records};
 /// Import the version types and builder.
-use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion, build_version};
+use crate::candidate_version::{
+    Candidate,
+    CandidateSource,
+    CandidateVersion,
+    build_version,
+};
 /// Import the captured-query runner and its line helper.
-use crate::git_metadata::{MetadataOutput, read_stopped_text, run_metadata_git_without, strip_git_line};
+use crate::git_metadata::{
+    MetadataOutput,
+    read_stopped_text,
+    run_metadata_git_without,
+    strip_git_line,
+};
 /// `OsString` is owned operating-system text of raw OS bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  `Rc<T>` is a shared,
 ///  read-only handle to one heap value,
@@ -118,10 +147,17 @@ pub struct CandidateStore {
 /// ```ts
 /// function listingFailure(failure: CandidateFailure, operation: string, detail: string): CandidateError;
 /// ```
-pub(crate) fn listing_failure(failure: CandidateFailure, operation: &str, detail: &str) -> CandidateError {
+pub(crate) fn listing_failure(
+    failure: CandidateFailure,
+    operation: &str,
+    detail: &str,
+) -> CandidateError {
     return CandidateError::new(
         failure,
-        format!("monochromatic-git-policy-cli could not list candidate files: git {operation} {detail}").as_str(),
+        format!(
+            "monochromatic-git-policy-cli could not list candidate files: git {operation} {detail}"
+        )
+        .as_str(),
     );
 }
 
@@ -182,7 +218,10 @@ impl CandidateStore {
     /// listChangedIndexPaths({ baseRevision }) // never live HEAD
     /// ```
     #[must_use]
-    pub fn with_baseline(mut self, baseline: Option<ObjectId>) -> CandidateStore {
+    pub fn with_baseline(
+        mut self,
+        baseline: Option<ObjectId>,
+    ) -> CandidateStore {
         self.baseline = Some(baseline);
         return self;
     }
@@ -349,7 +388,10 @@ impl CandidateStore {
     /// ```ts
     /// keptListing(commit): TreeRecord[] | undefined
     /// ```
-    pub(crate) fn kept_listing(&self, commit: &ObjectId) -> Option<std::sync::Arc<Vec<TreeRecord>>> {
+    pub(crate) fn kept_listing(
+        &self,
+        commit: &ObjectId,
+    ) -> Option<std::sync::Arc<Vec<TreeRecord>>> {
         let (listed, records) = self.listed.as_ref()?;
         if listed != commit {
             return None;
@@ -369,7 +411,11 @@ impl CandidateStore {
     /// ```ts
     /// keepListing(commit, records) { this.listed = { commit, records }; }
     /// ```
-    pub(crate) fn keep_listing(&mut self, commit: &ObjectId, records: &std::sync::Arc<Vec<TreeRecord>>) {
+    pub(crate) fn keep_listing(
+        &mut self,
+        commit: &ObjectId,
+        records: &std::sync::Arc<Vec<TreeRecord>>,
+    ) {
         self.listed = Some((commit.clone(), std::sync::Arc::clone(records)));
     }
 
@@ -428,7 +474,10 @@ impl CandidateStore {
     /// ```ts
     /// async #listCommitted(commit: ObjectId): Promise<Buffer>
     /// ```
-    pub(crate) fn list_committed(&self, commit: &ObjectId) -> Result<Vec<u8>, CandidateError> {
+    pub(crate) fn list_committed(
+        &self,
+        commit: &ObjectId,
+    ) -> Result<Vec<u8>, CandidateError> {
         return self.run_listing(
             "diff-tree",
             &[
@@ -571,7 +620,10 @@ impl CandidateStore {
     /// ```ts
     /// derivedVersion(records: CandidateRecord[]): CandidateVersion
     /// ```
-    pub fn derived_version(&mut self, records: Vec<CandidateRecord>) -> Rc<CandidateVersion> {
+    pub fn derived_version(
+        &mut self,
+        records: Vec<CandidateRecord>,
+    ) -> Rc<CandidateVersion> {
         return Rc::new(build_version(self.generation, records));
     }
 
@@ -595,7 +647,10 @@ impl CandidateStore {
     /// ```ts
     /// async bytes(candidate: Candidate): Promise<Uint8Array>
     /// ```
-    pub fn bytes(&mut self, candidate: &Candidate) -> Result<Rc<[u8]>, CandidateError> {
+    pub fn bytes(
+        &mut self,
+        candidate: &Candidate,
+    ) -> Result<Rc<[u8]>, CandidateError> {
         if candidate.identity.generation != self.generation {
             return Err(CandidateError::new(
                 CandidateFailure::StaleCandidate,

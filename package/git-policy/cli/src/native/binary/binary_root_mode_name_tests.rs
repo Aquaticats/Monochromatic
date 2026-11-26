@@ -25,9 +25,18 @@
 //! expect(start.status).toBe(2); expect(existsSync(join(repository, '.git/cli-git-lock-holders'))).toBe(false);
 //! ```
 
-use crate::support_installed_name::{installed_name, root_mode_words};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use crate::support_installed_name::{
+    installed_name,
+    root_mode_words,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// The marker every start that reached the wrapper's own entry writes,
 /// relative to the repository it stands in.
@@ -47,18 +56,45 @@ fn words_text() -> String {
 
 /// A throwaway repository with one commit's folder,
 /// so `git init` needs no template of the caller's own.
-fn throwaway_repository(link: &Path, name: &str) -> PathBuf {
+fn throwaway_repository(
+    link: &Path,
+    name: &str,
+) -> PathBuf {
     let repository: PathBuf = link.parent().expect("the link's folder").join(name);
     std::fs::create_dir_all(repository.as_path()).expect("the throwaway repository's folder");
-    let initialized: Output = Command::new("git").arg("init").arg("--quiet").arg(repository.as_path()).output().expect("git runs");
-    assert!(initialized.status.success(), "the throwaway repository is made: {}", String::from_utf8_lossy(initialized.stderr.as_slice()));
+    let initialized: Output = Command::new("git")
+        .arg("init")
+        .arg("--quiet")
+        .arg(repository.as_path())
+        .output()
+        .expect("git runs");
+    assert!(
+        initialized.status.success(),
+        "the throwaway repository is made: {}",
+        String::from_utf8_lossy(initialized.stderr.as_slice())
+    );
     return repository;
 }
 
 /// One start's status and both streams.
-fn started(program: &Path, arguments: &[&str], in_repository: &Path) -> (Option<i32>, String) {
-    let output: Output = Command::new(program).args(arguments).current_dir(in_repository).output().expect("the start runs");
-    return (output.status.code(), format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice())));
+fn started(
+    program: &Path,
+    arguments: &[&str],
+    in_repository: &Path,
+) -> (Option<i32>, String) {
+    let output: Output = Command::new(program)
+        .args(arguments)
+        .current_dir(in_repository)
+        .output()
+        .expect("the start runs");
+    return (
+        output.status.code(),
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(output.stdout.as_slice()),
+            String::from_utf8_lossy(output.stderr.as_slice())
+        ),
+    );
 }
 
 /// What:
@@ -73,12 +109,30 @@ fn started(program: &Path, arguments: &[&str], in_repository: &Path) -> (Option<
 fn a_bare_word_under_the_installed_name_is_refused_and_writes_no_marker() {
     let link: PathBuf = installed_name("bare-word");
     let repository: PathBuf = throwaway_repository(link.as_path(), "bare-word");
-    let (status, said): (Option<i32>, String) = started(link.as_path(), &["boot-reconcile"], repository.as_path());
-    assert_eq!(status, Some(2), "a misuse answers the refusal status: {said}");
-    assert!(said.starts_with(refusal_prefix().as_str()), "the refusal opens with the words: {said}");
-    assert!(said.contains("`boot-reconcile`"), "the refusal names the word a person typed: {said}");
-    assert!(said.contains("usage: "), "the usage follows the refusal: {said}");
-    assert!(!repository.join(LOCK_HOLDERS).exists(), "no part of the wrapper ran, so no lock holder was recorded: {}", repository.join(LOCK_HOLDERS).display());
+    let (status, said): (Option<i32>, String) =
+        started(link.as_path(), &["boot-reconcile"], repository.as_path());
+    assert_eq!(
+        status,
+        Some(2),
+        "a misuse answers the refusal status: {said}"
+    );
+    assert!(
+        said.starts_with(refusal_prefix().as_str()),
+        "the refusal opens with the words: {said}"
+    );
+    assert!(
+        said.contains("`boot-reconcile`"),
+        "the refusal names the word a person typed: {said}"
+    );
+    assert!(
+        said.contains("usage: "),
+        "the usage follows the refusal: {said}"
+    );
+    assert!(
+        !repository.join(LOCK_HOLDERS).exists(),
+        "no part of the wrapper ran, so no lock holder was recorded: {}",
+        repository.join(LOCK_HOLDERS).display()
+    );
 }
 
 /// What:
@@ -89,13 +143,28 @@ fn the_group_word_alone_is_refused_and_names_the_modes() {
     let link: PathBuf = installed_name("group-word-alone");
     let repository: PathBuf = throwaway_repository(link.as_path(), "group-word-alone");
     let words: [&str; 2] = root_mode_words();
-    let (status, said): (Option<i32>, String) = started(link.as_path(), &words, repository.as_path());
+    let (status, said): (Option<i32>, String) =
+        started(link.as_path(), &words, repository.as_path());
     assert_eq!(status, Some(2), "{said}");
     assert!(said.starts_with(refusal_prefix().as_str()), "{said}");
-    for mode in ["boot-reconcile", "start-probe", "shutdown-unmount", "holder-scan", "adopt-worktree-parent", "record-checkout", "mount-path-descendant"] {
-        assert!(said.contains(mode), "the refusal names every mode and lacks {mode}: {said}");
+    for mode in [
+        "boot-reconcile",
+        "start-probe",
+        "shutdown-unmount",
+        "holder-scan",
+        "adopt-worktree-parent",
+        "record-checkout",
+        "mount-path-descendant",
+    ] {
+        assert!(
+            said.contains(mode),
+            "the refusal names every mode and lacks {mode}: {said}"
+        );
     }
-    assert!(!repository.join(LOCK_HOLDERS).exists(), "nothing of the wrapper ran");
+    assert!(
+        !repository.join(LOCK_HOLDERS).exists(),
+        "nothing of the wrapper ran"
+    );
 }
 
 /// What:
@@ -109,17 +178,35 @@ fn the_group_word_alone_is_refused_and_names_the_modes() {
 fn the_installed_name_answers_help_and_version_and_the_words_answer_version() {
     let link: PathBuf = installed_name("answers");
     let repository: PathBuf = throwaway_repository(link.as_path(), "answers");
-    let (help_status, help): (Option<i32>, String) = started(link.as_path(), &["--help"], repository.as_path());
+    let (help_status, help): (Option<i32>, String) =
+        started(link.as_path(), &["--help"], repository.as_path());
     assert_eq!(help_status, Some(0), "{help}");
-    assert!(help.starts_with("usage: "), "`--help` prints the modes' usage: {help}");
-    let (version_status, version): (Option<i32>, String) = started(link.as_path(), &["--version"], repository.as_path());
+    assert!(
+        help.starts_with("usage: "),
+        "`--help` prints the modes' usage: {help}"
+    );
+    let (version_status, version): (Option<i32>, String) =
+        started(link.as_path(), &["--version"], repository.as_path());
     assert_eq!(version_status, Some(0), "{version}");
-    assert!(version.starts_with(words_text().as_str()), "`--version` prints the words and the release: {version}");
+    assert!(
+        version.starts_with(words_text().as_str()),
+        "`--version` prints the words and the release: {version}"
+    );
     let words: [&str; 2] = root_mode_words();
-    let (words_status, words_version): (Option<i32>, String) = started(link.as_path(), &[words[0], words[1], "--version"], repository.as_path());
+    let (words_status, words_version): (Option<i32>, String) = started(
+        link.as_path(),
+        &[words[0], words[1], "--version"],
+        repository.as_path(),
+    );
     assert_eq!(words_status, Some(0), "{words_version}");
-    assert_eq!(words_version, version, "the name and the words answer one line");
-    assert!(!repository.join(LOCK_HOLDERS).exists(), "neither answer reached the wrapper's own entry");
+    assert_eq!(
+        words_version, version,
+        "the name and the words answer one line"
+    );
+    assert!(
+        !repository.join(LOCK_HOLDERS).exists(),
+        "neither answer reached the wrapper's own entry"
+    );
 }
 
 /// What:
@@ -134,8 +221,16 @@ fn a_link_named_git_answers_the_bare_word_as_the_wrapper_and_writes_the_marker()
     let link: PathBuf = installed_name("as-git");
     let as_git: PathBuf = link.parent().expect("the link's folder").join("git");
     let _removed: std::io::Result<()> = std::fs::remove_file(as_git.as_path());
-    std::os::unix::fs::symlink(crate::support_installed_name::BUILT_WRAPPER, as_git.as_path()).expect("the wrapper's own link");
+    std::os::unix::fs::symlink(
+        crate::support_installed_name::BUILT_WRAPPER,
+        as_git.as_path(),
+    )
+    .expect("the wrapper's own link");
     let repository: PathBuf = throwaway_repository(link.as_path(), "as-git");
-    let (_status, _said): (Option<i32>, String) = started(as_git.as_path(), &["boot-reconcile"], repository.as_path());
-    assert!(repository.join(LOCK_HOLDERS).exists(), "a start that reached the wrapper's entry records the lock holder, which is what the arms above read for");
+    let (_status, _said): (Option<i32>, String) =
+        started(as_git.as_path(), &["boot-reconcile"], repository.as_path());
+    assert!(
+        repository.join(LOCK_HOLDERS).exists(),
+        "a start that reached the wrapper's entry records the lock holder, which is what the arms above read for"
+    );
 }

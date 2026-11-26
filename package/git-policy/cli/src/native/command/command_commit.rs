@@ -27,14 +27,38 @@
 /// import { parseOptions } from './command_options.ts';
 /// ```
 use crate::command_commit_table::{
-    ALL, ALLOW_EMPTY, AMEND, COMMIT_TABLE, DRY_RUN, FIXUP, INCLUDE, INTERACTIVE, LONG, NULL, ONLY,
-    PATCH, PATHSPEC_FILE_NUL, PATHSPEC_FROM_FILE, PORCELAIN, SHORT,
+    ALL,
+    ALLOW_EMPTY,
+    AMEND,
+    COMMIT_TABLE,
+    DRY_RUN,
+    FIXUP,
+    INCLUDE,
+    INTERACTIVE,
+    LONG,
+    NULL,
+    ONLY,
+    PATCH,
+    PATHSPEC_FILE_NUL,
+    PATHSPEC_FROM_FILE,
+    PORCELAIN,
+    SHORT,
 };
 use crate::command_options::{
-    DEFAULT_MODE, Occurrence, OptionError, OptionValue, ParsedOptions, parse_options,
+    DEFAULT_MODE,
+    Occurrence,
+    OptionError,
+    OptionValue,
+    ParsedOptions,
+    parse_options,
 };
 use crate::command_options_query::{
-    WrapperFlags, is_enabled, last_occurrence, positional_tokens, split_wrapper_flags, value_bytes,
+    WrapperFlags,
+    is_enabled,
+    last_occurrence,
+    positional_tokens,
+    split_wrapper_flags,
+    value_bytes,
 };
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
@@ -186,7 +210,10 @@ fn has_status_format(parsed: &ParsedOptions) -> bool {
 /// ```ts
 /// const value = last === undefined || last.negated ? undefined : last.value;
 /// ```
-fn final_value(parsed: &ParsedOptions, id: u16) -> Option<OptionValue> {
+fn final_value(
+    parsed: &ParsedOptions,
+    id: u16,
+) -> Option<OptionValue> {
     let last: Option<Occurrence> = last_occurrence(parsed, id);
     // `if let Some(found) = last` runs only when the option was written.
     if let Some(found) = last {

@@ -15,10 +15,19 @@
 ///  its question,
 ///  its codes and the argument builders.
 use super::{
-    BULK_ADD_CODE, AddExplicitQuestion, BulkScope, StagedSelection, add_explicit_question,
-    decide_add_explicit, pathspec_spellings, scope_of,
+    AddExplicitQuestion,
+    BULK_ADD_CODE,
+    BulkScope,
+    StagedSelection,
+    add_explicit_question,
+    decide_add_explicit,
+    pathspec_spellings,
+    scope_of,
 };
-use crate::command_test_support::{byte_argument, os_arguments};
+use crate::command_test_support::{
+    byte_argument,
+    os_arguments,
+};
 use std::ffi::OsString;
 
 /// A measurement that found every path of a repository holding `count` paths.
@@ -32,7 +41,10 @@ fn whole_repository(count: usize) -> Option<StagedSelection> {
 
 /// A measurement that found every path of the directory the caller runs in,
 ///  `below` of the repository's `count`.
-fn whole_directory(below: usize, count: usize) -> Option<StagedSelection> {
+fn whole_directory(
+    below: usize,
+    count: usize,
+) -> Option<StagedSelection> {
     return Some(StagedSelection {
         selected: below,
         repository: count,
@@ -41,7 +53,10 @@ fn whole_directory(below: usize, count: usize) -> Option<StagedSelection> {
 }
 
 /// A measurement that left `missing` paths of the repository out.
-fn some_selected(selected: usize, count: usize) -> Option<StagedSelection> {
+fn some_selected(
+    selected: usize,
+    count: usize,
+) -> Option<StagedSelection> {
     return Some(StagedSelection {
         selected,
         repository: count,
@@ -50,7 +65,10 @@ fn some_selected(selected: usize, count: usize) -> Option<StagedSelection> {
 }
 
 /// The rejection text naming the given tokens and what they sweep up.
-fn rejection(tokens: &str, swept: &str) -> Option<String> {
+fn rejection(
+    tokens: &str,
+    swept: &str,
+) -> Option<String> {
     return Some(format!(
         "monochromatic-git-policy-cli: git add rejects bulk-staging patterns ({tokens}) because they sweep up paths \
          the caller did not intend to stage, leaving the index in a state that does not match a \
@@ -76,7 +94,10 @@ fn question(values: &[&str]) -> Option<AddExplicitQuestion> {
 }
 
 /// Decide one invocation written as text against a measured selection.
-fn decide(values: &[&str], selection: Option<StagedSelection>) -> Option<String> {
+fn decide(
+    values: &[&str],
+    selection: Option<StagedSelection>,
+) -> Option<String> {
     return decide_add_explicit(&question(values)?, selection.as_ref());
 }
 
@@ -87,13 +108,41 @@ fn decide(values: &[&str], selection: Option<StagedSelection>) -> Option<String>
 fn bulk_flags_are_rejected_and_named() {
     assert_eq!(BULK_ADD_CODE, "bulk-add-rejected");
     for (values, tokens, swept) in [
-        (vec!["add", "-A"], "-A", "It selects every changed path in this repository."),
-        (vec!["add", "--all"], "--all", "It selects every changed path in this repository."),
-        (vec!["add", "-vA"], "-vA", "It selects every changed path in this repository."),
-        (vec!["add", "-Au"], "-Au", "It selects every changed path in this repository."),
-        (vec!["add", "-u"], "-u", "It selects every changed tracked path in this repository."),
-        (vec!["add", "--update"], "--update", "It selects every changed tracked path in this repository."),
-        (vec!["-C", "dir", "--no-pager", "add", "-A"], "-A", "It selects every changed path in this repository."),
+        (
+            vec!["add", "-A"],
+            "-A",
+            "It selects every changed path in this repository.",
+        ),
+        (
+            vec!["add", "--all"],
+            "--all",
+            "It selects every changed path in this repository.",
+        ),
+        (
+            vec!["add", "-vA"],
+            "-vA",
+            "It selects every changed path in this repository.",
+        ),
+        (
+            vec!["add", "-Au"],
+            "-Au",
+            "It selects every changed path in this repository.",
+        ),
+        (
+            vec!["add", "-u"],
+            "-u",
+            "It selects every changed tracked path in this repository.",
+        ),
+        (
+            vec!["add", "--update"],
+            "--update",
+            "It selects every changed tracked path in this repository.",
+        ),
+        (
+            vec!["-C", "dir", "--no-pager", "add", "-A"],
+            "-A",
+            "It selects every changed path in this repository.",
+        ),
     ] {
         assert_eq!(
             decide(values.as_slice(), None),
@@ -224,10 +273,13 @@ fn a_spelling_that_names_something_is_let_through_even_when_it_selects_everythin
 ///  and only the reach-only ones are named.
 #[test]
 fn several_pathspecs_are_judged_together() {
-    let asked: AddExplicitQuestion = question(&["add", "-A", "file.ts", ".", "./x"]).expect("a question");
+    let asked: AddExplicitQuestion =
+        question(&["add", "-A", "file.ts", ".", "./x"]).expect("a question");
     let spellings: Vec<String> = pathspec_spellings(&asked)
         .iter()
-        .map(|spelling| { return spelling.to_string_lossy().into_owned(); })
+        .map(|spelling| {
+            return spelling.to_string_lossy().into_owned();
+        })
         .collect();
     assert_eq!(spellings, vec![String::from("."), String::from("./x")]);
     // The flag is named first because the caller wrote it first.
@@ -238,7 +290,10 @@ fn several_pathspecs_are_judged_together() {
     );
     // One cluster matching twice is named once.
     assert_eq!(
-        decide_add_explicit(&question(&["add", "-Au", "."]).expect("a question"), whole_repository(2).as_ref()),
+        decide_add_explicit(
+            &question(&["add", "-Au", "."]).expect("a question"),
+            whole_repository(2).as_ref()
+        ),
         rejection("-Au, .", repository_paths(2).as_str())
     );
 }
@@ -256,7 +311,10 @@ fn a_missing_measurement_lets_a_pathspec_through() {
     );
     assert_eq!(
         decide(&["add", "-u"], None),
-        rejection("-u", "It selects every changed tracked path in this repository.")
+        rejection(
+            "-u",
+            "It selects every changed tracked path in this repository."
+        )
     );
 }
 
@@ -268,25 +326,37 @@ fn a_missing_measurement_lets_a_pathspec_through() {
 fn a_literal_pathspec_mode_caller_stages_by_its_own_spelling() {
     for spelling in ["*", "**", ":(top)", ":(glob)**", ":/", ":/*", ":/**"] {
         assert_eq!(
-            decide(&["--literal-pathspecs", "add", "--", spelling], whole_repository(1)),
+            decide(
+                &["--literal-pathspecs", "add", "--", spelling],
+                whole_repository(1)
+            ),
             None,
             "{spelling:?} is a file name that happens to be the whole repository"
         );
     }
     for spelling in [".", "./"] {
         assert_eq!(
-            decide(&["--literal-pathspecs", "add", "--", spelling], whole_repository(2)),
+            decide(
+                &["--literal-pathspecs", "add", "--", spelling],
+                whole_repository(2)
+            ),
             rejection(spelling, repository_paths(2).as_str()),
             "{spelling:?} is a directory in either mode"
         );
     }
     assert_eq!(
-        decide(&["--literal-pathspecs", "--no-literal-pathspecs", "add", "**"], whole_repository(2)),
+        decide(
+            &["--literal-pathspecs", "--no-literal-pathspecs", "add", "**"],
+            whole_repository(2)
+        ),
         rejection("**", repository_paths(2).as_str()),
         "the later global option wins"
     );
     assert_eq!(
-        decide(&["--no-literal-pathspecs", "--literal-pathspecs", "add", "**"], whole_repository(1)),
+        decide(
+            &["--no-literal-pathspecs", "--literal-pathspecs", "add", "**"],
+            whole_repository(1)
+        ),
         None
     );
     assert_eq!(
@@ -302,20 +372,36 @@ fn a_literal_pathspec_mode_caller_stages_by_its_own_spelling() {
 #[test]
 fn a_global_option_value_is_no_pathspec_mode() {
     assert_eq!(
-        decide(&["-C", "--literal-pathspecs", "add", "--", "**"], whole_repository(2)),
+        decide(
+            &["-C", "--literal-pathspecs", "add", "--", "**"],
+            whole_repository(2)
+        ),
         rejection("**", repository_paths(2).as_str())
     );
     assert_eq!(
-        decide(&["-c", "--literal-pathspecs", "add", "--", "**"], whole_repository(2)),
+        decide(
+            &["-c", "--literal-pathspecs", "add", "--", "**"],
+            whole_repository(2)
+        ),
         rejection("**", repository_paths(2).as_str())
     );
     assert_eq!(
-        decide(&["--git-dir", "--literal-pathspecs", "add", "--", "."], whole_repository(2)),
+        decide(
+            &["--git-dir", "--literal-pathspecs", "add", "--", "."],
+            whole_repository(2)
+        ),
         rejection(".", repository_paths(2).as_str())
     );
     assert_eq!(
         decide(
-            &["-C", "--literal-pathspecs", "--literal-pathspecs", "add", "--", "**"],
+            &[
+                "-C",
+                "--literal-pathspecs",
+                "--literal-pathspecs",
+                "add",
+                "--",
+                "**"
+            ],
             whole_repository(1)
         ),
         None,
@@ -368,12 +454,21 @@ fn explicit_forms_ask_nothing() {
 ///  and nothing for a selection that leaves a path out.
 #[test]
 fn the_scope_of_a_measurement_names_the_set_it_covers() {
-    assert_eq!(scope_of(&whole_repository(4).expect("a selection")), Some(BulkScope::Repository));
-    assert_eq!(scope_of(&whole_directory(2, 9).expect("a selection")), Some(BulkScope::Directory));
+    assert_eq!(
+        scope_of(&whole_repository(4).expect("a selection")),
+        Some(BulkScope::Repository)
+    );
+    assert_eq!(
+        scope_of(&whole_directory(2, 9).expect("a selection")),
+        Some(BulkScope::Directory)
+    );
     assert_eq!(scope_of(&some_selected(4, 9).expect("a selection")), None);
     assert_eq!(scope_of(&some_selected(0, 0).expect("a selection")), None);
     // The whole repository is named before the directory it also happens to be.
-    assert_eq!(scope_of(&whole_repository(1).expect("a selection")), Some(BulkScope::Repository));
+    assert_eq!(
+        scope_of(&whole_repository(1).expect("a selection")),
+        Some(BulkScope::Repository)
+    );
 }
 
 /// A token that is not UTF-8 beside a bulk token does not disturb the question.
@@ -386,7 +481,8 @@ fn undecodable_paths_do_not_disturb_the_decision() {
         None
     );
     let mixed: AddExplicitQuestion =
-        add_explicit_question(&[OsString::from("add"), raw, OsString::from(".")]).expect("a question");
+        add_explicit_question(&[OsString::from("add"), raw, OsString::from(".")])
+            .expect("a question");
     assert_eq!(
         decide_add_explicit(&mixed, whole_repository(2).as_ref()),
         rejection(".", repository_paths(2).as_str())

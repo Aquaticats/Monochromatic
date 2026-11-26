@@ -17,12 +17,31 @@
 
 /// The lines and the phase arithmetic.
 use super::{
-    Answered, Arrival, ExitReason, LOG_PREFIX, LandTiming, SLOW_LOCK_STEP, WaitNotes, answered_line, exit_line, in_the_repository_at, index_update_ms_of, retire_line,
-    stamped_line, started_line, wait_line,
+    Answered,
+    Arrival,
+    ExitReason,
+    LOG_PREFIX,
+    LandTiming,
+    SLOW_LOCK_STEP,
+    WaitNotes,
+    answered_line,
+    exit_line,
+    in_the_repository_at,
+    index_update_ms_of,
+    retire_line,
+    stamped_line,
+    started_line,
+    wait_line,
 };
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Milliseconds each phase is given in the controls;
 /// all different,
@@ -70,9 +89,13 @@ const REPOSITORY: &str = "/home/a person/repo";
 /// after the leading word.
 fn fields(line: &str) -> HashMap<String, String> {
     let mut found: HashMap<String, String> = HashMap::new();
-    let mut rest: &str = line.split_once(' ').map_or("", |(_, tail)| { return tail; });
+    let mut rest: &str = line.split_once(' ').map_or("", |(_, tail)| {
+        return tail;
+    });
     while !rest.is_empty() {
-        let Some((key, after)) = rest.split_once('=') else { break };
+        let Some((key, after)) = rest.split_once('=') else {
+            break;
+        };
         let (value, tail): (String, &str) = if let Some(quoted) = after.strip_prefix('"') {
             let mut end: usize = 0;
             let mut escaped: bool = false;
@@ -112,8 +135,12 @@ fn landing() -> LandTiming {
         syncs: Vec::new(),
         lock_notes: WaitNotes {
             holder: Some(String::from("Process 4242 (git)")),
-            found: Some(String::from("foreign no-marker size=0 age_ms=40 open_by=[4242 (git)]")),
-            last: Some(String::from("service seq=7 pid=77 state=running age_ms=900")),
+            found: Some(String::from(
+                "foreign no-marker size=0 age_ms=40 open_by=[4242 (git)]",
+            )),
+            last: Some(String::from(
+                "service seq=7 pid=77 state=running age_ms=900",
+            )),
             looks: 4,
             staging: Duration::from_millis(STAGE_MS),
             stage_kind: "cold",
@@ -126,8 +153,17 @@ fn landing() -> LandTiming {
 }
 
 /// The line for the controls' request.
-fn line_for(request: &str, reference: &str, landing: &LandTiming) -> String {
-    let land_total: Duration = landing.lock_wait + landing.objects + landing.journal + landing.ref_update + landing.index_update + Duration::from_millis(READS_MS);
+fn line_for(
+    request: &str,
+    reference: &str,
+    landing: &LandTiming,
+) -> String {
+    let land_total: Duration = landing.lock_wait
+        + landing.objects
+        + landing.journal
+        + landing.ref_update
+        + landing.index_update
+        + Duration::from_millis(READS_MS);
     return answered_line(&Answered {
         request,
         reference,
@@ -137,13 +173,18 @@ fn line_for(request: &str, reference: &str, landing: &LandTiming) -> String {
         size: 3,
         position: 2,
         queued_behind: QUEUED_BEHIND,
-        arrival: Arrival { accepted: Instant::now(), read: Duration::from_millis(READ_MS) },
+        arrival: Arrival {
+            accepted: Instant::now(),
+            read: Duration::from_millis(READ_MS),
+        },
         queued: Duration::from_millis(QUEUED_MS),
         settle: Duration::from_millis(SETTLE_MS),
         landing,
         land_total,
         answer: Duration::from_millis(ANSWER_MS),
-        total: Duration::from_millis(READ_MS + QUEUED_MS + SETTLE_MS) + land_total + Duration::from_millis(ANSWER_MS),
+        total: Duration::from_millis(READ_MS + QUEUED_MS + SETTLE_MS)
+            + land_total
+            + Duration::from_millis(ANSWER_MS),
         quiet: &[],
         steps: &[],
         steps_dropped: 0,
@@ -161,7 +202,10 @@ fn the_answered_line_states_each_phase_of_the_wait() {
     assert_eq!(found["branch"], "refs/heads/main");
     assert_eq!(found["outcome"], "landed");
     assert_eq!(found["batch"], "9");
-    assert_eq!(found["repository"], REPOSITORY, "the repository the batch landed in is named, quoted so a path with a space stays one field: {line}");
+    assert_eq!(
+        found["repository"], REPOSITORY,
+        "the repository the batch landed in is named, quoted so a path with a space stays one field: {line}"
+    );
     assert_eq!(found["size"], "3");
     assert_eq!(found["position"], "2");
     assert_eq!(found["read_ms"], READ_MS.to_string());
@@ -174,8 +218,16 @@ fn the_answered_line_states_each_phase_of_the_wait() {
     assert_eq!(found["journal_ms"], JOURNAL_MS.to_string());
     assert_eq!(found["ref_ms"], REF_MS.to_string());
     assert_eq!(found["index_update_ms"], INDEX_UPDATE_MS.to_string());
-    assert_eq!(found["lock_hold_ms"], HOLD_MS.to_string(), "the hold is stated, and is no phase of the landing");
-    assert_eq!(found["queued_behind"], QUEUED_BEHIND.to_string(), "how many commits waited for this landing is stated");
+    assert_eq!(
+        found["lock_hold_ms"],
+        HOLD_MS.to_string(),
+        "the hold is stated, and is no phase of the landing"
+    );
+    assert_eq!(
+        found["queued_behind"],
+        QUEUED_BEHIND.to_string(),
+        "how many commits waited for this landing is stated"
+    );
     assert_eq!(found["attempts"], "2");
     assert_eq!(found["answer_ms"], ANSWER_MS.to_string());
 }
@@ -184,11 +236,37 @@ fn the_answered_line_states_each_phase_of_the_wait() {
 /// and the request's phases to the total from acceptance to answer.
 #[test]
 fn the_phases_add_up_to_the_totals() {
-    let found: HashMap<String, String> = fields(line_for("req-2", "refs/heads/main", &landing()).as_str());
-    let number = |name: &str| -> u64 { return found[name].parse::<u64>().expect("a number"); };
-    let landing_phases: u64 = ["lock_wait_ms", "reads_ms", "objects_ms", "journal_ms", "ref_ms", "index_update_ms"].iter().map(|name| { return number(name); }).sum();
+    let found: HashMap<String, String> =
+        fields(line_for("req-2", "refs/heads/main", &landing()).as_str());
+    let number = |name: &str| -> u64 {
+        return found[name].parse::<u64>().expect("a number");
+    };
+    let landing_phases: u64 = [
+        "lock_wait_ms",
+        "reads_ms",
+        "objects_ms",
+        "journal_ms",
+        "ref_ms",
+        "index_update_ms",
+    ]
+    .iter()
+    .map(|name| {
+        return number(name);
+    })
+    .sum();
     assert_eq!(landing_phases, number("landing_ms"));
-    let request_phases: u64 = ["read_ms", "queued_ms", "settle_ms", "landing_ms", "answer_ms"].iter().map(|name| { return number(name); }).sum();
+    let request_phases: u64 = [
+        "read_ms",
+        "queued_ms",
+        "settle_ms",
+        "landing_ms",
+        "answer_ms",
+    ]
+    .iter()
+    .map(|name| {
+        return number(name);
+    })
+    .sum();
     assert_eq!(request_phases, number("total_ms"));
 }
 
@@ -244,18 +322,38 @@ fn the_answered_line_names_each_read_of_the_landing() {
     assert_eq!(found["reads_changed_ms"], READS_CHANGED_MS.to_string());
     assert_eq!(found["reads_content_ms"], READS_CONTENT_MS.to_string());
     assert_eq!(found["reads_witness_ms"], READS_WITNESS_MS.to_string());
-    assert_eq!(found["reads_conclusion_ms"], READS_CONCLUSION_MS.to_string());
+    assert_eq!(
+        found["reads_conclusion_ms"],
+        READS_CONCLUSION_MS.to_string()
+    );
     assert_eq!(found["reads_owed_ms"], READS_OWED_MS.to_string());
     assert_eq!(found["reads_follow_ms"], READS_FOLLOW_MS.to_string());
     // The named reads are parts of `reads_ms` and never more than it: the landing's own phases stay the whole.
-    let named: u64 = ["reads_config_ms", "reads_branch_ms", "reads_parents_ms", "reads_changed_ms", "reads_content_ms", "reads_witness_ms", "reads_conclusion_ms", "reads_owed_ms", "reads_follow_ms"]
-        .iter()
-        .map(|name| {
-            return found[*name].parse::<u64>().expect("a number");
-        })
-        .sum();
-    assert!(named <= READS_MS, "the named reads add up to no more than the residual: {named} of {READS_MS}");
-    assert_eq!(found["reads_ms"], READS_MS.to_string(), "the residual still states its whole");
+    let named: u64 = [
+        "reads_config_ms",
+        "reads_branch_ms",
+        "reads_parents_ms",
+        "reads_changed_ms",
+        "reads_content_ms",
+        "reads_witness_ms",
+        "reads_conclusion_ms",
+        "reads_owed_ms",
+        "reads_follow_ms",
+    ]
+    .iter()
+    .map(|name| {
+        return found[*name].parse::<u64>().expect("a number");
+    })
+    .sum();
+    assert!(
+        named <= READS_MS,
+        "the named reads add up to no more than the residual: {named} of {READS_MS}"
+    );
+    assert_eq!(
+        found["reads_ms"],
+        READS_MS.to_string(),
+        "the residual still states its whole"
+    );
 }
 
 /// Milliseconds each sync of the control's landing is given:
@@ -268,10 +366,26 @@ const SYNC_LOCK_MARKER_MS: u64 = 43;
 fn landing_with_syncs() -> LandTiming {
     let mut timed: LandTiming = landing();
     timed.syncs = vec![
-        crate::service_durable_syncs::SyncFigure { what: "built-index", waited: true, took: Duration::from_millis(SYNC_BUILT_INDEX_MS) },
-        crate::service_durable_syncs::SyncFigure { what: "intent-file", waited: false, took: Duration::ZERO },
-        crate::service_durable_syncs::SyncFigure { what: "lock-marker", waited: true, took: Duration::from_millis(SYNC_LOCK_MARKER_MS) },
-        crate::service_durable_syncs::SyncFigure { what: "intent-dir", waited: false, took: Duration::ZERO },
+        crate::service_durable_syncs::SyncFigure {
+            what: "built-index",
+            waited: true,
+            took: Duration::from_millis(SYNC_BUILT_INDEX_MS),
+        },
+        crate::service_durable_syncs::SyncFigure {
+            what: "intent-file",
+            waited: false,
+            took: Duration::ZERO,
+        },
+        crate::service_durable_syncs::SyncFigure {
+            what: "lock-marker",
+            waited: true,
+            took: Duration::from_millis(SYNC_LOCK_MARKER_MS),
+        },
+        crate::service_durable_syncs::SyncFigure {
+            what: "intent-dir",
+            waited: false,
+            took: Duration::ZERO,
+        },
     ];
     return timed;
 }
@@ -291,15 +405,22 @@ fn the_answered_line_states_each_sync_of_the_landing_with_its_time() {
     let found: HashMap<String, String> = fields(line.as_str());
     assert_eq!(found["syncs_waited"], "2");
     assert_eq!(found["syncs_queued"], "2");
-    assert_eq!(found["sync_held_ms"], (SYNC_BUILT_INDEX_MS + SYNC_LOCK_MARKER_MS).to_string());
-    assert_eq!(found["syncs"], "built-index=41;intent-file=queued;lock-marker=43;intent-dir=queued");
+    assert_eq!(
+        found["sync_held_ms"],
+        (SYNC_BUILT_INDEX_MS + SYNC_LOCK_MARKER_MS).to_string()
+    );
+    assert_eq!(
+        found["syncs"],
+        "built-index=41;intent-file=queued;lock-marker=43;intent-dir=queued"
+    );
 }
 
 /// A landing that made no sync says so in numbers and in an empty list,
 /// so a reader never has to tell a missing field from a landing that made none.
 #[test]
 fn a_landing_that_made_no_sync_states_none() {
-    let found: HashMap<String, String> = fields(line_for("req-nosyncs", "refs/heads/main", &landing()).as_str());
+    let found: HashMap<String, String> =
+        fields(line_for("req-nosyncs", "refs/heads/main", &landing()).as_str());
     assert_eq!(found["syncs_waited"], "0");
     assert_eq!(found["syncs_queued"], "0");
     assert_eq!(found["sync_held_ms"], "0");
@@ -324,7 +445,11 @@ fn a_hostile_request_text_stays_one_line_and_reads_back() {
     let reference: &str = "refs/heads/a\"b\\c\td";
     let line: String = line_for(hostile, reference, &landing());
     assert!(!line.contains('\n'), "{line}");
-    assert_eq!(line.matches("outcome=").count(), 2, "the forged word is inside the quoted request: {line}");
+    assert_eq!(
+        line.matches("outcome=").count(),
+        2,
+        "the forged word is inside the quoted request: {line}"
+    );
     let found: HashMap<String, String> = fields(line.as_str());
     assert_eq!(found["outcome"], "landed");
     assert_eq!(found["request"], format!("{hostile:?}").trim_matches('"'));
@@ -335,8 +460,15 @@ fn a_hostile_request_text_stays_one_line_and_reads_back() {
 #[test]
 fn the_reads_are_the_remainder_of_the_landing() {
     let phases: LandTiming = landing();
-    let named: Duration = phases.lock_wait + phases.objects + phases.journal + phases.ref_update + phases.index_update;
-    assert_eq!(phases.reads(named + Duration::from_millis(READS_MS)), Duration::from_millis(READS_MS));
+    let named: Duration = phases.lock_wait
+        + phases.objects
+        + phases.journal
+        + phases.ref_update
+        + phases.index_update;
+    assert_eq!(
+        phases.reads(named + Duration::from_millis(READS_MS)),
+        Duration::from_millis(READS_MS)
+    );
     assert_eq!(phases.reads(Duration::ZERO), Duration::ZERO);
 }
 
@@ -350,7 +482,10 @@ fn the_start_line_names_release_protocol_and_instance() {
     assert_eq!(served["protocol"], "7");
     assert_eq!(served["pid"], std::process::id().to_string());
     assert_eq!(served["instance"], "abc123");
-    assert_eq!(fields(started_line("0.5.8", 7, None).as_str())["instance"], "any");
+    assert_eq!(
+        fields(started_line("0.5.8", 7, None).as_str())["instance"],
+        "any"
+    );
 }
 
 /// The retire line names the release of the service that is asked to go.
@@ -366,7 +501,12 @@ fn the_retire_line_names_the_release_that_retires() {
 #[test]
 fn the_exit_line_states_reason_and_uptime() {
     let up: Duration = Duration::from_millis(READS_MS * 1_000);
-    for (reason, word) in [(ExitReason::Idle, "idle"), (ExitReason::Retire, "retire"), (ExitReason::Error, "error"), (ExitReason::WorktreeGone, "worktree-gone")] {
+    for (reason, word) in [
+        (ExitReason::Idle, "idle"),
+        (ExitReason::Retire, "retire"),
+        (ExitReason::Error, "error"),
+        (ExitReason::WorktreeGone, "worktree-gone"),
+    ] {
         let found: HashMap<String, String> = fields(exit_line(reason, up).as_str());
         assert_eq!(found["reason"], word);
         assert_eq!(found["uptime_ms"], up.as_millis().to_string());
@@ -386,23 +526,48 @@ fn the_exit_line_states_reason_and_uptime() {
 ///  with nothing to say where the other 92 s went.
 #[test]
 fn the_answered_line_says_what_the_wait_for_the_lock_was_for() {
-    let found: HashMap<String, String> = fields(line_for("req-4", "refs/heads/main", &landing()).as_str());
+    let found: HashMap<String, String> =
+        fields(line_for("req-4", "refs/heads/main", &landing()).as_str());
     assert_eq!(found["lock_stage_ms"], STAGE_MS.to_string());
     assert_eq!(found["lock_stage_kind"], "cold");
     assert_eq!(found["lock_place_ms"], PLACE_MS.to_string());
     assert_eq!(found["lock_setup_ms"], SETUP_MS.to_string());
     assert_eq!(found["lock_after_ms"], AFTER_MS.to_string());
     assert_eq!(found["lock_looks"], "4");
-    assert_eq!(found["lock_found"], "foreign no-marker size=0 age_ms=40 open_by=[4242 (git)]");
-    assert_eq!(found["lock_last"], "service seq=7 pid=77 state=running age_ms=900");
+    assert_eq!(
+        found["lock_found"],
+        "foreign no-marker size=0 age_ms=40 open_by=[4242 (git)]"
+    );
+    assert_eq!(
+        found["lock_last"],
+        "service seq=7 pid=77 state=running age_ms=900"
+    );
     let mut free: LandTiming = landing();
-    free.lock_notes = WaitNotes { staging: Duration::from_millis(STAGE_MS), stage_kind: "pre", ..WaitNotes::default() };
+    free.lock_notes = WaitNotes {
+        staging: Duration::from_millis(STAGE_MS),
+        stage_kind: "pre",
+        ..WaitNotes::default()
+    };
     let line: String = line_for("req-5", "refs/heads/main", &free);
-    assert_eq!(fields(line.as_str())["lock_stage_ms"], STAGE_MS.to_string(), "{line}");
+    assert_eq!(
+        fields(line.as_str())["lock_stage_ms"],
+        STAGE_MS.to_string(),
+        "{line}"
+    );
     assert_eq!(fields(line.as_str())["lock_stage_kind"], "pre", "{line}");
-    assert_eq!(fields(line.as_str())["lock_setup_ms"], "0", "a quick readying is stated as none: {line}");
-    assert!(!line.contains("lock_found") && !line.contains("lock_looks"), "a lock that was free names no holder: {line}");
-    assert!(fields(line.as_str()).contains_key("lock_place_ms"), "the placement time is always stated: {line}");
+    assert_eq!(
+        fields(line.as_str())["lock_setup_ms"],
+        "0",
+        "a quick readying is stated as none: {line}"
+    );
+    assert!(
+        !line.contains("lock_found") && !line.contains("lock_looks"),
+        "a lock that was free names no holder: {line}"
+    );
+    assert!(
+        fields(line.as_str()).contains_key("lock_place_ms"),
+        "the placement time is always stated: {line}"
+    );
 }
 
 /// The line for the end of a wait is written when the lock was found held or a step took long,
@@ -411,22 +576,67 @@ fn the_answered_line_says_what_the_wait_for_the_lock_was_for() {
 #[test]
 fn the_wait_line_is_written_for_a_held_lock_or_a_slow_step_and_not_for_a_quick_free_one() {
     let notes: WaitNotes = landing().lock_notes;
-    let line: String = wait_line(7, Path::new("repo"), Duration::from_millis(990), &notes, true).expect("a held lock is written down");
-    assert!(line.starts_with("waited for the index lock batch=7 repository=\"repo\" result=taken lock_wait_ms=990 "), "{line}");
-    assert!(line.contains("lock_found=") && line.contains("lock_last="), "{line}");
-    assert!(wait_line(7, Path::new("repo"), Duration::from_millis(990), &notes, false).expect("refused").contains("result=refused"));
-    let quick: WaitNotes = WaitNotes { staging: Duration::from_millis(3), ..WaitNotes::default() };
-    assert_eq!(wait_line(8, Path::new("repo"), Duration::from_millis(5), &quick, true), None);
-    let slow_flush: WaitNotes = WaitNotes { staging: SLOW_LOCK_STEP, ..WaitNotes::default() };
-    let slow: String = wait_line(9, Path::new("repo"), SLOW_LOCK_STEP, &slow_flush, true).expect("a slow flush is written down");
-    assert!(slow.contains(format!("lock_stage_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()) && !slow.contains("lock_found"), "{slow}");
+    let line: String = wait_line(
+        7,
+        Path::new("repo"),
+        Duration::from_millis(990),
+        &notes,
+        true,
+    )
+    .expect("a held lock is written down");
+    assert!(
+        line.starts_with(
+            "waited for the index lock batch=7 repository=\"repo\" result=taken lock_wait_ms=990 "
+        ),
+        "{line}"
+    );
+    assert!(
+        line.contains("lock_found=") && line.contains("lock_last="),
+        "{line}"
+    );
+    assert!(
+        wait_line(
+            7,
+            Path::new("repo"),
+            Duration::from_millis(990),
+            &notes,
+            false
+        )
+        .expect("refused")
+        .contains("result=refused")
+    );
+    let quick: WaitNotes = WaitNotes {
+        staging: Duration::from_millis(3),
+        ..WaitNotes::default()
+    };
+    assert_eq!(
+        wait_line(8, Path::new("repo"), Duration::from_millis(5), &quick, true),
+        None
+    );
+    let slow_flush: WaitNotes = WaitNotes {
+        staging: SLOW_LOCK_STEP,
+        ..WaitNotes::default()
+    };
+    let slow: String = wait_line(9, Path::new("repo"), SLOW_LOCK_STEP, &slow_flush, true)
+        .expect("a slow flush is written down");
+    assert!(
+        slow.contains(format!("lock_stage_ms={}", SLOW_LOCK_STEP.as_millis()).as_str())
+            && !slow.contains("lock_found"),
+        "{slow}"
+    );
     // A wait that is slow in the readying and in the removal of the staged file says so without naming a holder,
     // so the two spans are read where the lock was free at the only placement.
-    let slow_setup: WaitNotes = WaitNotes { setup: SLOW_LOCK_STEP, after: SLOW_LOCK_STEP, ..WaitNotes::default() };
-    let slow_readying: String = wait_line(10, Path::new("repo"), SLOW_LOCK_STEP, &slow_setup, true).expect("a slow readying is written down");
+    let slow_setup: WaitNotes = WaitNotes {
+        setup: SLOW_LOCK_STEP,
+        after: SLOW_LOCK_STEP,
+        ..WaitNotes::default()
+    };
+    let slow_readying: String = wait_line(10, Path::new("repo"), SLOW_LOCK_STEP, &slow_setup, true)
+        .expect("a slow readying is written down");
     assert!(
         slow_readying.contains(format!("lock_setup_ms={}", SLOW_LOCK_STEP.as_millis()).as_str())
-            && slow_readying.contains(format!("lock_after_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()),
+            && slow_readying
+                .contains(format!("lock_after_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()),
         "{slow_readying}"
     );
 }
@@ -438,7 +648,10 @@ fn the_wait_line_is_written_for_a_held_lock_or_a_slow_step_and_not_for_a_quick_f
 #[test]
 fn a_log_line_states_its_own_time_at_its_end() {
     let line: String = stamped_line("answered request=\"r\" total_ms=3", 1_793_648_794_987);
-    assert_eq!(line, format!("{LOG_PREFIX}answered request=\"r\" total_ms=3 at_ms=1793648794987\n"));
+    assert_eq!(
+        line,
+        format!("{LOG_PREFIX}answered request=\"r\" total_ms=3 at_ms=1793648794987\n")
+    );
     assert_eq!(line.matches('\n').count(), 1);
 }
 
@@ -453,14 +666,31 @@ fn the_userinfo_of_a_url_never_reaches_an_entry() {
     let secret_url: &str = "https://robot:hunter2@example.invalid/r.git";
     let entries = entries_of(|| {
         crate::service_warn!("the review of abc failed: could not reach {secret_url} (status 401)");
-        let _delivery = super::log_entry(crate::journald_native::Priority::Info, "x", &[("CLI_GIT_URL", secret_url.to_string())]);
+        let _delivery = super::log_entry(
+            crate::journald_native::Priority::Info,
+            "x",
+            &[("CLI_GIT_URL", secret_url.to_string())],
+        );
     });
     assert_eq!(entries.len(), 2);
     for entry in &entries {
-        assert!(!entry.message.contains("hunter2") && entry.fields.iter().all(|(_, value)| { return !value.contains("hunter2"); }), "{entry:?}");
+        assert!(
+            !entry.message.contains("hunter2")
+                && entry.fields.iter().all(|(_, value)| {
+                    return !value.contains("hunter2");
+                }),
+            "{entry:?}"
+        );
     }
     assert!(entries[0].message.starts_with("the review of abc failed: could not reach https://<credentials>@example.invalid/r.git (status 401) at_ms="), "{}", entries[0].message);
-    assert!(entries[1].fields.contains(&(String::from("CLI_GIT_URL"), String::from("https://<credentials>@example.invalid/r.git"))), "{:?}", entries[1].fields);
+    assert!(
+        entries[1].fields.contains(&(
+            String::from("CLI_GIT_URL"),
+            String::from("https://<credentials>@example.invalid/r.git")
+        )),
+        "{:?}",
+        entries[1].fields
+    );
 }
 
 /// The macros write at the priority their name says,
@@ -473,7 +703,15 @@ fn the_macros_write_at_the_priority_their_name_says() {
         crate::service_warn!("b");
         crate::service_error!("c");
     });
-    assert_eq!(entries.iter().map(|entry| { return entry.priority; }).collect::<Vec<_>>(), vec![Priority::Info, Priority::Warning, Priority::Error]);
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| {
+                return entry.priority;
+            })
+            .collect::<Vec<_>>(),
+        vec![Priority::Info, Priority::Warning, Priority::Error]
+    );
 }
 
 /// A message with a newline in it is one entry;
@@ -484,10 +722,26 @@ fn the_macros_write_at_the_priority_their_name_says() {
 /// so it cannot start a second line there.
 #[test]
 fn a_message_with_a_newline_is_one_entry_and_one_line_on_standard_error() {
-    let entries = crate::service_timing::capture::entries_of(|| { crate::service_log!("first\nsecond"); });
-    assert!(entries[0].message.starts_with("first\nsecond at_ms="), "{}", entries[0].message);
-    let line: String = crate::service_timing::stamped_line(crate::journald_native::one_line("first\nsecond", crate::journald_native::MESSAGE_LIMIT).as_str(), 7);
-    assert_eq!(line, format!("{}first second at_ms=7\n", crate::service_timing::LOG_PREFIX));
+    let entries = crate::service_timing::capture::entries_of(|| {
+        crate::service_log!("first\nsecond");
+    });
+    assert!(
+        entries[0].message.starts_with("first\nsecond at_ms="),
+        "{}",
+        entries[0].message
+    );
+    let line: String = crate::service_timing::stamped_line(
+        crate::journald_native::one_line("first\nsecond", crate::journald_native::MESSAGE_LIMIT)
+            .as_str(),
+        7,
+    );
+    assert_eq!(
+        line,
+        format!(
+            "{}first second at_ms=7\n",
+            crate::service_timing::LOG_PREFIX
+        )
+    );
 }
 
 /// A cut that falls just before the `@` of a URL's userinfo must not leave the password:
@@ -498,8 +752,14 @@ fn a_cut_just_before_the_at_sign_leaves_no_password() {
     use crate::journald_native::MESSAGE_LIMIT;
     let url_start: &str = "https://u:TOPSECRET";
     let padding: String = "p".repeat(MESSAGE_LIMIT - url_start.len());
-    let entries = crate::service_timing::capture::entries_of(|| { crate::service_log!("{padding}{url_start}@host/ tail"); });
-    assert!(!entries[0].message.contains("TOPSECRET"), "{}", &entries[0].message[entries[0].message.len().saturating_sub(80)..]);
+    let entries = crate::service_timing::capture::entries_of(|| {
+        crate::service_log!("{padding}{url_start}@host/ tail");
+    });
+    assert!(
+        !entries[0].message.contains("TOPSECRET"),
+        "{}",
+        &entries[0].message[entries[0].message.len().saturating_sub(80)..]
+    );
 }
 
 /// The answered line states the longest quiet gap of the steps that ended by themselves,
@@ -513,7 +773,10 @@ fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
     let quiet = vec![
         (String::from("git fast-import"), Duration::from_millis(300)),
         (String::from("git update-ref"), Duration::from_micros(2500)),
-        (format!("git reset{}", crate::quiet_ledger::ENDED_SUFFIX), Duration::from_millis(9000)),
+        (
+            format!("git reset{}", crate::quiet_ledger::ENDED_SUFFIX),
+            Duration::from_millis(9000),
+        ),
     ];
     let line: String = answered_line(&Answered {
         request: "r",
@@ -524,7 +787,10 @@ fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
         size: 1,
         position: 1,
         queued_behind: 0,
-        arrival: Arrival { accepted: Instant::now(), read: Duration::ZERO },
+        arrival: Arrival {
+            accepted: Instant::now(),
+            read: Duration::ZERO,
+        },
         queued: Duration::ZERO,
         settle: Duration::ZERO,
         landing: &landing,
@@ -540,7 +806,9 @@ fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
         line.contains("quiet_steps=\"git fast-import=300.000;git update-ref=2.500;git reset [ended for being quiet]=9000.000\""),
         "{line}"
     );
-    assert!(line_for("r", "refs/heads/main", &landing).contains(" quiet_ms=0.000 quiet_steps=\"\" "));
+    assert!(
+        line_for("r", "refs/heads/main", &landing).contains(" quiet_ms=0.000 quiet_steps=\"\" ")
+    );
 }
 
 /// The answered line names every Git step of the service with its offset and duration,
@@ -549,8 +817,18 @@ fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
 fn the_answered_line_names_each_step_with_its_offset_and_duration() {
     let landing: LandTiming = LandTiming::default();
     let steps: Vec<crate::transaction_step_durations::StepFigure> = vec![
-        crate::transaction_step_durations::StepFigure { name: String::from("git rev-parse"), arguments: None, offset_ms: 3, duration_ms: 4 },
-        crate::transaction_step_durations::StepFigure { name: String::from("git update-ref"), arguments: None, offset_ms: 9, duration_ms: 2 },
+        crate::transaction_step_durations::StepFigure {
+            name: String::from("git rev-parse"),
+            arguments: None,
+            offset_ms: 3,
+            duration_ms: 4,
+        },
+        crate::transaction_step_durations::StepFigure {
+            name: String::from("git update-ref"),
+            arguments: None,
+            offset_ms: 9,
+            duration_ms: 2,
+        },
     ];
     let dropped: usize = 5;
     let line: String = answered_line(&Answered {
@@ -562,7 +840,10 @@ fn the_answered_line_names_each_step_with_its_offset_and_duration() {
         size: 1,
         position: 1,
         queued_behind: 0,
-        arrival: Arrival { accepted: Instant::now(), read: Duration::ZERO },
+        arrival: Arrival {
+            accepted: Instant::now(),
+            read: Duration::ZERO,
+        },
         queued: Duration::ZERO,
         settle: Duration::ZERO,
         landing: &landing,
@@ -573,8 +854,16 @@ fn the_answered_line_names_each_step_with_its_offset_and_duration() {
         steps: steps.as_slice(),
         steps_dropped: dropped,
     });
-    assert!(line.ends_with(" steps=\"git rev-parse@3+4;git update-ref@9+2\" steps_dropped=5"), "{line}");
-    assert_eq!(fields(line.as_str()).get("steps_dropped").map(String::as_str), Some("5"));
+    assert!(
+        line.ends_with(" steps=\"git rev-parse@3+4;git update-ref@9+2\" steps_dropped=5"),
+        "{line}"
+    );
+    assert_eq!(
+        fields(line.as_str())
+            .get("steps_dropped")
+            .map(String::as_str),
+        Some("5")
+    );
 }
 
 /// An `answered` line written before the index step was named by its role calls the same duration `sync_ms`:
@@ -585,13 +874,28 @@ fn the_answered_line_names_each_step_with_its_offset_and_duration() {
 fn a_record_from_before_the_rename_still_gives_its_index_update() {
     let recorded: &str = "answered request=\"r\" branch=\"refs/heads/main\" outcome=landed batch=1 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 \
                           lock_wait_ms=0 lock_hold_ms=21 reads_ms=2 objects_ms=3 journal_ms=1 ref_ms=2 sync_ms=19 attempts=1 landing_ms=27";
-    assert_eq!(index_update_ms_of(recorded), Some(19), "the old name is read");
+    assert_eq!(
+        index_update_ms_of(recorded),
+        Some(19),
+        "the old name is read"
+    );
     let written: String = line_for("req-3", "refs/heads/main", &landing());
-    assert_eq!(index_update_ms_of(written.as_str()), Some(INDEX_UPDATE_MS), "the new name is read");
-    assert!(!written.contains(" sync_ms="), "the new line no longer calls the step a sync: {written}");
+    assert_eq!(
+        index_update_ms_of(written.as_str()),
+        Some(INDEX_UPDATE_MS),
+        "the new name is read"
+    );
+    assert!(
+        !written.contains(" sync_ms="),
+        "the new line no longer calls the step a sync: {written}"
+    );
     let both: String = format!("{recorded} index_update_ms=5");
     assert_eq!(index_update_ms_of(both.as_str()), Some(5));
-    assert_eq!(index_update_ms_of("answered request=\"r\""), None, "a line without the step gives none");
+    assert_eq!(
+        index_update_ms_of("answered request=\"r\""),
+        None,
+        "a line without the step gives none"
+    );
 }
 
 /// What:
@@ -616,9 +920,19 @@ fn two_repositories_whose_paths_differ_only_in_bytes_that_are_no_text_are_named_
     assert_ne!(first, second, "the two paths are different");
     let first_label: String = in_the_repository_at(first.as_path());
     let second_label: String = in_the_repository_at(second.as_path());
-    assert_ne!(first_label, second_label, "the labels tell the two repositories apart: {first_label} and {second_label}");
-    assert!(!first_label.contains('\n'), "the label stays one line: {first_label}");
-    assert_eq!(in_the_repository_at(Path::new("/repo/worktree")), "in the repository at /repo/worktree", "a path that is text reads as it is");
+    assert_ne!(
+        first_label, second_label,
+        "the labels tell the two repositories apart: {first_label} and {second_label}"
+    );
+    assert!(
+        !first_label.contains('\n'),
+        "the label stays one line: {first_label}"
+    );
+    assert_eq!(
+        in_the_repository_at(Path::new("/repo/worktree")),
+        "in the repository at /repo/worktree",
+        "a path that is text reads as it is"
+    );
 }
 
 /// What:
@@ -644,7 +958,10 @@ fn a_repository_whose_path_holds_a_space_is_named_in_one_field() {
         size: 1,
         position: 1,
         queued_behind: 0,
-        arrival: Arrival { accepted: Instant::now(), read: Duration::ZERO },
+        arrival: Arrival {
+            accepted: Instant::now(),
+            read: Duration::ZERO,
+        },
         queued: Duration::ZERO,
         settle: Duration::ZERO,
         landing: &landing,
@@ -655,8 +972,26 @@ fn a_repository_whose_path_holds_a_space_is_named_in_one_field() {
         steps: &[],
         steps_dropped: 0,
     });
-    assert_eq!(fields(line.as_str())["repository"], REPOSITORY, "the whole path is one field: {line}");
-    assert!(line.contains(&format!("repository={REPOSITORY:?}")), "the field is the path's quoted form: {line}");
-    let wait: String = wait_line(7, Path::new(REPOSITORY), Duration::from_millis(990), &landing.lock_notes, true).expect("a held lock is written down");
-    assert_eq!(fields(wait.as_str())["repository"], REPOSITORY, "the wait line keeps it whole too: {wait}");
+    assert_eq!(
+        fields(line.as_str())["repository"],
+        REPOSITORY,
+        "the whole path is one field: {line}"
+    );
+    assert!(
+        line.contains(&format!("repository={REPOSITORY:?}")),
+        "the field is the path's quoted form: {line}"
+    );
+    let wait: String = wait_line(
+        7,
+        Path::new(REPOSITORY),
+        Duration::from_millis(990),
+        &landing.lock_notes,
+        true,
+    )
+    .expect("a held lock is written down");
+    assert_eq!(
+        fields(wait.as_str())["repository"],
+        REPOSITORY,
+        "the wait line keeps it whole too: {wait}"
+    );
 }

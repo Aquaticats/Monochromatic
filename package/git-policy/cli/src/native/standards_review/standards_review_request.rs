@@ -14,7 +14,10 @@
 //! const body = JSON.stringify({ model, input, questions: [...] }); const verdict = readAnswer(await response.text());
 //! ```
 
-use crate::standards_review_text::{js_number_text, utf16_prefix};
+use crate::standards_review_text::{
+    js_number_text,
+    utf16_prefix,
+};
 use serde_json::Value;
 
 /// The hosted decision model.
@@ -49,8 +52,14 @@ const INSTRUCTIONS: &str = "The input is the candidate diff of one landed commit
 /// The answer choices,
 /// in the order sent.
 const CHOICES: [(&str, &str); 3] = [
-    ("yes", "The review names superlinear cost of this code (nested scan over unbounded data, repeated work per item, accumulator growth) at any severity."),
-    ("partial", "The review gestures at cost only as unverified or unproven (typically a callee outside the excerpt), never naming superlinear cost."),
+    (
+        "yes",
+        "The review names superlinear cost of this code (nested scan over unbounded data, repeated work per item, accumulator growth) at any severity.",
+    ),
+    (
+        "partial",
+        "The review gestures at cost only as unverified or unproven (typically a callee outside the excerpt), never naming superlinear cost.",
+    ),
     ("no", "The review names no cost finding at all."),
 ];
 
@@ -90,7 +99,11 @@ fn json_text(text: &str) -> String {
 pub fn request_body(input: &str) -> String {
     let mut choices: Vec<String> = Vec::new();
     for (value, description) in CHOICES {
-        choices.push(format!("{{\"value\":{},\"description\":{}}}", json_text(value), json_text(description)));
+        choices.push(format!(
+            "{{\"value\":{},\"description\":{}}}",
+            json_text(value),
+            json_text(description)
+        ));
     }
     return format!(
         "{{\"model\":{},\"input\":{},\"questions\":[{{\"type\":\"choice\",\"name\":{},\"instructions\":{},\"choices\":[{}]}}]}}",
@@ -164,9 +177,15 @@ pub struct Judged {
 /// ```ts
 /// if (!response.ok) throw new Error('HTTP ' + status + ' ' + raw.slice(0, 200));
 /// ```
-pub fn read_answer(status: u16, raw: &str) -> Result<Judged, String> {
+pub fn read_answer(
+    status: u16,
+    raw: &str,
+) -> Result<Judged, String> {
     if !(200..300).contains(&status) {
-        return Err(format!("HTTP {status} {}", utf16_prefix(raw, FAILURE_EXCERPT_UNITS)));
+        return Err(format!(
+            "HTTP {status} {}",
+            utf16_prefix(raw, FAILURE_EXCERPT_UNITS)
+        ));
     }
     let parsed: Value = match serde_json::from_str(raw) {
         Ok(value) => value,
@@ -196,13 +215,20 @@ pub fn read_answer(status: u16, raw: &str) -> Result<Judged, String> {
         Some(Value::Array(items)) => {
             let mut pairs: Vec<String> = Vec::new();
             for one in items {
-                pairs.push(format!("{} {}", js_text(one.get("value")), js_text(one.get("probability"))));
+                pairs.push(format!(
+                    "{} {}",
+                    js_text(one.get("value")),
+                    js_text(one.get("probability"))
+                ));
             }
             pairs
         }
         Some(_) => return Err(String::from("the answer's probabilities are not a list")),
     };
-    return Ok(Judged { outcome: format!("cost_verdict: {top} ({})", scores.join(" ")), top });
+    return Ok(Judged {
+        outcome: format!("cost_verdict: {top} ({})", scores.join(" ")),
+        top,
+    });
 }
 
 /// Controls stay out of the release executable.

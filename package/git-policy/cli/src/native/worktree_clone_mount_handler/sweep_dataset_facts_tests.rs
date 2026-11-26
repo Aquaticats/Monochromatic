@@ -12,10 +12,24 @@
 //! ```
 
 use super::{
-    CloneObjectFacts, DEVICES_PROPERTY, DMU_OBJECT_SET_FILESYSTEM, ENCRYPTION_PROPERTY, ENCRYPTION_ROOT_PROPERTY, KEY_STATUS_PROPERTY, KEY_STATUS_UNAVAILABLE,
-    MOUNTPOINT_PROPERTY, PropertyValue, SETUID_PROPERTY, facts_of, value_of,
+    CloneObjectFacts,
+    DEVICES_PROPERTY,
+    DMU_OBJECT_SET_FILESYSTEM,
+    ENCRYPTION_PROPERTY,
+    ENCRYPTION_ROOT_PROPERTY,
+    KEY_STATUS_PROPERTY,
+    KEY_STATUS_UNAVAILABLE,
+    MOUNTPOINT_PROPERTY,
+    PropertyValue,
+    SETUID_PROPERTY,
+    facts_of,
+    value_of,
 };
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DmuObjsetStats, NvList};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    DmuObjsetStats,
+    NvList,
+};
 
 /// The clone the controls read.
 const CLONE: &str = "zpcachyos/nosnap/clones/one";
@@ -25,7 +39,10 @@ const ORIGIN: &str = "zpcachyos/nosnap/clones@origin";
 
 /// One property as OpenZFS writes it:
 /// a nested list of its value and the dataset the value comes from.
-fn pair_number(value: u64, source: &str) -> NvList {
+fn pair_number(
+    value: u64,
+    source: &str,
+) -> NvList {
     let mut pair: NvList = NvList::new();
     pair.add_u64("value", value);
     pair.add_str("source", source);
@@ -33,7 +50,10 @@ fn pair_number(value: u64, source: &str) -> NvList {
 }
 
 /// One text property in the same shape.
-fn pair_text(value: &str, source: &str) -> NvList {
+fn pair_text(
+    value: &str,
+    source: &str,
+) -> NvList {
     let mut pair: NvList = NvList::new();
     pair.add_str("value", value);
     pair.add_str("source", source);
@@ -72,7 +92,10 @@ fn stats_of_a_clone() -> DmuObjsetStats {
 
 /// The identity a child of the pinned parent answers with.
 fn identity() -> DatasetIdentity {
-    return DatasetIdentity { stats: stats_of_a_clone(), properties: reply_of_a_clone() };
+    return DatasetIdentity {
+        stats: stats_of_a_clone(),
+        properties: reply_of_a_clone(),
+    };
 }
 
 /// Every value the checks read comes out of the reply it belongs to.
@@ -84,11 +107,17 @@ fn a_managed_clones_facts_come_out_of_its_reply() {
     assert_eq!(facts.object_type, DMU_OBJECT_SET_FILESYSTEM);
     assert!(!facts.is_snapshot);
     assert_eq!(facts.origin, ORIGIN);
-    assert_eq!(facts.mountpoint, PropertyValue::Text(String::from("legacy")));
+    assert_eq!(
+        facts.mountpoint,
+        PropertyValue::Text(String::from("legacy"))
+    );
     assert_eq!(facts.setuid, PropertyValue::Number(0));
     assert_eq!(facts.devices, PropertyValue::Number(0));
     assert_eq!(facts.encryption, PropertyValue::Number(7));
-    assert_eq!(facts.encryption_root, PropertyValue::Text(String::from("zpcachyos")));
+    assert_eq!(
+        facts.encryption_root,
+        PropertyValue::Text(String::from("zpcachyos"))
+    );
     assert_eq!(facts.key_status, PropertyValue::Number(2));
     assert_ne!(facts.key_status.number(), Some(KEY_STATUS_UNAVAILABLE));
 }
@@ -101,8 +130,14 @@ fn a_property_the_reply_does_not_hold_is_absent() {
     assert!(PropertyValue::Absent.text().is_none());
     assert!(PropertyValue::Absent.number().is_none());
     let said: String = PropertyValue::Absent.describe(MOUNTPOINT_PROPERTY);
-    assert!(said.contains(MOUNTPOINT_PROPERTY), "the description names the property: {said}");
-    assert!(said.contains("not in the reply"), "the description says it is not there: {said}");
+    assert!(
+        said.contains(MOUNTPOINT_PROPERTY),
+        "the description names the property: {said}"
+    );
+    assert!(
+        said.contains("not in the reply"),
+        "the description says it is not there: {said}"
+    );
 }
 
 /// A value that is not the `value`/`source` pair is unreadable rather than absent,
@@ -111,17 +146,32 @@ fn a_property_the_reply_does_not_hold_is_absent() {
 fn a_value_outside_the_pair_is_unreadable() {
     let mut bare: NvList = NvList::new();
     bare.add_str(MOUNTPOINT_PROPERTY, "legacy");
-    assert!(matches!(value_of(&bare, MOUNTPOINT_PROPERTY), PropertyValue::Unreadable { .. }));
+    assert!(matches!(
+        value_of(&bare, MOUNTPOINT_PROPERTY),
+        PropertyValue::Unreadable { .. }
+    ));
     let mut pairless: NvList = NvList::new();
     pairless.add_nvlist(MOUNTPOINT_PROPERTY, NvList::new());
-    assert!(matches!(value_of(&pairless, MOUNTPOINT_PROPERTY), PropertyValue::Unreadable { .. }));
+    assert!(matches!(
+        value_of(&pairless, MOUNTPOINT_PROPERTY),
+        PropertyValue::Unreadable { .. }
+    ));
     let mut source_only: NvList = NvList::new();
     let mut pair: NvList = NvList::new();
     pair.add_str("source", "zpcachyos");
     source_only.add_nvlist(MOUNTPOINT_PROPERTY, pair);
     let unreadable: PropertyValue = value_of(&source_only, MOUNTPOINT_PROPERTY);
-    assert!(matches!(unreadable, PropertyValue::Unreadable { .. }), "{unreadable:?}");
-    assert!(unreadable.describe(MOUNTPOINT_PROPERTY).contains("could not be read"), "a person learns it was unreadable: {}", unreadable.describe(MOUNTPOINT_PROPERTY));
+    assert!(
+        matches!(unreadable, PropertyValue::Unreadable { .. }),
+        "{unreadable:?}"
+    );
+    assert!(
+        unreadable
+            .describe(MOUNTPOINT_PROPERTY)
+            .contains("could not be read"),
+        "a person learns it was unreadable: {}",
+        unreadable.describe(MOUNTPOINT_PROPERTY)
+    );
 }
 
 /// A dataset that is not a clone reports no origin,
@@ -130,6 +180,16 @@ fn a_value_outside_the_pair_is_unreadable() {
 fn a_dataset_that_is_not_a_clone_reports_no_origin() {
     let mut plain: DmuObjsetStats = stats_of_a_clone();
     plain.dds_origin = [0; 256];
-    let facts: CloneObjectFacts = facts_of(CLONE, &DatasetIdentity { stats: plain, properties: reply_of_a_clone() });
-    assert!(facts.origin.is_empty(), "a dataset with no origin reports none: {:?}", facts.origin);
+    let facts: CloneObjectFacts = facts_of(
+        CLONE,
+        &DatasetIdentity {
+            stats: plain,
+            properties: reply_of_a_clone(),
+        },
+    );
+    assert!(
+        facts.origin.is_empty(),
+        "a dataset with no origin reports none: {:?}",
+        facts.origin
+    );
 }

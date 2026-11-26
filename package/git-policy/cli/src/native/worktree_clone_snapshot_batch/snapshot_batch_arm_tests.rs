@@ -37,15 +37,19 @@
 //! ```
 
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
-use crate::worktree_clone_snapshot_batch::snapshot_batch_plan::{RequestPlan, plan_requests};
+use crate::worktree_clone_snapshot_batch::snapshot_batch_outcome::BatchOutcome;
+use crate::worktree_clone_snapshot_batch::snapshot_batch_plan::{
+    RequestPlan,
+    plan_requests,
+};
 use crate::worktree_clone_snapshot_batch::snapshot_batch_send::{
-    RequestResult, send_request,
+    RequestResult,
+    send_request,
 };
 use crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes;
-use crate::worktree_clone_snapshot_batch::snapshot_batch_outcome::BatchOutcome;
 use crate::worktree_clone_snapshot_batch::snapshot_name_outcome::NameOutcome;
-use monochromatic_zfs_request_to_openzfs_kernel_device::requests::ElementError;
 use monochromatic_zfs_request_to_openzfs_kernel_device::ZfsDevice;
+use monochromatic_zfs_request_to_openzfs_kernel_device::requests::ElementError;
 use std::path::PathBuf;
 use std::process::Output;
 
@@ -106,7 +110,10 @@ fn in_the_guest(test: &str) -> Option<Guest> {
     let sbin: PathBuf = PathBuf::from(
         std::env::var_os(SBIN_VARIABLE).expect("the OpenZFS userspace directory is named"),
     );
-    return Some(Guest { pool, sbin });
+    return Some(Guest {
+        pool,
+        sbin,
+    });
 }
 
 /// The methods of `Guest`.
@@ -119,7 +126,11 @@ impl Guest {
     /// with its standard error in the message,
     /// because a
     ///  fixture step that did not happen would make the assertions meaningless.
-    fn program(&self, program: &str, arguments: &[&str]) -> String {
+    fn program(
+        &self,
+        program: &str,
+        arguments: &[&str],
+    ) -> String {
         let output: Output = std::process::Command::new(self.sbin.join(program))
             .args(arguments)
             .output()
@@ -134,7 +145,11 @@ impl Guest {
     }
 
     /// Run one OpenZFS program and report whether it succeeded.
-    fn program_succeeds(&self, program: &str, arguments: &[&str]) -> bool {
+    fn program_succeeds(
+        &self,
+        program: &str,
+        arguments: &[&str],
+    ) -> bool {
         return std::process::Command::new(self.sbin.join(program))
             .args(arguments)
             .output()
@@ -152,20 +167,32 @@ impl Guest {
     /// a clone an interrupted run left is cleared first,
     /// which includes
     ///  releasing a hold the interrupted arm took.
-    fn make_clone(&self, arm: &str) -> String {
+    fn make_clone(
+        &self,
+        arm: &str,
+    ) -> String {
         let parent: String = format!("{}/clones", self.pool);
         let clone: String = format!("{parent}/{arm}");
         self.clear(clone.as_str());
         let origin: String = format!("{}/checkout@batch-base", self.pool);
         self.program(
             "zfs",
-            &["clone", "-o", "mountpoint=legacy", origin.as_str(), clone.as_str()],
+            &[
+                "clone",
+                "-o",
+                "mountpoint=legacy",
+                origin.as_str(),
+                clone.as_str(),
+            ],
         );
         return clone;
     }
 
     /// Release every hold the clone's snapshots carry and destroy the clone.
-    fn clear(&self, clone: &str) {
+    fn clear(
+        &self,
+        clone: &str,
+    ) {
         if self.program_succeeds("zfs", &["holds", "-H", "-r", clone]) {
             let listed: String = self.program("zfs", &["holds", "-H", "-r", clone]);
             for line in listed.lines() {
@@ -180,7 +207,11 @@ impl Guest {
     }
 
     /// Make the named snapshots of `dataset` and return their full names.
-    fn snapshots(&self, dataset: &str, suffixes: &[&str]) -> Vec<String> {
+    fn snapshots(
+        &self,
+        dataset: &str,
+        suffixes: &[&str],
+    ) -> Vec<String> {
         return suffixes
             .iter()
             .map(|suffix| {
@@ -192,10 +223,15 @@ impl Guest {
     }
 
     /// The snapshot names `dataset` holds now.
-    fn live_snapshots(&self, dataset: &str) -> Vec<String> {
+    fn live_snapshots(
+        &self,
+        dataset: &str,
+    ) -> Vec<String> {
         let printed: String = self.program(
             "zfs",
-            &["list", "-H", "-p", "-o", "name", "-t", "snapshot", "-r", dataset],
+            &[
+                "list", "-H", "-p", "-o", "name", "-t", "snapshot", "-r", dataset,
+            ],
         );
         return printed
             .lines()
@@ -209,7 +245,10 @@ impl Guest {
     }
 
     /// The budget that exactly fits the named set's own request.
-    fn budget_for(&self, names: &[String]) -> RequestBudget {
+    fn budget_for(
+        &self,
+        names: &[String],
+    ) -> RequestBudget {
         return RequestBudget::of_input_bytes(
             encoded_request_bytes(self.pool.as_str(), names).expect("the names fit"),
         );
@@ -218,7 +257,10 @@ impl Guest {
 
 /// The outcome of one answered request,
 /// which every arm needs as a value.
-fn answered(result: RequestResult, arm: &str) -> BatchOutcome {
+fn answered(
+    result: RequestResult,
+    arm: &str,
+) -> BatchOutcome {
     let RequestResult::Answered(outcome) = result else {
         panic!("{arm}: a non-empty set is sent, never skipped");
     };
@@ -237,16 +279,17 @@ fn snapshot_batch_arm_one_request_destroys_the_whole_set() {
     let clone: String = guest.make_clone("one-request");
     let names: Vec<String> = guest.snapshots(clone.as_str(), &["s1", "s2", "s3", "s4", "s5"]);
     let budget: RequestBudget = guest.budget_for(names.as_slice());
-    let plan: RequestPlan = plan_requests(guest.pool.as_str(), names.as_slice(), budget)
-        .expect("the set is planable");
+    let plan: RequestPlan =
+        plan_requests(guest.pool.as_str(), names.as_slice(), budget).expect("the set is planable");
     assert_eq!(
         plan.chunks().len(),
         1,
         "the whole set fits the arm's budget, so it is one request"
     );
     let device: ZfsDevice = ZfsDevice::open().expect("the guest has the device");
-    let result: RequestResult = send_request(&device, guest.pool.as_str(), plan.chunks()[0].as_slice())
-        .expect("the request is built and sent");
+    let result: RequestResult =
+        send_request(&device, guest.pool.as_str(), plan.chunks()[0].as_slice())
+            .expect("the request is built and sent");
     let outcome: BatchOutcome = answered(result, "one request");
     assert!(
         outcome.failures().is_empty(),
@@ -285,11 +328,12 @@ fn snapshot_batch_arm_a_hold_names_one_and_keeps_every_name() {
     let held: String = names[1].clone();
     guest.program("zfs", &["hold", ARM_HOLD_TAG, held.as_str()]);
     let budget: RequestBudget = guest.budget_for(names.as_slice());
-    let plan: RequestPlan = plan_requests(guest.pool.as_str(), names.as_slice(), budget)
-        .expect("the set is planable");
+    let plan: RequestPlan =
+        plan_requests(guest.pool.as_str(), names.as_slice(), budget).expect("the set is planable");
     let device: ZfsDevice = ZfsDevice::open().expect("the guest has the device");
-    let result: RequestResult = send_request(&device, guest.pool.as_str(), plan.chunks()[0].as_slice())
-        .expect("the request is built and sent");
+    let result: RequestResult =
+        send_request(&device, guest.pool.as_str(), plan.chunks()[0].as_slice())
+            .expect("the request is built and sent");
     let outcome: BatchOutcome = answered(result, "a hold");
     assert_eq!(
         outcome.errno(),
@@ -298,17 +342,17 @@ fn snapshot_batch_arm_a_hold_names_one_and_keeps_every_name() {
     );
     assert_eq!(
         outcome.failures(),
-        [
-            ElementError {
-                name: held.clone(),
-                errno: libc::EBUSY,
-            }
-        ],
+        [ElementError {
+            name: held.clone(),
+            errno: libc::EBUSY,
+        }],
         "the per-name list names the held snapshot alone"
     );
     assert_eq!(
         outcome.outcome_of(held.as_str()),
-        Some(&NameOutcome::Refused { errno: libc::EBUSY })
+        Some(&NameOutcome::Refused {
+            errno: libc::EBUSY
+        })
     );
     for name in &names {
         if *name == held {
@@ -352,8 +396,8 @@ fn snapshot_batch_arm_a_budget_splits_the_set_across_requests() {
     sorted.sort();
     let two: Vec<String> = sorted[..2].to_vec();
     let budget: RequestBudget = guest.budget_for(two.as_slice());
-    let plan: RequestPlan = plan_requests(guest.pool.as_str(), names.as_slice(), budget)
-        .expect("the set is planable");
+    let plan: RequestPlan =
+        plan_requests(guest.pool.as_str(), names.as_slice(), budget).expect("the set is planable");
     assert_eq!(
         plan.chunks().len(),
         3,

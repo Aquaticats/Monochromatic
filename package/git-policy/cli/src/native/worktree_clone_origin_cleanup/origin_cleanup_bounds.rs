@@ -21,7 +21,8 @@
 //! ```
 
 use crate::worktree_clone_origin_cleanup::origin_cleanup_words::{
-    ORIGIN_CLEANUP_HEADER, ORIGIN_CLEANUP_NAME_BYTES,
+    ORIGIN_CLEANUP_HEADER,
+    ORIGIN_CLEANUP_NAME_BYTES,
 };
 
 /// The most bytes one record may take,

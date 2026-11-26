@@ -37,16 +37,32 @@
 //! for (const wave of wavesOfWorktrees(items, width)) await Promise.all(wave.map(run)); for (const item of wave) settle(item);
 //! ```
 
-use crate::landing::service_work_handlers_replanning_and_acceptance::{Verdict, WorkHandlers};
-use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use crate::landing::service_work_handlers_replanning_and_acceptance::{
+    Verdict,
+    WorkHandlers,
+};
+use crate::parallel_budget::{
+    BudgetRequest,
+    HostResources,
+    worker_budget,
+};
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_work_settling_with_words::settle_with_the_words;
-use crate::side_by_side_on_the_current_task::{AnAnswer, AnswersAsTheyCome};
-use crate::work_item::{Claimed, WorkItem};
+use crate::side_by_side_on_the_current_task::{
+    AnAnswer,
+    AnswersAsTheyCome,
+};
+use crate::work_item::{
+    Claimed,
+    WorkItem,
+};
 use std::collections::HashMap;
 use std::future::Future;
 use std::hash::Hash;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::pin::Pin;
 
 /// The most items of one batch of slow work that run at once in one work directory:
@@ -115,7 +131,10 @@ const SLOW_ITEM_MEMORY: u64 = crate::service_round::REPOSITORY_MEMORY;
 /// ```ts
 /// const width = workerBudget({ items, perItemMemory: SLOW_ITEM_MEMORY, ceiling: SLOW_ITEMS_CEILING, cap: undefined, host });
 /// ```
-pub(crate) fn slow_items_side_by_side(items: usize, host: &HostResources) -> usize {
+pub(crate) fn slow_items_side_by_side(
+    items: usize,
+    host: &HostResources,
+) -> usize {
     #[cfg(test)]
     {
         let asked: usize = WIDTH_FOR_A_CONTROL.load(std::sync::atomic::Ordering::SeqCst);
@@ -123,7 +142,13 @@ pub(crate) fn slow_items_side_by_side(items: usize, host: &HostResources) -> usi
             return items.min(asked).max(1);
         }
     }
-    return worker_budget(&BudgetRequest { items, per_item_memory: SLOW_ITEM_MEMORY, ceiling: Some(SLOW_ITEMS_CEILING), cap: None, host });
+    return worker_budget(&BudgetRequest {
+        items,
+        per_item_memory: SLOW_ITEM_MEMORY,
+        ceiling: Some(SLOW_ITEMS_CEILING),
+        cap: None,
+        host,
+    });
 }
 
 /// What:
@@ -166,8 +191,17 @@ pub(crate) fn take_the_hosts_width() {
 /// ```ts
 /// const width = workerBudget({ items: branches, perItemMemory: REPOSITORY_MEMORY, ceiling: undefined, cap: undefined, host });
 /// ```
-pub(crate) fn pushes_side_by_side(branches: usize, host: &HostResources) -> usize {
-    return worker_budget(&BudgetRequest { items: branches, per_item_memory: SLOW_ITEM_MEMORY, ceiling: None, cap: None, host });
+pub(crate) fn pushes_side_by_side(
+    branches: usize,
+    host: &HostResources,
+) -> usize {
+    return worker_budget(&BudgetRequest {
+        items: branches,
+        per_item_memory: SLOW_ITEM_MEMORY,
+        ceiling: None,
+        cap: None,
+        host,
+    });
 }
 
 /// What:
@@ -189,7 +223,10 @@ pub(crate) fn pushes_side_by_side(branches: usize, host: &HostResources) -> usiz
 /// ```ts
 /// const waves = wavesOf(keys, width); // one item per key per wave, in the order the keys were first named
 /// ```
-pub(crate) fn waves_of<K: Clone + Eq + Hash>(keys: &[K], width: usize) -> Vec<Vec<usize>> {
+pub(crate) fn waves_of<K: Clone + Eq + Hash>(
+    keys: &[K],
+    width: usize,
+) -> Vec<Vec<usize>> {
     let mut queues: Vec<Vec<usize>> = Vec::new();
     let mut queue_of: HashMap<K, usize> = HashMap::new();
     for (index, key) in keys.iter().enumerate() {
@@ -254,10 +291,21 @@ fn worktree_of(claimed: &Claimed) -> PathBuf {
 /// ```ts
 /// for (const wave of wavesOf(worktrees, width)) { for await (const [at, answer] of AnswersAsTheyCome.starting(wave.map(ask))) held = await settleWithTheWords(held, workDir, items[wave[at]], answer, kind); }
 /// ```
-pub(crate) async fn run_and_settle_side_by_side<H, F>(held: HeldClaims, work_dir: &Path, handlers: &H, items: Vec<Claimed>, width: usize, kind: &str, ask: F) -> Option<HeldClaims>
+pub(crate) async fn run_and_settle_side_by_side<H, F>(
+    held: HeldClaims,
+    work_dir: &Path,
+    handlers: &H,
+    items: Vec<Claimed>,
+    width: usize,
+    kind: &str,
+    ask: F,
+) -> Option<HeldClaims>
 where
     H: WorkHandlers + Sync + ?Sized,
-    F: for<'lent> Fn(&'lent H, &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>>,
+    F: for<'lent> Fn(
+        &'lent H,
+        &'lent WorkItem,
+    ) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>>,
 {
     let mut every_item_may_start = || {
         return true;
@@ -310,7 +358,10 @@ pub(crate) async fn run_and_settle_what_the_round_may_start<H, F>(
 ) -> Option<HeldClaims>
 where
     H: WorkHandlers + Sync + ?Sized,
-    F: for<'lent> Fn(&'lent H, &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>>,
+    F: for<'lent> Fn(
+        &'lent H,
+        &'lent WorkItem,
+    ) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>>,
 {
     return run_and_settle_what_may_start(
         held,
@@ -349,11 +400,15 @@ async fn run_and_settle_what_may_start<H, F>(
 ) -> Option<HeldClaims>
 where
     H: WorkHandlers + Sync + ?Sized,
-    F: for<'lent> Fn(&'lent H, &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>>,
+    F: for<'lent> Fn(
+        &'lent H,
+        &'lent WorkItem,
+    ) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>>,
 {
     let worktrees: Vec<PathBuf> = items.iter().map(worktree_of).collect();
     for wave in waves_of(worktrees.as_slice(), width) {
-        let mut running: Vec<Pin<Box<dyn Future<Output = Verdict> + Send + '_>>> = Vec::with_capacity(wave.len());
+        let mut running: Vec<Pin<Box<dyn Future<Output = Verdict> + Send + '_>>> =
+            Vec::with_capacity(wave.len());
         let mut starting: Vec<usize> = Vec::with_capacity(wave.len());
         for index in &wave {
             // The bound is asked as each item is put in flight, so a wave still starts its items together and the items after
@@ -372,7 +427,15 @@ where
                 // One item's handler stopped unexpectedly: that item fails with what happened, and the rest of its wave goes on.
                 AnAnswer::Stopped(said) => Verdict::Failed(said),
             };
-            held = match settle_with_the_words(held, work_dir, items[starting[at]].clone(), verdict, kind).await {
+            held = match settle_with_the_words(
+                held,
+                work_dir,
+                items[starting[at]].clone(),
+                verdict,
+                kind,
+            )
+            .await
+            {
                 Some(back) => back,
                 None => {
                     // The set went with a job the system refused a thread for, so nothing here can settle what is left:

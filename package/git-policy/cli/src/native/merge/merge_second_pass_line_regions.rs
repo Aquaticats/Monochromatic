@@ -166,7 +166,10 @@ fn is_line_end(byte: &u8) -> bool {
 /// ```ts
 /// const marker = (line, labels) => [[b'<', labels.ours], [b'|', labels.base], [b'=', b''], [b'>', labels.theirs]].find(([c, label]) => line.equals(Buffer.concat([Buffer.alloc(7, c), label.length ? Buffer.from(` ${label}\n`) : Buffer.from('\n')])))?.[0];
 /// ```
-fn marker_of(line: &[u8], labels: &MarkerLabels<'_>) -> Option<u8> {
+fn marker_of(
+    line: &[u8],
+    labels: &MarkerLabels<'_>,
+) -> Option<u8> {
     let character: u8 = *line.first()?;
     let label: &[u8] = match character {
         b'<' => labels.ours,
@@ -199,7 +202,10 @@ impl RawRegion {
     /// ```ts
     /// const pushLine = (region, line) => { region.lineStarts.push(region.markers.length); region.markers = Buffer.concat([region.markers, line]); };
     /// ```
-    fn push_line(&mut self, line: &[u8]) {
+    fn push_line(
+        &mut self,
+        line: &[u8],
+    ) {
         self.line_starts.push(self.markers.len());
         self.markers.extend_from_slice(line);
     }
@@ -236,8 +242,15 @@ impl RawRegion {
     /// ```ts
     /// const startOf = (region, line) => region.lineStarts[line] ?? region.markers.length;
     /// ```
-    fn start_of(&self, line: usize) -> usize {
-        return self.line_starts.get(line).copied().unwrap_or(self.markers.len());
+    fn start_of(
+        &self,
+        line: usize,
+    ) -> usize {
+        return self
+            .line_starts
+            .get(line)
+            .copied()
+            .unwrap_or(self.markers.len());
     }
 
     /// The byte offset in `markers` where the closing marker's line starts.
@@ -270,7 +283,10 @@ impl RawRegion {
     ///   return [base, raw.markers.subarray(at(1), at(baseLine)), raw.markers.subarray(at(split + 1), at(raw.lineStarts.length - 1))];
     /// };
     /// ```
-    fn sides_at(&self, split: usize) -> [&[u8]; 3] {
+    fn sides_at(
+        &self,
+        split: usize,
+    ) -> [&[u8]; 3] {
         let closing: usize = self.closing_start();
         let split_start: usize = self.start_of(split);
         let theirs_start: usize = self.start_of(split + 1);
@@ -278,7 +294,11 @@ impl RawRegion {
             Some(base) => (self.start_of(base), self.start_of(base + 1)),
             None => (split_start, split_start),
         };
-        return [&self.markers[base_start..split_start], &self.markers[self.start_of(1)..ours_end], &self.markers[theirs_start..closing]];
+        return [
+            &self.markers[base_start..split_start],
+            &self.markers[self.start_of(1)..ours_end],
+            &self.markers[theirs_start..closing],
+        ];
     }
 
     /// The region cut at `split`,
@@ -288,9 +308,17 @@ impl RawRegion {
     /// ```ts
     /// const regionAt = (raw, split) => { const [base, ours, theirs] = sidesAt(raw, split); return { base: Buffer.from(base), ours: Buffer.from(ours), theirs: Buffer.from(theirs), starts: [0, 0, 0] }; };
     /// ```
-    fn region_at(&self, split: usize) -> Region {
+    fn region_at(
+        &self,
+        split: usize,
+    ) -> Region {
         let [base, ours, theirs] = self.sides_at(split);
-        return Region { base: base.to_vec(), ours: ours.to_vec(), theirs: theirs.to_vec(), starts: [0, 0, 0] };
+        return Region {
+            base: base.to_vec(),
+            ours: ours.to_vec(),
+            theirs: theirs.to_vec(),
+            starts: [0, 0, 0],
+        };
     }
 }
 
@@ -316,7 +344,10 @@ impl RawRegion {
 /// ```ts
 /// function cut(merge: Uint8Array, labels: MarkerLabels): { settled: Uint8Array[]; regions: RawRegion[] } | { error: string };
 /// ```
-pub fn cut(merge: &[u8], labels: &MarkerLabels<'_>) -> Result<Cut, String> {
+pub fn cut(
+    merge: &[u8],
+    labels: &MarkerLabels<'_>,
+) -> Result<Cut, String> {
     let mut settled: Vec<Vec<u8>> = vec![Vec::new()];
     let mut regions: Vec<RawRegion> = Vec::new();
     let mut open: Option<RawRegion> = None;
@@ -329,14 +360,19 @@ pub fn cut(merge: &[u8], labels: &MarkerLabels<'_>) -> Result<Cut, String> {
                 open = Some(started);
                 continue;
             }
-            settled.last_mut().expect("a piece for every region plus one").extend_from_slice(line);
+            settled
+                .last_mut()
+                .expect("a piece for every region plus one")
+                .extend_from_slice(line);
             continue;
         }
         if marker == Some(b'>') {
             let mut done: RawRegion = open.take().expect("a region is open");
             done.push_line(line);
             if !done.split_follows_base() {
-                return Err(String::from("a conflict marker of the line merge is out of order"));
+                return Err(String::from(
+                    "a conflict marker of the line merge is out of order",
+                ));
             }
             regions.push(done);
             settled.push(Vec::new());
@@ -345,10 +381,16 @@ pub fn cut(merge: &[u8], labels: &MarkerLabels<'_>) -> Result<Cut, String> {
         let region: &mut RawRegion = open.as_mut().expect("a region is open");
         match marker {
             // A region inside a region is not an answer Git writes.
-            Some(b'<') => return Err(String::from("a conflict marker of the line merge is out of order")),
+            Some(b'<') => {
+                return Err(String::from(
+                    "a conflict marker of the line merge is out of order",
+                ));
+            }
             Some(b'|') => {
                 if region.base_line.is_some() {
-                    return Err(String::from("a conflict marker of the line merge is out of order"));
+                    return Err(String::from(
+                        "a conflict marker of the line merge is out of order",
+                    ));
                 }
                 region.push_line(line);
                 region.base_line = Some(region.line_starts.len() - 1);
@@ -363,7 +405,10 @@ pub fn cut(merge: &[u8], labels: &MarkerLabels<'_>) -> Result<Cut, String> {
     if open.is_some() {
         return Err(String::from("the line merge ends inside a conflict region"));
     }
-    return Ok(Cut { settled, regions });
+    return Ok(Cut {
+        settled,
+        regions,
+    });
 }
 
 impl Cut {
@@ -394,7 +439,10 @@ impl Cut {
     /// ```ts
     /// place(sides) { let cursors = [0,0,0]; let tried = 0; return this.regions.map((raw) => { ... }); }
     /// ```
-    pub fn place(&self, sides: [&[u8]; 3]) -> Option<Vec<Region>> {
+    pub fn place(
+        &self,
+        sides: [&[u8]; 3],
+    ) -> Option<Vec<Region>> {
         let mut cursors: [usize; 3] = [0, 0, 0];
         let mut placed: Vec<Region> = Vec::with_capacity(self.regions.len());
         let mut tried: usize = 0;
@@ -452,7 +500,8 @@ impl Cut {
             }
             region.starts = starts;
             for side in 0..3 {
-                cursors[side] = starts[side] + [region.base.len(), region.ours.len(), region.theirs.len()][side];
+                cursors[side] = starts[side]
+                    + [region.base.len(), region.ours.len(), region.theirs.len()][side];
             }
             placed.push(region);
         }
@@ -473,7 +522,11 @@ impl Cut {
 /// ```ts
 /// function offsetFromLine(text: Uint8Array, needle: Uint8Array, from: number): number | undefined;
 /// ```
-pub fn offset_from_line(text: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+pub fn offset_from_line(
+    text: &[u8],
+    needle: &[u8],
+    from: usize,
+) -> Option<usize> {
     if needle.is_empty() {
         return Some(from);
     }
@@ -505,7 +558,11 @@ pub fn offset_from_line(text: &[u8], needle: &[u8], from: usize) -> Option<usize
 /// ```ts
 /// const linesBetween = (text, from, to) => text.subarray(Math.min(from, text.length), Math.max(Math.min(from, text.length), Math.min(to, text.length))).filter((b) => b === 10).length;
 /// ```
-pub fn lines_between(text: &[u8], from: usize, to: usize) -> usize {
+pub fn lines_between(
+    text: &[u8],
+    from: usize,
+    to: usize,
+) -> usize {
     let start: usize = from.min(text.len());
     let end: usize = to.min(text.len()).max(start);
     let mut lines: usize = 0;
@@ -531,7 +588,10 @@ pub fn lines_between(text: &[u8], from: usize, to: usize) -> usize {
 /// const linesBefore = (text, start) => text.subarray(0, start).filter((b) => b === 10).length;
 /// ```
 #[cfg(test)]
-pub fn lines_before(text: &[u8], start: usize) -> usize {
+pub fn lines_before(
+    text: &[u8],
+    start: usize,
+) -> usize {
     let mut lines: usize = 0;
     for byte in &text[..start.min(text.len())] {
         if *byte == LINE_END {

@@ -4,7 +4,10 @@
 //! modes and rollback on failure.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_copy_manifest::collect_entry_manifest;
 
@@ -25,13 +28,19 @@ struct CountingRecorder {
 
 impl InstallRecorder for CountingRecorder {
     /// Counts one intent batch.
-    fn record_intents(&mut self, relative_paths: &[Vec<u8>]) -> Result<(), WorktreeCopyError> {
+    fn record_intents(
+        &mut self,
+        relative_paths: &[Vec<u8>],
+    ) -> Result<(), WorktreeCopyError> {
         self.intents.push(relative_paths.len());
         return Ok(());
     }
 
     /// Counts one creation batch and fails the chosen call.
-    fn record_creations(&mut self, entries: &[InstalledPath]) -> Result<(), WorktreeCopyError> {
+    fn record_creations(
+        &mut self,
+        entries: &[InstalledPath],
+    ) -> Result<(), WorktreeCopyError> {
         self.creations.push(entries.len());
         if let Some((_, path)) = self
             .tamper
@@ -200,29 +209,52 @@ const FULL_BATCHES_OF_FILES: usize = 2;
 /// which a slice on a thread of its own never does.
 #[test]
 fn the_install_slices_take_places_of_the_processs_bound() {
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{
+        AtomicBool,
+        Ordering,
+    };
     use std::sync::mpsc::RecvTimeoutError;
-    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) = crate::parallel_test_support::hold_the_only_place();
+    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) =
+        crate::parallel_test_support::hold_the_only_place();
     let root: PathBuf = fixture("install-the-bound");
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(stage.join("cache")).expect("stage tree");
     for index in 0..crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES + 40 {
         std::fs::write(stage.join(format!("cache/file-{index:05}")), b"payload").expect("file");
     }
-    let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(stage.as_path(), &[b"cache".to_vec()], &[]).expect("manifest");
+    let entries: Vec<WorktreeCopyEntry> =
+        collect_entry_manifest(stage.as_path(), &[b"cache".to_vec()], &[]).expect("manifest");
     let destination: PathBuf = root.join("destination");
     std::fs::create_dir(destination.as_path()).expect("destination");
     let mut recorder: CountingRecorder = CountingRecorder::default();
-    install_snapshot(stage.as_path(), destination.as_path(), &entries, &BTreeSet::new(), &[], &mut recorder, &CopyCeiling::unbounded()).expect("installed");
+    install_snapshot(
+        stage.as_path(),
+        destination.as_path(),
+        &entries,
+        &BTreeSet::new(),
+        &[],
+        &mut recorder,
+        &CopyCeiling::unbounded(),
+    )
+    .expect("installed");
     // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
     //  install's slices reached the process's bound instead of starting at once.
     match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
         Ok(true) => {}
-        Ok(false) => panic!("the job that holds the only place saw no ask, so no slice of the install took a place of the process's bound"),
-        Err(RecvTimeoutError::Timeout) => panic!("no slice of the install asked for a place of the process's bound within the patience, so the slices did not run as jobs of the blocking pool"),
-        Err(RecvTimeoutError::Disconnected) => panic!("the job that holds the only place ended without answering"),
+        Ok(false) => panic!(
+            "the job that holds the only place saw no ask, so no slice of the install took a place of the process's bound"
+        ),
+        Err(RecvTimeoutError::Timeout) => panic!(
+            "no slice of the install asked for a place of the process's bound within the patience, so the slices did not run as jobs of the blocking pool"
+        ),
+        Err(RecvTimeoutError::Disconnected) => {
+            panic!("the job that holds the only place ended without answering")
+        }
     }
-    assert!(given_back.load(Ordering::SeqCst), "the place of the process's bound was never given back to a slice of the install");
+    assert!(
+        given_back.load(Ordering::SeqCst),
+        "the place of the process's bound was never given back to a slice of the install"
+    );
     remove(root.as_path());
 }
 
@@ -270,13 +302,17 @@ fn records_grow_by_batch_not_by_entry() {
         expected.push(batch);
         remaining -= batch;
     }
-    assert!(expected.len() > FULL_BATCHES_OF_FILES, "several batches: {expected:?}");
+    assert!(
+        expected.len() > FULL_BATCHES_OF_FILES,
+        "several batches: {expected:?}"
+    );
     assert_eq!(recorder.intents, expected);
     assert_eq!(recorder.creations, expected);
     // The batch is past the parallel threshold, so several workers created its files; every one arrived, intact.
     for index in 0..file_count {
         assert_eq!(
-            std::fs::read(destination.join(format!("many/file-{index:05}"))).expect("installed file"),
+            std::fs::read(destination.join(format!("many/file-{index:05}")))
+                .expect("installed file"),
             b"x"
         );
     }
@@ -313,7 +349,10 @@ fn a_failed_parallel_batch_rolls_back_every_file_its_workers_created() {
     )
     .expect_err("the recorder fails after the batch was created");
     assert!(
-        std::fs::read_dir(destination.as_path()).expect("destination").next().is_none(),
+        std::fs::read_dir(destination.as_path())
+            .expect("destination")
+            .next()
+            .is_none(),
         "rollback left the destination as it was"
     );
     remove(root.as_path());
@@ -395,7 +434,10 @@ fn retained_paths_are_named_in_the_failure() {
 /// An install goes parallel from the measured break-even number of leaves and not before.
 #[test]
 fn the_install_threshold_is_the_measured_break_even() {
-    assert_eq!(PARALLEL_INSTALL_MIN_LEAVES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
+    assert_eq!(
+        PARALLEL_INSTALL_MIN_LEAVES,
+        crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES
+    );
 }
 
 /// Where the system starts no thread the install workers' slices are installed in turn,
@@ -405,7 +447,10 @@ fn the_install_threshold_is_the_measured_break_even() {
 #[cfg(unix)]
 #[test]
 fn a_parallel_install_where_no_thread_can_start_is_made_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_parallel_install_where_no_thread_can_start_is_made_in_turn") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "a_parallel_install_where_no_thread_can_start_is_made_in_turn",
+    ) {
         return;
     }
     a_failed_parallel_batch_rolls_back_every_file_its_workers_created();

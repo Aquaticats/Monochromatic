@@ -124,22 +124,36 @@
 //! const clock = new Clock(child.pid, { stallMs }); while (!exited) { const stop = clock.check(); if (stop) return stop; }
 //! ```
 
-/// What a look at the push's tree found (`push_progress_meter.rs`),
-/// and the two readings of a `/proc` line the run-progress controls share.
-pub use crate::push_progress_meter::{Meter, SAMPLE_INTERVAL, WaitReport};
-pub(crate) use crate::push_progress_meter::{is_working, parse_activity};
-/// What the clock reads of the system itself.
-use crate::push_progress_meter::system_measures;
-/// Whether a control holds a limit for an ordering it needs first.
-use crate::push_limit_held_for_an_ordering::limit_has_passed;
 /// The patience a clock keeps,
 /// and what a stop reports.
-use crate::bounded_push::{StopCause, StopReport, StopWindow};
+use crate::bounded_push::{
+    StopCause,
+    StopReport,
+    StopWindow,
+};
 use crate::push_deadline_and_patience_settings::Patience;
+/// Whether a control holds a limit for an ordering it needs first.
+use crate::push_limit_held_for_an_ordering::limit_has_passed;
+/// What the clock reads of the system itself.
+use crate::push_progress_meter::system_measures;
+/// What a look at the push's tree found (`push_progress_meter.rs`),
+/// and the two readings of a `/proc` line the run-progress controls share.
+pub use crate::push_progress_meter::{
+    Meter,
+    SAMPLE_INTERVAL,
+    WaitReport,
+};
+pub(crate) use crate::push_progress_meter::{
+    is_working,
+    parse_activity,
+};
 /// The window a connected push may stay silent for.
 use crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
 /// Time spans and the monotonic clock.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  The clock of one bounded child:
@@ -206,7 +220,10 @@ pub struct Clock {
 
 impl Clock {
     /// Start the clock of a child that has just been started.
-    pub fn start(pid: u32, patience: Patience) -> Self {
+    pub fn start(
+        pid: u32,
+        patience: Patience,
+    ) -> Self {
         let now: Instant = Instant::now();
         let measured: bool = matches!(patience, Patience::Progress { .. }) && system_measures();
         return Self {
@@ -230,7 +247,10 @@ impl Clock {
 
     /// The same clock for a run whose transport bytes count as progress only once they add up to a floor within a window
     /// (`push_minimum_rate.rs`).
-    pub fn with_minimum_rate(mut self, bytes: u64) -> Self {
+    pub fn with_minimum_rate(
+        mut self,
+        bytes: u64,
+    ) -> Self {
         self.minimum_rate = bytes;
         return self;
     }
@@ -243,7 +263,10 @@ impl Clock {
     }
 
     /// The same clock with another window for a tree whose connection is open and silent.
-    pub fn with_connected_window(mut self, window: Duration) -> Self {
+    pub fn with_connected_window(
+        mut self,
+        window: Duration,
+    ) -> Self {
         self.connected_window = window;
         return self;
     }
@@ -260,7 +283,9 @@ impl Clock {
     ///  figure of a healthy step,
     /// which is what an interval must be set above.
     pub fn longest_quiet(&self) -> Duration {
-        return self.longest_quiet.max(Instant::now().saturating_duration_since(self.last_progress));
+        return self
+            .longest_quiet
+            .max(Instant::now().saturating_duration_since(self.last_progress));
     }
 
     /// The same clock as on a system that counts no bytes,
@@ -294,7 +319,12 @@ impl Clock {
     /// The bytes are those the connection carried in the stretch that was judged,
     /// which is what a stop under the minimum rate is read against,
     /// and the floor it was judged on.
-    fn report(&self, window: StopWindow, limit: Duration, now: Instant) -> StopReport {
+    fn report(
+        &self,
+        window: StopWindow,
+        limit: Duration,
+        now: Instant,
+    ) -> StopReport {
         return StopReport {
             window,
             limit,
@@ -311,15 +341,24 @@ impl Clock {
         let now: Instant = Instant::now();
         let elapsed: Duration = now.duration_since(self.started);
         let stall: Duration = match self.patience {
-            Patience::Fixed(limit) => return limit_has_passed(elapsed, limit).then_some(StopCause::Deadline),
-            Patience::Progress { stall } => stall,
+            Patience::Fixed(limit) => {
+                return limit_has_passed(elapsed, limit).then_some(StopCause::Deadline);
+            }
+            Patience::Progress {
+                stall,
+            } => stall,
         };
         let Some(meter) = self.meter.as_mut() else {
             // Nothing is measured here, so the stall window is the whole deadline, unless the run must never end by wall time.
-            return (self.wall_fallback && limit_has_passed(elapsed, stall)).then_some(StopCause::Deadline);
+            return (self.wall_fallback && limit_has_passed(elapsed, stall))
+                .then_some(StopCause::Deadline);
         };
         if now >= self.next_sample {
-            let worked: bool = if self.looked { meter.sample(self.root) } else { meter.sample_root(self.root) };
+            let worked: bool = if self.looked {
+                meter.sample(self.root)
+            } else {
+                meter.sample_root(self.root)
+            };
             let carried: u64 = meter.carried_last_sample();
             let other: bool = meter.other_work_last_sample();
             let connected: bool = meter.connected();
@@ -333,7 +372,9 @@ impl Clock {
             let met: bool = self.minimum_rate == 0 || self.carried >= self.minimum_rate;
             let progressed: bool = worked && (other || met);
             if progressed {
-                self.longest_quiet = self.longest_quiet.max(now.saturating_duration_since(self.last_progress));
+                self.longest_quiet = self
+                    .longest_quiet
+                    .max(now.saturating_duration_since(self.last_progress));
                 self.last_progress = now;
                 self.waiting_since = None;
                 self.carried = 0;
@@ -343,12 +384,20 @@ impl Clock {
                 let since: Instant = *self.waiting_since.get_or_insert(now);
                 self.last_progress = now;
                 if self.waited.is_none() && now.duration_since(since) >= stall {
-                    self.waited = Some(WaitReport { silent: now.duration_since(since), elapsed, window: self.connected_window });
+                    self.waited = Some(WaitReport {
+                        silent: now.duration_since(since),
+                        elapsed,
+                        window: self.connected_window,
+                    });
                 }
                 // The owner, 2026-11-03: "Bound it, keep retrying". A connection that stays open and silent for the connected
                 //  window ends the push as a stall; the service's retry plan keeps the push and tries it again.
                 if now.duration_since(since) >= self.connected_window {
-                    return Some(StopCause::Stalled(self.report(StopWindow::Connected, self.connected_window, now)));
+                    return Some(StopCause::Stalled(self.report(
+                        StopWindow::Connected,
+                        self.connected_window,
+                        now,
+                    )));
                 }
             } else {
                 self.waiting_since = None;
@@ -356,7 +405,11 @@ impl Clock {
             self.next_sample = now + SAMPLE_INTERVAL;
         }
         if now.duration_since(self.last_progress) >= stall {
-            return Some(StopCause::Stalled(self.report(StopWindow::Stall, stall, now)));
+            return Some(StopCause::Stalled(self.report(
+                StopWindow::Stall,
+                stall,
+                now,
+            )));
         }
         return None;
     }

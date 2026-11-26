@@ -48,16 +48,30 @@
 //!  and what the add hands over is the stop's sentence rather than a Rust
 //!  `Debug` value (issue 6450).
 
+use super::OpenedDevice;
 use super::preflight_the_add;
 use super::refuse_a_container_that_cannot_serve_clones;
-use super::OpenedDevice;
-use crate::doctor_zfs_route::route_test_facts::{self, CONTAINER_DATASET, DatasetBuilder};
-use crate::doctor_zfs_route::{DatasetFacts, DatasetRole, Reading};
-use crate::test_support::{fixture, git, git_context, remove, repository};
-use crate::worktree_clone_add_route::add_git_words::PERSON_LOCK_WORDS;
-use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
+use crate::doctor_zfs_route::route_test_facts::{
+    self,
+    CONTAINER_DATASET,
+    DatasetBuilder,
+};
+use crate::doctor_zfs_route::{
+    DatasetFacts,
+    DatasetRole,
+    Reading,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::worktree_add_plan::AddPlan;
+use crate::worktree_clone_add_route::add_git_words::PERSON_LOCK_WORDS;
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
+use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_clone_binding_record::registration_home::home_folder;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -76,7 +90,8 @@ use std::path::PathBuf;
 /// ```
 fn a_checkout_the_route_serves(name: &str) -> (PathBuf, RouteFacts, AddPlan) {
     let root: PathBuf = fixture(name);
-    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
+    let repo: PathBuf =
+        std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
     let route: RouteFacts = RouteFacts {
         source_root: repo.clone(),
         common_dir: repo.join(".git"),
@@ -87,14 +102,28 @@ fn a_checkout_the_route_serves(name: &str) -> (PathBuf, RouteFacts, AddPlan) {
         container_dataset: String::from("preflightfixturepool/clones"),
         pool: String::from("preflightfixturepool"),
     };
-    let plan: AddPlan = AddPlan { destination: route.destination.clone(), insert_at: 2, quiet: false, target: Some(OsString::from("main")), checks_out_a_branch: true };
+    let plan: AddPlan = AddPlan {
+        destination: route.destination.clone(),
+        insert_at: 2,
+        quiet: false,
+        target: Some(OsString::from("main")),
+        checks_out_a_branch: true,
+    };
     return (root, route, plan);
 }
 
 /// The words of the add these controls drive,
 /// which is the form the plan above was read from.
 fn the_adds_words(route: &RouteFacts) -> Vec<OsString> {
-    return [String::from("worktree"), String::from("add"), route.destination.display().to_string(), String::from("main")].iter().map(OsString::from).collect();
+    return [
+        String::from("worktree"),
+        String::from("add"),
+        route.destination.display().to_string(),
+        String::from("main"),
+    ]
+    .iter()
+    .map(OsString::from)
+    .collect();
 }
 
 /// The preflight makes the delegation read once,
@@ -109,10 +138,21 @@ fn the_preflight_refuses_through_the_grant_read() {
         .filter(|line| return !line.starts_with("//"))
         .collect();
     let joined: String = code.join("\n");
-    assert_eq!(joined.matches("refuse_without_the_decided_grants(").count(), 1, "the preflight makes the delegation read once: {joined}");
-    let read: usize = joined.find("refuse_without_the_decided_grants(").expect("the read is in the preflight");
-    let preflight_function: usize = joined.find("fn preflight_the_add(").expect("the preflight is a function of this file");
-    assert!(preflight_function < read, "the read sits inside the preflight's own function");
+    assert_eq!(
+        joined.matches("refuse_without_the_decided_grants(").count(),
+        1,
+        "the preflight makes the delegation read once: {joined}"
+    );
+    let read: usize = joined
+        .find("refuse_without_the_decided_grants(")
+        .expect("the read is in the preflight");
+    let preflight_function: usize = joined
+        .find("fn preflight_the_add(")
+        .expect("the preflight is a function of this file");
+    assert!(
+        preflight_function < read,
+        "the read sits inside the preflight's own function"
+    );
     let runner: &str = include_str!("add_route_run.rs");
     let runner_code: Vec<&str> = runner
         .lines()
@@ -120,9 +160,16 @@ fn the_preflight_refuses_through_the_grant_read() {
         .filter(|line| return !line.starts_with("//"))
         .collect();
     let runner_joined: String = runner_code.join("\n");
-    let preflight_call: usize = runner_joined.find("preflight_the_add(").expect("the runner calls the preflight");
-    let claim_taken: usize = runner_joined.find("take_the_claim(").expect("the runner takes the claim");
-    assert!(preflight_call < claim_taken, "the runner calls the preflight before it takes the claim");
+    let preflight_call: usize = runner_joined
+        .find("preflight_the_add(")
+        .expect("the runner calls the preflight");
+    let claim_taken: usize = runner_joined
+        .find("take_the_claim(")
+        .expect("the runner takes the claim");
+    assert!(
+        preflight_call < claim_taken,
+        "the runner calls the preflight before it takes the claim"
+    );
 }
 
 /// What:
@@ -150,19 +197,39 @@ fn the_preflight_refuses_through_the_grant_read() {
 #[test]
 fn the_preflight_reads_the_plan_after_the_device_opens_with_the_stops_sentence() {
     let source: &str = include_str!("add_preflight.rs");
-    let code: Vec<&str> = source.lines().map(str::trim_start).filter(|line| return !line.starts_with("//")).collect();
+    let code: Vec<&str> = source
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| return !line.starts_with("//"))
+        .collect();
     let joined: String = code.join("\n");
-    let device_opened: usize = joined.find("OpenedDevice::open(").expect("the preflight opens the device");
-    let plan_stop: usize = joined.find("refuse_while_a_plan_stands(").expect("the preflight calls the plan's stop");
-    assert!(device_opened < plan_stop, "the plan's stop follows the device it asks the pool with");
-    let stop_line: &str = code.iter().find(|line| return line.contains("refuse_while_a_plan_stands(")).expect("the stop's own call line");
-    assert!(stop_line.ends_with("refuse_while_a_plan_stands(route, &device)?;"), "the call hands over the stop's own refusal: {stop_line}");
+    let device_opened: usize = joined
+        .find("OpenedDevice::open(")
+        .expect("the preflight opens the device");
+    let plan_stop: usize = joined
+        .find("refuse_while_a_plan_stands(")
+        .expect("the preflight calls the plan's stop");
+    assert!(
+        device_opened < plan_stop,
+        "the plan's stop follows the device it asks the pool with"
+    );
+    let stop_line: &str = code
+        .iter()
+        .find(|line| return line.contains("refuse_while_a_plan_stands("))
+        .expect("the stop's own call line");
+    assert!(
+        stop_line.ends_with("refuse_while_a_plan_stands(route, &device)?;"),
+        "the call hands over the stop's own refusal: {stop_line}"
+    );
     for file in ["add_preflight.rs", "add_route_run.rs"] {
         let text: &str = match file {
             "add_preflight.rs" => source,
             _ => include_str!("add_route_run.rs"),
         };
-        assert!(!text.contains("{stop:?}"), "`{file}` renders no plan stop with a `Debug` value (issue 6450)");
+        assert!(
+            !text.contains("{stop:?}"),
+            "`{file}` renders no plan stop with a `Debug` value (issue 6450)"
+        );
     }
 }
 
@@ -228,23 +295,50 @@ fn the_devices_answers_for_the_fixture(route: &RouteFacts) -> Vec<String> {
 #[test]
 fn an_uncommitted_file_is_a_source_the_preflight_serves() {
     let (root, route, plan) = a_checkout_the_route_serves("preflight-dirty");
-    std::fs::write(route.source_root.join("notes.txt"), b"one uncommitted line\n").expect("the uncommitted file");
-    let identity: crate::worktree_identity::WorktreeIdentity = crate::worktree_identity::WorktreeIdentity::MainWorktree {
-        common_dir: route.common_dir.clone(),
-        git_dir: route.git_dir.clone(),
-        worktree_root: route.source_root.clone(),
-    };
-    let source = crate::worktree_snapshot_source::source_or_dirty(&git_context(), &identity).expect("a dirty checkout is a source the route reads");
-    assert!(source.dirty.is_some(), "the source check records the changes it will restore away");
-    let refusal: StepRefusal = match preflight_the_add(&route, &plan, &git_context(), the_adds_words(&route).as_slice()) {
+    std::fs::write(
+        route.source_root.join("notes.txt"),
+        b"one uncommitted line\n",
+    )
+    .expect("the uncommitted file");
+    let identity: crate::worktree_identity::WorktreeIdentity =
+        crate::worktree_identity::WorktreeIdentity::MainWorktree {
+            common_dir: route.common_dir.clone(),
+            git_dir: route.git_dir.clone(),
+            worktree_root: route.source_root.clone(),
+        };
+    let source = crate::worktree_snapshot_source::source_or_dirty(&git_context(), &identity)
+        .expect("a dirty checkout is a source the route reads");
+    assert!(
+        source.dirty.is_some(),
+        "the source check records the changes it will restore away"
+    );
+    let refusal: StepRefusal = match preflight_the_add(
+        &route,
+        &plan,
+        &git_context(),
+        the_adds_words(&route).as_slice(),
+    ) {
         Ok(_) => panic!("this fixture has no pool, so the preflight cannot prove the datasets"),
         Err(refusal) => refusal,
     };
-    assert!(!refusal.message.contains("cannot be the source of a clone"), "the source check served the dirty checkout, and the preflight refused it for another reason: {}", refusal.message);
+    assert!(
+        !refusal.message.contains("cannot be the source of a clone"),
+        "the source check served the dirty checkout, and the preflight refused it for another reason: {}",
+        refusal.message
+    );
     let devices_own: Vec<String> = the_devices_answers_for_the_fixture(&route);
-    assert!(devices_own.contains(&refusal.message), "the preflight's refusal is the device step's own, which stands after the source check; the device answers {devices_own:#?}");
-    assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
-    assert!(!route.destination.exists(), "the slot stays empty before the claim");
+    assert!(
+        devices_own.contains(&refusal.message),
+        "the preflight's refusal is the device step's own, which stands after the source check; the device answers {devices_own:#?}"
+    );
+    assert!(
+        !home_folder(route.common_dir.as_path()).exists(),
+        "the claim, and the record written after it, stay unwritten"
+    );
+    assert!(
+        !route.destination.exists(),
+        "the slot stays empty before the claim"
+    );
     remove(root.as_path());
 }
 
@@ -272,7 +366,9 @@ fn an_uncommitted_file_is_a_source_the_preflight_serves() {
 fn a_lock_word_from_a_declined_source_takes_the_ladder() {
     for word in PERSON_LOCK_WORDS {
         let given: &str = std::str::from_utf8(word).expect("every lock word is ASCII");
-        let (root, route, plan): (PathBuf, RouteFacts, AddPlan) = a_checkout_the_route_serves(format!("preflight-declined-{}", given.trim_start_matches('-')).as_str());
+        let (root, route, plan): (PathBuf, RouteFacts, AddPlan) = a_checkout_the_route_serves(
+            format!("preflight-declined-{}", given.trim_start_matches('-')).as_str(),
+        );
         let nested: PathBuf = route.source_root.join("nested");
         std::fs::create_dir(nested.as_path()).expect("the repository's directory");
         git(nested.as_path(), &["init", "--quiet"]);
@@ -281,11 +377,22 @@ fn a_lock_word_from_a_declined_source_takes_the_ladder() {
         words.insert(2, OsString::from(given));
         match preflight_the_add(&route, &plan, &git_context(), words.as_slice()) {
             Ok(None) => {}
-            Ok(Some(_)) => panic!("this fixture has no pool, so a served source would have been stopped by the pool's read, and `{given}` was not the reason"),
-            Err(refusal) => panic!("the route fails an add from a source its own restore cannot prove, in a sentence about `{given}`: {}", refusal.message),
+            Ok(Some(_)) => panic!(
+                "this fixture has no pool, so a served source would have been stopped by the pool's read, and `{given}` was not the reason"
+            ),
+            Err(refusal) => panic!(
+                "the route fails an add from a source its own restore cannot prove, in a sentence about `{given}`: {}",
+                refusal.message
+            ),
         }
-        assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten for `{given}`");
-        assert!(!route.destination.exists(), "the slot stays empty when the route declines an add given `{given}`");
+        assert!(
+            !home_folder(route.common_dir.as_path()).exists(),
+            "the claim, and the record written after it, stay unwritten for `{given}`"
+        );
+        assert!(
+            !route.destination.exists(),
+            "the slot stays empty when the route declines an add given `{given}`"
+        );
         remove(root.as_path());
     }
 }
@@ -306,16 +413,35 @@ fn a_lock_word_from_a_declined_source_takes_the_ladder() {
 /// ```
 #[test]
 fn a_lock_word_from_a_served_source_keeps_the_routes_own_sentence() {
-    let (root, route, plan): (PathBuf, RouteFacts, AddPlan) = a_checkout_the_route_serves("preflight-served-lock-word");
+    let (root, route, plan): (PathBuf, RouteFacts, AddPlan) =
+        a_checkout_the_route_serves("preflight-served-lock-word");
     let mut words: Vec<OsString> = the_adds_words(&route);
     words.insert(2, OsString::from("--lock"));
-    let refusal: StepRefusal = match preflight_the_add(&route, &plan, &git_context(), words.as_slice()) {
-        Ok(_) => panic!("the route takes the managed lock itself, so an add it serves and that names `--lock` is refused before the claim"),
+    let refusal: StepRefusal = match preflight_the_add(
+        &route,
+        &plan,
+        &git_context(),
+        words.as_slice(),
+    ) {
+        Ok(_) => panic!(
+            "the route takes the managed lock itself, so an add it serves and that names `--lock` is refused before the claim"
+        ),
         Err(refusal) => refusal,
     };
-    assert!(refusal.message.contains("takes the managed lock itself"), "the sentence is the route's own: {}", refusal.message);
-    assert!(refusal.message.contains("--lock"), "the sentence names the word the person gave: {}", refusal.message);
-    assert!(!home_folder(route.common_dir.as_path()).exists(), "a refused add writes nothing, so the claim is not taken");
+    assert!(
+        refusal.message.contains("takes the managed lock itself"),
+        "the sentence is the route's own: {}",
+        refusal.message
+    );
+    assert!(
+        refusal.message.contains("--lock"),
+        "the sentence names the word the person gave: {}",
+        refusal.message
+    );
+    assert!(
+        !home_folder(route.common_dir.as_path()).exists(),
+        "a refused add writes nothing, so the claim is not taken"
+    );
     remove(root.as_path());
 }
 
@@ -347,13 +473,29 @@ fn an_untracked_repository_declines_the_preflight() {
     std::fs::create_dir(nested.as_path()).expect("the repository's directory");
     git(nested.as_path(), &["init", "--quiet"]);
     std::fs::write(nested.join("inside.txt"), b"inside\n").expect("the repository's own file");
-    match preflight_the_add(&route, &plan, &git_context(), the_adds_words(&route).as_slice()) {
+    match preflight_the_add(
+        &route,
+        &plan,
+        &git_context(),
+        the_adds_words(&route).as_slice(),
+    ) {
         Ok(None) => {}
-        Ok(Some(_)) => panic!("this fixture has no pool, so a served source would have been stopped by the pool's read"),
-        Err(refusal) => panic!("the route fails an add from a source its own restore cannot prove: {}", refusal.message),
+        Ok(Some(_)) => panic!(
+            "this fixture has no pool, so a served source would have been stopped by the pool's read"
+        ),
+        Err(refusal) => panic!(
+            "the route fails an add from a source its own restore cannot prove: {}",
+            refusal.message
+        ),
     }
-    assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
-    assert!(!route.destination.exists(), "the slot stays empty when the route declines");
+    assert!(
+        !home_folder(route.common_dir.as_path()).exists(),
+        "the claim, and the record written after it, stay unwritten"
+    );
+    assert!(
+        !route.destination.exists(),
+        "the slot stays empty when the route declines"
+    );
     remove(root.as_path());
 }
 
@@ -377,17 +519,36 @@ fn a_directory_where_the_index_records_a_file_declines_the_preflight() {
     let tracked: PathBuf = route.source_root.join("tracked.txt");
     std::fs::write(tracked.as_path(), b"first\n").expect("the tracked file");
     git(route.source_root.as_path(), &["add", "--", "tracked.txt"]);
-    git(route.source_root.as_path(), &["commit", "--quiet", "--message=first"]);
+    git(
+        route.source_root.as_path(),
+        &["commit", "--quiet", "--message=first"],
+    );
     std::fs::remove_file(tracked.as_path()).expect("the file goes");
     std::fs::create_dir(tracked.as_path()).expect("the directory takes its name");
     std::fs::write(tracked.join("inside.txt"), b"inside\n").expect("a file inside it");
-    match preflight_the_add(&route, &plan, &git_context(), the_adds_words(&route).as_slice()) {
+    match preflight_the_add(
+        &route,
+        &plan,
+        &git_context(),
+        the_adds_words(&route).as_slice(),
+    ) {
         Ok(None) => {}
-        Ok(Some(_)) => panic!("this fixture has no pool, so a served source would have been stopped by the pool's read"),
-        Err(refusal) => panic!("the route fails an add from a source its own restore cannot prove: {}", refusal.message),
+        Ok(Some(_)) => panic!(
+            "this fixture has no pool, so a served source would have been stopped by the pool's read"
+        ),
+        Err(refusal) => panic!(
+            "the route fails an add from a source its own restore cannot prove: {}",
+            refusal.message
+        ),
     }
-    assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
-    assert!(!route.destination.exists(), "the slot stays empty when the route declines");
+    assert!(
+        !home_folder(route.common_dir.as_path()).exists(),
+        "the claim, and the record written after it, stay unwritten"
+    );
+    assert!(
+        !route.destination.exists(),
+        "the slot stays empty when the route declines"
+    );
     remove(root.as_path());
 }
 
@@ -409,13 +570,26 @@ fn a_sparse_checkout_still_refuses_the_add() {
     let (root, route, plan) = a_checkout_the_route_serves("preflight-sparse");
     let info: PathBuf = route.common_dir.join("info");
     std::fs::create_dir_all(info.as_path()).expect("the Git info folder");
-    std::fs::write(info.join("sparse-checkout"), b"/*\n!/*/\n").expect("the sparse-checkout patterns");
-    let refusal: StepRefusal = match preflight_the_add(&route, &plan, &git_context(), the_adds_words(&route).as_slice()) {
+    std::fs::write(info.join("sparse-checkout"), b"/*\n!/*/\n")
+        .expect("the sparse-checkout patterns");
+    let refusal: StepRefusal = match preflight_the_add(
+        &route,
+        &plan,
+        &git_context(),
+        the_adds_words(&route).as_slice(),
+    ) {
         Ok(_) => panic!("a sparse checkout is no source of a copy, so the route refuses it"),
         Err(refusal) => refusal,
     };
-    assert!(refusal.message.contains("the source has a sparse checkout"), "the refusal names the sparse checkout: {}", refusal.message);
-    assert!(!home_folder(route.common_dir.as_path()).exists(), "a refusal writes nothing either, so the claim is not taken");
+    assert!(
+        refusal.message.contains("the source has a sparse checkout"),
+        "the refusal names the sparse checkout: {}",
+        refusal.message
+    );
+    assert!(
+        !home_folder(route.common_dir.as_path()).exists(),
+        "a refusal writes nothing either, so the claim is not taken"
+    );
     remove(root.as_path());
 }
 
@@ -434,13 +608,33 @@ fn a_sparse_checkout_still_refuses_the_add() {
 #[test]
 fn a_worktree_scope_configuration_still_refuses_the_add() {
     let (root, route, plan) = a_checkout_the_route_serves("preflight-worktree-config");
-    git(route.source_root.as_path(), &["config", "extensions.worktreeConfig", "true"]);
-    std::fs::write(route.common_dir.join("config.worktree"), b"[gc]\n\tauto = 1\n").expect("the worktree-scope configuration");
-    let refusal: StepRefusal = match preflight_the_add(&route, &plan, &git_context(), the_adds_words(&route).as_slice()) {
-        Ok(_) => panic!("a worktree-scope configuration is no source of a copy, so the route refuses it"),
+    git(
+        route.source_root.as_path(),
+        &["config", "extensions.worktreeConfig", "true"],
+    );
+    std::fs::write(
+        route.common_dir.join("config.worktree"),
+        b"[gc]\n\tauto = 1\n",
+    )
+    .expect("the worktree-scope configuration");
+    let refusal: StepRefusal = match preflight_the_add(
+        &route,
+        &plan,
+        &git_context(),
+        the_adds_words(&route).as_slice(),
+    ) {
+        Ok(_) => {
+            panic!("a worktree-scope configuration is no source of a copy, so the route refuses it")
+        }
         Err(refusal) => refusal,
     };
-    assert!(refusal.message.contains("the worktree-specific configuration sets gc.auto"), "the refusal names the setting: {}", refusal.message);
+    assert!(
+        refusal
+            .message
+            .contains("the worktree-specific configuration sets gc.auto"),
+        "the refusal names the setting: {}",
+        refusal.message
+    );
     remove(root.as_path());
 }
 
@@ -462,13 +656,32 @@ fn a_worktree_scope_configuration_still_refuses_the_add() {
 #[test]
 fn an_unfinished_merge_still_refuses_the_add() {
     let (root, route, plan) = a_checkout_the_route_serves("preflight-mid-merge");
-    std::fs::write(route.common_dir.join("MERGE_HEAD"), b"0000000000000000000000000000000000000000\n").expect("the merge's mark");
-    let refusal: StepRefusal = match preflight_the_add(&route, &plan, &git_context(), the_adds_words(&route).as_slice()) {
+    std::fs::write(
+        route.common_dir.join("MERGE_HEAD"),
+        b"0000000000000000000000000000000000000000\n",
+    )
+    .expect("the merge's mark");
+    let refusal: StepRefusal = match preflight_the_add(
+        &route,
+        &plan,
+        &git_context(),
+        the_adds_words(&route).as_slice(),
+    ) {
         Ok(_) => panic!("an operation in progress is not dirt, so the route refuses the source"),
         Err(refusal) => refusal,
     };
-    assert!(refusal.message.contains("the main checkout cannot be the source of a clone"), "the refusal names the source check: {}", refusal.message);
-    assert!(refusal.message.contains("MERGE_HEAD exists in"), "the refusal names the unfinished merge: {}", refusal.message);
+    assert!(
+        refusal
+            .message
+            .contains("the main checkout cannot be the source of a clone"),
+        "the refusal names the source check: {}",
+        refusal.message
+    );
+    assert!(
+        refusal.message.contains("MERGE_HEAD exists in"),
+        "the refusal names the unfinished merge: {}",
+        refusal.message
+    );
     remove(root.as_path());
 }
 
@@ -490,19 +703,60 @@ fn an_unfinished_merge_still_refuses_the_add() {
 /// ```
 #[test]
 fn a_container_the_design_does_not_serve_is_refused_before_any_write() {
-    let cases: [(crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts, &str, &str); 4] = [
-        (DatasetBuilder::container().mountpoint("/srv/elsewhere").build(), "`mountpoint` is `/srv/elsewhere`", "the clone container must be `legacy`"),
-        (DatasetBuilder::container().canmount(1).build(), "`canmount` is 1", "the container must be off"),
-        (DatasetBuilder::container().setuid(1).build(), "`setuid` is 1", "`setuid` must be off"),
-        (DatasetBuilder::container().devices(1).build(), "`devices` is 1", "`devices` must be off"),
+    let cases: [(
+        crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts,
+        &str,
+        &str,
+    ); 4] = [
+        (
+            DatasetBuilder::container()
+                .mountpoint("/srv/elsewhere")
+                .build(),
+            "`mountpoint` is `/srv/elsewhere`",
+            "the clone container must be `legacy`",
+        ),
+        (
+            DatasetBuilder::container().canmount(1).build(),
+            "`canmount` is 1",
+            "the container must be off",
+        ),
+        (
+            DatasetBuilder::container().setuid(1).build(),
+            "`setuid` is 1",
+            "`setuid` must be off",
+        ),
+        (
+            DatasetBuilder::container().devices(1).build(),
+            "`devices` is 1",
+            "`devices` must be off",
+        ),
     ];
     for (facts, found, required) in cases {
         let container: DatasetFacts = route_test_facts::dataset(DatasetRole::Container, facts);
-        let refusal: StepRefusal = refuse_a_container_that_cannot_serve_clones(&container).expect_err("a container the design does not serve is refused");
-        assert!(refusal.message.contains(CONTAINER_DATASET), "the container is named: {}", refusal.message);
-        assert!(refusal.message.contains(found), "the property and its value are named: {}", refusal.message);
-        assert!(refusal.message.contains(required), "the value the design needs is named: {}", refusal.message);
-        assert!(refusal.message.contains("No claim, slot, Git registration, snapshot or clone was written"), "the sentence says where the refusal stands: {}", refusal.message);
+        let refusal: StepRefusal = refuse_a_container_that_cannot_serve_clones(&container)
+            .expect_err("a container the design does not serve is refused");
+        assert!(
+            refusal.message.contains(CONTAINER_DATASET),
+            "the container is named: {}",
+            refusal.message
+        );
+        assert!(
+            refusal.message.contains(found),
+            "the property and its value are named: {}",
+            refusal.message
+        );
+        assert!(
+            refusal.message.contains(required),
+            "the value the design needs is named: {}",
+            refusal.message
+        );
+        assert!(
+            refusal
+                .message
+                .contains("No claim, slot, Git registration, snapshot or clone was written"),
+            "the sentence says where the refusal stands: {}",
+            refusal.message
+        );
     }
 }
 
@@ -519,11 +773,26 @@ fn a_container_the_design_does_not_serve_is_refused_before_any_write() {
 /// ```
 #[test]
 fn a_container_the_design_serves_passes_the_check() {
-    let container: DatasetFacts = route_test_facts::dataset(DatasetRole::Container, DatasetBuilder::container().build());
-    assert!(refuse_a_container_that_cannot_serve_clones(&container).is_ok(), "the design's own container passes");
-    let unreadable: DatasetFacts = DatasetFacts { role: DatasetRole::Container, name: String::from(CONTAINER_DATASET), reading: Reading::Unreadable { why: String::from("permission denied") } };
-    let refusal: StepRefusal = refuse_a_container_that_cannot_serve_clones(&unreadable).expect_err("a container this account cannot read proves nothing and is refused");
-    assert!(refusal.message.contains("permission denied"), "the read's own answer is named: {}", refusal.message);
+    let container: DatasetFacts =
+        route_test_facts::dataset(DatasetRole::Container, DatasetBuilder::container().build());
+    assert!(
+        refuse_a_container_that_cannot_serve_clones(&container).is_ok(),
+        "the design's own container passes"
+    );
+    let unreadable: DatasetFacts = DatasetFacts {
+        role: DatasetRole::Container,
+        name: String::from(CONTAINER_DATASET),
+        reading: Reading::Unreadable {
+            why: String::from("permission denied"),
+        },
+    };
+    let refusal: StepRefusal = refuse_a_container_that_cannot_serve_clones(&unreadable)
+        .expect_err("a container this account cannot read proves nothing and is refused");
+    assert!(
+        refusal.message.contains("permission denied"),
+        "the read's own answer is named: {}",
+        refusal.message
+    );
 }
 
 /// What:
@@ -550,13 +819,34 @@ fn the_preflight_judges_the_container_before_it_reads_the_grants() {
         .filter(|line| return !line.starts_with("//"))
         .collect();
     let joined: String = code.join("\n");
-    assert_eq!(joined.matches("refuse_a_container_that_cannot_serve_clones(").count(), 2, "the container check is defined once and called once: {joined}");
-    let preflight_function: usize = joined.find("fn preflight_the_add(").expect("the preflight is a function of this file");
-    let call: usize = preflight_function + joined[preflight_function..].find("refuse_a_container_that_cannot_serve_clones(").expect("the call is in the preflight");
-    let container_read: usize = joined.find("facts_of(route.container_dataset.as_str())").expect("the preflight reads the container's facts");
-    assert!(container_read < call, "the check judges the reply the preflight read");
-    let grants: usize = joined.find("refuse_without_the_decided_grants(").expect("the grant read is in the preflight");
-    assert!(call < grants, "the container is judged before the delegation is read, so a wrong container is refused without a grant answer a person would have to read twice");
+    assert_eq!(
+        joined
+            .matches("refuse_a_container_that_cannot_serve_clones(")
+            .count(),
+        2,
+        "the container check is defined once and called once: {joined}"
+    );
+    let preflight_function: usize = joined
+        .find("fn preflight_the_add(")
+        .expect("the preflight is a function of this file");
+    let call: usize = preflight_function
+        + joined[preflight_function..]
+            .find("refuse_a_container_that_cannot_serve_clones(")
+            .expect("the call is in the preflight");
+    let container_read: usize = joined
+        .find("facts_of(route.container_dataset.as_str())")
+        .expect("the preflight reads the container's facts");
+    assert!(
+        container_read < call,
+        "the check judges the reply the preflight read"
+    );
+    let grants: usize = joined
+        .find("refuse_without_the_decided_grants(")
+        .expect("the grant read is in the preflight");
+    assert!(
+        call < grants,
+        "the container is judged before the delegation is read, so a wrong container is refused without a grant answer a person would have to read twice"
+    );
 }
 
 /// What:
@@ -580,7 +870,11 @@ fn the_preflight_judges_the_container_before_it_reads_the_grants() {
 #[test]
 fn a_container_whose_reply_leaves_a_flag_out_is_refused() {
     use crate::worktree_clone_mount_handler::sweep_dataset_facts::facts_of;
-    use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DmuObjsetStats, NvList};
+    use monochromatic_zfs_request_to_openzfs_kernel_device::{
+        DatasetIdentity,
+        DmuObjsetStats,
+        NvList,
+    };
     let mut properties: NvList = NvList::new();
     let mut mountpoint: NvList = NvList::new();
     mountpoint.add_str("value", "legacy");
@@ -601,9 +895,30 @@ fn a_container_whose_reply_leaves_a_flag_out_is_refused() {
         dds_origin: [0; 256],
         dds_flags: 0,
     };
-    let facts: crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts = facts_of(CONTAINER_DATASET, &DatasetIdentity { stats, properties });
-    let container: DatasetFacts = DatasetFacts { role: DatasetRole::Container, name: String::from(CONTAINER_DATASET), reading: Reading::Read(facts) };
-    let refusal: StepRefusal = refuse_a_container_that_cannot_serve_clones(&container).expect_err("a reply that leaves `setuid` out proves nothing about the mount and is refused");
-    assert!(refusal.message.contains("`setuid` is not in the reply"), "the sentence names the missing property: {}", refusal.message);
-    assert!(refusal.message.contains(CONTAINER_DATASET), "the sentence names the container: {}", refusal.message);
+    let facts: crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts =
+        facts_of(
+            CONTAINER_DATASET,
+            &DatasetIdentity {
+                stats,
+                properties,
+            },
+        );
+    let container: DatasetFacts = DatasetFacts {
+        role: DatasetRole::Container,
+        name: String::from(CONTAINER_DATASET),
+        reading: Reading::Read(facts),
+    };
+    let refusal: StepRefusal = refuse_a_container_that_cannot_serve_clones(&container).expect_err(
+        "a reply that leaves `setuid` out proves nothing about the mount and is refused",
+    );
+    assert!(
+        refusal.message.contains("`setuid` is not in the reply"),
+        "the sentence names the missing property: {}",
+        refusal.message
+    );
+    assert!(
+        refusal.message.contains(CONTAINER_DATASET),
+        "the sentence names the container: {}",
+        refusal.message
+    );
 }

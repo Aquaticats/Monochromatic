@@ -9,14 +9,30 @@
 //! which catches that panic and gives `NoThreadToStart`.
 
 use super::*;
-use crate::service_fault::hooks::{self, HoldOnAnyThread};
-use crate::service_protocol::{decode_service, encode_client};
+use crate::service_fault::hooks::{
+    self,
+    HoldOnAnyThread,
+};
+use crate::service_protocol::{
+    decode_service,
+    encode_client,
+};
 use crate::service_protocol_messages_and_name_checks::HEARTBEAT_SILENCE;
-use crate::service_scratch_trees_of_queued_requests::{is_held, release};
+use crate::service_scratch_trees_of_queued_requests::{
+    is_held,
+    release,
+};
 use crate::ticker_beside_a_wait::with_a_ticker_beside;
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt};
 use std::path::Path;
+use tokio::io::{
+    AsyncBufRead,
+    AsyncBufReadExt,
+    AsyncWriteExt,
+};
+use tokio::sync::mpsc::{
+    UnboundedReceiver,
+    unbounded_channel,
+};
 
 /// The instance this control's service serves.
 const INSTANCE: &str = "an-instance";
@@ -48,7 +64,10 @@ fn shared_in(name: &str) -> (ConnectionShared, UnboundedReceiver<Job>) {
 
 /// A connection's share for a service that was named for one worktree,
 /// which is the shipped shape.
-fn shared_serving(name: &str, own_git_dir: PathBuf) -> (ConnectionShared, UnboundedReceiver<Job>) {
+fn shared_serving(
+    name: &str,
+    own_git_dir: PathBuf,
+) -> (ConnectionShared, UnboundedReceiver<Job>) {
     let (mut shared, jobs) = shared_in(name);
     shared.own_git_dir = Some(own_git_dir);
     return (shared, jobs);
@@ -66,18 +85,33 @@ fn connection() -> (OwnedReadHalf, OwnedWriteHalf, BufReader<UnixStream>) {
 /// and nothing panics.
 #[test]
 fn where_no_thread_can_start_a_message_about_a_git_directory_is_answered_unavailable() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "where_no_thread_can_start_a_message_about_a_git_directory_is_answered_unavailable") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "where_no_thread_can_start_a_message_about_a_git_directory_is_answered_unavailable",
+    ) {
         return;
     }
     let (shared, _jobs) = shared_in("connection-no-thread-instance");
-    let line: String = encode_client(&ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") });
+    let line: String = encode_client(&ClientMessage::Warm {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        repository: PathBuf::from("/srv/repo"),
+    });
     let ((), _ticks) = with_a_ticker_beside(async {
         let (_read_half, mut write_half, mut client) = connection();
         answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
         drop(write_half);
         let mut answer: String = String::new();
-        client.read_line(&mut answer).await.expect("an answer arrives");
-        assert_eq!(decode_service(answer.trim_end_matches('\n')), Ok(ServiceMessage::Failed { id: String::new(), code: FailureCode::Unavailable }));
+        client
+            .read_line(&mut answer)
+            .await
+            .expect("an answer arrives");
+        assert_eq!(
+            decode_service(answer.trim_end_matches('\n')),
+            Ok(ServiceMessage::Failed {
+                id: String::new(),
+                code: FailureCode::Unavailable
+            })
+        );
     });
 }
 
@@ -87,14 +121,26 @@ fn where_no_thread_can_start_a_message_about_a_git_directory_is_answered_unavail
 #[test]
 fn with_threads_the_same_message_about_another_instance_is_rejected() {
     let (shared, _jobs) = shared_in("connection-threads-instance");
-    let line: String = encode_client(&ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") });
+    let line: String = encode_client(&ClientMessage::Warm {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        repository: PathBuf::from("/srv/repo"),
+    });
     let ((), _ticks) = with_a_ticker_beside(async {
         let (_read_half, mut write_half, mut client) = connection();
         answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
         drop(write_half);
         let mut answer: String = String::new();
-        client.read_line(&mut answer).await.expect("an answer arrives");
-        assert_eq!(decode_service(answer.trim_end_matches('\n')), Ok(ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected }));
+        client
+            .read_line(&mut answer)
+            .await
+            .expect("an answer arrives");
+        assert_eq!(
+            decode_service(answer.trim_end_matches('\n')),
+            Ok(ServiceMessage::Failed {
+                id: String::new(),
+                code: FailureCode::Rejected
+            })
+        );
     });
 }
 
@@ -103,11 +149,16 @@ fn with_threads_the_same_message_about_another_instance_is_rejected() {
 /// and nothing panics.
 #[test]
 fn where_no_thread_can_start_a_withdrawal_goes_to_the_landing_thread() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "where_no_thread_can_start_a_withdrawal_goes_to_the_landing_thread") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "where_no_thread_can_start_a_withdrawal_goes_to_the_landing_thread",
+    ) {
         return;
     }
     let (shared, mut jobs) = shared_in("connection-no-thread-withdraw");
-    let line: String = encode_client(&ClientMessage::Withdraw { id: String::from("a-request") });
+    let line: String = encode_client(&ClientMessage::Withdraw {
+        id: String::from("a-request"),
+    });
     let ((), _ticks) = with_a_ticker_beside(async {
         let (_read_half, mut write_half, _client) = connection();
         // The connection waits for the landing's answer,
@@ -142,12 +193,16 @@ fn where_no_thread_can_start_a_withdrawal_goes_to_the_landing_thread() {
 /// and the beat itself is still written by the writer.
 #[test]
 fn where_no_thread_can_start_the_note_of_a_beat_is_left_out() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "where_no_thread_can_start_the_note_of_a_beat_is_left_out") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "where_no_thread_can_start_the_note_of_a_beat_is_left_out",
+    ) {
         return;
     }
     let (shared, _jobs) = shared_in("connection-no-thread-note");
     let ((), _ticks) = with_a_ticker_beside(async {
-        let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(String::from("a-request")));
+        let mut notice: StuckNotice =
+            stuck_notice(Arc::clone(&shared.board), Some(String::from("a-request")));
         assert_eq!(notice.note().await, None, "no note, and no panic");
     });
 }
@@ -160,7 +215,10 @@ fn a_request_of(id: &str) -> crate::service_protocol::CommitRequest {
 
 /// The same request,
 /// naming the Git directory it is about.
-fn a_request_at(git_dir: &Path, id: &str) -> crate::service_protocol::CommitRequest {
+fn a_request_at(
+    git_dir: &Path,
+    id: &str,
+) -> crate::service_protocol::CommitRequest {
     return crate::service_protocol::CommitRequest {
         id: String::from(id),
         repository: PathBuf::from("/nowhere"),
@@ -223,23 +281,45 @@ fn a_commit_whose_directory_check_waits_is_beaten_while_it_waits() {
         };
         let serving: tokio::task::JoinHandle<()> = tokio::spawn(async move {
             let mut writing: OwnedWriteHalf = write_half;
-            queue_a_commit(Box::new(a_request_of("slow-check")), &mut writing, &shared, Instant::now(), deciding).await;
+            queue_a_commit(
+                Box::new(a_request_of("slow-check")),
+                &mut writing,
+                &shared,
+                Instant::now(),
+                deciding,
+            )
+            .await;
         });
         // The first line is a beat: the check has not answered, so nothing of the landing has been said yet.
-        let first: ServiceMessage = tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client))
-            .await
-            .expect("the beat comes while the check waits");
-        assert_eq!(first, ServiceMessage::Heartbeat, "the beat comes while the check waits");
+        let first: ServiceMessage =
+            tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client))
+                .await
+                .expect("the beat comes while the check waits");
+        assert_eq!(
+            first,
+            ServiceMessage::Heartbeat,
+            "the beat comes while the check waits"
+        );
         released.send(()).expect("the check is let go");
         // The request reaches the landing once the check says it is this instance's, and only then is it answered.
-        let Job::Commit(request, reply, _arrival) = jobs.recv().await.expect("the request is queued") else {
+        let Job::Commit(request, reply, _arrival) =
+            jobs.recv().await.expect("the request is queued")
+        else {
             panic!("a commit request is queued");
         };
         // A request the service queued holds the tree its landing has still to read, however long the queue before it takes
         //  (`service_scratch_trees_of_queued_requests.rs`).
-        assert!(is_held(request.scratch.as_path()), "the tree of a queued request is one a collection spares");
+        assert!(
+            is_held(request.scratch.as_path()),
+            "the tree of a queued request is one a collection spares"
+        );
         release(request.id.as_str());
-        let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("slow-check"), commit: String::from("c"), already: false, landing: None };
+        let landed: ServiceMessage = ServiceMessage::Landed {
+            id: String::from("slow-check"),
+            commit: String::from("c"),
+            already: false,
+            landing: None,
+        };
         reply.send(&landed);
         drop(reply);
         loop {
@@ -247,7 +327,11 @@ fn a_commit_whose_directory_check_waits_is_beaten_while_it_waits() {
             if heard == landed {
                 break;
             }
-            assert_eq!(heard, ServiceMessage::Heartbeat, "only beats come between the check and the answer");
+            assert_eq!(
+                heard,
+                ServiceMessage::Heartbeat,
+                "only beats come between the check and the answer"
+            );
         }
         serving.await.expect("the connection ends with the answer");
     });
@@ -268,19 +352,28 @@ fn a_commit_whose_directory_check_waits_is_beaten_while_it_waits() {
 /// ```
 #[test]
 fn where_no_thread_can_start_a_commit_naming_this_worktree_still_reaches_the_landing() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "where_no_thread_can_start_a_commit_naming_this_worktree_still_reaches_the_landing") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "where_no_thread_can_start_a_commit_naming_this_worktree_still_reaches_the_landing",
+    ) {
         return;
     }
     let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
     let (shared, mut jobs) = shared_serving("connection-own-directory-no-thread", own.clone());
-    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(own.as_path(), "own-directory"))));
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
+        own.as_path(),
+        "own-directory",
+    ))));
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, mut write_half, _client) = connection();
         let answered: Option<Job> = tokio::select! {
             () = answer_request(line.as_str(), &mut write_half, &shared, Instant::now()) => None,
             queued = jobs.recv() => queued,
         };
-        assert!(matches!(answered, Some(Job::Commit(..))), "the request named this worktree and reached the landing");
+        assert!(
+            matches!(answered, Some(Job::Commit(..))),
+            "the request named this worktree and reached the landing"
+        );
     });
 }
 
@@ -308,30 +401,47 @@ fn a_commit_sent_over_a_connection_is_beaten_while_its_directory_check_waits() {
     let the_longest_a_beat_may_wait: Duration = HEARTBEAT_EVERY.saturating_mul(6);
     let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
     let (shared, mut jobs) = shared_serving("connection-held-directory-check", own);
-    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(Path::new("/elsewhere/repo/gitdir"), "held-check"))));
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
+        Path::new("/elsewhere/repo/gitdir"),
+        "held-check",
+    ))));
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, mut write_half, mut client) = connection();
         // The read of the directory's instance answers only when this control lets it go, so "while the check waits" is a
         //  state and not a duration.
         let (reached, reached_wait) = tokio::sync::oneshot::channel::<()>();
         let (let_go, held) = std::sync::mpsc::channel::<()>();
-        hooks::hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_INSTANCE_READ), reached, let_go: held });
+        hooks::hold_on_any_thread(HoldOnAnyThread {
+            point: String::from(IN_THE_INSTANCE_READ),
+            reached,
+            let_go: held,
+        });
         let answering = async {
             answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
         };
         let watching = async {
-            tokio::time::timeout(the_longest_a_beat_may_wait, reached_wait).await.expect("the check of the Git directory reaches its read").expect("the check says it reached its read");
-            let while_waiting = tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client)).await;
+            tokio::time::timeout(the_longest_a_beat_may_wait, reached_wait)
+                .await
+                .expect("the check of the Git directory reaches its read")
+                .expect("the check says it reached its read");
+            let while_waiting =
+                tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client)).await;
             // The read is let go whatever came, so a run that saw no beat still ends and still reads the answer.
             let_go.send(()).expect("the read is let go");
             let answer: ServiceMessage = next_line(&mut client).await;
             return (while_waiting, answer);
         };
         let ((), (while_waiting, answer)) = tokio::join!(answering, watching);
-        assert!(jobs.try_recv().is_err(), "a commit another instance serves never reaches the landing");
+        assert!(
+            jobs.try_recv().is_err(),
+            "a commit another instance serves never reaches the landing"
+        );
         assert_eq!(
             answer,
-            ServiceMessage::Failed { id: String::from("held-check"), code: FailureCode::Rejected },
+            ServiceMessage::Failed {
+                id: String::from("held-check"),
+                code: FailureCode::Rejected
+            },
             "the answer of the check is written after the beats"
         );
         assert_eq!(
@@ -368,36 +478,57 @@ fn a_commit_is_beaten_while_the_note_read_waits() {
     let the_longest_a_beat_may_wait: Duration = HEARTBEAT_EVERY.saturating_mul(6);
     let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
     let (shared, mut jobs) = shared_serving("connection-held-instance-and-note", own);
-    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(Path::new("/elsewhere/repo/gitdir"), "held-check-and-note"))));
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
+        Path::new("/elsewhere/repo/gitdir"),
+        "held-check-and-note",
+    ))));
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, mut write_half, mut client) = connection();
         // The instance read and the note's journal read answer only when this control lets them go, so "while they wait" is a
         //  state and not a duration.
         let (instance_reached, instance_wait) = tokio::sync::oneshot::channel::<()>();
         let (instance_go, instance_held) = std::sync::mpsc::channel::<()>();
-        hooks::hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_INSTANCE_READ), reached: instance_reached, let_go: instance_held });
+        hooks::hold_on_any_thread(HoldOnAnyThread {
+            point: String::from(IN_THE_INSTANCE_READ),
+            reached: instance_reached,
+            let_go: instance_held,
+        });
         let (note_reached, note_wait) = tokio::sync::oneshot::channel::<()>();
         let (note_go, note_held) = std::sync::mpsc::channel::<()>();
         let answering = async {
             answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
         };
         let watching = async {
-            tokio::time::timeout(the_longest_a_beat_may_wait, instance_wait).await.expect("the instance read is reached").expect("the instance read says it is reached");
+            tokio::time::timeout(the_longest_a_beat_may_wait, instance_wait)
+                .await
+                .expect("the instance read is reached")
+                .expect("the instance read says it is reached");
             // The hold is set after the instance read is reached, because one registry holds one point at a time.
-            hooks::hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_NOTE_READ), reached: note_reached, let_go: note_held });
-            tokio::time::timeout(the_longest_a_beat_may_wait, note_wait).await.expect("the note's journal read is reached").expect("the note says it reached its read");
+            hooks::hold_on_any_thread(HoldOnAnyThread {
+                point: String::from(IN_THE_NOTE_READ),
+                reached: note_reached,
+                let_go: note_held,
+            });
+            tokio::time::timeout(the_longest_a_beat_may_wait, note_wait)
+                .await
+                .expect("the note's journal read is reached")
+                .expect("the note says it reached its read");
             let mut beats: Vec<ServiceMessage> = Vec::new();
             while beats.len() < 2 {
-                let heard: ServiceMessage = tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client))
-                    .await
-                    .expect("a beat arrives while the instance and journal reads wait");
+                let heard: ServiceMessage =
+                    tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client))
+                        .await
+                        .expect("a beat arrives while the instance and journal reads wait");
                 beats.push(heard);
             }
             // Both reads are let go before any assertion, so a run that saw no beat still ends and still reads the answer.
             note_go.send(()).expect("the note's read is let go");
             instance_go.send(()).expect("the instance read is let go");
             let answer: ServiceMessage = loop {
-                let heard: ServiceMessage = tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client)).await.expect("the answer arrives after both reads are released");
+                let heard: ServiceMessage =
+                    tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client))
+                        .await
+                        .expect("the answer arrives after both reads are released");
                 if heard == ServiceMessage::Heartbeat {
                     continue;
                 }
@@ -406,9 +537,22 @@ fn a_commit_is_beaten_while_the_note_read_waits() {
             return (beats, answer);
         };
         let ((), (beats, answer)) = tokio::join!(answering, watching);
-        assert!(jobs.try_recv().is_err(), "a commit another instance serves never reaches the landing");
-        assert_eq!(answer, ServiceMessage::Failed { id: String::from("held-check-and-note"), code: FailureCode::Rejected });
-        assert_eq!(beats, vec![ServiceMessage::Heartbeat, ServiceMessage::Heartbeat], "the note must not gate the beats");
+        assert!(
+            jobs.try_recv().is_err(),
+            "a commit another instance serves never reaches the landing"
+        );
+        assert_eq!(
+            answer,
+            ServiceMessage::Failed {
+                id: String::from("held-check-and-note"),
+                code: FailureCode::Rejected
+            }
+        );
+        assert_eq!(
+            beats,
+            vec![ServiceMessage::Heartbeat, ServiceMessage::Heartbeat],
+            "the note must not gate the beats"
+        );
     });
 }
 
@@ -436,30 +580,58 @@ fn a_note_read_that_outlives_its_beat_is_not_started_again() {
     let the_longest_a_beat_may_wait: Duration = HEARTBEAT_EVERY.saturating_mul(6);
     let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
     let (shared, mut jobs) = shared_serving("connection-held-note-read-again", own);
-    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(Path::new("/elsewhere/repo/gitdir"), "held-note-read"))));
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
+        Path::new("/elsewhere/repo/gitdir"),
+        "held-note-read",
+    ))));
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, mut write_half, mut client) = connection();
         // The instance read answers only when this control lets it go, so the connection waits where the beats are written.
         let (instance_reached, instance_wait) = tokio::sync::oneshot::channel::<()>();
         let (instance_go, instance_held) = std::sync::mpsc::channel::<()>();
-        hooks::hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_INSTANCE_READ), reached: instance_reached, let_go: instance_held });
+        hooks::hold_on_any_thread(HoldOnAnyThread {
+            point: String::from(IN_THE_INSTANCE_READ),
+            reached: instance_reached,
+            let_go: instance_held,
+        });
         let answering = async {
             answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
         };
         let watching = async {
-            tokio::time::timeout(the_longest_a_beat_may_wait, instance_wait).await.expect("the instance read is reached").expect("the instance read says it is reached");
+            tokio::time::timeout(the_longest_a_beat_may_wait, instance_wait)
+                .await
+                .expect("the instance read is reached")
+                .expect("the instance read says it is reached");
             let (first_reached, first_wait) = tokio::sync::oneshot::channel::<()>();
             let (first_go, first_held) = std::sync::mpsc::channel::<()>();
-            hooks::hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_NOTE_READ), reached: first_reached, let_go: first_held });
-            tokio::time::timeout(the_longest_a_beat_may_wait, first_wait).await.expect("a beat's note reaches the journal read").expect("the note says it reached its read");
+            hooks::hold_on_any_thread(HoldOnAnyThread {
+                point: String::from(IN_THE_NOTE_READ),
+                reached: first_reached,
+                let_go: first_held,
+            });
+            tokio::time::timeout(the_longest_a_beat_may_wait, first_wait)
+                .await
+                .expect("a beat's note reaches the journal read")
+                .expect("the note says it reached its read");
             // The hold behind the first one: a beat that started its own read reaches the point again and answers it.
             let (second_reached, mut second_reach) = tokio::sync::oneshot::channel::<()>();
             let (second_go, second_held) = std::sync::mpsc::channel::<()>();
-            hooks::hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_NOTE_READ), reached: second_reached, let_go: second_held });
+            hooks::hold_on_any_thread(HoldOnAnyThread {
+                point: String::from(IN_THE_NOTE_READ),
+                reached: second_reached,
+                let_go: second_held,
+            });
             let mut beats: usize = 0;
             while beats < 3 {
-                let heard: ServiceMessage = tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client)).await.expect("a beat arrives while the note's read waits");
-                assert_eq!(heard, ServiceMessage::Heartbeat, "only beats come while the note's read waits");
+                let heard: ServiceMessage =
+                    tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client))
+                        .await
+                        .expect("a beat arrives while the note's read waits");
+                assert_eq!(
+                    heard,
+                    ServiceMessage::Heartbeat,
+                    "only beats come while the note's read waits"
+                );
                 beats += 1;
             }
             let restarted: bool = second_reach.try_recv().is_ok();
@@ -469,7 +641,10 @@ fn a_note_read_that_outlives_its_beat_is_not_started_again() {
             first_go.send(()).expect("the first note read is let go");
             instance_go.send(()).expect("the instance read is let go");
             let answer: ServiceMessage = loop {
-                let heard: ServiceMessage = tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client)).await.expect("the answer arrives after both reads are released");
+                let heard: ServiceMessage =
+                    tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client))
+                        .await
+                        .expect("the answer arrives after both reads are released");
                 if heard == ServiceMessage::Heartbeat {
                     continue;
                 }
@@ -478,9 +653,21 @@ fn a_note_read_that_outlives_its_beat_is_not_started_again() {
             return (restarted, answer);
         };
         let ((), (restarted, answer)) = tokio::join!(answering, watching);
-        assert!(jobs.try_recv().is_err(), "a commit another instance serves never reaches the landing");
-        assert_eq!(answer, ServiceMessage::Failed { id: String::from("held-note-read"), code: FailureCode::Rejected });
-        assert!(!restarted, "the beat behind a slow note read waits for the read it found instead of starting another");
+        assert!(
+            jobs.try_recv().is_err(),
+            "a commit another instance serves never reaches the landing"
+        );
+        assert_eq!(
+            answer,
+            ServiceMessage::Failed {
+                id: String::from("held-note-read"),
+                code: FailureCode::Rejected
+            }
+        );
+        assert!(
+            !restarted,
+            "the beat behind a slow note read waits for the read it found instead of starting another"
+        );
     });
 }
 
@@ -490,22 +677,31 @@ fn a_note_read_that_outlives_its_beat_is_not_started_again() {
 /// so the queueing above comes from the
 ///  name and not from the check being skipped for every request.
 #[test]
-fn with_threads_a_commit_naming_another_worktree_is_rejected() {    let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
+fn with_threads_a_commit_naming_another_worktree_is_rejected() {
+    let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
     let (shared, mut jobs) = shared_serving("connection-other-directory", own);
-    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(Path::new("/elsewhere/repo/gitdir"), "other-directory"))));
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
+        Path::new("/elsewhere/repo/gitdir"),
+        "other-directory",
+    ))));
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, mut write_half, mut client) = connection();
         answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
         drop(write_half);
-        assert!(jobs.try_recv().is_err(), "a request for another worktree never reaches the landing");
+        assert!(
+            jobs.try_recv().is_err(),
+            "a request for another worktree never reaches the landing"
+        );
         assert_eq!(
             next_line(&mut client).await,
-            ServiceMessage::Failed { id: String::from("other-directory"), code: FailureCode::Rejected },
+            ServiceMessage::Failed {
+                id: String::from("other-directory"),
+                code: FailureCode::Rejected
+            },
             "the refusal is written where the client reads it"
         );
     });
 }
-
 
 /// What:
 ///  A commit's question about a drawn shadow is answered while the landing thread holds a batch it has not begun,
@@ -526,33 +722,75 @@ fn with_threads_a_commit_naming_another_worktree_is_rejected() {    let own: Pat
 fn a_question_for_a_drawn_shadow_is_answered_while_the_landing_thread_holds_a_batch() {
     let root: PathBuf = crate::test_support::fixture("connection-shadow-answer");
     let git_dir: PathBuf = root.join("gitdir");
-    let drawn: PathBuf = crate::shadow_drawn::drawn_root_for(root.as_path(), git_dir.as_path()).join("drawn-00000000000000000000000000000003");
+    let drawn: PathBuf = crate::shadow_drawn::drawn_root_for(root.as_path(), git_dir.as_path())
+        .join("drawn-00000000000000000000000000000003");
     std::fs::create_dir_all(drawn.as_path()).expect("a drawn tree");
     // The instance is named for the Git directory the question names, so the answer is this service's to give without
     //  asking the filesystem whose the directory is.
     let (shared, mut jobs) = shared_serving("connection-shadow-answer", git_dir.clone());
     shared.drawn.note_ready(drawn.clone());
-    let scratch: PathBuf = git_dir.join("monochromatic-git-policy-cli-scratch").join("monochromatic-git-policy-cli-service-ask-0");
-    std::fs::create_dir_all(scratch.parent().expect("the scratch place").to_path_buf().as_path()).expect("the scratch place");
-    let asked: String = encode_client(&ClientMessage::Shadow { git_dir: git_dir.clone(), scratch: scratch.clone() });
+    let scratch: PathBuf = git_dir
+        .join("monochromatic-git-policy-cli-scratch")
+        .join("monochromatic-git-policy-cli-service-ask-0");
+    std::fs::create_dir_all(
+        scratch
+            .parent()
+            .expect("the scratch place")
+            .to_path_buf()
+            .as_path(),
+    )
+    .expect("the scratch place");
+    let asked: String = encode_client(&ClientMessage::Shadow {
+        git_dir: git_dir.clone(),
+        scratch: scratch.clone(),
+    });
     // A commit the landing thread has been given and has not begun to land.
     let (reply, _messages) = crate::service_reply::Reply::new();
-    let busy = Job::Commit(Box::new(a_request_at(git_dir.as_path(), "the-commit-in-the-landing")), reply, Arrival { accepted: Instant::now(), read: Duration::ZERO });
-    assert!(shared.queue.send(busy).is_ok(), "one commit is in the landing thread's hands");
+    let busy = Job::Commit(
+        Box::new(a_request_at(git_dir.as_path(), "the-commit-in-the-landing")),
+        reply,
+        Arrival {
+            accepted: Instant::now(),
+            read: Duration::ZERO,
+        },
+    );
+    assert!(
+        shared.queue.send(busy).is_ok(),
+        "one commit is in the landing thread's hands"
+    );
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, mut write_half, mut client) = connection();
         answer_request(asked.as_str(), &mut write_half, &shared, Instant::now()).await;
         drop(write_half);
-        assert_eq!(next_line(&mut client).await, ServiceMessage::Drawn { tree: drawn.clone() }, "the tree is the answer while the landing holds a batch");
+        assert_eq!(
+            next_line(&mut client).await,
+            ServiceMessage::Drawn {
+                tree: drawn.clone()
+            },
+            "the tree is the answer while the landing holds a batch"
+        );
         // A second commit that asks now is told there is none: the first one's tree left the stock with its answer.
-        let again: String = encode_client(&ClientMessage::Shadow { git_dir, scratch });
+        let again: String = encode_client(&ClientMessage::Shadow {
+            git_dir,
+            scratch,
+        });
         let (_second_read, mut second_write, mut second_client) = connection();
         answer_request(again.as_str(), &mut second_write, &shared, Instant::now()).await;
         drop(second_write);
-        assert_eq!(next_line(&mut second_client).await, ServiceMessage::NoShadow, "one tree answers one commit");
+        assert_eq!(
+            next_line(&mut second_client).await,
+            ServiceMessage::NoShadow,
+            "one tree answers one commit"
+        );
     });
-    assert!(matches!(jobs.try_recv(), Ok(Job::Commit(..))), "the landing's own job is still the queue's whole");
-    assert!(jobs.try_recv().is_err(), "the question took no place in the landing's queue");
+    assert!(
+        matches!(jobs.try_recv(), Ok(Job::Commit(..))),
+        "the landing's own job is still the queue's whole"
+    );
+    assert!(
+        jobs.try_recv().is_err(),
+        "the question took no place in the landing's queue"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -583,15 +821,20 @@ async fn hold_every_place(places: usize) -> Arc<std::sync::Barrier> {
         entered.push(said_waits);
         let held_by_this_job: Arc<std::sync::Barrier> = Arc::clone(&gate);
         let _holding = tokio::spawn(async move {
-            let _held = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
-                let _said = said.send(());
-                held_by_this_job.wait();
-            })
+            let _held = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(
+                move || {
+                    let _said = said.send(());
+                    held_by_this_job.wait();
+                },
+            )
             .await;
         });
     }
     for said_waits in entered {
-        tokio::time::timeout(HEARTBEAT_SILENCE, said_waits).await.expect("a place of the pool is held").expect("the job that holds a place says so");
+        tokio::time::timeout(HEARTBEAT_SILENCE, said_waits)
+            .await
+            .expect("a place of the pool is held")
+            .expect("the job that holds a place says so");
     }
     return gate;
 }
@@ -626,8 +869,12 @@ async fn hold_every_place(places: usize) -> Arc<std::sync::Barrier> {
 fn a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held() {
     let places: usize = CONTROL_PLACES;
     let _room: usize = crate::room_for_blocking_jobs_in_a_control::for_a_control(places);
-    let (shared, mut jobs) = shared_serving("connection-held-pool", PathBuf::from("/srv/repo/gitdir"));
-    let mut request_line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(Path::new("/srv/repo/gitdir"), "held-pool"))));
+    let (shared, mut jobs) =
+        shared_serving("connection-held-pool", PathBuf::from("/srv/repo/gitdir"));
+    let mut request_line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
+        Path::new("/srv/repo/gitdir"),
+        "held-pool",
+    ))));
     request_line.push('\n');
     let outcome = crate::lazy_runtime::run_on_runtime(async move {
         let gate: Arc<std::sync::Barrier> = hold_every_place(places).await;
@@ -666,7 +913,16 @@ fn a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held() {
         return answered;
     })
     .expect("the process runtime runs this control");
-    assert_eq!(outcome, ServiceMessage::Landed { id: String::from("held-pool"), commit: String::from("c"), already: false, landing: None }, "the answer is written while every place is held");
+    assert_eq!(
+        outcome,
+        ServiceMessage::Landed {
+            id: String::from("held-pool"),
+            commit: String::from("c"),
+            already: false,
+            landing: None
+        },
+        "the answer is written while every place is held"
+    );
 }
 
 /// What:
@@ -684,37 +940,74 @@ fn a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held() {
 /// and that a refusal is not a forget.
 #[test]
 fn a_service_gives_up_the_values_of_the_records_a_forget_message_names() {
-    use crate::service_push_programs_held_in_memory::{PushPrograms, held, remember};
+    use crate::service_push_programs_held_in_memory::{
+        PushPrograms,
+        held,
+        remember,
+    };
     let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
     let elsewhere: PathBuf = PathBuf::from("/srv/other-repo/gitdir");
     let (shared, _jobs) = shared_serving("connection-forget-programs", own.clone());
-    let programs = PushPrograms { variables: vec![(String::from("PATH"), String::from("/srv/repo/bin"))], not_text: Vec::new(), transport: false };
-    let named: String = String::from("push-0123456789abcdef0123456789abcdef01234567-0123456789abcdef");
-    let sibling: String = String::from("push-89abcdef0123456789abcdef0123456789abcdef-0123456789abcdef");
-    let foreign: String = String::from("push-456789abcdef0123456789abcdef0123456789ab-fedcba9876543210");
+    let programs = PushPrograms {
+        variables: vec![(String::from("PATH"), String::from("/srv/repo/bin"))],
+        not_text: Vec::new(),
+        transport: false,
+    };
+    let named: String =
+        String::from("push-0123456789abcdef0123456789abcdef01234567-0123456789abcdef");
+    let sibling: String =
+        String::from("push-89abcdef0123456789abcdef0123456789abcdef-0123456789abcdef");
+    let foreign: String =
+        String::from("push-456789abcdef0123456789abcdef0123456789ab-fedcba9876543210");
     // Every value is held against a record of one worktree, so a message for one worktree can be told from the other by what
     //  it leaves behind alone.
     remember(own.as_path(), named.as_str(), programs.clone());
     remember(own.as_path(), sibling.as_str(), programs.clone());
     remember(elsewhere.as_path(), foreign.as_str(), programs);
     let ((), _ticks) = with_a_ticker_beside(async {
-        let line: String = encode_client(&ClientMessage::ForgetPrograms { git_dir: own.clone(), records: vec![named.clone()] });
+        let line: String = encode_client(&ClientMessage::ForgetPrograms {
+            git_dir: own.clone(),
+            records: vec![named.clone()],
+        });
         let (_read_half, mut write_half, _client) = connection();
         answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
         drop(write_half);
     });
-    assert_eq!(held(own.as_path(), named.as_str()), None, "the record the message named can no longer run, so its values are gone");
-    assert!(held(own.as_path(), sibling.as_str()).is_some(), "a record of the same worktree the message left out keeps its values");
-    assert!(held(elsewhere.as_path(), foreign.as_str()).is_some(), "another worktree's values are none of this message's");
+    assert_eq!(
+        held(own.as_path(), named.as_str()),
+        None,
+        "the record the message named can no longer run, so its values are gone"
+    );
+    assert!(
+        held(own.as_path(), sibling.as_str()).is_some(),
+        "a record of the same worktree the message left out keeps its values"
+    );
+    assert!(
+        held(elsewhere.as_path(), foreign.as_str()).is_some(),
+        "another worktree's values are none of this message's"
+    );
     // The control of the arm: a message about another worktree is refused, and what it names keeps its values.
     let ((), _refusal_ticks) = with_a_ticker_beside(async {
-        let line: String = encode_client(&ClientMessage::ForgetPrograms { git_dir: elsewhere.clone(), records: vec![foreign.clone()] });
+        let line: String = encode_client(&ClientMessage::ForgetPrograms {
+            git_dir: elsewhere.clone(),
+            records: vec![foreign.clone()],
+        });
         let (_read_half, mut write_half, mut client) = connection();
         answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
         drop(write_half);
-        assert_eq!(next_line(&mut client).await, ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected }, "a message for another instance is refused");
+        assert_eq!(
+            next_line(&mut client).await,
+            ServiceMessage::Failed {
+                id: String::new(),
+                code: FailureCode::Rejected
+            },
+            "a message for another instance is refused"
+        );
     });
-    assert!(held(elsewhere.as_path(), foreign.as_str()).is_some(), "a refused message forgets nothing");
+    assert!(
+        held(elsewhere.as_path(), foreign.as_str()).is_some(),
+        "a refused message forgets nothing"
+    );
     // Leave the process's memory as it was found for the controls that run beside this one.
     crate::service_push_programs_held_in_memory::forget_every(own.as_path());
     crate::service_push_programs_held_in_memory::forget_every(elsewhere.as_path());

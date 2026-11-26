@@ -10,7 +10,10 @@
 //! ```
 
 use crate::private_index_request::indexed_request;
-use crate::transaction_git::{GitContext, GitRequest};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -28,7 +31,13 @@ use std::path::Path;
 /// ```ts
 /// const unmergedStagingRequest = (cwd, index, objects, paths) => ownPathspecs(indexedRequest(cwd, ['add', '--all', '--', ...paths.map((path) => `:(top,literal)${path}`)], index, objects));
 /// ```
-pub(crate) fn unmerged_staging_request(context: &GitContext, cwd: &Path, index: &Path, object_directory: &Path, paths: &[Vec<u8>]) -> GitRequest {
+pub(crate) fn unmerged_staging_request(
+    context: &GitContext,
+    cwd: &Path,
+    index: &Path,
+    object_directory: &Path,
+    paths: &[Vec<u8>],
+) -> GitRequest {
     let mut staging: Vec<OsString> = vec![
         OsString::from("add"),
         OsString::from("--all"),
@@ -37,7 +46,16 @@ pub(crate) fn unmerged_staging_request(context: &GitContext, cwd: &Path, index: 
     for path in paths {
         let mut spec: Vec<u8> = b":(top,literal)".to_vec();
         spec.extend_from_slice(path.as_slice());
-        staging.push(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(spec));
+        staging.push(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(
+            spec,
+        ));
     }
-    return indexed_request(context, cwd, staging.as_slice(), Some(index), Some(object_directory)).own_pathspecs();
+    return indexed_request(
+        context,
+        cwd,
+        staging.as_slice(),
+        Some(index),
+        Some(object_directory),
+    )
+    .own_pathspecs();
 }

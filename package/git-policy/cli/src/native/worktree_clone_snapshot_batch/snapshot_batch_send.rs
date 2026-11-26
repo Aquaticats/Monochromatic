@@ -32,7 +32,12 @@
 
 /// The binding's live failure,
 /// reply list and open handle.
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DeviceError, NvList, Request, ZfsDevice};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DeviceError,
+    NvList,
+    Request,
+    ZfsDevice,
+};
 
 /// The refusal a set this route will not submit reports.
 use super::request_refusal::BatchRefusal;
@@ -42,7 +47,10 @@ use super::snapshot_batch_answer::outcome_of_answer;
 use super::snapshot_batch_outcome::BatchOutcome;
 /// The one request builder,
 /// its encoded bytes and its `defer` absence.
-use super::snapshot_destroy_request::{carries_no_defer, destroy_request};
+use super::snapshot_destroy_request::{
+    carries_no_defer,
+    destroy_request,
+};
 
 /// What:
 ///  The one device call this route makes,
@@ -60,14 +68,22 @@ pub trait SnapshotDestroyDevice {
     /// # Throws
     ///
     /// What the binding's own `destroy_snaps` throws.
-    fn destroy_snaps(&self, pool: &str, names: &[&str]) -> Result<Option<NvList>, DeviceError>;
+    fn destroy_snaps(
+        &self,
+        pool: &str,
+        names: &[&str],
+    ) -> Result<Option<NvList>, DeviceError>;
 }
 
 /// The open device is the production answer.
 impl SnapshotDestroyDevice for ZfsDevice {
     /// Sends the binding's own request,
     /// exactly as [`destroy_request`] builds it.
-    fn destroy_snaps(&self, pool: &str, names: &[&str]) -> Result<Option<NvList>, DeviceError> {
+    fn destroy_snaps(
+        &self,
+        pool: &str,
+        names: &[&str],
+    ) -> Result<Option<NvList>, DeviceError> {
         return ZfsDevice::destroy_snaps(self, pool, names);
     }
 }
@@ -121,8 +137,11 @@ pub fn send_request(
             return name.as_str();
         })
         .collect();
-    let answer: Result<Option<NvList>, DeviceError> = device.destroy_snaps(pool, borrowed.as_slice());
-    return Ok(RequestResult::Answered(outcome_of_answer(pool, names, answer)));
+    let answer: Result<Option<NvList>, DeviceError> =
+        device.destroy_snaps(pool, borrowed.as_slice());
+    return Ok(RequestResult::Answered(outcome_of_answer(
+        pool, names, answer,
+    )));
 }
 
 /// The controls of the skip,

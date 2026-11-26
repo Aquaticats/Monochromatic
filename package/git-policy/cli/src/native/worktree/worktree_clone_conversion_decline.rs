@@ -13,7 +13,11 @@
 //! ```
 
 use crate::worktree_clean::StatEntry;
-use crate::worktree_clone_conversion_rules::{ConversionRules, PathAttributes, checkout_converts};
+use crate::worktree_clone_conversion_rules::{
+    ConversionRules,
+    PathAttributes,
+    checkout_converts,
+};
 use std::collections::HashMap;
 
 /// The share of the tracked paths past which the rung declines instead of writing them through Git,
@@ -38,7 +42,6 @@ pub const DECLINE_SHARE_DIVISOR: usize = 4;
 /// and the class controls of four paths must still reach the fence.
 pub const DECLINE_PATHS_FLOOR: usize = 1000;
 
-
 /// What:
 ///  Whether the rung declines the add instead of writing its converting paths through Git.
 /// Why:
@@ -53,16 +56,17 @@ pub const DECLINE_PATHS_FLOOR: usize = 1000;
 /// ```ts
 /// const declines = (converting, tracked) => converting > DECLINE_PATHS_FLOOR && converting * DECLINE_SHARE_DIVISOR > tracked;
 /// ```
-pub fn declines(converting: usize, tracked: usize) -> bool {
+pub fn declines(
+    converting: usize,
+    tracked: usize,
+) -> bool {
     return converting > DECLINE_PATHS_FLOOR && converting * DECLINE_SHARE_DIVISOR > tracked;
 }
-
 
 /// The mode masks that name an entry's type,
 /// and the type a symbolic link has.
 pub(crate) const MODE_TYPE_MASK: u32 = 0o170000;
 pub(crate) const MODE_SYMLINK: u32 = 0o120000;
-
 
 /// What:
 ///  How many tracked paths a rule of their own would convert,
@@ -78,10 +82,17 @@ pub(crate) const MODE_SYMLINK: u32 = 0o120000;
 /// ```ts
 /// const convertingPaths = (entries, attributes, rules) => entries.filter((entry) => !isLink(entry) && checkoutConverts(attributes.get(entry.path), rules)).length;
 /// ```
-pub fn converting_paths(entries: &[StatEntry], attributes: &HashMap<Vec<u8>, PathAttributes>, rules: &ConversionRules) -> usize {
+pub fn converting_paths(
+    entries: &[StatEntry],
+    attributes: &HashMap<Vec<u8>, PathAttributes>,
+    rules: &ConversionRules,
+) -> usize {
     let mut converting: usize = 0;
     for entry in entries {
-        let held: PathAttributes = attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
+        let held: PathAttributes = attributes
+            .get(entry.path.as_slice())
+            .cloned()
+            .unwrap_or_default();
         if entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && checkout_converts(&held, rules) {
             converting += 1;
         }

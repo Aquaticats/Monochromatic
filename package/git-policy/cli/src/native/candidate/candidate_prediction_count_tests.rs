@@ -14,11 +14,25 @@
 #![cfg(unix)]
 
 /// Import the module under test.
-use super::{CandidateRequest, PreparedCandidates, prepare_candidates};
+use super::{
+    CandidateRequest,
+    PreparedCandidates,
+    prepare_candidates,
+};
 use crate::candidate_version::CandidateVersion;
-use crate::test_support::{REAL_GIT, executable, fixture, git, remove, repository};
+use crate::test_support::{
+    REAL_GIT,
+    executable,
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 use std::rc::Rc;
 
@@ -88,7 +102,11 @@ fn starts(count: &Path) -> usize {
 }
 
 /// A committed repository with `files` new worktree files of distinct content.
-fn repository_with_new_files(root: &Path, name: &str, files: usize) -> PathBuf {
+fn repository_with_new_files(
+    root: &Path,
+    name: &str,
+    files: usize,
+) -> PathBuf {
     let repo: PathBuf = repository(root, name);
     std::fs::write(repo.join("base.txt"), b"base\n").expect("base");
     git(repo.as_path(), &["add", "base.txt"]);
@@ -105,7 +123,12 @@ fn repository_with_new_files(root: &Path, name: &str, files: usize) -> PathBuf {
 }
 
 /// Prepare through `program` and read every candidate's bytes twice.
-fn prepare_and_read(program: &Path, repo: &Path, request: &CandidateRequest, files: usize) {
+fn prepare_and_read(
+    program: &Path,
+    repo: &Path,
+    request: &CandidateRequest,
+    files: usize,
+) {
     let mut prepared: PreparedCandidates = prepare_candidates(
         program,
         &[OsString::from("-C"), repo.as_os_str().to_os_string()],

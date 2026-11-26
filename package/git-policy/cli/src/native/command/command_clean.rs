@@ -16,12 +16,21 @@
 ///  which one function owns because both a deletion and a kept repository are read from one.
 use crate::command_clean_nested_repositories::dry_run_lines_from_answer;
 use crate::command_options::{
-    Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, UNREAD, parse_options, row,
+    Arity,
+    DEFAULT_MODE,
+    OptionError,
+    OptionSpec,
+    ParsedOptions,
+    UNREAD,
+    parse_options,
+    row,
 };
-/// The captured answer of a query Git ran.
-use crate::git_metadata::MetadataOutput;
 use crate::command_options_query::{
-    WrapperFlags, is_enabled, positional_tokens, split_wrapper_flags, value_bytes,
+    WrapperFlags,
+    is_enabled,
+    positional_tokens,
+    split_wrapper_flags,
+    value_bytes,
 };
 /// What:
 ///  Bring the shared hatch spelling,
@@ -36,6 +45,8 @@ use crate::command_options_query::{
 /// import { parseOptions, row } from './command_options.ts';
 /// ```
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
+/// The captured answer of a query Git ran.
+use crate::git_metadata::MetadataOutput;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
@@ -230,7 +241,10 @@ pub fn parse_clean_region(
 /// ```ts
 /// function cleanDryRunArguments(globalPrefix: string[], region: string[]): string[] | undefined;
 /// ```
-pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
+pub fn clean_dry_run_arguments(
+    global_prefix: &[OsString],
+    region: &[OsString],
+) -> Option<Vec<OsString>> {
     return dry_run_arguments(global_prefix, region, true);
 }
 
@@ -247,7 +261,10 @@ pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) 
 /// ```ts
 /// function cleanDryRunArgumentsWithoutExclusions(globalPrefix: string[], region: string[]): string[] | undefined;
 /// ```
-pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
+pub fn clean_dry_run_arguments_without_exclusions(
+    global_prefix: &[OsString],
+    region: &[OsString],
+) -> Option<Vec<OsString>> {
     return dry_run_arguments(global_prefix, region, false);
 }
 
@@ -357,8 +374,12 @@ pub fn clean_deleted_paths_from_answer(answer: &MetadataOutput) -> Result<Vec<Ve
 /// ```ts
 /// function pathsOnlyTheExclusionsAdd(deleted: Buffer[], otherwiseDeleted: Buffer[]): Buffer[];
 /// ```
-pub fn paths_only_the_exclusions_add(deleted: &[Vec<u8>], otherwise_deleted: &[Vec<u8>]) -> Vec<Vec<u8>> {
-    let known: std::collections::BTreeSet<&[u8]> = otherwise_deleted.iter().map(Vec::as_slice).collect();
+pub fn paths_only_the_exclusions_add(
+    deleted: &[Vec<u8>],
+    otherwise_deleted: &[Vec<u8>],
+) -> Vec<Vec<u8>> {
+    let known: std::collections::BTreeSet<&[u8]> =
+        otherwise_deleted.iter().map(Vec::as_slice).collect();
     let mut added: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for path in deleted {
         if !known.contains(path.as_slice()) {

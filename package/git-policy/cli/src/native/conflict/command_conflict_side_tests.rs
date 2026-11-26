@@ -12,15 +12,31 @@
 //! // expect(conflictSideRequest('checkout', ['--theirs', '--', 'a.rs'])).toEqual({ paths: ['a.rs'] });
 //! ```
 
-use super::{SideRequest, conflict_side_request};
+use super::{
+    SideRequest,
+    conflict_side_request,
+};
 use crate::command_test_support::os_arguments;
 
 /// The request a line gives,
 /// with the paths as text.
-fn paths_of(word: &str, values: &[&str]) -> Option<Vec<String>> {
+fn paths_of(
+    word: &str,
+    values: &[&str],
+) -> Option<Vec<String>> {
     let region = os_arguments(values);
-    return conflict_side_request(word.as_bytes(), region.as_slice())
-        .map(|SideRequest { paths }| { return paths.iter().map(|path| { return path.to_string_lossy().into_owned(); }).collect(); });
+    return conflict_side_request(word.as_bytes(), region.as_slice()).map(
+        |SideRequest {
+             paths,
+         }| {
+            return paths
+                .iter()
+                .map(|path| {
+                    return path.to_string_lossy().into_owned();
+                })
+                .collect();
+        },
+    );
 }
 
 /// Each checkout form that chooses a side,
@@ -30,7 +46,10 @@ fn paths_of(word: &str, values: &[&str]) -> Option<Vec<String>> {
 fn checkout_forms_that_take_a_side_qualify() {
     for (values, expected) in [
         (vec!["--ours", "--", "a.rs"], vec!["a.rs"]),
-        (vec!["--theirs", "--", "a.rs", "dir/b.rs"], vec!["a.rs", "dir/b.rs"]),
+        (
+            vec!["--theirs", "--", "a.rs", "dir/b.rs"],
+            vec!["a.rs", "dir/b.rs"],
+        ),
         (vec!["-2", "--", "a.rs"], vec!["a.rs"]),
         (vec!["-3", "--", "a.rs"], vec!["a.rs"]),
         (vec!["topic", "--", "a.rs"], vec!["a.rs"]),
@@ -42,7 +61,18 @@ fn checkout_forms_that_take_a_side_qualify() {
         (vec!["--the", "--", "a.rs"], vec!["a.rs"]),
         (vec!["--", "a.rs"], vec!["a.rs"]),
     ] {
-        assert_eq!(paths_of("checkout", values.as_slice()), Some(expected.iter().map(|each| { return String::from(*each); }).collect()), "{values:?}");
+        assert_eq!(
+            paths_of("checkout", values.as_slice()),
+            Some(
+                expected
+                    .iter()
+                    .map(|each| {
+                        return String::from(*each);
+                    })
+                    .collect()
+            ),
+            "{values:?}"
+        );
     }
 }
 
@@ -83,17 +113,35 @@ fn checkout_forms_that_discard_more_or_say_less_do_not_qualify() {
 fn restore_forms_are_read_exactly() {
     for (values, expected) in [
         (vec!["--ours", "--", "a.rs"], Some(vec!["a.rs"])),
-        (vec!["--theirs", "--", "a.rs", "b.rs"], Some(vec!["a.rs", "b.rs"])),
+        (
+            vec!["--theirs", "--", "a.rs", "b.rs"],
+            Some(vec!["a.rs", "b.rs"]),
+        ),
         (vec!["--source=topic", "--", "a.rs"], Some(vec!["a.rs"])),
         (vec!["--source", "topic", "--", "a.rs"], Some(vec!["a.rs"])),
         (vec!["-s", "HEAD~1", "--", "a.rs"], Some(vec!["a.rs"])),
-        (vec!["-W", "--source=topic", "--", "a.rs"], Some(vec!["a.rs"])),
-        (vec!["--worktree", "--theirs", "--", "a.rs"], Some(vec!["a.rs"])),
-        (vec!["-S", "-W", "--theirs", "--", "a.rs"], Some(vec!["a.rs"])),
-        (vec!["--staged", "--worktree", "--theirs", "--", "a.rs"], Some(vec!["a.rs"])),
+        (
+            vec!["-W", "--source=topic", "--", "a.rs"],
+            Some(vec!["a.rs"]),
+        ),
+        (
+            vec!["--worktree", "--theirs", "--", "a.rs"],
+            Some(vec!["a.rs"]),
+        ),
+        (
+            vec!["-S", "-W", "--theirs", "--", "a.rs"],
+            Some(vec!["a.rs"]),
+        ),
+        (
+            vec!["--staged", "--worktree", "--theirs", "--", "a.rs"],
+            Some(vec!["a.rs"]),
+        ),
         (vec!["-m", "--", "a.rs"], Some(vec!["a.rs"])),
         (vec!["--conflict=zdiff3", "--", "a.rs"], Some(vec!["a.rs"])),
-        (vec!["--conflict", "diff3", "--", "a.rs"], Some(vec!["a.rs"])),
+        (
+            vec!["--conflict", "diff3", "--", "a.rs"],
+            Some(vec!["a.rs"]),
+        ),
         (vec!["-S", "--theirs", "--", "a.rs"], None),
         (vec!["--staged", "--source=topic", "--", "a.rs"], None),
         (vec!["--theirs", "a.rs"], None),
@@ -105,7 +153,14 @@ fn restore_forms_are_read_exactly() {
         (vec!["-sHEAD", "--", "a.rs"], None),
         (vec![], None),
     ] {
-        let typed: Option<Vec<String>> = expected.map(|paths| { return paths.iter().map(|each| { return String::from(*each); }).collect(); });
+        let typed: Option<Vec<String>> = expected.map(|paths| {
+            return paths
+                .iter()
+                .map(|each| {
+                    return String::from(*each);
+                })
+                .collect();
+        });
         assert_eq!(paths_of("restore", values.as_slice()), typed, "{values:?}");
     }
 }
@@ -113,7 +168,15 @@ fn restore_forms_are_read_exactly() {
 /// Every other command word is not a way to take a side.
 #[test]
 fn other_commands_never_qualify() {
-    for word in ["switch", "reset", "rm", "merge", "checkout-index", "stash", "add"] {
+    for word in [
+        "switch",
+        "reset",
+        "rm",
+        "merge",
+        "checkout-index",
+        "stash",
+        "add",
+    ] {
         assert_eq!(paths_of(word, &["--theirs", "--", "a.rs"]), None, "{word}");
     }
 }
@@ -130,15 +193,37 @@ fn an_option_value_is_not_read_as_an_option() {
         (vec!["--staged", "--source", "-W", "--", "a.rs"], None),
         (vec!["-S", "-s", "-W", "--", "a.rs"], None),
         (vec!["--staged", "--conflict", "-W", "--", "a.rs"], None),
-        (vec!["--staged", "--source", "--worktree", "--", "a.rs"], None),
+        (
+            vec!["--staged", "--source", "--worktree", "--", "a.rs"],
+            None,
+        ),
         (vec!["--source=-W", "--staged", "--", "a.rs"], None),
         (vec!["--source", "-W", "--", "a.rs"], Some(vec!["a.rs"])),
-        (vec!["--source", "--staged", "--", "a.rs"], Some(vec!["a.rs"])),
-        (vec!["--source", "-S", "-W", "--", "a.rs"], Some(vec!["a.rs"])),
-        (vec!["--staged", "-W", "--source", "HEAD", "--", "a.rs"], Some(vec!["a.rs"])),
-        (vec!["--source", "HEAD", "--staged", "--worktree", "--", "a.rs"], Some(vec!["a.rs"])),
+        (
+            vec!["--source", "--staged", "--", "a.rs"],
+            Some(vec!["a.rs"]),
+        ),
+        (
+            vec!["--source", "-S", "-W", "--", "a.rs"],
+            Some(vec!["a.rs"]),
+        ),
+        (
+            vec!["--staged", "-W", "--source", "HEAD", "--", "a.rs"],
+            Some(vec!["a.rs"]),
+        ),
+        (
+            vec!["--source", "HEAD", "--staged", "--worktree", "--", "a.rs"],
+            Some(vec!["a.rs"]),
+        ),
     ] {
-        let typed: Option<Vec<String>> = expected.map(|paths| { return paths.iter().map(|each| { return String::from(*each); }).collect(); });
+        let typed: Option<Vec<String>> = expected.map(|paths| {
+            return paths
+                .iter()
+                .map(|each| {
+                    return String::from(*each);
+                })
+                .collect();
+        });
         assert_eq!(paths_of("restore", values.as_slice()), typed, "{values:?}");
     }
 }

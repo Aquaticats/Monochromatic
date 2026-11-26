@@ -25,12 +25,18 @@
 //! checkUserCachePin(cache, pin);
 //! ```
 
-use crate::fs_beneath::{open_directory_crossing_one_mount, open_root};
+use crate::fs_beneath::{
+    open_directory_crossing_one_mount,
+    open_root,
+};
 use crate::fs_beneath_mount_facts::mount_id_of;
 use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount::mount_facts_of;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The root-owned file the pin is recorded in.
 ///
@@ -137,21 +143,41 @@ impl PinRefusal {
     /// The refusal in words.
     pub fn message(&self) -> String {
         return match self {
-            PinRefusal::Missing { path } => format!(
+            PinRefusal::Missing {
+                path,
+            } => format!(
                 "the `user-cache` pin is not at {}. Nothing was created or bound, because a bind made before the cache dataset mounts lands on the home underlay. Ways forward: run the one-time setup that records the pin, then run the removal again.",
                 path.display()
             ),
-            PinRefusal::Unreadable { path, reason } => format!("{path} could not be read: {reason}. Nothing was created or bound on a mount that could not be checked."),
-            PinRefusal::Malformed { said } => format!(
+            PinRefusal::Unreadable {
+                path,
+                reason,
+            } => format!(
+                "{path} could not be read: {reason}. Nothing was created or bound on a mount that could not be checked."
+            ),
+            PinRefusal::Malformed {
+                said,
+            } => format!(
                 "the `user-cache` pin is not one this route writes: {said}. Nothing was created or bound on a pin that cannot be read, and `doctor` prints this state."
             ),
-            PinRefusal::Source { pinned, found } => format!(
+            PinRefusal::Source {
+                pinned,
+                found,
+            } => format!(
                 "the mount at the account's `.cache` has source `{found}`, and the pin records `{pinned}`. A bind made here would land on the wrong mount. Nothing was created or bound; ways forward: check that the pinned dataset is mounted at the account's `.cache`, or record the pin again for the dataset the machine mounts there."
             ),
-            PinRefusal::Inode { pinned, found } => format!(
+            PinRefusal::Inode {
+                pinned,
+                found,
+            } => format!(
                 "the mount at the account's `.cache` has root inode {found}, and the pin records {pinned}. The mount at that name is not the dataset's root. Nothing was created or bound; ways forward: check for a bind or another mount at the account's `.cache` and remove it, then run the removal again."
             ),
-            PinRefusal::Home { uid, said } => format!("the home of account {uid} could not be read from the passwd database: {said}. The staging folder lives under that home, so nothing was created or bound."),
+            PinRefusal::Home {
+                uid,
+                said,
+            } => format!(
+                "the home of account {uid} could not be read from the passwd database: {said}. The staging folder lives under that home, so nothing was created or bound."
+            ),
         };
     }
 }
@@ -160,7 +186,10 @@ impl PinRefusal {
 impl UserCachePin {
     /// The record's text.
     pub fn encode(&self) -> String {
-        #[allow(clippy::disallowed_methods, reason = "the JSON macro builds one object of every field; no fallible read is made here")]
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "the JSON macro builds one object of every field; no fallible read is made here"
+        )]
         let object: serde_json::Value = serde_json::json!({
             "version": PIN_VERSION,
             "kind": PIN_KIND,
@@ -173,11 +202,20 @@ impl UserCachePin {
 }
 
 /// One decimal field of a pin object.
-fn pin_number(object: &serde_json::Map<String, serde_json::Value>, key: &'static str) -> Result<u64, PinRefusal> {
+fn pin_number(
+    object: &serde_json::Map<String, serde_json::Value>,
+    key: &'static str,
+) -> Result<u64, PinRefusal> {
     let Some(text) = crate::json_record::string_field(object, key) else {
-        return Err(PinRefusal::Malformed { said: format!("`{key}` is absent or is not text") });
+        return Err(PinRefusal::Malformed {
+            said: format!("`{key}` is absent or is not text"),
+        });
     };
-    return text.parse::<u64>().map_err(|_error| return PinRefusal::Malformed { said: format!("`{key}` is not a decimal number") });
+    return text.parse::<u64>().map_err(|_error| {
+        return PinRefusal::Malformed {
+            said: format!("`{key}` is not a decimal number"),
+        };
+    });
 }
 
 /// What:
@@ -191,17 +229,32 @@ fn pin_number(object: &serde_json::Map<String, serde_json::Value>, key: &'static
 /// const pin = userCachePinFromText(text);
 /// ```
 pub fn pin_from_text(text: &str) -> Result<UserCachePin, PinRefusal> {
-    let object: serde_json::Map<String, serde_json::Value> = crate::json_record::parse_object(text).ok_or_else(|| return PinRefusal::Malformed { said: String::from("the text is not one JSON object") })?;
+    let object: serde_json::Map<String, serde_json::Value> = crate::json_record::parse_object(text)
+        .ok_or_else(|| {
+            return PinRefusal::Malformed {
+                said: String::from("the text is not one JSON object"),
+            };
+        })?;
     let version: &str = crate::json_record::string_field(&object, "version").unwrap_or("");
     let kind: &str = crate::json_record::string_field(&object, "kind").unwrap_or("");
     if version != PIN_VERSION || kind != PIN_KIND {
-        return Err(PinRefusal::Malformed { said: format!("its version is `{version}` and its kind `{kind}`, and this route reads `{PIN_VERSION}` `{PIN_KIND}`") });
+        return Err(PinRefusal::Malformed {
+            said: format!(
+                "its version is `{version}` and its kind `{kind}`, and this route reads `{PIN_VERSION}` `{PIN_KIND}`"
+            ),
+        });
     }
     let source: &str = crate::json_record::string_field(&object, "source").unwrap_or("");
     if source.is_empty() {
-        return Err(PinRefusal::Malformed { said: String::from("`source` is absent or empty") });
+        return Err(PinRefusal::Malformed {
+            said: String::from("`source` is absent or empty"),
+        });
     }
-    return Ok(UserCachePin { source: String::from(source), root_inode: pin_number(&object, "root-inode")?, device: pin_number(&object, "device")? });
+    return Ok(UserCachePin {
+        source: String::from(source),
+        root_inode: pin_number(&object, "root-inode")?,
+        device: pin_number(&object, "device")?,
+    });
 }
 
 /// What:
@@ -219,10 +272,23 @@ pub fn pin_from_text(text: &str) -> Result<UserCachePin, PinRefusal> {
 pub fn read_pin(path: &Path) -> Result<UserCachePin, PinRefusal> {
     let bytes: Vec<u8> = match crate::plain_file::read_plain_file(path, MAXIMUM_PIN_BYTES) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Err(PinRefusal::Missing { path: path.to_path_buf() }),
-        Err(error) => return Err(PinRefusal::Unreadable { path: format!("the `user-cache` pin at {}", path.display()), reason: error.to_string() }),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(PinRefusal::Missing {
+                path: path.to_path_buf(),
+            });
+        }
+        Err(error) => {
+            return Err(PinRefusal::Unreadable {
+                path: format!("the `user-cache` pin at {}", path.display()),
+                reason: error.to_string(),
+            });
+        }
     };
-    let text: &str = crate::json_record::decode_fatal(bytes.as_slice()).ok_or_else(|| return PinRefusal::Malformed { said: String::from("the file is not UTF-8 text") })?;
+    let text: &str = crate::json_record::decode_fatal(bytes.as_slice()).ok_or_else(|| {
+        return PinRefusal::Malformed {
+            said: String::from("the file is not UTF-8 text"),
+        };
+    })?;
     return pin_from_text(text);
 }
 
@@ -237,17 +303,55 @@ pub fn read_pin(path: &Path) -> Result<UserCachePin, PinRefusal> {
 /// ```ts
 /// writeUserCachePin(directory, pin);
 /// ```
-pub fn write_pin(directory: &std::fs::File, pin: &UserCachePin) -> Result<(), PinRefusal> {
+pub fn write_pin(
+    directory: &std::fs::File,
+    pin: &UserCachePin,
+) -> Result<(), PinRefusal> {
     use std::io::Write;
     let temporary: std::ffi::OsString = std::ffi::OsString::from("user-cache-pin.tmp");
     let final_name: std::ffi::OsString = std::ffi::OsString::from("user-cache-pin");
     let _stale = crate::fs_beneath::remove_at(directory, temporary.as_os_str(), false);
-    let mut file: std::fs::File = crate::fs_beneath::create_file_at(directory, temporary.as_os_str(), 0o644).map_err(|error| return PinRefusal::Unreadable { path: String::from("the pin's temporary name"), reason: error.to_string() })?;
-    file.write_all(pin.encode().as_bytes()).map_err(|error| return PinRefusal::Unreadable { path: String::from("the pin's temporary name"), reason: error.to_string() })?;
-    file.sync_all().map_err(|error| return PinRefusal::Unreadable { path: String::from("the pin's temporary name"), reason: error.to_string() })?;
+    let mut file: std::fs::File =
+        crate::fs_beneath::create_file_at(directory, temporary.as_os_str(), 0o644).map_err(
+            |error| {
+                return PinRefusal::Unreadable {
+                    path: String::from("the pin's temporary name"),
+                    reason: error.to_string(),
+                };
+            },
+        )?;
+    file.write_all(pin.encode().as_bytes()).map_err(|error| {
+        return PinRefusal::Unreadable {
+            path: String::from("the pin's temporary name"),
+            reason: error.to_string(),
+        };
+    })?;
+    file.sync_all().map_err(|error| {
+        return PinRefusal::Unreadable {
+            path: String::from("the pin's temporary name"),
+            reason: error.to_string(),
+        };
+    })?;
     drop(file);
-    crate::fs_beneath::rename_at(directory, temporary.as_os_str(), directory, final_name.as_os_str(), true).map_err(|error| return PinRefusal::Unreadable { path: String::from("the pin"), reason: error.to_string() })?;
-    return directory.sync_all().map_err(|error| return PinRefusal::Unreadable { path: String::from("the pin's folder"), reason: error.to_string() });
+    crate::fs_beneath::rename_at(
+        directory,
+        temporary.as_os_str(),
+        directory,
+        final_name.as_os_str(),
+        true,
+    )
+    .map_err(|error| {
+        return PinRefusal::Unreadable {
+            path: String::from("the pin"),
+            reason: error.to_string(),
+        };
+    })?;
+    return directory.sync_all().map_err(|error| {
+        return PinRefusal::Unreadable {
+            path: String::from("the pin's folder"),
+            reason: error.to_string(),
+        };
+    });
 }
 
 /// What:
@@ -268,12 +372,26 @@ pub fn passwd_home_of(uid: u32) -> Result<PathBuf, PinRefusal> {
     let mut buffer: Vec<libc::c_char> = vec![0; PASSWD_BUFFER_BYTES];
     let mut found: *mut libc::passwd = std::ptr::null_mut();
     // SAFETY: the entry and the buffer are this call's own and outlive it, and `found` points into the buffer.
-    let status: libc::c_int = unsafe { libc::getpwuid_r(uid, &mut entry, buffer.as_mut_ptr(), buffer.len(), &mut found) };
+    let status: libc::c_int = unsafe {
+        libc::getpwuid_r(
+            uid,
+            &mut entry,
+            buffer.as_mut_ptr(),
+            buffer.len(),
+            &mut found,
+        )
+    };
     if status != 0 {
-        return Err(PinRefusal::Home { uid, said: std::io::Error::from_raw_os_error(status).to_string() });
+        return Err(PinRefusal::Home {
+            uid,
+            said: std::io::Error::from_raw_os_error(status).to_string(),
+        });
     }
     if found.is_null() || entry.pw_dir.is_null() {
-        return Err(PinRefusal::Home { uid, said: String::from("the account has no passwd entry with a home") });
+        return Err(PinRefusal::Home {
+            uid,
+            said: String::from("the account has no passwd entry with a home"),
+        });
     }
     // SAFETY: `pw_dir` points into `buffer`, which is alive here and is not freed by this read.
     let text: &std::ffi::CStr = unsafe { std::ffi::CStr::from_ptr(entry.pw_dir) };
@@ -293,8 +411,20 @@ pub fn passwd_home_of(uid: u32) -> Result<PathBuf, PinRefusal> {
 /// const cache = openTheCache(home);
 /// ```
 pub fn open_cache(home: &Path) -> Result<std::fs::File, PinRefusal> {
-    let root: std::fs::File = open_root(home).map_err(|error| return PinRefusal::Unreadable { path: home.display().to_string(), reason: error.to_string() })?;
-    return open_directory_crossing_one_mount(&root, std::ffi::OsStr::new(".cache")).map_err(|error| return PinRefusal::Unreadable { path: format!("{}/.cache", home.display()), reason: error.to_string() });
+    let root: std::fs::File = open_root(home).map_err(|error| {
+        return PinRefusal::Unreadable {
+            path: home.display().to_string(),
+            reason: error.to_string(),
+        };
+    })?;
+    return open_directory_crossing_one_mount(&root, std::ffi::OsStr::new(".cache")).map_err(
+        |error| {
+            return PinRefusal::Unreadable {
+                path: format!("{}/.cache", home.display()),
+                reason: error.to_string(),
+            };
+        },
+    );
 }
 
 /// What:
@@ -310,13 +440,31 @@ pub fn open_cache(home: &Path) -> Result<std::fs::File, PinRefusal> {
 /// ```ts
 /// checkUserCacheMount(cache, pin, facts);
 /// ```
-pub fn check_pin(cache: &std::fs::File, pin: &UserCachePin, facts: &MountFacts) -> Result<(), PinRefusal> {
+pub fn check_pin(
+    cache: &std::fs::File,
+    pin: &UserCachePin,
+    facts: &MountFacts,
+) -> Result<(), PinRefusal> {
     if facts.source != pin.source {
-        return Err(PinRefusal::Source { pinned: pin.source.clone(), found: facts.source.clone() });
+        return Err(PinRefusal::Source {
+            pinned: pin.source.clone(),
+            found: facts.source.clone(),
+        });
     }
-    let inode: u64 = cache.metadata().map_err(|error| return PinRefusal::Unreadable { path: String::from("the account's `.cache`"), reason: error.to_string() })?.ino();
+    let inode: u64 = cache
+        .metadata()
+        .map_err(|error| {
+            return PinRefusal::Unreadable {
+                path: String::from("the account's `.cache`"),
+                reason: error.to_string(),
+            };
+        })?
+        .ino();
     if inode != pin.root_inode {
-        return Err(PinRefusal::Inode { pinned: pin.root_inode, found: inode });
+        return Err(PinRefusal::Inode {
+            pinned: pin.root_inode,
+            found: inode,
+        });
     }
     return Ok(());
 }
@@ -332,8 +480,18 @@ pub fn check_pin(cache: &std::fs::File, pin: &UserCachePin, facts: &MountFacts) 
 /// const facts = cacheMountFacts(cache);
 /// ```
 pub fn cache_mount_facts(cache: &std::fs::File) -> Result<MountFacts, PinRefusal> {
-    let mount_id: u64 = mount_id_of(cache).map_err(|error| return PinRefusal::Unreadable { path: String::from("the account's `.cache`"), reason: error.to_string() })?;
-    return mount_facts_of(mount_id).map_err(|refusal| return PinRefusal::Unreadable { path: String::from(crate::fs_mount_options::MOUNTINFO_PATH), reason: refusal.message() });
+    let mount_id: u64 = mount_id_of(cache).map_err(|error| {
+        return PinRefusal::Unreadable {
+            path: String::from("the account's `.cache`"),
+            reason: error.to_string(),
+        };
+    })?;
+    return mount_facts_of(mount_id).map_err(|refusal| {
+        return PinRefusal::Unreadable {
+            path: String::from(crate::fs_mount_options::MOUNTINFO_PATH),
+            reason: refusal.message(),
+        };
+    });
 }
 
 /// What:
@@ -346,7 +504,10 @@ pub fn cache_mount_facts(cache: &std::fs::File) -> Result<MountFacts, PinRefusal
 /// ```ts
 /// checkTheLivePin(cache, pin);
 /// ```
-pub fn check_live_pin(cache: &std::fs::File, pin: &UserCachePin) -> Result<(), PinRefusal> {
+pub fn check_live_pin(
+    cache: &std::fs::File,
+    pin: &UserCachePin,
+) -> Result<(), PinRefusal> {
     let facts: MountFacts = cache_mount_facts(cache)?;
     return check_pin(cache, pin, &facts);
 }

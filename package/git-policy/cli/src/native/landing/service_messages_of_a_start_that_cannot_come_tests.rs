@@ -14,15 +14,25 @@ use crate::service_messages::DENYLIST;
 /// Every term of the denylist,
 /// matched as whole words and ignoring case,
 /// as the message controls match it.
-fn leaks(text: &str, term: &str) -> bool {
+fn leaks(
+    text: &str,
+    term: &str,
+) -> bool {
     let haystack: String = text.to_lowercase();
     let needle: String = term.to_lowercase();
     let mut from: usize = 0;
     while let Some(at) = haystack[from..].find(needle.as_str()) {
         let start: usize = from + at;
         let end: usize = start + needle.len();
-        let before: bool = haystack[..start].chars().next_back().is_none_or(|character| { return !character.is_alphanumeric(); });
-        let after: bool = haystack[end..].chars().next().is_none_or(|character| { return !character.is_alphanumeric(); });
+        let before: bool = haystack[..start]
+            .chars()
+            .next_back()
+            .is_none_or(|character| {
+                return !character.is_alphanumeric();
+            });
+        let after: bool = haystack[end..].chars().next().is_none_or(|character| {
+            return !character.is_alphanumeric();
+        });
         if before && after {
             return true;
         }
@@ -41,7 +51,12 @@ fn leaks(text: &str, term: &str) -> bool {
 /// and the runtime directory is the only part of the address the person sets.
 #[test]
 fn an_address_that_cannot_exist_names_the_setting_its_room_and_the_remedy() {
-    let said: String = socket_path_too_long("/home/a/temp/agent/x/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock", 113, 107, 40);
+    let said: String = socket_path_too_long(
+        "/home/a/temp/agent/x/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock",
+        113,
+        107,
+        40,
+    );
     for part in [
         "/home/a/temp/agent/x/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock",
         "113 bytes",
@@ -54,7 +69,10 @@ fn an_address_that_cannot_exist_names_the_setting_its_room_and_the_remedy() {
         assert!(said.contains(part), "the sentence names {part:?}: {said}");
     }
     for term in DENYLIST {
-        assert!(!leaks(said.as_str(), term), "the sentence leaks {term:?}: {said}");
+        assert!(
+            !leaks(said.as_str(), term),
+            "the sentence leaks {term:?}: {said}"
+        );
     }
 }
 
@@ -85,6 +103,9 @@ fn a_service_made_elsewhere_names_both_addresses_and_both_directories() {
         assert!(said.contains(part), "the sentence names {part:?}: {said}");
     }
     for term in DENYLIST {
-        assert!(!leaks(said.as_str(), term), "the sentence leaks {term:?}: {said}");
+        assert!(
+            !leaks(said.as_str(), term),
+            "the sentence leaks {term:?}: {said}"
+        );
     }
 }

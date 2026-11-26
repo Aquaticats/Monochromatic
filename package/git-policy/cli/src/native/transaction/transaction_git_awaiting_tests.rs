@@ -9,7 +9,12 @@
 
 use super::*;
 use crate::landing_state_carried_by_its_task::in_a_landing_task;
-use crate::test_support::{fixture, git_context, remove, repository};
+use crate::test_support::{
+    fixture,
+    git_context,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// The text of a Git answer,
@@ -52,7 +57,9 @@ fn the_synchronous_face_of_the_same_query_is_refused_from_inside_the_runtime() {
         return crate::transaction_git::run_git(&context, &request);
     })
     .expect("the runtime");
-    let error: std::io::Error = refused.expect_err("a step that is ended at its ceiling registers its pipes by entering the runtime");
+    let error: std::io::Error = refused.expect_err(
+        "a step that is ended at its ceiling registers its pipes by entering the runtime",
+    );
     assert!(
         error.to_string().contains("inside itself"),
         "the refusal names the runtime that was asked for from inside itself: {error}"
@@ -68,14 +75,18 @@ fn an_input_awaited_on_the_runtime_reaches_git_and_comes_back_hashed() {
     let root: PathBuf = fixture("transaction-git-awaiting-input");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let context: GitContext = git_context();
-    let mut hashing: GitRequest = GitRequest::new(repo.as_path(), &["hash-object", "-w", "--stdin"]);
+    let mut hashing: GitRequest =
+        GitRequest::new(repo.as_path(), &["hash-object", "-w", "--stdin"]);
     hashing.input = Some(b"content\n".to_vec());
     let hashed: GitOutput = crate::lazy_runtime::run_on_runtime(async {
         return run_git_checked_awaiting(&context, &hashing).await;
     })
     .expect("the runtime")
     .expect("hash-object");
-    assert_eq!(answer(hashed.stdout.as_slice()), "d95f3ad14dee633a758d2e331151e950dd13e4ed");
+    assert_eq!(
+        answer(hashed.stdout.as_slice()),
+        "d95f3ad14dee633a758d2e331151e950dd13e4ed"
+    );
     let mut large: GitRequest = GitRequest::new(repo.as_path(), &["hash-object", "--stdin"]);
     large.input = Some(vec![b'x'; 4 * 1024 * 1024]);
     let big: GitOutput = crate::lazy_runtime::run_on_runtime(async {
@@ -95,7 +106,10 @@ fn a_failure_awaited_on_the_runtime_names_the_command() {
     let root: PathBuf = fixture("transaction-git-awaiting-failure");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let context: GitContext = git_context();
-    let missing: GitRequest = GitRequest::new(repo.as_path(), &["rev-parse", "--verify", "--quiet", "refs/heads/none"]);
+    let missing: GitRequest = GitRequest::new(
+        repo.as_path(),
+        &["rev-parse", "--verify", "--quiet", "refs/heads/none"],
+    );
     let output: GitOutput = crate::lazy_runtime::run_on_runtime(async {
         return run_git_awaiting(&context, &missing).await;
     })
@@ -103,12 +117,21 @@ fn a_failure_awaited_on_the_runtime_names_the_command() {
     .expect("rev-parse runs");
     assert_eq!(output.code, Some(1));
     let failure: GitFailure = crate::lazy_runtime::run_on_runtime(async {
-        return run_git_checked_awaiting(&context, &GitRequest::new(repo.as_path(), &["cat-file", "-t", "0000000000000000000000000000000000000001"])).await;
+        return run_git_checked_awaiting(
+            &context,
+            &GitRequest::new(
+                repo.as_path(),
+                &["cat-file", "-t", "0000000000000000000000000000000000000001"],
+            ),
+        )
+        .await;
     })
     .expect("the runtime")
     .expect_err("missing object");
     assert!(
-        failure.to_string().starts_with("git cat-file -t 0000000000000000000000000000000000000001 failed: fatal:"),
+        failure
+            .to_string()
+            .starts_with("git cat-file -t 0000000000000000000000000000000000000001 failed: fatal:"),
         "{failure}"
     );
     remove(root.as_path());
@@ -124,20 +147,34 @@ fn a_branch_write_awaited_in_a_landing_task_moves_the_ref() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let context: GitContext = git_context();
     let head: GitOutput = crate::lazy_runtime::run_on_runtime(async {
-        return run_git_checked_awaiting(&context, &GitRequest::new(repo.as_path(), &["rev-parse", "HEAD"])).await;
+        return run_git_checked_awaiting(
+            &context,
+            &GitRequest::new(repo.as_path(), &["rev-parse", "HEAD"]),
+        )
+        .await;
     })
     .expect("the runtime")
     .expect("rev-parse HEAD");
     let commit: String = answer(head.stdout.as_slice());
-    let moving: GitRequest = GitRequest::new(repo.as_path(), &["update-ref", "refs/heads/landed-here", commit.as_str()]);
+    let moving: GitRequest = GitRequest::new(
+        repo.as_path(),
+        &["update-ref", "refs/heads/landed-here", commit.as_str()],
+    );
     let written: GitOutput = crate::lazy_runtime::run_on_runtime(async {
-        return in_a_landing_task(async { return run_git_checked_awaiting(&context, &moving).await; }).await;
+        return in_a_landing_task(async {
+            return run_git_checked_awaiting(&context, &moving).await;
+        })
+        .await;
     })
     .expect("the runtime")
     .expect("update-ref");
     assert!(written.succeeded(), "{}", written.error_text());
     let moved: GitOutput = crate::lazy_runtime::run_on_runtime(async {
-        return run_git_checked_awaiting(&context, &GitRequest::new(repo.as_path(), &["rev-parse", "refs/heads/landed-here"])).await;
+        return run_git_checked_awaiting(
+            &context,
+            &GitRequest::new(repo.as_path(), &["rev-parse", "refs/heads/landed-here"]),
+        )
+        .await;
     })
     .expect("the runtime")
     .expect("rev-parse of the ref the write moved");
@@ -154,22 +191,39 @@ fn a_run_leaves_no_descriptor_open() {
     let context: GitContext = git_context();
     // The first run builds the runtime and its reactor, whose own descriptors stay for the life of the process.
     let warm: GitOutput = crate::lazy_runtime::run_on_runtime(async {
-        return run_git_awaiting(&context, &GitRequest::new(repo.as_path(), &["status", "--short"])).await;
+        return run_git_awaiting(
+            &context,
+            &GitRequest::new(repo.as_path(), &["status", "--short"]),
+        )
+        .await;
     })
     .expect("the runtime")
     .expect("the warm-up runs");
     assert!(warm.succeeded(), "{}", warm.error_text());
-    let before: usize = std::fs::read_dir("/proc/self/fd").expect("the descriptor table").count();
+    let before: usize = std::fs::read_dir("/proc/self/fd")
+        .expect("the descriptor table")
+        .count();
     for _run in 0..2 {
         let status: GitOutput = crate::lazy_runtime::run_on_runtime(async {
-            return run_git_awaiting(&context, &GitRequest::new(repo.as_path(), &["status", "--short"])).await;
+            return run_git_awaiting(
+                &context,
+                &GitRequest::new(repo.as_path(), &["status", "--short"]),
+            )
+            .await;
         })
         .expect("the runtime")
         .expect("status runs");
         assert!(status.succeeded(), "{}", status.error_text());
     }
-    let after: usize = std::fs::read_dir("/proc/self/fd").expect("the descriptor table").count();
-    assert_eq!(after, before, "the runs left {} descriptors of their own open", after.saturating_sub(before));
+    let after: usize = std::fs::read_dir("/proc/self/fd")
+        .expect("the descriptor table")
+        .count();
+    assert_eq!(
+        after,
+        before,
+        "the runs left {} descriptors of their own open",
+        after.saturating_sub(before)
+    );
     remove(root.as_path());
 }
 
@@ -191,23 +245,49 @@ fn a_branch_write_of_the_landing_asked_of_the_synchronous_face_inside_the_runtim
     let repo: PathBuf = repository(root.as_path(), "repo");
     let context: GitContext = git_context();
     let head: GitOutput = crate::lazy_runtime::run_on_runtime(async {
-        return run_git_checked_awaiting(&context, &GitRequest::new(repo.as_path(), &["rev-parse", "HEAD"])).await;
+        return run_git_checked_awaiting(
+            &context,
+            &GitRequest::new(repo.as_path(), &["rev-parse", "HEAD"]),
+        )
+        .await;
     })
     .expect("the runtime")
     .expect("rev-parse HEAD");
-    let commit: String = String::from_utf8_lossy(head.stdout.as_slice()).trim().to_string();
-    let moving: GitRequest = GitRequest::new(repo.as_path(), &["update-ref", "refs/heads/landed-synchronously", commit.as_str()]);
+    let commit: String = String::from_utf8_lossy(head.stdout.as_slice())
+        .trim()
+        .to_string();
+    let moving: GitRequest = GitRequest::new(
+        repo.as_path(),
+        &[
+            "update-ref",
+            "refs/heads/landed-synchronously",
+            commit.as_str(),
+        ],
+    );
     let written: GitOutput = crate::lazy_runtime::run_on_runtime(async {
-        return in_a_landing_task(async { return crate::transaction_git::run_git(&context, &moving); }).await;
+        return in_a_landing_task(async {
+            return crate::transaction_git::run_git(&context, &moving);
+        })
+        .await;
     })
     .expect("the runtime")
     .expect("the synchronous face of a branch write runs from inside the runtime");
     assert!(written.succeeded(), "{}", written.error_text());
     let moved: GitOutput = crate::lazy_runtime::run_on_runtime(async {
-        return run_git_checked_awaiting(&context, &GitRequest::new(repo.as_path(), &["rev-parse", "refs/heads/landed-synchronously"])).await;
+        return run_git_checked_awaiting(
+            &context,
+            &GitRequest::new(
+                repo.as_path(),
+                &["rev-parse", "refs/heads/landed-synchronously"],
+            ),
+        )
+        .await;
     })
     .expect("the runtime")
     .expect("rev-parse of the ref the write moved");
-    assert_eq!(String::from_utf8_lossy(moved.stdout.as_slice()).trim(), commit);
+    assert_eq!(
+        String::from_utf8_lossy(moved.stdout.as_slice()).trim(),
+        commit
+    );
     remove(root.as_path());
 }

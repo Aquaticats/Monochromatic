@@ -38,23 +38,49 @@
 //! const part = cloneTheUnchanged({ context, source, destination, admin, adminPath, fence }); // throws the reason Git's checkout is needed
 //! ```
 
-use crate::add_timing::{begin_step, end_step};
+use crate::add_timing::{
+    begin_step,
+    end_step,
+};
 use crate::diagnostic_log::debug;
 use crate::subvolume_index::StatFields;
 use crate::transaction_git::GitContext;
 #[cfg(test)]
-use crate::transaction_git::{GitRequest, run_git};
+use crate::transaction_git::{
+    GitRequest,
+    run_git,
+};
 use crate::worktree_clone::Created;
 use crate::worktree_clone::clone_these_bytes_beside;
 use crate::worktree_clone_conversion_beside_the_clone::fence_beside_the_clone;
-use crate::worktree_clone_conversion_fence::{AttributeFence, Fence};
-use crate::worktree_clone_index::{PendingIndex, install_the_index_beside_the_write};
+use crate::worktree_clone_conversion_fence::{
+    AttributeFence,
+    Fence,
+};
+use crate::worktree_clone_index::{
+    PendingIndex,
+    install_the_index_beside_the_write,
+};
 use crate::worktree_clone_partial_index::index_of_the_tree;
-use crate::worktree_clone_partial_split::{Split, split_the_tree};
-use crate::worktree_clone_partial_staged::{a_staged_path_among_the_clones, staged_paths};
-use crate::worktree_clone_partial_tracked::{Tracked, read_tracked, the_recorded_stats, the_written_paths};
+use crate::worktree_clone_partial_split::{
+    Split,
+    split_the_tree,
+};
+use crate::worktree_clone_partial_staged::{
+    a_staged_path_among_the_clones,
+    staged_paths,
+};
+use crate::worktree_clone_partial_tracked::{
+    Tracked,
+    read_tracked,
+    the_recorded_stats,
+    the_written_paths,
+};
 use crate::worktree_snapshot_source::SnapshotSource;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 use std::fs::File;
 use std::path::Path;
 
@@ -160,16 +186,34 @@ pub(crate) struct PartialClone<'a> {
 /// ```ts
 /// const { created, decided, pending } = cloneTheUnchanged({ context, source, destination, admin, adminPath, fence }); // throws the reason
 /// ```
-pub(crate) fn clone_the_unchanged(work: PartialClone<'_>) -> Result<(PartCloned, Fence, PendingIndex), String> {
-    let PartialClone { context, source, entries, destination, admin, admin_path, fence }: PartialClone<'_> = work;
+pub(crate) fn clone_the_unchanged(
+    work: PartialClone<'_>
+) -> Result<(PartCloned, Fence, PendingIndex), String> {
+    let PartialClone {
+        context,
+        source,
+        entries,
+        destination,
+        admin,
+        admin_path,
+        fence,
+    }: PartialClone<'_> = work;
     let read_entered: bool = begin_step("partRead");
     let read_outcome = read_tracked(source, entries);
     end_step(read_entered);
     let tracked: Tracked = read_outcome?;
     let classify_entered: bool = begin_step("partClassify");
-    let classify_outcome = split_the_tree(tracked.entries.as_slice(), tracked.indexed.as_slice(), tracked.tree.as_slice(), source.root.as_path(), source.clean.index_seconds);
+    let classify_outcome = split_the_tree(
+        tracked.entries.as_slice(),
+        tracked.indexed.as_slice(),
+        tracked.tree.as_slice(),
+        source.root.as_path(),
+        source.clean.index_seconds,
+    );
     end_step(classify_entered);
-    let split: Split = classify_outcome.map_err(|refusal| { return refusal.reason; })?;
+    let split: Split = classify_outcome.map_err(|refusal| {
+        return refusal.reason;
+    })?;
     // What:
     //  A split that leaves Git more paths to write than the changed-file cut ends the rung here,
     //  before any file is copied.
@@ -202,7 +246,11 @@ pub(crate) fn clone_the_unchanged(work: PartialClone<'_>) -> Result<(PartCloned,
     }
     let staged_entered: bool = begin_step("partStaged");
     let staged_outcome = staged_paths(context, source).and_then(|staged| {
-        return match a_staged_path_among_the_clones(staged.as_slice(), tracked.entries.as_slice(), split.clones.as_slice()) {
+        return match a_staged_path_among_the_clones(
+            staged.as_slice(),
+            tracked.entries.as_slice(),
+            split.clones.as_slice(),
+        ) {
             Some(refusal) => Err(refusal),
             None => Ok(()),
         };
@@ -211,7 +259,12 @@ pub(crate) fn clone_the_unchanged(work: PartialClone<'_>) -> Result<(PartCloned,
     staged_outcome?;
     let cloned_count: usize = split.clones.len();
     let beside_entered: bool = begin_step("conversionBesideTheClone");
-    let (cloned, answered) = clone_these_bytes_beside(source, split.cloned_entries(tracked.entries.as_slice()), destination, fence_beside_the_clone(source, context, fence))?;
+    let (cloned, answered) = clone_these_bytes_beside(
+        source,
+        split.cloned_entries(tracked.entries.as_slice()),
+        destination,
+        fence_beside_the_clone(source, context, fence),
+    )?;
     end_step(beside_entered);
     // A fence's reason, or a pool that would not run it, ends the rung here before any index exists: Git's own checkout
     // writes the worktree.
@@ -223,15 +276,47 @@ pub(crate) fn clone_the_unchanged(work: PartialClone<'_>) -> Result<(PartCloned,
     let written: Vec<Vec<u8>> = the_written_paths(&split, &decided);
     let written_count: usize = written.len();
     let set: HashSet<Vec<u8>> = written.iter().cloned().collect();
-    let recorded: HashMap<Vec<u8>, StatFields> = the_recorded_stats(cloned.stats().clone(), &split, tracked.entries.as_slice(), &set);
+    let recorded: HashMap<Vec<u8>, StatFields> = the_recorded_stats(
+        cloned.stats().clone(),
+        &split,
+        tracked.entries.as_slice(),
+        &set,
+    );
     let index_entered: bool = begin_step("partIndex");
-    let seed: Result<Vec<u8>, String> = index_of_the_tree(tracked.tree.as_slice(), &recorded, source.clean.hash_length);
-    let index_outcome = seed.and_then(|bytes| { return install_the_index_beside_the_write((admin, admin_path), bytes.as_slice(), &recorded, &set, source.clean.hash_length); });
+    let seed: Result<Vec<u8>, String> =
+        index_of_the_tree(tracked.tree.as_slice(), &recorded, source.clean.hash_length);
+    let index_outcome = seed.and_then(|bytes| {
+        return install_the_index_beside_the_write(
+            (admin, admin_path),
+            bytes.as_slice(),
+            &recorded,
+            &set,
+            source.clean.hash_length,
+        );
+    });
     end_step(index_entered);
     let pending: PendingIndex = index_outcome?;
-    debug(TAG, format!("cloned {cloned_count} of {} tracked paths and had Git write {written_count} of them", tracked.tree.len()).as_str());
-    let part: PartCloned = PartCloned { cloned: cloned_count, written: written_count, created: cloned.into_created() };
-    return Ok((part, Fence { git_writes: written, carried: decided.carried }, pending));
+    debug(
+        TAG,
+        format!(
+            "cloned {cloned_count} of {} tracked paths and had Git write {written_count} of them",
+            tracked.tree.len()
+        )
+        .as_str(),
+    );
+    let part: PartCloned = PartCloned {
+        cloned: cloned_count,
+        written: written_count,
+        created: cloned.into_created(),
+    };
+    return Ok((
+        part,
+        Fence {
+            git_writes: written,
+            carried: decided.carried,
+        },
+        pending,
+    ));
 }
 
 /// What:
@@ -261,18 +346,60 @@ pub(crate) fn clone_the_unchanged(work: PartialClone<'_>) -> Result<(PartCloned,
 /// proveTheWorktree({ context, destination, newCommit }); // throws the reason it is not Git's result
 /// ```
 #[cfg(test)]
-pub fn prove_the_worktree(context: &GitContext, destination: &Path, admin_path: &Path, new_commit: &str) -> Result<(), String> {
-    let (listed_code, listed) = ask_in_the_worktree(context, destination, admin_path, &["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames"])?;
+pub fn prove_the_worktree(
+    context: &GitContext,
+    destination: &Path,
+    admin_path: &Path,
+    new_commit: &str,
+) -> Result<(), String> {
+    let (listed_code, listed) = ask_in_the_worktree(
+        context,
+        destination,
+        admin_path,
+        &[
+            "--no-optional-locks",
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--no-renames",
+        ],
+    )?;
     if listed_code != Some(0) {
-        return Err(format!("`git status` ended with {listed_code:?} in the new worktree"));
+        return Err(format!(
+            "`git status` ended with {listed_code:?} in the new worktree"
+        ));
     }
-    if let Some(first) = listed.split(|byte: &u8| { return *byte == 0; }).find(|entry| { return !entry.is_empty(); }) {
+    if let Some(first) = listed
+        .split(|byte: &u8| {
+            return *byte == 0;
+        })
+        .find(|entry| {
+            return !entry.is_empty();
+        })
+    {
         let shown: String = String::from_utf8_lossy(&first[3.min(first.len())..]).into_owned();
-        return Err(format!("the new worktree is not what Git's checkout makes: {} differs", crate::worktree_snapshot_source::plain(shown.as_str())));
+        return Err(format!(
+            "the new worktree is not what Git's checkout makes: {} differs",
+            crate::worktree_snapshot_source::plain(shown.as_str())
+        ));
     }
-    let (compared_code, _quiet) = ask_in_the_worktree(context, destination, admin_path, &["--no-optional-locks", "diff-index", "--cached", "--quiet", new_commit])?;
+    let (compared_code, _quiet) = ask_in_the_worktree(
+        context,
+        destination,
+        admin_path,
+        &[
+            "--no-optional-locks",
+            "diff-index",
+            "--cached",
+            "--quiet",
+            new_commit,
+        ],
+    )?;
     if compared_code != Some(0) {
-        return Err(String::from("the new worktree's index does not equal the tree of the new HEAD"));
+        return Err(String::from(
+            "the new worktree's index does not equal the tree of the new HEAD",
+        ));
     }
     return Ok(());
 }
@@ -296,17 +423,31 @@ pub fn prove_the_worktree(context: &GitContext, destination: &Path, admin_path: 
 /// const { code, stdout } = askInTheWorktree({ context, destination, adminPath, words }); // throws the reason it did not start
 /// ```
 #[cfg(test)]
-fn ask_in_the_worktree(context: &GitContext, destination: &Path, admin_path: &Path, words: &[&str]) -> Result<(Option<i32>, Vec<u8>), String> {
+fn ask_in_the_worktree(
+    context: &GitContext,
+    destination: &Path,
+    admin_path: &Path,
+    words: &[&str],
+) -> Result<(Option<i32>, Vec<u8>), String> {
     let request: GitRequest = GitRequest {
         cwd: destination.to_path_buf(),
-        arguments: words.iter().copied().map(std::ffi::OsString::from).collect(),
+        arguments: words
+            .iter()
+            .copied()
+            .map(std::ffi::OsString::from)
+            .collect(),
         without_prefix: true,
         environment: crate::worktree_ladder_target::checkout_environment(admin_path, destination),
         ..GitRequest::default()
     };
     let output = match run_git(context, &request) {
         Ok(finished) => finished,
-        Err(error) => return Err(format!("`git {}` could not start ({error})", words.join(" "))),
+        Err(error) => {
+            return Err(format!(
+                "`git {}` could not start ({error})",
+                words.join(" ")
+            ));
+        }
     };
     return Ok((output.code, output.stdout));
 }

@@ -47,7 +47,8 @@ fn a_write_the_service_reads_goes_in_whole() {
         let mut taken: Vec<u8> = vec![0; expected];
         let mut read: usize = 0;
         while read < expected {
-            let took: usize = std::io::Read::read(&mut service, &mut taken[read..]).expect("the service reads");
+            let took: usize =
+                std::io::Read::read(&mut service, &mut taken[read..]).expect("the service reads");
             if took == 0 {
                 break;
             }
@@ -56,11 +57,23 @@ fn a_write_the_service_reads_goes_in_whole() {
         return read;
     });
     let began: Instant = Instant::now();
-    let wrote: Wrote = write_within(&stream, payload.as_slice(), Duration::from_secs(5), Duration::from_secs(10));
+    let wrote: Wrote = write_within(
+        &stream,
+        payload.as_slice(),
+        Duration::from_secs(5),
+        Duration::from_secs(10),
+    );
     let took: Duration = began.elapsed();
     assert_eq!(wrote, Wrote::All, "a write a reader drains goes in whole");
-    assert_eq!(reading.join().expect("the reader ends"), expected, "the service took every byte");
-    assert!(took < Duration::from_secs(5), "and it costs the silence bound nothing: {took:?}");
+    assert_eq!(
+        reading.join().expect("the reader ends"),
+        expected,
+        "the service took every byte"
+    );
+    assert!(
+        took < Duration::from_secs(5),
+        "and it costs the silence bound nothing: {took:?}"
+    );
 }
 
 /// What:
@@ -80,11 +93,23 @@ fn a_write_nothing_reads_ends_at_its_silence_bound() {
     let (stream, service) = a_pair();
     let payload: Vec<u8> = vec![b'x'; 400 * 1024];
     let began: Instant = Instant::now();
-    let wrote: Wrote = write_within(&stream, payload.as_slice(), Duration::from_millis(100), Duration::from_secs(5));
+    let wrote: Wrote = write_within(
+        &stream,
+        payload.as_slice(),
+        Duration::from_millis(100),
+        Duration::from_secs(5),
+    );
     let took: Duration = began.elapsed();
     drop(service);
-    assert_eq!(wrote, Wrote::NothingTaken, "a write nothing reads ends at its silence bound");
-    assert!(took >= Duration::from_millis(100), "the bound is what it was given: {took:?}");
+    assert_eq!(
+        wrote,
+        Wrote::NothingTaken,
+        "a write nothing reads ends at its silence bound"
+    );
+    assert!(
+        took >= Duration::from_millis(100),
+        "the bound is what it was given: {took:?}"
+    );
     assert!(took < PATIENCE, "and the wait ends: {took:?}");
 }
 
@@ -104,8 +129,17 @@ fn a_write_nothing_reads_ends_at_its_silence_bound() {
 fn a_write_to_a_closed_connection_ends() {
     let (stream, service) = a_pair();
     drop(service);
-    let wrote: Wrote = write_within(&stream, vec![b'x'; 1024].as_slice(), Duration::from_secs(5), Duration::from_secs(5));
-    assert_eq!(wrote, Wrote::Ended, "a connection the service closed is a send that ended");
+    let wrote: Wrote = write_within(
+        &stream,
+        vec![b'x'; 1024].as_slice(),
+        Duration::from_secs(5),
+        Duration::from_secs(5),
+    );
+    assert_eq!(
+        wrote,
+        Wrote::Ended,
+        "a connection the service closed is a send that ended"
+    );
 }
 
 /// What:
@@ -140,12 +174,24 @@ fn a_write_a_reader_takes_too_slowly_ends_at_its_ceiling() {
         return taken;
     });
     let began: Instant = Instant::now();
-    let wrote: Wrote = write_within(&stream, payload.as_slice(), Duration::from_secs(5), Duration::from_millis(200));
+    let wrote: Wrote = write_within(
+        &stream,
+        payload.as_slice(),
+        Duration::from_secs(5),
+        Duration::from_millis(200),
+    );
     let took: Duration = began.elapsed();
     drop(stream);
     let _taken: usize = reading.join().expect("the reader ends");
-    assert_eq!(wrote, Wrote::TooSlow, "a write the service takes too slowly ends at its ceiling");
-    assert!(took >= Duration::from_millis(200), "the ceiling is what it was given: {took:?}");
+    assert_eq!(
+        wrote,
+        Wrote::TooSlow,
+        "a write the service takes too slowly ends at its ceiling"
+    );
+    assert!(
+        took >= Duration::from_millis(200),
+        "the ceiling is what it was given: {took:?}"
+    );
     assert!(took < PATIENCE, "and the wait ends: {took:?}");
 }
 
@@ -163,7 +209,9 @@ fn a_write_a_reader_takes_too_slowly_ends_at_its_ceiling() {
 #[test]
 fn a_line_that_never_ends_is_read_as_silence_at_the_bound() {
     let (client, mut service) = a_pair();
-    client.set_read_timeout(Some(Duration::from_millis(100))).expect("a read timeout");
+    client
+        .set_read_timeout(Some(Duration::from_millis(100)))
+        .expect("a read timeout");
     let dribbling = std::thread::spawn(move || {
         let began: Instant = Instant::now();
         while began.elapsed() < PATIENCE {
@@ -177,8 +225,14 @@ fn a_line_that_never_ends_is_read_as_silence_at_the_bound() {
     let began: Instant = Instant::now();
     let heard: Heard = listen(&mut reader);
     let took: Duration = began.elapsed();
-    assert!(matches!(heard, Heard::Silent), "a line that never ends is silence at the bound");
-    assert!(took >= Duration::from_millis(100), "the bound is the one the connection carries: {took:?}");
+    assert!(
+        matches!(heard, Heard::Silent),
+        "a line that never ends is silence at the bound"
+    );
+    assert!(
+        took >= Duration::from_millis(100),
+        "the bound is the one the connection carries: {took:?}"
+    );
     assert!(took < PATIENCE, "and the read ends: {took:?}");
     drop(dribbling);
 }
@@ -199,16 +253,25 @@ fn a_line_that_never_ends_is_read_as_silence_at_the_bound() {
 fn a_line_leaves_the_bound_the_connection_carries_as_it_was() {
     let (client, mut service) = a_pair();
     let given: Duration = Duration::from_millis(400);
-    client.set_read_timeout(Some(given)).expect("a read timeout");
+    client
+        .set_read_timeout(Some(given))
+        .expect("a read timeout");
     let mut reader: BufReader<UnixStream> = BufReader::new(client);
     for _ in 0..8 {
         let mut line: String = encode_service(&ServiceMessage::Heartbeat);
         line.push('\n');
         std::io::Write::write_all(&mut service, line.as_bytes()).expect("a message");
         let heard: Heard = listen(&mut reader);
-        assert!(matches!(heard, Heard::Message(ServiceMessage::Heartbeat)), "each line is read as its message");
+        assert!(
+            matches!(heard, Heard::Message(ServiceMessage::Heartbeat)),
+            "each line is read as its message"
+        );
         assert_eq!(
-            reader.get_ref().read_timeout().expect("the timeout is read").expect("a timeout is set"),
+            reader
+                .get_ref()
+                .read_timeout()
+                .expect("the timeout is read")
+                .expect("a timeout is set"),
             given,
             "the bound the connection carries is unchanged"
         );
@@ -225,10 +288,22 @@ fn a_line_leaves_the_bound_the_connection_carries_as_it_was() {
 #[test]
 fn a_connection_of_this_account_is_accepted_and_another_is_not() {
     let own: u32 = own_users_id();
-    assert!(a_connection_of_the_account(Some(own), own), "this account's own connection");
-    assert!(!a_connection_of_the_account(Some(own + 1), own), "a connection another account's process took");
-    assert!(!a_connection_of_the_account(Some(0), own), "a connection of the root account");
-    assert!(!a_connection_of_the_account(None, own), "a connection the kernel would not speak about");
+    assert!(
+        a_connection_of_the_account(Some(own), own),
+        "this account's own connection"
+    );
+    assert!(
+        !a_connection_of_the_account(Some(own + 1), own),
+        "a connection another account's process took"
+    );
+    assert!(
+        !a_connection_of_the_account(Some(0), own),
+        "a connection of the root account"
+    );
+    assert!(
+        !a_connection_of_the_account(None, own),
+        "a connection the kernel would not speak about"
+    );
 }
 
 /// What:
@@ -239,9 +314,10 @@ fn a_connection_of_this_account_is_accepted_and_another_is_not() {
 /// and a fixture root under the build directory is far longer,
 ///  so a control of a socket stands where the package's own fixtures keep their runtime directories.
 fn short_scratch(tag: &str) -> std::path::PathBuf {
-    let directory: std::path::PathBuf = std::path::PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
-        .join("temp/agent")
-        .join(format!("cu{}-{tag}", std::process::id()));
+    let directory: std::path::PathBuf =
+        std::path::PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
+            .join("temp/agent")
+            .join(format!("cu{}-{tag}", std::process::id()));
     std::fs::create_dir_all(&directory).expect("the scratch directory");
     crate::test_support::track_for_this_thread(directory.as_path());
     return directory;
@@ -256,12 +332,20 @@ fn short_scratch(tag: &str) -> std::path::PathBuf {
 #[test]
 fn the_kernel_reports_this_account_for_a_connection_of_this_account() {
     let socket: std::path::PathBuf = short_scratch("account").join("s.sock");
-    let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind(&socket).expect("a listening socket");
+    let listener: std::os::unix::net::UnixListener =
+        std::os::unix::net::UnixListener::bind(&socket).expect("a listening socket");
     let Reached::Ours(stream) = reach(&Bind::Path(socket)) else {
         panic!("a connection this account's own listener took is ours")
     };
-    assert_eq!(the_users_id_on_the_other_end(&stream), Some(own_users_id()), "the kernel named this account");
-    assert!(connection_is_this_account(&stream), "and the comparison accepts it");
+    assert_eq!(
+        the_users_id_on_the_other_end(&stream),
+        Some(own_users_id()),
+        "the kernel named this account"
+    );
+    assert!(
+        connection_is_this_account(&stream),
+        "and the comparison accepts it"
+    );
     drop(listener);
 }
 
@@ -273,9 +357,22 @@ fn the_kernel_reports_this_account_for_a_connection_of_this_account() {
 /// and an address nothing answers must read as that and not as another account's.
 #[test]
 fn a_connection_to_nothing_is_nothing() {
-    assert!(!matches!(reach(&Bind::Path(short_scratch("nothing").join("no-service-here.sock"))), Reached::Ours(_)), "no socket file, nothing");
     assert!(
-        matches!(reach(&Bind::Abstract(String::from("monochromatic-git-policy-cli/nobody/listens/here"))), Reached::Nothing),
+        !matches!(
+            reach(&Bind::Path(
+                short_scratch("nothing").join("no-service-here.sock")
+            )),
+            Reached::Ours(_)
+        ),
+        "no socket file, nothing"
+    );
+    assert!(
+        matches!(
+            reach(&Bind::Abstract(String::from(
+                "monochromatic-git-policy-cli/nobody/listens/here"
+            ))),
+            Reached::Nothing
+        ),
         "no such name, nothing"
     );
 }

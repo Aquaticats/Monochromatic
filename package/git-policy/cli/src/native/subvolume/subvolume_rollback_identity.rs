@@ -22,12 +22,24 @@
 //! const refusal = pairRefusal({ root, oldPath, atRoot, atOld, installed, what }); // undefined when the pair is right
 //! ```
 
-use crate::fs_beneath::{ObjectId, identity_at, identity_of, open_directory_at, open_root};
+use crate::fs_beneath::{
+    ObjectId,
+    identity_at,
+    identity_of,
+    open_directory_at,
+    open_root,
+};
 use crate::subvolume_error::MigrateError;
-use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal};
+use crate::subvolume_preflight::{
+    INSTALLED_ROOT,
+    Refusal,
+};
 use crate::subvolume_run::Run;
 use crate::worktree_convert_phases::identity_of_path;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The identity of the object at `path` in the journal's form,
 /// or nothing when the name leads nowhere.
@@ -63,7 +75,11 @@ pub(crate) fn as_recorded(identity: ObjectId) -> String {
 /// ```ts
 /// const refusal = resumedOldTreeRefusal(run, oldPath, newPath); // undefined when the object is the recorded one
 /// ```
-pub(crate) fn resumed_old_tree_refusal(run: &Run<'_>, old_path: &Path, new_path: &Path) -> Option<Refusal> {
+pub(crate) fn resumed_old_tree_refusal(
+    run: &Run<'_>,
+    old_path: &Path,
+    new_path: &Path,
+) -> Option<Refusal> {
     let installed: &str = run.journal.value(INSTALLED_ROOT)?;
     // The rename already happened, so the directory the resumed run deletes is the one at the new name.
     if object_form(new_path).is_some() {
@@ -72,8 +88,13 @@ pub(crate) fn resumed_old_tree_refusal(run: &Run<'_>, old_path: &Path, new_path:
             return None;
         }
         return Some(Refusal {
-            cause: format!("{} holds {found}, and the journal records the installed checkout as {installed}", new_path.display()),
-            remedy: String::from("If the installed checkout was moved or replaced, move it back to that path and run the command again. Nothing was renamed or deleted."),
+            cause: format!(
+                "{} holds {found}, and the journal records the installed checkout as {installed}",
+                new_path.display()
+            ),
+            remedy: String::from(
+                "If the installed checkout was moved or replaced, move it back to that path and run the command again. Nothing was renamed or deleted.",
+            ),
         });
     }
     let found: String = object_form(old_path)?;
@@ -81,8 +102,13 @@ pub(crate) fn resumed_old_tree_refusal(run: &Run<'_>, old_path: &Path, new_path:
         return None;
     }
     return Some(Refusal {
-        cause: format!("{} holds {found}, and the journal records the installed checkout as {installed}", old_path.display()),
-        remedy: String::from("If the checkout was moved or replaced, move the installed checkout back to that path and run the command again. Nothing was renamed or deleted."),
+        cause: format!(
+            "{} holds {found}, and the journal records the installed checkout as {installed}",
+            old_path.display()
+        ),
+        remedy: String::from(
+            "If the checkout was moved or replaced, move the installed checkout back to that path and run the command again. Nothing was renamed or deleted.",
+        ),
     });
 }
 
@@ -106,15 +132,23 @@ pub(crate) fn resumed_old_tree_refusal(run: &Run<'_>, old_path: &Path, new_path:
 /// ```ts
 /// const refusal = installedIdentityRefusal(run, newPath); // undefined when the object is the recorded one
 /// ```
-pub(crate) fn installed_identity_refusal(run: &Run<'_>, path: &Path) -> Option<Refusal> {
+pub(crate) fn installed_identity_refusal(
+    run: &Run<'_>,
+    path: &Path,
+) -> Option<Refusal> {
     let installed: &str = run.journal.value(INSTALLED_ROOT)?;
     let found: String = object_form(path)?;
     if found == installed {
         return None;
     }
     return Some(Refusal {
-        cause: format!("{} holds {found}, and the journal records the installed checkout as {installed}", path.display()),
-        remedy: String::from("If the installed checkout was moved or replaced, move it back to that path and run the command again. Nothing was deleted."),
+        cause: format!(
+            "{} holds {found}, and the journal records the installed checkout as {installed}",
+            path.display()
+        ),
+        remedy: String::from(
+            "If the installed checkout was moved or replaced, move it back to that path and run the command again. Nothing was deleted.",
+        ),
     });
 }
 
@@ -143,8 +177,16 @@ pub(crate) fn pair_refusal(pair: PairLook<'_>) -> Option<Refusal> {
         && pair.at_root.as_deref() != Some(installed)
     {
         return Some(Refusal {
-            cause: format!("{} holds {}, and the journal records the installed checkout as {installed}", pair.root.display(), pair.at_root.as_deref().unwrap_or("a name that leads nowhere")),
-            remedy: String::from("If the checkout was moved or replaced, move the directory the migration installed back to that path and run the command again. Nothing was changed."),
+            cause: format!(
+                "{} holds {}, and the journal records the installed checkout as {installed}",
+                pair.root.display(),
+                pair.at_root
+                    .as_deref()
+                    .unwrap_or("a name that leads nowhere")
+            ),
+            remedy: String::from(
+                "If the checkout was moved or replaced, move the directory the migration installed back to that path and run the command again. Nothing was changed.",
+            ),
         });
     }
     if pair.at_root.is_none() || pair.at_old.is_none() || pair.at_root == pair.at_old {
@@ -153,10 +195,16 @@ pub(crate) fn pair_refusal(pair: PairLook<'_>) -> Option<Refusal> {
                 "{} and {} are not two directories that are different from each other (they hold {} and {})",
                 pair.root.display(),
                 pair.old_path.display(),
-                pair.at_root.as_deref().unwrap_or("a name that leads nowhere"),
-                pair.at_old.as_deref().unwrap_or("a name that leads nowhere")
+                pair.at_root
+                    .as_deref()
+                    .unwrap_or("a name that leads nowhere"),
+                pair.at_old
+                    .as_deref()
+                    .unwrap_or("a name that leads nowhere")
             ),
-            remedy: String::from("Check both paths and put the directories the migration made back at their names, then run the command again. Nothing was changed."),
+            remedy: String::from(
+                "Check both paths and put the directories the migration made back at their names, then run the command again. Nothing was changed.",
+            ),
         });
     }
     return None;
@@ -241,31 +289,59 @@ pub(crate) struct PinnedRoot {
 /// ```ts
 /// const pinned = await pinRoot(run, layout);
 /// ```
-pub(crate) fn pin_root(run: &Run<'_>, after_pinned: &mut dyn FnMut()) -> Result<Result<PinnedRoot, Refusal>, MigrateError> {
+pub(crate) fn pin_root(
+    run: &Run<'_>,
+    after_pinned: &mut dyn FnMut(),
+) -> Result<Result<PinnedRoot, Refusal>, MigrateError> {
     let root: &Path = run.layout.root.as_path();
     let Some(parent_path) = root.parent() else {
-        return Ok(Err(Refusal { cause: format!("{} has no parent directory", root.display()), remedy: String::from("Run the command for a checkout that is a directory.") }));
+        return Ok(Err(Refusal {
+            cause: format!("{} has no parent directory", root.display()),
+            remedy: String::from("Run the command for a checkout that is a directory."),
+        }));
     };
     let name: std::ffi::OsString = root.file_name().unwrap_or_default().to_os_string();
-    let parent: std::fs::File = MigrateError::from_io_result(open_root(parent_path), "hold the directory of the checkout", parent_path)?;
-    let directory: std::fs::File = MigrateError::from_io_result(open_directory_at(&parent, name.as_os_str()), "hold the checkout", root)?;
-    let identity: ObjectId = MigrateError::from_io_result(identity_of(&directory), "examine", root)?;
+    let parent: std::fs::File = MigrateError::from_io_result(
+        open_root(parent_path),
+        "hold the directory of the checkout",
+        parent_path,
+    )?;
+    let directory: std::fs::File = MigrateError::from_io_result(
+        open_directory_at(&parent, name.as_os_str()),
+        "hold the checkout",
+        root,
+    )?;
+    let identity: ObjectId =
+        MigrateError::from_io_result(identity_of(&directory), "examine", root)?;
     let now: String = recorded_form(&identity);
     if let Some(recorded) = run.journal.value(INSTALLED_ROOT)
         && now != recorded
     {
         return Ok(Err(Refusal {
-            cause: format!("{} is not the directory installed by the migration there: it is {now} and the journal records {recorded}", root.display()),
-            remedy: String::from("If the checkout was moved or replaced, move the directory the migration installed back to that path and run the command again. Nothing was changed."),
+            cause: format!(
+                "{} is not the directory installed by the migration there: it is {now} and the journal records {recorded}",
+                root.display()
+            ),
+            remedy: String::from(
+                "If the checkout was moved or replaced, move the directory the migration installed back to that path and run the command again. Nothing was changed.",
+            ),
         }));
     }
     after_pinned();
-    return Ok(Ok(PinnedRoot { parent, name, directory, identity }));
+    return Ok(Ok(PinnedRoot {
+        parent,
+        name,
+        directory,
+        identity,
+    }));
 }
 
 /// Whether the name of the pinned checkout still leads to it;
 /// a refusal naming both identities when it does not.
-pub(crate) fn pinned_root_moved(run: &Run<'_>, pinned: &PinnedRoot) -> Option<Refusal> {
+pub(crate) fn pinned_root_moved(
+    run: &Run<'_>,
+    pinned: &PinnedRoot,
+) -> Option<Refusal> {
     let root: &Path = run.layout.root.as_path();
     let held: String = recorded_form(&pinned.identity);
     let now: String = match identity_at(&pinned.parent, pinned.name.as_os_str()) {
@@ -276,8 +352,13 @@ pub(crate) fn pinned_root_moved(run: &Run<'_>, pinned: &PinnedRoot) -> Option<Re
         return None;
     }
     return Some(Refusal {
-        cause: format!("{} was the directory {held} while the old tree's newer files were carried into it, and it is {now} now", root.display()),
-        remedy: String::from("Nothing was deleted. Check what is at that path, move the directory the migration installed back, and run the command again."),
+        cause: format!(
+            "{} was the directory {held} while the old tree's newer files were carried into it, and it is {now} now",
+            root.display()
+        ),
+        remedy: String::from(
+            "Nothing was deleted. Check what is at that path, move the directory the migration installed back, and run the command again.",
+        ),
     });
 }
 
@@ -315,7 +396,13 @@ pub(crate) fn uncarried_cause(run: &Run<'_>) -> String {
             shown_left_out(run.conflicts.iter())
         ));
     }
-    return format!("{} did not reach {}: {} (the whole list is in {})", run.layout.old_path.display(), run.layout.root.display(), parts.join("; "), run.layout.left_out_path.display());
+    return format!(
+        "{} did not reach {}: {} (the whole list is in {})",
+        run.layout.old_path.display(),
+        run.layout.root.display(),
+        parts.join("; "),
+        run.layout.left_out_path.display()
+    );
 }
 
 /// The remedy of that refusal:

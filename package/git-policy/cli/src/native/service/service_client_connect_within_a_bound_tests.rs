@@ -13,8 +13,11 @@ const PATIENCE: Duration = Duration::from_secs(60);
 
 /// A directory whose path is short enough for a socket name.
 fn short_directory(name: &str) -> std::path::PathBuf {
-    let home: std::path::PathBuf = std::path::PathBuf::from(std::env::var_os("HOME").expect("a home directory"));
-    let directory: std::path::PathBuf = home.join("temp/agent").join(format!("cw-{}-{name}", std::process::id()));
+    let home: std::path::PathBuf =
+        std::path::PathBuf::from(std::env::var_os("HOME").expect("a home directory"));
+    let directory: std::path::PathBuf = home
+        .join("temp/agent")
+        .join(format!("cw-{}-{name}", std::process::id()));
     let _stale = std::fs::remove_dir_all(&directory);
     std::fs::create_dir_all(&directory).expect("short directory");
     return directory;
@@ -68,21 +71,39 @@ fn listener_with_a_queue_of_one(socket: &std::path::Path) -> UnixListener {
     use std::os::unix::ffi::OsStrExt as _;
     let bytes: &[u8] = socket.as_os_str().as_bytes();
     // SAFETY: `socket` takes three integers and touches no memory of this process.
-    let descriptor: libc::c_int = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) };
-    assert!(descriptor >= 0, "a descriptor for the listener: {}", std::io::Error::last_os_error());
+    let descriptor: libc::c_int =
+        unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) };
+    assert!(
+        descriptor >= 0,
+        "a descriptor for the listener: {}",
+        std::io::Error::last_os_error()
+    );
     // SAFETY: `sockaddr_un` is a plain structure of integers and a byte array, for which all zero bytes are a valid value.
     let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
-    address.sun_family = libc::sa_family_t::try_from(libc::AF_UNIX).expect("the address family fits");
+    address.sun_family =
+        libc::sa_family_t::try_from(libc::AF_UNIX).expect("the address family fits");
     for (slot, byte) in address.sun_path.iter_mut().zip(bytes.iter()) {
         *slot = libc::c_char::try_from(*byte).unwrap_or(0);
     }
-    let length: libc::socklen_t = libc::socklen_t::try_from(size_of::<libc::sa_family_t>() + bytes.len() + 1).expect("the address length fits");
+    let length: libc::socklen_t =
+        libc::socklen_t::try_from(size_of::<libc::sa_family_t>() + bytes.len() + 1)
+            .expect("the address length fits");
     // SAFETY: the descriptor is open, and the address with its length is one this function built and the call only reads.
     let bound: libc::c_int = unsafe { libc::bind(descriptor, (&raw const address).cast(), length) };
-    assert_eq!(bound, 0, "the listener is bound: {}", std::io::Error::last_os_error());
+    assert_eq!(
+        bound,
+        0,
+        "the listener is bound: {}",
+        std::io::Error::last_os_error()
+    );
     // SAFETY: `listen` takes the open descriptor and a depth.
     let listening: libc::c_int = unsafe { libc::listen(descriptor, 1) };
-    assert_eq!(listening, 0, "the listener listens: {}", std::io::Error::last_os_error());
+    assert_eq!(
+        listening,
+        0,
+        "the listener listens: {}",
+        std::io::Error::last_os_error()
+    );
     // SAFETY: the descriptor is a listening socket this function opened, and it is handed to the listener alone.
     return unsafe { UnixListener::from_raw_fd(descriptor) };
 }
@@ -95,9 +116,17 @@ fn a_full_queue(name: &str) -> FullQueue {
     // The kernel lets one more connection into a queue than the depth asked for, so the third one is the one that waits.
     let mut held: Vec<std::os::unix::net::UnixStream> = Vec::new();
     for _ in 0..2 {
-        held.push(std::os::unix::net::UnixStream::connect(socket.as_path()).expect("a connection into the queue"));
+        held.push(
+            std::os::unix::net::UnixStream::connect(socket.as_path())
+                .expect("a connection into the queue"),
+        );
     }
-    return FullQueue { directory, socket, _held: held, _listener: listener };
+    return FullQueue {
+        directory,
+        socket,
+        _held: held,
+        _listener: listener,
+    };
 }
 
 /// A connect to a socket whose listener accepts comes back well within the bound and gives a usable socket.
@@ -110,9 +139,16 @@ fn a_socket_that_accepts_takes_the_connection() {
         let _taken = listener.accept();
     });
     let began: Instant = Instant::now();
-    let connected: std::io::Result<std::os::unix::net::UnixStream> = connect_within_for(&Bind::Path(socket.clone()), PATIENCE);
-    assert!(connected.is_ok(), "a socket whose listener accepts takes the connection");
-    assert!(began.elapsed() < CONNECT_CEILING, "it comes back within the bound");
+    let connected: std::io::Result<std::os::unix::net::UnixStream> =
+        connect_within_for(&Bind::Path(socket.clone()), PATIENCE);
+    assert!(
+        connected.is_ok(),
+        "a socket whose listener accepts takes the connection"
+    );
+    assert!(
+        began.elapsed() < CONNECT_CEILING,
+        "it comes back within the bound"
+    );
     accepted.join().expect("the accept thread ends");
     let _removed = std::fs::remove_dir_all(directory.as_path());
 }
@@ -133,15 +169,32 @@ fn a_queue_nothing_accepts_ends_the_wait_at_its_bound() {
     let full: FullQueue = a_full_queue("full-queue");
     let given: Duration = Duration::from_millis(200);
     let began: Instant = Instant::now();
-    let refused: std::io::Result<std::os::unix::net::UnixStream> = connect_within_for(&Bind::Path(full.socket.clone()), given);
+    let refused: std::io::Result<std::os::unix::net::UnixStream> =
+        connect_within_for(&Bind::Path(full.socket.clone()), given);
     let took: Duration = began.elapsed();
     let error: std::io::Error = refused.expect_err("a queue nothing accepts takes no connection");
-    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "the wait ends at the bound: {error}");
-    assert!(took >= given, "the wait is what it was given, and not less: {took:?}");
-    assert!(took < given + CONNECT_CEILING, "the wait ends near its bound: {took:?}");
+    assert_eq!(
+        error.kind(),
+        std::io::ErrorKind::TimedOut,
+        "the wait ends at the bound: {error}"
+    );
+    assert!(
+        took >= given,
+        "the wait is what it was given, and not less: {took:?}"
+    );
+    assert!(
+        took < given + CONNECT_CEILING,
+        "the wait ends near its bound: {took:?}"
+    );
     let words: String = error.to_string();
-    assert!(words.contains(full.socket.display().to_string().as_str()), "the failure names the address: {words}");
-    assert!(words.contains("took no connection within 200 ms"), "the failure names the wait: {words}");
+    assert!(
+        words.contains(full.socket.display().to_string().as_str()),
+        "the failure names the address: {words}"
+    );
+    assert!(
+        words.contains("took no connection within 200 ms"),
+        "the failure names the wait: {words}"
+    );
 }
 
 /// A connect to a name nothing listens at fails at once and names the address.
@@ -149,10 +202,14 @@ fn a_queue_nothing_accepts_ends_the_wait_at_its_bound() {
 fn a_name_nothing_listens_at_fails_and_names_the_address() {
     let directory: std::path::PathBuf = short_directory("nothing");
     let socket: std::path::PathBuf = directory.join("nothing.sock");
-    let refused: std::io::Result<std::os::unix::net::UnixStream> = connect_within_for(&Bind::Path(socket.clone()), PATIENCE);
+    let refused: std::io::Result<std::os::unix::net::UnixStream> =
+        connect_within_for(&Bind::Path(socket.clone()), PATIENCE);
     let error: std::io::Error = refused.expect_err("a name nothing listens at takes no connection");
     let words: String = error.to_string();
-    assert!(words.contains(socket.display().to_string().as_str()), "the failure names the address: {words}");
+    assert!(
+        words.contains(socket.display().to_string().as_str()),
+        "the failure names the address: {words}"
+    );
     let _removed = std::fs::remove_dir_all(directory.as_path());
 }
 
@@ -167,12 +224,21 @@ fn a_name_nothing_listens_at_fails_and_names_the_address() {
 fn a_name_the_kernel_holds_takes_the_connection() {
     use std::os::linux::net::SocketAddrExt as _;
     let name: String = format!("cwa-{}-{}", std::process::id(), "bound");
-    let listener: UnixListener = UnixListener::bind_addr(&std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("an abstract name")).expect("bind");
+    let listener: UnixListener = UnixListener::bind_addr(
+        &std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes())
+            .expect("an abstract name"),
+    )
+    .expect("bind");
     let accepted = std::thread::spawn(move || {
         let _taken = listener.accept();
     });
-    let connected: std::io::Result<std::os::unix::net::UnixStream> = connect_within_for(&Bind::Abstract(name), PATIENCE);
-    assert!(connected.is_ok(), "an abstract name whose listener accepts takes the connection: {:?}", connected.err());
+    let connected: std::io::Result<std::os::unix::net::UnixStream> =
+        connect_within_for(&Bind::Abstract(name), PATIENCE);
+    assert!(
+        connected.is_ok(),
+        "an abstract name whose listener accepts takes the connection: {:?}",
+        connected.err()
+    );
     accepted.join().expect("the accept thread ends");
 }
 
@@ -187,5 +253,12 @@ fn a_name_the_kernel_holds_takes_the_connection() {
 fn the_connect_bound_is_the_silence_a_working_service_keeps() {
     assert_eq!(CONNECT_CEILING, Duration::from_secs(5));
     assert_eq!(CONNECT_CEILING, crate::service_protocol::HEARTBEAT_SILENCE);
-    assert!(connect_within_for(&Bind::Path(std::path::PathBuf::from("/nonexistent")), PATIENCE).is_err(), "a name nothing listens at takes no connection");
+    assert!(
+        connect_within_for(
+            &Bind::Path(std::path::PathBuf::from("/nonexistent")),
+            PATIENCE
+        )
+        .is_err(),
+        "a name nothing listens at takes no connection"
+    );
 }

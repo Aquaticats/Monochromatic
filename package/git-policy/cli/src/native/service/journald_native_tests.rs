@@ -16,11 +16,37 @@
 //! expect(parseDatagram(datagram('info', 'a\nPRIORITY=0', []))).toEqual({ PRIORITY: '6', MESSAGE: 'a PRIORITY=0' });
 //! ```
 
-use super::{PIPE_CHUNK, send_without_waiting, CUT_MARK, Delivery, FIELD_LIMIT, FIELD_NAME_LIMIT, LOST_FIELD, cut, IDENTIFIER, MESSAGE_LIMIT, Priority, Sink, StreamWriter, Target, datagram, raw_address, one_line, stream_matches, valid_field_name};
+use super::{
+    CUT_MARK,
+    Delivery,
+    FIELD_LIMIT,
+    FIELD_NAME_LIMIT,
+    IDENTIFIER,
+    LOST_FIELD,
+    MESSAGE_LIMIT,
+    PIPE_CHUNK,
+    Priority,
+    Sink,
+    StreamWriter,
+    Target,
+    cut,
+    datagram,
+    one_line,
+    raw_address,
+    send_without_waiting,
+    stream_matches,
+    valid_field_name,
+};
 use std::collections::BTreeMap;
 use std::os::linux::net::SocketAddrExt;
-use std::os::unix::net::{SocketAddr, UnixDatagram};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::os::unix::net::{
+    SocketAddr,
+    UnixDatagram,
+};
+use std::sync::atomic::{
+    AtomicU32,
+    Ordering,
+};
 
 /// The device and inode a fixture says standard error has.
 const DEVICE: u64 = 64_769;
@@ -34,7 +60,9 @@ fn parsed(bytes: &[u8]) -> BTreeMap<String, String> {
     return text
         .lines()
         .map(|line| {
-            let (name, value) = line.split_once('=').expect("every line of an entry is a field");
+            let (name, value) = line
+                .split_once('=')
+                .expect("every line of an entry is a field");
             return (name.to_string(), value.to_string());
         })
         .collect();
@@ -48,9 +76,17 @@ static RECEIVERS: AtomicU32 = AtomicU32::new(0);
 /// abstract socket leaves nothing behind),
 /// and the target that names it.
 fn receiver(name: &str) -> (UnixDatagram, Target) {
-    let abstract_name: String = format!("cli-git-test-journal-{}-{}-{name}", std::process::id(), RECEIVERS.fetch_add(1, Ordering::Relaxed));
-    let address: SocketAddr = SocketAddr::from_abstract_name(abstract_name.as_bytes()).expect("an abstract address");
-    return (UnixDatagram::bind_addr(&address).expect("bind the receiving socket"), Target::Abstract(abstract_name));
+    let abstract_name: String = format!(
+        "cli-git-test-journal-{}-{}-{name}",
+        std::process::id(),
+        RECEIVERS.fetch_add(1, Ordering::Relaxed)
+    );
+    let address: SocketAddr =
+        SocketAddr::from_abstract_name(abstract_name.as_bytes()).expect("an abstract address");
+    return (
+        UnixDatagram::bind_addr(&address).expect("bind the receiving socket"),
+        Target::Abstract(abstract_name),
+    );
 }
 
 /// The variable a service manager would set for a standard error with the fixture's identity.
@@ -64,7 +100,10 @@ fn variable() -> String {
 /// one `NAME=value` line each.
 #[test]
 fn an_entry_carries_priority_identifier_message_and_fields() {
-    let fields: [(&str, String); 2] = [("CLI_GIT_REQUEST_ID", String::from("r-1")), ("CLI_GIT_BRANCH", String::from("refs/heads/main"))];
+    let fields: [(&str, String); 2] = [
+        ("CLI_GIT_REQUEST_ID", String::from("r-1")),
+        ("CLI_GIT_BRANCH", String::from("refs/heads/main")),
+    ];
     let found = parsed(datagram(Priority::Warning, "answered x", &fields).as_slice());
     assert_eq!(found["PRIORITY"], Priority::Warning.number().to_string());
     assert_eq!(found["SYSLOG_IDENTIFIER"], IDENTIFIER);
@@ -77,7 +116,14 @@ fn an_entry_carries_priority_identifier_message_and_fields() {
 /// so `journalctl --priority=err` and `--priority=warning` select them.
 #[test]
 fn priorities_are_the_syslog_levels() {
-    assert_eq!((Priority::Error.number(), Priority::Warning.number(), Priority::Info.number()), (3, 4, 6));
+    assert_eq!(
+        (
+            Priority::Error.number(),
+            Priority::Warning.number(),
+            Priority::Info.number()
+        ),
+        (3, 4, 6)
+    );
 }
 
 /// A message or a field value with a newline cannot start a field:
@@ -89,7 +135,15 @@ fn a_newline_in_a_message_or_a_value_cannot_start_a_field() {
     let hostile: String = String::from("landed\nPRIORITY=0\nSYSLOG_IDENTIFIER=sshd");
     let fields: [(&str, String); 1] = [("CLI_GIT_BRANCH", hostile.clone())];
     let found = decoded(datagram(Priority::Info, hostile.as_str(), &fields).as_slice());
-    assert_eq!(found.iter().map(|(name, _)| { return name.as_str(); }).collect::<Vec<_>>(), vec!["PRIORITY", "SYSLOG_IDENTIFIER", "MESSAGE", "CLI_GIT_BRANCH"]);
+    assert_eq!(
+        found
+            .iter()
+            .map(|(name, _)| {
+                return name.as_str();
+            })
+            .collect::<Vec<_>>(),
+        vec!["PRIORITY", "SYSLOG_IDENTIFIER", "MESSAGE", "CLI_GIT_BRANCH"]
+    );
     assert_eq!(found[0].1, b"6");
     assert_eq!(found[1].1, IDENTIFIER.as_bytes());
     assert_eq!(found[2].1, hostile.as_bytes());
@@ -100,11 +154,23 @@ fn a_newline_in_a_message_or_a_value_cannot_start_a_field() {
 /// a lower-case letter is not allowed) is left out.
 #[test]
 fn a_field_name_journald_refuses_is_left_out() {
-    let fields: [(&str, String); 3] = [("_SYSTEMD_UNIT", String::from("x")), ("lower", String::from("y")), ("CLI_GIT_OK", String::from("z"))];
+    let fields: [(&str, String); 3] = [
+        ("_SYSTEMD_UNIT", String::from("x")),
+        ("lower", String::from("y")),
+        ("CLI_GIT_OK", String::from("z")),
+    ];
     let found = parsed(datagram(Priority::Info, "m", &fields).as_slice());
-    assert!(!found.contains_key("_SYSTEMD_UNIT") && !found.contains_key("lower"), "{found:?}");
+    assert!(
+        !found.contains_key("_SYSTEMD_UNIT") && !found.contains_key("lower"),
+        "{found:?}"
+    );
     assert_eq!(found["CLI_GIT_OK"], "z");
-    assert!(valid_field_name("CLI_GIT_AT_MS") && !valid_field_name("") && !valid_field_name("9A") && !valid_field_name("A=B"));
+    assert!(
+        valid_field_name("CLI_GIT_AT_MS")
+            && !valid_field_name("")
+            && !valid_field_name("9A")
+            && !valid_field_name("A=B")
+    );
 }
 
 /// A message longer than the limit is cut and says so;
@@ -123,10 +189,19 @@ fn a_long_message_is_cut_at_the_limit_and_says_so() {
 fn the_stream_is_the_journal_only_when_device_and_inode_both_match() {
     let named: String = variable();
     assert!(stream_matches(Some(named.as_str()), DEVICE, INODE));
-    assert!(!stream_matches(Some(named.as_str()), DEVICE, INODE + 1), "another inode");
-    assert!(!stream_matches(Some(named.as_str()), DEVICE + 1, INODE), "another device");
+    assert!(
+        !stream_matches(Some(named.as_str()), DEVICE, INODE + 1),
+        "another inode"
+    );
+    assert!(
+        !stream_matches(Some(named.as_str()), DEVICE + 1, INODE),
+        "another device"
+    );
     assert!(!stream_matches(None, DEVICE, INODE), "no variable");
-    assert!(!stream_matches(Some("garbage"), DEVICE, INODE) && !stream_matches(Some("1:x"), 1, 0), "unreadable variable");
+    assert!(
+        !stream_matches(Some("garbage"), DEVICE, INODE) && !stream_matches(Some("1:x"), 1, 0),
+        "unreadable variable"
+    );
 }
 
 /// A sink whose standard error is the journal sends a datagram a receiver can read,
@@ -138,13 +213,26 @@ fn a_journal_stream_sends_the_entry_as_a_datagram() {
     assert!(sink.is_native());
     let mut stderr: Vec<u8> = Vec::new();
     let fields: [(&str, String); 1] = [("CLI_GIT_REQUEST_ID", String::from("r-2"))];
-    let delivery: Delivery = sink.deliver(Priority::Error, "failed x", &fields, "line\n", &mut stderr);
+    let delivery: Delivery =
+        sink.deliver(Priority::Error, "failed x", &fields, "line\n", &mut stderr);
     assert_eq!(delivery, Delivery::Native);
-    assert!(stderr.is_empty(), "a native entry is not also written to standard error");
+    assert!(
+        stderr.is_empty(),
+        "a native entry is not also written to standard error"
+    );
     let mut buffer: Vec<u8> = vec![0; 4096];
-    let length: usize = socket.recv(buffer.as_mut_slice()).expect("the datagram arrived");
+    let length: usize = socket
+        .recv(buffer.as_mut_slice())
+        .expect("the datagram arrived");
     let found = parsed(&buffer[..length]);
-    assert_eq!((found["PRIORITY"].as_str(), found["MESSAGE"].as_str(), found["CLI_GIT_REQUEST_ID"].as_str()), ("3", "failed x", "r-2"));
+    assert_eq!(
+        (
+            found["PRIORITY"].as_str(),
+            found["MESSAGE"].as_str(),
+            found["CLI_GIT_REQUEST_ID"].as_str()
+        ),
+        ("3", "failed x", "r-2")
+    );
 }
 
 /// Standard error that is not the journal (a terminal,
@@ -157,12 +245,31 @@ fn a_journal_stream_sends_the_entry_as_a_datagram() {
 fn standard_error_that_is_not_the_journal_keeps_the_plain_line() {
     let (socket, target) = receiver("journald-native-plain");
     socket.set_nonblocking(true).expect("non-blocking receiver");
-    let other: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE + 1)), &target);
+    let other: Sink = Sink::choose(
+        Some(variable().as_str()),
+        Some((DEVICE, INODE + 1)),
+        &target,
+    );
     assert!(!other.is_native());
     let mut stderr: Vec<u8> = Vec::new();
-    assert_eq!(other.deliver(Priority::Warning, "m", &[], "monochromatic-git-policy-cli-service: m at_ms=1\n", &mut stderr), Delivery::Stderr);
-    assert_eq!(String::from_utf8(stderr).expect("text"), "monochromatic-git-policy-cli-service: m at_ms=1\n");
-    assert!(socket.recv(&mut [0_u8; 16]).is_err(), "nothing was sent to the socket");
+    assert_eq!(
+        other.deliver(
+            Priority::Warning,
+            "m",
+            &[],
+            "monochromatic-git-policy-cli-service: m at_ms=1\n",
+            &mut stderr
+        ),
+        Delivery::Stderr
+    );
+    assert_eq!(
+        String::from_utf8(stderr).expect("text"),
+        "monochromatic-git-policy-cli-service: m at_ms=1\n"
+    );
+    assert!(
+        socket.recv(&mut [0_u8; 16]).is_err(),
+        "nothing was sent to the socket"
+    );
 }
 
 /// A journal that is not listening (restarting,
@@ -171,11 +278,26 @@ fn standard_error_that_is_not_the_journal_keeps_the_plain_line() {
 /// the journal's stream reads.
 #[test]
 fn a_journal_that_is_not_listening_falls_back_to_standard_error_with_the_priority() {
-    let nobody: Target = Target::Abstract(format!("cli-git-test-journal-nobody-{}", std::process::id()));
+    let nobody: Target = Target::Abstract(format!(
+        "cli-git-test-journal-nobody-{}",
+        std::process::id()
+    ));
     let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
     let mut stderr: Vec<u8> = Vec::new();
-    assert_eq!(sink.deliver(Priority::Warning, "m", &[], "monochromatic-git-policy-cli-service: m at_ms=1\n", &mut stderr), Delivery::Stderr);
-    assert_eq!(String::from_utf8(stderr).expect("text"), "<4>monochromatic-git-policy-cli-service: m at_ms=1\n");
+    assert_eq!(
+        sink.deliver(
+            Priority::Warning,
+            "m",
+            &[],
+            "monochromatic-git-policy-cli-service: m at_ms=1\n",
+            &mut stderr
+        ),
+        Delivery::Stderr
+    );
+    assert_eq!(
+        String::from_utf8(stderr).expect("text"),
+        "<4>monochromatic-git-policy-cli-service: m at_ms=1\n"
+    );
 }
 
 /// A receiver whose queue is full never makes the sender wait:
@@ -192,8 +314,16 @@ fn a_full_journal_queue_falls_back_instead_of_waiting() {
         native += 1;
         assert!(native < 1_000_000, "the queue never filled");
     }
-    assert!(stderr.starts_with(b"<6>line"), "{:?}", String::from_utf8_lossy(stderr.as_slice()));
-    assert!(started.elapsed() < std::time::Duration::from_secs(20), "filling the queue and falling back took {:?}", started.elapsed());
+    assert!(
+        stderr.starts_with(b"<6>line"),
+        "{:?}",
+        String::from_utf8_lossy(stderr.as_slice())
+    );
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(20),
+        "filling the queue and falling back took {:?}",
+        started.elapsed()
+    );
 }
 
 /// The address a signal handler sends to is the C form of the target:
@@ -203,14 +333,29 @@ fn a_full_journal_queue_falls_back_instead_of_waiting() {
 /// and a name that cannot fit is refused.
 #[test]
 fn the_raw_address_follows_the_target() {
-    let named: SocketAddr = Target::Abstract(String::from("abc")).address().expect("an address");
+    let named: SocketAddr = Target::Abstract(String::from("abc"))
+        .address()
+        .expect("an address");
     let (raw, length) = raw_address(&named).expect("fits");
     assert_eq!(usize::try_from(length).expect("small"), 2 + 1 + 3);
     assert_eq!(raw.sun_path[0], 0);
-    assert_eq!(raw.sun_path[1..4].iter().map(|byte| { return byte.to_ne_bytes()[0]; }).collect::<Vec<u8>>(), b"abc");
-    let path: SocketAddr = Target::Path(String::from("/run/x")).address().expect("an address");
+    assert_eq!(
+        raw.sun_path[1..4]
+            .iter()
+            .map(|byte| {
+                return byte.to_ne_bytes()[0];
+            })
+            .collect::<Vec<u8>>(),
+        b"abc"
+    );
+    let path: SocketAddr = Target::Path(String::from("/run/x"))
+        .address()
+        .expect("an address");
     let (raw_path, path_length) = raw_address(&path).expect("fits");
-    assert_eq!(usize::try_from(path_length).expect("small"), 2 + "/run/x".len() + 1);
+    assert_eq!(
+        usize::try_from(path_length).expect("small"),
+        2 + "/run/x".len() + 1
+    );
     assert_eq!(raw_path.sun_path[0].to_ne_bytes()[0], b'/');
 }
 
@@ -219,7 +364,10 @@ fn the_raw_address_follows_the_target() {
 #[test]
 fn a_test_target_with_an_at_sign_is_abstract() {
     assert_eq!(Target::parse("@x"), Target::Abstract(String::from("x")));
-    assert_eq!(Target::parse("/run/systemd/journal/socket"), Target::Path(String::from("/run/systemd/journal/socket")));
+    assert_eq!(
+        Target::parse("/run/systemd/journal/socket"),
+        Target::Path(String::from("/run/systemd/journal/socket"))
+    );
 }
 
 /// An abstract name may fill the whole address field (one zero byte and 107 bytes of name);
@@ -228,11 +376,21 @@ fn a_test_target_with_an_at_sign_is_abstract() {
 /// path needs room for the zero byte that ends it.
 #[test]
 fn the_longest_abstract_name_fits_the_raw_address_and_one_more_byte_does_not() {
-    let longest: SocketAddr = Target::Abstract("n".repeat(107)).address().expect("an address");
+    let longest: SocketAddr = Target::Abstract("n".repeat(107))
+        .address()
+        .expect("an address");
     let (_, length) = raw_address(&longest).expect("fits");
     assert_eq!(usize::try_from(length).expect("small"), 2 + 108);
-    assert!(Target::Abstract("n".repeat(108)).address().is_none_or(|address| { return raw_address(&address).is_none(); }));
-    let longest_path: SocketAddr = Target::Path(format!("/{}", "p".repeat(106))).address().expect("a path of 107 bytes");
+    assert!(
+        Target::Abstract("n".repeat(108))
+            .address()
+            .is_none_or(|address| {
+                return raw_address(&address).is_none();
+            })
+    );
+    let longest_path: SocketAddr = Target::Path(format!("/{}", "p".repeat(106)))
+        .address()
+        .expect("a path of 107 bytes");
     assert!(raw_address(&longest_path).is_some());
 }
 
@@ -247,7 +405,10 @@ fn the_longest_abstract_name_fits_the_raw_address_and_one_more_byte_does_not() {
 /// and a writer that waited instead would reach neither that bound nor a stopwatch.
 #[test]
 fn a_full_journal_stream_drops_the_line_instead_of_waiting() {
-    use std::io::{Read, Write};
+    use std::io::{
+        Read,
+        Write,
+    };
     use std::os::fd::AsRawFd;
     let (writer_end, mut reader_end) = std::os::unix::net::UnixStream::pair().expect("a pair");
     let mut writer: StreamWriter = StreamWriter::on(writer_end.as_raw_fd());
@@ -260,12 +421,20 @@ fn a_full_journal_stream_drops_the_line_instead_of_waiting() {
         }
         assert!(sent < 1_000_000, "the stream never filled");
     };
-    assert_eq!(refusal.kind(), std::io::ErrorKind::WouldBlock, "{refusal:?}");
+    assert_eq!(
+        refusal.kind(),
+        std::io::ErrorKind::WouldBlock,
+        "{refusal:?}"
+    );
     // No clock is read here: the refusal above is the whole claim, and a writer that waited for room instead would reach
     //  neither the loop's count above nor the end of this control.
-    reader_end.set_nonblocking(true).expect("non-blocking reader");
+    reader_end
+        .set_nonblocking(true)
+        .expect("non-blocking reader");
     let mut sink: Vec<u8> = vec![0; 1 << 20];
-    while reader_end.read(sink.as_mut_slice()).is_ok_and(|count| { return count > 0; }) {}
+    while reader_end.read(sink.as_mut_slice()).is_ok_and(|count| {
+        return count > 0;
+    }) {}
     assert!(writer.write_all(b"after\n").is_ok(), "room again");
 }
 
@@ -281,10 +450,19 @@ fn a_stream_writer_on_a_file_writes_the_line() {
     use std::os::fd::AsRawFd;
     let root = crate::command_test_support::fixture("journald-stream-file");
     let path = root.join("stderr.log");
-    let file = std::fs::OpenOptions::new().create(true).append(true).open(&path).expect("a file");
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .expect("a file");
     let mut writer: StreamWriter = StreamWriter::on(file.as_raw_fd());
-    writer.write_all(b"<6>monochromatic-git-policy-cli-service: ready at_ms=1\n").expect("written");
-    assert_eq!(std::fs::read_to_string(&path).expect("file"), "<6>monochromatic-git-policy-cli-service: ready at_ms=1\n");
+    writer
+        .write_all(b"<6>monochromatic-git-policy-cli-service: ready at_ms=1\n")
+        .expect("written");
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("file"),
+        "<6>monochromatic-git-policy-cli-service: ready at_ms=1\n"
+    );
     crate::command_test_support::remove(root.as_path());
 }
 
@@ -299,17 +477,39 @@ fn decoded(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
     let mut fields: Vec<(String, Vec<u8>)> = Vec::new();
     let mut rest: &[u8] = bytes;
     while !rest.is_empty() {
-        let end: usize = rest.iter().position(|byte| { return *byte == b'\n'; }).expect("every field ends in a newline");
+        let end: usize = rest
+            .iter()
+            .position(|byte| {
+                return *byte == b'\n';
+            })
+            .expect("every field ends in a newline");
         let head: &[u8] = &rest[..end];
-        if let Some(equals) = head.iter().position(|byte| { return *byte == b'='; }) {
-            fields.push((String::from_utf8(head[..equals].to_vec()).expect("a name"), head[equals + 1..].to_vec()));
+        if let Some(equals) = head.iter().position(|byte| {
+            return *byte == b'=';
+        }) {
+            fields.push((
+                String::from_utf8(head[..equals].to_vec()).expect("a name"),
+                head[equals + 1..].to_vec(),
+            ));
             rest = &rest[end + 1..];
             continue;
         }
-        let length: usize = usize::try_from(u64::from_le_bytes(rest[end + 1..end + 9].try_into().expect("eight length bytes"))).expect("small");
+        let length: usize = usize::try_from(u64::from_le_bytes(
+            rest[end + 1..end + 9]
+                .try_into()
+                .expect("eight length bytes"),
+        ))
+        .expect("small");
         let value: &[u8] = &rest[end + 9..end + 9 + length];
-        assert_eq!(rest[end + 9 + length], b'\n', "the value is followed by a newline");
-        fields.push((String::from_utf8(head.to_vec()).expect("a name"), value.to_vec()));
+        assert_eq!(
+            rest[end + 9 + length],
+            b'\n',
+            "the value is followed by a newline"
+        );
+        fields.push((
+            String::from_utf8(head.to_vec()).expect("a name"),
+            value.to_vec(),
+        ));
         rest = &rest[end + 9 + length + 1..];
     }
     return fields;
@@ -323,13 +523,35 @@ fn decoded(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
 #[test]
 fn a_value_with_a_newline_is_carried_whole_in_the_length_prefixed_form() {
     let hostile: &str = "landed\nPRIORITY=0\nSYSLOG_IDENTIFIER=sshd\u{0}tail\u{1b}[31m";
-    let fields: [(&str, String); 2] = [("CLI_GIT_BRANCH", String::from("one\ntwo")), ("CLI_GIT_PLAIN", String::from("no newline"))];
+    let fields: [(&str, String); 2] = [
+        ("CLI_GIT_BRANCH", String::from("one\ntwo")),
+        ("CLI_GIT_PLAIN", String::from("no newline")),
+    ];
     let found = decoded(datagram(Priority::Info, hostile, &fields).as_slice());
-    let names: Vec<&str> = found.iter().map(|(name, _)| { return name.as_str(); }).collect();
-    assert_eq!(names, vec!["PRIORITY", "SYSLOG_IDENTIFIER", "MESSAGE", "CLI_GIT_BRANCH", "CLI_GIT_PLAIN"], "the entry has exactly the fields it was given");
+    let names: Vec<&str> = found
+        .iter()
+        .map(|(name, _)| {
+            return name.as_str();
+        })
+        .collect();
+    assert_eq!(
+        names,
+        vec![
+            "PRIORITY",
+            "SYSLOG_IDENTIFIER",
+            "MESSAGE",
+            "CLI_GIT_BRANCH",
+            "CLI_GIT_PLAIN"
+        ],
+        "the entry has exactly the fields it was given"
+    );
     assert_eq!(found[0].1, b"6");
     assert_eq!(found[1].1, IDENTIFIER.as_bytes());
-    assert_eq!(found[2].1, hostile.as_bytes(), "the message reads back as written");
+    assert_eq!(
+        found[2].1,
+        hostile.as_bytes(),
+        "the message reads back as written"
+    );
     assert_eq!(found[3].1, b"one\ntwo");
     assert_eq!(found[4].1, b"no newline");
 }
@@ -346,10 +568,21 @@ fn a_value_with_a_newline_is_carried_whole_in_the_length_prefixed_form() {
 fn a_field_name_follows_systemds_rule_including_its_length_and_its_first_character() {
     assert!(valid_field_name(&"A".repeat(64)), "64 is the longest");
     assert!(!valid_field_name(&"A".repeat(65)), "65 is too long");
-    assert!(!valid_field_name("1STAGE") && !valid_field_name("9"), "a digit may not come first");
-    assert!(!valid_field_name("_PRIVATE") && !valid_field_name("_"), "an underscore may not come first");
+    assert!(
+        !valid_field_name("1STAGE") && !valid_field_name("9"),
+        "a digit may not come first"
+    );
+    assert!(
+        !valid_field_name("_PRIVATE") && !valid_field_name("_"),
+        "an underscore may not come first"
+    );
     assert!(valid_field_name("A1_") && valid_field_name("X"));
-    assert!(!valid_field_name("") && !valid_field_name("a") && !valid_field_name("A-B") && !valid_field_name("É"));
+    assert!(
+        !valid_field_name("")
+            && !valid_field_name("a")
+            && !valid_field_name("A-B")
+            && !valid_field_name("É")
+    );
 }
 
 /// A writer that takes only part of what it is given and then has no room,
@@ -363,7 +596,10 @@ struct Tight {
 }
 
 impl std::io::Write for Tight {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         if self.room == 0 {
             return Err(std::io::ErrorKind::WouldBlock.into());
         }
@@ -384,13 +620,22 @@ impl std::io::Write for Tight {
 /// and a later line is not lost to the unfinished one.
 #[test]
 fn a_line_taken_in_part_is_finished_before_the_next_starts() {
-    let nobody: Target = Target::Abstract(format!("cli-git-test-journal-partial-{}", std::process::id()));
+    let nobody: Target = Target::Abstract(format!(
+        "cli-git-test-journal-partial-{}",
+        std::process::id()
+    ));
     let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
-    let mut stream: Tight = Tight { taken: Vec::new(), room: 5 };
+    let mut stream: Tight = Tight {
+        taken: Vec::new(),
+        room: 5,
+    };
     sink.deliver(Priority::Info, "one", &[], "first line\n", &mut stream);
     stream.room = usize::MAX;
     sink.deliver(Priority::Info, "two", &[], "second line\n", &mut stream);
-    assert_eq!(String::from_utf8(stream.taken).expect("text"), "<6>first line\n<6>second line\n");
+    assert_eq!(
+        String::from_utf8(stream.taken).expect("text"),
+        "<6>first line\n<6>second line\n"
+    );
 }
 
 /// A standard error that is a blocking pipe with no room never makes the writer wait:
@@ -417,9 +662,13 @@ fn a_full_blocking_pipe_refuses_the_write_instead_of_waiting() {
     let (done, finished) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let outcome = StreamWriter::on(writer).write(b"line\n");
-        let _sent = done.send(outcome.map_err(|error| { return error.kind(); }));
+        let _sent = done.send(outcome.map_err(|error| {
+            return error.kind();
+        }));
     });
-    let outcome = finished.recv_timeout(std::time::Duration::from_secs(10)).expect("the write came back instead of waiting for room");
+    let outcome = finished
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .expect("the write came back instead of waiting for room");
     assert_eq!(outcome, Err(std::io::ErrorKind::WouldBlock));
     // SAFETY: both descriptors are open and closed once.
     unsafe {
@@ -435,8 +684,16 @@ fn a_full_blocking_pipe_refuses_the_write_instead_of_waiting() {
 fn a_cut_keeps_the_text_it_keeps() {
     assert_eq!(cut("a\nb\u{1}c", 10), "a\nb\u{1}c");
     assert_eq!(cut("a\nbcd", 3), format!("a\nb{CUT_MARK}"));
-    assert_eq!(cut("日本語です", 3), format!("日本語{CUT_MARK}"), "the limit counts characters, never splitting one");
-    assert_eq!(one_line("a\nb", 10), "a b", "the line on standard error is still one line");
+    assert_eq!(
+        cut("日本語です", 3),
+        format!("日本語{CUT_MARK}"),
+        "the limit counts characters, never splitting one"
+    );
+    assert_eq!(
+        one_line("a\nb", 10),
+        "a b",
+        "the line on standard error is still one line"
+    );
     assert_eq!(FIELD_NAME_LIMIT, 64);
 }
 
@@ -446,20 +703,47 @@ fn a_cut_keeps_the_text_it_keeps() {
 /// the next entry that gets through says how many.
 #[test]
 fn a_dropped_entry_is_counted_and_the_next_stream_line_says_so() {
-    let nobody: Target = Target::Abstract(format!("cli-git-test-journal-dropped-{}", std::process::id()));
+    let nobody: Target = Target::Abstract(format!(
+        "cli-git-test-journal-dropped-{}",
+        std::process::id()
+    ));
     let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
-    let mut stream: Tight = Tight { taken: Vec::new(), room: 0 };
-    assert_eq!(sink.deliver(Priority::Info, "one", &[], "first line\n", &mut stream), Delivery::Dropped);
-    assert_eq!(sink.deliver(Priority::Info, "two", &[], "second line\n", &mut stream), Delivery::Dropped);
+    let mut stream: Tight = Tight {
+        taken: Vec::new(),
+        room: 0,
+    };
+    assert_eq!(
+        sink.deliver(Priority::Info, "one", &[], "first line\n", &mut stream),
+        Delivery::Dropped
+    );
+    assert_eq!(
+        sink.deliver(Priority::Info, "two", &[], "second line\n", &mut stream),
+        Delivery::Dropped
+    );
     assert!(stream.taken.is_empty());
     stream.room = usize::MAX;
-    assert_eq!(sink.deliver(Priority::Info, "three", &[], "third line\n", &mut stream), Delivery::Stderr);
+    assert_eq!(
+        sink.deliver(Priority::Info, "three", &[], "third line\n", &mut stream),
+        Delivery::Stderr
+    );
     let text: String = String::from_utf8(stream.taken).expect("text");
-    assert!(text.starts_with("<4>monochromatic-git-policy-cli-service: 2 log entries were dropped before this one"), "{text}");
+    assert!(
+        text.starts_with(
+            "<4>monochromatic-git-policy-cli-service: 2 log entries were dropped before this one"
+        ),
+        "{text}"
+    );
     assert!(text.ends_with("\n<6>third line\n"), "{text}");
-    let mut after: Tight = Tight { taken: Vec::new(), room: usize::MAX };
+    let mut after: Tight = Tight {
+        taken: Vec::new(),
+        room: usize::MAX,
+    };
     sink.deliver(Priority::Info, "four", &[], "fourth line\n", &mut after);
-    assert_eq!(String::from_utf8(after.taken).expect("text"), "<6>fourth line\n", "the count is said once");
+    assert_eq!(
+        String::from_utf8(after.taken).expect("text"),
+        "<6>fourth line\n",
+        "the count is said once"
+    );
 }
 
 /// The line that is still unfinished when no room comes back blocks the lines after it from starting,
@@ -467,14 +751,31 @@ fn a_dropped_entry_is_counted_and_the_next_stream_line_says_so() {
 /// counted as dropped.
 #[test]
 fn a_line_that_stays_unfinished_drops_the_lines_behind_it() {
-    let nobody: Target = Target::Abstract(format!("cli-git-test-journal-stuck-{}", std::process::id()));
+    let nobody: Target =
+        Target::Abstract(format!("cli-git-test-journal-stuck-{}", std::process::id()));
     let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
-    let mut stream: Tight = Tight { taken: Vec::new(), room: 4 };
-    assert_eq!(sink.deliver(Priority::Info, "one", &[], "first line\n", &mut stream), Delivery::Stderr);
-    assert_eq!(sink.deliver(Priority::Info, "two", &[], "second line\n", &mut stream), Delivery::Dropped);
-    assert_eq!(String::from_utf8(stream.taken.clone()).expect("text"), "<6>f", "nothing of the second line started");
+    let mut stream: Tight = Tight {
+        taken: Vec::new(),
+        room: 4,
+    };
+    assert_eq!(
+        sink.deliver(Priority::Info, "one", &[], "first line\n", &mut stream),
+        Delivery::Stderr
+    );
+    assert_eq!(
+        sink.deliver(Priority::Info, "two", &[], "second line\n", &mut stream),
+        Delivery::Dropped
+    );
+    assert_eq!(
+        String::from_utf8(stream.taken.clone()).expect("text"),
+        "<6>f",
+        "nothing of the second line started"
+    );
     stream.room = usize::MAX;
-    assert_eq!(sink.deliver(Priority::Info, "three", &[], "third line\n", &mut stream), Delivery::Stderr);
+    assert_eq!(
+        sink.deliver(Priority::Info, "three", &[], "third line\n", &mut stream),
+        Delivery::Stderr
+    );
     let text: String = String::from_utf8(stream.taken).expect("text");
     assert!(text.starts_with("<6>first line\n<4>monochromatic-git-policy-cli-service: 1 log entries were dropped before this one"), "{text}");
     assert!(text.ends_with("\n<6>third line\n"), "{text}");
@@ -488,41 +789,80 @@ fn a_native_entry_after_dropped_ones_carries_their_count() {
     let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &target);
     sink.lost.store(3, Ordering::Relaxed);
     let mut stderr: Vec<u8> = Vec::new();
-    assert_eq!(sink.deliver(Priority::Info, "m", &[], "line\n", &mut stderr), Delivery::Native);
-    assert_eq!(sink.deliver(Priority::Info, "n", &[], "line\n", &mut stderr), Delivery::Native);
+    assert_eq!(
+        sink.deliver(Priority::Info, "m", &[], "line\n", &mut stderr),
+        Delivery::Native
+    );
+    assert_eq!(
+        sink.deliver(Priority::Info, "n", &[], "line\n", &mut stderr),
+        Delivery::Native
+    );
     let mut buffer: Vec<u8> = vec![0; 4096];
-    let first: usize = socket.recv(buffer.as_mut_slice()).expect("the first datagram");
+    let first: usize = socket
+        .recv(buffer.as_mut_slice())
+        .expect("the first datagram");
     let found = decoded(&buffer[..first]);
-    assert_eq!(found.iter().find(|(name, _)| { return name == LOST_FIELD; }).map(|(_, value)| { return value.clone(); }), Some(b"3".to_vec()));
-    let second: usize = socket.recv(buffer.as_mut_slice()).expect("the second datagram");
-    assert!(!decoded(&buffer[..second]).iter().any(|(name, _)| { return name == LOST_FIELD; }), "said once");
+    assert_eq!(
+        found
+            .iter()
+            .find(|(name, _)| {
+                return name == LOST_FIELD;
+            })
+            .map(|(_, value)| {
+                return value.clone();
+            }),
+        Some(b"3".to_vec())
+    );
+    let second: usize = socket
+        .recv(buffer.as_mut_slice())
+        .expect("the second datagram");
+    assert!(
+        !decoded(&buffer[..second]).iter().any(|(name, _)| {
+            return name == LOST_FIELD;
+        }),
+        "said once"
+    );
 }
 
 /// A stream that takes the start of a line and nothing more is not waited for:
 /// the call returns at once with what it took.
 #[test]
 fn a_stream_socket_with_room_for_part_returns_what_it_took_without_waiting() {
-    use std::io::{Read, Write};
+    use std::io::{
+        Read,
+        Write,
+    };
     use std::os::fd::AsRawFd;
     let (writer_end, mut reader_end) = std::os::unix::net::UnixStream::pair().expect("a pair");
     let mut writer: StreamWriter = StreamWriter::on(writer_end.as_raw_fd());
     let filler: Vec<u8> = vec![b'x'; 1024];
     while writer.write(filler.as_slice()).is_ok() {}
-    reader_end.set_nonblocking(true).expect("non-blocking reader");
+    reader_end
+        .set_nonblocking(true)
+        .expect("non-blocking reader");
     let mut drain: Vec<u8> = vec![0; 8192];
-    let drained: usize = reader_end.read(drain.as_mut_slice()).expect("room made for a little");
+    let drained: usize = reader_end
+        .read(drain.as_mut_slice())
+        .expect("room made for a little");
     assert!(drained > 0);
     let big: Vec<u8> = vec![b'y'; 1 << 20];
     let took: usize = writer.write(big.as_slice()).expect("part of it went");
     assert!(took > 0 && took < big.len(), "took {took}");
-    assert_eq!(writer.write(big.as_slice()).expect_err("then no room").kind(), std::io::ErrorKind::WouldBlock);
+    assert_eq!(
+        writer
+            .write(big.as_slice())
+            .expect_err("then no room")
+            .kind(),
+        std::io::ErrorKind::WouldBlock
+    );
 }
 
 /// Two entries that each said the same count of dropped ones leave the count at zero,
 /// never wrapped below it.
 #[test]
 fn counting_the_same_dropped_entries_twice_stops_at_zero() {
-    let nobody: Target = Target::Abstract(format!("cli-git-test-journal-twice-{}", std::process::id()));
+    let nobody: Target =
+        Target::Abstract(format!("cli-git-test-journal-twice-{}", std::process::id()));
     let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
     sink.lost.store(3, Ordering::Relaxed);
     sink.forgive(3);
@@ -540,13 +880,21 @@ fn the_send_without_waiting_takes_a_page_and_refuses_a_full_pipe_and_a_full_sock
     // SAFETY: `ends` is valid for the two descriptors `pipe` writes.
     assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0);
     let big: Vec<u8> = vec![b'p'; PIPE_CHUNK * 3];
-    assert_eq!(send_without_waiting(ends[1], big.as_slice()), Ok(PIPE_CHUNK), "a page at most, whatever is offered");
+    assert_eq!(
+        send_without_waiting(ends[1], big.as_slice()),
+        Ok(PIPE_CHUNK),
+        "a page at most, whatever is offered"
+    );
     let mut taken: usize = PIPE_CHUNK;
     while let Ok(count) = send_without_waiting(ends[1], big.as_slice()) {
         taken += count;
         assert!(taken < 1 << 24, "the pipe never filled");
     }
-    assert_eq!(send_without_waiting(ends[1], b"x"), Err(libc::EAGAIN), "a full blocking pipe is refused, not waited for");
+    assert_eq!(
+        send_without_waiting(ends[1], b"x"),
+        Err(libc::EAGAIN),
+        "a full blocking pipe is refused, not waited for"
+    );
     // SAFETY: both descriptors are open and closed once.
     unsafe {
         libc::close(ends[0]);
@@ -559,7 +907,10 @@ fn the_send_without_waiting_takes_a_page_and_refuses_a_full_pipe_and_a_full_sock
         sockets_taken += 1;
         assert!(sockets_taken < 1_000_000, "the socket never filled");
     }
-    assert_eq!(send_without_waiting(writer_end.as_raw_fd(), line.as_slice()), Err(libc::EAGAIN));
+    assert_eq!(
+        send_without_waiting(writer_end.as_raw_fd(), line.as_slice()),
+        Err(libc::EAGAIN)
+    );
 }
 
 /// What:
@@ -578,7 +929,12 @@ fn the_send_without_waiting_takes_a_page_and_refuses_a_full_pipe_and_a_full_sock
 fn a_line_a_full_pipe_cannot_take_is_dropped_rather_than_waited_for() {
     let mut ends: [libc::c_int; 2] = [0; 2];
     // SAFETY: `pipe` writes two descriptors into the array this test owns.
-    assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0, "a pipe: {}", std::io::Error::last_os_error());
+    assert_eq!(
+        unsafe { libc::pipe(ends.as_mut_ptr()) },
+        0,
+        "a pipe: {}",
+        std::io::Error::last_os_error()
+    );
     let (read_end, write_end) = (ends[0], ends[1]);
     // Filled by a write that does not block, so the next write finds no room at all.
     // SAFETY: `fcntl` with `F_SETFL` sets the flags of an open descriptor this test made.
@@ -592,15 +948,32 @@ fn a_line_a_full_pipe_cannot_take_is_dropped_rather_than_waited_for() {
             break;
         }
     }
-    let sink: Sink = Sink::choose(None, None, &Target::Abstract(format!("cli-git-test-full-pipe-{}", std::process::id())));
+    let sink: Sink = Sink::choose(
+        None,
+        None,
+        &Target::Abstract(format!("cli-git-test-full-pipe-{}", std::process::id())),
+    );
     let began: std::time::Instant = std::time::Instant::now();
-    let delivery: Delivery = sink.deliver(Priority::Info, "a landing begins at_ms=1", &[], "a landing begins at_ms=1", &mut StreamWriter::on(write_end));
+    let delivery: Delivery = sink.deliver(
+        Priority::Info,
+        "a landing begins at_ms=1",
+        &[],
+        "a landing begins at_ms=1",
+        &mut StreamWriter::on(write_end),
+    );
     let took: std::time::Duration = began.elapsed();
     // SAFETY: both descriptors are this test's own and are closed once.
     unsafe {
         libc::close(write_end);
         libc::close(read_end);
     }
-    assert_eq!(delivery, Delivery::Dropped, "a full pipe takes nothing, so the line is dropped");
-    assert!(took < std::time::Duration::from_millis(500), "and it returns at once rather than waiting: {took:?}");
+    assert_eq!(
+        delivery,
+        Delivery::Dropped,
+        "a full pipe takes nothing, so the line is dropped"
+    );
+    assert!(
+        took < std::time::Duration::from_millis(500),
+        "and it returns at once rather than waiting: {took:?}"
+    );
 }

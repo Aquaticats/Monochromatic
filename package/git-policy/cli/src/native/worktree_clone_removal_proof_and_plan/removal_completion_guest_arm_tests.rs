@@ -38,19 +38,44 @@ use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::an_existing_cleanup_record;
 use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::TheLiveHolderScan;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan;
-use crate::worktree_clone_removal_proof_and_plan::removal_completion::{RemovalCompletion, complete_the_removal};
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{RemovalEntry, TheLiveClock};
-use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{LivePoolFixture, PoolVariables, SLOT};
+use crate::worktree_clone_removal_proof_and_plan::removal_completion::{
+    RemovalCompletion,
+    complete_the_removal,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
+    RemovalEntry,
+    TheLiveClock,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{
+    LivePoolFixture,
+    PoolVariables,
+    SLOT,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_report::TheRemovalDone;
-use crate::worktree_clone_removal_proof_and_plan::removal_settle::{RegistrationSettle, SettleAnswer, SettleRequest, TheLiveSettle};
-use crate::worktree_clone_removal_proof_and_plan::unmount_request::{RemovalUnmount, UnmountAnswer};
+use crate::worktree_clone_removal_proof_and_plan::removal_settle::{
+    RegistrationSettle,
+    SettleAnswer,
+    SettleRequest,
+    TheLiveSettle,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
+use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
+    RemovalUnmount,
+    UnmountAnswer,
+};
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_send::SnapshotDestroyDevice;
 use crate::worktree_removal_deferred_origin_check::origin_mark::MARK_OFF;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DeviceError, NvList, ZfsDevice};
-use std::cell::{Cell, RefCell};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DeviceError,
+    NvList,
+    ZfsDevice,
+};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 
 /// The variable naming the guest this arm may run in.
 const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_REMOVAL_COMPLETION_GUEST";
@@ -95,8 +120,19 @@ struct ADoneUnmount {
 }
 
 impl RemovalUnmount for ADoneUnmount {
-    fn request_the_unmount(&self, intent: &MountIntent) -> Result<UnmountAnswer, RemovalStop> {
-        return Ok(UnmountAnswer { dataset: self.clone_guid, operation: intent.operation, nonce: intent.nonce.clone(), outcome: ReceiptOutcome::Done, mount_id: None, failed_step: None, errno: None });
+    fn request_the_unmount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<UnmountAnswer, RemovalStop> {
+        return Ok(UnmountAnswer {
+            dataset: self.clone_guid,
+            operation: intent.operation,
+            nonce: intent.nonce.clone(),
+            outcome: ReceiptOutcome::Done,
+            mount_id: None,
+            failed_step: None,
+            errno: None,
+        });
     }
 }
 
@@ -117,8 +153,17 @@ struct RecordingDevice<'a> {
 }
 
 impl SnapshotDestroyDevice for RecordingDevice<'_> {
-    fn destroy_snaps(&self, pool: &str, names: &[&str]) -> Result<Option<NvList>, DeviceError> {
-        self.sent.borrow_mut().push(names.iter().map(|name| return String::from(*name)).collect());
+    fn destroy_snaps(
+        &self,
+        pool: &str,
+        names: &[&str],
+    ) -> Result<Option<NvList>, DeviceError> {
+        self.sent.borrow_mut().push(
+            names
+                .iter()
+                .map(|name| return String::from(*name))
+                .collect(),
+        );
         return self.live.destroy_snaps(pool, names);
     }
 }
@@ -141,11 +186,17 @@ struct RefusingOnce<'a> {
 }
 
 impl RegistrationSettle for RefusingOnce<'_> {
-    fn settle_the_registration(&self, request: &SettleRequest<'_>) -> Result<SettleAnswer, RemovalStop> {
+    fn settle_the_registration(
+        &self,
+        request: &SettleRequest<'_>,
+    ) -> Result<SettleAnswer, RemovalStop> {
         let left: usize = self.refusals.get();
         if left > 0 {
             self.refusals.set(left - 1);
-            return Err(RemovalStop::TheSettleRefused { step: String::from("a control's own refusal"), said: String::from("this arm refuses the first settle") });
+            return Err(RemovalStop::TheSettleRefused {
+                step: String::from("a control's own refusal"),
+                said: String::from("this arm refuses the first settle"),
+            });
         }
         return self.live.settle_the_registration(request);
     }
@@ -154,8 +205,16 @@ impl RegistrationSettle for RefusingOnce<'_> {
 /// The budget every arm's whole first write fits in,
 /// measured from the exact request it becomes.
 fn the_budget(fixture: &LivePoolFixture) -> RequestBudget {
-    let names: Vec<String> = vec![format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()), format!("{}@{SANOID_SNAPSHOT}", fixture.clone())];
-    let bytes: usize = crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes(fixture.pool.as_str(), names.as_slice()).expect("both names pack into one request");
+    let names: Vec<String> = vec![
+        format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()),
+        format!("{}@{SANOID_SNAPSHOT}", fixture.clone()),
+    ];
+    let bytes: usize =
+        crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes(
+            fixture.pool.as_str(),
+            names.as_slice(),
+        )
+        .expect("both names pack into one request");
     return RequestBudget::of_input_bytes(bytes);
 }
 
@@ -171,10 +230,22 @@ fn the_budget(fixture: &LivePoolFixture) -> RequestBudget {
 /// ```ts
 /// const done = complete(fixture, cloneGuid, reads, reader, device, settle);
 /// ```
-fn complete(fixture: &LivePoolFixture, clone_guid: DatasetGuid, reads: &LiveRemovalReads, reader: &ZfsDatasetReader, device: &RecordingDevice<'_>, settle: &dyn RegistrationSettle) -> Result<TheRemovalDone, RemovalStop> {
-    let unmount: ADoneUnmount = ADoneUnmount { clone_guid };
+fn complete(
+    fixture: &LivePoolFixture,
+    clone_guid: DatasetGuid,
+    reads: &LiveRemovalReads,
+    reader: &ZfsDatasetReader,
+    device: &RecordingDevice<'_>,
+    settle: &dyn RegistrationSettle,
+) -> Result<TheRemovalDone, RemovalStop> {
+    let unmount: ADoneUnmount = ADoneUnmount {
+        clone_guid,
+    };
     let common: std::path::PathBuf = fixture.common();
-    let at: RemovalEntry<'_> = RemovalEntry { common_dir: common.as_path(), slot: SLOT };
+    let at: RemovalEntry<'_> = RemovalEntry {
+        common_dir: common.as_path(),
+        slot: SLOT,
+    };
     let input: RemovalCompletion<'_> = RemovalCompletion {
         entry: &at,
         reads,
@@ -195,7 +266,10 @@ fn complete(fixture: &LivePoolFixture, clone_guid: DatasetGuid, reads: &LiveRemo
 #[test]
 #[ignore = "live: needs the mvm guest fixture; run it through the package's e2e recipe"]
 fn the_removal_completion_guest_arms() {
-    let Some(fixture) = LivePoolFixture::from_environment("the_removal_completion_guest_arms", &variables()).map(|fixture| return fixture.with_origin_name(ADD_ORIGIN)) else {
+    let Some(fixture) =
+        LivePoolFixture::from_environment("the_removal_completion_guest_arms", &variables())
+            .map(|fixture| return fixture.with_origin_name(ADD_ORIGIN))
+    else {
         return;
     };
     println!("COMPLETION guest={} pool={}", fixture.guest, fixture.pool);
@@ -211,18 +285,43 @@ fn the_removal_completion_guest_arms() {
     let recorded = fixture.recorded();
     fixture.write_the_adds_records(&recorded);
     std::fs::create_dir_all(MOUNT_POINT).expect("the mount point");
-    fixture.run("mount", &["-t", "zfs", fixture.clone().as_str(), MOUNT_POINT]);
-    let mounted_device: RecordingDevice<'_> = RecordingDevice { live: &live, sent: RefCell::new(Vec::new()) };
+    fixture.run(
+        "mount",
+        &["-t", "zfs", fixture.clone().as_str(), MOUNT_POINT],
+    );
+    let mounted_device: RecordingDevice<'_> = RecordingDevice {
+        live: &live,
+        sent: RefCell::new(Vec::new()),
+    };
     println!("COMPLETION step=arm-1-enter");
-    let mounted: Result<TheRemovalDone, RemovalStop> = complete(&fixture, recorded.clone_guid, &reads, &reader, &mounted_device, &settle);
+    let mounted: Result<TheRemovalDone, RemovalStop> = complete(
+        &fixture,
+        recorded.clone_guid,
+        &reads,
+        &reader,
+        &mounted_device,
+        &settle,
+    );
     let stop: RemovalStop = match mounted {
         Ok(_) => panic!("a mounted clone must not be destroyed"),
         Err(refusal) => refusal,
     };
-    assert!(matches!(stop, RemovalStop::HoldersSeeTheClone { .. }), "the fresh scan sees the mount, and this run stopped with {stop:?}");
-    assert!(mounted_device.sent.borrow().is_empty(), "no snapshot request is sent while a namespace holds the clone");
-    assert!(fixture.exists(format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str()), "the clone keeps its own snapshot");
-    assert!(fixture.exists(fixture.clone().as_str()), "the clone head stands");
+    assert!(
+        matches!(stop, RemovalStop::HoldersSeeTheClone { .. }),
+        "the fresh scan sees the mount, and this run stopped with {stop:?}"
+    );
+    assert!(
+        mounted_device.sent.borrow().is_empty(),
+        "no snapshot request is sent while a namespace holds the clone"
+    );
+    assert!(
+        fixture.exists(format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()).as_str()),
+        "the clone keeps its own snapshot"
+    );
+    assert!(
+        fixture.exists(fixture.clone().as_str()),
+        "the clone head stands"
+    );
     println!("COMPLETION mounted=refused sent=0 snapshot=kept");
     fixture.run("umount", &[MOUNT_POINT]);
 
@@ -232,21 +331,67 @@ fn the_removal_completion_guest_arms() {
     fixture.build(&[MANUAL_SNAPSHOT, SANOID_SNAPSHOT]);
     let healthy_recorded = fixture.recorded();
     fixture.write_the_adds_records(&healthy_recorded);
-    let device: RecordingDevice<'_> = RecordingDevice { live: &live, sent: RefCell::new(Vec::new()) };
+    let device: RecordingDevice<'_> = RecordingDevice {
+        live: &live,
+        sent: RefCell::new(Vec::new()),
+    };
     println!("COMPLETION step=arm-2-enter");
-    let done: TheRemovalDone = complete(&fixture, healthy_recorded.clone_guid, &reads, &reader, &device, &settle).expect("a healthy removal finishes");
-    assert_eq!(device.sent.borrow().len(), 2, "one request for the clone's snapshots and one for the origin snapshot");
+    let done: TheRemovalDone = complete(
+        &fixture,
+        healthy_recorded.clone_guid,
+        &reads,
+        &reader,
+        &device,
+        &settle,
+    )
+    .expect("a healthy removal finishes");
+    assert_eq!(
+        device.sent.borrow().len(),
+        2,
+        "one request for the clone's snapshots and one for the origin snapshot"
+    );
     for snapshot in [MANUAL_SNAPSHOT, SANOID_SNAPSHOT] {
-        assert!(!fixture.exists(format!("{}@{snapshot}", fixture.clone()).as_str()), "the batch destroyed `{snapshot}`");
+        assert!(
+            !fixture.exists(format!("{}@{snapshot}", fixture.clone()).as_str()),
+            "the batch destroyed `{snapshot}`"
+        );
     }
-    assert!(!fixture.exists(fixture.clone().as_str()), "the head destroy proved the clone gone");
-    assert!(!fixture.exists(fixture.origin().as_str()), "the origin cleanup destroyed the checkout's origin snapshot");
-    assert!(!fixture.registration().exists(), "the Git registration went");
+    assert!(
+        !fixture.exists(fixture.clone().as_str()),
+        "the head destroy proved the clone gone"
+    );
+    assert!(
+        !fixture.exists(fixture.origin().as_str()),
+        "the origin cleanup destroyed the checkout's origin snapshot"
+    );
+    assert!(
+        !fixture.registration().exists(),
+        "the Git registration went"
+    );
     assert!(!fixture.slot_path().exists(), "the underlay folder went");
-    assert!(!fixture.common().join("monochromatic-git-policy-cli").join("clone-destruction-plans").exists(), "the plan and its folder went");
-    assert!(an_existing_cleanup_record(fixture.common().as_path(), ADD_ORIGIN).expect("the folder answers").is_none(), "no cleanup record stands after a finished cleanup");
-    assert_eq!(done.head, crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord::Gone);
-    assert_eq!(done.destroyed.len(), 2, "the report names both of the clone's own snapshots");
+    assert!(
+        !fixture
+            .common()
+            .join("monochromatic-git-policy-cli")
+            .join("clone-destruction-plans")
+            .exists(),
+        "the plan and its folder went"
+    );
+    assert!(
+        an_existing_cleanup_record(fixture.common().as_path(), ADD_ORIGIN)
+            .expect("the folder answers")
+            .is_none(),
+        "no cleanup record stands after a finished cleanup"
+    );
+    assert_eq!(
+        done.head,
+        crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord::Gone
+    );
+    assert_eq!(
+        done.destroyed.len(),
+        2,
+        "the report names both of the clone's own snapshots"
+    );
     println!("COMPLETION healthy=destroyed snapshots=2 head=gone origin=gone registration=gone");
 
     // Arm 3: another clone pins the origin snapshot, so the registration is settled and the cleanup record stands blocked.
@@ -257,13 +402,36 @@ fn the_removal_completion_guest_arms() {
     fixture.write_the_adds_records(&pinned_recorded);
     let other: String = fixture.named("clones-other");
     fixture.run("zfs", &["clone", fixture.origin().as_str(), other.as_str()]);
-    let pinned_device: RecordingDevice<'_> = RecordingDevice { live: &live, sent: RefCell::new(Vec::new()) };
+    let pinned_device: RecordingDevice<'_> = RecordingDevice {
+        live: &live,
+        sent: RefCell::new(Vec::new()),
+    };
     println!("COMPLETION step=arm-3-enter");
-    let pinned: TheRemovalDone = complete(&fixture, pinned_recorded.clone_guid, &reads, &reader, &pinned_device, &settle).expect("the removal finishes whatever the origin does");
-    assert!(!fixture.exists(fixture.clone().as_str()), "the clone is gone");
-    assert!(fixture.exists(fixture.origin().as_str()), "the origin snapshot stands, pinned by the other clone");
-    assert!(!fixture.registration().exists(), "the registration is settled even while the origin cleanup is blocked");
-    assert!(fixture.exists(fixture.origin().as_str()), "the pinned origin snapshot stands");
+    let pinned: TheRemovalDone = complete(
+        &fixture,
+        pinned_recorded.clone_guid,
+        &reads,
+        &reader,
+        &pinned_device,
+        &settle,
+    )
+    .expect("the removal finishes whatever the origin does");
+    assert!(
+        !fixture.exists(fixture.clone().as_str()),
+        "the clone is gone"
+    );
+    assert!(
+        fixture.exists(fixture.origin().as_str()),
+        "the origin snapshot stands, pinned by the other clone"
+    );
+    assert!(
+        !fixture.registration().exists(),
+        "the registration is settled even while the origin cleanup is blocked"
+    );
+    assert!(
+        fixture.exists(fixture.origin().as_str()),
+        "the pinned origin snapshot stands"
+    );
     assert!(matches!(pinned.origin, crate::worktree_clone_removal_proof_and_plan::removal_report::OriginCleanupDone::Blocked { .. }), "the cleanup recorded its block");
     println!("COMPLETION blocked=origin registration=settled plan=removed record=blocked");
     fixture.run("zfs", &["destroy", other.as_str()]);
@@ -274,24 +442,69 @@ fn the_removal_completion_guest_arms() {
     fixture.build(&[MANUAL_SNAPSHOT, SANOID_SNAPSHOT]);
     let resume_recorded = fixture.recorded();
     fixture.write_the_adds_records(&resume_recorded);
-    let first_device: RecordingDevice<'_> = RecordingDevice { live: &live, sent: RefCell::new(Vec::new()) };
-    let refusing: RefusingOnce<'_> = RefusingOnce { refusals: Cell::new(1), live: &settle };
+    let first_device: RecordingDevice<'_> = RecordingDevice {
+        live: &live,
+        sent: RefCell::new(Vec::new()),
+    };
+    let refusing: RefusingOnce<'_> = RefusingOnce {
+        refusals: Cell::new(1),
+        live: &settle,
+    };
     println!("COMPLETION step=arm-4-first-enter");
-    let first: Result<TheRemovalDone, RemovalStop> = complete(&fixture, resume_recorded.clone_guid, &reads, &reader, &first_device, &refusing);
+    let first: Result<TheRemovalDone, RemovalStop> = complete(
+        &fixture,
+        resume_recorded.clone_guid,
+        &reads,
+        &reader,
+        &first_device,
+        &refusing,
+    );
     let first_stop: RemovalStop = match first {
         Ok(_) => panic!("the arm's settle refuses the first run"),
         Err(refusal) => refusal,
     };
-    assert!(matches!(first_stop, RemovalStop::TheSettleRefused { .. }), "the settle's refusal stops the run");
-    let kept = read_an_existing_plan(fixture.common().as_path(), resume_recorded.clone_guid).expect("the plan reads").expect("the plan stands after the refusal");
-    assert_eq!(kept.head, crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord::Gone, "the head's own proof is kept");
-    assert!(fixture.registration().exists(), "the registration stands for the next run");
-    let scnd: RecordingDevice<'_> = RecordingDevice { live: &live, sent: RefCell::new(Vec::new()) };
+    assert!(
+        matches!(first_stop, RemovalStop::TheSettleRefused { .. }),
+        "the settle's refusal stops the run"
+    );
+    let kept = read_an_existing_plan(fixture.common().as_path(), resume_recorded.clone_guid)
+        .expect("the plan reads")
+        .expect("the plan stands after the refusal");
+    assert_eq!(
+        kept.head,
+        crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord::Gone,
+        "the head's own proof is kept"
+    );
+    assert!(
+        fixture.registration().exists(),
+        "the registration stands for the next run"
+    );
+    let scnd: RecordingDevice<'_> = RecordingDevice {
+        live: &live,
+        sent: RefCell::new(Vec::new()),
+    };
     println!("COMPLETION step=arm-4-second-enter");
-    let resumed: TheRemovalDone = complete(&fixture, resume_recorded.clone_guid, &reads, &reader, &scnd, &settle).expect("the second run finishes the settle");
-    assert!(scnd.sent.borrow().is_empty(), "the head-gone path sends no snapshot request");
-    assert!(!fixture.registration().exists(), "the second run settled the registration");
-    assert!(resumed.records.plan_removed, "the second run removed the plan");
+    let resumed: TheRemovalDone = complete(
+        &fixture,
+        resume_recorded.clone_guid,
+        &reads,
+        &reader,
+        &scnd,
+        &settle,
+    )
+    .expect("the second run finishes the settle");
+    assert!(
+        scnd.sent.borrow().is_empty(),
+        "the head-gone path sends no snapshot request"
+    );
+    assert!(
+        !fixture.registration().exists(),
+        "the second run settled the registration"
+    );
+    assert!(
+        resumed.records.plan_removed,
+        "the second run removed the plan"
+    );
     println!("COMPLETION resume=finished requests=0 registration=settled");
 
     fixture.teardown();

@@ -5,7 +5,12 @@
 //! and the pointers that must name each other.
 
 use super::*;
-use crate::test_support::{fixture, git, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
 
 /// The match that picks the worktree to remove starts at a directory boundary,
 /// compares the bytes,
@@ -26,7 +31,11 @@ fn the_last_components_match_at_a_directory_boundary_byte_for_byte() {
         ("/b/topic", "/a/b/topic", false),
         ("/a/b/topic", "topic/", false),
     ] {
-        assert_eq!(ends_with_name(candidate.as_bytes(), operand.as_bytes()), expected, "{candidate} against {operand}");
+        assert_eq!(
+            ends_with_name(candidate.as_bytes(), operand.as_bytes()),
+            expected,
+            "{candidate} against {operand}"
+        );
     }
 }
 
@@ -43,7 +52,11 @@ fn the_guard_match_ignores_ascii_case() {
         ("/a/b/topic", "", false),
         ("/a/b/topic", "topic/", false),
     ] {
-        assert_eq!(ends_with_name_ignoring_case(candidate.as_bytes(), operand.as_bytes()), expected, "{candidate} against {operand}");
+        assert_eq!(
+            ends_with_name_ignoring_case(candidate.as_bytes(), operand.as_bytes()),
+            expected,
+            "{candidate} against {operand}"
+        );
     }
 }
 
@@ -57,10 +70,22 @@ fn a_name_that_differs_only_by_case_picks_no_worktree() {
     let topic: PathBuf = root.join("topic");
     std::fs::create_dir_all(common.join("worktrees/topic")).expect("registration");
     std::fs::create_dir_all(topic.as_path()).expect("worktree");
-    std::fs::write(common.join("worktrees/topic/gitdir"), format!("{}/.git\n", topic.display())).expect("gitdir");
-    assert_eq!(path_git_picks_for_operand(common.as_path(), OsStr::new("TOPIC")), None, "a name that differs only by case");
+    std::fs::write(
+        common.join("worktrees/topic/gitdir"),
+        format!("{}/.git\n", topic.display()),
+    )
+    .expect("gitdir");
+    assert_eq!(
+        path_git_picks_for_operand(common.as_path(), OsStr::new("TOPIC")),
+        None,
+        "a name that differs only by case"
+    );
     let canonical: PathBuf = std::fs::canonicalize(topic.as_path()).expect("canonical");
-    assert_eq!(path_git_picks_for_operand(common.as_path(), OsStr::new("topic")), Some(canonical), "the registered bytes");
+    assert_eq!(
+        path_git_picks_for_operand(common.as_path(), OsStr::new("topic")),
+        Some(canonical),
+        "the registered bytes"
+    );
     remove(root.as_path());
 }
 
@@ -72,25 +97,62 @@ fn a_registration_belongs_to_the_invoking_repository_and_the_pointers_agree() {
     let root: PathBuf = fixture("registry-scope");
     let first: PathBuf = repository(root.as_path(), "first");
     let second: PathBuf = repository(root.as_path(), "second");
-    git(first.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    git(
+        first.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../wt"],
+    );
     let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical");
     let first_common: PathBuf = std::fs::canonicalize(first.join(".git")).expect("common");
     let second_common: PathBuf = std::fs::canonicalize(second.join(".git")).expect("common");
-    let found: Registration = registration_of(first_common.as_path(), worktree.as_path(), worktree.as_os_str()).expect("registered");
+    let found: Registration = registration_of(
+        first_common.as_path(),
+        worktree.as_path(),
+        worktree.as_os_str(),
+    )
+    .expect("registered");
     assert_eq!(found.id, OsString::from("wt"));
     assert_eq!(found.admin, first_common.join("worktrees/wt"));
-    let none: String = registration_of(second_common.as_path(), worktree.as_path(), worktree.as_os_str()).expect_err("a repository with no linked worktree");
+    let none: String = registration_of(
+        second_common.as_path(),
+        worktree.as_path(),
+        worktree.as_os_str(),
+    )
+    .expect_err("a repository with no linked worktree");
     assert!(none.contains("no linked worktree"), "{none}");
-    git(second.as_path(), &["worktree", "add", "--quiet", "-b", "other", "../other"]);
-    let refused: String = registration_of(second_common.as_path(), worktree.as_path(), worktree.as_os_str()).expect_err("another repository's worktree");
-    assert!(refused.contains("not one of the registrations"), "{refused}");
+    git(
+        second.as_path(),
+        &["worktree", "add", "--quiet", "-b", "other", "../other"],
+    );
+    let refused: String = registration_of(
+        second_common.as_path(),
+        worktree.as_path(),
+        worktree.as_os_str(),
+    )
+    .expect_err("another repository's worktree");
+    assert!(
+        refused.contains("not one of the registrations"),
+        "{refused}"
+    );
     // The main checkout has no registration in its own repository.
-    let main: String = registration_of(first_common.as_path(), first.as_path(), first.as_os_str()).expect_err("the main checkout");
+    let main: String = registration_of(first_common.as_path(), first.as_path(), first.as_os_str())
+        .expect_err("the main checkout");
     assert!(main.contains(".git"), "{main}");
     // A `gitdir` file that records another place disagrees with the worktree's `.git` file.
-    std::fs::write(first_common.join("worktrees/wt/gitdir"), b"/elsewhere/.git\n").expect("overwrite");
-    let disagreeing: String = registration_of(first_common.as_path(), worktree.as_path(), worktree.as_os_str()).expect_err("disagreeing pointers");
-    assert!(disagreeing.contains("records /elsewhere/.git"), "{disagreeing}");
+    std::fs::write(
+        first_common.join("worktrees/wt/gitdir"),
+        b"/elsewhere/.git\n",
+    )
+    .expect("overwrite");
+    let disagreeing: String = registration_of(
+        first_common.as_path(),
+        worktree.as_path(),
+        worktree.as_os_str(),
+    )
+    .expect_err("disagreeing pointers");
+    assert!(
+        disagreeing.contains("records /elsewhere/.git"),
+        "{disagreeing}"
+    );
     remove(root.as_path());
 }
 
@@ -101,7 +163,10 @@ fn a_registration_belongs_to_the_invoking_repository_and_the_pointers_agree() {
 fn a_registration_spelled_through_a_link_belongs_to_the_same_worktree() {
     let root: PathBuf = fixture("registry-link");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../wt"],
+    );
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common");
     // The worktree moved behind a link: a link is left at the old name,
     // so the registration still spells the old name while naming the same directory.
@@ -109,13 +174,16 @@ fn a_registration_spelled_through_a_link_belongs_to_the_same_worktree() {
     std::fs::rename(root.join("wt"), &moved).expect("rename the worktree");
     std::os::unix::fs::symlink(&moved, root.join("wt")).expect("leave a link at the old name");
     let typed: PathBuf = root.join("wt");
-    let found: Registration = registration_of(common.as_path(), moved.as_path(), typed.as_os_str()).expect("the two spellings are one worktree");
+    let found: Registration = registration_of(common.as_path(), moved.as_path(), typed.as_os_str())
+        .expect("the two spellings are one worktree");
     assert_eq!(found.id, OsString::from("wt"));
     assert_eq!(found.admin, common.join("worktrees/wt"));
-    registration_of(common.as_path(), moved.as_path(), OsStr::new("moved")).expect("the name matches only the target");
+    registration_of(common.as_path(), moved.as_path(), OsStr::new("moved"))
+        .expect("the name matches only the target");
     // A record that names another place is still refused.
     std::fs::write(common.join("worktrees/wt/gitdir"), b"/elsewhere/.git\n").expect("overwrite");
-    let elsewhere: String = registration_of(common.as_path(), moved.as_path(), typed.as_os_str()).expect_err("another place");
+    let elsewhere: String = registration_of(common.as_path(), moved.as_path(), typed.as_os_str())
+        .expect_err("another place");
     assert!(elsewhere.contains("records /elsewhere/.git"), "{elsewhere}");
     remove(root.as_path());
 }
@@ -131,15 +199,26 @@ fn a_registration_spelled_through_a_link_belongs_to_the_same_worktree() {
 fn a_second_registration_naming_the_same_directory_is_refused() {
     let root: PathBuf = fixture("registry-alias-case");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "TOPIC", "../TOPIC"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../topic"],
+    );
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "TOPIC", "../TOPIC"],
+    );
     // The second worktree moves and a link is left at its old name, so both registrations name the topic directory.
     std::fs::rename(root.join("TOPIC"), root.join("upper-kept")).expect("move the second worktree");
-    std::os::unix::fs::symlink(root.join("topic"), root.join("TOPIC")).expect("leave a link at the old name");
+    std::os::unix::fs::symlink(root.join("topic"), root.join("TOPIC"))
+        .expect("leave a link at the old name");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common");
     let topic: PathBuf = std::fs::canonicalize(root.join("topic")).expect("canonical");
-    let refused: String = registration_of(common.as_path(), topic.as_path(), OsStr::new("topic")).expect_err("Git's suffix match finds two registrations for the name");
-    assert!(refused.contains("TOPIC") && refused.contains(topic.to_str().expect("UTF-8")), "{refused}");
+    let refused: String = registration_of(common.as_path(), topic.as_path(), OsStr::new("topic"))
+        .expect_err("Git's suffix match finds two registrations for the name");
+    assert!(
+        refused.contains("TOPIC") && refused.contains(topic.to_str().expect("UTF-8")),
+        "{refused}"
+    );
     remove(root.as_path());
 }
 
@@ -150,15 +229,28 @@ fn a_second_registration_naming_the_same_directory_is_refused() {
 fn a_name_that_matches_another_registered_worktree_is_refused() {
     let root: PathBuf = fixture("registry-suffix");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "one", "../x/topic"]);
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "two", "../y/other"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "one", "../x/topic"],
+    );
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "two", "../y/other"],
+    );
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common");
     let other: PathBuf = std::fs::canonicalize(root.join("y/other")).expect("canonical");
     let topic: PathBuf = std::fs::canonicalize(root.join("x/topic")).expect("canonical");
-    let refused: String = registration_of(common.as_path(), other.as_path(), OsStr::new("topic")).expect_err("Git picks x/topic for this name");
-    assert!(refused.contains(topic.to_str().expect("UTF-8")) && refused.contains(other.to_str().expect("UTF-8")), "{refused}");
-    registration_of(common.as_path(), topic.as_path(), OsStr::new("topic")).expect("the name picks the target itself");
-    registration_of(common.as_path(), other.as_path(), other.as_os_str()).expect("a full path matches only itself");
+    let refused: String = registration_of(common.as_path(), other.as_path(), OsStr::new("topic"))
+        .expect_err("Git picks x/topic for this name");
+    assert!(
+        refused.contains(topic.to_str().expect("UTF-8"))
+            && refused.contains(other.to_str().expect("UTF-8")),
+        "{refused}"
+    );
+    registration_of(common.as_path(), topic.as_path(), OsStr::new("topic"))
+        .expect("the name picks the target itself");
+    registration_of(common.as_path(), other.as_path(), other.as_os_str())
+        .expect("a full path matches only itself");
     remove(root.as_path());
 }
 
@@ -166,7 +258,8 @@ fn a_name_that_matches_another_registered_worktree_is_refused() {
 /// which blocks whoever opens it for reading until a writer comes.
 fn make_a_named_pipe(path: &std::path::Path) {
     use std::os::unix::ffi::OsStrExt as _;
-    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    let name: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
     // SAFETY: `name` is a NUL-terminated string that outlives the call.
     let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
     assert_eq!(made, 0, "mkfifo {}", path.display());
@@ -186,7 +279,10 @@ fn a_pointer_that_is_a_named_pipe_is_refused_without_waiting() {
     use std::io::Write as _;
     let root: PathBuf = fixture("registry-pointer-pipe");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../wt"],
+    );
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common");
     let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical");
     let pointer: PathBuf = worktree.join(".git");
@@ -197,22 +293,36 @@ fn a_pointer_that_is_a_named_pipe_is_refused_without_waiting() {
     let asked_common: PathBuf = common.clone();
     let asked_worktree: PathBuf = worktree.clone();
     let worker: std::thread::JoinHandle<()> = std::thread::spawn(move || {
-        let _ = sender.send(registered_worktree(asked_common.as_path(), asked_worktree.as_path()));
+        let _ = sender.send(registered_worktree(
+            asked_common.as_path(),
+            asked_worktree.as_path(),
+        ));
     });
     let bound: std::time::Duration = std::time::Duration::from_secs(5);
-    let answered: Result<Result<Registration, String>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(bound);
+    let answered: Result<Result<Registration, String>, std::sync::mpsc::RecvTimeoutError> =
+        receiver.recv_timeout(bound);
     if answered.is_err() {
         // Release the reader so this control reports what it found instead of leaving a thread waiting for ever.
-        let mut writer: std::fs::File = std::fs::OpenOptions::new().write(true).open(pointer.as_path()).expect("release the reader");
-        writer.write_all(old_pointer.as_slice()).expect("write the pointer");
+        let mut writer: std::fs::File = std::fs::OpenOptions::new()
+            .write(true)
+            .open(pointer.as_path())
+            .expect("release the reader");
+        writer
+            .write_all(old_pointer.as_slice())
+            .expect("write the pointer");
         drop(writer);
     }
     let found: Result<Registration, String> = match answered {
         Ok(answer) => answer,
-        Err(_) => receiver.recv_timeout(bound).expect("the released reader lets the read finish"),
+        Err(_) => receiver
+            .recv_timeout(bound)
+            .expect("the released reader lets the read finish"),
     };
     worker.join().expect("join the read");
-    assert!(found.is_err(), "a pointer that is no regular file answered as a registration: {found:?}");
+    assert!(
+        found.is_err(),
+        "a pointer that is no regular file answered as a registration: {found:?}"
+    );
 }
 
 /// What:
@@ -233,35 +343,62 @@ fn another_registrations_named_pipe_does_not_block_the_removal() {
     use std::io::Write as _;
     let root: PathBuf = fixture("registry-other-pipe");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "other", "../other"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../topic"],
+    );
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "other", "../other"],
+    );
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common");
     let topic: PathBuf = std::fs::canonicalize(root.join("topic")).expect("canonical");
     let other_back_link: PathBuf = common.join("worktrees/other/gitdir");
-    let old_back_link: Vec<u8> = std::fs::read(other_back_link.as_path()).expect("the old back-link");
+    let old_back_link: Vec<u8> =
+        std::fs::read(other_back_link.as_path()).expect("the old back-link");
     std::fs::remove_file(other_back_link.as_path()).expect("the regular back-link is removed");
     make_a_named_pipe(other_back_link.as_path());
     let (sender, receiver) = std::sync::mpsc::channel::<Result<Registration, String>>();
     let asked_common: PathBuf = common.clone();
     let asked_topic: PathBuf = topic.clone();
     let worker: std::thread::JoinHandle<()> = std::thread::spawn(move || {
-        let _ = sender.send(registration_of(asked_common.as_path(), asked_topic.as_path(), OsStr::new("topic")));
+        let _ = sender.send(registration_of(
+            asked_common.as_path(),
+            asked_topic.as_path(),
+            OsStr::new("topic"),
+        ));
     });
     let bound: std::time::Duration = std::time::Duration::from_secs(5);
-    let answered: Result<Result<Registration, String>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(bound);
+    let answered: Result<Result<Registration, String>, std::sync::mpsc::RecvTimeoutError> =
+        receiver.recv_timeout(bound);
     if answered.is_err() {
         // Release the reader so this control reports what it found instead of leaving a thread waiting for ever.
-        let mut writer: std::fs::File = std::fs::OpenOptions::new().write(true).open(other_back_link.as_path()).expect("release the reader");
-        writer.write_all(old_back_link.as_slice()).expect("write the back-link");
+        let mut writer: std::fs::File = std::fs::OpenOptions::new()
+            .write(true)
+            .open(other_back_link.as_path())
+            .expect("release the reader");
+        writer
+            .write_all(old_back_link.as_slice())
+            .expect("write the back-link");
         drop(writer);
     }
     let answered_before_release: bool = answered.is_ok();
     let found: Result<Registration, String> = match answered {
         Ok(answer) => answer,
-        Err(_) => receiver.recv_timeout(bound).expect("the released reader lets the read finish"),
+        Err(_) => receiver
+            .recv_timeout(bound)
+            .expect("the released reader lets the read finish"),
     };
     worker.join().expect("join the read");
-    assert!(answered_before_release, "the removal waited for another registration's named pipe");
-    assert_eq!(found.expect("the target's own registration is still the answer").id, OsString::from("topic"));
+    assert!(
+        answered_before_release,
+        "the removal waited for another registration's named pipe"
+    );
+    assert_eq!(
+        found
+            .expect("the target's own registration is still the answer")
+            .id,
+        OsString::from("topic")
+    );
     remove(root.as_path());
 }

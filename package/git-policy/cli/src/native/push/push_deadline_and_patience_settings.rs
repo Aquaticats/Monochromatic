@@ -16,7 +16,10 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::time::Duration;
 
 /// Tag used for diagnostics from this module.
@@ -77,7 +80,10 @@ pub const CONNECTED_WINDOW_VARIABLE: &str = "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_
 /// ```ts
 /// const count = Number(value); return Number.isInteger(count) && count > 0 ? count : undefined;
 /// ```
-pub fn positive_count(name: &str, value: &OsStr) -> Option<u64> {
+pub fn positive_count(
+    name: &str,
+    value: &OsStr,
+) -> Option<u64> {
     let parsed: Option<u64> = match value.to_str() {
         Some(text) => text.trim().parse::<u64>().ok(),
         None => None,
@@ -105,7 +111,10 @@ pub fn positive_count(name: &str, value: &OsStr) -> Option<u64> {
 /// ```ts
 /// const seconds = positiveCount(value); return seconds === undefined ? undefined : seconds * 1000;
 /// ```
-pub fn positive_seconds(name: &str, value: &OsStr) -> Option<Duration> {
+pub fn positive_seconds(
+    name: &str,
+    value: &OsStr,
+) -> Option<Duration> {
     return positive_count(name, value).map(Duration::from_secs);
 }
 
@@ -119,7 +128,10 @@ pub fn positive_seconds(name: &str, value: &OsStr) -> Option<Duration> {
 /// ```ts
 /// positiveSeconds(env[name])
 /// ```
-pub(crate) fn seconds_variable(environment: &[(OsString, OsString)], name: &str) -> Option<Duration> {
+pub(crate) fn seconds_variable(
+    environment: &[(OsString, OsString)],
+    name: &str,
+) -> Option<Duration> {
     let mut found: Option<&OsString> = None;
     for (key, value) in environment {
         if key.to_str() == Some(name) {
@@ -212,8 +224,10 @@ pub fn connected_window(environment: &[(OsString, OsString)]) -> Duration {
     // const named = valueIn(environment, V)?.secondsIfPositive(); return named ?? CONNECTED_PUSH_QUIET_WINDOW;
     // ```
     // The seconds a control named, from the environment the command was started with; a release build reads neither.
-    let named: Option<Duration> = crate::test_only_switches::value_in(environment, CONNECTED_WINDOW_VARIABLE)
-        .and_then(|value| return positive_seconds(CONNECTED_WINDOW_VARIABLE, value.as_os_str()));
+    let named: Option<Duration> =
+        crate::test_only_switches::value_in(environment, CONNECTED_WINDOW_VARIABLE).and_then(
+            |value| return positive_seconds(CONNECTED_WINDOW_VARIABLE, value.as_os_str()),
+        );
     return named.unwrap_or(crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW);
 }
 
@@ -259,7 +273,9 @@ pub enum Patience {
 /// ({ kind: 'progress', stallMs: pushDeadline(env) })
 /// ```
 pub fn push_patience(environment: &[(OsString, OsString)]) -> Patience {
-    return Patience::Progress { stall: push_deadline(environment) };
+    return Patience::Progress {
+        stall: push_deadline(environment),
+    };
 }
 
 /// Remove exactly one trailing `\n` or `\r\n`,

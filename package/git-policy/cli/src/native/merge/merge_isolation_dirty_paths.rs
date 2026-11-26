@@ -22,13 +22,13 @@
 
 /// Names and sets of unsaved work.
 use crate::auto_push_dirty_paths::status_paths;
-/// The failure a command hands back to native Git.
-use crate::merge_isolation_run_types::Bail;
+/// One run of Git under the command's own configuration.
+use crate::merge_isolation_git_reads::Session;
 /// The ignored untracked files of the person's that stand at the paths a merge writes,
 /// which `git status` never lists.
 use crate::merge_isolation_ignored_paths::ignored_untracked_among;
-/// One run of Git under the command's own configuration.
-use crate::merge_isolation_git_reads::Session;
+/// The failure a command hands back to native Git.
+use crate::merge_isolation_run_types::Bail;
 /// What a Git start wrote.
 use crate::transaction_git::GitOutput;
 /// `Path` is a borrowed filesystem path.
@@ -58,7 +58,11 @@ use std::path::Path;
 /// ```ts
 /// const dirty = statusPaths(await git(['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'])).concat(ignoredUntrackedAmong(context, root, touched));
 /// ```
-pub(crate) fn dirty_paths(session: &Session, root: &Path, touched: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, Bail> {
+pub(crate) fn dirty_paths(
+    session: &Session,
+    root: &Path,
+    touched: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, Bail> {
     let status: GitOutput = session.run(&[
         "--no-optional-locks",
         "status",
@@ -67,7 +71,10 @@ pub(crate) fn dirty_paths(session: &Session, root: &Path, touched: &[Vec<u8>]) -
         "--untracked-files=all",
     ])?;
     if !status.succeeded() {
-        return Err(Bail::from(format!("git status failed: {}", status.error_text())));
+        return Err(Bail::from(format!(
+            "git status failed: {}",
+            status.error_text()
+        )));
     }
     let mut paths: Vec<Vec<u8>> = status_paths(status.stdout.as_slice());
     for path in ignored_untracked_among(&session.context, root, touched).map_err(Bail::from)? {

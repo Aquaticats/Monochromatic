@@ -14,7 +14,10 @@
 //! await theSameConclusion({ context, cwd, capture, expected, branch });
 //! ```
 
-use crate::commit_transaction::{TransactionStop, failed};
+use crate::commit_transaction::{
+    TransactionStop,
+    failed,
+};
 use crate::transaction_git::GitContext;
 use std::path::Path;
 
@@ -44,17 +47,27 @@ pub(crate) fn the_same_conclusion(
     expected: &str,
     branch: &str,
 ) -> Result<(), TransactionStop> {
-    let now: String =
-        crate::conclusion_copy::conclusion_state_text(context, cwd, capture.layout.git_dir.as_path(), capture.layout.ref_format).map_err(the_state_read_failure)?;
+    let now: String = crate::conclusion_copy::conclusion_state_text(
+        context,
+        cwd,
+        capture.layout.git_dir.as_path(),
+        capture.layout.ref_format,
+    )
+    .map_err(the_state_read_failure)?;
     if now == expected {
         return Ok(());
     }
-    let failure: crate::service_messages::ClientFailure = crate::service_messages::ClientFailure::ConclusionStateChanged { branch: branch.to_string() };
+    let failure: crate::service_messages::ClientFailure =
+        crate::service_messages::ClientFailure::ConclusionStateChanged {
+            branch: branch.to_string(),
+        };
     return Err(crate::commit_transaction::client_stop(failure));
 }
 
 /// The failure of reading the conclusion state,
 /// as the stop that names what could not be read.
 pub(crate) fn the_state_read_failure(error: crate::transaction_git::GitFailure) -> TransactionStop {
-    return failed(format!("reading the state of the merge, cherry-pick or revert this commit concludes failed: {error}"));
+    return failed(format!(
+        "reading the state of the merge, cherry-pick or revert this commit concludes failed: {error}"
+    ));
 }

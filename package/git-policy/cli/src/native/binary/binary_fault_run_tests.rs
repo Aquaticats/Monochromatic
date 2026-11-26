@@ -20,7 +20,10 @@ use super::fault_run::spawn_watched_with;
 use super::supervisor::Reason;
 use super::support::fixture;
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The window these controls give the guard:
 /// long enough that a command which keeps moving is looked at several times,
@@ -31,7 +34,8 @@ const WINDOW: Duration = Duration::from_millis(400);
 /// it writes a number,
 /// waits a moment and writes the next,
 /// so the bytes it moves change at every look.
-const WORKING: &str = "n=0; while [ $n -lt 12 ]; do echo $n > \"$1\"; n=$((n + 1)); sleep 0.1; done";
+const WORKING: &str =
+    "n=0; while [ $n -lt 12 ]; do echo $n > \"$1\"; n=$((n + 1)); sleep 0.1; done";
 
 /// What a command that stops moving does:
 /// it waits for something that never comes,
@@ -50,10 +54,27 @@ fn a_command_that_keeps_moving_is_never_ended() {
     let began: Instant = Instant::now();
     let (output, ended) = spawn_watched_with(&world, &mut command, WINDOW).finish_reporting();
     let waited: Duration = began.elapsed();
-    assert!(ended.is_none(), "a command that kept moving was ended: {}", ended.expect("a reason"));
-    assert!(output.status.success(), "the command ended by itself: {:?}", output.status);
-    assert!(waited >= Duration::from_secs(1), "the command ran past the window, in {waited:?}");
-    assert_eq!(std::fs::read_to_string(written.as_path()).expect("the counter").trim(), "11", "the last number the command wrote");
+    assert!(
+        ended.is_none(),
+        "a command that kept moving was ended: {}",
+        ended.expect("a reason")
+    );
+    assert!(
+        output.status.success(),
+        "the command ended by itself: {:?}",
+        output.status
+    );
+    assert!(
+        waited >= Duration::from_secs(1),
+        "the command ran past the window, in {waited:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(written.as_path())
+            .expect("the counter")
+            .trim(),
+        "11",
+        "the last number the command wrote"
+    );
 }
 
 /// A command that stops moving is ended at its window,
@@ -68,6 +89,12 @@ fn a_command_that_stops_moving_is_ended_and_the_words_name_the_silence() {
     let waited: Duration = began.elapsed();
     let reason: Reason = ended.expect("a command that showed nothing was ended");
     let said: String = reason.to_string();
-    assert!(said.contains("no progress for"), "the guard names the silence, not a clock: {said}");
-    assert!(waited < Duration::from_secs(30), "the guard ended the command at its window, in {waited:?}");
+    assert!(
+        said.contains("no progress for"),
+        "the guard names the silence, not a clock: {said}"
+    );
+    assert!(
+        waited < Duration::from_secs(30),
+        "the guard ended the command at its window, in {waited:?}"
+    );
 }

@@ -14,7 +14,13 @@
 /// The fact under test and the real-Git fixture helpers.
 use super::changes_worktree_registrations;
 use crate::command_test_support::os_arguments;
-use crate::test_support::{fixture, git, git_output, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_output,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 use std::process::Output;
 

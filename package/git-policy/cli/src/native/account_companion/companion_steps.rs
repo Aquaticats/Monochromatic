@@ -96,7 +96,10 @@ impl CompanionStep {
     /// The step one record's number names,
     /// or nothing when the number names no step of this build.
     pub fn from_number(number: u8) -> Option<CompanionStep> {
-        return STEPS_IN_ORDER.iter().copied().find(|step| return *step as u8 == number);
+        return STEPS_IN_ORDER
+            .iter()
+            .copied()
+            .find(|step| return *step as u8 == number);
     }
 
     /// The word the step is named by,
@@ -122,7 +125,10 @@ impl CompanionStep {
     /// The step one word names,
     /// or nothing when the word names no step of this build.
     pub fn from_name(word: &str) -> Option<CompanionStep> {
-        return STEPS_IN_ORDER.iter().copied().find(|step| return step.name() == word);
+        return STEPS_IN_ORDER
+            .iter()
+            .copied()
+            .find(|step| return step.name() == word);
     }
 
     /// Whether the step is one of the setup's calls,
@@ -152,18 +158,28 @@ impl CompanionStep {
 /// ```ts
 /// skipsAt({ step: 'user-namespace', errno: 'EPERM', userNamespaceEntry: true }) // true
 /// ```
-pub fn is_skip(step: CompanionStep, call: CompanionCall, errno: i32, user_namespace_entry: bool) -> bool {
+pub fn is_skip(
+    step: CompanionStep,
+    call: CompanionCall,
+    errno: i32,
+    user_namespace_entry: bool,
+) -> bool {
     if !step.is_setup() {
         return false;
     }
     return match (step, call) {
         (CompanionStep::UserNamespace, CompanionCall::UnshareUserNamespace) => {
-            matches!(errno, libc::ENOSPC | libc::EPERM | libc::EACCES) || (errno == libc::EINVAL && !user_namespace_entry)
+            matches!(errno, libc::ENOSPC | libc::EPERM | libc::EACCES)
+                || (errno == libc::EINVAL && !user_namespace_entry)
         }
         (CompanionStep::UidMap, _) => errno == libc::EPERM,
-        (CompanionStep::MountNamespace, CompanionCall::UnshareMountNamespace) => errno == libc::EPERM,
+        (CompanionStep::MountNamespace, CompanionCall::UnshareMountNamespace) => {
+            errno == libc::EPERM
+        }
         (CompanionStep::PrivatePropagation, _) => errno == libc::EPERM || errno == libc::EACCES,
-        (CompanionStep::ScratchTmpfs, CompanionCall::MountTmpfs) => matches!(errno, libc::EPERM | libc::EACCES),
+        (CompanionStep::ScratchTmpfs, CompanionCall::MountTmpfs) => {
+            matches!(errno, libc::EPERM | libc::EACCES)
+        }
         _other => false,
     };
 }

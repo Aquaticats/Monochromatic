@@ -21,7 +21,10 @@
 use crate::child_environment::environment_value;
 /// Owned OS text for the variables and their values,
 /// and borrowed OS text for the three spellings of a path option.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// What:
 ///  The variable through which Git hands a child the configuration its command line carries.
@@ -56,7 +59,10 @@ pub const PARAMETERS_VARIABLE: &str = "GIT_CONFIG_PARAMETERS";
 /// ```ts
 /// const pair = configEnvPair(parameter, environment); // undefined when Git would refuse the option
 /// ```
-pub fn config_env_pair(parameter: &[u8], environment: &[(OsString, OsString)]) -> Option<(OsString, OsString)> {
+pub fn config_env_pair(
+    parameter: &[u8],
+    environment: &[(OsString, OsString)],
+) -> Option<(OsString, OsString)> {
     // The last `=` is where Git ends the key.
     let mut last_equals: Option<usize> = None;
     for (index, byte) in parameter.iter().enumerate() {
@@ -70,10 +76,12 @@ pub fn config_env_pair(parameter: &[u8], environment: &[(OsString, OsString)]) -
     if variable.is_empty() {
         return None;
     }
-    let value: OsString = crate::child_environment::environment_value_by_name_bytes(environment, variable)?;
+    let value: OsString =
+        crate::child_environment::environment_value_by_name_bytes(environment, variable)?;
     // SAFETY: the slice starts at the parameter's own start and ends right before an ASCII `=`,
     //  so both are code point boundaries of the encoded string the bytes came from.
-    let key: OsString = unsafe { OsStr::from_encoded_bytes_unchecked(&parameter[..at]) }.to_os_string();
+    let key: OsString =
+        unsafe { OsStr::from_encoded_bytes_unchecked(&parameter[..at]) }.to_os_string();
     return Some((key, value));
 }
 
@@ -123,7 +131,10 @@ fn is_equals_byte(byte: &u8) -> bool {
 fn config_pair(setting: &[u8]) -> (OsString, OsString) {
     let Some(at) = setting.iter().position(is_equals_byte) else {
         // SAFETY: these bytes are the encoded form of the setting `OsStr`.
-        return (unsafe { OsStr::from_encoded_bytes_unchecked(setting) }.to_os_string(), OsString::from("true"));
+        return (
+            unsafe { OsStr::from_encoded_bytes_unchecked(setting) }.to_os_string(),
+            OsString::from("true"),
+        );
     };
     // SAFETY: both slices are cut at an ASCII `=`, which is a character boundary of any encoded text.
     return (
@@ -161,8 +172,14 @@ fn after_equals(rest: &[u8]) -> Option<&[u8]> {
 /// ```ts
 /// function prefixConfiguration(prefix: string[], environment): PrefixConfiguration | undefined;
 /// ```
-fn prefix_configuration(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Option<PrefixConfiguration> {
-    let mut read: PrefixConfiguration = PrefixConfiguration { pairs: Vec::new(), variables: Vec::new() };
+fn prefix_configuration(
+    global_prefix: &[OsString],
+    environment: &[(OsString, OsString)],
+) -> Option<PrefixConfiguration> {
+    let mut read: PrefixConfiguration = PrefixConfiguration {
+        pairs: Vec::new(),
+        variables: Vec::new(),
+    };
     let mut tokens = global_prefix.iter();
     while let Some(token) = tokens.next() {
         let bytes: &[u8] = token.as_encoded_bytes();
@@ -180,7 +197,8 @@ fn prefix_configuration(global_prefix: &[OsString], environment: &[(OsString, Os
             // An option with no value is one Git refuses,
             //  and `?` ends the whole answer here.
             let parameter: &OsString = tokens.next()?;
-            read.pairs.push(config_env_pair(parameter.as_encoded_bytes(), environment)?);
+            read.pairs
+                .push(config_env_pair(parameter.as_encoded_bytes(), environment)?);
             continue;
         }
         if let Some(named) = bytes.strip_prefix(b"--config-env=") {
@@ -195,7 +213,8 @@ fn prefix_configuration(global_prefix: &[OsString], environment: &[(OsString, Os
         ] {
             if bytes == option {
                 if let Some(value) = tokens.next() {
-                    read.variables.push((OsString::from(variable), value.clone()));
+                    read.variables
+                        .push((OsString::from(variable), value.clone()));
                 }
                 continue;
             }
@@ -223,7 +242,10 @@ fn prefix_configuration(global_prefix: &[OsString], environment: &[(OsString, Os
 /// ```ts
 /// function commandLinePairs(prefix: string[], environment): [string, string][] | undefined;
 /// ```
-pub fn command_line_pairs(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Option<Vec<(OsString, OsString)>> {
+pub fn command_line_pairs(
+    global_prefix: &[OsString],
+    environment: &[(OsString, OsString)],
+) -> Option<Vec<(OsString, OsString)>> {
     return Some(prefix_configuration(global_prefix, environment)?.pairs);
 }
 
@@ -240,7 +262,10 @@ pub fn command_line_pairs(global_prefix: &[OsString], environment: &[(OsString, 
 /// ```ts
 /// quoted.push("'" + text.replaceAll("'", "'\\''") + "'");
 /// ```
-fn quoted_into(quoted: &mut Vec<u8>, text: &[u8]) {
+fn quoted_into(
+    quoted: &mut Vec<u8>,
+    text: &[u8],
+) {
     const QUOTE: u8 = b'\'';
     // What: A single quote ends the quoted run, adds an escaped quote, and reopens the run.
     // Why:  Shell word quoting has no escape character inside single quotes, so this is the only spelling Git accepts.
@@ -275,7 +300,10 @@ fn quoted_into(quoted: &mut Vec<u8>, text: &[u8]) {
 /// ```ts
 /// const parameters = [inherited, ...pairs.map(([k, v]) => `'${k}'='${v}'`)].filter(Boolean).join(' ');
 /// ```
-fn parameters_value(environment: &[(OsString, OsString)], pairs: &[(OsString, OsString)]) -> Option<OsString> {
+fn parameters_value(
+    environment: &[(OsString, OsString)],
+    pairs: &[(OsString, OsString)],
+) -> Option<OsString> {
     if pairs.is_empty() {
         return None;
     }
@@ -323,10 +351,14 @@ fn parameters_value(environment: &[(OsString, OsString)], pairs: &[(OsString, Os
 /// ```ts
 /// function childConfigurationVariables(prefix: string[], environment): [string, string][] | undefined;
 /// ```
-pub fn child_configuration_variables(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Option<Vec<(OsString, OsString)>> {
+pub fn child_configuration_variables(
+    global_prefix: &[OsString],
+    environment: &[(OsString, OsString)],
+) -> Option<Vec<(OsString, OsString)>> {
     let mut read: PrefixConfiguration = prefix_configuration(global_prefix, environment)?;
     if let Some(parameters) = parameters_value(environment, read.pairs.as_slice()) {
-        read.variables.push((OsString::from(PARAMETERS_VARIABLE), parameters));
+        read.variables
+            .push((OsString::from(PARAMETERS_VARIABLE), parameters));
     }
     return Some(read.variables);
 }

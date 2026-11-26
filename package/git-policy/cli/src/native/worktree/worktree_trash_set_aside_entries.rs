@@ -27,16 +27,26 @@
 //! const { namesTheContainer, removeContainersBeneath, inheritedTrashEntries } = setAsideEntries;
 //! ```
 
-use super::{Aside, TRASH_PARENT, Trash};
+use super::{
+    Aside,
+    TRASH_PARENT,
+    Trash,
+};
 use crate::fs_beneath::open_directory_at;
 use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_trash_manifest::is_trash_name;
 use crate::worktree_trash_remove::remove_tree_beneath;
-use std::ffi::{OsStr, OsString};
-use std::os::unix::ffi::OsStrExt as _;
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::os::unix::ffi::OsStrExt as _;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Remove every stage container that lies anywhere below the directory `name` of `holder`,
@@ -64,17 +74,33 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// async function removeContainersBeneath(holder, name, shown) { for (const entry of readdir(holder, name)) { if (entry.name.startsWith(STAGE_PREFIX)) await removeTreeBeneath(...); else if (entry.isDirectory()) recurse; } }
 /// ```
-pub(super) fn remove_containers_beneath(holder: &File, name: &OsStr, shown: &Path) -> Result<(), String> {
-    let directory: File = path_failure(open_directory_at(holder, name), shown, "is not a plain directory")?;
+pub(super) fn remove_containers_beneath(
+    holder: &File,
+    name: &OsStr,
+    shown: &Path,
+) -> Result<(), String> {
+    let directory: File = path_failure(
+        open_directory_at(holder, name),
+        shown,
+        "is not a plain directory",
+    )?;
     let mut children: Vec<(OsString, Option<bool>)> = Vec::new();
-    for listed in path_failure(std::fs::read_dir(crate::fs_beneath::handle_path(&directory)), shown, "cannot be listed")? {
+    for listed in path_failure(
+        std::fs::read_dir(crate::fs_beneath::handle_path(&directory)),
+        shown,
+        "cannot be listed",
+    )? {
         let entry: std::fs::DirEntry = path_failure(listed, shown, "cannot be listed")?;
         children.push((entry.file_name(), listed_directory_of(&entry)));
     }
     for (child, listed_directory) in children {
         let path: PathBuf = shown.join(&child);
         if names_the_container(Path::new(child.as_os_str())) {
-            path_failure(remove_tree_beneath(shown, &directory, child.as_os_str(), None), path.as_path(), "cannot be removed")?;
+            path_failure(
+                remove_tree_beneath(shown, &directory, child.as_os_str(), None),
+                path.as_path(),
+                "cannot be removed",
+            )?;
             continue;
         }
         // The listing already carries whether the entry is a directory, so only a listing that does not say costs a
@@ -131,11 +157,17 @@ fn listed_directory_of(entry: &std::fs::DirEntry) -> Option<bool> {
 /// ```ts
 /// const isDirectoryEntryAt = (directory, name, shown) => { let found; try { found = lstatSync(join(handlePath(directory), name)); } catch (error) { if (error.code === 'ENOENT') return false; throw `${shown} cannot be examined (${error})`; } return found.isDirectory(); };
 /// ```
-fn is_directory_entry_at(directory: &File, name: &OsStr, shown: &Path) -> Result<bool, String> {
+fn is_directory_entry_at(
+    directory: &File,
+    name: &OsStr,
+    shown: &Path,
+) -> Result<bool, String> {
     let found: std::fs::Metadata = match crate::fs_beneath::entry_metadata_at(directory, name) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return path_failure::<bool, std::io::Error>(Err(error), shown, "cannot be examined"),
+        Err(error) => {
+            return path_failure::<bool, std::io::Error>(Err(error), shown, "cannot be examined");
+        }
     };
     return Ok(is_directory_metadata(found));
 }
@@ -159,7 +191,9 @@ fn is_directory_metadata(found: std::fs::Metadata) -> bool {
 /// path.basename(relative).startsWith(STAGE_PREFIX)
 /// ```
 pub(super) fn names_the_container(relative: &Path) -> bool {
-    let Some(name) = relative.file_name() else { return false };
+    let Some(name) = relative.file_name() else {
+        return false;
+    };
     return name.as_bytes().starts_with(STAGE_PREFIX.as_bytes());
 }
 
@@ -230,7 +264,10 @@ fn is_dir_kind(kind: std::fs::FileType) -> bool {
 /// ```ts
 /// readdir(join(stage, TRASH_PARENT)).filter((name) => isTrashName(name) && name !== trash?.name && provesTheWrapperMadeIt(stage, name)).map((name) => join(TRASH_PARENT, name));
 /// ```
-pub(super) fn inherited_trash_entries(stage: &Path, aside: &Aside) -> Result<Vec<PathBuf>, String> {
+pub(super) fn inherited_trash_entries(
+    stage: &Path,
+    aside: &Aside,
+) -> Result<Vec<PathBuf>, String> {
     let parent: PathBuf = stage.join(TRASH_PARENT);
     let mut found: Vec<PathBuf> = Vec::new();
     let listed = match std::fs::read_dir(parent.as_path()) {
@@ -240,7 +277,8 @@ pub(super) fn inherited_trash_entries(stage: &Path, aside: &Aside) -> Result<Vec
     };
     let own: Option<&str> = aside.trash.as_ref().map(trash_name);
     for listed_entry in listed {
-        let entry: std::fs::DirEntry = path_failure(listed_entry, parent.as_path(), "cannot be listed")?;
+        let entry: std::fs::DirEntry =
+            path_failure(listed_entry, parent.as_path(), "cannot be listed")?;
         let name: OsString = entry.file_name();
         if own == name.to_str() || !is_directory_entry(&entry) {
             continue;

@@ -27,11 +27,11 @@
 //! const stream = new StandardErrorOffTheCallingThread(); stream.write(line); stream.flush();
 //! ```
 
+/// The door every line goes through.
+use crate::diagnostic_lines_off_the_calling_thread::write_bytes;
 /// Writing one line into the thread that owns the stream,
 /// and the error a stream may give.
 use std::io::Write;
-/// The door every line goes through.
-use crate::diagnostic_lines_off_the_calling_thread::write_bytes;
 
 /// How long a stretch with no newline may grow before it is handed over as it stands.
 /// Why:
@@ -83,7 +83,10 @@ impl StandardErrorOffTheCallingThread<fn(&[u8])> {
     /// new StandardErrorOffTheCallingThread()
     /// ```
     pub fn new() -> Self {
-        return Self { buffered: Vec::new(), hand: write_bytes };
+        return Self {
+            buffered: Vec::new(),
+            hand: write_bytes,
+        };
     }
 }
 
@@ -119,7 +122,10 @@ impl<H: FnMut(&[u8])> StandardErrorOffTheCallingThread<H> {
     /// ```
     #[cfg(test)]
     fn handing_to(hand: H) -> Self {
-        return Self { buffered: Vec::new(), hand };
+        return Self {
+            buffered: Vec::new(),
+            hand,
+        };
     }
 
     /// What:
@@ -167,7 +173,10 @@ impl<H: FnMut(&[u8])> StandardErrorOffTheCallingThread<H> {
 impl<H: FnMut(&[u8])> Write for StandardErrorOffTheCallingThread<H> {
     /// Append the bytes,
     /// and hand over each whole line they complete.
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         self.buffered.extend_from_slice(bytes);
         self.hand_over();
         return Ok(bytes.len());

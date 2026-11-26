@@ -3,8 +3,15 @@
 //! and nothing is concluded from a record that could not be read.
 
 use super::*;
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long a control waits before it calls a process it did not signal alive:
 ///  longer than a `SIGKILL` on its way takes.
@@ -12,12 +19,16 @@ const STILL_RUNNING_BOUND: Duration = Duration::from_millis(500);
 
 /// A child of this test process that stands for the `git commit` of the step.
 fn a_step() -> Child {
-    return crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a long-running child");
+    return crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+        .expect("a long-running child");
 }
 
 /// Whether `child` ended within the bound,
 /// and how.
-fn ended_within(child: &mut Child, bound: Duration) -> Option<i32> {
+fn ended_within(
+    child: &mut Child,
+    bound: Duration,
+) -> Option<i32> {
     use std::os::unix::process::ExitStatusExt;
     let deadline: Instant = Instant::now() + bound;
     loop {
@@ -46,8 +57,13 @@ fn ended_within(child: &mut Child, bound: Duration) -> Option<i32> {
 #[test]
 fn a_program_the_ceiling_could_not_end_is_recorded_in_the_stop() {
     let mut command: Command = Command::new("sh");
-    command.arg("-c").arg("sleep 600 & echo $!; wait").stdout(Stdio::piped()).stdin(Stdio::null());
-    let mut step: Child = crate::test_support::spawn_owned(&mut command).expect("a step with a helper");
+    command
+        .arg("-c")
+        .arg("sleep 600 & echo $!; wait")
+        .stdout(Stdio::piped())
+        .stdin(Stdio::null());
+    let mut step: Child =
+        crate::test_support::spawn_owned(&mut command).expect("a step with a helper");
     let helper: i32 = a_number_below(&mut step);
     let pid: i32 = i32::try_from(step.id()).expect("a process number");
     let watched: ChildNumber = ChildNumber::not_started_pinned();
@@ -56,20 +72,38 @@ fn a_program_the_ceiling_could_not_end_is_recorded_in_the_stop() {
     crate::member_signalled_through_its_pidfd::refuse_the_next_descriptors(1);
     let the_ceiling: TheCeiling = ceiling_came(&watched);
     let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
-    assert_eq!(the_ceiling.came, CeilingCame::Stopped, "the step itself is signalled through its own descriptor");
+    assert_eq!(
+        the_ceiling.came,
+        CeilingCame::Stopped,
+        "the step itself is signalled through its own descriptor"
+    );
     assert!(ended.is_some(), "the signalled step ended");
-    assert!(the_ceiling.below_listed, "the programs below the step were listed");
-    assert_eq!(the_ceiling.below_unended, 1, "the program whose signal was refused is recorded, so the person is told it may still run");
-    assert!(!went_away(helper), "the refusal this control injects is real: the helper was left running");
+    assert!(
+        the_ceiling.below_listed,
+        "the programs below the step were listed"
+    );
+    assert_eq!(
+        the_ceiling.below_unended, 1,
+        "the program whose signal was refused is recorded, so the person is told it may still run"
+    );
+    assert!(
+        !went_away(helper),
+        "the refusal this control injects is real: the helper was left running"
+    );
 }
 
 /// The number of the program a step printed below itself.
 #[cfg(target_os = "linux")]
 fn a_number_below(step: &mut Child) -> i32 {
-    use std::io::{BufRead, BufReader};
+    use std::io::{
+        BufRead,
+        BufReader,
+    };
     let output = step.stdout.take().expect("the helper's number");
     let mut line: String = String::new();
-    BufReader::new(output).read_line(&mut line).expect("a number");
+    BufReader::new(output)
+        .read_line(&mut line)
+        .expect("a number");
     return line.trim().parse::<i32>().expect("a process number");
 }
 
@@ -106,7 +140,11 @@ fn a_step_whose_record_could_not_be_read_keeps_the_ceiling_armed() {
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
     }
-    assert_ne!(came, CeilingCame::TheStepEnded, "a record that could not be read was read as the step having ended, so the ceiling was taken away from a step that is still running");
+    assert_ne!(
+        came,
+        CeilingCame::TheStepEnded,
+        "a record that could not be read was read as the step having ended, so the ceiling was taken away from a step that is still running"
+    );
 }
 
 /// The positive control:
@@ -125,7 +163,11 @@ fn a_step_that_can_be_read_is_stopped_at_the_ceiling() {
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
     }
-    assert_eq!(came, CeilingCame::Stopped, "a step that was signalled is reported as stopped");
+    assert_eq!(
+        came,
+        CeilingCame::Stopped,
+        "a step that was signalled is reported as stopped"
+    );
     assert!(ended.is_some(), "the signalled step ended");
 }
 
@@ -156,8 +198,15 @@ fn the_ceiling_takes_the_step_from_its_start_and_never_from_a_read_of_its_number
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
     }
-    assert_eq!(came, CeilingCame::Stopped, "the step was not signalled, so the ceiling read its number instead of taking it from the start");
-    assert!(ended.is_some(), "the step the ceiling took from its start ended");
+    assert_eq!(
+        came,
+        CeilingCame::Stopped,
+        "the step was not signalled, so the ceiling read its number instead of taking it from the start"
+    );
+    assert!(
+        ended.is_some(),
+        "the step the ceiling took from its start ended"
+    );
 }
 
 /// What:
@@ -188,8 +237,15 @@ fn a_step_without_a_descriptor_is_never_signalled() {
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
     }
-    assert_eq!(came, CeilingCame::Unknown, "the ceiling read a number and opened a descriptor for it afterwards, which a reuse can be behind");
-    assert!(ended.is_none(), "the step was signalled through a number the ceiling read: {ended:?}");
+    assert_eq!(
+        came,
+        CeilingCame::Unknown,
+        "the ceiling read a number and opened a descriptor for it afterwards, which a reuse can be behind"
+    );
+    assert!(
+        ended.is_none(),
+        "the step was signalled through a number the ceiling read: {ended:?}"
+    );
 }
 
 /// What:
@@ -206,7 +262,11 @@ fn a_number_that_names_another_process_s_child_is_never_read() {
     let watched: ChildNumber = ChildNumber::not_started();
     watched.publish(1);
     let came: CeilingCame = ceiling_came(&watched).came;
-    assert_eq!(came, CeilingCame::Unknown, "a number was read for a step whose start gave no descriptor");
+    assert_eq!(
+        came,
+        CeilingCame::Unknown,
+        "a number was read for a step whose start gave no descriptor"
+    );
 }
 
 /// What:
@@ -224,7 +284,11 @@ fn a_step_without_a_descriptor_that_was_reaped_proves_nothing() {
     step.kill().expect("the step ends");
     step.wait().expect("reaped");
     let came: CeilingCame = ceiling_came(&watched).came;
-    assert_eq!(came, CeilingCame::Unknown, "a number was read for a step that was already reaped");
+    assert_eq!(
+        came,
+        CeilingCame::Unknown,
+        "a number was read for a step that was already reaped"
+    );
 }
 
 /// What:
@@ -245,10 +309,14 @@ fn a_walk_whose_step_ended_signals_nothing() {
     watched.publish(i32::try_from(step.id()).expect("a process number"));
     let mut never_the_steps_child: Child = a_step();
     let planted_pid: i32 = i32::try_from(never_the_steps_child.id()).expect("a process number");
-    let planted: crate::process_tree::TreeMember = match crate::process_tree::member_read(planted_pid) {
-        crate::process_tree::MemberRead::Found { member, .. } => member,
-        other => panic!("the planted member must be a live process: {other:?}"),
-    };
+    let planted: crate::process_tree::TreeMember =
+        match crate::process_tree::member_read(planted_pid) {
+            crate::process_tree::MemberRead::Found {
+                member,
+                ..
+            } => member,
+            other => panic!("the planted member must be a live process: {other:?}"),
+        };
     step.kill().expect("the step ends");
     step.wait().expect("reaped");
     plant_what_the_walk_finds(vec![planted]);
@@ -258,8 +326,15 @@ fn a_walk_whose_step_ended_signals_nothing() {
         never_the_steps_child.kill().expect("cleanup");
         never_the_steps_child.wait().expect("reaped");
     }
-    assert_eq!(came, CeilingCame::TheStepEnded, "a step that ended while its children were read has ended");
-    assert!(ended.is_none(), "a number the walk read was signalled although the step had ended: {ended:?}");
+    assert_eq!(
+        came,
+        CeilingCame::TheStepEnded,
+        "a step that ended while its children were read has ended"
+    );
+    assert!(
+        ended.is_none(),
+        "a number the walk read was signalled although the step had ended: {ended:?}"
+    );
 }
 
 /// What:
@@ -281,8 +356,15 @@ fn a_refused_signal_that_is_not_no_such_process_keeps_the_ceiling_armed() {
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
     }
-    assert_eq!(came, CeilingCame::Unknown, "a refused signal proves nothing about the step, so the ceiling stays armed");
-    assert!(ended.is_none(), "the step was reported gone and left alone although the refusal was not `ESRCH`: {ended:?}");
+    assert_eq!(
+        came,
+        CeilingCame::Unknown,
+        "a refused signal proves nothing about the step, so the ceiling stays armed"
+    );
+    assert!(
+        ended.is_none(),
+        "the step was reported gone and left alone although the refusal was not `ESRCH`: {ended:?}"
+    );
 }
 
 /// What:
@@ -307,6 +389,13 @@ fn a_walk_that_cannot_be_made_does_not_keep_the_step_from_being_signalled() {
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
     }
-    assert!(ended.is_some(), "the step the descriptor names ran on although the walk below it failed: {came:?}");
-    assert_eq!(came, CeilingCame::Stopped, "a step that was signalled through its descriptor was stopped");
+    assert!(
+        ended.is_some(),
+        "the step the descriptor names ran on although the walk below it failed: {came:?}"
+    );
+    assert_eq!(
+        came,
+        CeilingCame::Stopped,
+        "a step that was signalled through its descriptor was stopped"
+    );
 }

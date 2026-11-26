@@ -66,7 +66,28 @@ pub mod prune_removes_nothing;
 
 pub use prune_removes_nothing::a_prune_that_removes_nothing;
 
-pub use link_facts::{LinkFacts, RecordedLink, link_facts_of, recorded_link_of, registration_names_the_slot, the_registration_stands};
-pub use pointer_restore::{POINTER_FILE_MODE, RestoreOutcome, restore_the_slot_pointer};
-pub use pointer_state::{PointerSite, PointerState, pointer_site_of, pointer_state_of, read_pointer_state_at};
-pub use prune_guard::{PruneGuard, PruneRefusal, guard_the_prune};
+pub use link_facts::{
+    LinkFacts,
+    RecordedLink,
+    link_facts_of,
+    recorded_link_of,
+    registration_names_the_slot,
+    the_registration_stands,
+};
+pub use pointer_restore::{
+    POINTER_FILE_MODE,
+    RestoreOutcome,
+    restore_the_slot_pointer,
+};
+pub use pointer_state::{
+    PointerSite,
+    PointerState,
+    pointer_site_of,
+    pointer_state_of,
+    read_pointer_state_at,
+};
+pub use prune_guard::{
+    PruneGuard,
+    PruneRefusal,
+    guard_the_prune,
+};

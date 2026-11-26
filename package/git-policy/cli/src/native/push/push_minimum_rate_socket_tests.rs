@@ -34,13 +34,27 @@
 //! ```
 #![cfg(unix)]
 
-use crate::bounded_push::{Patience, StopCause, StopWindow};
+use crate::bounded_push::{
+    Patience,
+    StopCause,
+    StopWindow,
+};
 use crate::push_progress::Clock;
 use std::io::Read;
-use std::net::{TcpListener, TcpStream};
+use std::net::{
+    TcpListener,
+    TcpStream,
+};
 use std::os::unix::process::CommandExt;
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long the holder may show nothing while its connection is open,
 /// before the connected window ends it.
@@ -111,11 +125,15 @@ fn hold(script: &str) -> Held {
 /// The connection the holder made,
 /// taken from the listener.
 fn accepted(listener: &TcpListener) -> TcpStream {
-    listener.set_nonblocking(true).expect("a non-blocking listener");
+    listener
+        .set_nonblocking(true)
+        .expect("a non-blocking listener");
     let began: Instant = Instant::now();
     loop {
         if let Ok((stream, _)) = listener.accept() {
-            stream.set_nonblocking(true).expect("a non-blocking connection");
+            stream
+                .set_nonblocking(true)
+                .expect("a non-blocking connection");
             return stream;
         }
         assert!(began.elapsed() < PATIENCE, "the holder never connected");
@@ -151,16 +169,29 @@ fn described(cause: Option<StopCause>) -> String {
         Some(StopCause::Flood) => String::from("the output cap"),
         Some(StopCause::ServiceStopped) => String::from("the service's own stop"),
         Some(StopCause::Stalled(report)) => {
-            format!("a stop by {:?} after {} seconds, carrying {} bytes", report.window, report.limit.as_secs(), report.carried)
+            format!(
+                "a stop by {:?} after {} seconds, carrying {} bytes",
+                report.window,
+                report.limit.as_secs(),
+                report.carried
+            )
         }
     };
 }
 
 /// A clock with the controls' windows and a floor.
-fn clock(pid: u32, floor: u64) -> Clock {
-    return Clock::start(pid, Patience::Progress { stall: STALL_WINDOW })
-        .with_connected_window(CONNECTED_WINDOW)
-        .with_minimum_rate(floor);
+fn clock(
+    pid: u32,
+    floor: u64,
+) -> Clock {
+    return Clock::start(
+        pid,
+        Patience::Progress {
+            stall: STALL_WINDOW,
+        },
+    )
+    .with_connected_window(CONNECTED_WINDOW)
+    .with_minimum_rate(floor);
 }
 
 /// What:
@@ -175,7 +206,11 @@ fn clock(pid: u32, floor: u64) -> Clock {
 /// ```ts
 /// while (span not passed) { drain(stream); if (cause = clock.check()) return cause; await sleep(LOOK); }
 /// ```
-fn drive(clock: &mut Clock, stream: &mut TcpStream, span: Duration) -> Option<StopCause> {
+fn drive(
+    clock: &mut Clock,
+    stream: &mut TcpStream,
+    span: Duration,
+) -> Option<StopCause> {
     let began: Instant = Instant::now();
     while began.elapsed() < span {
         drain(stream);
@@ -203,12 +238,30 @@ fn a_trickle_below_the_floor_is_ended_at_the_connected_window() {
     let mut watched: Clock = clock(holder.0.id(), FLOOR);
     let began: Instant = Instant::now();
     let cause: Option<StopCause> = drive(&mut watched, &mut stream, PATIENCE);
-    let Some(StopCause::Stalled(report)) = cause else { panic!("the trickle was not ended: {}", described(cause)) };
-    assert_eq!(report.window, StopWindow::Connected, "the connected window ended it");
+    let Some(StopCause::Stalled(report)) = cause else {
+        panic!("the trickle was not ended: {}", described(cause))
+    };
+    assert_eq!(
+        report.window,
+        StopWindow::Connected,
+        "the connected window ended it"
+    );
     assert_eq!(report.limit, CONNECTED_WINDOW);
-    assert!(began.elapsed() >= CONNECTED_WINDOW, "not before a whole window: {:?}", began.elapsed());
-    assert!(began.elapsed() < CONNECTED_WINDOW + PATIENCE, "and not long after it: {:?}", began.elapsed());
-    assert!(report.carried > 0, "the bytes the connection carried are named: {}", report.carried);
+    assert!(
+        began.elapsed() >= CONNECTED_WINDOW,
+        "not before a whole window: {:?}",
+        began.elapsed()
+    );
+    assert!(
+        began.elapsed() < CONNECTED_WINDOW + PATIENCE,
+        "and not long after it: {:?}",
+        began.elapsed()
+    );
+    assert!(
+        report.carried > 0,
+        "the bytes the connection carried are named: {}",
+        report.carried
+    );
     assert_eq!(report.minimum, FLOOR);
 }
 
@@ -228,7 +281,11 @@ fn the_same_trickle_without_a_floor_is_progress() {
     let mut stream: TcpStream = accepted(&listener);
     let mut watched: Clock = clock(holder.0.id(), 0);
     let cause: Option<StopCause> = drive(&mut watched, &mut stream, CONNECTED_WINDOW * 2);
-    assert!(cause.is_none(), "a byte of the transport is progress where no floor is set: {}", described(cause));
+    assert!(
+        cause.is_none(),
+        "a byte of the transport is progress where no floor is set: {}",
+        described(cause)
+    );
 }
 
 /// What:
@@ -260,7 +317,11 @@ fn a_transfer_that_meets_the_floor_is_work_however_slow() {
     let mut stream: TcpStream = accepted(&listener);
     let mut watched: Clock = clock(holder.0.id(), FLOOR);
     let cause: Option<StopCause> = drive(&mut watched, &mut stream, CONNECTED_WINDOW * 2);
-    assert!(cause.is_none(), "a transfer above the floor is work: {}", described(cause));
+    assert!(
+        cause.is_none(),
+        "a transfer above the floor is work: {}",
+        described(cause)
+    );
 }
 
 /// A window that carries no byte at all is left to the connected window,
@@ -270,14 +331,22 @@ fn a_transfer_that_meets_the_floor_is_work_however_slow() {
 fn a_window_with_no_bytes_is_bounded_by_the_connected_window_and_no_sooner() {
     let (listener, port): (TcpListener, u16) = listening();
     // The holder takes the connection and says nothing at all.
-    let holder: Held = hold(&format!("exec 3<>/dev/tcp/127.0.0.1/{port}; while :; do sleep 0.1; done"));
+    let holder: Held = hold(&format!(
+        "exec 3<>/dev/tcp/127.0.0.1/{port}; while :; do sleep 0.1; done"
+    ));
     let mut stream: TcpStream = accepted(&listener);
     let floor: u64 = 1;
     let mut watched: Clock = clock(holder.0.id(), floor);
     let began: Instant = Instant::now();
     let cause: Option<StopCause> = drive(&mut watched, &mut stream, PATIENCE);
-    let Some(StopCause::Stalled(report)) = cause else { panic!("a silent connection is not ended: {}", described(cause)) };
+    let Some(StopCause::Stalled(report)) = cause else {
+        panic!("a silent connection is not ended: {}", described(cause))
+    };
     assert_eq!(report.window, StopWindow::Connected);
-    assert!(began.elapsed() >= CONNECTED_WINDOW, "the whole window, as before this rule: {:?}", began.elapsed());
+    assert!(
+        began.elapsed() >= CONNECTED_WINDOW,
+        "the whole window, as before this rule: {:?}",
+        began.elapsed()
+    );
     assert_eq!(report.carried, 0, "nothing was carried");
 }

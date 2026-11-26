@@ -31,7 +31,10 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::requests::ElementError;
 
 /// One submitted name with its outcome,
 /// and the outcome vocabulary its accessor returns.
-use super::snapshot_name_outcome::{NameOutcome, SubmittedName};
+use super::snapshot_name_outcome::{
+    NameOutcome,
+    SubmittedName,
+};
 
 /// What one request did.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -107,7 +110,10 @@ impl BatchOutcome {
     /// What the request did to [`name`](SubmittedName::name),
     /// which must be one it
     ///  submitted.
-    pub fn outcome_of(&self, name: &str) -> Option<&NameOutcome> {
+    pub fn outcome_of(
+        &self,
+        name: &str,
+    ) -> Option<&NameOutcome> {
         return self
             .names
             .iter()

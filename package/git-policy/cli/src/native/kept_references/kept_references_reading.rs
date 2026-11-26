@@ -40,7 +40,11 @@
 //! ```
 
 use crate::kept_reference_name::batch_and_rescued_of;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use std::collections::HashSet;
 use std::path::Path;
@@ -162,10 +166,18 @@ fn commits_of(ones: &[OneKeptReference]) -> Vec<String> {
 /// ```ts
 /// const answered = async (request) => output.code === 0 ? output.stdout : throw new Error(words);
 /// ```
-async fn answered_as_text(git: &GitContext, request: &GitRequest) -> Result<Vec<u8>, String> {
+async fn answered_as_text(
+    git: &GitContext,
+    request: &GitRequest,
+) -> Result<Vec<u8>, String> {
     let output: GitOutput = match run_git_awaiting(git, request).await {
         Ok(finished) => finished,
-        Err(error) => return Err(format!("Git could not be run ({}): {error}", crate::transaction_git::command_text(request.arguments.as_slice()))),
+        Err(error) => {
+            return Err(format!(
+                "Git could not be run ({}): {error}",
+                crate::transaction_git::command_text(request.arguments.as_slice())
+            ));
+        }
     };
     if output.code != Some(0) {
         return Err(format!(
@@ -190,10 +202,20 @@ async fn answered_as_text(git: &GitContext, request: &GitRequest) -> Result<Vec<
 /// ```ts
 /// const listed = (text) => text.split('\n').flatMap((line) => isKept(line.split('\t')[0]) ? [{ reference, commit }] : []);
 /// ```
-async fn listed_kept_references(git: &GitContext, common_dir: &Path) -> Result<Vec<OneKeptReference>, String> {
-    let request: GitRequest =
-        GitRequest::new(common_dir, &["for-each-ref", "--format=%(refname)%09%(objectname)", KEPT_FOLDER]);
-    let text: String = String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).into_owned();
+async fn listed_kept_references(
+    git: &GitContext,
+    common_dir: &Path,
+) -> Result<Vec<OneKeptReference>, String> {
+    let request: GitRequest = GitRequest::new(
+        common_dir,
+        &[
+            "for-each-ref",
+            "--format=%(refname)%09%(objectname)",
+            KEPT_FOLDER,
+        ],
+    );
+    let text: String =
+        String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).into_owned();
     let mut found: Vec<OneKeptReference> = Vec::new();
     for line in text.lines() {
         let Some((reference, commit)) = line.split_once('\t') else {
@@ -202,7 +224,13 @@ async fn listed_kept_references(git: &GitContext, common_dir: &Path) -> Result<V
         let Some((batch, rescued)) = batch_and_rescued_of(reference) else {
             continue;
         };
-        found.push(OneKeptReference { reference: String::from(reference), commit: String::from(commit), batch, rescued, reached_a_branch: false });
+        found.push(OneKeptReference {
+            reference: String::from(reference),
+            commit: String::from(commit),
+            batch,
+            rescued,
+            reached_a_branch: false,
+        });
     }
     return Ok(found);
 }
@@ -224,7 +252,11 @@ async fn listed_kept_references(git: &GitContext, common_dir: &Path) -> Result<V
 /// ```ts
 /// const onlyTheseReach = (commits) => revList({ stdin: commits.join('\n') + '\n', args: ['rev-list', '--objects', '--stdin', '--not', '--exclude=refs/cli-git/kept/*', '--all'] });
 /// ```
-async fn objects_only_these_reach(git: &GitContext, common_dir: &Path, commits: &[String]) -> Result<Vec<String>, String> {
+async fn objects_only_these_reach(
+    git: &GitContext,
+    common_dir: &Path,
+    commits: &[String],
+) -> Result<Vec<String>, String> {
     if commits.is_empty() {
         return Ok(Vec::new());
     }
@@ -233,9 +265,20 @@ async fn objects_only_these_reach(git: &GitContext, common_dir: &Path, commits: 
         input.push_str(commit.as_str());
         input.push('\n');
     }
-    let mut request: GitRequest = GitRequest::new(common_dir, &["rev-list", "--objects", "--stdin", "--not", NOT_THE_KEPT_ONES, "--all"]);
+    let mut request: GitRequest = GitRequest::new(
+        common_dir,
+        &[
+            "rev-list",
+            "--objects",
+            "--stdin",
+            "--not",
+            NOT_THE_KEPT_ONES,
+            "--all",
+        ],
+    );
     request.input = Some(input.into_bytes());
-    let text: String = String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).into_owned();
+    let text: String =
+        String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).into_owned();
     return Ok(objects_of(text.as_str()));
 }
 
@@ -260,7 +303,11 @@ async fn objects_only_these_reach(git: &GitContext, common_dir: &Path, commits: 
 /// ```ts
 /// const aBranchDoesNotReach = (commits) => revList({ stdin: commits.join('\n') + '\n', args: ['rev-list', '--objects', '--stdin', '--not', ...THE_HOLDERS_THAT_SETTLE_A_COMMIT] });
 /// ```
-async fn objects_a_branch_does_not_reach(git: &GitContext, common_dir: &Path, commits: &[String]) -> Result<Vec<String>, String> {
+async fn objects_a_branch_does_not_reach(
+    git: &GitContext,
+    common_dir: &Path,
+    commits: &[String],
+) -> Result<Vec<String>, String> {
     if commits.is_empty() {
         return Ok(Vec::new());
     }
@@ -273,7 +320,8 @@ async fn objects_a_branch_does_not_reach(git: &GitContext, common_dir: &Path, co
     arguments.extend(THE_HOLDERS_THAT_SETTLE_A_COMMIT.iter().copied());
     let mut request: GitRequest = GitRequest::new(common_dir, arguments.as_slice());
     request.input = Some(input.into_bytes());
-    let text: String = String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).into_owned();
+    let text: String =
+        String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).into_owned();
     return Ok(objects_of(text.as_str()));
 }
 
@@ -312,11 +360,17 @@ fn objects_of(text: &str) -> Vec<String> {
 /// ```ts
 /// const aBranchReaches = async (commit) => (await git(['rev-list', '--count', commit, '--not', ...THE_HOLDERS_THAT_SETTLE_A_COMMIT])).trim() === '0';
 /// ```
-pub async fn a_branch_reaches(git: &GitContext, common_dir: &Path, commit: &str) -> Result<bool, String> {
+pub async fn a_branch_reaches(
+    git: &GitContext,
+    common_dir: &Path,
+    commit: &str,
+) -> Result<bool, String> {
     let mut arguments: Vec<&str> = vec!["rev-list", "--count", commit, "--not"];
     arguments.extend(THE_HOLDERS_THAT_SETTLE_A_COMMIT.iter().copied());
     let request: GitRequest = GitRequest::new(common_dir, arguments.as_slice());
-    let text: String = String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).trim().to_owned();
+    let text: String = String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice())
+        .trim()
+        .to_owned();
     // A count of nothing is every commit of the question being where a branch, a remote-tracking reference or a tag
     //  already holds it.
     return match text.parse::<u64>() {
@@ -337,7 +391,11 @@ pub async fn a_branch_reaches(git: &GitContext, common_dir: &Path, commit: &str)
 /// ```ts
 /// const bytesOf = (objects) => batchCheck({ stdin: objects.join('\n'), format: '%(objectsize:disk)' }).sum();
 /// ```
-async fn bytes_of(git: &GitContext, common_dir: &Path, objects: &[String]) -> Result<u64, String> {
+async fn bytes_of(
+    git: &GitContext,
+    common_dir: &Path,
+    objects: &[String],
+) -> Result<u64, String> {
     if objects.is_empty() {
         return Ok(0);
     }
@@ -346,9 +404,13 @@ async fn bytes_of(git: &GitContext, common_dir: &Path, objects: &[String]) -> Re
         input.push_str(object.as_str());
         input.push('\n');
     }
-    let mut request: GitRequest = GitRequest::new(common_dir, &["cat-file", "--batch-check=%(objectsize:disk)"]);
+    let mut request: GitRequest = GitRequest::new(
+        common_dir,
+        &["cat-file", "--batch-check=%(objectsize:disk)"],
+    );
     request.input = Some(input.into_bytes());
-    let text: String = String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).into_owned();
+    let text: String =
+        String::from_utf8_lossy(answered_as_text(git, &request).await?.as_slice()).into_owned();
     let mut total: u64 = 0;
     for line in text.lines() {
         // An object Git cannot read answers with `missing` in place of a size, which adds nothing.
@@ -367,7 +429,11 @@ async fn bytes_of(git: &GitContext, common_dir: &Path, objects: &[String]) -> Re
 /// ```ts
 /// const bytesOnlyTheseReach = async (commits) => bytesOf(await onlyTheseReach(commits));
 /// ```
-pub async fn bytes_only_these_reach(git: &GitContext, common_dir: &Path, commits: &[String]) -> Result<u64, String> {
+pub async fn bytes_only_these_reach(
+    git: &GitContext,
+    common_dir: &Path,
+    commits: &[String],
+) -> Result<u64, String> {
     let objects: Vec<String> = objects_only_these_reach(git, common_dir, commits).await?;
     return bytes_of(git, common_dir, objects.as_slice()).await;
 }
@@ -382,17 +448,30 @@ pub async fn bytes_only_these_reach(git: &GitContext, common_dir: &Path, commits
 /// ```ts
 /// const read = { kept: listed.map((one) => ({ ...one, reachedABranch: !unreached.includes(one.commit) })), bytesOnlyTheyReach };
 /// ```
-pub async fn read_the_kept_references(git: &GitContext, common_dir: &Path) -> Result<TheReading, String> {
+pub async fn read_the_kept_references(
+    git: &GitContext,
+    common_dir: &Path,
+) -> Result<TheReading, String> {
     let mut kept: Vec<OneKeptReference> = listed_kept_references(git, common_dir).await?;
     if kept.is_empty() {
-        return Ok(TheReading { kept, bytes_only_they_reach: 0 });
+        return Ok(TheReading {
+            kept,
+            bytes_only_they_reach: 0,
+        });
     }
     let commits: Vec<String> = commits_of(kept.as_slice());
-    let unreached: HashSet<String> = objects_a_branch_does_not_reach(git, common_dir, commits.as_slice()).await?.into_iter().collect();
+    let unreached: HashSet<String> =
+        objects_a_branch_does_not_reach(git, common_dir, commits.as_slice())
+            .await?
+            .into_iter()
+            .collect();
     for one in &mut kept {
         one.reached_a_branch = !unreached.contains(&one.commit);
     }
     let held: Vec<String> = objects_only_these_reach(git, common_dir, commits.as_slice()).await?;
     let bytes: u64 = bytes_of(git, common_dir, held.as_slice()).await?;
-    return Ok(TheReading { kept, bytes_only_they_reach: bytes });
+    return Ok(TheReading {
+        kept,
+        bytes_only_they_reach: bytes,
+    });
 }

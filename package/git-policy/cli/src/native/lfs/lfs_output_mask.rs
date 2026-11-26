@@ -99,10 +99,13 @@ pub const MASKED_SEGMENT_LENGTH: usize = 20;
 ///  and the mask holds the `>` and `<` this module reads as the end of a URL,
 ///  so a second pass that did not know it over its own mask would cut the URL short and
 ///  print the mask again beside it (`?token=<credentials><credentials>`) or drop a host.
-fn mask_starts_at(text: &[u8], offset: usize) -> bool {
-    return text
-        .get(offset..)
-        .is_some_and(|rest| { return rest.starts_with(CREDENTIALS_MASK.as_bytes()); });
+fn mask_starts_at(
+    text: &[u8],
+    offset: usize,
+) -> bool {
+    return text.get(offset..).is_some_and(|rest| {
+        return rest.starts_with(CREDENTIALS_MASK.as_bytes());
+    });
 }
 
 /// What:
@@ -162,7 +165,10 @@ fn ends_scheme(byte: u8) -> bool {
 fn ends_authority(byte: u8) -> bool {
     return byte.is_ascii_whitespace()
         || byte.is_ascii_control()
-        || matches!(byte, b'/' | b'?' | b'#' | b'\\' | b'"' | b'\'' | b'<' | b'>' | b'`');
+        || matches!(
+            byte,
+            b'/' | b'?' | b'#' | b'\\' | b'"' | b'\'' | b'<' | b'>' | b'`'
+        );
 }
 
 /// Whether a byte ends the path,
@@ -171,7 +177,9 @@ fn ends_authority(byte: u8) -> bool {
 /// `?` and `#` are part of them,
 /// so only the characters that end a URL in running text are here.
 fn ends_url(byte: u8) -> bool {
-    return byte.is_ascii_whitespace() || byte.is_ascii_control() || matches!(byte, b'\\' | b'"' | b'\'' | b'<' | b'>' | b'`');
+    return byte.is_ascii_whitespace()
+        || byte.is_ascii_control()
+        || matches!(byte, b'\\' | b'"' | b'\'' | b'<' | b'>' | b'`');
 }
 
 /// Whether a byte is the `@` that ends the userinfo of a URL.
@@ -225,7 +233,10 @@ fn begins_the_rest(byte: &u8) -> bool {
 /// `&&u8` borrows the byte twice,
 /// as a reversed iterator's `take_while` hands it over.
 fn ends_a_sentence(byte: &&u8) -> bool {
-    return matches!(**byte, b',' | b';' | b')' | b']' | b'}' | b'.' | b'!' | b'?' | b':' | b'\'');
+    return matches!(
+        **byte,
+        b',' | b';' | b')' | b']' | b'}' | b'.' | b'!' | b'?' | b':' | b'\''
+    );
 }
 
 /// Whether a byte is one a plain label is made of.
@@ -240,8 +251,15 @@ fn is_not_the_first(offset: &usize) -> bool {
 }
 
 /// The index of the next scheme separator at or after `from`.
-fn next_separator(text: &[u8], from: usize) -> Option<usize> {
-    for (offset, window) in text.get(from..)?.windows(SCHEME_SEPARATOR.len()).enumerate() {
+fn next_separator(
+    text: &[u8],
+    from: usize,
+) -> Option<usize> {
+    for (offset, window) in text
+        .get(from..)?
+        .windows(SCHEME_SEPARATOR.len())
+        .enumerate()
+    {
         if window == SCHEME_SEPARATOR {
             return Some(from + offset);
         }
@@ -253,7 +271,10 @@ fn next_separator(text: &[u8], from: usize) -> Option<usize> {
 /// the first byte that ends one,
 /// or the end of the text;
 /// a mask already written stands inside the authority as it stands.
-fn authority_end_of(text: &[u8], from: usize) -> usize {
+fn authority_end_of(
+    text: &[u8],
+    from: usize,
+) -> usize {
     let mut offset: usize = from;
     while offset < text.len() {
         if mask_starts_at(text, offset) {
@@ -272,7 +293,10 @@ fn authority_end_of(text: &[u8], from: usize) -> usize {
 /// the first byte that ends a URL in running text,
 /// or the end of the text;
 /// a mask already written is part of the URL it stands in.
-fn url_end_of(text: &[u8], from: usize) -> usize {
+fn url_end_of(
+    text: &[u8],
+    from: usize,
+) -> usize {
     let mut offset: usize = from;
     while offset < text.len() {
         if mask_starts_at(text, offset) {
@@ -349,7 +373,10 @@ fn is_path_segment_byte(byte: &u8) -> bool {
 
 /// Append one label as it stands when it is plain,
 /// and the mask when it is not.
-fn push_label(label: &[u8], masked: &mut Vec<u8>) {
+fn push_label(
+    label: &[u8],
+    masked: &mut Vec<u8>,
+) {
     if is_plain_label(label) {
         masked.extend_from_slice(label);
     } else {
@@ -359,7 +386,10 @@ fn push_label(label: &[u8], masked: &mut Vec<u8>) {
 
 /// Append one path segment as it stands while it is a short plain label,
 /// and the mask when it is not.
-fn push_path_label(label: &[u8], masked: &mut Vec<u8>) {
+fn push_path_label(
+    label: &[u8],
+    masked: &mut Vec<u8>,
+) {
     if is_short_plain_segment(label) {
         masked.extend_from_slice(label);
     } else {
@@ -368,7 +398,10 @@ fn push_path_label(label: &[u8], masked: &mut Vec<u8>) {
 }
 
 /// Append the path of a URL with every segment that is not a short plain label masked.
-fn push_masked_path(path: &[u8], masked: &mut Vec<u8>) {
+fn push_masked_path(
+    path: &[u8],
+    masked: &mut Vec<u8>,
+) {
     let mut from: usize = 0;
     loop {
         match path.get(from..).and_then(next_slash) {
@@ -400,7 +433,10 @@ fn push_masked_path(path: &[u8], masked: &mut Vec<u8>) {
 /// ```ts
 /// values.split('&').map((chunk) => { const [key, value] = chunk.split('='); return value === undefined ? mask : `${plain(key) ? key : mask}=${mask}` }).join('&')
 /// ```
-fn push_masked_values(values: &[u8], masked: &mut Vec<u8>) {
+fn push_masked_values(
+    values: &[u8],
+    masked: &mut Vec<u8>,
+) {
     let mut from: usize = 0;
     loop {
         let (chunk, separator): (&[u8], Option<usize>) = match values.get(from..) {
@@ -446,18 +482,17 @@ fn push_masked_values(values: &[u8], masked: &mut Vec<u8>) {
 /// const punctuation = text.match(/[,;)\]}.!?:]*$/)[0];
 /// ```
 fn trailing_punctuation(rest: &[u8]) -> &[u8] {
-    let kept: usize = rest
-        .iter()
-        .rev()
-        .take_while(ends_a_sentence)
-        .count();
+    let kept: usize = rest.iter().rev().take_while(ends_a_sentence).count();
     return &rest[rest.len() - kept..];
 }
 
 /// Append the rest of a URL (its path,
 /// query and fragment) with its secrets masked,
 /// and the punctuation that follows it as it stands.
-fn push_masked_rest(rest: &[u8], masked: &mut Vec<u8>) {
+fn push_masked_rest(
+    rest: &[u8],
+    masked: &mut Vec<u8>,
+) {
     let sentence_end: &[u8] = trailing_punctuation(rest);
     push_masked_url(&rest[..rest.len() - sentence_end.len()], masked);
     masked.extend_from_slice(sentence_end);
@@ -465,7 +500,10 @@ fn push_masked_rest(rest: &[u8], masked: &mut Vec<u8>) {
 
 /// Append the path,
 /// query and fragment of a URL with their secrets masked.
-fn push_masked_url(rest: &[u8], masked: &mut Vec<u8>) {
+fn push_masked_url(
+    rest: &[u8],
+    masked: &mut Vec<u8>,
+) {
     let path_end: usize = rest.iter().position(begins_the_rest).unwrap_or(rest.len());
     push_masked_path(&rest[..path_end], masked);
     let mut from: usize = path_end;
@@ -588,16 +626,29 @@ pub struct MaskedHead {
 /// ```ts
 /// function maskUrlSecretsWithin(text: Uint8Array, cap: number): MaskedHead;
 /// ```
-pub fn mask_url_secrets_within(text: &[u8], cap: u64) -> MaskedHead {
+pub fn mask_url_secrets_within(
+    text: &[u8],
+    cap: u64,
+) -> MaskedHead {
     let limit: usize = usize::try_from(cap).unwrap_or(usize::MAX);
     if text.len() <= limit {
-        return MaskedHead { text: mask_url_secrets(text), cut: false };
+        return MaskedHead {
+            text: mask_url_secrets(text),
+            cut: false,
+        };
     }
     let kept: usize = text
         .get(..limit)
-        .and_then(|head| { return head.iter().rposition(is_line_feed); })
-        .map_or(0, |at| { return at + 1; });
-    return MaskedHead { text: mask_url_secrets(text.get(..kept).unwrap_or_default()), cut: true };
+        .and_then(|head| {
+            return head.iter().rposition(is_line_feed);
+        })
+        .map_or(0, |at| {
+            return at + 1;
+        });
+    return MaskedHead {
+        text: mask_url_secrets(text.get(..kept).unwrap_or_default()),
+        cut: true,
+    };
 }
 
 /// What:

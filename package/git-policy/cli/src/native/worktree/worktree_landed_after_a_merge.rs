@@ -23,15 +23,30 @@
 //! afterAMerge(context, identity, window, code);           // after it ended; prints one line per worktree
 //! ```
 
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use crate::worktree_identity::WorktreeIdentity;
-use crate::worktree_landed_registrations::{RegisteredBefore, registered_before};
-use crate::worktree_landed_removal::{LandedPlace, LandedSweep, sweep_landed_worktrees};
+use crate::worktree_landed_registrations::{
+    RegisteredBefore,
+    registered_before,
+};
+use crate::worktree_landed_removal::{
+    LandedPlace,
+    LandedSweep,
+    sweep_landed_worktrees,
+};
 use crate::worktree_landed_sweep_notice::landed_sweep_lines;
 use crate::worktree_remove_hand_over::wake_the_service;
 use std::ffi::OsString;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The process table the sweep reads.
 const PROCESS_TABLE: &str = "/proc";
@@ -51,8 +66,18 @@ const PROCESS_TABLE: &str = "/proc";
 fn working_directory(identity: &WorktreeIdentity) -> Option<PathBuf> {
     // `match` on the repository shape: a worktree root, or the bare repository's directory.
     match identity {
-        WorktreeIdentity::MainWorktree { worktree_root, .. } | WorktreeIdentity::LinkedWorktree { worktree_root, .. } => return Some(worktree_root.clone()),
-        WorktreeIdentity::BareRepository { common_dir, .. } => return Some(common_dir.clone()),
+        WorktreeIdentity::MainWorktree {
+            worktree_root,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            worktree_root,
+            ..
+        } => return Some(worktree_root.clone()),
+        WorktreeIdentity::BareRepository {
+            common_dir,
+            ..
+        } => return Some(common_dir.clone()),
         WorktreeIdentity::OutsideWorktree => return None,
     }
 }
@@ -62,8 +87,18 @@ fn working_directory(identity: &WorktreeIdentity) -> Option<PathBuf> {
 fn current_root(identity: &WorktreeIdentity) -> Option<PathBuf> {
     // `match` on the repository shape: only a worktree has a root.
     match identity {
-        WorktreeIdentity::MainWorktree { worktree_root, .. } | WorktreeIdentity::LinkedWorktree { worktree_root, .. } => return Some(worktree_root.clone()),
-        WorktreeIdentity::BareRepository { .. } | WorktreeIdentity::OutsideWorktree => return None,
+        WorktreeIdentity::MainWorktree {
+            worktree_root,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            worktree_root,
+            ..
+        } => return Some(worktree_root.clone()),
+        WorktreeIdentity::BareRepository {
+            ..
+        }
+        | WorktreeIdentity::OutsideWorktree => return None,
     }
 }
 
@@ -71,9 +106,18 @@ fn current_root(identity: &WorktreeIdentity) -> Option<PathBuf> {
 /// which owns every registration.
 fn common_directory(identity: &WorktreeIdentity) -> Option<PathBuf> {
     match identity {
-        WorktreeIdentity::MainWorktree { common_dir, .. }
-        | WorktreeIdentity::LinkedWorktree { common_dir, .. }
-        | WorktreeIdentity::BareRepository { common_dir, .. } => return Some(common_dir.clone()),
+        WorktreeIdentity::MainWorktree {
+            common_dir,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            common_dir,
+            ..
+        }
+        | WorktreeIdentity::BareRepository {
+            common_dir,
+            ..
+        } => return Some(common_dir.clone()),
         WorktreeIdentity::OutsideWorktree => return None,
     }
 }
@@ -90,14 +134,23 @@ fn common_directory(identity: &WorktreeIdentity) -> Option<PathBuf> {
 /// ```ts
 /// headOf(context, identity) // string | undefined
 /// ```
-pub fn head_of(context: &GitContext, identity: &WorktreeIdentity) -> Option<String> {
+pub fn head_of(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+) -> Option<String> {
     let directory: PathBuf = working_directory(identity)?;
     let arguments: Vec<OsString> = [OsString::from("rev-parse"), OsString::from("HEAD")].to_vec();
-    let output: GitOutput = run_git(context, &GitRequest::new(directory.as_path(), arguments.as_slice())).ok()?;
+    let output: GitOutput = run_git(
+        context,
+        &GitRequest::new(directory.as_path(), arguments.as_slice()),
+    )
+    .ok()?;
     if output.code != Some(0) {
         return None;
     }
-    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
     return (!text.is_empty()).then_some(text);
 }
 
@@ -122,10 +175,19 @@ pub fn head_of(context: &GitContext, identity: &WorktreeIdentity) -> Option<Stri
 /// ```ts
 /// window(context, identity) // [context, { before, registered }] | undefined
 /// ```
-pub fn window(context: GitContext, identity: &WorktreeIdentity) -> Option<(GitContext, LandedWindow)> {
+pub fn window(
+    context: GitContext,
+    identity: &WorktreeIdentity,
+) -> Option<(GitContext, LandedWindow)> {
     let before: String = head_of(&context, identity)?;
     let common_dir: PathBuf = common_directory(identity)?;
-    return Some((context, LandedWindow { before, registered: registered_before(common_dir.as_path()) }));
+    return Some((
+        context,
+        LandedWindow {
+            before,
+            registered: registered_before(common_dir.as_path()),
+        },
+    ));
 }
 
 /// What:
@@ -154,13 +216,21 @@ pub struct LandedWindow {
 /// The branch this worktree has checked out,
 /// in Git's own short spelling,
 /// or nothing for a detached `HEAD`.
-fn current_branch(context: &GitContext, directory: &Path) -> Option<String> {
-    let arguments: Vec<OsString> = ["symbolic-ref", "--quiet", "--short", "HEAD"].map(OsString::from).to_vec();
-    let output: GitOutput = run_git(context, &GitRequest::new(directory, arguments.as_slice())).ok()?;
+fn current_branch(
+    context: &GitContext,
+    directory: &Path,
+) -> Option<String> {
+    let arguments: Vec<OsString> = ["symbolic-ref", "--quiet", "--short", "HEAD"]
+        .map(OsString::from)
+        .to_vec();
+    let output: GitOutput =
+        run_git(context, &GitRequest::new(directory, arguments.as_slice())).ok()?;
     if output.code != Some(0) {
         return None;
     }
-    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
     return (!text.is_empty()).then_some(text);
 }
 
@@ -181,7 +251,12 @@ fn current_branch(context: &GitContext, directory: &Path) -> Option<String> {
 /// ```ts
 /// afterAMerge(context, identity, window, code) // LandedSweep | undefined
 /// ```
-pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, window: &LandedWindow, code: i32) -> Option<LandedSweep> {
+pub fn after_a_merge(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+    window: &LandedWindow,
+    code: i32,
+) -> Option<LandedSweep> {
     if code != 0 {
         return None;
     }
@@ -200,7 +275,11 @@ pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, window: 
         Ok(found) => found,
         // Nothing proves which worktrees existed when the merge landed, so this merge removes none of them and says why.
         Err(reason) => {
-            let sweep: LandedSweep = LandedSweep { landed_branch: branch.clone(), failed: Some(reason.clone()), ..LandedSweep::default() };
+            let sweep: LandedSweep = LandedSweep {
+                landed_branch: branch.clone(),
+                failed: Some(reason.clone()),
+                ..LandedSweep::default()
+            };
             let mut stderr: std::io::Stderr = std::io::stderr();
             for line in landed_sweep_lines(&sweep) {
                 let _written = writeln!(stderr, "{line}");
@@ -221,7 +300,12 @@ pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, window: 
         git_dir: common_dir.as_path(),
         told: &wake_the_service,
     };
-    let sweep: LandedSweep = sweep_landed_worktrees(&place, window.before.as_str(), now.as_str(), branch.as_str());
+    let sweep: LandedSweep = sweep_landed_worktrees(
+        &place,
+        window.before.as_str(),
+        now.as_str(),
+        branch.as_str(),
+    );
     let mut stderr: std::io::Stderr = std::io::stderr();
     for line in landed_sweep_lines(&sweep) {
         let _written = writeln!(stderr, "{line}");
@@ -230,12 +314,14 @@ pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, window: 
     // same words are recorded in the common Git directory, and the next wrapper command of any worktree of the repository
     // shows them once. A record that cannot be written costs the person that second telling and never the merge.
     for removed in &sweep.removed_around {
-        if let Err(reason) = crate::worktree_removal_goes_around_a_foreign_volume::record_left_in_place(
-            common_dir.as_path(),
-            removed.worktree.as_path(),
-            removed.branch.as_str(),
-            removed.left.as_slice(),
-        ) {
+        if let Err(reason) =
+            crate::worktree_removal_goes_around_a_foreign_volume::record_left_in_place(
+                common_dir.as_path(),
+                removed.worktree.as_path(),
+                removed.branch.as_str(),
+                removed.left.as_slice(),
+            )
+        {
             crate::diagnostic_log::warn("worktreeLandedAfterAMerge", reason.as_str());
         }
     }

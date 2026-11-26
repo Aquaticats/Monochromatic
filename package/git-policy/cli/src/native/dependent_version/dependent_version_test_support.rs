@@ -16,7 +16,10 @@
 
 /// The content seam this provider implements.
 use crate::dependent_version_content::{
-    ContentUnavailable, TrackedMode, TrackedPath, WorkspaceContent,
+    ContentUnavailable,
+    TrackedMode,
+    TrackedPath,
+    WorkspaceContent,
 };
 
 /// One file of the in-memory workspace.
@@ -65,7 +68,10 @@ pub struct MemoryWorkspace {
 }
 
 /// The failure for a path this workspace refuses to read.
-fn unavailable(path: &[u8], reason: &str) -> ContentUnavailable {
+fn unavailable(
+    path: &[u8],
+    reason: &str,
+) -> ContentUnavailable {
     return ContentUnavailable {
         path: Some(path.to_vec()),
         reason: String::from(reason),
@@ -99,7 +105,10 @@ impl WorkspaceContent for MemoryWorkspace {
 
     /// The candidate bytes,
     /// unless reads of the path fail.
-    fn candidate_bytes(&mut self, path: &[u8]) -> Result<Vec<u8>, ContentUnavailable> {
+    fn candidate_bytes(
+        &mut self,
+        path: &[u8],
+    ) -> Result<Vec<u8>, ContentUnavailable> {
         self.reads.push(Read::Candidate(path.to_vec()));
         return self
             .file(path)
@@ -108,7 +117,10 @@ impl WorkspaceContent for MemoryWorkspace {
 
     /// The base bytes,
     /// unless reads of the path fail.
-    fn base_bytes(&mut self, path: &[u8]) -> Result<Option<Vec<u8>>, ContentUnavailable> {
+    fn base_bytes(
+        &mut self,
+        path: &[u8],
+    ) -> Result<Option<Vec<u8>>, ContentUnavailable> {
         self.reads.push(Read::Base(path.to_vec()));
         return self
             .file(path)
@@ -120,7 +132,10 @@ impl WorkspaceContent for MemoryWorkspace {
 impl MemoryWorkspace {
     /// The tracked file at a path,
     /// unless reads of it fail.
-    fn file(&self, path: &[u8]) -> Result<&MemoryFile, ContentUnavailable> {
+    fn file(
+        &self,
+        path: &[u8],
+    ) -> Result<&MemoryFile, ContentUnavailable> {
         if self
             .unreadable
             .iter()
@@ -145,7 +160,10 @@ pub fn workspace(files: Vec<MemoryFile>) -> MemoryWorkspace {
 }
 
 /// A regular file whose candidate bytes equal its base bytes.
-pub fn unchanged(path: &str, text: &str) -> MemoryFile {
+pub fn unchanged(
+    path: &str,
+    text: &str,
+) -> MemoryFile {
     return MemoryFile {
         path: path.as_bytes().to_vec(),
         mode: TrackedMode::Regular,
@@ -156,7 +174,11 @@ pub fn unchanged(path: &str, text: &str) -> MemoryFile {
 
 /// A regular file with separate candidate and base text;
 /// `None` for a new file.
-pub fn changed(path: &str, text: &str, base: Option<&str>) -> MemoryFile {
+pub fn changed(
+    path: &str,
+    text: &str,
+    base: Option<&str>,
+) -> MemoryFile {
     return MemoryFile {
         path: path.as_bytes().to_vec(),
         mode: TrackedMode::Regular,

@@ -21,16 +21,40 @@
 //! const names = listedSlotNames(folder); const removed = removeKnownStagingEntries(folder);
 //! ```
 
-use crate::entries_of_one_open_folder::{entry_names, open_entry_for_reading, read_entry_bytes};
-use crate::publishing_entries_in_one_open_folder::{remove_entry, sync_folder};
 use super::slot_identity_store_control::check_under_root_control;
-use super::slot_identity_store_records::{PARENT_RECORD_NAME, SLOT_NAME_MAXIMUM_BYTES, StoredIdentity, is_a_dot_name, is_known_staging_name, parse_one_record};
+use super::slot_identity_store_records::{
+    PARENT_RECORD_NAME,
+    SLOT_NAME_MAXIMUM_BYTES,
+    StoredIdentity,
+    is_a_dot_name,
+    is_known_staging_name,
+    parse_one_record,
+};
+use super::slot_identity_store_refusals::{
+    StoreRefusal,
+    unreadable,
+    write_refusal,
+};
 use super::slot_name::slot_name_refusal;
-use super::slot_identity_store_refusals::{StoreRefusal, unreadable, write_refusal};
 use crate::diagnostic_log::debug;
+use crate::entries_of_one_open_folder::{
+    entry_names,
+    open_entry_for_reading,
+    read_entry_bytes,
+};
 use crate::private_storage::ReadRefusal;
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use crate::publishing_entries_in_one_open_folder::{
+    remove_entry,
+    sync_folder,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Module tag for diagnostics.
 const TAG: &str = "slotIdentityStore";
@@ -60,7 +84,12 @@ thread_local! {
 ///  so no record a writer of this repository makes is refused by this bound.
 ///  What the bound is for is a runaway or replaced file,
 /// which must be named rather than read into memory.
-pub const RECORD_MAXIMUM_BYTES: u64 = header_line_bytes() + slot_line_prefix_bytes() + SLOT_NAME_MAXIMUM_BYTES + 1 + widest_identity_token_bytes() + 1;
+pub const RECORD_MAXIMUM_BYTES: u64 = header_line_bytes()
+    + slot_line_prefix_bytes()
+    + SLOT_NAME_MAXIMUM_BYTES
+    + 1
+    + widest_identity_token_bytes()
+    + 1;
 
 /// The header line and its newline.
 const fn header_line_bytes() -> u64 {
@@ -81,18 +110,32 @@ const fn widest_identity_token_bytes() -> u64 {
     let inode_digits: u64 = 20;
     let owner_digits: u64 = 10;
     let mode_digits: u64 = 4;
-    return acls_per_record * (super::clone_folder_identity_acl::MAXIMUM_ACL_BYTES as u64) * hexadecimal_digits_per_byte + five_colons + device_digits + inode_digits + owner_digits + mode_digits;
+    return acls_per_record
+        * (super::clone_folder_identity_acl::MAXIMUM_ACL_BYTES as u64)
+        * hexadecimal_digits_per_byte
+        + five_colons
+        + device_digits
+        + inode_digits
+        + owner_digits
+        + mode_digits;
 }
 
 /// Fire the listing hook,
 /// which a control sets to catch any listing of the store folder.
 #[cfg(test)]
 fn fire_the_listing_hook() {
-    WHEN_THE_STORE_IS_LISTED.with(|hook| { if let Some(listed) = hook.borrow().as_ref() { listed(); } });
+    WHEN_THE_STORE_IS_LISTED.with(|hook| {
+        if let Some(listed) = hook.borrow().as_ref() {
+            listed();
+        }
+    });
 }
 
 /// The path a refusal names for the record filed under `name`.
-pub(super) fn record_path(folder_path: &Path, name: &str) -> PathBuf {
+pub(super) fn record_path(
+    folder_path: &Path,
+    name: &str,
+) -> PathBuf {
     return folder_path.join(name);
 }
 
@@ -119,7 +162,12 @@ pub(super) fn record_path(folder_path: &Path, name: &str) -> PathBuf {
 /// a line this repository did not write,
 /// a key the file's name does not belong to,
 /// or a record this account could rewrite.
-pub(super) fn read_record(folder: &std::fs::File, folder_path: &Path, name: &str, under_root_control: bool) -> Result<Option<StoredIdentity>, StoreRefusal> {
+pub(super) fn read_record(
+    folder: &std::fs::File,
+    folder_path: &Path,
+    name: &str,
+    under_root_control: bool,
+) -> Result<Option<StoredIdentity>, StoreRefusal> {
     let path: PathBuf = record_path(folder_path, name);
     let mut file: std::fs::File = match open_entry_for_reading(folder, OsStr::new(name)) {
         Ok(opened) => opened,
@@ -129,12 +177,30 @@ pub(super) fn read_record(folder: &std::fs::File, folder_path: &Path, name: &str
     if under_root_control {
         check_under_root_control(path.as_path(), "the record file", &file)?;
     }
-    let held: u64 = file.metadata().map_err(|error| return StoreRefusal::Unreadable { path: path.clone(), reason: error.to_string() })?.len();
+    let held: u64 = file
+        .metadata()
+        .map_err(|error| {
+            return StoreRefusal::Unreadable {
+                path: path.clone(),
+                reason: error.to_string(),
+            };
+        })?
+        .len();
     if held > RECORD_MAXIMUM_BYTES {
-        return Err(StoreRefusal::RecordTooLarge { path, bytes: held, bound: RECORD_MAXIMUM_BYTES });
+        return Err(StoreRefusal::RecordTooLarge {
+            path,
+            bytes: held,
+            bound: RECORD_MAXIMUM_BYTES,
+        });
     }
-    let bytes: Vec<u8> = read_entry_bytes(&mut file, RECORD_MAXIMUM_BYTES).map_err(|refusal| return unreadable(path.as_path(), refusal, RECORD_MAXIMUM_BYTES))?;
-    let text: String = String::from_utf8(bytes).map_err(|_error| return StoreRefusal::Unreadable { path: path.clone(), reason: String::from("the file is not UTF-8 text") })?;
+    let bytes: Vec<u8> = read_entry_bytes(&mut file, RECORD_MAXIMUM_BYTES)
+        .map_err(|refusal| return unreadable(path.as_path(), refusal, RECORD_MAXIMUM_BYTES))?;
+    let text: String = String::from_utf8(bytes).map_err(|_error| {
+        return StoreRefusal::Unreadable {
+            path: path.clone(),
+            reason: String::from("the file is not UTF-8 text"),
+        };
+    })?;
     return parse_one_record(path.as_path(), text.as_str(), name).map(|record| return Some(record));
 }
 
@@ -159,7 +225,10 @@ pub(super) fn read_record(folder: &std::fs::File, folder_path: &Path, name: &str
 /// A folder that could not be listed,
 /// a name that is not UTF-8,
 /// or an entry that is none of the three kinds this layout names.
-pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<String>, StoreRefusal> {
+pub(super) fn listed_slot_names(
+    folder: &std::fs::File,
+    folder_path: &Path,
+) -> Result<Vec<String>, StoreRefusal> {
     #[cfg(test)]
     fire_the_listing_hook();
     let entries: Vec<OsString> = one_listing(folder, folder_path)?;
@@ -192,7 +261,10 @@ pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> R
 /// # Errors
 /// Everything the listing refuses,
 /// and a removal the system refused.
-pub(super) fn listed_slot_names_removing_staging_entries(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<String>, StoreRefusal> {
+pub(super) fn listed_slot_names_removing_staging_entries(
+    folder: &std::fs::File,
+    folder_path: &Path,
+) -> Result<Vec<String>, StoreRefusal> {
     #[cfg(test)]
     fire_the_listing_hook();
     let entries: Vec<OsString> = one_listing(folder, folder_path)?;
@@ -206,8 +278,16 @@ pub(super) fn listed_slot_names_removing_staging_entries(folder: &std::fs::File,
 ///
 /// # Errors
 /// The system's own answer for a folder that could not be listed.
-fn one_listing(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<OsString>, StoreRefusal> {
-    return entry_names(folder).map_err(|error| return StoreRefusal::Unreadable { path: folder_path.to_path_buf(), reason: error.to_string() });
+fn one_listing(
+    folder: &std::fs::File,
+    folder_path: &Path,
+) -> Result<Vec<OsString>, StoreRefusal> {
+    return entry_names(folder).map_err(|error| {
+        return StoreRefusal::Unreadable {
+            path: folder_path.to_path_buf(),
+            reason: error.to_string(),
+        };
+    });
 }
 
 /// The slot names one listing holds,
@@ -217,17 +297,26 @@ fn one_listing(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<OsStrin
 /// # Errors
 /// A name that is not UTF-8,
 /// or an entry that is none of the three kinds this layout names.
-fn slot_names_of(folder_path: &Path, entries: &[OsString]) -> Result<Vec<String>, StoreRefusal> {
+fn slot_names_of(
+    folder_path: &Path,
+    entries: &[OsString],
+) -> Result<Vec<String>, StoreRefusal> {
     let mut names: Vec<String> = Vec::new();
     for entry in entries {
         let Some(name) = entry.to_str() else {
-            return Err(StoreRefusal::ForeignEntry { path: folder_path.join(entry.as_os_str()), entry: entry.to_string_lossy().into_owned() });
+            return Err(StoreRefusal::ForeignEntry {
+                path: folder_path.join(entry.as_os_str()),
+                entry: entry.to_string_lossy().into_owned(),
+            });
         };
         if name == PARENT_RECORD_NAME || is_a_dot_name(name) {
             continue;
         }
         if slot_name_refusal(name).is_some() {
-            return Err(StoreRefusal::ForeignEntry { path: folder_path.join(name), entry: name.to_string() });
+            return Err(StoreRefusal::ForeignEntry {
+                path: folder_path.join(name),
+                entry: name.to_string(),
+            });
         }
         names.push(name.to_string());
     }
@@ -262,7 +351,10 @@ fn slot_names_of(folder_path: &Path, entries: &[OsString]) -> Result<Vec<String>
 /// # Errors
 /// A folder that could not be listed,
 /// and a removal the system refused.
-pub(super) fn remove_known_staging_entries(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<String>, StoreRefusal> {
+pub(super) fn remove_known_staging_entries(
+    folder: &std::fs::File,
+    folder_path: &Path,
+) -> Result<Vec<String>, StoreRefusal> {
     #[cfg(test)]
     fire_the_listing_hook();
     let entries: Vec<OsString> = one_listing(folder, folder_path)?;
@@ -274,7 +366,11 @@ pub(super) fn remove_known_staging_entries(folder: &std::fs::File, folder_path: 
 ///
 /// # Errors
 /// A removal the system refused.
-fn remove_staging_entries_of(folder: &std::fs::File, folder_path: &Path, entries: &[OsString]) -> Result<Vec<String>, StoreRefusal> {
+fn remove_staging_entries_of(
+    folder: &std::fs::File,
+    folder_path: &Path,
+    entries: &[OsString],
+) -> Result<Vec<String>, StoreRefusal> {
     let mut removed: Vec<String> = Vec::new();
     for entry in entries {
         let Some(name) = entry.to_str() else {
@@ -297,6 +393,14 @@ fn remove_staging_entries_of(folder: &std::fs::File, folder_path: &Path, entries
     removed.sort();
     // A root-run removal of files says which names it took and how many, so a person reading the log knows
     // what a killed writer left behind.
-    debug(TAG, format!("removed {} staging name(s) a killed writer left: {}", removed.len(), removed.join(", ")).as_str());
+    debug(
+        TAG,
+        format!(
+            "removed {} staging name(s) a killed writer left: {}",
+            removed.len(),
+            removed.join(", ")
+        )
+        .as_str(),
+    );
     return Ok(removed);
 }

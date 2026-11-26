@@ -67,7 +67,8 @@ fn read_lease_granted(file: &std::fs::File) -> std::io::Result<bool> {
         return Err(std::io::Error::last_os_error());
     }
     // SAFETY: as above.
-    let granted: libc::c_int = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_RDLCK) };
+    let granted: libc::c_int =
+        unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_RDLCK) };
     if granted == 0 {
         return Ok(true);
     }
@@ -87,8 +88,13 @@ fn read_lease_granted(file: &std::fs::File) -> std::io::Result<bool> {
 fn lease_given_back(file: &std::fs::File) -> std::io::Result<()> {
     use std::os::fd::AsRawFd;
     // SAFETY: the descriptor is open for the call, which reads or writes no memory.
-    let released: libc::c_int = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_UNLCK) };
-    return if released == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
+    let released: libc::c_int =
+        unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_UNLCK) };
+    return if released == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    };
 }
 
 /// What:
@@ -112,7 +118,10 @@ fn lease_given_back(file: &std::fs::File) -> std::io::Result<()> {
 #[cfg(target_os = "linux")]
 pub fn writer_check(path: &Path) -> std::io::Result<WriterCheck> {
     use std::os::unix::fs::OpenOptionsExt;
-    let file: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)?;
+    let file: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)?;
     if !read_lease_granted(&file)? {
         return Ok(WriterCheck::WriterHolds);
     }

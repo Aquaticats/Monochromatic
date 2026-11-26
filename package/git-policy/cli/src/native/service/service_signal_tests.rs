@@ -12,7 +12,12 @@
 //! ```
 
 /// The line and the handled signals.
-use super::{HANDLED, LINE_CAPACITY, signal_datagram, signal_line};
+use super::{
+    HANDLED,
+    LINE_CAPACITY,
+    signal_datagram,
+    signal_line,
+};
 use crate::service_timing::LOG_PREFIX;
 
 /// The line states the signal and the uptime in whole milliseconds,
@@ -22,19 +27,38 @@ use crate::service_timing::LOG_PREFIX;
 fn the_line_states_the_signal_and_the_uptime_in_milliseconds() {
     let uptime_millis: u64 = 12_345;
     let at_ms: u64 = 1_793_648_794_987;
-    let (bytes, length) = signal_line(libc::SIGTERM, uptime_millis * 1_000_000 + 999_999, at_ms, false);
+    let (bytes, length) = signal_line(
+        libc::SIGTERM,
+        uptime_millis * 1_000_000 + 999_999,
+        at_ms,
+        false,
+    );
     let text: &str = std::str::from_utf8(&bytes[..length]).expect("text");
-    assert_eq!(text, format!("{LOG_PREFIX}exiting reason=signal-{} uptime_ms={uptime_millis} at_ms={at_ms}\n", libc::SIGTERM));
+    assert_eq!(
+        text,
+        format!(
+            "{LOG_PREFIX}exiting reason=signal-{} uptime_ms={uptime_millis} at_ms={at_ms}\n",
+            libc::SIGTERM
+        )
+    );
 }
 
 /// A zero uptime and the largest one both fit the buffer.
 #[test]
 fn the_extremes_fit_the_buffer() {
     let (zero, zero_length) = signal_line(libc::SIGHUP, 0, 0, false);
-    assert!(std::str::from_utf8(&zero[..zero_length]).expect("text").ends_with("uptime_ms=0 at_ms=0\n"));
+    assert!(
+        std::str::from_utf8(&zero[..zero_length])
+            .expect("text")
+            .ends_with("uptime_ms=0 at_ms=0\n")
+    );
     let (largest, largest_length) = signal_line(libc::c_int::MAX, u64::MAX, u64::MAX, true);
     assert!(largest_length < LINE_CAPACITY);
-    assert!(std::str::from_utf8(&largest[..largest_length]).expect("text").ends_with(format!("uptime_ms={} at_ms={}\n", u64::MAX / 1_000_000, u64::MAX).as_str()));
+    assert!(
+        std::str::from_utf8(&largest[..largest_length])
+            .expect("text")
+            .ends_with(format!("uptime_ms={} at_ms={}\n", u64::MAX / 1_000_000, u64::MAX).as_str())
+    );
 }
 
 /// The signals that end the service are the three that a manager or a terminal sends.
@@ -58,13 +82,20 @@ fn the_native_entry_carries_the_message_the_priority_and_the_time() {
         vec![
             "PRIORITY=6".to_string(),
             "SYSLOG_IDENTIFIER=monochromatic-git-policy-cli-service".to_string(),
-            format!("MESSAGE=exiting reason=signal-{} uptime_ms=12345 at_ms={at_ms}", libc::SIGTERM),
+            format!(
+                "MESSAGE=exiting reason=signal-{} uptime_ms=12345 at_ms={at_ms}",
+                libc::SIGTERM
+            ),
             format!("CLI_GIT_AT_MS={at_ms}"),
         ]
     );
     let (largest, largest_length) = signal_datagram(libc::c_int::MAX, u64::MAX, u64::MAX);
     assert!(largest_length < LINE_CAPACITY);
-    assert!(std::str::from_utf8(&largest[..largest_length]).expect("text").ends_with(format!("CLI_GIT_AT_MS={}\n", u64::MAX).as_str()));
+    assert!(
+        std::str::from_utf8(&largest[..largest_length])
+            .expect("text")
+            .ends_with(format!("CLI_GIT_AT_MS={}\n", u64::MAX).as_str())
+    );
 }
 
 /// On the journal's stream the fallback line starts with the priority the native entry has,
@@ -76,6 +107,10 @@ fn the_line_on_the_journal_stream_carries_the_info_priority() {
     let (on_stream, on_length) = signal_line(libc::SIGTERM, 0, 1, true);
     let (plain, plain_length) = signal_line(libc::SIGTERM, 0, 1, false);
     let streamed: &[u8] = &on_stream[..on_length];
-    assert!(streamed.starts_with(b"<6>monochromatic-git-policy-cli-service: exiting"), "{:?}", String::from_utf8_lossy(streamed));
+    assert!(
+        streamed.starts_with(b"<6>monochromatic-git-policy-cli-service: exiting"),
+        "{:?}",
+        String::from_utf8_lossy(streamed)
+    );
     assert_eq!(&streamed[3..], &plain[..plain_length]);
 }

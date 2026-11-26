@@ -3,9 +3,21 @@
 //! and the states
 //! whose answer depends on `.gitmodules` are declined.
 
-use crate::repo_read_query::tests::{answered, declined, mine};
-use crate::test_support::{fixture, git, git_output, remove};
-use std::path::{Path, PathBuf};
+use crate::repo_read_query::tests::{
+    answered,
+    declined,
+    mine,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_output,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The command lines the wrapper issues:
 /// with `HEAD` and a trailing `--`,
@@ -13,23 +25,50 @@ use std::path::{Path, PathBuf};
 /// and with a path.
 fn lines(commit: &str) -> Vec<Vec<String>> {
     return vec![
-        ["diff-index", "--quiet", "--cached", "HEAD", "--"].map(String::from).to_vec(),
-        ["diff-index", "--cached", "--quiet", commit].map(String::from).to_vec(),
-        ["diff-index", "--cached", "--quiet", "HEAD", "--", "a"].map(String::from).to_vec(),
-        ["diff-index", "--cached", "--quiet", "HEAD", "--", "dir"].map(String::from).to_vec(),
-        ["diff-index", "--cached", "--quiet", "HEAD", "--", "untouched.txt"].map(String::from).to_vec(),
+        ["diff-index", "--quiet", "--cached", "HEAD", "--"]
+            .map(String::from)
+            .to_vec(),
+        ["diff-index", "--cached", "--quiet", commit]
+            .map(String::from)
+            .to_vec(),
+        ["diff-index", "--cached", "--quiet", "HEAD", "--", "a"]
+            .map(String::from)
+            .to_vec(),
+        ["diff-index", "--cached", "--quiet", "HEAD", "--", "dir"]
+            .map(String::from)
+            .to_vec(),
+        [
+            "diff-index",
+            "--cached",
+            "--quiet",
+            "HEAD",
+            "--",
+            "untouched.txt",
+        ]
+        .map(String::from)
+        .to_vec(),
     ];
 }
 
 /// A repository with one commit of a file,
 /// a directory,
 /// a link and an executable.
-fn committed(root: &Path, name: &str) -> PathBuf {
+fn committed(
+    root: &Path,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = root.join(name);
     std::fs::create_dir(&repo).expect("dir");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     std::fs::create_dir_all(repo.join("dir")).expect("dirs");
-    for (path, text) in [("a", "one\n"), ("dir/b", "bee\n"), ("untouched.txt", "same\n")] {
+    for (path, text) in [
+        ("a", "one\n"),
+        ("dir/b", "bee\n"),
+        ("untouched.txt", "same\n"),
+    ] {
         std::fs::write(repo.join(path), text).expect("write");
     }
     std::os::unix::fs::symlink("a", repo.join("link")).expect("link");
@@ -40,13 +79,22 @@ fn committed(root: &Path, name: &str) -> PathBuf {
 
 /// Every command line answers as Git does;
 /// returns Git's exit code for the first line.
-fn all_answer(root: &Path, repo: &Path) -> i32 {
-    let commit: String = String::from_utf8(git_output(repo, &["rev-parse", "HEAD"]).stdout).expect("UTF-8").trim_end().to_string();
+fn all_answer(
+    root: &Path,
+    repo: &Path,
+) -> i32 {
+    let commit: String = String::from_utf8(git_output(repo, &["rev-parse", "HEAD"]).stdout)
+        .expect("UTF-8")
+        .trim_end()
+        .to_string();
     for line in lines(commit.as_str()) {
         let words: Vec<&str> = line.iter().map(String::as_str).collect();
         answered(root, repo, words.as_slice());
     }
-    return git_output(repo, &["diff-index", "--quiet", "--cached", "HEAD", "--"]).status.code().expect("exit code");
+    return git_output(repo, &["diff-index", "--quiet", "--cached", "HEAD", "--"])
+        .status
+        .code()
+        .expect("exit code");
 }
 
 /// A clean index is 0,
@@ -58,7 +106,11 @@ fn plain_states_equal_git() {
     assert_eq!(all_answer(root.as_path(), repo.as_path()), 0, "clean");
     std::fs::write(repo.join("a"), "two\n").expect("edit");
     git(repo.as_path(), &["add", "a"]);
-    assert_eq!(all_answer(root.as_path(), repo.as_path()), 1, "changed content");
+    assert_eq!(
+        all_answer(root.as_path(), repo.as_path()),
+        1,
+        "changed content"
+    );
     git(repo.as_path(), &["reset", "--quiet", "--hard", "HEAD"]);
     std::fs::write(repo.join("added"), "new\n").expect("add");
     git(repo.as_path(), &["add", "added"]);
@@ -87,7 +139,12 @@ fn a_pathspec_limits_the_comparison() {
     git(repo.as_path(), &["add", "dir/b"]);
     std::fs::write(repo.join("a"), "unstaged\n").expect("unstaged");
     assert_eq!(all_answer(root.as_path(), repo.as_path()), 1);
-    let only_a = mine(root.as_path(), repo.as_path(), &["diff-index", "--cached", "--quiet", "HEAD", "--", "a"]).expect("answered");
+    let only_a = mine(
+        root.as_path(),
+        repo.as_path(),
+        &["diff-index", "--cached", "--quiet", "HEAD", "--", "a"],
+    )
+    .expect("answered");
     assert_eq!(only_a.code, 0);
     remove(root.as_path());
 }
@@ -102,27 +159,76 @@ fn unmerged_paths_equal_git() {
     let repo: PathBuf = committed(root.as_path(), "repo");
     let blob = |text: &str| -> String {
         let mut command = std::process::Command::new(crate::test_support::REAL_GIT);
-        command.current_dir(&repo).args(["hash-object", "-w", "--stdin"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped());
+        command
+            .current_dir(&repo)
+            .args(["hash-object", "-w", "--stdin"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped());
         // Owned, so a control that fails while it writes leaves no Git waiting for input.
         let mut child = crate::test_support::spawn_owned(&mut command).expect("start");
-        std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), text.as_bytes()).expect("write");
-        return String::from_utf8(child.wait_with_output().expect("output").stdout).expect("UTF-8").trim_end().to_string();
+        std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), text.as_bytes())
+            .expect("write");
+        return String::from_utf8(child.wait_with_output().expect("output").stdout)
+            .expect("UTF-8")
+            .trim_end()
+            .to_string();
     };
-    let lines_in: String = format!("100644 {} 1\tuntouched.txt\n100644 {} 2\tuntouched.txt\n100644 {} 3\tuntouched.txt\n", blob("1"), blob("2"), blob("3"));
+    let lines_in: String = format!(
+        "100644 {} 1\tuntouched.txt\n100644 {} 2\tuntouched.txt\n100644 {} 3\tuntouched.txt\n",
+        blob("1"),
+        blob("2"),
+        blob("3")
+    );
     let mut command = std::process::Command::new(crate::test_support::REAL_GIT);
-    command.current_dir(&repo).args(["update-index", "--index-info"]).stdin(std::process::Stdio::piped());
+    command
+        .current_dir(&repo)
+        .args(["update-index", "--index-info"])
+        .stdin(std::process::Stdio::piped());
     let mut child = crate::test_support::spawn_owned(&mut command).expect("start");
-    std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), lines_in.as_bytes()).expect("write");
+    std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), lines_in.as_bytes())
+        .expect("write");
     assert!(child.wait().expect("wait").success());
-    assert_eq!(all_answer_for(root.as_path(), repo.as_path(), &["diff-index", "--cached", "--quiet", "HEAD", "--"]), 1);
-    assert_eq!(all_answer_for(root.as_path(), repo.as_path(), &["diff-index", "--cached", "--quiet", "HEAD", "--", "untouched.txt"]), 1);
-    assert_eq!(all_answer_for(root.as_path(), repo.as_path(), &["diff-index", "--cached", "--quiet", "HEAD", "--", "a"]), 0);
+    assert_eq!(
+        all_answer_for(
+            root.as_path(),
+            repo.as_path(),
+            &["diff-index", "--cached", "--quiet", "HEAD", "--"]
+        ),
+        1
+    );
+    assert_eq!(
+        all_answer_for(
+            root.as_path(),
+            repo.as_path(),
+            &[
+                "diff-index",
+                "--cached",
+                "--quiet",
+                "HEAD",
+                "--",
+                "untouched.txt"
+            ]
+        ),
+        1
+    );
+    assert_eq!(
+        all_answer_for(
+            root.as_path(),
+            repo.as_path(),
+            &["diff-index", "--cached", "--quiet", "HEAD", "--", "a"]
+        ),
+        0
+    );
     remove(root.as_path());
 }
 
 /// The answer to one command line equals Git's;
 /// returns the exit code.
-fn all_answer_for(root: &Path, repo: &Path, line: &[&str]) -> i32 {
+fn all_answer_for(
+    root: &Path,
+    repo: &Path,
+    line: &[&str],
+) -> i32 {
     answered(root, repo, line);
     return git_output(repo, line).status.code().expect("exit code");
 }
@@ -134,7 +240,11 @@ fn an_intent_to_add_entry_equals_git() {
     let repo: PathBuf = committed(root.as_path(), "repo");
     std::fs::write(repo.join("later"), "later\n").expect("write");
     git(repo.as_path(), &["add", "--intent-to-add", "later"]);
-    assert_eq!(all_answer(root.as_path(), repo.as_path()), 1, "Git reports the entry as added");
+    assert_eq!(
+        all_answer(root.as_path(), repo.as_path()),
+        1,
+        "Git reports the entry as added"
+    );
     remove(root.as_path());
 }
 
@@ -149,21 +259,64 @@ fn submodule_entries_equal_git_and_gitmodules_is_left_to_git() {
     let repo: PathBuf = committed(root.as_path(), "repo");
     let one: String = "1".repeat(40);
     let two: String = "2".repeat(40);
-    git(repo.as_path(), &["update-index", "--add", "--cacheinfo", format!("160000,{one},sub").as_str()]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=with a submodule"]);
-    assert_eq!(all_answer(root.as_path(), repo.as_path()), 0, "same submodule commit");
-    git(repo.as_path(), &["update-index", "--cacheinfo", format!("160000,{two},sub").as_str()]);
-    assert_eq!(all_answer(root.as_path(), repo.as_path()), 1, "moved submodule, no .gitmodules");
+    git(
+        repo.as_path(),
+        &[
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            format!("160000,{one},sub").as_str(),
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=with a submodule"],
+    );
+    assert_eq!(
+        all_answer(root.as_path(), repo.as_path()),
+        0,
+        "same submodule commit"
+    );
+    git(
+        repo.as_path(),
+        &[
+            "update-index",
+            "--cacheinfo",
+            format!("160000,{two},sub").as_str(),
+        ],
+    );
+    assert_eq!(
+        all_answer(root.as_path(), repo.as_path()),
+        1,
+        "moved submodule, no .gitmodules"
+    );
     git(repo.as_path(), &["update-index", "--force-remove", "sub"]);
-    assert_eq!(all_answer(root.as_path(), repo.as_path()), 1, "removed submodule");
-    std::fs::write(repo.join(".gitmodules"), "[submodule \"sub\"]\n\tpath = sub\n\turl = ./elsewhere\n\tignore = all\n").expect("gitmodules");
+    assert_eq!(
+        all_answer(root.as_path(), repo.as_path()),
+        1,
+        "removed submodule"
+    );
+    std::fs::write(
+        repo.join(".gitmodules"),
+        "[submodule \"sub\"]\n\tpath = sub\n\turl = ./elsewhere\n\tignore = all\n",
+    )
+    .expect("gitmodules");
     for line in lines("HEAD") {
         let words: Vec<&str> = line.iter().map(String::as_str).collect();
         if words.len() == 5 && words[4] == "--" {
             declined(root.as_path(), repo.as_path(), words.as_slice());
         }
     }
-    assert_eq!(git_output(repo.as_path(), &["diff-index", "--quiet", "--cached", "HEAD", "--"]).status.code(), Some(0), "Git hides it, which is why the readers decline");
+    assert_eq!(
+        git_output(
+            repo.as_path(),
+            &["diff-index", "--quiet", "--cached", "HEAD", "--"]
+        )
+        .status
+        .code(),
+        Some(0),
+        "Git hides it, which is why the readers decline"
+    );
     remove(root.as_path());
 }
 
@@ -174,10 +327,20 @@ fn unborn_and_detached_heads_equal_git_or_are_declined() {
     let root: PathBuf = fixture("quiet-heads");
     let repo: PathBuf = root.join("unborn");
     std::fs::create_dir(&repo).expect("dir");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
-    declined(root.as_path(), repo.as_path(), &["diff-index", "--cached", "--quiet", "HEAD", "--"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
+    declined(
+        root.as_path(),
+        repo.as_path(),
+        &["diff-index", "--cached", "--quiet", "HEAD", "--"],
+    );
     let committed_repo: PathBuf = committed(root.as_path(), "repo");
-    git(committed_repo.as_path(), &["checkout", "--quiet", "--detach"]);
+    git(
+        committed_repo.as_path(),
+        &["checkout", "--quiet", "--detach"],
+    );
     assert_eq!(all_answer(root.as_path(), committed_repo.as_path()), 0);
     remove(root.as_path());
 }

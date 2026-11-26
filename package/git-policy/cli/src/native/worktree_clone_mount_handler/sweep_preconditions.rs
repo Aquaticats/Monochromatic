@@ -22,16 +22,35 @@
 //! const facts = bootFacts(configuration, reader, recordPath); // { boot, poolName, poolState, checkout, checkoutState }
 //! ```
 
-use super::sweep_checkout_mount::{CheckoutMount, CheckoutMounts};
+use super::sweep_checkout_mount::{
+    CheckoutMount,
+    CheckoutMounts,
+};
 use super::sweep_configuration::SweepConfiguration;
 use super::sweep_dataset_reader::DatasetReader;
-use crate::start_probe::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
-use crate::start_probe::probe_record::{ABSENT, RECORD_KIND, RECORD_VERSION};
-use crate::start_probe::{RECORD_DIRECTORY, RESULT_NAME};
+use crate::start_probe::probe_fingerprint::{
+    FingerprintPaths,
+    ProbeFingerprint,
+};
+use crate::start_probe::probe_record::{
+    ABSENT,
+    RECORD_KIND,
+    RECORD_VERSION,
+};
+use crate::start_probe::{
+    RECORD_DIRECTORY,
+    RESULT_NAME,
+};
 use crate::worktree_clone_mount::clone_slot_walk_refusals::WalkRefusalReason;
 use crate::worktree_clone_mount::hold_the_worktrees_parent;
-use crate::worktree_clone_mount_protocol::{ReadyState, READINESS_DIRECTORY};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_mount_protocol::{
+    READINESS_DIRECTORY,
+    ReadyState,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The kernel file that names this boot.
 pub const BOOT_ID_PATH: &str = "/proc/sys/kernel/random/boot_id";
@@ -173,23 +192,68 @@ impl ProbeRefusal {
     /// the verdict and every way forward.
     pub fn message(&self) -> String {
         let cause: String = match self {
-            ProbeRefusal::BootId { reason } => format!("this boot's identifier could not be read from {BOOT_ID_PATH} ({reason})"),
-            ProbeRefusal::Missing { path } => format!("the start probe's record {path:?} is not there, and a boot whose probe never wrote one attaches nothing"),
-            ProbeRefusal::Unreadable { path, reason } => format!("the start probe's record {path:?} could not be read ({reason})"),
-            ProbeRefusal::AnotherBoot { path, named, boot } => format!(
+            ProbeRefusal::BootId {
+                reason,
+            } => format!("this boot's identifier could not be read from {BOOT_ID_PATH} ({reason})"),
+            ProbeRefusal::Missing {
+                path,
+            } => format!(
+                "the start probe's record {path:?} is not there, and a boot whose probe never wrote one attaches nothing"
+            ),
+            ProbeRefusal::Unreadable {
+                path,
+                reason,
+            } => format!("the start probe's record {path:?} could not be read ({reason})"),
+            ProbeRefusal::AnotherBoot {
+                path,
+                named,
+                boot,
+            } => format!(
                 "the start probe's record {path:?} names the boot {} and this boot is {boot}, so the record is another boot's",
                 named.as_deref().unwrap_or("no boot at all")
             ),
-            ProbeRefusal::Blocked { path, verdict, step } => {
-                format!("the start probe's record {path:?} carries the verdict `{verdict}` and names the step `{step}`, so the managed route is blocked for this boot")
+            ProbeRefusal::Blocked {
+                path,
+                verdict,
+                step,
+            } => {
+                format!(
+                    "the start probe's record {path:?} carries the verdict `{verdict}` and names the step `{step}`, so the managed route is blocked for this boot"
+                )
             }
-            ProbeRefusal::Running { reason } => format!("this machine's own kernel release or boot identity could not be read ({reason}), so no probe record can be judged current"),
-            ProbeRefusal::NotARecord { path, said } => format!("the start probe's record {path:?} is no record this route reads: {said}"),
-            ProbeRefusal::Stale { path, line, named, running } => format!(
+            ProbeRefusal::Running {
+                reason,
+            } => format!(
+                "this machine's own kernel release or boot identity could not be read ({reason}), so no probe record can be judged current"
+            ),
+            ProbeRefusal::NotARecord {
+                path,
+                said,
+            } => format!("the start probe's record {path:?} is no record this route reads: {said}"),
+            ProbeRefusal::Stale {
+                path,
+                line,
+                named,
+                running,
+            } => format!(
                 "the start probe's record {path:?} names `{line} {named}` and this machine reports `{line} {running}`, so the record is stale: it judged another kernel, module or boot"
             ),
-            ProbeRefusal::PoolNotReady { pool, state } => format!("the pool `{pool}` is `{}` and only a ready pool admits an attach", state.word()),
-            ProbeRefusal::CheckoutNotReady { checkout, state, said } => format!("the checkout {} is `{}` and only a ready checkout admits an attach: {said}", checkout.display(), state.word()),
+            ProbeRefusal::PoolNotReady {
+                pool,
+                state,
+            } => format!(
+                "the pool `{pool}` is `{}` and only a ready pool admits an attach",
+                state.word()
+            ),
+            ProbeRefusal::CheckoutNotReady {
+                checkout,
+                state,
+                said,
+            } => format!(
+                "the checkout {} is `{}` and only a ready checkout admits an attach: {said}",
+                checkout.display(),
+                state.word()
+            ),
         };
         return format!(
             "{cause}. Nothing was enumerated, attached, unmounted or recorded, and every clone's mount intent stands untouched. Ways forward: run `monochromatic-git-policy-cli zfs-root start-probe` as root and read the record it writes, load the pool's key and mount the checkout, or read {READINESS_DIRECTORY} and the handler's journal; the sweep runs again on a ZED event, the checkout provider's post-key-load hook, or a caller's sweep nudge."
@@ -213,7 +277,11 @@ impl ProbeRefusal {
 /// # Errors
 /// The kernel file could not be read.
 pub fn boot_identifier() -> Result<String, ProbeRefusal> {
-    let text: String = std::fs::read_to_string(BOOT_ID_PATH).map_err(|error| return ProbeRefusal::BootId { reason: error.to_string() })?;
+    let text: String = std::fs::read_to_string(BOOT_ID_PATH).map_err(|error| {
+        return ProbeRefusal::BootId {
+            reason: error.to_string(),
+        };
+    })?;
     return Ok(text.trim().to_string());
 }
 
@@ -229,9 +297,15 @@ pub fn boot_identifier() -> Result<String, ProbeRefusal> {
 /// ```ts
 /// const field = lineOf(record, 'verdict'); // 'passed' | ...
 /// ```
-fn line_of(record: &str, key: &str) -> Option<String> {
+fn line_of(
+    record: &str,
+    key: &str,
+) -> Option<String> {
     let prefix: String = format!("{key} ");
-    return record.lines().find(|line| return line.starts_with(prefix.as_str())).map(|line| return String::from(line[prefix.len()..].trim()));
+    return record
+        .lines()
+        .find(|line| return line.starts_with(prefix.as_str()))
+        .map(|line| return String::from(line[prefix.len()..].trim()));
 }
 
 /// What:
@@ -250,17 +324,35 @@ fn line_of(record: &str, key: &str) -> Option<String> {
 /// The record names another boot,
 /// holds no verdict,
 /// or blocks the route.
-pub fn probe_standing(record: &str, boot: &str, path: &Path) -> Result<ProbeStanding, ProbeRefusal> {
+pub fn probe_standing(
+    record: &str,
+    boot: &str,
+    path: &Path,
+) -> Result<ProbeStanding, ProbeRefusal> {
     let named: Option<String> = line_of(record, "boot");
     if named.as_deref() != Some(boot) {
-        return Err(ProbeRefusal::AnotherBoot { path: path.to_path_buf(), named, boot: String::from(boot) });
+        return Err(ProbeRefusal::AnotherBoot {
+            path: path.to_path_buf(),
+            named,
+            boot: String::from(boot),
+        });
     }
-    let verdict: String = line_of(record, "verdict").ok_or_else(|| return ProbeRefusal::Unreadable { path: path.to_path_buf(), reason: String::from("the record holds no verdict line") })?;
+    let verdict: String = line_of(record, "verdict").ok_or_else(|| {
+        return ProbeRefusal::Unreadable {
+            path: path.to_path_buf(),
+            reason: String::from("the record holds no verdict line"),
+        };
+    })?;
     if verdict == "passed" {
         return Ok(ProbeStanding::Passed);
     }
-    let step: String = line_of(record, "verdict-step").unwrap_or_else(|| return String::from("none"));
-    return Err(ProbeRefusal::Blocked { path: path.to_path_buf(), verdict, step });
+    let step: String =
+        line_of(record, "verdict-step").unwrap_or_else(|| return String::from("none"));
+    return Err(ProbeRefusal::Blocked {
+        path: path.to_path_buf(),
+        verdict,
+        step,
+    });
 }
 
 /// What:
@@ -282,11 +374,21 @@ pub fn read_probe_standing(path: &Path) -> Result<ProbeStanding, ProbeRefusal> {
     let boot: String = boot_identifier()?;
     let record: String = std::fs::read_to_string(path).map_err(|error| {
         return match error.kind() {
-            std::io::ErrorKind::NotFound => ProbeRefusal::Missing { path: path.to_path_buf() },
-            _ => ProbeRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() },
+            std::io::ErrorKind::NotFound => ProbeRefusal::Missing {
+                path: path.to_path_buf(),
+            },
+            _ => ProbeRefusal::Unreadable {
+                path: path.to_path_buf(),
+                reason: error.to_string(),
+            },
         };
     })?;
-    let running: ProbeFingerprint = ProbeFingerprint::read(&FingerprintPaths::live()).map_err(|refusal| return ProbeRefusal::Running { reason: refusal.message() })?;
+    let running: ProbeFingerprint =
+        ProbeFingerprint::read(&FingerprintPaths::live()).map_err(|refusal| {
+            return ProbeRefusal::Running {
+                reason: refusal.message(),
+            };
+        })?;
     let standing: ProbeStanding = probe_standing(record.as_str(), boot.as_str(), path)?;
     probe_fingerprint_standing(record.as_str(), &running, path)?;
     return Ok(standing);
@@ -317,24 +419,59 @@ pub fn read_probe_standing(path: &Path) -> Result<ProbeStanding, ProbeRefusal> {
 /// # Errors
 /// The file is no `v1` `probe-result`,
 /// or one fingerprint line names another value than the running one.
-pub fn probe_fingerprint_standing(record: &str, running: &ProbeFingerprint, path: &Path) -> Result<(), ProbeRefusal> {
+pub fn probe_fingerprint_standing(
+    record: &str,
+    running: &ProbeFingerprint,
+    path: &Path,
+) -> Result<(), ProbeRefusal> {
     let first: Option<&str> = record.lines().next();
     if first != Some(RECORD_VERSION) {
-        return Err(ProbeRefusal::NotARecord { path: path.to_path_buf(), said: format!("its first line is `{}` rather than `{RECORD_VERSION}`", first.unwrap_or("nothing")) });
+        return Err(ProbeRefusal::NotARecord {
+            path: path.to_path_buf(),
+            said: format!(
+                "its first line is `{}` rather than `{RECORD_VERSION}`",
+                first.unwrap_or("nothing")
+            ),
+        });
     }
     let kind: Option<String> = line_of(record, "kind");
     if kind.as_deref() != Some(RECORD_KIND) {
-        return Err(ProbeRefusal::NotARecord { path: path.to_path_buf(), said: format!("its kind is `{}` rather than `{RECORD_KIND}`", kind.as_deref().unwrap_or("nothing")) });
+        return Err(ProbeRefusal::NotARecord {
+            path: path.to_path_buf(),
+            said: format!(
+                "its kind is `{}` rather than `{RECORD_KIND}`",
+                kind.as_deref().unwrap_or("nothing")
+            ),
+        });
     }
     for (line, running_value) in [
         ("kernel", running.kernel_release.as_str()),
-        ("module", running.module_version.as_deref().unwrap_or(ABSENT)),
-        ("srcversion", running.module_srcversion.as_deref().unwrap_or(ABSENT)),
-        ("build-id", running.module_build_id.as_deref().unwrap_or(ABSENT)),
+        (
+            "module",
+            running.module_version.as_deref().unwrap_or(ABSENT),
+        ),
+        (
+            "srcversion",
+            running.module_srcversion.as_deref().unwrap_or(ABSENT),
+        ),
+        (
+            "build-id",
+            running.module_build_id.as_deref().unwrap_or(ABSENT),
+        ),
     ] {
-        let named: String = line_of(record, line).ok_or_else(|| return ProbeRefusal::NotARecord { path: path.to_path_buf(), said: format!("it holds no `{line}` line") })?;
+        let named: String = line_of(record, line).ok_or_else(|| {
+            return ProbeRefusal::NotARecord {
+                path: path.to_path_buf(),
+                said: format!("it holds no `{line}` line"),
+            };
+        })?;
         if named != running_value {
-            return Err(ProbeRefusal::Stale { path: path.to_path_buf(), line, named, running: String::from(running_value) });
+            return Err(ProbeRefusal::Stale {
+                path: path.to_path_buf(),
+                line,
+                named,
+                running: String::from(running_value),
+            });
         }
     }
     return Ok(());
@@ -369,7 +506,10 @@ pub fn pool_name_of(parent: &str) -> &str {
 /// ```ts
 /// const state = poolState(reader, parent); // ready | not-ready | unknown
 /// ```
-pub fn pool_state(reader: &dyn DatasetReader, parent: &str) -> ReadyState {
+pub fn pool_state(
+    reader: &dyn DatasetReader,
+    parent: &str,
+) -> ReadyState {
     return match reader.identity(parent) {
         Ok(_identity) => ReadyState::Ready,
         // The kernel's own `ENOENT` is the one answer that says the pool or the parent is gone rather than unreadable,
@@ -398,13 +538,19 @@ pub fn pool_state(reader: &dyn DatasetReader, parent: &str) -> ReadyState {
 /// ```ts
 /// const state = checkoutState('/home/user/Monochromatic', liveCheckoutMounts); // ready | not-ready | unknown
 /// ```
-pub fn checkout_state(checkout: &Path, mounts: &dyn CheckoutMounts) -> (ReadyState, String) {
+pub fn checkout_state(
+    checkout: &Path,
+    mounts: &dyn CheckoutMounts,
+) -> (ReadyState, String) {
     if let Err(refusal) = hold_the_worktrees_parent(checkout) {
         let said: String = refusal.message();
         let state: ReadyState = match refusal.reason {
             // A checkout that is not there, or that is reached through a link which is not its own canonical path, is
             // not mounted as the provider promises; every other refusal is a state this run cannot interpret.
-            WalkRefusalReason::Missing | WalkRefusalReason::NotTheCanonicalPath | WalkRefusalReason::Checkout | WalkRefusalReason::NotADirectory => ReadyState::NotReady,
+            WalkRefusalReason::Missing
+            | WalkRefusalReason::NotTheCanonicalPath
+            | WalkRefusalReason::Checkout
+            | WalkRefusalReason::NotADirectory => ReadyState::NotReady,
             WalkRefusalReason::LinkInTheWay
             | WalkRefusalReason::BoundaryCrossed
             | WalkRefusalReason::NotAPlainName
@@ -468,10 +614,17 @@ impl BootFacts {
     /// The first field that is not ready.
     pub fn admit(&self) -> Result<(), ProbeRefusal> {
         if self.pool_state != ReadyState::Ready {
-            return Err(ProbeRefusal::PoolNotReady { pool: self.pool_name.clone(), state: self.pool_state });
+            return Err(ProbeRefusal::PoolNotReady {
+                pool: self.pool_name.clone(),
+                state: self.pool_state,
+            });
         }
         if self.checkout_state != ReadyState::Ready {
-            return Err(ProbeRefusal::CheckoutNotReady { checkout: self.checkout.clone(), state: self.checkout_state, said: self.checkout_said.clone() });
+            return Err(ProbeRefusal::CheckoutNotReady {
+                checkout: self.checkout.clone(),
+                state: self.checkout_state,
+                said: self.checkout_said.clone(),
+            });
         }
         return Ok(());
     }
@@ -523,11 +676,22 @@ pub struct PreparedBoot {
 /// The probe's record,
 /// the boot identifier,
 /// or nothing at all when every check passed.
-pub fn prepare(configuration: &SweepConfiguration, probe_record: &Path, mounts: &dyn CheckoutMounts) -> Result<PreparedBoot, ProbeRefusal> {
+pub fn prepare(
+    configuration: &SweepConfiguration,
+    probe_record: &Path,
+    mounts: &dyn CheckoutMounts,
+) -> Result<PreparedBoot, ProbeRefusal> {
     let standing: ProbeStanding = read_probe_standing(probe_record)?;
     let boot: String = boot_identifier()?;
-    let (checkout_state, checkout_said): (ReadyState, String) = checkout_state(configuration.checkout.as_path(), mounts);
-    return Ok(PreparedBoot { boot, checkout: configuration.checkout.clone(), checkout_state, checkout_said, standing });
+    let (checkout_state, checkout_said): (ReadyState, String) =
+        checkout_state(configuration.checkout.as_path(), mounts);
+    return Ok(PreparedBoot {
+        boot,
+        checkout: configuration.checkout.clone(),
+        checkout_state,
+        checkout_said,
+        standing,
+    });
 }
 
 /// What:
@@ -544,7 +708,11 @@ pub fn prepare(configuration: &SweepConfiguration, probe_record: &Path, mounts: 
 ///
 /// # Errors
 /// The pool or the checkout is not ready.
-pub fn complete(prepared: PreparedBoot, reader: &dyn DatasetReader, parent: &str) -> Result<BootFacts, ProbeRefusal> {
+pub fn complete(
+    prepared: PreparedBoot,
+    reader: &dyn DatasetReader,
+    parent: &str,
+) -> Result<BootFacts, ProbeRefusal> {
     let facts: BootFacts = BootFacts {
         boot: prepared.boot,
         pool_name: String::from(pool_name_of(parent)),
@@ -556,8 +724,6 @@ pub fn complete(prepared: PreparedBoot, reader: &dyn DatasetReader, parent: &str
     facts.admit()?;
     return Ok(facts);
 }
-
-
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

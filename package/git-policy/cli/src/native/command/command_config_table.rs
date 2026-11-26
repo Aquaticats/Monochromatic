@@ -28,7 +28,13 @@
 /// ```ts
 /// import { Arity, type OptionSpec, row, UNREAD } from './command_options.ts';
 /// ```
-use crate::command_options::{Arity, OptionSpec, ParseMode, UNREAD, row};
+use crate::command_options::{
+    Arity,
+    OptionSpec,
+    ParseMode,
+    UNREAD,
+    row,
+};
 
 /// `--global`:
 ///  use the per-user configuration file.
@@ -205,8 +211,20 @@ pub const LEGACY_ACTION_ROWS: &[OptionSpec] = &[
     row(ADD, None, Some("add"), Arity::None, false),
     row(UNSET, None, Some("unset"), Arity::None, false),
     row(UNSET_ALL, None, Some("unset-all"), Arity::None, false),
-    row(RENAME_SECTION, None, Some("rename-section"), Arity::None, false),
-    row(REMOVE_SECTION, None, Some("remove-section"), Arity::None, false),
+    row(
+        RENAME_SECTION,
+        None,
+        Some("rename-section"),
+        Arity::None,
+        false,
+    ),
+    row(
+        REMOVE_SECTION,
+        None,
+        Some("remove-section"),
+        Arity::None,
+        false,
+    ),
     row(LIST, Some(b'l'), Some("list"), Arity::None, false),
     row(EDIT, Some(b'e'), Some("edit"), Arity::None, false),
     row(GET, None, Some("get-color"), Arity::None, false),

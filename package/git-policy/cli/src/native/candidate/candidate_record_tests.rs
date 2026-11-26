@@ -11,9 +11,20 @@
 //! ```
 
 /// Import the parser under test and the values it produces.
-use super::{CandidateChange, CandidateRecord, parse_raw_records};
-use crate::candidate_error::{CandidateError, CandidateFailure};
-use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
+use super::{
+    CandidateChange,
+    CandidateRecord,
+    parse_raw_records,
+};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    parse_object_id,
+};
 
 /// Git's all-zero placeholder for "no object on this side".
 const ZERO: &str = "0000000000000000000000000000000000000000";
@@ -30,7 +41,10 @@ fn object(text: &str) -> ObjectId {
 }
 
 /// Build one raw record with a NUL after the metadata and after the path.
-fn raw(metadata: &str, path: &[u8]) -> Vec<u8> {
+fn raw(
+    metadata: &str,
+    path: &[u8],
+) -> Vec<u8> {
     let mut bytes: Vec<u8> = metadata.as_bytes().to_vec();
     bytes.push(0);
     bytes.extend_from_slice(path);
@@ -42,9 +56,9 @@ fn raw(metadata: &str, path: &[u8]) -> Vec<u8> {
 fn failure_of(output: &[u8]) -> CandidateError {
     let error: CandidateError = parse_raw_records(output).expect_err("refused listing");
     assert!(
-        error
-            .message
-            .starts_with("monochromatic-git-policy-cli could not list candidate files: changed-path record "),
+        error.message.starts_with(
+            "monochromatic-git-policy-cli could not list candidate files: changed-path record "
+        ),
         "{error}"
     );
     return error;

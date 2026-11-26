@@ -14,9 +14,15 @@
 //! const woken: string[] = []; heldPushNotices(gitDir, record, { wake: (dir) => woken.push(dir) });
 //! ```
 
-use super::{NothingWoken, WakeTheService};
+use super::{
+    NothingWoken,
+    WakeTheService,
+};
 use std::cell::RefCell;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The wake a caller with no service gives asks nothing,
@@ -31,16 +37,26 @@ fn a_caller_with_no_service_asks_nobody() {
     let woken: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
     struct Recorder<'a>(&'a RefCell<Vec<PathBuf>>);
     impl WakeTheService for Recorder<'_> {
-        fn wake(&self, git_dir: &Path) {
+        fn wake(
+            &self,
+            git_dir: &Path,
+        ) {
             self.0.borrow_mut().push(git_dir.to_path_buf());
         }
 
-        fn forget_programs(&self, _git_dir: &Path, _records: &[String]) {
+        fn forget_programs(
+            &self,
+            _git_dir: &Path,
+            _records: &[String],
+        ) {
             panic!("this control has no record that can no longer run");
         }
     }
     NothingWoken.wake(Path::new("/repository/.git"));
-    assert!(woken.borrow().is_empty(), "nothing was recorded, because nothing was asked");
+    assert!(
+        woken.borrow().is_empty(),
+        "nothing was recorded, because nothing was asked"
+    );
     Recorder(&woken).wake(Path::new("/repository/.git"));
     assert_eq!(woken.borrow().len(), 1, "the seam asks whatever it holds");
 }
@@ -57,18 +73,41 @@ fn a_caller_tells_the_service_which_records_can_no_longer_run() {
     let forgotten: RefCell<Vec<(PathBuf, Vec<String>)>> = RefCell::new(Vec::new());
     struct Recorder<'a>(&'a RefCell<Vec<(PathBuf, Vec<String>)>>);
     impl WakeTheService for Recorder<'_> {
-        fn wake(&self, _git_dir: &Path) {}
+        fn wake(
+            &self,
+            _git_dir: &Path,
+        ) {
+        }
 
-        fn forget_programs(&self, git_dir: &Path, records: &[String]) {
-            self.0.borrow_mut().push((git_dir.to_path_buf(), records.to_vec()));
+        fn forget_programs(
+            &self,
+            git_dir: &Path,
+            records: &[String],
+        ) {
+            self.0
+                .borrow_mut()
+                .push((git_dir.to_path_buf(), records.to_vec()));
         }
     }
-    let records: Vec<String> = vec![String::from("push-0123456789abcdef0123456789abcdef01234567-aaaa")];
+    let records: Vec<String> = vec![String::from(
+        "push-0123456789abcdef0123456789abcdef01234567-aaaa",
+    )];
     NothingWoken.forget_programs(Path::new("/repository/.git"), records.as_slice());
-    assert!(forgotten.borrow().is_empty(), "nothing was recorded, because nothing was asked");
+    assert!(
+        forgotten.borrow().is_empty(),
+        "nothing was recorded, because nothing was asked"
+    );
     Recorder(&forgotten).forget_programs(Path::new("/repository/.git"), records.as_slice());
-    assert_eq!(forgotten.borrow().len(), 1, "the seam asks whatever it holds");
-    assert_eq!(forgotten.borrow()[0].1, records, "the record that can no longer run is the one named");
+    assert_eq!(
+        forgotten.borrow().len(),
+        1,
+        "the seam asks whatever it holds"
+    );
+    assert_eq!(
+        forgotten.borrow()[0].1,
+        records,
+        "the record that can no longer run is the one named"
+    );
 }
 
 /// What:
@@ -92,21 +131,37 @@ fn a_caller_tells_the_service_which_records_can_no_longer_run() {
 #[test]
 fn a_forget_for_a_service_that_is_not_running_provisions_nothing() {
     use crate::service_address_of_a_worktree::socket_address_of;
-    use crate::service_instance::{longest_runtime_directory, program_link};
-    use crate::service_provision::{ProvisionHost, provision};
+    use crate::service_instance::{
+        longest_runtime_directory,
+        program_link,
+    };
+    use crate::service_provision::{
+        ProvisionHost,
+        provision,
+    };
     use crate::service_route::Route;
-    use crate::test_support::{fixture, remove, runtime_directory_parent, runtime_directory_under};
+    use crate::test_support::{
+        fixture,
+        remove,
+        runtime_directory_parent,
+        runtime_directory_under,
+    };
     let root: PathBuf = fixture("forget-no-service");
     let instance: String = String::from("0123456789abcdef0123456789abcdef");
     let longest: usize = longest_runtime_directory(instance.as_str());
     // The runtime directory stays inside the longest one a socket path carries, so provisioning refuses nothing about it.
     let tag: &str = "fg";
     let parent: PathBuf = runtime_directory_parent("gf", longest.saturating_sub(1 + tag.len()));
-    let runtime: PathBuf = runtime_directory_under(parent.as_path(), parent.as_os_str().len() + 1 + tag.len(), tag);
+    let runtime: PathBuf = runtime_directory_under(
+        parent.as_path(),
+        parent.as_os_str().len() + 1 + tag.len(),
+        tag,
+    );
     let git_dir: PathBuf = root.join("repository/.git/worktrees/topic");
     std::fs::create_dir_all(git_dir.as_path()).expect("the worktree's Git directory");
     let program: PathBuf = root.join("programs/monochromatic-git-policy-cli");
-    std::fs::create_dir_all(program.parent().expect("the program's folder")).expect("the program's folder");
+    std::fs::create_dir_all(program.parent().expect("the program's folder"))
+        .expect("the program's folder");
     std::fs::write(program.as_path(), b"program").expect("the wrapper's own executable");
     let host: ProvisionHost = ProvisionHost {
         // No bus listens here, so the manager answers nothing and this worktree's service is not running.
@@ -123,7 +178,9 @@ fn a_forget_for_a_service_that_is_not_running_provisions_nothing() {
         address: socket_address_of(host.runtime_dir.as_path(), host.instance.as_str()),
         provision: Some(host.clone()),
     };
-    let records: Vec<String> = vec![String::from("push-0123456789abcdef0123456789abcdef01234567-aaaa")];
+    let records: Vec<String> = vec![String::from(
+        "push-0123456789abcdef0123456789abcdef01234567-aaaa",
+    )];
     super::forget_programs_through(&route, git_dir.as_path(), records.as_slice());
     assert!(
         !program_link(host.runtime_dir.as_path()).exists(),

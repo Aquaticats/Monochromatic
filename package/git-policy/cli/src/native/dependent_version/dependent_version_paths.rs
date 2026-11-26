@@ -142,17 +142,17 @@ pub fn package_directory(manifest_path: &[u8]) -> &[u8] {
 /// ```ts
 /// return path.startsWith(`${directory}/src/`) && SOURCE_EXTENSIONS.some(e => name.endsWith(e)) && !name.includes('.test.');
 /// ```
-pub fn is_non_test_source_path(directory: &[u8], path: &[u8]) -> bool {
+pub fn is_non_test_source_path(
+    directory: &[u8],
+    path: &[u8],
+) -> bool {
     // `[a, b].concat()` joins two byte lists into one owned list.
     let prefix: Vec<u8> = [directory, b"/src/"].concat();
     if !path.starts_with(&prefix) {
         return false;
     }
     // `.rsplit(...)` yields segments from the end, so its first item is the file name.
-    let name: &[u8] = path
-        .rsplit(is_slash_byte)
-        .next()
-        .unwrap_or(path);
+    let name: &[u8] = path.rsplit(is_slash_byte).next().unwrap_or(path);
     let mut has_extension: bool = false;
     for extension in SOURCE_EXTENSIONS {
         if name.ends_with(extension) {

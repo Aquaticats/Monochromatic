@@ -17,25 +17,58 @@
 //! argumentsAfterSubcommand(args, index); standardInputFor(invocation); await embeddedCommit(invocation, parsed)
 //! ```
 
-use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for};
-use crate::service_instance::try_instance_of;
-use crate::service_protocol::HEARTBEAT_SILENCE;
-use crate::service_messages::ClientFailure;
-use crate::service_provision::platform_without_manager;
-use std::path::{Path, PathBuf};
-use crate::service_server::Bind;
-use crate::service_provision::ProvisionHost;
-use crate::service_route::{Route, RouteInputs, choose_route, non_empty_path_variable, remembered_own_executable, worktree_git_dir};
 use crate::commit_timing::CommitTiming;
-use crate::commit_transaction::{CommitInvocation, TransactionStop, failed};
-use crate::service_amend::{AmendSource, amended_author, read_amend_source};
+use crate::commit_transaction::{
+    CommitInvocation,
+    TransactionStop,
+    failed,
+};
+use crate::service_amend::{
+    AmendSource,
+    amended_author,
+    read_amend_source,
+};
+use crate::service_client::{
+    Activation,
+    ClientConfig,
+    START_WAIT,
+    manager_watch_for,
+};
+use crate::service_commit_args::ServiceCommitArgs;
+use crate::service_instance::try_instance_of;
+use crate::service_message::{
+    author_overrides,
+    build_message,
+    identity,
+};
+use crate::service_messages::ClientFailure;
+use crate::service_protocol::HEARTBEAT_SILENCE;
+use crate::service_provision::ProvisionHost;
+use crate::service_provision::platform_without_manager;
+use crate::service_route::{
+    Route,
+    RouteInputs,
+    choose_route,
+    non_empty_path_variable,
+    remembered_own_executable,
+    worktree_git_dir,
+};
+use crate::service_server::Bind;
 /// Standard error as a stream whose lines a thread of their own writes.
 use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
-use crate::service_commit_args::ServiceCommitArgs;
-use crate::service_message::{author_overrides, build_message, identity};
-use crate::transaction_git::{GitRequest, run_git};
+use crate::transaction_git::{
+    GitRequest,
+    run_git,
+};
 use std::ffi::OsString;
-use std::io::{Read, Write};
+use std::io::{
+    Read,
+    Write,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  The words of the command line after the subcommand:
 /// the options and the paths of the command itself.
@@ -47,7 +80,10 @@ use std::io::{Read, Write};
 /// ```ts
 /// arguments.slice(subcommandIndex + 1)
 /// ```
-pub(crate) fn arguments_after_subcommand(arguments: &[OsString], subcommand_index: usize) -> &[OsString] {
+pub(crate) fn arguments_after_subcommand(
+    arguments: &[OsString],
+    subcommand_index: usize,
+) -> &[OsString] {
     return arguments.get(subcommand_index + 1..).unwrap_or(&[]);
 }
 
@@ -65,14 +101,23 @@ pub(crate) fn arguments_after_subcommand(arguments: &[OsString], subcommand_inde
 /// reference === 'HEAD' ? 'a detached head' : reference.replace(/^refs\/heads\//, '')
 /// ```
 pub(crate) fn switched_branch_name(reference: &crate::ref_name::RefName) -> String {
-    return if reference.is_head() { String::from("a detached head") } else { reference.short().spoken() };
+    return if reference.is_head() {
+        String::from("a detached head")
+    } else {
+        reference.short().spoken()
+    };
 }
 
 /// The standard input of the command when a pathspec file is read from it,
 /// read once.
-pub(crate) fn standard_input_for(invocation: &CommitInvocation<'_>) -> Result<Option<Vec<u8>>, TransactionStop> {
-    let after: &[OsString] = arguments_after_subcommand(invocation.arguments, invocation.subcommand_index);
-    let Some(value) = invocation.region.pathspec_from_file else { return Ok(None) };
+pub(crate) fn standard_input_for(
+    invocation: &CommitInvocation<'_>
+) -> Result<Option<Vec<u8>>, TransactionStop> {
+    let after: &[OsString] =
+        arguments_after_subcommand(invocation.arguments, invocation.subcommand_index);
+    let Some(value) = invocation.region.pathspec_from_file else {
+        return Ok(None);
+    };
     if crate::command_options_query::value_bytes(after, value) != b"-" {
         return Ok(None);
     }
@@ -97,18 +142,28 @@ pub(crate) fn standard_input_for(invocation: &CommitInvocation<'_>) -> Result<Op
 /// repositoryNotFound(invocation) // Git's stderr, then its exit status
 /// ```
 pub(crate) fn repository_not_found(invocation: &CommitInvocation<'_>) -> TransactionStop {
-    let asked = run_git(invocation.context, &GitRequest::new(invocation.cwd, &["rev-parse", "--git-dir"]));
+    let asked = run_git(
+        invocation.context,
+        &GitRequest::new(invocation.cwd, &["rev-parse", "--git-dir"]),
+    );
     let output = match asked {
         Ok(found) => found,
-        Err(error) => return failed(format!("asking Git which repository this directory belongs to failed: {error}")),
+        Err(error) => {
+            return failed(format!(
+                "asking Git which repository this directory belongs to failed: {error}"
+            ));
+        }
     };
     if output.succeeded() {
-        return failed(String::from("this directory belongs to a repository whose Git directory could not be located"));
+        return failed(String::from(
+            "this directory belongs to a repository whose Git directory could not be located",
+        ));
     }
     // What: Git's own words go to the thread that writes standard error.
     // Why:  The command is ending with Git's status, and a reader that stopped draining must not keep
     //       it from reaching that end.
-    let mut refusal: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
+    let mut refusal: StandardErrorOffTheCallingThread<fn(&[u8])> =
+        StandardErrorOffTheCallingThread::new();
     let _reported = refusal.write_all(output.stderr.as_slice());
     let _flushed = refusal.flush();
     return TransactionStop::NativeExit(output.code.unwrap_or(1));
@@ -171,7 +226,8 @@ pub(crate) fn print_summary(line: &str) {
 /// printNote(line)
 /// ```
 pub(crate) fn print_note(line: &str) {
-    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
+    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+        StandardErrorOffTheCallingThread::new();
     let _said = writeln!(notes, "{line}");
     let _flushed = notes.flush();
 }
@@ -204,32 +260,63 @@ pub(crate) struct Embedded {
 /// ```ts
 /// await embeddedCommit(invocation, parsed) // undefined when Git must build it
 /// ```
-pub(crate) fn embedded_commit(invocation: &CommitInvocation<'_>, parsed: ServiceCommitArgs) -> Result<Option<Embedded>, TransactionStop> {
-    let Some(committer) = identity(invocation.context, invocation.cwd, "GIT_COMMITTER_IDENT", &[])? else { return Ok(None) };
+pub(crate) fn embedded_commit(
+    invocation: &CommitInvocation<'_>,
+    parsed: ServiceCommitArgs,
+) -> Result<Option<Embedded>, TransactionStop> {
+    let Some(committer) = identity(
+        invocation.context,
+        invocation.cwd,
+        "GIT_COMMITTER_IDENT",
+        &[],
+    )?
+    else {
+        return Ok(None);
+    };
     let source: Option<AmendSource> = if parsed.amend {
-        let Some(read) = read_amend_source(invocation.context, invocation.cwd)? else { return Ok(None) };
+        let Some(read) = read_amend_source(invocation.context, invocation.cwd)? else {
+            return Ok(None);
+        };
         Some(read)
     } else {
         None
     };
     let previous: Option<&str> = source.as_ref().map(message_of_source);
-    let Some(built) = build_message(invocation, &parsed, committer.as_str(), previous)? else { return Ok(None) };
+    let Some(built) = build_message(invocation, &parsed, committer.as_str(), previous)? else {
+        return Ok(None);
+    };
     let author: String = match built.reused_author {
         Some(reused) => reused,
         None => match source.as_ref() {
             Some(replaced) => {
-                let Some(made) = amended_author(invocation.context, invocation.cwd, replaced, &parsed)? else { return Ok(None) };
+                let Some(made) =
+                    amended_author(invocation.context, invocation.cwd, replaced, &parsed)?
+                else {
+                    return Ok(None);
+                };
                 made
             }
             None => {
-                let Some(made) = identity(invocation.context, invocation.cwd, "GIT_AUTHOR_IDENT", author_overrides(&parsed).as_slice())? else {
+                let Some(made) = identity(
+                    invocation.context,
+                    invocation.cwd,
+                    "GIT_AUTHOR_IDENT",
+                    author_overrides(&parsed).as_slice(),
+                )?
+                else {
                     return Ok(None);
                 };
                 made
             }
         },
     };
-    return Ok(Some(Embedded { message: built.message, author, committer, source, quiet: parsed.quiet }));
+    return Ok(Some(Embedded {
+        message: built.message,
+        author,
+        committer,
+        source,
+        quiet: parsed.quiet,
+    }));
 }
 
 /// What:
@@ -247,7 +334,10 @@ pub(crate) fn embedded_commit(invocation: &CommitInvocation<'_>, parsed: Service
 /// ```ts
 /// const { address, provision } = routeForThisWorktree(invocation, timing); // throws outside a repository
 /// ```
-pub(crate) fn route_for_this_worktree(invocation: &CommitInvocation<'_>, timing: &mut CommitTiming) -> Result<(Bind, Option<ProvisionHost>), TransactionStop> {
+pub(crate) fn route_for_this_worktree(
+    invocation: &CommitInvocation<'_>,
+    timing: &mut CommitTiming,
+) -> Result<(Bind, Option<ProvisionHost>), TransactionStop> {
     // The environment read here is the invocation's own, on the same terms as `route_from_environment` reads it: `main`
     //  hands the entry `std::env::vars_os()` and nothing changes the wrapper's own environment, so the home this commit was
     //  started with is the home its service route is chosen from.
@@ -256,7 +346,9 @@ pub(crate) fn route_for_this_worktree(invocation: &CommitInvocation<'_>, timing:
     let home: Option<PathBuf> = non_empty_path_variable("HOME");
     let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     // The worktree's own Git directory names the service instance, so no route exists outside a repository.
-    let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else { return Err(repository_not_found(invocation)) };
+    let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else {
+        return Err(repository_not_found(invocation));
+    };
     let route: Option<Route> = choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
         bus_address: bus_address.as_deref(),
@@ -266,7 +358,11 @@ pub(crate) fn route_for_this_worktree(invocation: &CommitInvocation<'_>, timing:
         real_git: invocation.context.real_git.as_path(),
         git_dir: git_dir.as_path(),
     });
-    let Some(Route { address, provision: provisioning }) = route else {
+    let Some(Route {
+        address,
+        provision: provisioning,
+    }) = route
+    else {
         return Err(refusal_without_route(git_dir.as_path()));
     };
     // From here on the commit is recorded; one that stopped above, on a machine with no way to start a service, took no time
@@ -288,14 +384,22 @@ pub(crate) fn route_for_this_worktree(invocation: &CommitInvocation<'_>, timing:
 /// ```ts
 /// const config = managedClientConfig(address, provisioning)
 /// ```
-pub(crate) fn managed_client_config(address: Bind, provisioning: Option<&ProvisionHost>) -> ClientConfig {
+pub(crate) fn managed_client_config(
+    address: Bind,
+    provisioning: Option<&ProvisionHost>,
+) -> ClientConfig {
     return ClientConfig {
         address,
         activation: Activation::Managed,
         start_wait: START_WAIT,
         heartbeat_silence: HEARTBEAT_SILENCE,
         start_watch: provisioning.map(manager_watch_for),
-        keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING, waiting_notice_after: crate::wait_ceilings::waiting_notice_after(),
+        keep_fresh: None,
+        answer_ceiling: crate::wait_ceilings::ANSWER_CEILING,
+        withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING,
+        extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
+        start_ceiling: crate::wait_ceilings::START_CEILING,
+        waiting_notice_after: crate::wait_ceilings::waiting_notice_after(),
     };
 }
 
@@ -315,7 +419,9 @@ pub(crate) fn refusal_without_route(git_dir: &Path) -> TransactionStop {
             "{unreachable}, so this commit was not made and nothing was written. If the repository is on a drive that is not mounted, mount it and run the commit again."
         ));
     }
-    return crate::commit_transaction::client_stop(ClientFailure::NoActivation(platform_without_manager()));
+    return crate::commit_transaction::client_stop(ClientFailure::NoActivation(
+        platform_without_manager(),
+    ));
 }
 
 /// Controls of the stop for a worktree without a route.

@@ -31,32 +31,55 @@
 //! for (const group of coalesce(await claimAll(workDir, ['push', 'maintenance']))) settle(group, await handler(group));
 //! ```
 
-pub use crate::service_work_handlers_replanning_and_acceptance::*;
-pub(crate) use crate::service_work_common_directory::common_directory_of;
-pub(crate) use crate::service_work_branch_is_gone::branch_is_gone_words_awaiting;
-pub use crate::service_work_drains_awaiting::{drain_common_records_planned_awaiting, drain_planned_awaiting, drain_planned_with_awaiting};
+use crate::auto_push::AutoPushOutcome;
 use crate::auto_push::push_once_awaiting;
 use crate::auto_push_single_flight::PushGit;
 use crate::child_environment::environment_with_overlay;
-use crate::config_snapshot::read_config_snapshot_awaiting;
+use crate::claim_time::ClaimTime;
 /// The synchronous configuration read,
 /// which only the control that builds the push's Git without the runtime asks.
 #[cfg(test)]
 use crate::config_snapshot::read_config_snapshot;
+use crate::config_snapshot::read_config_snapshot_awaiting;
 use crate::lfs_pre_push::uses_lfs;
-use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with_awaiting};
-use crate::auto_push::AutoPushOutcome;
-use crate::claim_time::ClaimTime;
+use crate::maintenance_run::{
+    AutoMaintenanceOutcome,
+    run_auto_maintenance_with_awaiting,
+};
 use crate::push_retry::Retrying;
-use crate::push_retry_failure::{final_failure, plain_words, retried_failure_record, unrecognised_rejection};
+use crate::push_retry_failure::{
+    final_failure,
+    plain_words,
+    retried_failure_record,
+    unrecognised_rejection,
+};
 use crate::service_claim_renewal_running::Renewal;
-use crate::service_review::{options_for, review_item, review_item_awaiting, review_variables};
+use crate::service_review::{
+    options_for,
+    review_item,
+    review_item_awaiting,
+    review_variables,
+};
 use crate::service_review_key::ReviewKey;
+pub(crate) use crate::service_work_branch_is_gone::branch_is_gone_words_awaiting;
+pub(crate) use crate::service_work_common_directory::common_directory_of;
+pub use crate::service_work_drains_awaiting::{
+    drain_common_records_planned_awaiting,
+    drain_planned_awaiting,
+    drain_planned_with_awaiting,
+};
+pub use crate::service_work_handlers_replanning_and_acceptance::*;
 use crate::standards_review_run::ReviewOptions;
 use crate::transaction_git::GitContext;
 use crate::work_item::WorkItem;
-use crate::work_item_holding::{BlockedVerdict, blocked_verdicts};
-use std::path::{Path, PathBuf};
+use crate::work_item_holding::{
+    BlockedVerdict,
+    blocked_verdicts,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// How long a claim goes without a renewal before another instance runs its item again;
@@ -138,19 +161,34 @@ const REMOVAL_THREAD_NAME: &str = "cli-git-worktree-removal";
 /// ```ts
 /// const wait = await drain(gitDir, handlers, readClaimTime())
 /// ```
-pub fn drain(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime) -> Option<Duration> {
+pub fn drain(
+    git_dir: &Path,
+    handlers: &(dyn WorkHandlers + Sync),
+    now: &ClaimTime,
+) -> Option<Duration> {
     return drain_with_lease(git_dir, handlers, now, CLAIM_LEASE);
 }
 
 /// `drain` with the lease given,
 /// so a test can use a short one.
-pub fn drain_with_lease(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, lease: Duration) -> Option<Duration> {
+pub fn drain_with_lease(
+    git_dir: &Path,
+    handlers: &(dyn WorkHandlers + Sync),
+    now: &ClaimTime,
+    lease: Duration,
+) -> Option<Duration> {
     return drain_with_renewal(git_dir, handlers, now, lease, Renewal::Timed);
 }
 
 /// `drain_with_lease` with the way its claims are kept fresh given,
 /// so a control can drive the renewal itself.
-pub fn drain_with_renewal(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, lease: Duration, renewal: Renewal<'_>) -> Option<Duration> {
+pub fn drain_with_renewal(
+    git_dir: &Path,
+    handlers: &(dyn WorkHandlers + Sync),
+    now: &ClaimTime,
+    lease: Duration,
+    renewal: Renewal<'_>,
+) -> Option<Duration> {
     return drain_planned_with(git_dir, handlers, now, lease, renewal, &Retrying::none()).wait;
 }
 
@@ -159,8 +197,20 @@ pub fn drain_with_renewal(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), 
 /// and the changes the drain asks of the retry plan are
 /// given back with the wait,
 /// for the service loop to apply.
-pub fn drain_planned(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, retrying: &Retrying) -> Drained {
-    return drain_planned_with(git_dir, handlers, now, CLAIM_LEASE, Renewal::Timed, retrying);
+pub fn drain_planned(
+    git_dir: &Path,
+    handlers: &(dyn WorkHandlers + Sync),
+    now: &ClaimTime,
+    retrying: &Retrying,
+) -> Drained {
+    return drain_planned_with(
+        git_dir,
+        handlers,
+        now,
+        CLAIM_LEASE,
+        Renewal::Timed,
+        retrying,
+    );
 }
 
 /// What:
@@ -177,11 +227,29 @@ pub fn drain_planned(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: 
 /// ```ts
 /// runOnRuntime(drainPlannedWithAwaiting(gitDir, handlers, now, lease, renewal, retrying))
 /// ```
-pub fn drain_planned_with(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, lease: Duration, renewal: Renewal<'_>, retrying: &Retrying) -> Drained {
-    return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(git_dir, handlers, now, lease, renewal, retrying, &SERVICE_KINDS)) {
+pub fn drain_planned_with(
+    git_dir: &Path,
+    handlers: &(dyn WorkHandlers + Sync),
+    now: &ClaimTime,
+    lease: Duration,
+    renewal: Renewal<'_>,
+    retrying: &Retrying,
+) -> Drained {
+    return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(
+        git_dir,
+        handlers,
+        now,
+        lease,
+        renewal,
+        retrying,
+        &SERVICE_KINDS,
+    )) {
         Ok(drained) => drained,
         Err(refusal) => {
-            crate::diagnostic_log::debug("drainPlanned", format!("the drain of {} was not run: {refusal}", git_dir.display()).as_str());
+            crate::diagnostic_log::debug(
+                "drainPlanned",
+                format!("the drain of {} was not run: {refusal}", git_dir.display()).as_str(),
+            );
             Drained::default()
         }
     };
@@ -212,13 +280,22 @@ pub fn drain_planned_with(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), 
 /// ```ts
 /// const wait = await drainCommonRecords(linkedGitDir, handlers, now)
 /// ```
-pub fn drain_common_records(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime) -> Option<Duration> {
+pub fn drain_common_records(
+    git_dir: &Path,
+    handlers: &(dyn WorkHandlers + Sync),
+    now: &ClaimTime,
+) -> Option<Duration> {
     return drain_common_records_with_lease(git_dir, handlers, now, CLAIM_LEASE);
 }
 
 /// `drain_common_records` with the lease given,
 /// so a test can use a short one.
-pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, lease: Duration) -> Option<Duration> {
+pub fn drain_common_records_with_lease(
+    git_dir: &Path,
+    handlers: &(dyn WorkHandlers + Sync),
+    now: &ClaimTime,
+    lease: Duration,
+) -> Option<Duration> {
     return drain_common_records_planned(git_dir, handlers, now, lease, &Retrying::none()).wait;
 }
 
@@ -243,11 +320,31 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &(dyn WorkHandl
 /// ```ts
 /// runOnRuntime(drainCommonRecordsPlannedAwaiting(gitDir, handlers, now, lease, retrying))
 /// ```
-pub fn drain_common_records_planned(git_dir: &Path, handlers: &(dyn WorkHandlers + Sync), now: &ClaimTime, lease: Duration, retrying: &Retrying) -> Drained {
-    return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(git_dir, handlers, now, lease, retrying, &SERVICE_KINDS)) {
+pub fn drain_common_records_planned(
+    git_dir: &Path,
+    handlers: &(dyn WorkHandlers + Sync),
+    now: &ClaimTime,
+    lease: Duration,
+    retrying: &Retrying,
+) -> Drained {
+    return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(
+        git_dir,
+        handlers,
+        now,
+        lease,
+        retrying,
+        &SERVICE_KINDS,
+    )) {
         Ok(drained) => drained,
         Err(refusal) => {
-            crate::diagnostic_log::debug("drainCommonRecords", format!("the drain of the common records of {} was not run: {refusal}", git_dir.display()).as_str());
+            crate::diagnostic_log::debug(
+                "drainCommonRecords",
+                format!(
+                    "the drain of the common records of {} was not run: {refusal}",
+                    git_dir.display()
+                )
+                .as_str(),
+            );
             Drained::default()
         }
     };
@@ -293,15 +390,29 @@ impl GitHandlers {
     /// The same handlers with variables added to the environment of every push;
     /// tests only.
     #[cfg(test)]
-    pub fn with_push_environment(mut self, variables: &[(&str, &str)]) -> GitHandlers {
-        self.push_environment = variables.iter().map(|(name, value)| { return (std::ffi::OsString::from(name), std::ffi::OsString::from(value)); }).collect();
+    pub fn with_push_environment(
+        mut self,
+        variables: &[(&str, &str)],
+    ) -> GitHandlers {
+        self.push_environment = variables
+            .iter()
+            .map(|(name, value)| {
+                return (
+                    std::ffi::OsString::from(name),
+                    std::ffi::OsString::from(value),
+                );
+            })
+            .collect();
         return self;
     }
 
     /// The same handlers with the review's gateway call sent to `endpoint`;
     /// tests only.
     #[cfg(test)]
-    pub fn with_review_endpoint(mut self, endpoint: &str) -> GitHandlers {
+    pub fn with_review_endpoint(
+        mut self,
+        endpoint: &str,
+    ) -> GitHandlers {
         self.review_endpoint = Some(endpoint.to_string());
         return self;
     }
@@ -312,7 +423,10 @@ impl GitHandlers {
     /// the push environment) are carried into the copy,
     /// so a round runs the way the
     /// handlers it was made from are set to run.
-    pub fn for_round(&self, keys: std::collections::HashMap<PathBuf, ReviewKey>) -> GitHandlers {
+    pub fn for_round(
+        &self,
+        keys: std::collections::HashMap<PathBuf, ReviewKey>,
+    ) -> GitHandlers {
         return GitHandlers {
             context: self.context.clone(),
             review_keys: keys,
@@ -325,7 +439,10 @@ impl GitHandlers {
 
     /// The credential held for this repository,
     /// if the round brought one.
-    fn review_key_of(&self, git_dir: &Path) -> Option<ReviewKey> {
+    fn review_key_of(
+        &self,
+        git_dir: &Path,
+    ) -> Option<ReviewKey> {
         return self.review_keys.get(git_dir).cloned();
     }
 
@@ -333,14 +450,25 @@ impl GitHandlers {
     /// asked without the runtime;
     /// a control builds it this way.
     #[cfg(test)]
-    fn push_git(&self, item: &WorkItem) -> PushGit {
+    fn push_git(
+        &self,
+        item: &WorkItem,
+    ) -> PushGit {
         let cwd: PathBuf = item.repository.clone();
-        let programs: Option<crate::service_push_programs_held_in_memory::PushPrograms> = crate::service_push_programs_held_in_memory::held(item.git_dir.as_path(), item.id().as_str());
-        let (inherited, overlay): (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) =
-            self.push_environment_of(programs.as_ref());
+        let programs: Option<crate::service_push_programs_held_in_memory::PushPrograms> =
+            crate::service_push_programs_held_in_memory::held(
+                item.git_dir.as_path(),
+                item.id().as_str(),
+            );
+        let (inherited, overlay): (
+            Vec<(std::ffi::OsString, std::ffi::OsString)>,
+            Vec<(std::ffi::OsString, std::ffi::OsString)>,
+        ) = self.push_environment_of(programs.as_ref());
         return PushGit {
             real_git: self.context.real_git.clone(),
-            lfs: read_config_snapshot(&self.context, cwd.as_path()).as_ref().is_none_or(uses_lfs),
+            lfs: read_config_snapshot(&self.context, cwd.as_path())
+                .as_ref()
+                .is_none_or(uses_lfs),
             cwd,
             environment: environment_with_overlay(inherited.as_slice(), overlay.as_slice()),
         };
@@ -357,14 +485,26 @@ impl GitHandlers {
     /// ```ts
     /// async pushGitOnTheRuntime(item): Promise<PushGit>
     /// ```
-    async fn push_git_awaiting(&self, item: &WorkItem) -> PushGit {
+    async fn push_git_awaiting(
+        &self,
+        item: &WorkItem,
+    ) -> PushGit {
         let cwd: PathBuf = item.repository.clone();
-        let programs: Option<crate::service_push_programs_held_in_memory::PushPrograms> = crate::service_push_programs_held_in_memory::held(item.git_dir.as_path(), item.id().as_str());
-        let (inherited, overlay): (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) =
-            self.push_environment_of(programs.as_ref());
+        let programs: Option<crate::service_push_programs_held_in_memory::PushPrograms> =
+            crate::service_push_programs_held_in_memory::held(
+                item.git_dir.as_path(),
+                item.id().as_str(),
+            );
+        let (inherited, overlay): (
+            Vec<(std::ffi::OsString, std::ffi::OsString)>,
+            Vec<(std::ffi::OsString, std::ffi::OsString)>,
+        ) = self.push_environment_of(programs.as_ref());
         return PushGit {
             real_git: self.context.real_git.clone(),
-            lfs: read_config_snapshot_awaiting(&self.context, cwd.as_path()).await.as_ref().is_none_or(uses_lfs),
+            lfs: read_config_snapshot_awaiting(&self.context, cwd.as_path())
+                .await
+                .as_ref()
+                .is_none_or(uses_lfs),
             cwd,
             environment: environment_with_overlay(inherited.as_slice(), overlay.as_slice()),
         };
@@ -406,7 +546,10 @@ impl GitHandlers {
     fn push_environment_of(
         &self,
         programs: Option<&crate::service_push_programs_held_in_memory::PushPrograms>,
-    ) -> (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) {
+    ) -> (
+        Vec<(std::ffi::OsString, std::ffi::OsString)>,
+        Vec<(std::ffi::OsString, std::ffi::OsString)>,
+    ) {
         #[cfg(test)]
         let extra: &[(std::ffi::OsString, std::ffi::OsString)] = self.push_environment.as_slice();
         #[cfg(not(test))]
@@ -418,11 +561,17 @@ impl GitHandlers {
 /// Whether a branch exists,
 /// and the commit it names,
 /// asked of Git on the runtime.
-use crate::service_work_branch_questions::{branch_exists_awaiting, branch_tip_awaiting};
+use crate::service_work_branch_questions::{
+    branch_exists_awaiting,
+    branch_tip_awaiting,
+};
 
 /// Trait implementation for the real Git.
 impl WorkHandlers for GitHandlers {
-    fn push(&self, items: &[WorkItem]) -> Verdict {
+    fn push(
+        &self,
+        items: &[WorkItem],
+    ) -> Verdict {
         return match crate::lazy_runtime::run_on_runtime(self.push_awaiting(items)) {
             Ok(verdict) => verdict,
             // The work did not happen, so the item is tried again rather than reported as a push that failed.
@@ -430,100 +579,146 @@ impl WorkHandlers for GitHandlers {
         };
     }
 
-    fn push_awaiting<'a>(&'a self, items: &'a [WorkItem]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn push_awaiting<'a>(
+        &'a self,
+        items: &'a [WorkItem],
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
-        let Some(newest) = items.last() else { return Verdict::Done };
-        let git: PushGit = self.push_git_awaiting(newest).await;
-        // What: A push whose command chose its transport stops here when this service no longer holds that choice, or holds
-        //  it as a value this release cannot write in a line (`push_without_its_transport::gone`).
-        // Why:  Those settings live only in the memory of the service that received them, so running the push through the
-        //  manager's environment would speak a transport nobody asked for; nothing was sent, so the person is told why and
-        //  given the command that pushes.
-        let held: Option<crate::service_push_programs_held_in_memory::PushPrograms> =
-            crate::service_push_programs_held_in_memory::held(newest.git_dir.as_path(), newest.id().as_str());
-        if let Some(gone) = crate::push_without_its_transport::gone(held.as_ref(), newest.transport) {
-            return Verdict::Skipped(crate::push_without_its_transport::words(&git, newest, gone).await);
-        }
-        // The commit this push may send is fixed before the worktree's records are read. Every commit's record is written before its
-        //  branch moves, so every commit of the branch at this reading has a record in the reading, while a commit that lands after
-        //  it has none; sending the branch's reference instead would publish that later commit before its own gate answered, and that
-        //  gate may keep it local.
-        let Some(sent_up_to) = branch_tip_awaiting(&git, newest.branch_ref.as_str()).await else {
-            // The branch named no commit at that reading, so nothing of it can be sent: it is either gone, which is said with wherever
-            //  the commit still lives, or Git could not be asked, and the push is tried again. Never is the branch's reference sent
-            //  instead, because it may name a commit by now.
-            return match branch_exists_awaiting(&git, newest.branch_ref.as_str()).await {
-                Some(false) => Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await),
-                _ => Verdict::Retry(format!(
-                    "the commit {} was not pushed: {} named no commit in this repository when the push read it, and the push is tried again",
-                    newest.oid, newest.branch_ref
-                )),
+            let Some(newest) = items.last() else {
+                return Verdict::Done;
             };
-        };
-        // The verdicts a post-commit gate kept are the worktree's own records: they are what makes this push stop before a commit the
-        //  gate refused, however far the branch has moved since.
-        let work: PathBuf = work_directory(newest.git_dir.as_path());
-        let blocked: Vec<BlockedVerdict> = blocked_verdicts(work.as_path());
-        // A commit whose own gate still runs is not decided either, and a push of the branch sends every commit up to the tip: the
-        //  record is what keeps the tip where the gate has not answered yet (`work_item_holding.rs`).
-        let undecided: Vec<String> = crate::work_item_holding::undecided_commits(work.as_path(), newest.branch_ref.as_str());
-        let mut output: Vec<u8> = Vec::new();
-        return match push_once_awaiting(&git, newest.branch_ref.as_str(), sent_up_to.as_str(), blocked.as_slice(), undecided.as_slice(), &mut output).await {
-            // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
-            //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
-            Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
-            // A verdict held the push back: nothing was sent and nothing failed, so the branch is tried again by the retry plan the
-            //  service keeps, and the words go to the person's record with the promise that plan keeps.
-            Ok(result) if result.outcome == AutoPushOutcome::HeldBack => Verdict::Retry(result.shown),
-            Ok(result) if result.exit_code == 0 => {
-                // A matching push can carry a sibling the remote refused while this branch arrived: the branch is done, and the
-                //  refused sibling is published nowhere, so the journal names it here and the record the next command shows carries
-                //  it to the person.
-                for line in crate::matching_push_delivered_the_recorded_branch::refused_lines(result.shown.as_str()) {
-                    crate::service_warn!("a branch of this push was refused and was not published: {line}");
+            let git: PushGit = self.push_git_awaiting(newest).await;
+            // What: A push whose command chose its transport stops here when this service no longer holds that choice, or holds
+            //  it as a value this release cannot write in a line (`push_without_its_transport::gone`).
+            // Why:  Those settings live only in the memory of the service that received them, so running the push through the
+            //  manager's environment would speak a transport nobody asked for; nothing was sent, so the person is told why and
+            //  given the command that pushes.
+            let held: Option<crate::service_push_programs_held_in_memory::PushPrograms> =
+                crate::service_push_programs_held_in_memory::held(
+                    newest.git_dir.as_path(),
+                    newest.id().as_str(),
+                );
+            if let Some(gone) =
+                crate::push_without_its_transport::gone(held.as_ref(), newest.transport)
+            {
+                return Verdict::Skipped(
+                    crate::push_without_its_transport::words(&git, newest, gone).await,
+                );
+            }
+            // The commit this push may send is fixed before the worktree's records are read. Every commit's record is written before its
+            //  branch moves, so every commit of the branch at this reading has a record in the reading, while a commit that lands after
+            //  it has none; sending the branch's reference instead would publish that later commit before its own gate answered, and that
+            //  gate may keep it local.
+            let Some(sent_up_to) = branch_tip_awaiting(&git, newest.branch_ref.as_str()).await
+            else {
+                // The branch named no commit at that reading, so nothing of it can be sent: it is either gone, which is said with wherever
+                //  the commit still lives, or Git could not be asked, and the push is tried again. Never is the branch's reference sent
+                //  instead, because it may name a commit by now.
+                return match branch_exists_awaiting(&git, newest.branch_ref.as_str()).await {
+                    Some(false) => {
+                        Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
+                    }
+                    _ => Verdict::Retry(format!(
+                        "the commit {} was not pushed: {} named no commit in this repository when the push read it, and the push is tried again",
+                        newest.oid, newest.branch_ref
+                    )),
+                };
+            };
+            // The verdicts a post-commit gate kept are the worktree's own records: they are what makes this push stop before a commit the
+            //  gate refused, however far the branch has moved since.
+            let work: PathBuf = work_directory(newest.git_dir.as_path());
+            let blocked: Vec<BlockedVerdict> = blocked_verdicts(work.as_path());
+            // A commit whose own gate still runs is not decided either, and a push of the branch sends every commit up to the tip: the
+            //  record is what keeps the tip where the gate has not answered yet (`work_item_holding.rs`).
+            let undecided: Vec<String> = crate::work_item_holding::undecided_commits(
+                work.as_path(),
+                newest.branch_ref.as_str(),
+            );
+            let mut output: Vec<u8> = Vec::new();
+            return match push_once_awaiting(
+                &git,
+                newest.branch_ref.as_str(),
+                sent_up_to.as_str(),
+                blocked.as_slice(),
+                undecided.as_slice(),
+                &mut output,
+            )
+            .await
+            {
+                // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
+                //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
+                Ok(result) if result.outcome == AutoPushOutcome::Skipped => {
+                    Verdict::Skipped(result.shown)
                 }
-                // A push that exits 0 still holds words the person needs: the server's own `remote:` lines, the account of a
-                //  reconcile it made, and the refusal of a remote-tracking reference it could not update, which is the only sign
-                //  that the local view stayed behind. The command that ran the push returned long before it ended, so those words
-                //  go to a record the next command shows once, which the step that settles this verdict writes. A push that simply
-                //  landed says nothing and leaves no record.
-                // The record is named for the commit this push sent, never for the newest record the drain claimed: a commit that
-                //  landed after that claim is what the push sends (`sent_up_to`, read from the branch), so naming the record for the
-                //  claimed commit would overwrite an unread record of that commit with words about another one, and label them as its.
-                Verdict::Delivered { commit: sent_up_to, said: result.shown }
-            }
-            // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
-            //  the commit is named for the person with wherever it still lives. The repository is asked, never the words of the
-            //  output: any program a push runs can print a line about a branch of its own.
-            Ok(_result) if branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false) => {
-                Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
-            }
-            // A conflict, a login the service does not have and a server hook's decline need the person and stop the retry;
-            //  every other failure can pass (a stall, the network, an LFS server error, a held lock, a host key this machine
-            //  does not know), and the record of one whose words ask something of the person says what to do and that the
-            //  service keeps its schedule.
-            Ok(result) => match final_failure(result.shown.as_str()) {
-                Some(cause) => Verdict::Failed(match plain_words(cause) {
-                    Some(words) => format!("{words}\n{}", result.shown),
-                    None => result.shown,
-                }),
-                None => {
-                    // A rejection by the server whose reason is not known is tried again, and named so that it can be learned.
-                    if let Some(line) = unrecognised_rejection(result.shown.as_str()) {
+                // A verdict held the push back: nothing was sent and nothing failed, so the branch is tried again by the retry plan the
+                //  service keeps, and the words go to the person's record with the promise that plan keeps.
+                Ok(result) if result.outcome == AutoPushOutcome::HeldBack => {
+                    Verdict::Retry(result.shown)
+                }
+                Ok(result) if result.exit_code == 0 => {
+                    // A matching push can carry a sibling the remote refused while this branch arrived: the branch is done, and the
+                    //  refused sibling is published nowhere, so the journal names it here and the record the next command shows carries
+                    //  it to the person.
+                    for line in crate::matching_push_delivered_the_recorded_branch::refused_lines(
+                        result.shown.as_str(),
+                    ) {
                         crate::service_warn!(
-                            "the server rejected the push {} for a reason this release does not know, so it is tried again: {line}",
-                            crate::service_timing::in_the_repository_at(newest.repository.as_path())
+                            "a branch of this push was refused and was not published: {line}"
                         );
                     }
-                    Verdict::Retry(retried_failure_record(result.shown.as_str()))
+                    // A push that exits 0 still holds words the person needs: the server's own `remote:` lines, the account of a
+                    //  reconcile it made, and the refusal of a remote-tracking reference it could not update, which is the only sign
+                    //  that the local view stayed behind. The command that ran the push returned long before it ended, so those words
+                    //  go to a record the next command shows once, which the step that settles this verdict writes. A push that simply
+                    //  landed says nothing and leaves no record.
+                    // The record is named for the commit this push sent, never for the newest record the drain claimed: a commit that
+                    //  landed after that claim is what the push sends (`sent_up_to`, read from the branch), so naming the record for the
+                    //  claimed commit would overwrite an unread record of that commit with words about another one, and label them as its.
+                    Verdict::Delivered {
+                        commit: sent_up_to,
+                        said: result.shown,
+                    }
                 }
-            },
-            Err(error) => Verdict::Retry(format!("{error}")),
-        };
+                // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
+                //  the commit is named for the person with wherever it still lives. The repository is asked, never the words of the
+                //  output: any program a push runs can print a line about a branch of its own.
+                Ok(_result)
+                    if branch_exists_awaiting(&git, newest.branch_ref.as_str()).await
+                        == Some(false) =>
+                {
+                    Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
+                }
+                // A conflict, a login the service does not have and a server hook's decline need the person and stop the retry;
+                //  every other failure can pass (a stall, the network, an LFS server error, a held lock, a host key this machine
+                //  does not know), and the record of one whose words ask something of the person says what to do and that the
+                //  service keeps its schedule.
+                Ok(result) => match final_failure(result.shown.as_str()) {
+                    Some(cause) => Verdict::Failed(match plain_words(cause) {
+                        Some(words) => format!("{words}\n{}", result.shown),
+                        None => result.shown,
+                    }),
+                    None => {
+                        // A rejection by the server whose reason is not known is tried again, and named so that it can be learned.
+                        if let Some(line) = unrecognised_rejection(result.shown.as_str()) {
+                            crate::service_warn!(
+                                "the server rejected the push {} for a reason this release does not know, so it is tried again: {line}",
+                                crate::service_timing::in_the_repository_at(
+                                    newest.repository.as_path()
+                                )
+                            );
+                        }
+                        Verdict::Retry(retried_failure_record(result.shown.as_str()))
+                    }
+                },
+                Err(error) => Verdict::Retry(format!("{error}")),
+            };
         });
     }
 
-    fn trash(&self, item: &WorkItem) -> Verdict {
+    fn trash(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict {
         return crate::worktree_trash::empty_trash(item);
     }
 
@@ -542,8 +737,13 @@ impl WorkHandlers for GitHandlers {
     /// ```ts
     /// trashAwaiting(item) { return emptyTrashAwaiting(item); }
     /// ```
-    fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move { return crate::worktree_trash::empty_trash_awaiting(item).await; });
+    fn trash_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            return crate::worktree_trash::empty_trash_awaiting(item).await;
+        });
     }
 
     /// What:
@@ -561,8 +761,13 @@ impl WorkHandlers for GitHandlers {
     /// prewarmAwaiting(item) { return prewarmAwaiting(item); }
     /// ```
     #[cfg(target_os = "linux")]
-    fn prewarm_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move { return crate::package_repair_prewarm_job::prewarm_awaiting(item).await; });
+    fn prewarm_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            return crate::package_repair_prewarm_job::prewarm_awaiting(item).await;
+        });
     }
 
     /// What:
@@ -579,8 +784,13 @@ impl WorkHandlers for GitHandlers {
     /// relinkAwaiting(item) { return relinkAwaiting(item); }
     /// ```
     #[cfg(target_os = "linux")]
-    fn relink_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move { return crate::package_repair_relink_job::relink_awaiting(item).await; });
+    fn relink_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            return crate::package_repair_relink_job::relink_awaiting(item).await;
+        });
     }
 
     /// What:
@@ -594,7 +804,10 @@ impl WorkHandlers for GitHandlers {
     /// ```ts
     /// subvolumeDelete(item) { return deleteSubvolumeOf(item); }
     /// ```
-    fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
+    fn subvolume_delete(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict {
         return crate::worktree_remove_hand_over::delete_subvolume_of(item);
     }
 
@@ -622,22 +835,43 @@ impl WorkHandlers for GitHandlers {
     /// ```ts
     /// subvolumeDeleteAwaiting(item) { return await withAnOwnThreadWithin(OBJECT_STEP_CEILING, () => deleteSubvolumeOf(item)); }
     /// ```
-    fn subvolume_delete_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn subvolume_delete_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
             let held: WorkItem = item.clone();
-            let (sender, receiver): (tokio::sync::oneshot::Sender<Verdict>, tokio::sync::oneshot::Receiver<Verdict>) = tokio::sync::oneshot::channel::<Verdict>();
-            let started = std::thread::Builder::new().name(String::from(REMOVAL_THREAD_NAME)).spawn(move || {
-                // A round that stopped waiting is gone with its receiver, and the verdict goes with the send.
-                let _sent = sender.send(crate::worktree_remove_hand_over::delete_subvolume_of(&held));
-            });
+            let (sender, receiver): (
+                tokio::sync::oneshot::Sender<Verdict>,
+                tokio::sync::oneshot::Receiver<Verdict>,
+            ) = tokio::sync::oneshot::channel::<Verdict>();
+            let started = std::thread::Builder::new()
+                .name(String::from(REMOVAL_THREAD_NAME))
+                .spawn(move || {
+                    // A round that stopped waiting is gone with its receiver, and the verdict goes with the send.
+                    let _sent =
+                        sender.send(crate::worktree_remove_hand_over::delete_subvolume_of(&held));
+                });
             if started.is_err() {
-                return Verdict::Retry(format!("the system refused a thread for the removal of {}", item.repository.display()));
+                return Verdict::Retry(format!(
+                    "the system refused a thread for the removal of {}",
+                    item.repository.display()
+                ));
             }
-            return match tokio::time::timeout(crate::wait_ceilings::OBJECT_STEP_CEILING, receiver).await {
+            return match tokio::time::timeout(crate::wait_ceilings::OBJECT_STEP_CEILING, receiver)
+                .await
+            {
                 Ok(Ok(verdict)) => verdict,
                 // The thread went without a verdict, which a removal cannot do while it runs.
-                Ok(Err(_dropped)) => Verdict::Retry(format!("the removal of {} gave no verdict", item.repository.display())),
-                Err(_expired) => Verdict::Retry(format!("the removal of {} gave no answer within {:?}", item.repository.display(), crate::wait_ceilings::OBJECT_STEP_CEILING)),
+                Ok(Err(_dropped)) => Verdict::Retry(format!(
+                    "the removal of {} gave no verdict",
+                    item.repository.display()
+                )),
+                Err(_expired) => Verdict::Retry(format!(
+                    "the removal of {} gave no answer within {:?}",
+                    item.repository.display(),
+                    crate::wait_ceilings::OBJECT_STEP_CEILING
+                )),
             };
         });
     }
@@ -656,7 +890,10 @@ impl WorkHandlers for GitHandlers {
     /// snapshotAhead(item) { return makeOneAhead(item); }
     /// ```
     #[cfg(target_os = "linux")]
-    fn snapshot_ahead(&self, item: &WorkItem) -> Verdict {
+    fn snapshot_ahead(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict {
         return crate::worktree_snapshot_ahead_job::snapshot_ahead(item);
     }
 
@@ -678,42 +915,77 @@ impl WorkHandlers for GitHandlers {
     /// snapshotAheadAwaiting(item) { return makeOneAhead(item); }
     /// ```
     #[cfg(target_os = "linux")]
-    fn snapshot_ahead_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn snapshot_ahead_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
             let held: WorkItem = item.clone();
-            return match crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(move || { return crate::worktree_snapshot_ahead_job::snapshot_ahead(&held); }).await {
+            return match crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(
+                move || {
+                    return crate::worktree_snapshot_ahead_job::snapshot_ahead(&held);
+                },
+            )
+            .await
+            {
                 Ok(verdict) => verdict,
                 // Nothing was made and nothing is lost: the record keeps its lease and the next round finds it.
-                Err(reason) => Verdict::Retry(format!("the snapshot ahead of {} did not run ({reason})", item.repository.display())),
+                Err(reason) => Verdict::Retry(format!(
+                    "the snapshot ahead of {} did not run ({reason})",
+                    item.repository.display()
+                )),
             };
         });
     }
 
-    fn maintenance(&self, item: &WorkItem) -> Verdict {
+    fn maintenance(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict {
         return match crate::lazy_runtime::run_on_runtime(self.maintenance_awaiting(item)) {
             Ok(verdict) => verdict,
-            Err(refusal) => Verdict::Failed(format!("the automatic upkeep could not run: {refusal}")),
+            Err(refusal) => {
+                Verdict::Failed(format!("the automatic upkeep could not run: {refusal}"))
+            }
         };
     }
 
-    fn maintenance_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn maintenance_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
-            let answer: Verdict = match run_auto_maintenance_with_awaiting(&self.context, item.repository.as_path(), None).await {
-                Ok(AutoMaintenanceOutcome::Exited(code)) if code != 0 => Verdict::Failed(format!("it exited with status {code}")),
+            let answer: Verdict = match run_auto_maintenance_with_awaiting(
+                &self.context,
+                item.repository.as_path(),
+                None,
+            )
+            .await
+            {
+                Ok(AutoMaintenanceOutcome::Exited(code)) if code != 0 => {
+                    Verdict::Failed(format!("it exited with status {code}"))
+                }
                 Ok(_) => Verdict::Done,
                 Err(error) => Verdict::Failed(format!("{error:?}")),
             };
             // The upkeep is where the wrapper prunes the references it keeps built commits on, by age and by size: the
             //  person's commit has returned, and nothing a command waits for is behind this step
             //  (`kept_reference_pass.rs`).
-            crate::kept_reference_pass::prune_after_a_commit(&self.context, item.git_dir.as_path()).await;
+            crate::kept_reference_pass::prune_after_a_commit(&self.context, item.git_dir.as_path())
+                .await;
             return answer;
         });
     }
 
-    fn review(&self, item: &WorkItem) -> Verdict {
+    fn review(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict {
         let key: Option<ReviewKey> = self.review_key_of(item.git_dir.as_path());
-        #[cfg_attr(not(test), expect(unused_mut, reason = "only a test replaces the endpoint"))]
+        #[cfg_attr(
+            not(test),
+            expect(unused_mut, reason = "only a test replaces the endpoint")
+        )]
         let mut options: ReviewOptions = options_for(item, &review_variables(key.as_ref()));
         #[cfg(test)]
         if let Some(endpoint) = self.review_endpoint.as_ref() {
@@ -738,10 +1010,16 @@ impl WorkHandlers for GitHandlers {
     /// ```ts
     /// reviewAwaiting(item) { return reviewItemAwaiting(context, item, optionsOf(item)); }
     /// ```
-    fn review_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn review_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
             let key: Option<ReviewKey> = self.review_key_of(item.git_dir.as_path());
-            #[cfg_attr(not(test), expect(unused_mut, reason = "only a test replaces the endpoint"))]
+            #[cfg_attr(
+                not(test),
+                expect(unused_mut, reason = "only a test replaces the endpoint")
+            )]
             let mut options: ReviewOptions = options_for(item, &review_variables(key.as_ref()));
             #[cfg(test)]
             if let Some(endpoint) = self.review_endpoint.as_ref() {

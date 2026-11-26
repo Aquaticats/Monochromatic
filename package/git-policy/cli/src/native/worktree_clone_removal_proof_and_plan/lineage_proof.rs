@@ -32,15 +32,27 @@
 //! const proven = proveTheLineage(reads, recorded);
 //! ```
 
-use crate::worktree_clone_binding_record::binding_inventory::{EntryKind, InventoryRecord};
+use crate::worktree_clone_binding_record::binding_inventory::{
+    EntryKind,
+    InventoryRecord,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::PlanSnapshot;
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
-use crate::worktree_clone_removal_proof_and_plan::removal_inventory::{LiveInventory, LiveObject};
+use crate::worktree_clone_removal_proof_and_plan::removal_inventory::{
+    LiveInventory,
+    LiveObject,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use crate::worktree_removal_deferred_origin_check::origin_mark::{OriginMark, mark_of_reply};
-use crate::worktree_removal_deferred_origin_check::origin_verdict::{Verdict, judge_the_look};
+use crate::worktree_removal_deferred_origin_check::origin_mark::{
+    OriginMark,
+    mark_of_reply,
+};
+use crate::worktree_removal_deferred_origin_check::origin_verdict::{
+    Verdict,
+    judge_the_look,
+};
 use crate::worktree_removal_deferred_origin_check::removal_history::RemovalHistory;
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
 
@@ -127,7 +139,12 @@ pub struct ProvenRemoval {
 /// ```ts
 /// const proven = proveTheLineage(reads, recorded);
 /// ```
-pub fn prove_the_lineage(reads: &dyn RemovalPoolReads, recorded: &RecordedBinding, origin_inventory: &InventoryRecord, history: &RemovalHistory) -> Result<ProvenRemoval, RemovalStop> {
+pub fn prove_the_lineage(
+    reads: &dyn RemovalPoolReads,
+    recorded: &RecordedBinding,
+    origin_inventory: &InventoryRecord,
+    history: &RemovalHistory,
+) -> Result<ProvenRemoval, RemovalStop> {
     let pool: ObjectIdentity = identity_of(reads, recorded.pool.as_str())?;
     if pool.guid != recorded.pool_guid {
         return Err(RemovalStop::IdentityDiffers {
@@ -137,9 +154,15 @@ pub fn prove_the_lineage(reads: &dyn RemovalPoolReads, recorded: &RecordedBindin
             live: pool.guid.file_name(),
         });
     }
-    let clone_identity: DatasetIdentity = reads.identity(recorded.clone_dataset.as_str()).map_err(|reason| {
-        return RemovalStop::DoesNotAnswer { object: recorded.clone_dataset.clone(), reason };
-    })?;
+    let clone_identity: DatasetIdentity =
+        reads
+            .identity(recorded.clone_dataset.as_str())
+            .map_err(|reason| {
+                return RemovalStop::DoesNotAnswer {
+                    object: recorded.clone_dataset.clone(),
+                    reason,
+                };
+            })?;
     let clone: ObjectIdentity = identity_from(&clone_identity, recorded.clone_dataset.as_str())?;
     if clone.guid != recorded.clone_guid {
         return Err(RemovalStop::IdentityDiffers {
@@ -157,7 +180,8 @@ pub fn prove_the_lineage(reads: &dyn RemovalPoolReads, recorded: &RecordedBindin
             live: clone.createtxg.to_string(),
         });
     }
-    let live_origin: Option<String> = Some(clone_identity.stats.origin()).filter(|origin| return !origin.is_empty());
+    let live_origin: Option<String> =
+        Some(clone_identity.stats.origin()).filter(|origin| return !origin.is_empty());
     if live_origin.as_deref() != Some(recorded.origin_snapshot.as_str()) {
         return Err(RemovalStop::OriginIsNotTheRecordedOne {
             clone: recorded.clone_dataset.clone(),
@@ -165,10 +189,16 @@ pub fn prove_the_lineage(reads: &dyn RemovalPoolReads, recorded: &RecordedBindin
             live: live_origin,
         });
     }
-    let origin_snapshot_identity: DatasetIdentity = reads.identity(recorded.origin_snapshot.as_str()).map_err(|reason| {
-        return RemovalStop::DoesNotAnswer { object: recorded.origin_snapshot.clone(), reason };
-    })?;
-    let origin_snapshot: ObjectIdentity = identity_from(&origin_snapshot_identity, recorded.origin_snapshot.as_str())?;
+    let origin_snapshot_identity: DatasetIdentity = reads
+        .identity(recorded.origin_snapshot.as_str())
+        .map_err(|reason| {
+            return RemovalStop::DoesNotAnswer {
+                object: recorded.origin_snapshot.clone(),
+                reason,
+            };
+        })?;
+    let origin_snapshot: ObjectIdentity =
+        identity_from(&origin_snapshot_identity, recorded.origin_snapshot.as_str())?;
     if origin_snapshot.guid != recorded.origin_snapshot_guid {
         return Err(RemovalStop::IdentityDiffers {
             object: recorded.origin_snapshot.clone(),
@@ -195,14 +225,41 @@ pub fn prove_the_lineage(reads: &dyn RemovalPoolReads, recorded: &RecordedBindin
         });
     }
     let mark: OriginMark = mark_of_reply(&origin_snapshot_identity);
-    if let Verdict::Refused(refusal) = judge_the_look(recorded.clone_dataset.as_str(), recorded.slot.as_str(), recorded.origin_snapshot.as_str(), &mark) {
-        return Err(RemovalStop::OriginCheckRefused { refusal: Box::new(refusal), history: history.clone() });
+    if let Verdict::Refused(refusal) = judge_the_look(
+        recorded.clone_dataset.as_str(),
+        recorded.slot.as_str(),
+        recorded.origin_snapshot.as_str(),
+        &mark,
+    ) {
+        return Err(RemovalStop::OriginCheckRefused {
+            refusal: Box::new(refusal),
+            history: history.clone(),
+        });
     }
-    let inventory: LiveInventory = crate::worktree_clone_removal_proof_and_plan::removal_reads::whole_inventory(reads, recorded.clone_dataset.as_str(), clone.guid)
-        .map_err(|reason| return RemovalStop::InventoryUnreadable { clone: recorded.clone_dataset.clone(), reason })?;
+    let inventory: LiveInventory =
+        crate::worktree_clone_removal_proof_and_plan::removal_reads::whole_inventory(
+            reads,
+            recorded.clone_dataset.as_str(),
+            clone.guid,
+        )
+        .map_err(|reason| {
+            return RemovalStop::InventoryUnreadable {
+                clone: recorded.clone_dataset.clone(),
+                reason,
+            };
+        })?;
     prove_every_object_belongs(&inventory, recorded, origin_inventory)?;
     let own_snapshots: Vec<PlanSnapshot> = inventory.own_snapshots(recorded.clone_createtxg);
-    return Ok(ProvenRemoval { identities: ProvenIdentities { pool_guid: pool.guid, clone, origin_dataset, origin_snapshot }, inventory, own_snapshots });
+    return Ok(ProvenRemoval {
+        identities: ProvenIdentities {
+            pool_guid: pool.guid,
+            clone,
+            origin_dataset,
+            origin_snapshot,
+        },
+        inventory,
+        own_snapshots,
+    });
 }
 
 /// What:
@@ -224,7 +281,11 @@ pub fn prove_the_lineage(reads: &dyn RemovalPoolReads, recorded: &RecordedBindin
 /// ```ts
 /// proveEveryObjectBelongsToTheClone(inventory, recorded, originInventory);
 /// ```
-fn prove_every_object_belongs(inventory: &LiveInventory, recorded: &RecordedBinding, origin_inventory: &InventoryRecord) -> Result<(), RemovalStop> {
+fn prove_every_object_belongs(
+    inventory: &LiveInventory,
+    recorded: &RecordedBinding,
+    origin_inventory: &InventoryRecord,
+) -> Result<(), RemovalStop> {
     for object in &inventory.objects {
         if object.kind == EntryKind::Snapshot && object.createtxg <= recorded.clone_createtxg {
             return Err(RemovalStop::TransferredHistory {
@@ -235,7 +296,11 @@ fn prove_every_object_belongs(inventory: &LiveInventory, recorded: &RecordedBind
             });
         }
         if let Some(held) = origin_side_hit(object, origin_inventory) {
-            return Err(RemovalStop::OriginSideHit { kind: object.kind, name: object.full_name(), guid: held.guid });
+            return Err(RemovalStop::OriginSideHit {
+                kind: object.kind,
+                name: object.full_name(),
+                guid: held.guid,
+            });
         }
     }
     return Ok(());
@@ -252,7 +317,10 @@ fn prove_every_object_belongs(inventory: &LiveInventory, recorded: &RecordedBind
 /// ```ts
 /// const hit = originInventory.entries.find(e => e.guid === object.guid);
 /// ```
-fn origin_side_hit(object: &LiveObject, origin_inventory: &InventoryRecord) -> Option<crate::worktree_clone_binding_record::binding_inventory::InventoryEntry> {
+fn origin_side_hit(
+    object: &LiveObject,
+    origin_inventory: &InventoryRecord,
+) -> Option<crate::worktree_clone_binding_record::binding_inventory::InventoryEntry> {
     for entry in &origin_inventory.entries {
         if entry.guid == object.guid {
             return Some(entry.clone());
@@ -263,21 +331,41 @@ fn origin_side_hit(object: &LiveObject, origin_inventory: &InventoryRecord) -> O
 
 /// One identity read,
 /// as the pair a removal compares.
-fn identity_of(reads: &dyn RemovalPoolReads, name: &str) -> Result<ObjectIdentity, RemovalStop> {
-    let identity: DatasetIdentity = reads.identity(name).map_err(|reason| return RemovalStop::DoesNotAnswer { object: String::from(name), reason })?;
+fn identity_of(
+    reads: &dyn RemovalPoolReads,
+    name: &str,
+) -> Result<ObjectIdentity, RemovalStop> {
+    let identity: DatasetIdentity = reads.identity(name).map_err(|reason| {
+        return RemovalStop::DoesNotAnswer {
+            object: String::from(name),
+            reason,
+        };
+    })?;
     return identity_from(&identity, name);
 }
 
 /// One live reply as the pair a removal compares.
-fn identity_from(identity: &DatasetIdentity, name: &str) -> Result<ObjectIdentity, RemovalStop> {
+fn identity_from(
+    identity: &DatasetIdentity,
+    name: &str,
+) -> Result<ObjectIdentity, RemovalStop> {
     let guid: u64 = identity.stats.dds_guid;
     if guid == 0 {
-        return Err(RemovalStop::DoesNotAnswer { object: String::from(name), reason: String::from("the pool reported GUID 0, and no live object has that identity") });
+        return Err(RemovalStop::DoesNotAnswer {
+            object: String::from(name),
+            reason: String::from("the pool reported GUID 0, and no live object has that identity"),
+        });
     }
     let parsed: DatasetGuid = DatasetGuid::parse(guid.to_string().as_str()).map_err(|_| {
-        return RemovalStop::DoesNotAnswer { object: String::from(name), reason: String::from("the pool's GUID is not canonical") };
+        return RemovalStop::DoesNotAnswer {
+            object: String::from(name),
+            reason: String::from("the pool's GUID is not canonical"),
+        };
     })?;
-    return Ok(ObjectIdentity { guid: parsed, createtxg: identity.stats.dds_creation_txg });
+    return Ok(ObjectIdentity {
+        guid: parsed,
+        createtxg: identity.stats.dds_creation_txg,
+    });
 }
 
 /// Controls stay out of the release executable.

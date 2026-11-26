@@ -15,11 +15,25 @@
 /// The reading under test,
 ///  the product's own unit renderer so the controls follow the text the wrapper writes,
 ///  and the fixture helpers.
-use super::{read_recorded_git, recorded_git_path, service_unit_file};
+use super::{
+    read_recorded_git,
+    recorded_git_path,
+    service_unit_file,
+};
 use crate::real_git_candidate::MAX_SCRIPT_INSPECTION_BYTES;
-use crate::service_provision::{ProvisionHost, SERVICE_UNIT_NAME, unit_texts};
-use crate::test_support::{fixture, remove};
-use std::path::{Path, PathBuf};
+use crate::service_provision::{
+    ProvisionHost,
+    SERVICE_UNIT_NAME,
+    unit_texts,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The unit text the wrapper writes for `git`,
 ///  rendered by the product.
@@ -47,7 +61,10 @@ fn rendered_service_unit(git: &Path) -> String {
 #[test]
 fn the_path_after_git_on_the_exec_start_line_of_the_product_unit_is_read() {
     let text: String = rendered_service_unit(Path::new("/opt/git/bin/git"));
-    assert_eq!(recorded_git_path(text.as_str()), Some(PathBuf::from("/opt/git/bin/git")));
+    assert_eq!(
+        recorded_git_path(text.as_str()),
+        Some(PathBuf::from("/opt/git/bin/git"))
+    );
 }
 
 /// A line that is not `ExecStart`,
@@ -57,10 +74,19 @@ fn the_path_after_git_on_the_exec_start_line_of_the_product_unit_is_read() {
 fn text_without_an_absolute_git_option_on_an_exec_start_line_names_nothing() {
     assert_eq!(recorded_git_path(""), None);
     assert_eq!(recorded_git_path("Description=--git /usr/bin/git\n"), None);
-    assert_eq!(recorded_git_path("ExecStart=/bin/service --journal /j --instance x\n"), None);
+    assert_eq!(
+        recorded_git_path("ExecStart=/bin/service --journal /j --instance x\n"),
+        None
+    );
     assert_eq!(recorded_git_path("ExecStart=/bin/service --git"), None);
-    assert_eq!(recorded_git_path("ExecStart=/bin/service --git git --instance x\n"), None);
-    assert_eq!(recorded_git_path("ExecStart=/bin/service --git ./git --instance x\n"), None);
+    assert_eq!(
+        recorded_git_path("ExecStart=/bin/service --git git --instance x\n"),
+        None
+    );
+    assert_eq!(
+        recorded_git_path("ExecStart=/bin/service --git ./git --instance x\n"),
+        None
+    );
 }
 
 /// The first `ExecStart` line that names an absolute Git wins,
@@ -89,7 +115,10 @@ fn a_unit_file_is_read_with_a_bound_and_an_unreadable_one_names_nothing() {
     let root: PathBuf = fixture("record-read");
     let unit: PathBuf = root.join("unit");
     std::fs::write(&unit, rendered_service_unit(Path::new("/opt/git/bin/git"))).expect("unit file");
-    assert_eq!(read_recorded_git(unit.as_path()), Some(PathBuf::from("/opt/git/bin/git")));
+    assert_eq!(
+        read_recorded_git(unit.as_path()),
+        Some(PathBuf::from("/opt/git/bin/git"))
+    );
     assert_eq!(read_recorded_git(root.join("missing").as_path()), None);
     assert_eq!(read_recorded_git(root.as_path()), None);
     let binary: PathBuf = root.join("binary");

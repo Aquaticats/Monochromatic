@@ -30,7 +30,10 @@
 //! ```
 
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One record read from the disk,
@@ -88,14 +91,20 @@ impl Notice {
     /// try { out.write(text + '\n'); out.flush() } catch (e) { rename(claim, record); throw e }
     /// unlink(claim)
     /// ```
-    pub fn show(&self, out: &mut impl Write) -> std::io::Result<()> {
+    pub fn show(
+        &self,
+        out: &mut impl Write,
+    ) -> std::io::Result<()> {
         let written: std::io::Result<()> = writeln!(out, "{}", self.text);
         let shown: std::io::Result<()> = match written {
             Ok(()) => out.flush(),
             Err(error) => Err(error),
         };
         if let Err(error) = shown {
-            crate::push_failure_notice_claimed_by_one_command::give_back(self.claim.as_path(), self.record.as_path());
+            crate::push_failure_notice_claimed_by_one_command::give_back(
+                self.claim.as_path(),
+                self.record.as_path(),
+            );
             return Err(error);
         }
         self.remove_what_was_read();
@@ -135,7 +144,9 @@ thread_local! {
 /// until the guard drops.
 #[cfg(test)]
 pub(crate) fn before_removal_in_a_control(step: impl Fn() + 'static) -> BeforeRemovalGuard {
-    BEFORE_REMOVAL.with(|slot| { *slot.borrow_mut() = Some(Box::new(step)); });
+    BEFORE_REMOVAL.with(|slot| {
+        *slot.borrow_mut() = Some(Box::new(step));
+    });
     return BeforeRemovalGuard;
 }
 
@@ -146,7 +157,9 @@ pub(crate) struct BeforeRemovalGuard;
 #[cfg(test)]
 impl Drop for BeforeRemovalGuard {
     fn drop(&mut self) {
-        BEFORE_REMOVAL.with(|slot| { *slot.borrow_mut() = None; });
+        BEFORE_REMOVAL.with(|slot| {
+            *slot.borrow_mut() = None;
+        });
     }
 }
 
@@ -155,9 +168,13 @@ impl Drop for BeforeRemovalGuard {
 #[cfg(test)]
 fn play_before_removal() {
     // Taken out of the slot while it runs, so a step that itself shows a notice does not reach this one again.
-    let played: Option<Box<dyn Fn()>> = BEFORE_REMOVAL.with(|slot| { return slot.borrow_mut().take(); });
+    let played: Option<Box<dyn Fn()>> = BEFORE_REMOVAL.with(|slot| {
+        return slot.borrow_mut().take();
+    });
     if let Some(step) = played {
         step();
-        BEFORE_REMOVAL.with(|slot| { *slot.borrow_mut() = Some(step); });
+        BEFORE_REMOVAL.with(|slot| {
+            *slot.borrow_mut() = Some(step);
+        });
     }
 }

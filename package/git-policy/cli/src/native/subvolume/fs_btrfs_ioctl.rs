@@ -100,24 +100,54 @@ pub struct IocLayout {
 }
 
 /// The asm-generic encoding.
-pub const GENERIC_IOC_LAYOUT: IocLayout = IocLayout { write: 1, read: 2, direction_shift: 30 };
+pub const GENERIC_IOC_LAYOUT: IocLayout = IocLayout {
+    write: 1,
+    read: 2,
+    direction_shift: 30,
+};
 
 /// The encoding of powerpc,
 /// mips,
 /// sparc and alpha:
 /// a 3-bit direction field with `_IOC_WRITE` 4.
-pub const WIDE_DIRECTION_IOC_LAYOUT: IocLayout = IocLayout { write: 4, read: 2, direction_shift: 29 };
+pub const WIDE_DIRECTION_IOC_LAYOUT: IocLayout = IocLayout {
+    write: 4,
+    read: 2,
+    direction_shift: 29,
+};
 
 /// The encoding of parisc:
 /// `_IOC_WRITE` 2 with the generic field width.
-pub const PARISC_IOC_LAYOUT: IocLayout = IocLayout { write: 2, read: 1, direction_shift: 30 };
+pub const PARISC_IOC_LAYOUT: IocLayout = IocLayout {
+    write: 2,
+    read: 1,
+    direction_shift: 30,
+};
 
 /// The encoding of the architecture this code is built for.
-#[cfg(any(target_arch = "powerpc", target_arch = "powerpc64", target_arch = "mips", target_arch = "mips32r6", target_arch = "mips64", target_arch = "mips64r6", target_arch = "sparc", target_arch = "sparc64"))]
+#[cfg(any(
+    target_arch = "powerpc",
+    target_arch = "powerpc64",
+    target_arch = "mips",
+    target_arch = "mips32r6",
+    target_arch = "mips64",
+    target_arch = "mips64r6",
+    target_arch = "sparc",
+    target_arch = "sparc64"
+))]
 pub const HOST_IOC_LAYOUT: IocLayout = WIDE_DIRECTION_IOC_LAYOUT;
 
 /// The encoding of the architecture this code is built for.
-#[cfg(not(any(target_arch = "powerpc", target_arch = "powerpc64", target_arch = "mips", target_arch = "mips32r6", target_arch = "mips64", target_arch = "mips64r6", target_arch = "sparc", target_arch = "sparc64")))]
+#[cfg(not(any(
+    target_arch = "powerpc",
+    target_arch = "powerpc64",
+    target_arch = "mips",
+    target_arch = "mips32r6",
+    target_arch = "mips64",
+    target_arch = "mips64r6",
+    target_arch = "sparc",
+    target_arch = "sparc64"
+)))]
 pub const HOST_IOC_LAYOUT: IocLayout = GENERIC_IOC_LAYOUT;
 
 /// The size of `struct btrfs_ioctl_vol_args` and `struct btrfs_ioctl_vol_args_v2`,
@@ -157,8 +187,15 @@ const NAME_MAX: usize = 255;
 /// ```ts
 /// const iow = (layout: IocLayout, nr: number, size: number) => (layout.write << layout.directionShift) | (size << 16) | (0x94 << 8) | nr;
 /// ```
-pub const fn ioc_write_with(layout: IocLayout, number: u32, size: usize) -> u32 {
-    return (layout.write << layout.direction_shift) | ((size as u32) << IOC_SIZE_SHIFT) | (BTRFS_IOCTL_MAGIC << IOC_TYPE_SHIFT) | number;
+pub const fn ioc_write_with(
+    layout: IocLayout,
+    number: u32,
+    size: usize,
+) -> u32 {
+    return (layout.write << layout.direction_shift)
+        | ((size as u32) << IOC_SIZE_SHIFT)
+        | (BTRFS_IOCTL_MAGIC << IOC_TYPE_SHIFT)
+        | number;
 }
 
 /// What:
@@ -173,8 +210,15 @@ pub const fn ioc_write_with(layout: IocLayout, number: u32, size: usize) -> u32 
 /// ```ts
 /// const ior = (layout: IocLayout, nr: number, size: number) => (layout.read << layout.directionShift) | (size << 16) | (0x94 << 8) | nr;
 /// ```
-pub const fn ioc_read_with(layout: IocLayout, number: u32, size: usize) -> u32 {
-    return (layout.read << layout.direction_shift) | ((size as u32) << IOC_SIZE_SHIFT) | (BTRFS_IOCTL_MAGIC << IOC_TYPE_SHIFT) | number;
+pub const fn ioc_read_with(
+    layout: IocLayout,
+    number: u32,
+    size: usize,
+) -> u32 {
+    return (layout.read << layout.direction_shift)
+        | ((size as u32) << IOC_SIZE_SHIFT)
+        | (BTRFS_IOCTL_MAGIC << IOC_TYPE_SHIFT)
+        | number;
 }
 
 /// What:
@@ -189,8 +233,15 @@ pub const fn ioc_read_with(layout: IocLayout, number: u32, size: usize) -> u32 {
 /// ```ts
 /// const iowr = (layout: IocLayout, nr: number, size: number) => ((layout.write | layout.read) << layout.directionShift) | (size << 16) | (0x94 << 8) | nr;
 /// ```
-pub const fn ioc_read_write_with(layout: IocLayout, number: u32, size: usize) -> u32 {
-    return ((layout.write | layout.read) << layout.direction_shift) | ((size as u32) << IOC_SIZE_SHIFT) | (BTRFS_IOCTL_MAGIC << IOC_TYPE_SHIFT) | number;
+pub const fn ioc_read_write_with(
+    layout: IocLayout,
+    number: u32,
+    size: usize,
+) -> u32 {
+    return ((layout.write | layout.read) << layout.direction_shift)
+        | ((size as u32) << IOC_SIZE_SHIFT)
+        | (BTRFS_IOCTL_MAGIC << IOC_TYPE_SHIFT)
+        | number;
 }
 
 /// What:
@@ -203,7 +254,10 @@ pub const fn ioc_read_write_with(layout: IocLayout, number: u32, size: usize) ->
 /// ```ts
 /// const iow = (nr: number, size: number) => iowFor(hostLayout, nr, size);
 /// ```
-pub const fn ioc_write(number: u32, size: usize) -> libc::Ioctl {
+pub const fn ioc_write(
+    number: u32,
+    size: usize,
+) -> libc::Ioctl {
     return ioc_write_with(HOST_IOC_LAYOUT, number, size) as libc::Ioctl;
 }
 
@@ -216,7 +270,10 @@ pub const fn ioc_write(number: u32, size: usize) -> libc::Ioctl {
 /// ```ts
 /// const ior = (nr: number, size: number) => iorFor(hostLayout, nr, size);
 /// ```
-pub const fn ioc_read(number: u32, size: usize) -> libc::Ioctl {
+pub const fn ioc_read(
+    number: u32,
+    size: usize,
+) -> libc::Ioctl {
     return ioc_read_with(HOST_IOC_LAYOUT, number, size) as libc::Ioctl;
 }
 
@@ -239,7 +296,8 @@ pub const BTRFS_IOC_SNAP_DESTROY_V2: libc::Ioctl = ioc_write(63, VOLUME_ARGUMENT
 /// `BTRFS_IOC_INO_LOOKUP`:
 /// `_IOWR(0x94, 18, struct btrfs_ioctl_ino_lookup_args)`,
 /// 4096 bytes.
-pub const BTRFS_IOC_INO_LOOKUP: libc::Ioctl = ioc_read_write_with(HOST_IOC_LAYOUT, 18, VOLUME_ARGUMENT_BYTES) as libc::Ioctl;
+pub const BTRFS_IOC_INO_LOOKUP: libc::Ioctl =
+    ioc_read_write_with(HOST_IOC_LAYOUT, 18, VOLUME_ARGUMENT_BYTES) as libc::Ioctl;
 
 /// `BTRFS_IOC_GET_SUBVOL_INFO`:
 /// `_IOR(0x94, 60, struct btrfs_ioctl_get_subvol_info_args)`.
@@ -407,7 +465,12 @@ const _: () = assert!(std::mem::size_of::<SubvolumeInfoArgs>() == SUBVOLUME_INFO
 /// ```ts
 /// function fillName(buffer: Uint8Array, name: Uint8Array): void { if (name.length === 0 || name.includes(0x2f) || name.length > 255) throw ...; buffer.set(name); }
 /// ```
-fn fill_name<const N: usize>(buffer: &mut [u8; N], name: &OsStr, operation: &'static str, parent: &Path) -> Result<(), PrimitiveError> {
+fn fill_name<const N: usize>(
+    buffer: &mut [u8; N],
+    name: &OsStr,
+    operation: &'static str,
+    parent: &Path,
+) -> Result<(), PrimitiveError> {
     let bytes: &[u8] = name.as_bytes();
     let refused: bool = bytes.is_empty()
         || bytes.len() > NAME_MAX
@@ -417,7 +480,11 @@ fn fill_name<const N: usize>(buffer: &mut [u8; N], name: &OsStr, operation: &'st
         || bytes == b"."
         || bytes == b"..";
     if refused {
-        return Err(PrimitiveError { operation, path: parent.join(name), errno: libc::EINVAL });
+        return Err(PrimitiveError {
+            operation,
+            path: parent.join(name),
+            errno: libc::EINVAL,
+        });
     }
     buffer[..bytes.len()].copy_from_slice(bytes);
     return Ok(());
@@ -433,10 +500,17 @@ fn fill_name<const N: usize>(buffer: &mut [u8; N], name: &OsStr, operation: &'st
 /// ```ts
 /// const fd = await open(directory, 'r');
 /// ```
-fn open_directory(directory: &Path, operation: &'static str) -> Result<File, PrimitiveError> {
+fn open_directory(
+    directory: &Path,
+    operation: &'static str,
+) -> Result<File, PrimitiveError> {
     return match File::open(directory) {
         Ok(file) => Ok(file),
-        Err(error) => Err(PrimitiveError { operation, path: directory.to_path_buf(), errno: error.raw_os_error().unwrap_or(0) }),
+        Err(error) => Err(PrimitiveError {
+            operation,
+            path: directory.to_path_buf(),
+            errno: error.raw_os_error().unwrap_or(0),
+        }),
     };
 }
 
@@ -452,16 +526,23 @@ fn open_directory(directory: &Path, operation: &'static str) -> Result<File, Pri
 /// ```ts
 /// await btrfsIoctl(await open(parent), 'SUBVOL_CREATE', { name });
 /// ```
-pub fn subvolume_create(parent: &Path, name: &OsStr) -> Result<(), PrimitiveError> {
+pub fn subvolume_create(
+    parent: &Path,
+    name: &OsStr,
+) -> Result<(), PrimitiveError> {
     let operation: &'static str = "BTRFS_IOC_SUBVOL_CREATE";
     let directory: File = open_directory(parent, operation)?;
     // SAFETY: `VolArgs` is plain integers and bytes, so the all-zero value is a valid value.
     let mut arguments: VolArgs = unsafe { std::mem::zeroed() };
     fill_name(&mut arguments.name, name, operation, parent)?;
     // SAFETY: `directory` is open for the call; `arguments` is a 4096-byte structure as the request number states.
-    let result: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_SUBVOL_CREATE, &arguments) };
+    let result: libc::c_int =
+        unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_SUBVOL_CREATE, &arguments) };
     if result != 0 {
-        return Err(PrimitiveError::last_os_error(operation, parent.join(name).as_path()));
+        return Err(PrimitiveError::last_os_error(
+            operation,
+            parent.join(name).as_path(),
+        ));
     }
     return Ok(());
 }
@@ -480,7 +561,11 @@ pub fn subvolume_create(parent: &Path, name: &OsStr) -> Result<(), PrimitiveErro
 /// ```ts
 /// await btrfsIoctl(await open(parent), 'SNAP_CREATE_V2', { fd: await open(source), flags: 0, name });
 /// ```
-pub fn snapshot_create(source: &Path, parent: &Path, name: &OsStr) -> Result<(), PrimitiveError> {
+pub fn snapshot_create(
+    source: &Path,
+    parent: &Path,
+    name: &OsStr,
+) -> Result<(), PrimitiveError> {
     let operation: &'static str = "BTRFS_IOC_SNAP_CREATE_V2";
     let directory: File = open_directory(parent, operation)?;
     let origin: File = open_directory(source, operation)?;
@@ -489,9 +574,13 @@ pub fn snapshot_create(source: &Path, parent: &Path, name: &OsStr) -> Result<(),
     arguments.fd = i64::from(origin.as_raw_fd());
     fill_name(&mut arguments.name, name, operation, parent)?;
     // SAFETY: both descriptors are open for the call; `arguments` is a 4096-byte structure as the request number states.
-    let result: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_SNAP_CREATE_V2, &arguments) };
+    let result: libc::c_int =
+        unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_SNAP_CREATE_V2, &arguments) };
     if result != 0 {
-        return Err(PrimitiveError::last_os_error(operation, parent.join(name).as_path()));
+        return Err(PrimitiveError::last_os_error(
+            operation,
+            parent.join(name).as_path(),
+        ));
     }
     return Ok(());
 }
@@ -511,16 +600,23 @@ pub fn snapshot_create(source: &Path, parent: &Path, name: &OsStr) -> Result<(),
 /// ```ts
 /// await btrfsIoctl(await open(parent), 'SNAP_DESTROY', { name });
 /// ```
-pub fn snapshot_destroy(parent: &Path, name: &OsStr) -> Result<(), PrimitiveError> {
+pub fn snapshot_destroy(
+    parent: &Path,
+    name: &OsStr,
+) -> Result<(), PrimitiveError> {
     let operation: &'static str = "BTRFS_IOC_SNAP_DESTROY";
     let directory: File = open_directory(parent, operation)?;
     // SAFETY: `VolArgs` is plain integers and bytes, so the all-zero value is a valid value.
     let mut arguments: VolArgs = unsafe { std::mem::zeroed() };
     fill_name(&mut arguments.name, name, operation, parent)?;
     // SAFETY: `directory` is open for the call; `arguments` is a 4096-byte structure as the request number states.
-    let result: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_SNAP_DESTROY, &arguments) };
+    let result: libc::c_int =
+        unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_SNAP_DESTROY, &arguments) };
     if result != 0 {
-        return Err(PrimitiveError::last_os_error(operation, parent.join(name).as_path()));
+        return Err(PrimitiveError::last_os_error(
+            operation,
+            parent.join(name).as_path(),
+        ));
     }
     return Ok(());
 }
@@ -539,13 +635,22 @@ pub fn snapshot_destroy(parent: &Path, name: &OsStr) -> Result<(), PrimitiveErro
 /// ```ts
 /// const id = await subvolumeId(await open(path));
 /// ```
-pub fn subvolume_id(held: &File, path: &Path) -> Result<u64, PrimitiveError> {
+pub fn subvolume_id(
+    held: &File,
+    path: &Path,
+) -> Result<u64, PrimitiveError> {
     // `treeid` 0 asks for the subvolume of the file itself, and `objectid` 256 is the root directory of it; the rest is the
     // path buffer the kernel zeroes.
     let mut arguments: [u64; VOLUME_ARGUMENT_BYTES / 8] = [0; VOLUME_ARGUMENT_BYTES / 8];
     arguments[1] = BTRFS_FIRST_FREE_OBJECTID;
     // SAFETY: `held` is open for the call; `arguments` is a 4096-byte, 8-byte-aligned buffer as the request number states.
-    let result: libc::c_int = unsafe { libc::ioctl(held.as_raw_fd(), BTRFS_IOC_INO_LOOKUP, arguments.as_mut_ptr()) };
+    let result: libc::c_int = unsafe {
+        libc::ioctl(
+            held.as_raw_fd(),
+            BTRFS_IOC_INO_LOOKUP,
+            arguments.as_mut_ptr(),
+        )
+    };
     if result != 0 {
         return Err(PrimitiveError::last_os_error("BTRFS_IOC_INO_LOOKUP", path));
     }
@@ -566,7 +671,11 @@ pub fn subvolume_id(held: &File, path: &Path) -> Result<u64, PrimitiveError> {
 /// ```ts
 /// await btrfsIoctl(anyDirectory, 'SNAP_DESTROY_V2', { subvolid });
 /// ```
-pub fn snapshot_destroy_by_id(directory: &File, subvolume: u64, path: &Path) -> Result<(), PrimitiveError> {
+pub fn snapshot_destroy_by_id(
+    directory: &File,
+    subvolume: u64,
+    path: &Path,
+) -> Result<(), PrimitiveError> {
     let operation: &'static str = "BTRFS_IOC_SNAP_DESTROY_V2";
     // SAFETY: `VolArgsV2` is plain integers and bytes, so the all-zero value is a valid value.
     let mut arguments: VolArgsV2 = unsafe { std::mem::zeroed() };
@@ -574,7 +683,8 @@ pub fn snapshot_destroy_by_id(directory: &File, subvolume: u64, path: &Path) -> 
     // The id takes the place of the name in the structure's last union.
     arguments.name[..8].copy_from_slice(&subvolume.to_ne_bytes());
     // SAFETY: `directory` is open for the call; `arguments` is a 4096-byte structure as the request number states.
-    let result: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_SNAP_DESTROY_V2, &arguments) };
+    let result: libc::c_int =
+        unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_SNAP_DESTROY_V2, &arguments) };
     if result != 0 {
         return Err(PrimitiveError::last_os_error(operation, path));
     }
@@ -594,15 +704,23 @@ pub fn snapshot_destroy_by_id(directory: &File, subvolume: u64, path: &Path) -> 
 /// ```ts
 /// await btrfsIoctl(parentHandle, 'SNAP_DESTROY', { name });
 /// ```
-pub fn snapshot_destroy_in(parent: &File, name: &OsStr, parent_path: &Path) -> Result<(), PrimitiveError> {
+pub fn snapshot_destroy_in(
+    parent: &File,
+    name: &OsStr,
+    parent_path: &Path,
+) -> Result<(), PrimitiveError> {
     let operation: &'static str = "BTRFS_IOC_SNAP_DESTROY";
     // SAFETY: `VolArgs` is plain integers and bytes, so the all-zero value is a valid value.
     let mut arguments: VolArgs = unsafe { std::mem::zeroed() };
     fill_name(&mut arguments.name, name, operation, parent_path)?;
     // SAFETY: `parent` is open for the call; `arguments` is a 4096-byte structure as the request number states.
-    let result: libc::c_int = unsafe { libc::ioctl(parent.as_raw_fd(), BTRFS_IOC_SNAP_DESTROY, &arguments) };
+    let result: libc::c_int =
+        unsafe { libc::ioctl(parent.as_raw_fd(), BTRFS_IOC_SNAP_DESTROY, &arguments) };
     if result != 0 {
-        return Err(PrimitiveError::last_os_error(operation, parent_path.join(name).as_path()));
+        return Err(PrimitiveError::last_os_error(
+            operation,
+            parent_path.join(name).as_path(),
+        ));
     }
     return Ok(());
 }
@@ -620,14 +738,29 @@ pub fn snapshot_destroy_in(parent: &File, name: &OsStr, parent_path: &Path) -> R
 /// ```ts
 /// const [parent, name] = [dirname(path), basename(path)];
 /// ```
-pub fn split_parent(path: &Path, operation: &'static str) -> Result<(std::path::PathBuf, std::ffi::OsString), PrimitiveError> {
+pub fn split_parent(
+    path: &Path,
+    operation: &'static str,
+) -> Result<(std::path::PathBuf, std::ffi::OsString), PrimitiveError> {
     let Some(name) = path.file_name() else {
-        return Err(PrimitiveError { operation, path: path.to_path_buf(), errno: libc::EINVAL });
+        return Err(PrimitiveError {
+            operation,
+            path: path.to_path_buf(),
+            errno: libc::EINVAL,
+        });
     };
     let Some(parent) = path.parent() else {
-        return Err(PrimitiveError { operation, path: path.to_path_buf(), errno: libc::EINVAL });
+        return Err(PrimitiveError {
+            operation,
+            path: path.to_path_buf(),
+            errno: libc::EINVAL,
+        });
     };
-    let parent_path: std::path::PathBuf = if parent.as_os_str().is_empty() { std::path::PathBuf::from(".") } else { parent.to_path_buf() };
+    let parent_path: std::path::PathBuf = if parent.as_os_str().is_empty() {
+        std::path::PathBuf::from(".")
+    } else {
+        parent.to_path_buf()
+    };
     return Ok((parent_path, name.to_os_string()));
 }
 
@@ -668,7 +801,10 @@ pub fn subvolume_destroy_at(path: &Path) -> Result<(), PrimitiveError> {
 /// ```ts
 /// await snapshotCreate(source, dirname(destination), basename(destination));
 /// ```
-pub fn snapshot_create_at(source: &Path, destination: &Path) -> Result<(), PrimitiveError> {
+pub fn snapshot_create_at(
+    source: &Path,
+    destination: &Path,
+) -> Result<(), PrimitiveError> {
     let (parent, name) = split_parent(destination, "BTRFS_IOC_SNAP_CREATE_V2")?;
     return snapshot_create(source, parent.as_path(), name.as_os_str());
 }

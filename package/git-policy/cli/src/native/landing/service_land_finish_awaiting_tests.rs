@@ -7,11 +7,18 @@
 //! gone and elsewhere,
 //! and a Git that gives no answer decides nothing on either face.
 
-use super::*;
 /// The awaited decision of an open batch lives beside the synchronous one,
 /// in the file the restart's branch questions are kept in.
 use super::branch_questions::decision_for_awaiting;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use super::*;
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -25,7 +32,12 @@ use std::path::PathBuf;
 /// ```ts
 /// const intent = { seq: 1, repository, commonDir: join(repository, '.git'), reference: 'refs/heads/main', old, new, ids: [], commits: [], paths: [], derived: false, cleanup: null, index: join(repository, '.git/index'), gitDir: join(repository, '.git') };
 /// ```
-fn an_intent(repository: &Path, reference: &str, old: &str, new: &str) -> Intent {
+fn an_intent(
+    repository: &Path,
+    reference: &str,
+    old: &str,
+    new: &str,
+) -> Intent {
     let common: PathBuf = repository.join(".git");
     return Intent {
         seq: 1,
@@ -47,9 +59,14 @@ fn an_intent(repository: &Path, reference: &str, old: &str, new: &str) -> Intent
 }
 
 /// The decision one intent gets through both faces.
-fn both_decisions(git: &GitContext, intent: &Intent) -> (Option<Recovery>, Option<Recovery>) {
+fn both_decisions(
+    git: &GitContext,
+    intent: &Intent,
+) -> (Option<Recovery>, Option<Recovery>) {
     let synchronous: Option<Recovery> = decision_for(git, intent);
-    let awaited: Option<Recovery> = crate::lazy_runtime::run_on_runtime(decision_for_awaiting(git, intent)).expect("the runtime");
+    let awaited: Option<Recovery> =
+        crate::lazy_runtime::run_on_runtime(decision_for_awaiting(git, intent))
+            .expect("the runtime");
     return (synchronous, awaited);
 }
 
@@ -83,33 +100,78 @@ fn the_awaited_decision_is_the_one_the_synchronous_face_makes() {
     let context: GitContext = git_context();
     let old: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let tree: String = git_text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
-    let new: String = git_text(repo.as_path(), &["commit-tree", "-m", "the batch", tree.as_str()]);
-    let past: String = git_text(repo.as_path(), &["commit-tree", "-p", new.as_str(), "-m", "after the batch", tree.as_str()]);
-    let elsewhere: String = git_text(repo.as_path(), &["commit-tree", "-m", "elsewhere", tree.as_str()]);
-    let intent: Intent = an_intent(repo.as_path(), "refs/heads/main", old.as_str(), new.as_str());
-    git(repo.as_path(), &["update-ref", "refs/heads/main", new.as_str()]);
-    assert_eq!(both_decisions(&context, &intent).0, Some(Recovery::Finish), "a branch at the batch's commit holds the batch");
-    assert_eq!(both_decisions(&context, &intent), (Some(Recovery::Finish), Some(Recovery::Finish)), "both faces finish a batch the branch shows");
-    git(repo.as_path(), &["update-ref", "refs/heads/main", past.as_str()]);
+    let new: String = git_text(
+        repo.as_path(),
+        &["commit-tree", "-m", "the batch", tree.as_str()],
+    );
+    let past: String = git_text(
+        repo.as_path(),
+        &[
+            "commit-tree",
+            "-p",
+            new.as_str(),
+            "-m",
+            "after the batch",
+            tree.as_str(),
+        ],
+    );
+    let elsewhere: String = git_text(
+        repo.as_path(),
+        &["commit-tree", "-m", "elsewhere", tree.as_str()],
+    );
+    let intent: Intent = an_intent(
+        repo.as_path(),
+        "refs/heads/main",
+        old.as_str(),
+        new.as_str(),
+    );
+    git(
+        repo.as_path(),
+        &["update-ref", "refs/heads/main", new.as_str()],
+    );
+    assert_eq!(
+        both_decisions(&context, &intent).0,
+        Some(Recovery::Finish),
+        "a branch at the batch's commit holds the batch"
+    );
+    assert_eq!(
+        both_decisions(&context, &intent),
+        (Some(Recovery::Finish), Some(Recovery::Finish)),
+        "both faces finish a batch the branch shows"
+    );
+    git(
+        repo.as_path(),
+        &["update-ref", "refs/heads/main", past.as_str()],
+    );
     assert_eq!(
         both_decisions(&context, &intent),
         (Some(Recovery::Finish), Some(Recovery::Finish)),
         "both faces finish a batch a later commit sits on top of"
     );
-    git(repo.as_path(), &["update-ref", "refs/heads/main", old.as_str()]);
+    git(
+        repo.as_path(),
+        &["update-ref", "refs/heads/main", old.as_str()],
+    );
     assert_eq!(
         both_decisions(&context, &intent),
         (Some(Recovery::Drop), Some(Recovery::Drop)),
         "both faces drop a batch the branch never moved for"
     );
-    git(repo.as_path(), &["update-ref", "refs/heads/main", elsewhere.as_str()]);
+    git(
+        repo.as_path(),
+        &["update-ref", "refs/heads/main", elsewhere.as_str()],
+    );
     assert_eq!(
         both_decisions(&context, &intent),
         (Some(Recovery::Drop), Some(Recovery::Drop)),
         "both faces drop a batch the branch moved away from"
     );
     git(repo.as_path(), &["update-ref", "-d", "refs/heads/main"]);
-    assert_eq!(both_decisions(&context, &intent), (Some(Recovery::Drop), Some(Recovery::Drop)), "both faces drop a batch whose branch is gone");
+    assert_eq!(
+        both_decisions(&context, &intent),
+        (Some(Recovery::Drop), Some(Recovery::Drop)),
+        "both faces drop a batch whose branch is gone"
+    );
     remove(root.as_path());
 }
 
@@ -132,8 +194,16 @@ fn a_git_that_gives_no_answer_decides_nothing_through_either_face() {
     let mut context: GitContext = git_context();
     context.real_git = PathBuf::from("/nonexistent-git-for-a-control");
     let old: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let new: String = git_text(repo.as_path(), &["commit-tree", "-m", "the batch", "HEAD^{tree}"]);
-    let intent: Intent = an_intent(repo.as_path(), "refs/heads/main", old.as_str(), new.as_str());
+    let new: String = git_text(
+        repo.as_path(),
+        &["commit-tree", "-m", "the batch", "HEAD^{tree}"],
+    );
+    let intent: Intent = an_intent(
+        repo.as_path(),
+        "refs/heads/main",
+        old.as_str(),
+        new.as_str(),
+    );
     assert_eq!(
         both_decisions(&context, &intent),
         (None, None),

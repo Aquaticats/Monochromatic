@@ -18,11 +18,41 @@ use std::ffi::OsString;
 /// Commands that a program reads the output of,
 /// or that carry a protocol on their streams.
 const MACHINE_COMMANDS: &[&[u8]] = &[
-    b"cat-file", b"check-attr", b"check-ignore", b"check-ref-format", b"commit-tree", b"config", b"credential", b"diff-files",
-    b"diff-index", b"diff-tree", b"fast-export", b"fast-import", b"for-each-ref", b"hash-object", b"index-pack", b"ls-files",
-    b"ls-tree", b"merge-base", b"mktree", b"name-rev", b"pack-objects", b"read-tree", b"receive-pack", b"rev-list",
-    b"rev-parse", b"show-ref", b"symbolic-ref", b"unpack-objects", b"update-ref", b"upload-archive", b"upload-pack",
-    b"var", b"write-tree", b"update-index", b"verify-pack",
+    b"cat-file",
+    b"check-attr",
+    b"check-ignore",
+    b"check-ref-format",
+    b"commit-tree",
+    b"config",
+    b"credential",
+    b"diff-files",
+    b"diff-index",
+    b"diff-tree",
+    b"fast-export",
+    b"fast-import",
+    b"for-each-ref",
+    b"hash-object",
+    b"index-pack",
+    b"ls-files",
+    b"ls-tree",
+    b"merge-base",
+    b"mktree",
+    b"name-rev",
+    b"pack-objects",
+    b"read-tree",
+    b"receive-pack",
+    b"rev-list",
+    b"rev-parse",
+    b"show-ref",
+    b"symbolic-ref",
+    b"unpack-objects",
+    b"update-ref",
+    b"upload-archive",
+    b"upload-pack",
+    b"var",
+    b"write-tree",
+    b"update-index",
+    b"verify-pack",
 ];
 
 /// Option spellings that ask a command for output made to be read by a program.
@@ -48,7 +78,10 @@ fn asks_for_machine_output(option: &[u8]) -> bool {
 /// ```ts
 /// isMachineRead(commandWord, region)
 /// ```
-pub fn is_machine_read(command: &[u8], region: &[OsString]) -> bool {
+pub fn is_machine_read(
+    command: &[u8],
+    region: &[OsString],
+) -> bool {
     if MACHINE_COMMANDS.contains(&command) {
         return true;
     }

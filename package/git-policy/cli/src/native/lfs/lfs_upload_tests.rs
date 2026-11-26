@@ -1,12 +1,29 @@
 //! Controls for the parent's run of the Git LFS upload.
 
 use super::*;
-use crate::bounded_push::{StopReport, StopWindow};
+use crate::bounded_push::{
+    StopReport,
+    StopWindow,
+};
 use crate::lfs_pre_push::failed_message;
-use crate::test_support::{executable, fixture, remove};
-use std::path::{Path, PathBuf};
-use std::process::{Child, ExitStatus, Stdio};
-use std::time::{Duration, Instant};
+use crate::test_support::{
+    executable,
+    fixture,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    ExitStatus,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// An argument list from words.
 fn words(items: &[&str]) -> Vec<OsString> {
@@ -31,7 +48,11 @@ fn plan() -> UploadPlan {
 /// directory,
 /// `git` and configuration variables,
 /// then exits.
-fn stand_in(directory: &std::path::Path, record: &std::path::Path, status: i32) {
+fn stand_in(
+    directory: &std::path::Path,
+    record: &std::path::Path,
+    status: i32,
+) {
     std::fs::create_dir_all(directory).expect("bin directory");
     let source: String = format!(
         "#!/bin/sh\n{{ printf '%s\\n' \"$@\"; pwd; command -v git; /usr/bin/env; }} > '{record}'\nexit {status}\n",
@@ -43,8 +64,22 @@ fn stand_in(directory: &std::path::Path, record: &std::path::Path, status: i32) 
 /// Run the interactive upload with the given `PATH` directories,
 /// prefix and status,
 /// returning result and diagnostics.
-fn run(root: &std::path::Path, path: &[&std::path::Path], global_prefix: &[&str], upload: &UploadPlan) -> (Option<i32>, String) {
-    return run_with(root, path, global_prefix, upload, &[("XDG_STATE_HOME", root.join("state").to_str().expect("UTF-8"))]);
+fn run(
+    root: &std::path::Path,
+    path: &[&std::path::Path],
+    global_prefix: &[&str],
+    upload: &UploadPlan,
+) -> (Option<i32>, String) {
+    return run_with(
+        root,
+        path,
+        global_prefix,
+        upload,
+        &[(
+            "XDG_STATE_HOME",
+            root.join("state").to_str().expect("UTF-8"),
+        )],
+    );
 }
 
 /// The same with the given environment variables besides `PATH`,
@@ -80,7 +115,9 @@ fn run_with_overlay(
     let mut diagnostics: Vec<u8> = Vec::new();
     let overlay_owned: Vec<(OsString, OsString)> = overlay
         .iter()
-        .map(|(name, value)| { return (OsString::from(*name), OsString::from(*value)); })
+        .map(|(name, value)| {
+            return (OsString::from(*name), OsString::from(*value));
+        })
         .collect();
     let code = run_upload_interactive(
         upload,
@@ -91,7 +128,10 @@ fn run_with_overlay(
         overlay_owned.as_slice(),
         &mut diagnostics,
     );
-    return (code, String::from_utf8_lossy(diagnostics.as_slice()).into_owned());
+    return (
+        code,
+        String::from_utf8_lossy(diagnostics.as_slice()).into_owned(),
+    );
 }
 
 /// A succeeding upload is silent,
@@ -104,7 +144,11 @@ fn a_succeeding_upload_is_silent_and_sees_the_real_git_first() {
     stand_in(root.join("bin").as_path(), record.as_path(), 0);
     let (code, diagnostics) = run(root.as_path(), &[root.join("bin").as_path()], &[], &plan());
     assert_eq!((code, diagnostics.as_str()), (None, ""));
-    let seen: Vec<String> = std::fs::read_to_string(&record).expect("record").lines().map(str::to_owned).collect();
+    let seen: Vec<String> = std::fs::read_to_string(&record)
+        .expect("record")
+        .lines()
+        .map(str::to_owned)
+        .collect();
     let expected_arguments: Vec<String> = plan()
         .arguments(std::ffi::OsStr::new("origin"))
         .iter()
@@ -115,7 +159,11 @@ fn a_succeeding_upload_is_silent_and_sees_the_real_git_first() {
     let count: usize = expected_arguments.len();
     assert_eq!(seen[..count], expected_arguments[..]);
     assert_eq!(seen[count], root.to_string_lossy());
-    assert_eq!(seen[count + 1], root.join("real/git").to_string_lossy(), "the real Git leads the child's PATH");
+    assert_eq!(
+        seen[count + 1],
+        root.join("real/git").to_string_lossy(),
+        "the real Git leads the child's PATH"
+    );
     remove(root.as_path());
 }
 
@@ -130,8 +178,17 @@ fn the_program_is_the_one_the_callers_path_finds_first() {
     stand_in(second.as_path(), second_record.as_path(), 0);
     let real_directory_program: PathBuf = root.join("real");
     std::fs::create_dir_all(&real_directory_program).expect("real directory");
-    stand_in(real_directory_program.as_path(), root.join("real.txt").as_path(), 0);
-    let (code, _) = run(root.as_path(), &[first.as_path(), second.as_path()], &[], &plan());
+    stand_in(
+        real_directory_program.as_path(),
+        root.join("real.txt").as_path(),
+        0,
+    );
+    let (code, _) = run(
+        root.as_path(),
+        &[first.as_path(), second.as_path()],
+        &[],
+        &plan(),
+    );
     assert_eq!(code, None);
     assert!(first_record.exists(), "the caller's first match ran");
     assert!(!second_record.exists() && !root.join("real.txt").exists());
@@ -147,8 +204,21 @@ fn the_global_options_reach_the_child() {
     let root = fixture("lfs-upload-prefix");
     let record: PathBuf = root.join("record.txt");
     stand_in(root.join("bin").as_path(), record.as_path(), 0);
-    let prefix: Vec<&str> = vec!["-c", "lfs.url=http://example.invalid/x", "-c", "flag", "--git-dir=/g", "--work-tree", "/w"];
-    let (code, _) = run(root.as_path(), &[root.join("bin").as_path()], &prefix, &plan());
+    let prefix: Vec<&str> = vec![
+        "-c",
+        "lfs.url=http://example.invalid/x",
+        "-c",
+        "flag",
+        "--git-dir=/g",
+        "--work-tree",
+        "/w",
+    ];
+    let (code, _) = run(
+        root.as_path(),
+        &[root.join("bin").as_path()],
+        &prefix,
+        &plan(),
+    );
     assert_eq!(code, None);
     let seen: String = std::fs::read_to_string(&record).expect("record");
     for expected in [
@@ -172,9 +242,15 @@ fn the_global_options_reach_the_child() {
 ///  A failing control prints what it recorded,
 /// and the whole environment of a child holds what must never reach a log;
 /// these variables are the fixture's own.
-fn configuration_stand_in(directory: &std::path::Path, record: &std::path::Path) {
+fn configuration_stand_in(
+    directory: &std::path::Path,
+    record: &std::path::Path,
+) {
     std::fs::create_dir_all(directory).expect("bin directory");
-    let source: String = format!("#!/bin/sh\n/usr/bin/env | /usr/bin/grep '^GIT_CONFIG' > '{}'\nexit 0\n", record.display());
+    let source: String = format!(
+        "#!/bin/sh\n/usr/bin/env | /usr/bin/grep '^GIT_CONFIG' > '{}'\nexit 0\n",
+        record.display()
+    );
     executable(directory.join("git-lfs").as_path(), source.as_bytes());
 }
 
@@ -190,7 +266,10 @@ fn recorded_configuration(record: &std::path::Path) -> Vec<String> {
 
 /// The fixture's real Git stand-in and the environment of the child,
 /// `PATH` included.
-fn upload_environment(root: &std::path::Path, variables: &[(&str, &str)]) -> (PathBuf, Vec<(OsString, OsString)>) {
+fn upload_environment(
+    root: &std::path::Path,
+    variables: &[(&str, &str)],
+) -> (PathBuf, Vec<(OsString, OsString)>) {
     let real: PathBuf = root.join("real");
     std::fs::create_dir_all(&real).expect("real git directory");
     executable(real.join("git").as_path(), b"#!/bin/sh\n");
@@ -198,7 +277,10 @@ fn upload_environment(root: &std::path::Path, variables: &[(&str, &str)]) -> (Pa
         OsString::from("PATH"),
         std::env::join_paths([root.join("bin"), root.join("real")]).expect("PATH"),
     )];
-    environment.push((OsString::from("XDG_STATE_HOME"), root.join("state").into_os_string()));
+    environment.push((
+        OsString::from("XDG_STATE_HOME"),
+        root.join("state").into_os_string(),
+    ));
     environment.extend(variables.iter().map(|(name, value)| {
         return (OsString::from(*name), OsString::from(*value));
     }));
@@ -223,7 +305,10 @@ fn the_callers_pairs_survive_the_pair_the_wrapper_adds_for_itself() {
     configuration_stand_in(root.join("bin").as_path(), record.as_path());
     let (real_git, environment) = upload_environment(root.as_path(), &[]);
     // The overlay the invocation adds, computed from this environment as `plan_with_real_git` computes it.
-    let overlay: Vec<(OsString, OsString)> = crate::child_environment::child_environment_overlay(environment.as_slice(), real_git.as_path());
+    let overlay: Vec<(OsString, OsString)> = crate::child_environment::child_environment_overlay(
+        environment.as_slice(),
+        real_git.as_path(),
+    );
     let prefix: Vec<&str> = vec!["-c", "lfs.url=http://example.invalid/x"];
     let mut diagnostics: Vec<u8> = Vec::new();
     let code = run_upload_interactive(
@@ -235,7 +320,12 @@ fn the_callers_pairs_survive_the_pair_the_wrapper_adds_for_itself() {
         overlay.as_slice(),
         &mut diagnostics,
     );
-    assert_eq!(code, None, "{}", String::from_utf8_lossy(diagnostics.as_slice()));
+    assert_eq!(
+        code,
+        None,
+        "{}",
+        String::from_utf8_lossy(diagnostics.as_slice())
+    );
     let mut expected: Vec<String> = vec![
         String::from("GIT_CONFIG_COUNT=1"),
         String::from("GIT_CONFIG_KEY_0=core.lockfilePid"),
@@ -258,7 +348,10 @@ fn the_callers_pairs_survive_the_pair_the_wrapper_adds_for_itself() {
 /// and the upload of a pushed pointer travelled to the server the caller had replaced.
 #[test]
 fn an_inherited_command_scope_does_not_override_the_callers_newer_setting() {
-    const INHERITED: (&str, &str) = ("GIT_CONFIG_PARAMETERS", "'lfs.url'='http://old.invalid/lfs'");
+    const INHERITED: (&str, &str) = (
+        "GIT_CONFIG_PARAMETERS",
+        "'lfs.url'='http://old.invalid/lfs'",
+    );
     const EXPECTED: &str = "GIT_CONFIG_PARAMETERS='lfs.url'='http://old.invalid/lfs' 'lfs.url'='http://new.invalid/lfs'";
     for (case, prefix) in [
         ("dash-c", vec!["-c", "lfs.url=http://new.invalid/lfs"]),
@@ -267,7 +360,10 @@ fn an_inherited_command_scope_does_not_override_the_callers_newer_setting() {
         let root = fixture(format!("lfs-upload-inherited-{case}").as_str());
         let record: PathBuf = root.join("record.txt");
         configuration_stand_in(root.join("bin").as_path(), record.as_path());
-        let (real_git, environment) = upload_environment(root.as_path(), &[INHERITED, ("POLICY_PUSH_URL", "http://new.invalid/lfs")]);
+        let (real_git, environment) = upload_environment(
+            root.as_path(),
+            &[INHERITED, ("POLICY_PUSH_URL", "http://new.invalid/lfs")],
+        );
         let mut diagnostics: Vec<u8> = Vec::new();
         let code = run_upload_interactive(
             &plan(),
@@ -278,8 +374,17 @@ fn an_inherited_command_scope_does_not_override_the_callers_newer_setting() {
             &[],
             &mut diagnostics,
         );
-        assert_eq!(code, None, "{case}: {}", String::from_utf8_lossy(diagnostics.as_slice()));
-        assert_eq!(recorded_configuration(record.as_path()), vec![String::from(EXPECTED)], "{case}");
+        assert_eq!(
+            code,
+            None,
+            "{case}: {}",
+            String::from_utf8_lossy(diagnostics.as_slice())
+        );
+        assert_eq!(
+            recorded_configuration(record.as_path()),
+            vec![String::from(EXPECTED)],
+            "{case}"
+        );
         remove(root.as_path());
     }
 }
@@ -303,7 +408,10 @@ fn a_configuration_from_the_environment_reaches_the_child_in_both_spellings() {
         let record: PathBuf = root.join("record.txt");
         let _removed = std::fs::remove_file(record.as_path());
         configuration_stand_in(root.join("bin").as_path(), record.as_path());
-        let (real_git, environment) = upload_environment(root.as_path(), &[("POLICY_PUSH_URL", "http://example.invalid/from-environment")]);
+        let (real_git, environment) = upload_environment(
+            root.as_path(),
+            &[("POLICY_PUSH_URL", "http://example.invalid/from-environment")],
+        );
         let mut diagnostics: Vec<u8> = Vec::new();
         let code = run_upload_interactive(
             &plan(),
@@ -314,12 +422,21 @@ fn a_configuration_from_the_environment_reaches_the_child_in_both_spellings() {
             &[],
             &mut diagnostics,
         );
-        assert_eq!(code, None, "{prefix:?}: {}", String::from_utf8_lossy(diagnostics.as_slice()));
+        assert_eq!(
+            code,
+            None,
+            "{prefix:?}: {}",
+            String::from_utf8_lossy(diagnostics.as_slice())
+        );
         let mut expected: Vec<String> = vec![String::from(
             "GIT_CONFIG_PARAMETERS='remote.origin.pushurl'='http://example.invalid/from-environment'",
         )];
         expected.sort();
-        assert_eq!(recorded_configuration(record.as_path()), expected, "{prefix:?}");
+        assert_eq!(
+            recorded_configuration(record.as_path()),
+            expected,
+            "{prefix:?}"
+        );
     }
     remove(root.as_path());
 }
@@ -342,7 +459,10 @@ fn a_configuration_the_environment_cannot_answer_starts_no_upload() {
         let record: PathBuf = root.join("record.txt");
         let _removed = std::fs::remove_file(record.as_path());
         configuration_stand_in(root.join("bin").as_path(), record.as_path());
-        let (real_git, environment) = upload_environment(root.as_path(), &[("POLICY_PUSH_URL", "http://example.invalid/from-environment")]);
+        let (real_git, environment) = upload_environment(
+            root.as_path(),
+            &[("POLICY_PUSH_URL", "http://example.invalid/from-environment")],
+        );
         let mut diagnostics: Vec<u8> = Vec::new();
         let code = run_upload_interactive(
             &plan(),
@@ -354,8 +474,16 @@ fn a_configuration_the_environment_cannot_answer_starts_no_upload() {
             &mut diagnostics,
         );
         assert_eq!(code, None, "{prefix:?}");
-        assert!(diagnostics.is_empty(), "{prefix:?}: {}", String::from_utf8_lossy(diagnostics.as_slice()));
-        assert_eq!(recorded_configuration(record.as_path()), Vec::<String>::new(), "{prefix:?}: the upload ran");
+        assert!(
+            diagnostics.is_empty(),
+            "{prefix:?}: {}",
+            String::from_utf8_lossy(diagnostics.as_slice())
+        );
+        assert_eq!(
+            recorded_configuration(record.as_path()),
+            Vec::<String>::new(),
+            "{prefix:?}: the upload ran"
+        );
     }
     remove(root.as_path());
 }
@@ -366,15 +494,31 @@ fn a_configuration_the_environment_cannot_answer_starts_no_upload() {
 fn a_failing_or_missing_upload_stops_with_the_explanation() {
     let root = fixture("lfs-upload-fail");
     let failing_status: i32 = 7;
-    stand_in(root.join("bin").as_path(), root.join("record.txt").as_path(), failing_status);
+    stand_in(
+        root.join("bin").as_path(),
+        root.join("record.txt").as_path(),
+        failing_status,
+    );
     let (code, diagnostics) = run(root.as_path(), &[root.join("bin").as_path()], &[], &plan());
     assert_eq!(code, Some(failing_status));
-    assert!(diagnostics.contains(&failed_message(&format!("exited with status {failing_status}"))), "{diagnostics}");
+    assert!(
+        diagnostics.contains(&failed_message(&format!(
+            "exited with status {failing_status}"
+        ))),
+        "{diagnostics}"
+    );
     let empty: PathBuf = root.join("empty");
     std::fs::create_dir(&empty).expect("empty directory");
     let (missing_code, missing) = run(root.as_path(), &[empty.as_path()], &[], &plan());
-    let empty_path: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), empty.clone().into_os_string())];
-    assert_eq!((missing_code, missing), (Some(1), missing_program_message(&ProgramSearch::of(empty_path.as_slice()))));
+    let empty_path: Vec<(OsString, OsString)> =
+        vec![(OsString::from("PATH"), empty.clone().into_os_string())];
+    assert_eq!(
+        (missing_code, missing),
+        (
+            Some(1),
+            missing_program_message(&ProgramSearch::of(empty_path.as_slice()))
+        )
+    );
     remove(root.as_path());
 }
 
@@ -415,9 +559,15 @@ const HELPER_STEP_TIMEOUT: Duration = Duration::from_secs(120);
 /// ```ts
 /// fs.writeFileSync(bin/git-lfs, `#!/bin/sh\necho $$ > '${pid}'\nexec sleep ${HOLD}`)
 /// ```
-fn never_answering_program(bin: &Path, pid_file: &Path) {
+fn never_answering_program(
+    bin: &Path,
+    pid_file: &Path,
+) {
     std::fs::create_dir_all(bin).expect("bin directory");
-    let source: String = format!("#!/bin/sh\necho $$ > '{}'\nexec /usr/bin/sleep {HOLD_SECONDS}\n", pid_file.display());
+    let source: String = format!(
+        "#!/bin/sh\necho $$ > '{}'\nexec /usr/bin/sleep {HOLD_SECONDS}\n",
+        pid_file.display()
+    );
     executable(bin.join("git-lfs").as_path(), source.as_bytes());
 }
 
@@ -445,23 +595,39 @@ fn helper_entry() {
     let Some(mode) = std::env::var_os(HELPER_MODE_VARIABLE) else {
         return;
     };
-    let root: PathBuf = PathBuf::from(std::env::var_os(HELPER_ROOT_VARIABLE).expect("the helper is given its root"));
+    let root: PathBuf = PathBuf::from(
+        std::env::var_os(HELPER_ROOT_VARIABLE).expect("the helper is given its root"),
+    );
     let bin: PathBuf = root.join("bin");
     let state: String = root.join("state").to_string_lossy().into_owned();
     let mut variables: Vec<(&str, &str)> = vec![("XDG_STATE_HOME", state.as_str())];
     if mode.to_string_lossy() == "stall" {
         variables.push((crate::bounded_push::PUSH_DEADLINE_VARIABLE, STALL_SECONDS));
     }
-    let (code, diagnostics) = run_with(root.as_path(), &[bin.as_path()], &[], &plan(), variables.as_slice());
-    std::fs::write(root.join("upload.code"), format!("{}\n", code.unwrap_or(0))).expect("the helper records its status");
-    std::fs::write(root.join("upload.diagnostics"), diagnostics).expect("the helper records its diagnostics");
+    let (code, diagnostics) = run_with(
+        root.as_path(),
+        &[bin.as_path()],
+        &[],
+        &plan(),
+        variables.as_slice(),
+    );
+    std::fs::write(root.join("upload.code"), format!("{}\n", code.unwrap_or(0)))
+        .expect("the helper records its status");
+    std::fs::write(root.join("upload.diagnostics"), diagnostics)
+        .expect("the helper records its diagnostics");
     std::process::exit(code.unwrap_or(0));
 }
 
 /// Start this test binary as the upload helper for one scenario.
-fn spawn_upload_helper(mode: &str, root: &Path) -> Child {
+fn spawn_upload_helper(
+    mode: &str,
+    root: &Path,
+) -> Child {
     // Owned, so a helper still waiting when a control fails does not outlive it; its streams answer nothing the parent reads.
-    let environment: [(&str, &std::ffi::OsStr); 2] = [(HELPER_MODE_VARIABLE, std::ffi::OsStr::new(mode)), (HELPER_ROOT_VARIABLE, root.as_os_str())];
+    let environment: [(&str, &std::ffi::OsStr); 2] = [
+        (HELPER_MODE_VARIABLE, std::ffi::OsStr::new(mode)),
+        (HELPER_ROOT_VARIABLE, root.as_os_str()),
+    ];
     return crate::child_test_process::started(crate::child_test_process::ChildTest {
         exact_test: HELPER_FILTER,
         environment: environment.as_slice(),
@@ -473,12 +639,22 @@ fn spawn_upload_helper(mode: &str, root: &Path) -> Child {
 
 /// Wait until `path` appears while the helper runs,
 /// or fail after the step timeout or when the helper ended.
-fn wait_for_helper_file(path: &Path, helper: &mut Child) {
+fn wait_for_helper_file(
+    path: &Path,
+    helper: &mut Child,
+) {
     let started: Instant = Instant::now();
     while !path.exists() {
-        assert!(started.elapsed() < HELPER_STEP_TIMEOUT, "{} never appeared", path.display());
+        assert!(
+            started.elapsed() < HELPER_STEP_TIMEOUT,
+            "{} never appeared",
+            path.display()
+        );
         if let Some(status) = helper.try_wait().expect("the helper's status") {
-            panic!("the helper ended before {} appeared: {status:?}", path.display());
+            panic!(
+                "the helper ended before {} appeared: {status:?}",
+                path.display()
+            );
         }
         std::thread::sleep(Duration::from_millis(10));
     }
@@ -491,15 +667,22 @@ fn finish_helper(helper: &mut Child) -> ExitStatus {
         if let Some(status) = helper.try_wait().expect("the helper's status") {
             return status;
         }
-        assert!(started.elapsed() < HELPER_STEP_TIMEOUT, "the helper did not end");
+        assert!(
+            started.elapsed() < HELPER_STEP_TIMEOUT,
+            "the helper did not end"
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
 }
 
 /// Send one signal to the helper from this test process,
 /// so the kernel records it as sent by a process and the helper's guard relays it.
-fn send_to_helper(helper: &Child, signal: libc::c_int) {
-    let target: libc::pid_t = libc::pid_t::try_from(helper.id()).expect("a helper pid fits the pid type");
+fn send_to_helper(
+    helper: &Child,
+    signal: libc::c_int,
+) {
+    let target: libc::pid_t =
+        libc::pid_t::try_from(helper.id()).expect("a helper pid fits the pid type");
     // SAFETY: `kill` takes no pointers, and the target is the helper this control started.
     let sent: libc::c_int = unsafe { libc::kill(target, signal) };
     assert_eq!(sent, 0, "the signal was delivered to the helper");
@@ -512,7 +695,8 @@ fn helper_answer(root: &Path) -> (i32, String) {
         .trim()
         .parse()
         .expect("a status");
-    let diagnostics: String = std::fs::read_to_string(root.join("upload.diagnostics")).expect("the helper recorded its diagnostics");
+    let diagnostics: String = std::fs::read_to_string(root.join("upload.diagnostics"))
+        .expect("the helper recorded its diagnostics");
     return (code, diagnostics);
 }
 
@@ -525,12 +709,18 @@ fn an_upload_ended_by_a_signal_names_the_signal() {
     let root = fixture("lfs-upload-signal");
     let bin: PathBuf = root.join("bin");
     std::fs::create_dir(&bin).expect("bin directory");
-    executable(bin.join("git-lfs").as_path(), b"#!/bin/sh\nkill -TERM $$\nsleep 5\n");
+    executable(
+        bin.join("git-lfs").as_path(),
+        b"#!/bin/sh\nkill -TERM $$\nsleep 5\n",
+    );
     let (code, diagnostics) = run(root.as_path(), &[bin.as_path()], &[], &plan());
     assert!(code.is_some_and(|status| {
         return status != 0;
     }));
-    assert!(diagnostics.contains(&format!("was ended by signal {}", libc::SIGTERM)), "{diagnostics}");
+    assert!(
+        diagnostics.contains(&format!("was ended by signal {}", libc::SIGTERM)),
+        "{diagnostics}"
+    );
     remove(root.as_path());
 }
 
@@ -538,8 +728,15 @@ fn an_upload_ended_by_a_signal_names_the_signal() {
 #[test]
 fn a_submodule_push_gets_the_notice() {
     let root = fixture("lfs-upload-submodules");
-    stand_in(root.join("bin").as_path(), root.join("record.txt").as_path(), 0);
-    let marked: UploadPlan = UploadPlan { submodules: true, ..plan() };
+    stand_in(
+        root.join("bin").as_path(),
+        root.join("record.txt").as_path(),
+        0,
+    );
+    let marked: UploadPlan = UploadPlan {
+        submodules: true,
+        ..plan()
+    };
     let (code, diagnostics) = run(root.as_path(), &[root.join("bin").as_path()], &[], &marked);
     assert_eq!((code, diagnostics), (None, submodule_notice()));
     remove(root.as_path());
@@ -564,13 +761,30 @@ fn a_signal_sent_to_the_wrapper_stops_the_upload() {
     wait_for_helper_file(pid_file.as_path(), &mut helper);
     send_to_helper(&helper, libc::SIGTERM);
     let status: ExitStatus = finish_helper(&mut helper);
-    assert!(status.code().is_some(), "the helper ended by its own answer, not a signal: {status:?}");
+    assert!(
+        status.code().is_some(),
+        "the helper ended by its own answer, not a signal: {status:?}"
+    );
     let (code, diagnostics) = helper_answer(root.as_path());
     assert_eq!(code, 128 + libc::SIGTERM, "{diagnostics}");
-    assert!(diagnostics.contains(&format!("was ended by signal {}", libc::SIGTERM)), "{diagnostics}");
-    assert_eq!(status.code(), Some(128 + libc::SIGTERM), "the wrapper's own status is what the helper exits with");
-    let child: i32 = std::fs::read_to_string(pid_file.as_path()).expect("pid").trim().parse().expect("a pid");
-    assert!(!alive(child), "the upload was still running after the signal");
+    assert!(
+        diagnostics.contains(&format!("was ended by signal {}", libc::SIGTERM)),
+        "{diagnostics}"
+    );
+    assert_eq!(
+        status.code(),
+        Some(128 + libc::SIGTERM),
+        "the wrapper's own status is what the helper exits with"
+    );
+    let child: i32 = std::fs::read_to_string(pid_file.as_path())
+        .expect("pid")
+        .trim()
+        .parse()
+        .expect("a pid");
+    assert!(
+        !alive(child),
+        "the upload was still running after the signal"
+    );
     remove(root.as_path());
 }
 
@@ -583,7 +797,13 @@ const INCIDENT_LINE: &str = "batch response: Fatal error: Server error https://u
 /// prints the text of
 ///  `message_file` on standard error and exits with `status`;
 /// later runs succeed.
-fn failing_stand_in(directory: &std::path::Path, counter: &std::path::Path, failures: u32, message: &str, status: i32) {
+fn failing_stand_in(
+    directory: &std::path::Path,
+    counter: &std::path::Path,
+    failures: u32,
+    message: &str,
+    status: i32,
+) {
     std::fs::create_dir_all(directory).expect("bin directory");
     let message_file: PathBuf = directory.join("message.txt");
     std::fs::write(&message_file, format!("{message}\n")).expect("message");
@@ -617,14 +837,33 @@ fn runs_of(counter: &std::path::Path) -> u32 {
 fn a_server_error_ends_the_upload_at_once_with_the_explanation() {
     let root = fixture("lfs-upload-server-error-once");
     let counter: PathBuf = root.join("count.txt");
-    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, INCIDENT_LINE, 2);
+    failing_stand_in(
+        root.join("bin").as_path(),
+        counter.as_path(),
+        99,
+        INCIDENT_LINE,
+        2,
+    );
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
-    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
+    let (code, diagnostics) = run_with(
+        root.as_path(),
+        &[root.join("bin").as_path()],
+        &[],
+        &plan(),
+        &variables,
+    );
     assert_eq!(code, Some(2), "{diagnostics}");
-    assert_eq!(runs_of(counter.as_path()), 1, "the wrapper does not run the upload again: {diagnostics}");
+    assert_eq!(
+        runs_of(counter.as_path()),
+        1,
+        "the wrapper does not run the upload again: {diagnostics}"
+    );
     assert!(!diagnostics.contains("retry 1"), "{diagnostics}");
-    assert!(diagnostics.ends_with(&failed_message("exited with status 2")), "{diagnostics}");
+    assert!(
+        diagnostics.ends_with(&failed_message("exited with status 2")),
+        "{diagnostics}"
+    );
     assert!(!diagnostics.contains("secret"), "{diagnostics}");
     remove(root.as_path());
 }
@@ -638,22 +877,49 @@ fn a_server_error_ends_the_upload_at_once_with_the_explanation() {
 #[test]
 fn every_failure_runs_the_upload_once() {
     let cases: [(&str, &str, i32); 4] = [
-        ("auth", "batch response: Authorization error: https://u:secret@lfs.invalid/objects/batch", 2),
-        ("missing", "Git LFS upload failed:\n  (missing) big.bin (abc)", 2),
+        (
+            "auth",
+            "batch response: Authorization error: https://u:secret@lfs.invalid/objects/batch",
+            2,
+        ),
+        (
+            "missing",
+            "Git LFS upload failed:\n  (missing) big.bin (abc)",
+            2,
+        ),
         ("unknown", "something else went wrong", 1),
-        ("mixed", "Server error https://u:secret@lfs.invalid/o from HTTP 503\n  (missing) big.bin (abc)", 2),
+        (
+            "mixed",
+            "Server error https://u:secret@lfs.invalid/o from HTTP 503\n  (missing) big.bin (abc)",
+            2,
+        ),
     ];
     for (name, message, status) in cases {
         let root = fixture(&format!("lfs-upload-once-{name}"));
         let counter: PathBuf = root.join("count.txt");
-        failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, message, status);
+        failing_stand_in(
+            root.join("bin").as_path(),
+            counter.as_path(),
+            99,
+            message,
+            status,
+        );
         let state: String = root.join("state").to_string_lossy().into_owned();
         let variables = [("XDG_STATE_HOME", state.as_str())];
-        let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
+        let (code, diagnostics) = run_with(
+            root.as_path(),
+            &[root.join("bin").as_path()],
+            &[],
+            &plan(),
+            &variables,
+        );
         assert_eq!(code, Some(status), "{name}: {diagnostics}");
         assert_eq!(runs_of(counter.as_path()), 1, "{name}: {diagnostics}");
         assert!(!diagnostics.contains("retry 1"), "{name}: {diagnostics}");
-        assert!(!diagnostics.contains("u:secret"), "{name}: the credential of the fixture's URL is masked: {diagnostics}");
+        assert!(
+            !diagnostics.contains("u:secret"),
+            "{name}: the credential of the fixture's URL is masked: {diagnostics}"
+        );
         remove(root.as_path());
     }
 }
@@ -664,10 +930,25 @@ fn every_failure_runs_the_upload_once() {
 fn an_upload_that_cannot_capture_its_output_is_refused_with_the_ways_forward() {
     let root = fixture("lfs-upload-no-scratch");
     let counter: PathBuf = root.join("count.txt");
-    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 0, INCIDENT_LINE, 2);
-    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &[]);
+    failing_stand_in(
+        root.join("bin").as_path(),
+        counter.as_path(),
+        0,
+        INCIDENT_LINE,
+        2,
+    );
+    let (code, diagnostics) = run_with(
+        root.as_path(),
+        &[root.join("bin").as_path()],
+        &[],
+        &plan(),
+        &[],
+    );
     assert_eq!(code, Some(1));
-    assert!(diagnostics.contains("GIT_LFS_SKIP_PUSH=1") && diagnostics.contains("XDG_STATE_HOME"), "{diagnostics}");
+    assert!(
+        diagnostics.contains("GIT_LFS_SKIP_PUSH=1") && diagnostics.contains("XDG_STATE_HOME"),
+        "{diagnostics}"
+    );
     assert_eq!(runs_of(counter.as_path()), 0, "nothing ran");
     remove(root.as_path());
 }
@@ -681,27 +962,52 @@ fn an_upload_that_cannot_capture_its_output_is_refused_with_the_ways_forward() {
 /// a developer's machine and the container gate image install the real program there,
 /// so the search found it and the control passed without checking the refusal (L5 of the alpha.45 release pass).
 /// Naming only the fixture's own folders keeps the control the same on every machine.
-fn push_git_through_a_list_of(bin: &std::path::Path, root: &std::path::Path, then: &[&std::path::Path]) -> PushGit {
+fn push_git_through_a_list_of(
+    bin: &std::path::Path,
+    root: &std::path::Path,
+    then: &[&std::path::Path],
+) -> PushGit {
     let folders: Vec<&std::path::Path> = std::iter::once(bin).chain(then.iter().copied()).collect();
     let path: OsString = std::env::join_paths(folders).expect("a PATH");
     let mut environment: Vec<(OsString, OsString)> = vec![
         (OsString::from("PATH"), path),
         (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
-        (OsString::from("GIT_CONFIG_GLOBAL"), OsString::from("/nonexistent-global-config")),
+        (
+            OsString::from("GIT_CONFIG_GLOBAL"),
+            OsString::from("/nonexistent-global-config"),
+        ),
     ];
     environment.extend(crate::test_support::scratch_environment());
-    return PushGit { real_git: root.join("real-git"), cwd: root.to_path_buf(), environment, lfs: true };
+    return PushGit {
+        real_git: root.join("real-git"),
+        cwd: root.to_path_buf(),
+        environment,
+        lfs: true,
+    };
 }
 
 /// The coordinator's Git for a fixture whose `PATH` finds `bin` first,
 /// with the upload switched on and the host's own program folders after it.
-fn push_git_through(bin: &std::path::Path, root: &std::path::Path) -> PushGit {
-    return push_git_through_a_list_of(bin, root, &[std::path::Path::new("/usr/bin"), std::path::Path::new("/bin")]);
+fn push_git_through(
+    bin: &std::path::Path,
+    root: &std::path::Path,
+) -> PushGit {
+    return push_git_through_a_list_of(
+        bin,
+        root,
+        &[
+            std::path::Path::new("/usr/bin"),
+            std::path::Path::new("/bin"),
+        ],
+    );
 }
 
 /// A stand-in `git-lfs` that answers `status` after a moment,
 /// so a wait that held its thread is visible beside it.
-fn slow_stand_in(directory: &std::path::Path, status: i32) {
+fn slow_stand_in(
+    directory: &std::path::Path,
+    status: i32,
+) {
     std::fs::create_dir_all(directory).expect("bin directory");
     let source: String = format!("#!/bin/sh\nsleep 0.2\nexit {status}\n");
     executable(directory.join("git-lfs").as_path(), source.as_bytes());
@@ -725,9 +1031,15 @@ fn the_awaited_upload_answers_what_the_synchronous_upload_answers() {
         let context: PushGit = push_git_through(bin.as_path(), root.as_path());
         let answer = run_upload_bounded(&context, &plan());
         let (awaited, ticks): (Result<Option<PushAttempt>, SingleFlightError>, u32) =
-            crate::ticker_beside_a_wait::with_a_ticker_beside(run_upload_bounded_awaiting(&context, &plan()));
+            crate::ticker_beside_a_wait::with_a_ticker_beside(run_upload_bounded_awaiting(
+                &context,
+                &plan(),
+            ));
         assert_eq!(format!("{awaited:?}"), format!("{answer:?}"), "{status}");
-        assert!(ticks > 0, "the wait for the upload held the thread: the task beside it never ran");
+        assert!(
+            ticks > 0,
+            "the wait for the upload held the thread: the task beside it never ran"
+        );
         remove(root.as_path());
     }
 }
@@ -749,10 +1061,20 @@ fn the_awaited_upload_asks_for_a_place_of_the_processs_bound_before_it_reads_the
     slow_stand_in(bin.as_path(), 0);
     let context: PushGit = push_git_through(bin.as_path(), root.as_path());
     let (given_back, finished) = crate::testing::parallel_test_support::hold_the_only_place();
-    let started = crate::lazy_runtime::spawn_on_runtime(async move { return run_upload_bounded_awaiting(&context, &plan()).await; });
-    assert!(started.is_some(), "the runtime has workers, so the awaiting upload can run on it");
-    let asked: bool = finished.recv_timeout(crate::testing::parallel_test_support::PATIENCE).expect("the holder of the place answered");
-    assert!(asked, "the upload read the caller's PATH without asking for a place of the process's bound");
+    let started = crate::lazy_runtime::spawn_on_runtime(async move {
+        return run_upload_bounded_awaiting(&context, &plan()).await;
+    });
+    assert!(
+        started.is_some(),
+        "the runtime has workers, so the awaiting upload can run on it"
+    );
+    let asked: bool = finished
+        .recv_timeout(crate::testing::parallel_test_support::PATIENCE)
+        .expect("the holder of the place answered");
+    assert!(
+        asked,
+        "the upload read the caller's PATH without asking for a place of the process's bound"
+    );
     // The place it asked for is free again, so the upload finishes; the stand-in answers nothing and succeeds.
     let answered = std::thread::scope(|scope| {
         return scope
@@ -767,8 +1089,17 @@ fn the_awaited_upload_asks_for_a_place_of_the_processs_bound_before_it_reads_the
             .join()
             .expect("the thread that waits for the upload ended");
     });
-    assert!(answered.expect("the runtime answered").expect("the stand-in git-lfs answers").is_none(), "the stand-in succeeds");
-    assert!(given_back.load(std::sync::atomic::Ordering::SeqCst), "the holder gave the place back after the ask");
+    assert!(
+        answered
+            .expect("the runtime answered")
+            .expect("the stand-in git-lfs answers")
+            .is_none(),
+        "the stand-in succeeds"
+    );
+    assert!(
+        given_back.load(std::sync::atomic::Ordering::SeqCst),
+        "the holder gave the place back after the ask"
+    );
     remove(root.as_path());
 }
 
@@ -792,26 +1123,54 @@ fn an_upload_that_shows_no_sign_of_work_is_stopped_at_the_stall_window() {
     let mut helper: Child = spawn_upload_helper("stall", root.as_path());
     let status: ExitStatus = finish_helper(&mut helper);
     let elapsed: Duration = started.elapsed();
-    assert!(status.code().is_some(), "the helper ended by its own answer, not a signal: {status:?}");
-    let (code, diagnostics) = helper_answer(root.as_path());
-    assert_eq!(code, i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1), "{diagnostics}");
-    assert_eq!(status.code(), Some(code), "the wrapper's own status is what the helper exits with");
-    assert!(diagnostics.contains(&format!("made no progress for {STALL_SECONDS} seconds and was stopped")), "{diagnostics}");
-    assert!(diagnostics.contains("was not started and nothing was published"), "{diagnostics}");
     assert!(
-        elapsed < std::time::Duration::from_secs(STALL_SECONDS.parse::<u64>().expect("a whole number") + STOP_GRACE.as_secs() + LOAD_ALLOWANCE_SECONDS),
+        status.code().is_some(),
+        "the helper ended by its own answer, not a signal: {status:?}"
+    );
+    let (code, diagnostics) = helper_answer(root.as_path());
+    assert_eq!(
+        code,
+        i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1),
+        "{diagnostics}"
+    );
+    assert_eq!(
+        status.code(),
+        Some(code),
+        "the wrapper's own status is what the helper exits with"
+    );
+    assert!(
+        diagnostics.contains(&format!(
+            "made no progress for {STALL_SECONDS} seconds and was stopped"
+        )),
+        "{diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("was not started and nothing was published"),
+        "{diagnostics}"
+    );
+    assert!(
+        elapsed
+            < std::time::Duration::from_secs(
+                STALL_SECONDS.parse::<u64>().expect("a whole number")
+                    + STOP_GRACE.as_secs()
+                    + LOAD_ALLOWANCE_SECONDS
+            ),
         "the upload was stopped at its window and its grace, not when the program chose to end: {elapsed:?}"
     );
     let recorded: String = std::fs::read_to_string(pid_file.as_path()).unwrap_or_default();
     let pid: i32 = recorded.trim().parse().unwrap_or(0);
     assert!(pid > 0, "the stand-in recorded its number: {recorded:?}");
-    assert!(!alive(pid), "the stopped upload's program is still running as {pid}");
+    assert!(
+        !alive(pid),
+        "the stopped upload's program is still running as {pid}"
+    );
     remove(root.as_path());
 }
 
 /// The line Git and git-lfs print when a login is missing and no prompt may open,
 /// as Git 2.56.0 writes it.
-const LOGIN_NEEDED_LINE: &str = "fatal: could not read Username for 'https://lfs.example.invalid': No such device or address";
+const LOGIN_NEEDED_LINE: &str =
+    "fatal: could not read Username for 'https://lfs.example.invalid': No such device or address";
 
 /// The line git-lfs 3.8.1 prints when every login it was given was refused,
 /// which is a login failure too and is not the wrapper's refusal to prompt.
@@ -855,29 +1214,65 @@ fn credentialed_plan() -> UploadPlan {
 fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
     let root: PathBuf = fixture("lfs-upload-login");
     let counter: PathBuf = root.join("count.txt");
-    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, LOGIN_NEEDED_LINE, 128);
+    failing_stand_in(
+        root.join("bin").as_path(),
+        counter.as_path(),
+        99,
+        LOGIN_NEEDED_LINE,
+        128,
+    );
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
     // Every child is given the no-prompt rule, so the refusal's words must say that and never that a terminal decided it.
     let no_prompt: [(&str, &str); 4] = [
         (crate::child_environment::ASKPASS_VARIABLE, ""),
         (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
-        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
-        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
+        (
+            crate::child_environment::SSH_ASKPASS_VARIABLE,
+            crate::child_environment::NO_ANSWER_PROGRAM,
+        ),
+        (
+            crate::child_environment::ASKPASS_REQUIRE_VARIABLE,
+            crate::child_environment::ASKPASS_REQUIRE_FORCE,
+        ),
     ];
-    let (code, diagnostics) =
-        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);
+    let (code, diagnostics) = run_with_overlay(
+        root.as_path(),
+        &[root.join("bin").as_path()],
+        &[],
+        &credentialed_plan(),
+        &variables,
+        &no_prompt,
+    );
     assert_eq!(code, Some(128), "{diagnostics}");
-    assert!(diagnostics.contains("the server `lfs.example.invalid`"), "the server is named: {diagnostics}");
-    assert!(diagnostics.contains("never lets a command ask"), "the reason nothing asked is stated: {diagnostics}");
+    assert!(
+        diagnostics.contains("the server `lfs.example.invalid`"),
+        "the server is named: {diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("never lets a command ask"),
+        "the reason nothing asked is stated: {diagnostics}"
+    );
     assert!(
         diagnostics.contains(crate::child_environment::ASKPASS_REQUIRE_VARIABLE),
         "the words name the rule OpenSSH reads: {diagnostics}"
     );
-    assert!(!diagnostics.contains("controlling terminal"), "no terminal decides this any more: {diagnostics}");
-    assert!(diagnostics.contains("credential.helper"), "the way to store a login is named: {diagnostics}");
-    assert!(diagnostics.contains("doc/troubleshooting/lfs-credential-in-url.md"), "the note is cited: {diagnostics}");
-    assert!(!diagnostics.contains("user:secret"), "the credential part of the destination is never repeated: {diagnostics}");
+    assert!(
+        !diagnostics.contains("controlling terminal"),
+        "no terminal decides this any more: {diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("credential.helper"),
+        "the way to store a login is named: {diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("doc/troubleshooting/lfs-credential-in-url.md"),
+        "the note is cited: {diagnostics}"
+    );
+    assert!(
+        !diagnostics.contains("user:secret"),
+        "the credential part of the destination is never repeated: {diagnostics}"
+    );
     remove(root.as_path());
 }
 
@@ -899,23 +1294,53 @@ fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
 fn an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule() {
     let root: PathBuf = fixture("lfs-upload-login-at-terminal");
     let counter: PathBuf = root.join("count.txt");
-    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, REFUSED_LOGIN_LINE, 128);
+    failing_stand_in(
+        root.join("bin").as_path(),
+        counter.as_path(),
+        99,
+        REFUSED_LOGIN_LINE,
+        128,
+    );
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
     // The overlay every command is given now, so the stand-in's terminal is the only difference from the case above.
     let no_prompt: [(&str, &str); 4] = [
         (crate::child_environment::ASKPASS_VARIABLE, ""),
         (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
-        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
-        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
+        (
+            crate::child_environment::SSH_ASKPASS_VARIABLE,
+            crate::child_environment::NO_ANSWER_PROGRAM,
+        ),
+        (
+            crate::child_environment::ASKPASS_REQUIRE_VARIABLE,
+            crate::child_environment::ASKPASS_REQUIRE_FORCE,
+        ),
     ];
-    let (code, diagnostics) =
-        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);
+    let (code, diagnostics) = run_with_overlay(
+        root.as_path(),
+        &[root.join("bin").as_path()],
+        &[],
+        &credentialed_plan(),
+        &variables,
+        &no_prompt,
+    );
     assert_eq!(code, Some(128), "{diagnostics}");
-    assert!(diagnostics.contains("never lets a command ask"), "the rule is stated the same way: {diagnostics}");
-    assert!(!diagnostics.contains("controlling terminal"), "no terminal decides this any more: {diagnostics}");
-    assert!(diagnostics.contains("credential.helper"), "the way to store a login is named: {diagnostics}");
-    assert!(!diagnostics.contains("user:secret"), "the credential part of the destination is never repeated: {diagnostics}");
+    assert!(
+        diagnostics.contains("never lets a command ask"),
+        "the rule is stated the same way: {diagnostics}"
+    );
+    assert!(
+        !diagnostics.contains("controlling terminal"),
+        "no terminal decides this any more: {diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("credential.helper"),
+        "the way to store a login is named: {diagnostics}"
+    );
+    assert!(
+        !diagnostics.contains("user:secret"),
+        "the credential part of the destination is never repeated: {diagnostics}"
+    );
     remove(root.as_path());
 }
 
@@ -940,31 +1365,68 @@ fn an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule() {
 /// expect(diagnostics).toContain('eval "$(ssh-agent)"'); expect(diagnostics).toContain('a key without a passphrase')
 /// ```
 #[test]
-fn an_upload_whose_ssh_key_no_agent_holds_says_how_to_start_an_agent_or_use_a_key_without_a_passphrase() {
+fn an_upload_whose_ssh_key_no_agent_holds_says_how_to_start_an_agent_or_use_a_key_without_a_passphrase()
+ {
     let root: PathBuf = fixture("lfs-upload-ssh-key");
     let counter: PathBuf = root.join("count.txt");
-    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, "ssh: connect to host 127.0.0.1 port 22: Permission denied (publickey).", 128);
+    failing_stand_in(
+        root.join("bin").as_path(),
+        counter.as_path(),
+        99,
+        "ssh: connect to host 127.0.0.1 port 22: Permission denied (publickey).",
+        128,
+    );
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
     let no_prompt: [(&str, &str); 4] = [
         (crate::child_environment::ASKPASS_VARIABLE, ""),
         (crate::child_environment::TERMINAL_PROMPT_VARIABLE, "0"),
-        (crate::child_environment::SSH_ASKPASS_VARIABLE, crate::child_environment::NO_ANSWER_PROGRAM),
-        (crate::child_environment::ASKPASS_REQUIRE_VARIABLE, crate::child_environment::ASKPASS_REQUIRE_FORCE),
+        (
+            crate::child_environment::SSH_ASKPASS_VARIABLE,
+            crate::child_environment::NO_ANSWER_PROGRAM,
+        ),
+        (
+            crate::child_environment::ASKPASS_REQUIRE_VARIABLE,
+            crate::child_environment::ASKPASS_REQUIRE_FORCE,
+        ),
     ];
-    let (code, diagnostics) =
-        run_with_overlay(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables, &no_prompt);
+    let (code, diagnostics) = run_with_overlay(
+        root.as_path(),
+        &[root.join("bin").as_path()],
+        &[],
+        &credentialed_plan(),
+        &variables,
+        &no_prompt,
+    );
     assert_eq!(code, Some(128), "{diagnostics}");
-    assert!(diagnostics.contains("needed a login"), "the failure is read as a login the program could not get: {diagnostics}");
-    assert!(diagnostics.contains("`ssh-add`"), "the command that loads the key is named: {diagnostics}");
-    assert!(diagnostics.contains("`eval \"$(ssh-agent)\"`"), "the words say how to start an agent: {diagnostics}");
+    assert!(
+        diagnostics.contains("needed a login"),
+        "the failure is read as a login the program could not get: {diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("`ssh-add`"),
+        "the command that loads the key is named: {diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("`eval \"$(ssh-agent)\"`"),
+        "the words say how to start an agent: {diagnostics}"
+    );
     assert!(
         diagnostics.contains("`eval (ssh-agent -c)` in fish"),
         "the words name the form fish accepts, which the Bourne one is not: {diagnostics}"
     );
-    assert!(diagnostics.contains("a key without a passphrase"), "the words name the other way that needs no agent: {diagnostics}");
-    assert!(diagnostics.contains("passphrase"), "the words say what the agent would have answered: {diagnostics}");
-    assert!(!diagnostics.contains("known_hosts"), "a refused key is not a host key this machine does not know: {diagnostics}");
+    assert!(
+        diagnostics.contains("a key without a passphrase"),
+        "the words name the other way that needs no agent: {diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("passphrase"),
+        "the words say what the agent would have answered: {diagnostics}"
+    );
+    assert!(
+        !diagnostics.contains("known_hosts"),
+        "a refused key is not a host key this machine does not know: {diagnostics}"
+    );
     assert_eq!(
         diagnostics.matches('(').count(),
         diagnostics.matches(')').count(),
@@ -1002,12 +1464,21 @@ fn an_upload_refused_for_an_unknown_host_key_says_how_to_add_it() {
     );
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
-    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
+    let (code, diagnostics) = run_with(
+        root.as_path(),
+        &[root.join("bin").as_path()],
+        &[],
+        &plan(),
+        &variables,
+    );
     assert_eq!(code, Some(2), "{diagnostics}");
     for said in ["plain `ssh <host>`", "`known_hosts`", "push again"] {
         assert!(diagnostics.contains(said), "{said} in {diagnostics}");
     }
-    assert!(!diagnostics.contains("needed a login"), "a host key is not a credential the upload needed: {diagnostics}");
+    assert!(
+        !diagnostics.contains("needed a login"),
+        "a host key is not a credential the upload needed: {diagnostics}"
+    );
     remove(root.as_path());
 }
 
@@ -1021,14 +1492,21 @@ fn an_upload_refused_for_an_unknown_host_key_says_how_to_add_it() {
 ///  read the same way.
 #[test]
 fn an_upload_refused_for_an_unknown_host_key_names_the_host_the_destination_gives() {
-    let destination: &std::ffi::OsStr = std::ffi::OsStr::new("ssh://git@git.example.invalid/owner/repo.git");
+    let destination: &std::ffi::OsStr =
+        std::ffi::OsStr::new("ssh://git@git.example.invalid/owner/repo.git");
     let explanation: String = crate::lfs_upload_explanations::explanation_after_failure(
         "exited with status 2",
         destination,
         b"Host key verification failed.\nfatal: Could not read from remote repository.",
     );
-    assert!(explanation.contains("plain `ssh git.example.invalid`"), "the host is named: {explanation}");
-    assert!(!explanation.contains("`ssh <host>`"), "the placeholder is only for a destination that names no host: {explanation}");
+    assert!(
+        explanation.contains("plain `ssh git.example.invalid`"),
+        "the host is named: {explanation}"
+    );
+    assert!(
+        !explanation.contains("`ssh <host>`"),
+        "the placeholder is only for a destination that names no host: {explanation}"
+    );
 }
 
 /// A failure that says nothing about a login gets no login paragraph:
@@ -1037,13 +1515,32 @@ fn an_upload_refused_for_an_unknown_host_key_names_the_host_the_destination_give
 fn a_failure_that_names_no_login_keeps_the_words_it_had() {
     let root: PathBuf = fixture("lfs-upload-no-login");
     let counter: PathBuf = root.join("count.txt");
-    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, "Git LFS upload failed:\n  (missing) big.bin (abc)", 2);
+    failing_stand_in(
+        root.join("bin").as_path(),
+        counter.as_path(),
+        99,
+        "Git LFS upload failed:\n  (missing) big.bin (abc)",
+        2,
+    );
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
-    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &credentialed_plan(), &variables);
+    let (code, diagnostics) = run_with(
+        root.as_path(),
+        &[root.join("bin").as_path()],
+        &[],
+        &credentialed_plan(),
+        &variables,
+    );
     assert_eq!(code, Some(2), "{diagnostics}");
     assert!(!diagnostics.contains("needed a login"), "{diagnostics}");
-    assert_eq!(diagnostics, format!("Git LFS upload failed:\n  (missing) big.bin (abc)\n{}", failed_message("exited with status 2")), "{diagnostics}");
+    assert_eq!(
+        diagnostics,
+        format!(
+            "Git LFS upload failed:\n  (missing) big.bin (abc)\n{}",
+            failed_message("exited with status 2")
+        ),
+        "{diagnostics}"
+    );
     remove(root.as_path());
 }
 
@@ -1096,18 +1593,39 @@ fn a_relay_past_the_cap_keeps_no_part_of_a_cut_url_and_says_it_was_cut() {
     let mut captured: std::fs::File = std::fs::File::open(path.as_path()).expect("open");
     let relayed: Vec<u8> = relayed_head(&mut captured).expect("the shipped read answers");
     let diagnostics: String = String::from_utf8_lossy(relayed.as_slice()).into_owned();
-    let kept: String = diagnostics.trim_end_matches(shortened_relay_notice().as_str()).to_string();
-    assert!(diagnostics.len() > kept.len(), "the read says the output was longer than the cap: {}", &diagnostics[diagnostics.len().saturating_sub(400)..]);
-    assert_eq!(kept, first_line, "only the whole lines the cap holds are kept");
-    assert!(!kept.contains("planted"), "no part of the password survives the cut");
+    let kept: String = diagnostics
+        .trim_end_matches(shortened_relay_notice().as_str())
+        .to_string();
+    assert!(
+        diagnostics.len() > kept.len(),
+        "the read says the output was longer than the cap: {}",
+        &diagnostics[diagnostics.len().saturating_sub(400)..]
+    );
+    assert_eq!(
+        kept, first_line,
+        "only the whole lines the cap holds are kept"
+    );
+    assert!(
+        !kept.contains("planted"),
+        "no part of the password survives the cut"
+    );
     assert!(!kept.contains(secret), "the planted secret is not relayed");
     let notice: String = shortened_relay_notice();
     assert!(
-        notice.contains(&format!("more than {MAX_RELAYED_BYTES} bytes of standard error")),
+        notice.contains(&format!(
+            "more than {MAX_RELAYED_BYTES} bytes of standard error"
+        )),
         "the relay says the output was cut: {notice}"
     );
-    assert!(notice.ends_with('\n'), "the explanation after the notice starts on a line of its own: {notice:?}");
-    assert!(diagnostics.ends_with(notice.as_str()), "the notice is what the relayed text ends with: {}", &diagnostics[diagnostics.len().saturating_sub(400)..]);
+    assert!(
+        notice.ends_with('\n'),
+        "the explanation after the notice starts on a line of its own: {notice:?}"
+    );
+    assert!(
+        diagnostics.ends_with(notice.as_str()),
+        "the notice is what the relayed text ends with: {}",
+        &diagnostics[diagnostics.len().saturating_sub(400)..]
+    );
     remove(root.as_path());
 }
 
@@ -1142,14 +1660,26 @@ fn an_upload_that_keeps_printing_past_the_cap_is_stopped_by_the_flood_look() {
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
     let (code, diagnostics) = run_with(root.as_path(), &[bin.as_path()], &[], &plan(), &variables);
-    assert_eq!(code, Some(i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1)), "the flood look stopped it: {diagnostics}");
+    assert_eq!(
+        code,
+        Some(i32::try_from(STOPPED_EXIT_CODE).unwrap_or(1)),
+        "the flood look stopped it: {diagnostics}"
+    );
     assert!(
-        diagnostics.contains(&format!("wrote more than {MAX_RELAYED_BYTES} bytes of output and was stopped")),
+        diagnostics.contains(&format!(
+            "wrote more than {MAX_RELAYED_BYTES} bytes of output and was stopped"
+        )),
         "the stop says why: {}",
         &diagnostics[diagnostics.len().saturating_sub(400)..]
     );
-    assert!(!diagnostics.contains("planted"), "no part of the password survives the stop");
-    assert!(diagnostics.contains("This push was not started"), "the push is said not to have started");
+    assert!(
+        !diagnostics.contains("planted"),
+        "no part of the password survives the stop"
+    );
+    assert!(
+        diagnostics.contains("This push was not started"),
+        "the push is said not to have started"
+    );
     remove(root.as_path());
 }
 
@@ -1182,27 +1712,63 @@ fn connected_report(carried: u64) -> StopReport {
 /// ```
 #[test]
 fn a_connected_stop_names_the_server_and_offers_no_rate_setting_when_nothing_moved() {
-    let silent: String = stopped_upload_words(&StopCause::Stalled(connected_report(0)), Some("lfs.example.invalid"));
-    assert!(silent.contains("the server `lfs.example.invalid`"), "the server that held the connection is named: {silent}");
+    let silent: String = stopped_upload_words(
+        &StopCause::Stalled(connected_report(0)),
+        Some("lfs.example.invalid"),
+    );
+    assert!(
+        silent.contains("the server `lfs.example.invalid`"),
+        "the server that held the connection is named: {silent}"
+    );
     assert!(
         !silent.contains(crate::push_minimum_rate::PUSH_MINIMUM_RATE_VARIABLE),
         "nothing moved, so no rate setting is offered: {silent}"
     );
-    assert!(silent.contains("nothing moved"), "the stop says what the connection carried: {silent}");
-    let trickling: String = stopped_upload_words(&StopCause::Stalled(connected_report(4096)), Some("lfs.example.invalid"));
+    assert!(
+        silent.contains("nothing moved"),
+        "the stop says what the connection carried: {silent}"
+    );
+    let trickling: String = stopped_upload_words(
+        &StopCause::Stalled(connected_report(4096)),
+        Some("lfs.example.invalid"),
+    );
     assert!(
         trickling.contains(crate::push_minimum_rate::PUSH_MINIMUM_RATE_VARIABLE),
         "a connection that carried something is offered the floor: {trickling}"
     );
     for words in [silent, trickling] {
-        assert_eq!(words.matches("Ways forward:").count(), 1, "one list of ways forward: {words}");
+        assert_eq!(
+            words.matches("Ways forward:").count(),
+            1,
+            "one list of ways forward: {words}"
+        );
     }
-    let stop: String = format!("{} {}\n", stopped_upload_words(&StopCause::Stalled(connected_report(0)), None), stopped_upload_tail());
-    assert_eq!(stop.matches("Ways forward:").count(), 1, "the tail adds no second list of ways forward: {stop}");
-    assert!(!stop.contains("so this push was not started"), "the tail does not arrive inside the ways forward: {stop}");
-    assert!(stop.contains("This push was not started and nothing was published"), "the tail says what happened to the push: {stop}");
-    assert!(!stop.contains(".."), "the stop's own full stop and the tail's join are one full stop: {stop}");
-    assert!(stop.contains("answers this time. This push was not started"), "the two sentences meet at one full stop: {stop}");
+    let stop: String = format!(
+        "{} {}\n",
+        stopped_upload_words(&StopCause::Stalled(connected_report(0)), None),
+        stopped_upload_tail()
+    );
+    assert_eq!(
+        stop.matches("Ways forward:").count(),
+        1,
+        "the tail adds no second list of ways forward: {stop}"
+    );
+    assert!(
+        !stop.contains("so this push was not started"),
+        "the tail does not arrive inside the ways forward: {stop}"
+    );
+    assert!(
+        stop.contains("This push was not started and nothing was published"),
+        "the tail says what happened to the push: {stop}"
+    );
+    assert!(
+        !stop.contains(".."),
+        "the stop's own full stop and the tail's join are one full stop: {stop}"
+    );
+    assert!(
+        stop.contains("answers this time. This push was not started"),
+        "the two sentences meet at one full stop: {stop}"
+    );
 }
 
 /// What:
@@ -1223,9 +1789,13 @@ fn a_connected_stop_names_the_server_and_offers_no_rate_setting_when_nothing_mov
 #[test]
 fn a_stopped_upload_names_the_plans_server_unless_the_program_names_it_too() {
     let at_plan = |server: Option<&str>| -> UploadPlan {
-        return UploadPlan { lfs_server: server.map(str::to_owned), ..plan() };
+        return UploadPlan {
+            lfs_server: server.map(str::to_owned),
+            ..plan()
+        };
     };
-    let word_of_docs: &[u8] = b"See https://docs.example.invalid/git-lfs/troubleshooting for the list of causes.\n";
+    let word_of_docs: &[u8] =
+        b"See https://docs.example.invalid/git-lfs/troubleshooting for the list of causes.\n";
     assert_eq!(
         upload_server_of(&at_plan(Some("127.0.0.1:4000")), word_of_docs),
         Some(String::from("127.0.0.1:4000")),
@@ -1242,7 +1812,11 @@ fn a_stopped_upload_names_the_plans_server_unless_the_program_names_it_too() {
         Some(String::from("127.0.0.1:4000")),
         "a plan that read no server leaves the program's own words to name it"
     );
-    assert_eq!(upload_server_of(&at_plan(None), b""), None, "a silent program with no plan names nothing");
+    assert_eq!(
+        upload_server_of(&at_plan(None), b""),
+        None,
+        "a silent program with no plan names nothing"
+    );
 }
 
 //endregion
@@ -1265,7 +1839,10 @@ fn a_program_that_is_found_and_cannot_start_is_named_with_the_operating_systems_
     let root: PathBuf = fixture("lfs-upload-start-failure");
     let bin: PathBuf = root.join("bin");
     std::fs::create_dir_all(bin.as_path()).expect("bin directory");
-    executable(bin.join("git-lfs").as_path(), b"#!/nonexistent/interpreter-for-this-control\nexit 0\n");
+    executable(
+        bin.join("git-lfs").as_path(),
+        b"#!/nonexistent/interpreter-for-this-control\nexit 0\n",
+    );
     let state: String = root.join("state").to_string_lossy().into_owned();
     let variables = [("XDG_STATE_HOME", state.as_str())];
     let (code, diagnostics) = run_with(root.as_path(), &[bin.as_path()], &[], &plan(), &variables);
@@ -1274,7 +1851,10 @@ fn a_program_that_is_found_and_cannot_start_is_named_with_the_operating_systems_
         diagnostics.contains(&format!("was found at {}", bin.join("git-lfs").display())),
         "the file that was found is named: {diagnostics}"
     );
-    assert!(diagnostics.contains("No such file or directory"), "the operating system's error is named: {diagnostics}");
+    assert!(
+        diagnostics.contains("No such file or directory"),
+        "the operating system's error is named: {diagnostics}"
+    );
     assert!(
         !diagnostics.contains("was not found in any directory of PATH"),
         "a program that is there is not reported as absent: {diagnostics}"
@@ -1299,13 +1879,32 @@ fn the_bounded_face_names_a_found_program_that_cannot_start_and_refuses_a_missin
     std::fs::write(unstartable.join("real-git"), b"#!/bin/sh\n").expect("stand-in real git");
     let bin: PathBuf = unstartable.join("bin");
     std::fs::create_dir_all(bin.as_path()).expect("bin directory");
-    executable(bin.join("git-lfs").as_path(), b"#!/nonexistent/interpreter-for-this-control\nexit 0\n");
+    executable(
+        bin.join("git-lfs").as_path(),
+        b"#!/nonexistent/interpreter-for-this-control\nexit 0\n",
+    );
     let context: PushGit = push_git_through(bin.as_path(), unstartable.as_path());
-    let attempt: PushAttempt = run_upload_bounded(&context, &plan()).expect("the upload answered").expect("the upload failed");
+    let attempt: PushAttempt = run_upload_bounded(&context, &plan())
+        .expect("the upload answered")
+        .expect("the upload failed");
     assert_eq!(attempt.exit_code, 1, "{}", attempt.output);
-    assert!(attempt.output.contains("was found at"), "the file that was found is named: {}", attempt.output);
-    assert!(attempt.output.contains("No such file or directory"), "the operating system's error is named: {}", attempt.output);
-    assert!(!attempt.output.contains("was not found in any directory of PATH"), "{}", attempt.output);
+    assert!(
+        attempt.output.contains("was found at"),
+        "the file that was found is named: {}",
+        attempt.output
+    );
+    assert!(
+        attempt.output.contains("No such file or directory"),
+        "the operating system's error is named: {}",
+        attempt.output
+    );
+    assert!(
+        !attempt
+            .output
+            .contains("was not found in any directory of PATH"),
+        "{}",
+        attempt.output
+    );
     remove(unstartable.as_path());
 
     let absent: PathBuf = fixture("lfs-upload-bounded-missing-program");
@@ -1314,12 +1913,29 @@ fn the_bounded_face_names_a_found_program_that_cannot_start_and_refuses_a_missin
     std::fs::create_dir_all(empty.as_path()).expect("bin directory");
     // The list names this folder alone: a real `git-lfs` in `/usr/bin`, which a developer's machine and the gate image
     //  have, must not answer the search the refusal is about (L5 of the alpha.45 release pass).
-    let absent_context: PushGit = push_git_through_a_list_of(empty.as_path(), absent.as_path(), &[]);
-    let refusal: PushAttempt = run_upload_bounded(&absent_context, &plan()).expect("the upload answered").expect("the upload failed");
+    let absent_context: PushGit =
+        push_git_through_a_list_of(empty.as_path(), absent.as_path(), &[]);
+    let refusal: PushAttempt = run_upload_bounded(&absent_context, &plan())
+        .expect("the upload answered")
+        .expect("the upload failed");
     assert_eq!(refusal.exit_code, 1, "{}", refusal.output);
-    assert!(refusal.output.contains("was not found in the folders this push searches"), "{}", refusal.output);
-    assert!(refusal.output.contains(&empty.display().to_string()), "the folder it searched is named: {}", refusal.output);
-    assert!(!refusal.output.contains("could not be started"), "nothing claims a program that is absent was found: {}", refusal.output);
+    assert!(
+        refusal
+            .output
+            .contains("was not found in the folders this push searches"),
+        "{}",
+        refusal.output
+    );
+    assert!(
+        refusal.output.contains(&empty.display().to_string()),
+        "the folder it searched is named: {}",
+        refusal.output
+    );
+    assert!(
+        !refusal.output.contains("could not be started"),
+        "nothing claims a program that is absent was found: {}",
+        refusal.output
+    );
     remove(absent.as_path());
 }
 
@@ -1343,12 +1959,32 @@ fn the_bounded_face_keeps_the_signal_that_ended_the_upload() {
     std::fs::write(root.join("real-git"), b"#!/bin/sh\n").expect("stand-in real git");
     let bin: PathBuf = root.join("bin");
     std::fs::create_dir_all(bin.as_path()).expect("bin directory");
-    executable(bin.join("git-lfs").as_path(), format!("#!/bin/sh\nkill -KILL $$\nsleep {HOLD_SECONDS}\n").as_bytes());
+    executable(
+        bin.join("git-lfs").as_path(),
+        format!("#!/bin/sh\nkill -KILL $$\nsleep {HOLD_SECONDS}\n").as_bytes(),
+    );
     let context: PushGit = push_git_through(bin.as_path(), root.as_path());
-    let attempt: PushAttempt = run_upload_bounded(&context, &plan()).expect("the upload answered").expect("the upload failed");
+    let attempt: PushAttempt = run_upload_bounded(&context, &plan())
+        .expect("the upload answered")
+        .expect("the upload failed");
     assert_eq!(attempt.signal, Some(libc::SIGKILL), "{}", attempt.output);
-    assert_eq!(attempt.exit_code, i64::from(crate::forwarding::SIGNAL_EXIT_BASE + libc::SIGKILL), "{}", attempt.output);
-    assert!(attempt.output.contains(&format!("was ended by signal {}", libc::SIGKILL)), "{}", attempt.output);
-    assert!(!attempt.output.contains("exited with status 1"), "a signal is not a status the program chose: {}", attempt.output);
+    assert_eq!(
+        attempt.exit_code,
+        i64::from(crate::forwarding::SIGNAL_EXIT_BASE + libc::SIGKILL),
+        "{}",
+        attempt.output
+    );
+    assert!(
+        attempt
+            .output
+            .contains(&format!("was ended by signal {}", libc::SIGKILL)),
+        "{}",
+        attempt.output
+    );
+    assert!(
+        !attempt.output.contains("exited with status 1"),
+        "a signal is not a status the program chose: {}",
+        attempt.output
+    );
     remove(root.as_path());
 }

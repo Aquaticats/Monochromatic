@@ -100,7 +100,10 @@ static HELD: Mutex<Vec<HeldSends>> = Mutex::new(Vec::new());
 /// ```ts
 /// note(id, tree); // void
 /// ```
-pub fn note(id: &str, tree: &Path) {
+pub fn note(
+    id: &str,
+    tree: &Path,
+) {
     let Some(name) = tree.file_name() else { return };
     let mut held = HELD.lock().expect("the trees the queued requests hold");
     if let Some(earlier) = position_of(held.as_slice(), id) {
@@ -112,7 +115,11 @@ pub fn note(id: &str, tree: &Path) {
         held.push(entry);
         return;
     }
-    held.push(HeldSends { id: String::from(id), tree: name.to_os_string(), sends: 1 });
+    held.push(HeldSends {
+        id: String::from(id),
+        tree: name.to_os_string(),
+        sends: 1,
+    });
 }
 
 /// What:
@@ -137,7 +144,9 @@ pub fn note(id: &str, tree: &Path) {
 /// ```
 pub fn release(id: &str) {
     let mut held = HELD.lock().expect("the trees the queued requests hold");
-    let Some(entry) = position_of(held.as_slice(), id) else { return };
+    let Some(entry) = position_of(held.as_slice(), id) else {
+        return;
+    };
     if held[entry].sends > 1 {
         held[entry].sends -= 1;
         return;
@@ -160,7 +169,9 @@ pub fn release(id: &str) {
 /// isHeld(path); // whether a request this service holds still lands on the tree
 /// ```
 pub fn is_held(path: &Path) -> bool {
-    let Some(name) = path.file_name() else { return false };
+    let Some(name) = path.file_name() else {
+        return false;
+    };
     let held = HELD.lock().expect("the trees the queued requests hold");
     for entry in held.iter() {
         if entry.tree.as_os_str() == name {
@@ -180,7 +191,10 @@ pub fn is_held(path: &Path) -> bool {
 /// ```ts
 /// positionOf(held, id); // the index of the request's entry, or nothing
 /// ```
-fn position_of(held: &[HeldSends], id: &str) -> Option<usize> {
+fn position_of(
+    held: &[HeldSends],
+    id: &str,
+) -> Option<usize> {
     let mut place: usize = 0;
     while place < held.len() {
         if held[place].id.as_str() == id {

@@ -22,7 +22,10 @@
 //! const reading = readABoundedFile(path, bound); // { kind: 'absent' } | { kind: 'bytes', bytes } | { kind: 'refused', cause }
 //! ```
 
-use crate::private_storage::{ReadRefusal, read_regular_file};
+use crate::private_storage::{
+    ReadRefusal,
+    read_regular_file,
+};
 use std::os::unix::fs::FileTypeExt as _;
 use std::path::Path;
 
@@ -68,14 +71,29 @@ impl ARefusedReading {
     /// as a clause a larger sentence holds.
     pub fn words(&self) -> String {
         return match self {
-            ARefusedReading::ALink => String::from("a symbolic link stands at the name and the file this route reads is a regular file"),
-            ARefusedReading::ADirectory => String::from("a directory stands at the name and the file this route reads is a regular file"),
-            ARefusedReading::ANamedPipe => String::from("a named pipe stands at the name, and this route never waits on one"),
-            ARefusedReading::AFileOfAnotherKind => String::from("a socket, a device or another non-regular entry stands at the name"),
-            ARefusedReading::TooManyBytes { found, bound } => {
-                format!("it holds {found} bytes and this route reads at most {bound} bytes there, so the bytes it holds cannot be the ones this route wrote")
+            ARefusedReading::ALink => String::from(
+                "a symbolic link stands at the name and the file this route reads is a regular file",
+            ),
+            ARefusedReading::ADirectory => String::from(
+                "a directory stands at the name and the file this route reads is a regular file",
+            ),
+            ARefusedReading::ANamedPipe => {
+                String::from("a named pipe stands at the name, and this route never waits on one")
             }
-            ARefusedReading::Unreadable { reason } => format!("the system refused the read ({reason})"),
+            ARefusedReading::AFileOfAnotherKind => {
+                String::from("a socket, a device or another non-regular entry stands at the name")
+            }
+            ARefusedReading::TooManyBytes {
+                found,
+                bound,
+            } => {
+                format!(
+                    "it holds {found} bytes and this route reads at most {bound} bytes there, so the bytes it holds cannot be the ones this route wrote"
+                )
+            }
+            ARefusedReading::Unreadable {
+                reason,
+            } => format!("the system refused the read ({reason})"),
         };
     }
 }
@@ -116,11 +134,23 @@ pub enum Reading {
 /// if (metadata.isSymbolicLink()) return refused('a-link');
 /// await readRegularFile(path, bound);
 /// ```
-pub fn read_a_bounded_file(path: &Path, bound: u64) -> Reading {
+pub fn read_a_bounded_file(
+    path: &Path,
+    bound: u64,
+) -> Reading {
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(path) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound || error.kind() == std::io::ErrorKind::NotADirectory => return Reading::Absent,
-        Err(error) => return Reading::Refused(ARefusedReading::Unreadable { reason: error.to_string() }),
+        Err(error)
+            if error.kind() == std::io::ErrorKind::NotFound
+                || error.kind() == std::io::ErrorKind::NotADirectory =>
+        {
+            return Reading::Absent;
+        }
+        Err(error) => {
+            return Reading::Refused(ARefusedReading::Unreadable {
+                reason: error.to_string(),
+            });
+        }
     };
     let kind: std::fs::FileType = metadata.file_type();
     if kind.is_symlink() {
@@ -136,14 +166,22 @@ pub fn read_a_bounded_file(path: &Path, bound: u64) -> Reading {
         return Reading::Refused(ARefusedReading::AFileOfAnotherKind);
     }
     if metadata.len() > bound {
-        return Reading::Refused(ARefusedReading::TooManyBytes { found: metadata.len(), bound });
+        return Reading::Refused(ARefusedReading::TooManyBytes {
+            found: metadata.len(),
+            bound,
+        });
     }
     return match read_regular_file(path, bound) {
         Ok(bytes) => Reading::Bytes(bytes),
         Err(ReadRefusal::Missing) => Reading::Absent,
         Err(ReadRefusal::NotRegular) => Reading::Refused(ARefusedReading::AFileOfAnotherKind),
-        Err(ReadRefusal::TooLarge) => Reading::Refused(ARefusedReading::TooManyBytes { found: metadata.len(), bound }),
-        Err(ReadRefusal::Io(error)) => Reading::Refused(ARefusedReading::Unreadable { reason: error.to_string() }),
+        Err(ReadRefusal::TooLarge) => Reading::Refused(ARefusedReading::TooManyBytes {
+            found: metadata.len(),
+            bound,
+        }),
+        Err(ReadRefusal::Io(error)) => Reading::Refused(ARefusedReading::Unreadable {
+            reason: error.to_string(),
+        }),
     };
 }
 

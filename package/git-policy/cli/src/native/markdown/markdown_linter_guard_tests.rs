@@ -16,12 +16,27 @@
 //! // expect(await runGuarded(() => { throw new Error('planted'); }, ...)).rejects.toEqual({ kind: 'panicked' });
 //! ```
 
-use super::{GuardFailure, GuardLimits, NoticeSink, run_guarded};
-use crate::test_support::{ActionSink, SharedSink};
+use super::{
+    GuardFailure,
+    GuardLimits,
+    NoticeSink,
+    run_guarded,
+};
+use crate::test_support::{
+    ActionSink,
+    SharedSink,
+};
 use crate::wait_progress::Cadence;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::Arc;
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
+use std::sync::mpsc::{
+    Receiver,
+    Sender,
+    channel,
+};
 use std::time::Duration;
 
 /// A quiet window short enough for a test to wait out.
@@ -58,7 +73,10 @@ const WRITE_HELD_FOR: Duration = Duration::from_secs(240);
 
 /// The limits of a control that is about the quiet window only.
 fn limits(window: Duration) -> GuardLimits {
-    return GuardLimits { window, ceiling: ROOMY };
+    return GuardLimits {
+        window,
+        ceiling: ROOMY,
+    };
 }
 
 /// A cadence whose notices come at the pace of the short window.
@@ -66,7 +84,6 @@ const FAST: Cadence = Cadence {
     grace: Duration::from_millis(5),
     interval: Duration::from_millis(5),
 };
-
 
 /// What:
 ///  A notice write that never returns does not defeat the guard's ceiling.
@@ -91,7 +108,10 @@ const FAST: Cadence = Cadence {
 fn audit_a_blocked_notice_write_does_not_defeat_the_ceiling() {
     let (entered, notice_entered): (Sender<()>, Receiver<()>) = channel();
     let (release_the_write, held): (Sender<()>, Receiver<()>) = channel();
-    let (finished, outcome): (Sender<Result<(), GuardFailure>>, Receiver<Result<(), GuardFailure>>) = channel();
+    let (finished, outcome): (
+        Sender<Result<(), GuardFailure>>,
+        Receiver<Result<(), GuardFailure>>,
+    ) = channel();
     let ceiling: Duration = Duration::from_millis(50);
     std::thread::spawn(move || {
         let shared: SharedSink = SharedSink::default();
@@ -106,14 +126,19 @@ fn audit_a_blocked_notice_write_does_not_defeat_the_ceiling() {
                 // Blocked, and not quiet for the window this control gives, so only the ceiling can end the wait.
                 std::thread::sleep(Duration::from_secs(30));
             },
-            GuardLimits { window: LONG_WINDOW, ceiling },
+            GuardLimits {
+                window: LONG_WINDOW,
+                ceiling,
+            },
             NOTICE_AT_ONCE,
             "a job",
             &mut notices,
         );
         let _ = finished.send(stopped);
     });
-    notice_entered.recv_timeout(Duration::from_secs(5)).expect("the notice write started");
+    notice_entered
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the notice write started");
     let answered = outcome.recv_timeout(ANSWER_WITHIN);
     // The write is released whatever the answer, so the control leaves no thread holding the sink.
     let _ = release_the_write.send(());
@@ -121,7 +146,10 @@ fn audit_a_blocked_notice_write_does_not_defeat_the_ceiling() {
         answered.is_ok(),
         "a notice write must not defeat the guard ceiling: {answered:?}"
     );
-    assert_eq!(answered.expect("answered"), Err(GuardFailure::Ceiling(ceiling)));
+    assert_eq!(
+        answered.expect("answered"),
+        Err(GuardFailure::Ceiling(ceiling))
+    );
 }
 
 /// What:
@@ -143,7 +171,10 @@ fn audit_a_blocked_notice_write_does_not_defeat_the_ceiling() {
 fn audit_a_blocked_notice_write_does_not_hold_a_finished_result() {
     let (entered, notice_entered): (Sender<()>, Receiver<()>) = channel();
     let (release_the_write, held): (Sender<()>, Receiver<()>) = channel();
-    let (finished, outcome): (Sender<Result<u8, GuardFailure>>, Receiver<Result<u8, GuardFailure>>) = channel();
+    let (finished, outcome): (
+        Sender<Result<u8, GuardFailure>>,
+        Receiver<Result<u8, GuardFailure>>,
+    ) = channel();
     std::thread::spawn(move || {
         let shared: SharedSink = SharedSink::default();
         let sink: ActionSink = ActionSink::new(&shared, 1, move || {
@@ -162,7 +193,9 @@ fn audit_a_blocked_notice_write_does_not_hold_a_finished_result() {
         );
         let _ = finished.send(answered);
     });
-    notice_entered.recv_timeout(Duration::from_secs(5)).expect("the notice write started");
+    notice_entered
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the notice write started");
     let answered = outcome.recv_timeout(ANSWER_WITHIN);
     let _ = release_the_write.send(());
     assert!(
@@ -291,7 +324,10 @@ fn a_job_that_shows_no_sign_of_work_is_abandoned() {
         &mut Some(Box::new(std::io::sink())),
     );
     assert_eq!(outcome, Err(GuardFailure::Quiet(QUIET)));
-    assert!(!finished.load(Ordering::SeqCst), "the guard answered while the job was blocked");
+    assert!(
+        !finished.load(Ordering::SeqCst),
+        "the guard answered while the job was blocked"
+    );
     drop(release);
 }
 
@@ -320,9 +356,21 @@ fn a_long_wait_prints_notices_naming_the_file() {
     let text: String = sink.text();
     assert!(text.lines().count() >= 3, "{text}");
     for line in text.lines() {
-        assert!(line.starts_with(format!("monochromatic-git-policy-cli: still waiting for {waiting_for} after ").as_str()), "{text}");
         assert!(
-            line.contains(format!("giving up on it only after {} seconds with no sign of work", LONG_WINDOW.as_secs()).as_str()),
+            line.starts_with(
+                format!("monochromatic-git-policy-cli: still waiting for {waiting_for} after ")
+                    .as_str()
+            ),
+            "{text}"
+        );
+        assert!(
+            line.contains(
+                format!(
+                    "giving up on it only after {} seconds with no sign of work",
+                    LONG_WINDOW.as_secs()
+                )
+                .as_str()
+            ),
             "{text}"
         );
     }
@@ -351,13 +399,17 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
             // Writes a file a round, with a pause between, until the control lets go: never quiet, no busy loop.
             let mut round: u32 = 0;
             while !marker.load(Ordering::SeqCst) {
-                std::fs::write(&progress, round.to_string()).expect("the fixture writes its progress");
+                std::fs::write(&progress, round.to_string())
+                    .expect("the fixture writes its progress");
                 round += 1;
                 std::thread::sleep(Duration::from_millis(100));
             }
             stopping.store(true, Ordering::SeqCst);
         },
-        GuardLimits { window: WORKING_WINDOW, ceiling: CEILING },
+        GuardLimits {
+            window: WORKING_WINDOW,
+            ceiling: CEILING,
+        },
         FAST,
         "a job",
         &mut Some(Box::new(std::io::sink())),
@@ -365,11 +417,17 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
     let waited: Duration = began.elapsed();
     release.store(true, Ordering::SeqCst);
     assert_eq!(outcome, Err(GuardFailure::Ceiling(CEILING)));
-    assert!(waited >= CEILING && waited < CEILING * 5, "the guard answered after {waited:?}");
+    assert!(
+        waited >= CEILING && waited < CEILING * 5,
+        "the guard answered after {waited:?}"
+    );
     // A job that read the flag just before the release writes once more,
     //  so the fixture is removed only after the job stopped writing:
     // a removal that raced that write failed with "Directory not empty".
-    assert!(crate::test_support::wait_until(&|| return stopped.load(Ordering::SeqCst)), "the released job stopped writing");
+    assert!(
+        crate::test_support::wait_until(&|| return stopped.load(Ordering::SeqCst)),
+        "the released job stopped writing"
+    );
     crate::test_support::remove(scratch.as_path());
 }
 
@@ -387,13 +445,25 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
 /// ```
 #[test]
 fn where_no_thread_can_start_the_guard_names_the_limit() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "where_no_thread_can_start_the_guard_names_the_limit") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "where_no_thread_can_start_the_guard_names_the_limit",
+    ) {
         return;
     }
-    let outcome: Result<u8, GuardFailure> = run_guarded(|| return 7_u8, limits(LONG_WINDOW), FAST, "the markdown check", &mut Some(Box::new(std::io::sink())));
+    let outcome: Result<u8, GuardFailure> = run_guarded(
+        || return 7_u8,
+        limits(LONG_WINDOW),
+        FAST,
+        "the markdown check",
+        &mut Some(Box::new(std::io::sink())),
+    );
     let failure: GuardFailure = outcome.expect_err("no thread could be started to run the check");
     let GuardFailure::Start(said) = failure else {
         panic!("a refused start is what this control made: {failure:?}");
     };
-    assert!(said.contains("ulimit -u") && said.contains("pids.max"), "the refusal names the limits that refused the thread: {said}");
+    assert!(
+        said.contains("ulimit -u") && said.contains("pids.max"),
+        "the refusal names the limits that refused the thread: {said}"
+    );
 }

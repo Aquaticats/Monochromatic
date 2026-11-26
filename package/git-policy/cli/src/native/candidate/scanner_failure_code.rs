@@ -146,7 +146,12 @@ pub fn scan_run_failure_code(error: &ScanRunError) -> EngineFailureCode {
 pub fn finding_failure_code(finding: &ScanFinding) -> Option<EngineFailureCode> {
     match finding {
         // `None` is the "absent" variant: a content or name match is a violation, not a failure.
-        ScanFinding::Content { .. } | ScanFinding::Name { .. } => return None,
+        ScanFinding::Content {
+            ..
+        }
+        | ScanFinding::Name {
+            ..
+        } => return None,
         // `Some(...)` is the "present" variant.
         ScanFinding::EngineError | ScanFinding::PathnameLineBreak => {
             return Some(EngineFailureCode::PolicyIncomplete);

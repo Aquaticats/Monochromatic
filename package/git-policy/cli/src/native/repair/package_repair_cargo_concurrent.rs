@@ -25,20 +25,26 @@
 
 /// The guarded await that turns a panic in one item's work into a result,
 /// and the words a panic said.
-use crate::call_catching_panics_awaiting::{call_catching_panics_awaiting, panic_words};
+use crate::call_catching_panics_awaiting::{
+    call_catching_panics_awaiting,
+    panic_words,
+};
+/// The line an unexpected stop is recorded on.
+use crate::diagnostic_log::debug;
 /// The guarded call that turns a panic of a plain call into a value.
 use crate::panic_notice::while_panics_are_expected;
 /// The future an item's job hands back.
 use std::future::Future;
 /// The boxed form a job takes it in.
 use std::pin::Pin;
-/// The line an unexpected stop is recorded on.
-use crate::diagnostic_log::debug;
 /// Sharing of the items,
 /// the label and the queue with the tasks.
 use std::sync::Arc;
 /// The queue that hands each task the next item.
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairCargoConcurrent";
@@ -61,7 +67,10 @@ const TAG: &str = "packageRepairCargoConcurrent";
 /// ```
 pub trait ConcurrentAwaitingWork<T, R> {
     /// Do the job for one item.
-    fn run<'a>(&'a self, item: &'a T) -> Pin<Box<dyn Future<Output = R> + Send + 'a>>;
+    fn run<'a>(
+        &'a self,
+        item: &'a T,
+    ) -> Pin<Box<dyn Future<Output = R> + Send + 'a>>;
 }
 
 /// Every function-like value that hands back its own future is a job:
@@ -70,7 +79,10 @@ impl<T, R, Job> ConcurrentAwaitingWork<T, R> for Job
 where
     Job: for<'a> Fn(&'a T) -> Pin<Box<dyn Future<Output = R> + Send + 'a>>,
 {
-    fn run<'a>(&'a self, item: &'a T) -> Pin<Box<dyn Future<Output = R> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        item: &'a T,
+    ) -> Pin<Box<dyn Future<Output = R> + Send + 'a>> {
         return self(item);
     }
 }
@@ -89,13 +101,19 @@ where
 /// ```
 pub trait ItemLabel<T> {
     /// Name one item.
-    fn label(&self, item: &T) -> String;
+    fn label(
+        &self,
+        item: &T,
+    ) -> String;
 }
 
 /// Every function-like value with the right shape is a label:
 /// `label` just calls it.
 impl<T, Namer: Fn(&T) -> String> ItemLabel<T> for Namer {
-    fn label(&self, item: &T) -> String {
+    fn label(
+        &self,
+        item: &T,
+    ) -> String {
         return self(item);
     }
 }
@@ -179,18 +197,27 @@ fn build_the_items_work<'of, T, R>(state: (&'of TheQueue<T, R>, &'of T)) -> AnIt
 /// ```ts
 /// async function takeItems(queue, report) { for (let at = queue.next++; queue.items[at]; at = queue.next++) { let answer; try { answer = ok(await queue.job.run(queue.items[at])); } catch (words) { answer = err(words); } report.send([at, answer]); } }
 /// ```
-async fn take_items<T: Send + Sync + 'static, R: Send + 'static>(queue: TheQueue<T, R>, report: Answers<R>) {
+async fn take_items<T: Send + Sync + 'static, R: Send + 'static>(
+    queue: TheQueue<T, R>,
+    report: Answers<R>,
+) {
     loop {
         let at: usize = queue.next.fetch_add(1, Ordering::Relaxed);
-        let Some(item) = queue.items.get(at) else { break };
-        let caught: Result<R, String> = match while_panics_are_expected((&queue, item), build_the_items_work::<T, R>) {
-            Ok(work) => call_catching_panics_awaiting(work).await,
-            // The job panicked while it built the item's future, so no future of that item ever existed.
-            Err(payload) => Err(panic_words(payload.as_ref())),
+        let Some(item) = queue.items.get(at) else {
+            break;
         };
+        let caught: Result<R, String> =
+            match while_panics_are_expected((&queue, item), build_the_items_work::<T, R>) {
+                Ok(work) => call_catching_panics_awaiting(work).await,
+                // The job panicked while it built the item's future, so no future of that item ever existed.
+                Err(payload) => Err(panic_words(payload.as_ref())),
+            };
         let answer: Result<R, String> = match caught {
             Ok(value) => Ok(value),
-            Err(words) => Err(format!("{} stopped because its worker panicked: {words}", queue.label.label(item))),
+            Err(words) => Err(format!(
+                "{} stopped because its worker panicked: {words}",
+                queue.label.label(item)
+            )),
         };
         // A closed channel is the run ending, and nothing is left that could read this answer.
         if report.send((at, answer)).is_err() {
@@ -235,16 +262,24 @@ pub async fn map_concurrent_awaiting<T: Send + Sync + 'static, R: Send + 'static
     let count: usize = items.len();
     let at_once: usize = workers.max(1).min(count.max(1));
     let next: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let (report, mut reported): (Answers<R>, tokio::sync::mpsc::UnboundedReceiver<(usize, Result<R, String>)>) = tokio::sync::mpsc::unbounded_channel();
+    let (report, mut reported): (
+        Answers<R>,
+        tokio::sync::mpsc::UnboundedReceiver<(usize, Result<R, String>)>,
+    ) = tokio::sync::mpsc::unbounded_channel();
     let mut started: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
     for _task in 0..at_once {
-        let queue: TheQueue<T, R> =
-            TheQueue { items: Arc::clone(&items), job: Arc::clone(&job), label: Arc::clone(&label), next: Arc::clone(&next) };
+        let queue: TheQueue<T, R> = TheQueue {
+            items: Arc::clone(&items),
+            job: Arc::clone(&job),
+            label: Arc::clone(&label),
+            next: Arc::clone(&next),
+        };
         started.spawn(take_items(queue, report.clone()));
     }
     // The answers come from the tasks, so this channel is the run's own; every task holds a copy and drops it as it ends.
     drop(report);
-    let mut answers: Vec<Option<Result<R, String>>> = std::iter::repeat_with(empty_answer).take(count).collect();
+    let mut answers: Vec<Option<Result<R, String>>> =
+        std::iter::repeat_with(empty_answer).take(count).collect();
     while let Some((at, answer)) = reported.recv().await {
         answers[at] = Some(answer);
     }
@@ -256,7 +291,10 @@ pub async fn map_concurrent_awaiting<T: Send + Sync + 'static, R: Send + 'static
                 true => panic_words(panicked.into_panic().as_ref()),
                 false => String::from("the task was cancelled"),
             };
-            debug(TAG, format!("a worker of one job per item stopped: {said}").as_str());
+            debug(
+                TAG,
+                format!("a worker of one job per item stopped: {said}").as_str(),
+            );
         }
     }
     let mut ordered: Vec<Result<R, String>> = Vec::new();

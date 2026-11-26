@@ -19,16 +19,26 @@
 //! class Run { platform; layout; journal; interrupt; say(line); async pass(label, source, destination, options) { ... } }
 //! ```
 
-use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::subvolume_error::{
+    Interrupt,
+    MigrateError,
+};
 use crate::subvolume_file_write_steps::write_beside_then_rename;
 use crate::subvolume_journal::Journal;
 use crate::subvolume_lock::relative_lock_paths;
+use crate::subvolume_pass_report::what_a_pass_could_not_carry;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_preflight::Layout;
-use crate::subvolume_pass_report::what_a_pass_could_not_carry;
-use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
+use crate::subvolume_sync::{
+    SyncOptions,
+    SyncStats,
+    sync_tree,
+};
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Instant;
 
 /// The path,
@@ -73,7 +83,9 @@ fn read_unreadable_list(path: &Path) -> std::io::Result<BTreeSet<PathBuf>> {
         if line.is_empty() {
             continue;
         }
-        listed.insert(PathBuf::from(String::from_utf8_lossy(line.as_slice()).as_ref()));
+        listed.insert(PathBuf::from(
+            String::from_utf8_lossy(line.as_slice()).as_ref(),
+        ));
     }
     return Ok(listed);
 }
@@ -130,18 +142,37 @@ impl Run<'_> {
         say: &'a mut dyn FnMut(&str),
     ) -> Result<Run<'a>, MigrateError> {
         let journal: Journal = Journal::load(layout.journal_path.as_path())?;
-        let unreadable: BTreeSet<PathBuf> = match read_unreadable_list(layout.unreadable_path.as_path()) {
-            Ok(listed) => listed,
-            // Only a missing list means "no unreadable files were recorded"; a list that exists and cannot be read is
-            // the safeguard failing, and counting it as empty would let the deletion unlink files that exist only there.
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => BTreeSet::new(),
-            Err(error) => return Err(MigrateError::io("read the list of unreadable files", layout.unreadable_path.as_path(), &error)),
-        };
-        return Ok(Run { platform, layout, journal, interrupt, say, unreadable, left_out: BTreeSet::new(), conflicts: BTreeSet::new() });
+        let unreadable: BTreeSet<PathBuf> =
+            match read_unreadable_list(layout.unreadable_path.as_path()) {
+                Ok(listed) => listed,
+                // Only a missing list means "no unreadable files were recorded"; a list that exists and cannot be read is
+                // the safeguard failing, and counting it as empty would let the deletion unlink files that exist only there.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => BTreeSet::new(),
+                Err(error) => {
+                    return Err(MigrateError::io(
+                        "read the list of unreadable files",
+                        layout.unreadable_path.as_path(),
+                        &error,
+                    ));
+                }
+            };
+        return Ok(Run {
+            platform,
+            layout,
+            journal,
+            interrupt,
+            say,
+            unreadable,
+            left_out: BTreeSet::new(),
+            conflicts: BTreeSet::new(),
+        });
     }
 
     /// Send one line to the progress sink.
-    pub fn line(&mut self, text: &str) {
+    pub fn line(
+        &mut self,
+        text: &str,
+    ) {
         (self.say)(text);
     }
 
@@ -158,19 +189,38 @@ impl Run<'_> {
     /// ```ts
     /// const stats = await run.pass('copy', source, destination, { delete: false, updateOnly: false });
     /// ```
-    pub fn pass(&mut self, label: &str, source: &Path, destination: &Path, delete: bool, update_only: bool) -> Result<SyncStats, MigrateError> {
-        let stats: SyncStats = self.pass_unrecorded(label, source, destination, delete, update_only)?;
+    pub fn pass(
+        &mut self,
+        label: &str,
+        source: &Path,
+        destination: &Path,
+        delete: bool,
+        update_only: bool,
+    ) -> Result<SyncStats, MigrateError> {
+        let stats: SyncStats =
+            self.pass_unrecorded(label, source, destination, delete, update_only)?;
         self.record_unreadable(label, &stats)?;
         return Ok(stats);
     }
 
     /// Record the unreadable files a pass found in the list beside the checkout,
     /// and say so.
-    fn record_unreadable(&mut self, label: &str, stats: &SyncStats) -> Result<(), MigrateError> {
+    fn record_unreadable(
+        &mut self,
+        label: &str,
+        stats: &SyncStats,
+    ) -> Result<(), MigrateError> {
         if !stats.unreadable.is_empty() {
             self.unreadable.extend(stats.unreadable.iter().cloned());
             self.write_unreadable()?;
-            self.line(format!("{label}: {} file(s) this user may not read stay in the old tree; list: {}", stats.unreadable.len(), self.layout.unreadable_path.display()).as_str());
+            self.line(
+                format!(
+                    "{label}: {} file(s) this user may not read stay in the old tree; list: {}",
+                    stats.unreadable.len(),
+                    self.layout.unreadable_path.display()
+                )
+                .as_str(),
+            );
         }
         return Ok(());
     }
@@ -189,8 +239,25 @@ impl Run<'_> {
     /// ```ts
     /// const stats = await run.passUnrecorded('carry back', source, destination, { delete: false, updateOnly: true });
     /// ```
-    pub fn pass_unrecorded(&mut self, label: &str, source: &Path, destination: &Path, delete: bool, update_only: bool) -> Result<SyncStats, MigrateError> {
-        return self.pass_core(label, source, destination, SyncOptions { delete, update_only, excluded: &[], created_since: None });
+    pub fn pass_unrecorded(
+        &mut self,
+        label: &str,
+        source: &Path,
+        destination: &Path,
+        delete: bool,
+        update_only: bool,
+    ) -> Result<SyncStats, MigrateError> {
+        return self.pass_core(
+            label,
+            source,
+            destination,
+            SyncOptions {
+                delete,
+                update_only,
+                excluded: &[],
+                created_since: None,
+            },
+        );
     }
 
     /// What:
@@ -210,8 +277,24 @@ impl Run<'_> {
     /// ```ts
     /// const stats = await run.passLate('late writes', oldTree, root, catchupSeconds);
     /// ```
-    pub fn pass_late(&mut self, label: &str, source: &Path, destination: &Path, since: i64) -> Result<SyncStats, MigrateError> {
-        let stats: SyncStats = self.pass_core(label, source, destination, SyncOptions { delete: false, update_only: true, excluded: &[], created_since: Some(since) })?;
+    pub fn pass_late(
+        &mut self,
+        label: &str,
+        source: &Path,
+        destination: &Path,
+        since: i64,
+    ) -> Result<SyncStats, MigrateError> {
+        let stats: SyncStats = self.pass_core(
+            label,
+            source,
+            destination,
+            SyncOptions {
+                delete: false,
+                update_only: true,
+                excluded: &[],
+                created_since: Some(since),
+            },
+        )?;
         self.record_unreadable(label, &stats)?;
         self.record_left_out(&stats)?;
         for path in &stats.copied_sample {
@@ -223,13 +306,28 @@ impl Run<'_> {
     /// The pass itself:
     /// the lock files of both trees are added to the excluded paths,
     /// and the counts are reported.
-    fn pass_core(&mut self, label: &str, source: &Path, destination: &Path, requested: SyncOptions<'_>) -> Result<SyncStats, MigrateError> {
+    fn pass_core(
+        &mut self,
+        label: &str,
+        source: &Path,
+        destination: &Path,
+        requested: SyncOptions<'_>,
+    ) -> Result<SyncStats, MigrateError> {
         let mut excluded: Vec<PathBuf> = relative_lock_paths(source);
         excluded.extend(relative_lock_paths(destination));
         excluded.sort();
         excluded.dedup();
         let started: Instant = Instant::now();
-        let stats: SyncStats = sync_tree(self.platform, source, destination, SyncOptions { excluded: excluded.as_slice(), ..requested }, self.interrupt)?;
+        let stats: SyncStats = sync_tree(
+            self.platform,
+            source,
+            destination,
+            SyncOptions {
+                excluded: excluded.as_slice(),
+                ..requested
+            },
+            self.interrupt,
+        )?;
         self.line(
             format!(
                 "{label}: {} entries, {} files copied ({} cloned), {} hard-linked, {} symlinks, {} unchanged, {} deleted, {} vanished, {:.2} s",
@@ -271,7 +369,10 @@ impl Run<'_> {
     /// ```ts
     /// run.recordLeftOut(stats) // writes <parent>/.cli-git-migrate-<name>.left-out.txt
     /// ```
-    fn record_left_out(&mut self, stats: &SyncStats) -> Result<(), MigrateError> {
+    fn record_left_out(
+        &mut self,
+        stats: &SyncStats,
+    ) -> Result<(), MigrateError> {
         for path in &stats.conflicts {
             if !self.unreadable.contains(path) {
                 self.conflicts.insert(path.clone());
@@ -318,14 +419,20 @@ impl Run<'_> {
             text.push('\n');
         }
         return MigrateError::from_io_result(
-            crate::private_storage::replace_private_file(&self.layout.unreadable_path, text.as_bytes()),
+            crate::private_storage::replace_private_file(
+                &self.layout.unreadable_path,
+                text.as_bytes(),
+            ),
             "write the list of unreadable files",
             self.layout.unreadable_path.as_path(),
         );
     }
 
     /// Stop here when the control asked for a simulated kill at this point.
-    pub fn checkpoint(&self, point: &str) -> Result<(), MigrateError> {
+    pub fn checkpoint(
+        &self,
+        point: &str,
+    ) -> Result<(), MigrateError> {
         return self.interrupt.check(point);
     }
 }

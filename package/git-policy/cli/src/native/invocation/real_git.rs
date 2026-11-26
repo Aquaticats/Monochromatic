@@ -21,10 +21,17 @@
 /// import { classifyCandidate } from './real-git-candidate.ts';
 /// ```
 use crate::child_environment::environment_value;
-use crate::real_git_candidate::{CandidateKind, classify_candidate};
+use crate::real_git_candidate::{
+    CandidateKind,
+    classify_candidate,
+};
 use crate::real_git_record::service_unit_file;
 /// `pub use` re-exports names so callers keep importing the resolution from this module.
-pub use crate::real_git_resolution::{RecordedGit, ResolvedGit, resolve_real_git};
+pub use crate::real_git_resolution::{
+    RecordedGit,
+    ResolvedGit,
+    resolve_real_git,
+};
 /// What:
 ///  `OsStr`/`OsString` are borrowed/owned operating-system text of raw OS bytes
 ///       (siblings `&str`/`String` must be UTF-8).
@@ -35,9 +42,15 @@ pub use crate::real_git_resolution::{RecordedGit, ResolvedGit, resolve_real_git}
 /// ```ts
 /// // Node strings; no byte-preserving equivalent.
 /// ```
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths made of the same raw bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Windows executable extensions in shell lookup order when `PATHEXT` is unset.
 pub const DEFAULT_WINDOWS_PATH_EXTENSIONS: &str = ".COM;.EXE;.BAT;.CMD";
@@ -186,7 +199,9 @@ fn verdict_words(kind: CandidateKind) -> &'static str {
         CandidateKind::Wrapper => {
             return "skipped, it leads back to monochromatic-git-policy-cli (this executable, a link or copy of it, its toolchain launcher, or a script that starts it)";
         }
-        CandidateKind::Unusable => return "skipped, it is missing, not an executable file, or unreadable",
+        CandidateKind::Unusable => {
+            return "skipped, it is missing, not an executable file, or unreadable";
+        }
         CandidateKind::RealGit => return "usable",
     }
 }
@@ -208,7 +223,10 @@ impl std::fmt::Display for RealGitNotFound {
     /// `&self` borrows the failure;
     ///  `&mut` lends the formatter for writing;
     ///  `'_` is an unnamed lifetime.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         // `write!` formats into the borrowed formatter; `?` returns early if writing failed.
         write!(
             formatter,
@@ -216,10 +234,19 @@ impl std::fmt::Display for RealGitNotFound {
              skipping {} monochromatic-git-policy-cli wrappers, so no Git command was run. PATH is {}.",
             self.candidate_count,
             self.skipped_wrapper_count,
-            if self.path.is_empty() { String::from("empty or unset") } else { self.path.to_string_lossy().into_owned() }
+            if self.path.is_empty() {
+                String::from("empty or unset")
+            } else {
+                self.path.to_string_lossy().into_owned()
+            }
         )?;
         for candidate in &self.searched {
-            write!(formatter, "\n  {}: {}", candidate.path.display(), verdict_words(candidate.kind))?;
+            write!(
+                formatter,
+                "\n  {}: {}",
+                candidate.path.display(),
+                verdict_words(candidate.kind)
+            )?;
         }
         // `if let Some(x) = &field` runs only when a unit named a Git;
         //  the line says where the name was read and why it was not used.
@@ -260,7 +287,10 @@ impl std::error::Error for RealGitNotFound {}
 /// ```ts
 /// function executableNames(platform: Platform, pathExtensions: string): string[];
 /// ```
-pub fn executable_names(platform: Platform, path_extensions: &OsStr) -> Vec<OsString> {
+pub fn executable_names(
+    platform: Platform,
+    path_extensions: &OsStr,
+) -> Vec<OsString> {
     if platform != Platform::Windows {
         // `vec![...]` builds an owned list; `OsString::from` copies text into OS form.
         return vec![OsString::from("git")];
@@ -312,7 +342,10 @@ fn is_semicolon(byte: &u8) -> bool {
 /// ```ts
 /// function commonGitPaths(platform: Platform, environment: [string, string][]): string[];
 /// ```
-pub fn common_git_paths(platform: Platform, environment: &[(OsString, OsString)]) -> Vec<PathBuf> {
+pub fn common_git_paths(
+    platform: Platform,
+    environment: &[(OsString, OsString)],
+) -> Vec<PathBuf> {
     if platform == Platform::Unix {
         return vec![
             PathBuf::from("/usr/bin/git"),
@@ -398,7 +431,10 @@ fn trimmed_root(root: &OsStr) -> OsString {
 /// ```ts
 /// function candidateIdentity(path: string, platform: Platform): string;
 /// ```
-fn candidate_identity(path: &Path, platform: Platform) -> OsString {
+fn candidate_identity(
+    path: &Path,
+    platform: Platform,
+) -> OsString {
     if platform == Platform::Windows {
         return path.as_os_str().to_ascii_lowercase();
     }
@@ -505,7 +541,10 @@ pub fn search_path_for_real_git(inputs: &ResolutionInputs) -> Result<PathBuf, Re
         if kind == CandidateKind::Wrapper {
             skipped_wrapper_count += 1;
         }
-        searched.push(SearchedCandidate { path: candidate.clone(), kind });
+        searched.push(SearchedCandidate {
+            path: candidate.clone(),
+            kind,
+        });
     }
     // `Err(...)` is the failure variant carrying the evidence: counts, every verdict and the PATH read.
     return Err(RealGitNotFound {
@@ -593,7 +632,10 @@ pub fn process_resolution_inputs(
     let Some(started_in) = start.path() else {
         return Err(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            start.reason().unwrap_or("the current directory could not be read").to_owned(),
+            start
+                .reason()
+                .unwrap_or("the current directory could not be read")
+                .to_owned(),
         ));
     };
     let current_directory: PathBuf = started_in.to_path_buf();

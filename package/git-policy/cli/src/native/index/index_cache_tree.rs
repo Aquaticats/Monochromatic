@@ -18,7 +18,11 @@
 //! const tree = CacheTree.read(bytes, hashLength); tree.invalidate(path); const out = tree.write();
 //! ```
 
-use crate::index_byte_search::{first_index_of_byte, leading_digit_count, leading_run_length};
+use crate::index_byte_search::{
+    first_index_of_byte,
+    leading_digit_count,
+    leading_run_length,
+};
 
 /// The deepest nesting the reader follows:
 /// the depth the tree reader follows (`TREE_DEPTH_LIMIT` in `repo_read_tree.rs`).
@@ -45,14 +49,26 @@ fn parse_number(bytes: &[u8]) -> Option<(i64, &[u8])> {
     let signs: usize = leading_run_length(bytes, b'-');
     let digits: usize = leading_digit_count(&bytes[signs..]);
     let text: &str = std::str::from_utf8(&bytes[signs..signs + digits]).ok()?;
-    let magnitude: i64 = if text.is_empty() { 0 } else { text.parse::<i64>().ok()? };
-    let value: i64 = if signs % 2 == 1 { -magnitude } else { magnitude };
+    let magnitude: i64 = if text.is_empty() {
+        0
+    } else {
+        text.parse::<i64>().ok()?
+    };
+    let value: i64 = if signs % 2 == 1 {
+        -magnitude
+    } else {
+        magnitude
+    };
     return Some((value, &bytes[signs + digits..]));
 }
 
 /// Read one directory and the subdirectories after it;
 /// the bytes left and the name of the directory.
-fn read_one<'a>(bytes: &'a [u8], hash_length: usize, depth: usize) -> Option<(Vec<u8>, CacheTree, &'a [u8])> {
+fn read_one<'a>(
+    bytes: &'a [u8],
+    hash_length: usize,
+    depth: usize,
+) -> Option<(Vec<u8>, CacheTree, &'a [u8])> {
     if depth > DEPTH_LIMIT {
         return None;
     }
@@ -80,11 +96,23 @@ fn read_one<'a>(bytes: &'a [u8], hash_length: usize, depth: usize) -> Option<(Ve
         subtrees.push((child_name, child));
         rest = after;
     }
-    return Some((name, CacheTree { entry_count, id, subtrees }, rest));
+    return Some((
+        name,
+        CacheTree {
+            entry_count,
+            id,
+            subtrees,
+        },
+        rest,
+    ));
 }
 
 /// Append one directory and its subdirectories under `name`.
-fn write_one(out: &mut Vec<u8>, name: &[u8], tree: &CacheTree) {
+fn write_one(
+    out: &mut Vec<u8>,
+    name: &[u8],
+    tree: &CacheTree,
+) {
     out.extend_from_slice(name);
     out.extend_from_slice(format!("\0{} {}\n", tree.entry_count, tree.subtrees.len()).as_bytes());
     if tree.entry_count >= 0 {
@@ -98,7 +126,10 @@ fn write_one(out: &mut Vec<u8>, name: &[u8], tree: &CacheTree) {
 impl CacheTree {
     /// The tree of an extension's bytes,
     /// or `None` for any malformed or trailing content (Git would drop the extension).
-    pub fn read(bytes: &[u8], hash_length: usize) -> Option<CacheTree> {
+    pub fn read(
+        bytes: &[u8],
+        hash_length: usize,
+    ) -> Option<CacheTree> {
         let (_, tree, rest) = read_one(bytes, hash_length, 0)?;
         if !rest.is_empty() {
             return None;
@@ -114,7 +145,10 @@ impl CacheTree {
     }
 
     /// Mark every directory above `path` as not valid and remove the subtree `path` names (`do_invalidate_path`).
-    pub fn invalidate(&mut self, path: &[u8]) {
+    pub fn invalidate(
+        &mut self,
+        path: &[u8],
+    ) {
         self.entry_count = -1;
         self.id.clear();
         let Some(slash) = first_index_of_byte(path, b'/') else {

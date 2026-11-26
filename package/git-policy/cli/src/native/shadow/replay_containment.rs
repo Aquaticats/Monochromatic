@@ -87,7 +87,10 @@ fn base_change(hunk: &PatchHunk) -> BaseChange {
 /// ```ts
 /// isSubsequence({ lines, within });
 /// ```
-fn is_subsequence(lines: &[Vec<u8>], within: &[Vec<u8>]) -> bool {
+fn is_subsequence(
+    lines: &[Vec<u8>],
+    within: &[Vec<u8>],
+) -> bool {
     // `mut` lets the greedy pass advance over `within` once.
     let mut matched: usize = 0;
     for line in within {
@@ -109,7 +112,11 @@ fn is_subsequence(lines: &[Vec<u8>], within: &[Vec<u8>]) -> bool {
 /// ```ts
 /// regionContains({ prepared, landed, base });
 /// ```
-fn region_contains(prepared: &BaseChange, landed: &[BaseChange], base: &[Vec<u8>]) -> bool {
+fn region_contains(
+    prepared: &BaseChange,
+    landed: &[BaseChange],
+    base: &[Vec<u8>],
+) -> bool {
     let (Some(first), Some(last)) = (landed.first(), landed.last()) else {
         return false;
     };
@@ -119,7 +126,12 @@ fn region_contains(prepared: &BaseChange, landed: &[BaseChange], base: &[Vec<u8>
         expected.extend(change.added.iter().cloned());
         if let Some(next) = landed.get(index + 1) {
             // An inverted or out-of-range gap is empty, as JavaScript's `slice` returns it.
-            expected.extend(base.get(change.end..next.start).unwrap_or_default().iter().cloned());
+            expected.extend(
+                base.get(change.end..next.start)
+                    .unwrap_or_default()
+                    .iter()
+                    .cloned(),
+            );
         }
     }
     let anchored_start: bool = prepared.start == first.start;
@@ -134,12 +146,11 @@ fn region_contains(prepared: &BaseChange, landed: &[BaseChange], base: &[Vec<u8>
     // Over exactly the landed range, own lines may also sit between landed lines,
     //  as long as one end stays the landed one.
     if anchored_start && anchored_end {
-        let ends_match: bool = prepared.added.first() == expected.first()
-            || prepared.added.last() == expected.last();
+        let ends_match: bool =
+            prepared.added.first() == expected.first() || prepared.added.last() == expected.last();
         return ends_match && is_subsequence(&expected, &prepared.added);
     }
-    let prefix_matches: bool = anchored_start
-        && prepared.added[..expected.len()] == expected[..];
+    let prefix_matches: bool = anchored_start && prepared.added[..expected.len()] == expected[..];
     let suffix_start: usize = prepared.added.len() - expected.len();
     let suffix_matches: bool = anchored_end && prepared.added[suffix_start..] == expected[..];
     return prefix_matches || suffix_matches;
@@ -157,8 +168,12 @@ fn region_contains(prepared: &BaseChange, landed: &[BaseChange], base: &[Vec<u8>
 /// ```ts
 /// candidate.end < change.start || (candidate.end === change.start && change.end > change.start)
 /// ```
-fn ends_before(candidate: &BaseChange, change: &BaseChange) -> bool {
-    return candidate.end < change.start || (candidate.end == change.start && change.end > change.start);
+fn ends_before(
+    candidate: &BaseChange,
+    change: &BaseChange,
+) -> bool {
+    return candidate.end < change.start
+        || (candidate.end == change.start && change.end > change.start);
 }
 
 /// What:
@@ -190,13 +205,17 @@ pub fn contains_landed_change(
     let mut prepared_index: usize = 0;
     for hunk in landed {
         let change: BaseChange = base_change(hunk);
-        while prepared_index < prepared_changes.len() && ends_before(&prepared_changes[prepared_index], &change) {
+        while prepared_index < prepared_changes.len()
+            && ends_before(&prepared_changes[prepared_index], &change)
+        {
             crate::collected_elements_looked_at::note_looked_at(1);
             prepared_index += 1;
         }
         crate::collected_elements_looked_at::note_looked_at(1);
         let cover: Option<usize> = match prepared_changes.get(prepared_index) {
-            Some(candidate) if candidate.start <= change.start && change.end <= candidate.end => Some(prepared_index),
+            Some(candidate) if candidate.start <= change.start && change.end <= candidate.end => {
+                Some(prepared_index)
+            }
             _ => None,
         };
         let Some(index) = cover else {
@@ -205,7 +224,8 @@ pub fn contains_landed_change(
         grouped[index].push(change);
     }
     for (index, change) in prepared_changes.iter().enumerate() {
-        if !(grouped[index].is_empty() || region_contains(change, grouped[index].as_slice(), base)) {
+        if !(grouped[index].is_empty() || region_contains(change, grouped[index].as_slice(), base))
+        {
             return false;
         }
     }

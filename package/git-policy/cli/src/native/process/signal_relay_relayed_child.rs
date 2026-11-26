@@ -19,7 +19,11 @@
 
 /// The guard whose handlers the child is published to,
 /// and the two doors onto the relay's descriptor.
-use crate::signal_relay::{SignalGuard, publish_child, retire_child};
+use crate::signal_relay::{
+    SignalGuard,
+    publish_child,
+    retire_child,
+};
 /// Starts that ride out a short shortage of processes.
 use crate::start_retry::spawn_retrying_without_blocking;
 /// The I/O error a refused start answers with,
@@ -77,11 +81,17 @@ impl SignalGuard {
     /// ```ts
     /// async startRelayed(command: Command): Promise<RelayedChild>
     /// ```
-    pub async fn start_relayed(&self, command: &mut Command) -> io::Result<RelayedChild> {
+    pub async fn start_relayed(
+        &self,
+        command: &mut Command,
+    ) -> io::Result<RelayedChild> {
         let started: std::process::Child = spawn_retrying_without_blocking(command).await?;
         let published: bool = self.relays() && publish_child(started.id());
         // The token holds the child and whether the descriptor points at it.
-        return Ok(RelayedChild { child: Some(started), published });
+        return Ok(RelayedChild {
+            child: Some(started),
+            published,
+        });
     }
 
     /// What:
@@ -96,11 +106,17 @@ impl SignalGuard {
     /// ```ts
     /// startRelayedNow(command: Command): RelayedChild
     /// ```
-    pub fn start_relayed_now(&self, command: &mut Command) -> io::Result<RelayedChild> {
+    pub fn start_relayed_now(
+        &self,
+        command: &mut Command,
+    ) -> io::Result<RelayedChild> {
         let started: std::process::Child = crate::start_retry::RetryStart::spawn_retrying(command)?;
         let published: bool = self.relays() && publish_child(started.id());
         // The token holds the child and whether the descriptor points at it.
-        return Ok(RelayedChild { child: Some(started), published });
+        return Ok(RelayedChild {
+            child: Some(started),
+            published,
+        });
     }
 }
 
@@ -129,10 +145,16 @@ impl SignalGuard {
     /// ```ts
     /// async startRelayed(command: Command): Promise<RelayedChild>
     /// ```
-    pub async fn start_relayed(&self, command: &mut Command) -> io::Result<RelayedChild> {
+    pub async fn start_relayed(
+        &self,
+        command: &mut Command,
+    ) -> io::Result<RelayedChild> {
         let started: std::process::Child = spawn_retrying_without_blocking(command).await?;
         // Nothing is published: this system has no handler.
-        return Ok(RelayedChild { child: Some(started), published: false });
+        return Ok(RelayedChild {
+            child: Some(started),
+            published: false,
+        });
     }
 
     /// What:
@@ -146,10 +168,16 @@ impl SignalGuard {
     /// ```ts
     /// startRelayedNow(command: Command): RelayedChild
     /// ```
-    pub fn start_relayed_now(&self, command: &mut Command) -> io::Result<RelayedChild> {
+    pub fn start_relayed_now(
+        &self,
+        command: &mut Command,
+    ) -> io::Result<RelayedChild> {
         let started: std::process::Child = crate::start_retry::RetryStart::spawn_retrying(command)?;
         // Nothing is published: this system has no handler.
-        return Ok(RelayedChild { child: Some(started), published: false });
+        return Ok(RelayedChild {
+            child: Some(started),
+            published: false,
+        });
     }
 }
 

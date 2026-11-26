@@ -21,15 +21,24 @@
 //! ```
 
 use super::{
-    DIRECTORY_MODE, RECEIPT_MODE, RESULTS_DIRECTORY, ReceiptsFolder, ReceiptsRefusal, STAGING_SUFFIX,
+    DIRECTORY_MODE,
+    RECEIPT_MODE,
+    RESULTS_DIRECTORY,
+    ReceiptsFolder,
+    ReceiptsRefusal,
+    STAGING_SUFFIX,
 };
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::{
-    CloneMountReceipt, MAXIMUM_PATH_BYTES, MAXIMUM_RECEIPT_BYTES, ReceiptMountIdentity, ReceiptOutcome,
+    CloneMountReceipt,
+    MAXIMUM_PATH_BYTES,
+    MAXIMUM_RECEIPT_BYTES,
+    ReceiptMountIdentity,
+    ReceiptOutcome,
 };
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -44,9 +53,11 @@ const ANOTHER_GUID: u64 = 43;
 /// The receipt a control files.
 fn receipt() -> CloneMountReceipt {
     return CloneMountReceipt {
-        dataset: DatasetGuid::parse(GUID.to_string().as_str()).expect("the control GUID is canonical"),
+        dataset: DatasetGuid::parse(GUID.to_string().as_str())
+            .expect("the control GUID is canonical"),
         operation: MountOperation::Mount,
-        nonce: RequestNonce::parse("0".repeat(NONCE_HEX_DIGITS).as_str()).expect("the control nonce is valid"),
+        nonce: RequestNonce::parse("0".repeat(NONCE_HEX_DIGITS).as_str())
+            .expect("the control nonce is valid"),
         outcome: ReceiptOutcome::Done,
         mount: Some(ReceiptMountIdentity {
             mount_id: 7,
@@ -79,7 +90,11 @@ fn this_uid() -> u32 {
 /// and the folder object that expects this account.
 fn live_folder(name: &str) -> ReceiptsFolder {
     let root: PathBuf = fixture(name);
-    std::fs::set_permissions(root.as_path(), std::fs::Permissions::from_mode(DIRECTORY_MODE)).expect("the fixture takes the directory mode");
+    std::fs::set_permissions(
+        root.as_path(),
+        std::fs::Permissions::from_mode(DIRECTORY_MODE),
+    )
+    .expect("the fixture takes the directory mode");
     return ReceiptsFolder::at(root, this_uid());
 }
 
@@ -120,13 +135,33 @@ fn a_receipt_is_filed_under_its_guid_and_reads_back() {
     let receipt: CloneMountReceipt = receipt();
     folder.publish(&receipt).expect("the receipt is filed");
     let path: PathBuf = folder.directory().join(GUID.to_string());
-    let mode: u32 = std::fs::metadata(path.as_path()).expect("the receipt exists").permissions().mode() & 0o777;
+    let mode: u32 = std::fs::metadata(path.as_path())
+        .expect("the receipt exists")
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, RECEIPT_MODE);
-    assert_eq!(std::fs::read_to_string(path.as_path()).expect("the receipt is text"), receipt.text());
-    assert!(!folder.directory().join(folder.staging_name(receipt.dataset)).exists(), "the staging sibling is renamed");
-    assert_eq!(folder.read(receipt.dataset).expect("the receipt is read"), Some(receipt));
-    let other: DatasetGuid = DatasetGuid::parse(ANOTHER_GUID.to_string().as_str()).expect("the other GUID is canonical");
-    assert_eq!(folder.read(other).expect("another GUID has no receipt"), None);
+    assert_eq!(
+        std::fs::read_to_string(path.as_path()).expect("the receipt is text"),
+        receipt.text()
+    );
+    assert!(
+        !folder
+            .directory()
+            .join(folder.staging_name(receipt.dataset))
+            .exists(),
+        "the staging sibling is renamed"
+    );
+    assert_eq!(
+        folder.read(receipt.dataset).expect("the receipt is read"),
+        Some(receipt)
+    );
+    let other: DatasetGuid =
+        DatasetGuid::parse(ANOTHER_GUID.to_string().as_str()).expect("the other GUID is canonical");
+    assert_eq!(
+        folder.read(other).expect("another GUID has no receipt"),
+        None
+    );
 }
 
 /// A second publish replaces the dataset's own receipt whole,
@@ -140,8 +175,16 @@ fn a_second_publish_replaces_the_same_receipt() {
     first.mount = None;
     first.failed_step = Some(String::from("read-intent"));
     folder.publish(&first).expect("the second receipt is filed");
-    assert_eq!(folder.read(first.dataset).expect("the receipt is read"), Some(first));
-    assert_eq!(std::fs::read_dir(folder.directory()).expect("the directory lists").count(), 1);
+    assert_eq!(
+        folder.read(first.dataset).expect("the receipt is read"),
+        Some(first)
+    );
+    assert_eq!(
+        std::fs::read_dir(folder.directory())
+            .expect("the directory lists")
+            .count(),
+        1
+    );
 }
 
 /// A directory with another mode,
@@ -150,12 +193,29 @@ fn a_second_publish_replaces_the_same_receipt() {
 #[test]
 fn a_wrong_directory_mode_or_owner_is_refused() {
     let folder: ReceiptsFolder = live_folder("receipts-directory-mode");
-    std::fs::set_permissions(folder.directory(), std::fs::Permissions::from_mode(0o700)).expect("the fixture takes another mode");
-    let refusal: ReceiptsRefusal = folder.read(control_guid()).expect_err("another mode is refused");
-    assert!(matches!(refusal, ReceiptsRefusal::DirectoryMode { found: 0o700, .. }), "{refusal:?}");
-    let wrong_owner: ReceiptsFolder = ReceiptsFolder::at(folder.directory().to_path_buf(), this_uid() + 1);
-    let owner_refusal: ReceiptsRefusal = wrong_owner.read(control_guid()).expect_err("another owner is refused");
-    assert!(matches!(owner_refusal, ReceiptsRefusal::DirectoryOwner { wanted, .. } if wanted == this_uid() + 1));
+    std::fs::set_permissions(folder.directory(), std::fs::Permissions::from_mode(0o700))
+        .expect("the fixture takes another mode");
+    let refusal: ReceiptsRefusal = folder
+        .read(control_guid())
+        .expect_err("another mode is refused");
+    assert!(
+        matches!(
+            refusal,
+            ReceiptsRefusal::DirectoryMode {
+                found: 0o700,
+                ..
+            }
+        ),
+        "{refusal:?}"
+    );
+    let wrong_owner: ReceiptsFolder =
+        ReceiptsFolder::at(folder.directory().to_path_buf(), this_uid() + 1);
+    let owner_refusal: ReceiptsRefusal = wrong_owner
+        .read(control_guid())
+        .expect_err("another owner is refused");
+    assert!(
+        matches!(owner_refusal, ReceiptsRefusal::DirectoryOwner { wanted, .. } if wanted == this_uid() + 1)
+    );
 }
 
 /// A receipt with another mode is refused,
@@ -165,9 +225,21 @@ fn a_receipt_with_another_mode_is_refused() {
     let folder: ReceiptsFolder = live_folder("receipts-file-mode");
     folder.publish(&receipt()).expect("the receipt is filed");
     let path: PathBuf = folder.directory().join(GUID.to_string());
-    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o600)).expect("the receipt takes another mode");
-    let refusal: ReceiptsRefusal = folder.read(receipt().dataset).expect_err("another mode is refused");
-    assert!(matches!(refusal, ReceiptsRefusal::FileMode { found: 0o600, .. }), "{refusal:?}");
+    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o600))
+        .expect("the receipt takes another mode");
+    let refusal: ReceiptsRefusal = folder
+        .read(receipt().dataset)
+        .expect_err("another mode is refused");
+    assert!(
+        matches!(
+            refusal,
+            ReceiptsRefusal::FileMode {
+                found: 0o600,
+                ..
+            }
+        ),
+        "{refusal:?}"
+    );
 }
 
 /// A link named after a GUID is not a receipt,
@@ -177,10 +249,23 @@ fn a_link_named_after_a_guid_is_refused() {
     let folder: ReceiptsFolder = live_folder("receipts-link");
     let elsewhere: PathBuf = folder.directory().join("elsewhere");
     std::fs::write(elsewhere.as_path(), receipt().text()).expect("the other file is written");
-    std::fs::set_permissions(elsewhere.as_path(), std::fs::Permissions::from_mode(RECEIPT_MODE)).expect("the other file takes the mode");
-    std::os::unix::fs::symlink(elsewhere.as_path(), folder.directory().join(GUID.to_string())).expect("the link is made");
-    let refusal: ReceiptsRefusal = folder.read(receipt().dataset).expect_err("a link is not a receipt");
-    assert!(matches!(refusal, ReceiptsRefusal::File { .. }), "{refusal:?}");
+    std::fs::set_permissions(
+        elsewhere.as_path(),
+        std::fs::Permissions::from_mode(RECEIPT_MODE),
+    )
+    .expect("the other file takes the mode");
+    std::os::unix::fs::symlink(
+        elsewhere.as_path(),
+        folder.directory().join(GUID.to_string()),
+    )
+    .expect("the link is made");
+    let refusal: ReceiptsRefusal = folder
+        .read(receipt().dataset)
+        .expect_err("a link is not a receipt");
+    assert!(
+        matches!(refusal, ReceiptsRefusal::File { .. }),
+        "{refusal:?}"
+    );
 }
 
 /// A folder named after a GUID is not a regular receipt.
@@ -188,8 +273,13 @@ fn a_link_named_after_a_guid_is_refused() {
 fn a_folder_named_after_a_guid_is_refused() {
     let folder: ReceiptsFolder = live_folder("receipts-folder-name");
     std::fs::create_dir(folder.directory().join(GUID.to_string())).expect("the folder is made");
-    let refusal: ReceiptsRefusal = folder.read(receipt().dataset).expect_err("a folder is not a receipt");
-    assert!(matches!(refusal, ReceiptsRefusal::NotRegular { .. }), "{refusal:?}");
+    let refusal: ReceiptsRefusal = folder
+        .read(receipt().dataset)
+        .expect_err("a folder is not a receipt");
+    assert!(
+        matches!(refusal, ReceiptsRefusal::NotRegular { .. }),
+        "{refusal:?}"
+    );
 }
 
 /// A file over the byte bound,
@@ -199,13 +289,28 @@ fn a_folder_named_after_a_guid_is_refused() {
 fn each_unreadable_receipt_is_refused() {
     let folder: ReceiptsFolder = live_folder("receipts-shapes");
     let path: PathBuf = folder.directory().join(GUID.to_string());
-    std::fs::write(path.as_path(), vec![b'x'; MAXIMUM_RECEIPT_BYTES + 1]).expect("the large file is written");
-    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(RECEIPT_MODE)).expect("the large file takes the mode");
-    assert!(matches!(folder.read(receipt().dataset), Err(ReceiptsRefusal::TooLarge { .. })));
+    std::fs::write(path.as_path(), vec![b'x'; MAXIMUM_RECEIPT_BYTES + 1])
+        .expect("the large file is written");
+    std::fs::set_permissions(
+        path.as_path(),
+        std::fs::Permissions::from_mode(RECEIPT_MODE),
+    )
+    .expect("the large file takes the mode");
+    assert!(matches!(
+        folder.read(receipt().dataset),
+        Err(ReceiptsRefusal::TooLarge { .. })
+    ));
     std::fs::write(path.as_path(), [0xff_u8, 0xfe_u8]).expect("the binary file is written");
-    assert!(matches!(folder.read(receipt().dataset), Err(ReceiptsRefusal::NotText { .. })));
-    std::fs::write(path.as_path(), "v1\nkind something-else\n").expect("the foreign file is written");
-    assert!(matches!(folder.read(receipt().dataset), Err(ReceiptsRefusal::NotAReceipt { .. })));
+    assert!(matches!(
+        folder.read(receipt().dataset),
+        Err(ReceiptsRefusal::NotText { .. })
+    ));
+    std::fs::write(path.as_path(), "v1\nkind something-else\n")
+        .expect("the foreign file is written");
+    assert!(matches!(
+        folder.read(receipt().dataset),
+        Err(ReceiptsRefusal::NotAReceipt { .. })
+    ));
 }
 
 /// A receipt filed under a GUID but carrying another GUID is refused.
@@ -213,13 +318,23 @@ fn each_unreadable_receipt_is_refused() {
 fn a_receipt_for_another_dataset_is_refused() {
     let folder: ReceiptsFolder = live_folder("receipts-wrong-dataset");
     let mut receipt: CloneMountReceipt = receipt();
-    receipt.dataset = DatasetGuid::parse(ANOTHER_GUID.to_string().as_str()).expect("the other GUID is canonical");
+    receipt.dataset =
+        DatasetGuid::parse(ANOTHER_GUID.to_string().as_str()).expect("the other GUID is canonical");
     let text: String = receipt.text();
     let path: PathBuf = folder.directory().join(GUID.to_string());
     std::fs::write(path.as_path(), text).expect("the foreign receipt is written");
-    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(RECEIPT_MODE)).expect("the foreign receipt takes the mode");
-    let refusal: ReceiptsRefusal = folder.read(control_guid()).expect_err("another GUID's receipt is refused");
-    assert!(matches!(refusal, ReceiptsRefusal::WrongDataset { ref found, .. } if found == "43"), "{refusal:?}");
+    std::fs::set_permissions(
+        path.as_path(),
+        std::fs::Permissions::from_mode(RECEIPT_MODE),
+    )
+    .expect("the foreign receipt takes the mode");
+    let refusal: ReceiptsRefusal = folder
+        .read(control_guid())
+        .expect_err("another GUID's receipt is refused");
+    assert!(
+        matches!(refusal, ReceiptsRefusal::WrongDataset { ref found, .. } if found == "43"),
+        "{refusal:?}"
+    );
 }
 
 /// A FIFO at a GUID's name is refused without blocking the reader.
@@ -227,12 +342,23 @@ fn a_receipt_for_another_dataset_is_refused() {
 fn a_fifo_at_a_receipt_name_is_refused() {
     let folder: ReceiptsFolder = live_folder("receipts-fifo");
     let path: PathBuf = folder.directory().join(GUID.to_string());
-    let name = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("the path is text");
+    let name =
+        std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("the path is text");
     // SAFETY: `name` is a NUL-terminated string that outlives the call in a fixture folder this test owns.
     let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o644) };
-    assert_eq!(made, 0, "the control makes its FIFO: {}", std::io::Error::last_os_error());
-    let refusal: ReceiptsRefusal = folder.read(receipt().dataset).expect_err("a FIFO is not a receipt");
-    assert!(matches!(refusal, ReceiptsRefusal::NotRegular { .. }), "{refusal:?}");
+    assert_eq!(
+        made,
+        0,
+        "the control makes its FIFO: {}",
+        std::io::Error::last_os_error()
+    );
+    let refusal: ReceiptsRefusal = folder
+        .read(receipt().dataset)
+        .expect_err("a FIFO is not a receipt");
+    assert!(
+        matches!(refusal, ReceiptsRefusal::NotRegular { .. }),
+        "{refusal:?}"
+    );
 }
 
 /// A staging sibling is never read as a receipt,
@@ -244,9 +370,17 @@ fn the_staging_sibling_is_never_a_receipt_name() {
     let folder: ReceiptsFolder = live_folder("receipts-staging-leftover");
     let receipt: CloneMountReceipt = receipt();
     let stale_staging: PathBuf = folder.directory().join(format!("{}.staging.1", GUID));
-    std::fs::write(stale_staging.as_path(), "v1\n").expect("the killed writer's sibling is written");
-    folder.publish(&receipt).expect("a killed writer's sibling blocks no later publish");
-    assert_eq!(folder.read(receipt.dataset).expect("the new receipt is read"), Some(receipt));
+    std::fs::write(stale_staging.as_path(), "v1\n")
+        .expect("the killed writer's sibling is written");
+    folder
+        .publish(&receipt)
+        .expect("a killed writer's sibling blocks no later publish");
+    assert_eq!(
+        folder
+            .read(receipt.dataset)
+            .expect("the new receipt is read"),
+        Some(receipt)
+    );
 }
 
 /// A staging sibling is never read as a receipt,
@@ -280,10 +414,19 @@ fn a_first_publish_makes_its_directory() {
     let directory: PathBuf = parent.join("never-made");
     let folder: ReceiptsFolder = ReceiptsFolder::at(directory.clone(), this_uid());
     let receipt: CloneMountReceipt = receipt();
-    folder.publish(&receipt).expect("the first publish makes its directory");
-    let mode: u32 = std::fs::metadata(directory.as_path()).expect("the directory exists").permissions().mode() & 0o777;
+    folder
+        .publish(&receipt)
+        .expect("the first publish makes its directory");
+    let mode: u32 = std::fs::metadata(directory.as_path())
+        .expect("the directory exists")
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, DIRECTORY_MODE);
-    assert_eq!(folder.read(receipt.dataset).expect("the receipt is read"), Some(receipt));
+    assert_eq!(
+        folder.read(receipt.dataset).expect("the receipt is read"),
+        Some(receipt)
+    );
 }
 
 /// What:
@@ -312,9 +455,19 @@ fn a_receipt_with_the_largest_admitted_path_reads_back() {
         source: "z".repeat(255),
         canonical_path: longest,
     });
-    assert!(receipt.text().len() <= MAXIMUM_RECEIPT_BYTES, "the longest receipt the writer builds fits its own bound");
-    folder.publish(&receipt).expect("the receipt at the bound is filed");
-    assert_eq!(folder.read(receipt.dataset).expect("the receipt at the bound is read back"), Some(receipt));
+    assert!(
+        receipt.text().len() <= MAXIMUM_RECEIPT_BYTES,
+        "the longest receipt the writer builds fits its own bound"
+    );
+    folder
+        .publish(&receipt)
+        .expect("the receipt at the bound is filed");
+    assert_eq!(
+        folder
+            .read(receipt.dataset)
+            .expect("the receipt at the bound is read back"),
+        Some(receipt)
+    );
 }
 
 /// What:
@@ -338,10 +491,24 @@ fn a_receipt_no_reader_accepts_is_not_written() {
         source: String::from("a source with a space"),
         canonical_path: String::from("/home/user/repo/.claude/worktrees/one"),
     });
-    let refusal: ReceiptsRefusal = folder.publish(&receipt).expect_err("a source with a space is no receipt field");
-    assert!(matches!(refusal, ReceiptsRefusal::NotAReceipt { .. }), "{refusal:?}");
-    assert_eq!(folder.read(receipt.dataset).expect("nothing was filed"), None);
-    assert!(!folder.directory().join(folder.staging_name(receipt.dataset)).exists(), "neither was a staging sibling");
+    let refusal: ReceiptsRefusal = folder
+        .publish(&receipt)
+        .expect_err("a source with a space is no receipt field");
+    assert!(
+        matches!(refusal, ReceiptsRefusal::NotAReceipt { .. }),
+        "{refusal:?}"
+    );
+    assert_eq!(
+        folder.read(receipt.dataset).expect("nothing was filed"),
+        None
+    );
+    assert!(
+        !folder
+            .directory()
+            .join(folder.staging_name(receipt.dataset))
+            .exists(),
+        "neither was a staging sibling"
+    );
 }
 
 /// What:
@@ -366,13 +533,26 @@ fn a_failed_publish_leaves_no_staging_sibling() {
     let receipt: CloneMountReceipt = receipt();
     let blocker: PathBuf = folder.directory().join(folder.entry_name(receipt.dataset));
     std::fs::create_dir(blocker.as_path()).expect("a folder stands where the receipt belongs");
-    let refusal: ReceiptsRefusal = folder.publish(&receipt).expect_err("a rename onto a folder fails");
-    assert!(matches!(refusal, ReceiptsRefusal::Staging { .. }), "{refusal:?}");
+    let refusal: ReceiptsRefusal = folder
+        .publish(&receipt)
+        .expect_err("a rename onto a folder fails");
+    assert!(
+        matches!(refusal, ReceiptsRefusal::Staging { .. }),
+        "{refusal:?}"
+    );
     let left: Vec<PathBuf> = staging_siblings(folder.directory());
-    assert!(left.is_empty(), "the writer removed the sibling its failure staged: {left:?}");
+    assert!(
+        left.is_empty(),
+        "the writer removed the sibling its failure staged: {left:?}"
+    );
     std::fs::remove_dir(blocker.as_path()).expect("the folder is removed");
-    folder.publish(&receipt).expect("this process's next publish is not blocked");
-    assert_eq!(folder.read(receipt.dataset).expect("the receipt is read"), Some(receipt));
+    folder
+        .publish(&receipt)
+        .expect("this process's next publish is not blocked");
+    assert_eq!(
+        folder.read(receipt.dataset).expect("the receipt is read"),
+        Some(receipt)
+    );
 }
 
 /// What:
@@ -391,13 +571,27 @@ fn a_failed_publish_leaves_no_staging_sibling() {
 fn a_staging_sibling_of_this_process_blocks_nothing() {
     let folder: ReceiptsFolder = live_folder("receipts-own-sibling");
     let receipt: CloneMountReceipt = receipt();
-    let sibling: PathBuf = folder.directory().join(folder.staging_name(receipt.dataset));
+    let sibling: PathBuf = folder
+        .directory()
+        .join(folder.staging_name(receipt.dataset));
     let next: String = folder.staging_name(receipt.dataset);
-    assert_ne!(next, folder.staging_name(receipt.dataset), "two attempts never share a staging name");
+    assert_ne!(
+        next,
+        folder.staging_name(receipt.dataset),
+        "two attempts never share a staging name"
+    );
     std::fs::write(sibling.as_path(), "v1\n").expect("this process's earlier sibling is planted");
-    folder.publish(&receipt).expect("a sibling of an earlier attempt blocks nothing");
-    assert!(sibling.exists(), "the planted leftover is left where it was, and no receipt reads from it");
-    assert_eq!(folder.read(receipt.dataset).expect("the receipt is read"), Some(receipt));
+    folder
+        .publish(&receipt)
+        .expect("a sibling of an earlier attempt blocks nothing");
+    assert!(
+        sibling.exists(),
+        "the planted leftover is left where it was, and no receipt reads from it"
+    );
+    assert_eq!(
+        folder.read(receipt.dataset).expect("the receipt is read"),
+        Some(receipt)
+    );
 }
 
 /// What:
@@ -438,23 +632,37 @@ fn two_publishes_at_once_leave_one_whole_receipt() {
         }
     });
     let found: Option<CloneMountReceipt> = folder.read(first.dataset).expect("the receipt is read");
-    assert!(found.as_ref() == Some(&first) || found.as_ref() == Some(&second), "one whole receipt is the answer: {found:?}");
+    assert!(
+        found.as_ref() == Some(&first) || found.as_ref() == Some(&second),
+        "one whole receipt is the answer: {found:?}"
+    );
     let siblings: Vec<PathBuf> = std::fs::read_dir(folder.directory())
         .expect("the directory lists")
         .flatten()
         .map(|entry| return entry.path())
         .filter(|path| return path.to_string_lossy().contains(".staging."))
         .collect();
-    assert!(siblings.is_empty(), "no staging sibling survives: {siblings:?}");
+    assert!(
+        siblings.is_empty(),
+        "no staging sibling survives: {siblings:?}"
+    );
 }
 
 /// Every refusal carries the way forward and says nothing acted on the file.
 #[test]
 fn every_refusal_carries_the_way_forward() {
     let folder: ReceiptsFolder = ReceiptsFolder::at(PathBuf::from("/nonexistent/receipts"), 0);
-    let missing_refusal: ReceiptsRefusal = folder.read(control_guid()).expect_err("a missing directory is refused");
-    assert!(matches!(missing_refusal, ReceiptsRefusal::DirectoryAbsent { .. }), "{missing_refusal:?}");
+    let missing_refusal: ReceiptsRefusal = folder
+        .read(control_guid())
+        .expect_err("a missing directory is refused");
+    assert!(
+        matches!(missing_refusal, ReceiptsRefusal::DirectoryAbsent { .. }),
+        "{missing_refusal:?}"
+    );
     let message: String = missing_refusal.message();
     assert!(message.contains("Nothing was matched"), "{message}");
-    assert!(message.contains("journalctl -u reconcile-git-worktree-clone-mounts.service"), "{message}");
+    assert!(
+        message.contains("journalctl -u reconcile-git-worktree-clone-mounts.service"),
+        "{message}"
+    );
 }

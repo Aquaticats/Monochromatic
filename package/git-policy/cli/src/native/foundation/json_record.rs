@@ -29,7 +29,10 @@
 /// ```ts
 /// type Value = unknown;
 /// ```
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// The largest whole number a double holds exactly,
 ///  JavaScript's `Number.MAX_SAFE_INTEGER`.
@@ -87,7 +90,10 @@ pub fn decode_fatal(bytes: &[u8]) -> Option<&str> {
 /// ```ts
 /// typeof value[key] === 'string' ? value[key] : undefined
 /// ```
-pub fn string_field<'a>(map: &'a Map<String, Value>, key: &str) -> Option<&'a str> {
+pub fn string_field<'a>(
+    map: &'a Map<String, Value>,
+    key: &str,
+) -> Option<&'a str> {
     return map.get(key)?.as_str();
 }
 
@@ -107,7 +113,10 @@ pub fn string_field<'a>(map: &'a Map<String, Value>, key: &str) -> Option<&'a st
 /// ```ts
 /// typeof value[key] === 'number' && Number.isSafeInteger(value[key]) ? value[key] : undefined
 /// ```
-pub fn safe_integer_field(map: &Map<String, Value>, key: &str) -> Option<i64> {
+pub fn safe_integer_field(
+    map: &Map<String, Value>,
+    key: &str,
+) -> Option<i64> {
     return safe_integer(map.get(key)?);
 }
 
@@ -167,7 +176,11 @@ fn in_safe_range(whole: i64) -> Option<i64> {
 /// ```ts
 /// value[key] === expected
 /// ```
-pub fn number_equals(map: &Map<String, Value>, key: &str, expected: i64) -> bool {
+pub fn number_equals(
+    map: &Map<String, Value>,
+    key: &str,
+    expected: i64,
+) -> bool {
     return safe_integer_field(map, key) == Some(expected);
 }
 
@@ -219,7 +232,10 @@ impl ObjectWriter {
     /// ```ts
     /// text += (first ? '' : ',') + JSON.stringify(key) + ':';
     /// ```
-    fn key(&mut self, key: &str) {
+    fn key(
+        &mut self,
+        key: &str,
+    ) {
         if self.text.len() > 1 {
             self.text.push(',');
         }
@@ -236,7 +252,11 @@ impl ObjectWriter {
     /// ```ts
     /// record[key] = value;
     /// ```
-    pub fn string(&mut self, key: &str, value: &str) -> &mut Self {
+    pub fn string(
+        &mut self,
+        key: &str,
+        value: &str,
+    ) -> &mut Self {
         self.key(key);
         self.text.push_str(quote(value).as_str());
         return self;
@@ -252,7 +272,11 @@ impl ObjectWriter {
     /// ```ts
     /// record[key] = value;
     /// ```
-    pub fn integer(&mut self, key: &str, value: i64) -> &mut Self {
+    pub fn integer(
+        &mut self,
+        key: &str,
+        value: i64,
+    ) -> &mut Self {
         self.key(key);
         self.text.push_str(value.to_string().as_str());
         return self;
@@ -267,7 +291,11 @@ impl ObjectWriter {
     /// ```ts
     /// record[key] = value;
     /// ```
-    pub fn boolean(&mut self, key: &str, value: bool) -> &mut Self {
+    pub fn boolean(
+        &mut self,
+        key: &str,
+        value: bool,
+    ) -> &mut Self {
         self.key(key);
         self.text.push_str(if value { "true" } else { "false" });
         return self;
@@ -282,7 +310,11 @@ impl ObjectWriter {
     /// ```ts
     /// record[key] = nested;
     /// ```
-    pub fn raw(&mut self, key: &str, json: &str) -> &mut Self {
+    pub fn raw(
+        &mut self,
+        key: &str,
+        json: &str,
+    ) -> &mut Self {
         self.key(key);
         self.text.push_str(json);
         return self;

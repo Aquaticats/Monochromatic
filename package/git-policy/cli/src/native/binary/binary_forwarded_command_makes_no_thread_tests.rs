@@ -24,15 +24,32 @@
 //! ```
 
 /// The trace reader and the counts it returns.
-use super::budget_trace::{Counts, TRACED_CALLS, count};
+use super::budget_trace::{
+    Counts,
+    TRACED_CALLS,
+    count,
+};
 /// Finding `strace` on the test process's own `PATH`.
-use super::strace::{strace_available_or_acknowledged, strace_program};
+use super::strace::{
+    strace_available_or_acknowledged,
+    strace_program,
+};
 /// The fixtures and the wrapped run of every binary-level control.
-use super::support::{Fixture, REAL_GIT, fixture, remove, repository, wrapped};
+use super::support::{
+    Fixture,
+    REAL_GIT,
+    fixture,
+    remove,
+    repository,
+    wrapped,
+};
 /// Paths of the fixture's files.
 use std::path::PathBuf;
 /// Building the traced command and reading what it printed.
-use std::process::{Command, Output};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// What:
 ///  `fn traced_wrapper_spawns(...)` runs one wrapped command under `strace` and returns how many `clone`-family calls
@@ -46,7 +63,10 @@ use std::process::{Command, Output};
 /// ```ts
 /// function tracedWrapperSpawns(fixture: Fixture, repo: string, args: string[]): { spawns: number; output: Output } { ... }
 /// ```
-fn traced_wrapper_spawns(label: &str, arguments: &[&str]) -> (usize, Output) {
+fn traced_wrapper_spawns(
+    label: &str,
+    arguments: &[&str],
+) -> (usize, Output) {
     let fixture: Fixture = fixture(format!("no-thread-{label}").as_str());
     let repo: PathBuf = repository(&fixture, std::ffi::OsStr::new("repo"));
     let trace: PathBuf = fixture.root.join("trace.txt");
@@ -77,7 +97,11 @@ fn traced_wrapper_spawns(label: &str, arguments: &[&str]) -> (usize, Output) {
     }
     let output: Output = outer.output().expect("strace starts");
     let text: String = std::fs::read_to_string(&trace).expect("trace");
-    let counts: Counts = count(text.as_str(), fixture.root.to_str().expect("UTF-8 root"), REAL_GIT);
+    let counts: Counts = count(
+        text.as_str(),
+        fixture.root.to_str().expect("UTF-8 root"),
+        REAL_GIT,
+    );
     remove(&fixture);
     return (counts.wrapper_spawns, output);
 }
@@ -91,10 +115,15 @@ fn traced_wrapper_spawns(label: &str, arguments: &[&str]) -> (usize, Output) {
 /// so the wrapper process makes no `clone`-family call at all.
 #[test]
 fn a_forwarded_command_makes_no_clone_before_git_replaces_the_wrapper() {
-    if !strace_available_or_acknowledged("a_forwarded_command_makes_no_clone_before_git_replaces_the_wrapper") {
+    if !strace_available_or_acknowledged(
+        "a_forwarded_command_makes_no_clone_before_git_replaces_the_wrapper",
+    ) {
         return;
     }
-    for (label, arguments) in [("rev-parse", ["rev-parse", "HEAD"].as_slice()), ("status", ["status", "--short"].as_slice())] {
+    for (label, arguments) in [
+        ("rev-parse", ["rev-parse", "HEAD"].as_slice()),
+        ("status", ["status", "--short"].as_slice()),
+    ] {
         let (spawns, output) = traced_wrapper_spawns(label, arguments);
         assert_eq!(
             output.status.code(),
@@ -102,7 +131,10 @@ fn a_forwarded_command_makes_no_clone_before_git_replaces_the_wrapper() {
             "{label}: the forwarded command failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        assert_eq!(spawns, 0, "{label}: the wrapper made {spawns} clone-family calls before Git replaced it");
+        assert_eq!(
+            spawns, 0,
+            "{label}: the wrapper made {spawns} clone-family calls before Git replaced it"
+        );
     }
 }
 

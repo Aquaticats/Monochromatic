@@ -105,7 +105,8 @@ pub enum CommandLine {
 /// Any other error says nothing about the process.
 #[cfg(unix)]
 fn process_is_gone(error: &std::io::Error) -> bool {
-    return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH);
+    return error.kind() == std::io::ErrorKind::NotFound
+        || error.raw_os_error() == Some(libc::ESRCH);
 }
 
 /// What:
@@ -145,8 +146,16 @@ fn kernel_name_of(process: &Path) -> String {
 /// const unproven = (reason: string) => ({ unproven: { pid, program: kernelNameOf(folder), reason } });
 /// ```
 #[cfg(unix)]
-fn unproven_of(entry: &std::fs::DirEntry, pid: u32, reason: String) -> CommandLine {
-    return CommandLine::Unproven(UnreadableProcess { pid, program: kernel_name_of(entry.path().as_path()), reason });
+fn unproven_of(
+    entry: &std::fs::DirEntry,
+    pid: u32,
+    reason: String,
+) -> CommandLine {
+    return CommandLine::Unproven(UnreadableProcess {
+        pid,
+        program: kernel_name_of(entry.path().as_path()),
+        reason,
+    });
 }
 
 /// What:
@@ -166,7 +175,11 @@ fn unproven_of(entry: &std::fs::DirEntry, pid: u32, reason: String) -> CommandLi
 /// const bytes = read(`${pid}/cmdline`, limit + 1); return bytes.length > limit ? { unreadable: { pid, reason } } : bytes
 /// ```
 #[cfg(unix)]
-pub fn command_line_of(entry: &std::fs::DirEntry, pid: u32, own_user: u32) -> CommandLine {
+pub fn command_line_of(
+    entry: &std::fs::DirEntry,
+    pid: u32,
+    own_user: u32,
+) -> CommandLine {
     use std::io::Read;
     use std::os::unix::fs::MetadataExt;
     // The owner of a process's folder is the user it runs as; another user's service is not this user's to wait for.
@@ -175,7 +188,13 @@ pub fn command_line_of(entry: &std::fs::DirEntry, pid: u32, own_user: u32) -> Co
         Ok(metadata) if metadata.uid() != own_user => return CommandLine::Skipped,
         Ok(_) => {}
         Err(error) if process_is_gone(&error) => return CommandLine::Skipped,
-        Err(error) => return unproven_of(entry, pid, format!("the kernel would not describe the process ({error})")),
+        Err(error) => {
+            return unproven_of(
+                entry,
+                pid,
+                format!("the kernel would not describe the process ({error})"),
+            );
+        }
     }
     let file = match std::fs::File::open(entry.path().join("cmdline")) {
         Ok(file) => file,
@@ -189,7 +208,13 @@ pub fn command_line_of(entry: &std::fs::DirEntry, pid: u32, own_user: u32) -> Co
         Err(error) => return unproven_of(entry, pid, error.to_string()),
     }
     if bytes.len() as u64 > COMMAND_LINE_BYTES {
-        return unproven_of(entry, pid, format!("its command line is longer than the {COMMAND_LINE_BYTES} bytes the kernel allows any program to carry, so its later words were not looked at"));
+        return unproven_of(
+            entry,
+            pid,
+            format!(
+                "its command line is longer than the {COMMAND_LINE_BYTES} bytes the kernel allows any program to carry, so its later words were not looked at"
+            ),
+        );
     }
     return CommandLine::Words(bytes);
 }

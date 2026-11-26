@@ -23,18 +23,41 @@
 //! const left = await removeEntries({ inside, trash, manifest, host, remove }); // one reason per entry that stays
 //! ```
 
-use crate::blocking_jobs_within_the_budget::{places_a_round_may_take, run_a_slow_job_within_the_budget};
-use crate::lazy_runtime::{RuntimeError, run_on_runtime};
-use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::parallel_runner::{Event, OrderedEvents};
+use crate::blocking_jobs_within_the_budget::{
+    places_a_round_may_take,
+    run_a_slow_job_within_the_budget,
+};
+use crate::lazy_runtime::{
+    RuntimeError,
+    run_on_runtime,
+};
+use crate::parallel_budget::{
+    BudgetRequest,
+    HostResources,
+    worker_budget,
+};
+use crate::parallel_runner::{
+    Event,
+    OrderedEvents,
+};
 use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
-use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
-use crate::worktree_trash_manifest::{TrashManifest, entry_name};
+use crate::parallel_runner_on_the_runtime_awaiting::{
+    OrderedAwaitingWork,
+    OrderedRunOfAwaitingOwned,
+    run_ordered_awaiting_on_the_runtime,
+};
+use crate::worktree_trash_manifest::{
+    TrashManifest,
+    entry_name,
+};
 use crate::worktree_trash_remove::Removal;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -67,7 +90,14 @@ const ENTRY_MEMORY: u64 = MEASURED_MILLION_NAME_PEAK.next_power_of_two();
 /// replaceable so a control can watch or delay it.
 ///  It is shared rather than lent because a job of the blocking pool must own what it reads,
 /// and it must be `Send` so the job that runs it may travel to another thread.
-pub type RemoveOne = dyn Fn(&Path, &File, &OsStr, Option<crate::fs_beneath::ObjectId>) -> Result<crate::worktree_trash_remove::Removal, String> + Send + Sync;
+pub type RemoveOne = dyn Fn(
+        &Path,
+        &File,
+        &OsStr,
+        Option<crate::fs_beneath::ObjectId>,
+    ) -> Result<crate::worktree_trash_remove::Removal, String>
+    + Send
+    + Sync;
 
 /// What:
 ///  What the removal of a trash's entries is told.
@@ -163,7 +193,12 @@ struct OneEntryRemoval<'a> {
 /// the awaited face and the in-turn fallback cannot remove
 ///  different things or report a different reason.
 fn remove_that_entry(state: OneEntryRemoval<'_>) -> Result<Removal, String> {
-    return (state.remove)(state.inside, state.trash, OsStr::new(entry_name(state.entry).as_str()), Some(state.manifest.entries[state.entry]));
+    return (state.remove)(
+        state.inside,
+        state.trash,
+        OsStr::new(entry_name(state.entry).as_str()),
+        Some(state.manifest.entries[state.entry]),
+    );
 }
 
 /// What:
@@ -189,14 +224,34 @@ fn remove_that_entry(state: OneEntryRemoval<'_>) -> Result<Removal, String> {
 /// ```ts
 /// const removal = withIdleIoPriority({ inside, trash, manifest, remove, entry }, removeThatEntry);
 /// ```
-fn remove_one(inside: &Path, trash: &File, manifest: &TrashManifest, remove: &RemoveOne, entry: usize) -> Result<Removal, String> {
+fn remove_one(
+    inside: &Path,
+    trash: &File,
+    manifest: &TrashManifest,
+    remove: &RemoveOne,
+    entry: usize,
+) -> Result<Removal, String> {
     // The reason the removal gives is the person's, word for word: the entry's name is in it already, and a prefix would say it
     //  twice.
-    return crate::idle_io_priority::with_idle_io_priority(OneEntryRemoval { inside, trash, manifest, remove, entry }, remove_that_entry);
+    return crate::idle_io_priority::with_idle_io_priority(
+        OneEntryRemoval {
+            inside,
+            trash,
+            manifest,
+            remove,
+            entry,
+        },
+        remove_that_entry,
+    );
 }
 
 impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {
-    fn run<'a>(&'a self, _index: usize, index: &'a usize, _say: LinesToTheConsumer<Result<Removal, String>>) -> Pin<Box<dyn Future<Output = Result<Removal, String>> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        _index: usize,
+        index: &'a usize,
+        _say: LinesToTheConsumer<Result<Removal, String>>,
+    ) -> Pin<Box<dyn Future<Output = Result<Removal, String>> + Send + 'a>> {
         return Box::pin(async move {
             let inside: PathBuf = self.inside.clone();
             let trash: Arc<File> = Arc::clone(&self.trash);
@@ -204,7 +259,13 @@ impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {
             let remove: Arc<RemoveOne> = Arc::clone(&self.remove);
             let entry: usize = *index;
             let removal = run_a_slow_job_within_the_budget(move || {
-                return remove_one(inside.as_path(), trash.as_ref(), manifest.as_ref(), remove.as_ref(), entry);
+                return remove_one(
+                    inside.as_path(),
+                    trash.as_ref(),
+                    manifest.as_ref(),
+                    remove.as_ref(),
+                    entry,
+                );
             })
             .await;
             return match removal {
@@ -233,7 +294,10 @@ struct KeepReasonsOfEntriesThatStay<'a> {
 }
 
 impl OrderedEvents<Result<Removal, String>> for KeepReasonsOfEntriesThatStay<'_> {
-    fn on_event(&mut self, event: Event<'_, Result<Removal, String>>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, Result<Removal, String>>,
+    ) {
         if let Event::End(_slot, Err(reason)) = event {
             self.left.push(reason);
         }
@@ -300,7 +364,13 @@ pub fn remove_entries(request: &EntryRemoval) -> Vec<String> {
 fn remove_entries_in_turn(request: &EntryRemoval) -> Vec<String> {
     let mut left: Vec<String> = Vec::new();
     for entry in 0..request.manifest.entries.len() {
-        if let Err(reason) = remove_one(request.inside.as_path(), request.trash.as_ref(), request.manifest.as_ref(), request.remove.as_ref(), entry) {
+        if let Err(reason) = remove_one(
+            request.inside.as_path(),
+            request.trash.as_ref(),
+            request.manifest.as_ref(),
+            request.remove.as_ref(),
+            entry,
+        ) {
             left.push(reason);
         }
     }
@@ -322,7 +392,8 @@ fn remove_entries_in_turn(request: &EntryRemoval) -> Vec<String> {
 /// async function removeEntriesAwaiting(request: EntryRemoval): Promise<string[]>;
 /// ```
 pub async fn remove_entries_awaiting(request: &EntryRemoval) -> Vec<String> {
-    let indices: Arc<[usize]> = Arc::from((0..request.manifest.entries.len()).collect::<Vec<usize>>());
+    let indices: Arc<[usize]> =
+        Arc::from((0..request.manifest.entries.len()).collect::<Vec<usize>>());
     // One lane per entry, so no entry waits for another.
     let mut lanes: Vec<Vec<usize>> = Vec::new();
     for index in indices.iter() {
@@ -332,20 +403,35 @@ pub async fn remove_entries_awaiting(request: &EntryRemoval) -> Vec<String> {
     //  clients: one place of the pool stays free for those, so a client's own storage read (which instance its commit belongs
     //  to, the note of a beat) never waits for a trash, however many files the snapshot left out
     //  (`places_a_round_may_take`).
-    let workers: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host: &request.host })
-        .min(places_a_round_may_take());
+    let workers: usize = worker_budget(&BudgetRequest {
+        items: indices.len(),
+        per_item_memory: ENTRY_MEMORY,
+        ceiling: None,
+        cap: None,
+        host: &request.host,
+    })
+    .min(places_a_round_may_take());
     let mut left: Vec<String> = Vec::new();
     let removed = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
         items: indices,
         lanes: Arc::from(lanes),
         workers,
-        work: Arc::new(RemoveEachEntry { inside: request.inside.clone(), trash: Arc::clone(&request.trash), manifest: Arc::clone(&request.manifest), remove: Arc::clone(&request.remove) }),
-        on_event: &mut KeepReasonsOfEntriesThatStay { left: &mut left },
+        work: Arc::new(RemoveEachEntry {
+            inside: request.inside.clone(),
+            trash: Arc::clone(&request.trash),
+            manifest: Arc::clone(&request.manifest),
+            remove: Arc::clone(&request.remove),
+        }),
+        on_event: &mut KeepReasonsOfEntriesThatStay {
+            left: &mut left,
+        },
     })
     .await;
     if let Err(stopped) = removed {
         // The entries the run did not reach stay, so what ended the run is a reason among the others.
-        left.push(format!("the removal of the other entries stopped: {stopped}"));
+        left.push(format!(
+            "the removal of the other entries stopped: {stopped}"
+        ));
     }
     return left;
 }

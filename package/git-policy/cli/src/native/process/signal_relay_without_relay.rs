@@ -19,14 +19,17 @@
 //! // signal-relay-without-relay.ts: class SignalGuard { static install(); runChild(command); }
 //! ```
 
-/// The I/O error type the install and the wait answer with.
-use std::io;
 /// How the child ended,
 /// with the exit-code mapping the wrapper's exit uses.
 use crate::forwarding::ChildOutcome;
+/// The I/O error type the install and the wait answer with.
+use std::io;
 /// The command that is started,
 /// and the status it ends with.
-use std::process::{Command, ExitStatus};
+use std::process::{
+    Command,
+    ExitStatus,
+};
 
 /// What:
 ///  Non-Unix guard:
@@ -66,8 +69,12 @@ impl SignalGuard {
     /// ```ts
     /// async runChild(command): Promise<ChildOutcome>
     /// ```
-    pub fn run_child(&self, command: &mut Command) -> io::Result<ChildOutcome> {
-        let mut child: std::process::Child = crate::start_retry::RetryStart::spawn_retrying(command)?;
+    pub fn run_child(
+        &self,
+        command: &mut Command,
+    ) -> io::Result<ChildOutcome> {
+        let mut child: std::process::Child =
+            crate::start_retry::RetryStart::spawn_retrying(command)?;
         let status: ExitStatus = child.wait()?;
         return Ok(crate::forwarding::outcome_of(status));
     }

@@ -19,10 +19,25 @@
 //! ```
 
 use super::commit::remove_settled;
-use super::fault::{Effect, Injection, Ran, When, run_injected_with_environment, staged_repository, verify_recovery};
+use super::fault::{
+    Effect,
+    Injection,
+    Ran,
+    When,
+    run_injected_with_environment,
+    staged_repository,
+    verify_recovery,
+};
 use super::strace::strace_available_or_acknowledged;
-use super::support::{Fixture, fixture};
-use git_policy_cli::child_class::{CHILD_WAIT_VARIABLE, ChildClass, class_of};
+use super::support::{
+    Fixture,
+    fixture,
+};
+use git_policy_cli::child_class::{
+    CHILD_WAIT_VARIABLE,
+    ChildClass,
+    class_of,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -37,7 +52,11 @@ const MARGIN_SECONDS: u64 = 1;
 
 /// The commit with the bound set and the notice interval at its smallest,
 /// so a notice precedes the stop.
-fn bounded_commit(fixture: &Fixture, repo: &std::path::Path, label: &str) -> Ran {
+fn bounded_commit(
+    fixture: &Fixture,
+    repo: &std::path::Path,
+    label: &str,
+) -> Ran {
     let fault: Injection = Injection {
         syscall: "execve",
         effect: Effect::SlowReturn((BOUND_SECONDS + MARGIN_SECONDS) * 1_000_000),
@@ -51,7 +70,10 @@ fn bounded_commit(fixture: &Fixture, repo: &std::path::Path, label: &str) -> Ran
         repo,
         label,
         &fault,
-        &[(CHILD_WAIT_VARIABLE, bound.as_str()), ("CLI_GIT_WAIT_NOTICE_SECONDS", bound.as_str())],
+        &[
+            (CHILD_WAIT_VARIABLE, bound.as_str()),
+            ("CLI_GIT_WAIT_NOTICE_SECONDS", bound.as_str()),
+        ],
     );
 }
 
@@ -61,16 +83,26 @@ fn bounded_commit(fixture: &Fixture, repo: &std::path::Path, label: &str) -> Ran
 ///  and the next command recovers.
 #[test]
 fn a_git_step_past_its_bound_fails_the_commit_and_names_the_class() {
-    if !strace_available_or_acknowledged("a_git_step_past_its_bound_fails_the_commit_and_names_the_class") {
+    if !strace_available_or_acknowledged(
+        "a_git_step_past_its_bound_fails_the_commit_and_names_the_class",
+    ) {
         return;
     }
     let fixture: Fixture = fixture("child-bound");
     let repo: PathBuf = staged_repository(&fixture, "repo");
     let ran: Ran = bounded_commit(&fixture, repo.as_path(), "child-bound");
     let text: String = ran.text();
-    assert!(ran.injected(), "no start was delayed, so nothing was tested: {text}");
+    assert!(
+        ran.injected(),
+        "no start was delayed, so nothing was tested: {text}"
+    );
     assert_ne!(ran.code(), 0, "a stopped step must fail the commit: {text}");
-    assert!(text.contains(format!("showed no sign of work for {BOUND_SECONDS} seconds and was stopped").as_str()), "{text}");
+    assert!(
+        text.contains(
+            format!("showed no sign of work for {BOUND_SECONDS} seconds and was stopped").as_str()
+        ),
+        "{text}"
+    );
     assert!(text.contains(CHILD_WAIT_VARIABLE), "{text}");
     // The sentence is "<command>, <class label> showed no sign of work for ...": the label must be the one the production
     // classification gives that command.
@@ -79,21 +111,45 @@ fn a_git_step_past_its_bound_fails_the_commit_and_names_the_class() {
         .filter_map(|class| {
             return text
                 .find(format!(", {} showed no sign of work for", class.label()).as_str())
-                .map(|at| { return (at, *class); });
+                .map(|at| {
+                    return (at, *class);
+                });
         })
-        .min_by_key(|(at, _)| { return *at; })
-        .map(|(at, class)| { return (&text[..at], class); })
+        .min_by_key(|(at, _)| {
+            return *at;
+        })
+        .map(|(at, class)| {
+            return (&text[..at], class);
+        })
         .expect("the sentence names a class");
     // The command starts at the last "git " that follows a space, a colon or a quote (an earlier path may hold one).
     let start: usize = before
         .match_indices("git ")
-        .map(|(at, _)| { return at; })
-        .filter(|at| { return *at == 0 || before[..*at].ends_with(|previous: char| { return " :\"(".contains(previous); }); })
+        .map(|(at, _)| {
+            return at;
+        })
+        .filter(|at| {
+            return *at == 0
+                || before[..*at].ends_with(|previous: char| {
+                    return " :\"(".contains(previous);
+                });
+        })
         .last()
         .expect("the stopped command is named");
     let command: &str = &before[start..];
-    let words: Vec<OsString> = command.split_whitespace().skip(1).map(OsString::from).collect();
-    assert_eq!(found, class_of(words.as_slice()), "the class of `{command}`: {text}");
-    assert_eq!(verify_recovery(&fixture, repo.as_path(), "child-bound", text.as_str()), Ok(()));
+    let words: Vec<OsString> = command
+        .split_whitespace()
+        .skip(1)
+        .map(OsString::from)
+        .collect();
+    assert_eq!(
+        found,
+        class_of(words.as_slice()),
+        "the class of `{command}`: {text}"
+    );
+    assert_eq!(
+        verify_recovery(&fixture, repo.as_path(), "child-bound", text.as_str()),
+        Ok(())
+    );
     remove_settled(&fixture);
 }

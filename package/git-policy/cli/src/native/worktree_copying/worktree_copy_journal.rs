@@ -20,14 +20,41 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::private_storage::{sync_directory, write_exclusive_scratch, write_exclusive_synced};
+use crate::private_storage::{
+    sync_directory,
+    write_exclusive_scratch,
+    write_exclusive_synced,
+};
 use crate::random_id::random_uuid;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
-use crate::worktree_copy_journal_encoding_and_validation::{JOURNAL_PARENT_NAME, JOURNAL_SUFFIX, JOURNAL_VERSION_NAME, Journal, JournalRefusal, PendingJournal, Phase, TEMPORARY_SUFFIX, encode_journal, parse_journal_reading};
-use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+    raw_failure,
+    raw_failure_of,
+};
+use crate::worktree_copy_journal_encoding_and_validation::{
+    JOURNAL_PARENT_NAME,
+    JOURNAL_SUFFIX,
+    JOURNAL_VERSION_NAME,
+    Journal,
+    JournalRefusal,
+    PendingJournal,
+    Phase,
+    TEMPORARY_SUFFIX,
+    encode_journal,
+    parse_journal_reading,
+};
+use crate::worktree_copy_owner::{
+    CopyOwner,
+    current_copy_owner,
+    token_owner_is_dead,
+};
 use crate::worktree_copy_selection::by_js_order;
 use crate::worktree_copy_stage::StagedSnapshot;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The group and other permission bits a private path must not have.
@@ -87,10 +114,12 @@ impl Role {
 /// ```ts
 /// await assertPrivateWorktreeCopyPath({ path, role });
 /// ```
-pub fn assert_private_path(path: &Path, role: Role) -> Result<(), WorktreeCopyError> {
+pub fn assert_private_path(
+    path: &Path,
+    role: Role,
+) -> Result<(), WorktreeCopyError> {
     use std::os::unix::fs::MetadataExt;
-    let metadata: std::fs::Metadata =
-        std::fs::symlink_metadata(path).map_err(raw_failure_of)?;
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(raw_failure_of)?;
     let shape: bool = match role {
         Role::JournalFile => metadata.is_file() && metadata.nlink() == 1,
         Role::JournalDirectory | Role::PrivateStage => metadata.is_dir(),
@@ -194,7 +223,10 @@ pub fn ensure_journal_root(common_dir: &Path) -> Result<PathBuf, WorktreeCopyErr
 /// ```ts
 /// await writeJournal({ path, record });
 /// ```
-pub fn write_journal(path: &Path, journal: &Journal) -> Result<(), WorktreeCopyError> {
+pub fn write_journal(
+    path: &Path,
+    journal: &Journal,
+) -> Result<(), WorktreeCopyError> {
     return write_atomic_unsynced(path, encode_journal(journal).as_bytes(), "journal");
 }
 
@@ -210,7 +242,11 @@ pub fn write_journal(path: &Path, journal: &Journal) -> Result<(), WorktreeCopyE
 /// ```ts
 /// temporaryPath('/j/abc.stage', owner, 'u1') === `/j/abc.stage.${owner.token()}.u1.tmp`;
 /// ```
-pub fn temporary_path(path: &Path, owner: &CopyOwner, unique: &str) -> PathBuf {
+pub fn temporary_path(
+    path: &Path,
+    owner: &CopyOwner,
+    unique: &str,
+) -> PathBuf {
     // The suffix is appended to the path's own bytes, so a name that is not text keeps every byte of itself.
     let mut temporary: std::ffi::OsString = path.as_os_str().to_owned();
     temporary.push(format!(".{}.{unique}{TEMPORARY_SUFFIX}", owner.token()));
@@ -251,7 +287,11 @@ pub fn temporary_writer_token(file_name: &str) -> Option<&str> {
 /// ```ts
 /// await writeFileAtomically({ path, bytes, subject });
 /// ```
-pub fn write_atomic(path: &Path, bytes: &[u8], subject: &str) -> Result<(), WorktreeCopyError> {
+pub fn write_atomic(
+    path: &Path,
+    bytes: &[u8],
+    subject: &str,
+) -> Result<(), WorktreeCopyError> {
     return write_atomic_flushing(path, bytes, subject, Flush::ToDisk);
 }
 
@@ -282,7 +322,11 @@ enum Flush {
 /// ```ts
 /// await writeFileAtomicallyUnflushed({ path, bytes, subject });
 /// ```
-pub fn write_atomic_unsynced(path: &Path, bytes: &[u8], subject: &str) -> Result<(), WorktreeCopyError> {
+pub fn write_atomic_unsynced(
+    path: &Path,
+    bytes: &[u8],
+    subject: &str,
+) -> Result<(), WorktreeCopyError> {
     return write_atomic_flushing(path, bytes, subject, Flush::Never);
 }
 
@@ -290,7 +334,12 @@ pub fn write_atomic_unsynced(path: &Path, bytes: &[u8], subject: &str) -> Result
 /// one rename publishes the whole file;
 /// `flush` says whether the file and its
 ///  directory are flushed.
-fn write_atomic_flushing(path: &Path, bytes: &[u8], subject: &str, flush: Flush) -> Result<(), WorktreeCopyError> {
+fn write_atomic_flushing(
+    path: &Path,
+    bytes: &[u8],
+    subject: &str,
+    flush: Flush,
+) -> Result<(), WorktreeCopyError> {
     let unique: String = match random_uuid() {
         Ok(made) => made,
         Err(error) => {
@@ -343,7 +392,12 @@ pub fn create_journal(
     destination_root: &Path,
     snapshot: &StagedSnapshot,
 ) -> Result<PendingJournal, WorktreeCopyError> {
-    return create_journal_for(common_dir, destination_root, snapshot, &current_copy_owner()?);
+    return create_journal_for(
+        common_dir,
+        destination_root,
+        snapshot,
+        &current_copy_owner()?,
+    );
 }
 
 /// What:
@@ -380,7 +434,10 @@ pub fn create_journal_for(
         stage_root: snapshot.stage_root.clone(),
     };
     write_journal(path.as_path(), &journal)?;
-    return Ok(PendingJournal { path, journal });
+    return Ok(PendingJournal {
+        path,
+        journal,
+    });
 }
 
 /// What:
@@ -405,7 +462,12 @@ pub fn journal_items_exist(common_dir: &Path) -> Result<bool, WorktreeCopyError>
             // those records stands until the repository is gone, and a look at it would make every command pay for a
             // sweep they have nothing to do.
             return match listed {
-                Ok(entry) => entry.file_name() != std::ffi::OsStr::new(crate::worktree_copy_unreadable_records::UNREADABLE_FOLDER),
+                Ok(entry) => {
+                    entry.file_name()
+                        != std::ffi::OsStr::new(
+                            crate::worktree_copy_unreadable_records::UNREADABLE_FOLDER,
+                        )
+                }
                 Err(_unreadable) => true,
             };
         })),
@@ -432,11 +494,19 @@ pub fn journal_items_exist(common_dir: &Path) -> Result<bool, WorktreeCopyError>
 /// ```ts
 /// const mine = await adoptJournal({ pending, owner }); // undefined when another command won
 /// ```
-pub fn adopt_journal(pending: &PendingJournal, owner: &CopyOwner) -> Result<Option<PendingJournal>, WorktreeCopyError> {
+pub fn adopt_journal(
+    pending: &PendingJournal,
+    owner: &CopyOwner,
+) -> Result<Option<PendingJournal>, WorktreeCopyError> {
     let Some(parent) = pending.path.parent() else {
         return Ok(None);
     };
-    let name: String = pending.path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    let name: String = pending
+        .path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
     let identifier: &str = name.split('.').next().unwrap_or_default();
     let adopted: PathBuf = parent.join(format!("{identifier}.{}{JOURNAL_SUFFIX}", owner.token()));
     // `match` on the rename: a vanished source means another command took the journal first; any other failure is real.
@@ -447,7 +517,10 @@ pub fn adopt_journal(pending: &PendingJournal, owner: &CopyOwner) -> Result<Opti
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(raw_failure(&error)),
     }
-    return Ok(Some(PendingJournal { path: adopted, journal: pending.journal.clone() }));
+    return Ok(Some(PendingJournal {
+        path: adopted,
+        journal: pending.journal.clone(),
+    }));
 }
 
 /// What:
@@ -476,7 +549,11 @@ pub fn journal_owner_is_dead(pending: &PendingJournal) -> Result<bool, WorktreeC
 /// ```ts
 /// renameSync(temporary, path); if (flush === 'toDisk') syncDirectory(dirname(path));
 /// ```
-fn publish_written(temporary: &Path, path: &Path, flush: Flush) -> std::io::Result<()> {
+fn publish_written(
+    temporary: &Path,
+    path: &Path,
+    flush: Flush,
+) -> std::io::Result<()> {
     std::fs::rename(temporary, path)?;
     return match (flush, path.parent()) {
         (Flush::ToDisk, Some(parent)) => sync_directory(parent),
@@ -529,7 +606,10 @@ pub enum JournalFile {
 /// ```ts
 /// const reading = await readListedJournal(root, name); // undefined when it vanished
 /// ```
-fn read_listed_journal(root: &Path, name: &str) -> Result<Option<JournalFile>, WorktreeCopyError> {
+fn read_listed_journal(
+    root: &Path,
+    name: &str,
+) -> Result<Option<JournalFile>, WorktreeCopyError> {
     let path: PathBuf = root.join(name);
     // `match` on the lookup: a journal another command settled is nobody's fault, and every other refusal is a fault.
     match std::fs::symlink_metadata(path.as_path()) {
@@ -551,13 +631,22 @@ fn read_listed_journal(root: &Path, name: &str) -> Result<Option<JournalFile>, W
     };
     // A journal is text this wrapper wrote; bytes that are not UTF-8 are damage, and no path is read from them.
     let Ok(text) = String::from_utf8(bytes) else {
-        return Ok(Some(JournalFile::Unreadable { path, reason: String::from("its bytes are not text") }));
+        return Ok(Some(JournalFile::Unreadable {
+            path,
+            reason: String::from("its bytes are not text"),
+        }));
     };
     // `match` on the parse: damage is settled by its finder, and a record whose paths no writer writes stays a refusal.
     return match parse_journal_reading(text.as_str(), path.as_path(), root) {
-        Ok(journal) => Ok(Some(JournalFile::Pending(PendingJournal { path, journal }))),
+        Ok(journal) => Ok(Some(JournalFile::Pending(PendingJournal {
+            path,
+            journal,
+        }))),
         Err(JournalRefusal::Unsafe(error)) => Err(error),
-        Err(refusal) => Ok(Some(JournalFile::Unreadable { path, reason: refusal.reason() })),
+        Err(refusal) => Ok(Some(JournalFile::Unreadable {
+            path,
+            reason: refusal.reason(),
+        })),
     };
 }
 

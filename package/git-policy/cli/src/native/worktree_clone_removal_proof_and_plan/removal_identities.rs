@@ -24,13 +24,19 @@
 
 use crate::subvolume::fs_beneath::ObjectId;
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
-use crate::worktree_clone_binding_record::binding_inventory::{InventoryKind, InventoryRecord};
-use crate::worktree_clone_binding_record::record_publication::read_inventory;
+use crate::worktree_clone_binding_record::binding_inventory::{
+    InventoryKind,
+    InventoryRecord,
+};
 use crate::worktree_clone_binding_record::record_publication::read_binding;
+use crate::worktree_clone_binding_record::record_publication::read_inventory;
 use crate::worktree_clone_binding_record::registration_home::home_folder;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The identities one add recorded for one slot,
@@ -92,7 +98,10 @@ impl RecordedBinding {
             ("originDatasetGuid", self.origin_dataset_guid.file_name()),
             ("originSnapshot", self.origin_snapshot.clone()),
             ("originSnapshotGuid", self.origin_snapshot_guid.file_name()),
-            ("originSnapshotCreatetxg", self.origin_snapshot_createtxg.to_string()),
+            (
+                "originSnapshotCreatetxg",
+                self.origin_snapshot_createtxg.to_string(),
+            ),
         ];
     }
 }
@@ -113,23 +122,77 @@ impl RecordedBinding {
 /// ```ts
 /// const recorded = readTheRecordedBinding(commonDir, slot);
 /// ```
-pub fn read_the_recorded_binding(common_dir: &Path, slot: &str) -> Result<RecordedBinding, RemovalStop> {
+pub fn read_the_recorded_binding(
+    common_dir: &Path,
+    slot: &str,
+) -> Result<RecordedBinding, RemovalStop> {
     let home: PathBuf = home_folder(common_dir);
     let record = read_binding(home.as_path(), slot).map_err(|refusal| {
-        return RemovalStop::NoBinding { slot: String::from(slot), reason: format!("{refusal:?}") };
+        return RemovalStop::NoBinding {
+            slot: String::from(slot),
+            reason: format!("{refusal:?}"),
+        };
     })?;
     let clone_dataset: String = record.clone_dataset.clone();
-    let clone_guid: DatasetGuid = record.clone_guid.ok_or_else(|| return RemovalStop::BindingIncomplete { slot: String::from(slot), field: "cloneGuid" })?;
-    let clone_createtxg: u64 = record.clone_createtxg.ok_or_else(|| return RemovalStop::BindingIncomplete { slot: String::from(slot), field: "cloneCreatetxg" })?;
-    let origin_dataset: String = record.origin_dataset.clone().ok_or_else(|| return RemovalStop::BindingIncomplete { slot: String::from(slot), field: "originDataset" })?;
-    let origin_dataset_guid: DatasetGuid = record.origin_dataset_guid.ok_or_else(|| return RemovalStop::BindingIncomplete { slot: String::from(slot), field: "originDatasetGuid" })?;
+    let clone_guid: DatasetGuid = record.clone_guid.ok_or_else(|| {
+        return RemovalStop::BindingIncomplete {
+            slot: String::from(slot),
+            field: "cloneGuid",
+        };
+    })?;
+    let clone_createtxg: u64 = record.clone_createtxg.ok_or_else(|| {
+        return RemovalStop::BindingIncomplete {
+            slot: String::from(slot),
+            field: "cloneCreatetxg",
+        };
+    })?;
+    let origin_dataset: String = record.origin_dataset.clone().ok_or_else(|| {
+        return RemovalStop::BindingIncomplete {
+            slot: String::from(slot),
+            field: "originDataset",
+        };
+    })?;
+    let origin_dataset_guid: DatasetGuid = record.origin_dataset_guid.ok_or_else(|| {
+        return RemovalStop::BindingIncomplete {
+            slot: String::from(slot),
+            field: "originDatasetGuid",
+        };
+    })?;
     let origin_snapshot: String = record.origin_snapshot.clone();
-    let origin_snapshot_guid: DatasetGuid = record.origin_snapshot_guid.ok_or_else(|| return RemovalStop::BindingIncomplete { slot: String::from(slot), field: "originSnapshotGuid" })?;
-    let origin_snapshot_createtxg: u64 = record.origin_snapshot_createtxg.ok_or_else(|| return RemovalStop::BindingIncomplete { slot: String::from(slot), field: "originSnapshotCreatetxg" })?;
-    let registration: Vec<u8> = record.registration.clone().ok_or_else(|| return RemovalStop::BindingIncomplete { slot: String::from(slot), field: "registration" })?;
-    let registration_identity: FolderIdentity = record.registration_identity.ok_or_else(|| return RemovalStop::BindingIncomplete { slot: String::from(slot), field: "registrationIdentity" })?;
-    let slot_path: PathBuf = crate::worktree_clone_binding_record::binding_encoding::path_from_bytes(record.slot.as_slice())
-        .ok_or_else(|| return RemovalStop::BindingIncomplete { slot: String::from(slot), field: "slot" })?;
+    let origin_snapshot_guid: DatasetGuid = record.origin_snapshot_guid.ok_or_else(|| {
+        return RemovalStop::BindingIncomplete {
+            slot: String::from(slot),
+            field: "originSnapshotGuid",
+        };
+    })?;
+    let origin_snapshot_createtxg: u64 = record.origin_snapshot_createtxg.ok_or_else(|| {
+        return RemovalStop::BindingIncomplete {
+            slot: String::from(slot),
+            field: "originSnapshotCreatetxg",
+        };
+    })?;
+    let registration: Vec<u8> = record.registration.clone().ok_or_else(|| {
+        return RemovalStop::BindingIncomplete {
+            slot: String::from(slot),
+            field: "registration",
+        };
+    })?;
+    let registration_identity: FolderIdentity = record.registration_identity.ok_or_else(|| {
+        return RemovalStop::BindingIncomplete {
+            slot: String::from(slot),
+            field: "registrationIdentity",
+        };
+    })?;
+    let slot_path: PathBuf =
+        crate::worktree_clone_binding_record::binding_encoding::path_from_bytes(
+            record.slot.as_slice(),
+        )
+        .ok_or_else(|| {
+            return RemovalStop::BindingIncomplete {
+                slot: String::from(slot),
+                field: "slot",
+            };
+        })?;
     let pool_guid: DatasetGuid = record.pool_guid;
     let registration_id: Vec<u8> = registration_path_name(slot, registration.as_slice())?;
     return Ok(RecordedBinding {
@@ -164,10 +227,19 @@ pub fn read_the_recorded_binding(common_dir: &Path, slot: &str) -> Result<Record
 /// ```ts
 /// const id = lastComponent(registrationPath);
 /// ```
-fn registration_path_name(slot: &str, path: &[u8]) -> Result<Vec<u8>, RemovalStop> {
-    let parts: Vec<&[u8]> = path.split(|byte| return *byte == b'/').filter(|part| return !part.is_empty()).collect();
+fn registration_path_name(
+    slot: &str,
+    path: &[u8],
+) -> Result<Vec<u8>, RemovalStop> {
+    let parts: Vec<&[u8]> = path
+        .split(|byte| return *byte == b'/')
+        .filter(|part| return !part.is_empty())
+        .collect();
     let Some(name) = parts.last() else {
-        return Err(RemovalStop::BindingIncomplete { slot: String::from(slot), field: "registration" });
+        return Err(RemovalStop::BindingIncomplete {
+            slot: String::from(slot),
+            field: "registration",
+        });
     };
     return Ok(Vec::from(*name));
 }
@@ -189,18 +261,35 @@ fn registration_path_name(slot: &str, path: &[u8]) -> Result<Vec<u8>, RemovalSto
 /// ```ts
 /// const admin = provedRegistration(commonDir, recorded);
 /// ```
-pub fn prove_the_adds_registration(common_dir: &Path, recorded: &RecordedBinding) -> Result<ObjectId, RemovalStop> {
+pub fn prove_the_adds_registration(
+    common_dir: &Path,
+    recorded: &RecordedBinding,
+) -> Result<ObjectId, RemovalStop> {
     let name: std::ffi::OsString = std::str::from_utf8(recorded.registration_id.as_slice())
-        .map_or_else(|_| return std::ffi::OsString::from(String::from_utf8_lossy(recorded.registration_id.as_slice()).into_owned()), std::ffi::OsString::from);
+        .map_or_else(
+            |_| {
+                return std::ffi::OsString::from(
+                    String::from_utf8_lossy(recorded.registration_id.as_slice()).into_owned(),
+                );
+            },
+            std::ffi::OsString::from,
+        );
     let registration: PathBuf = common_dir.join("worktrees").join(name);
     let folder: std::fs::File = std::fs::File::open(registration.as_path()).map_err(|error| {
-        return RemovalStop::DoesNotAnswer { object: registration.display().to_string(), reason: error.to_string() };
+        return RemovalStop::DoesNotAnswer {
+            object: registration.display().to_string(),
+            reason: error.to_string(),
+        };
     })?;
     let identity: ObjectId = crate::fs_beneath::identity_of(&folder).map_err(|error| {
-        return RemovalStop::DoesNotAnswer { object: registration.display().to_string(), reason: error.to_string() };
+        return RemovalStop::DoesNotAnswer {
+            object: registration.display().to_string(),
+            reason: error.to_string(),
+        };
     })?;
     let recorded_birth: Option<(i64, u32)> = recorded.registration_identity.birth();
-    if identity.inode != recorded.registration_identity.inode() || identity.birth != recorded_birth {
+    if identity.inode != recorded.registration_identity.inode() || identity.birth != recorded_birth
+    {
         return Err(RemovalStop::IdentityDiffers {
             object: registration.display().to_string(),
             field: "registrationIdentity",
@@ -228,19 +317,49 @@ pub fn prove_the_adds_registration(common_dir: &Path, recorded: &RecordedBinding
 /// ```ts
 /// const originInventory = readTheOriginInventory(commonDir, recorded);
 /// ```
-pub fn read_the_origin_inventory(common_dir: &Path, recorded: &RecordedBinding) -> Result<InventoryRecord, RemovalStop> {
+pub fn read_the_origin_inventory(
+    common_dir: &Path,
+    recorded: &RecordedBinding,
+) -> Result<InventoryRecord, RemovalStop> {
     let home: PathBuf = home_folder(common_dir);
-    let inventory: InventoryRecord = read_inventory(home.as_path(), recorded.slot.as_str(), InventoryKind::Origin).map_err(|refusal| {
-        return RemovalStop::OriginInventoryUnreadable { slot: recorded.slot.clone(), reason: format!("{refusal:?}") };
+    let inventory: InventoryRecord = read_inventory(
+        home.as_path(),
+        recorded.slot.as_str(),
+        InventoryKind::Origin,
+    )
+    .map_err(|refusal| {
+        return RemovalStop::OriginInventoryUnreadable {
+            slot: recorded.slot.clone(),
+            reason: format!("{refusal:?}"),
+        };
     })?;
     if inventory.dataset != recorded.origin_dataset {
-        return Err(RemovalStop::OriginInventoryOfAnotherDataset { inventory_dataset: inventory.dataset.clone(), recorded_dataset: recorded.origin_dataset.clone() });
+        return Err(RemovalStop::OriginInventoryOfAnotherDataset {
+            inventory_dataset: inventory.dataset.clone(),
+            recorded_dataset: recorded.origin_dataset.clone(),
+        });
     }
     let pairs: [(&'static str, String, String); 4] = [
-        ("originDatasetGuid", recorded.origin_dataset_guid.file_name(), inventory.dataset_guid.file_name()),
-        ("originSnapshot", recorded.origin_snapshot.clone(), inventory.bounds.clone()),
-        ("originSnapshotGuid", recorded.origin_snapshot_guid.file_name(), inventory.bounds_guid.file_name()),
-        ("originSnapshotCreatetxg", recorded.origin_snapshot_createtxg.to_string(), inventory.bounds_createtxg.to_string()),
+        (
+            "originDatasetGuid",
+            recorded.origin_dataset_guid.file_name(),
+            inventory.dataset_guid.file_name(),
+        ),
+        (
+            "originSnapshot",
+            recorded.origin_snapshot.clone(),
+            inventory.bounds.clone(),
+        ),
+        (
+            "originSnapshotGuid",
+            recorded.origin_snapshot_guid.file_name(),
+            inventory.bounds_guid.file_name(),
+        ),
+        (
+            "originSnapshotCreatetxg",
+            recorded.origin_snapshot_createtxg.to_string(),
+            inventory.bounds_createtxg.to_string(),
+        ),
     ];
     for (field, recorded_value, inventory_value) in pairs {
         if recorded_value != inventory_value {

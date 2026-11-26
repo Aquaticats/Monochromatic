@@ -41,7 +41,9 @@ fn describe(write: &SharedRemoteWrite) -> String {
     return match write {
         SharedRemoteWrite::RemoteSubcommand(name) => format!("git remote {name}"),
         SharedRemoteWrite::Key(key) => format!("the git config write to {key}"),
-        SharedRemoteWrite::Section(section) => format!("the git config write to the {section} section"),
+        SharedRemoteWrite::Section(section) => {
+            format!("the git config write to the {section} section")
+        }
         SharedRemoteWrite::Edit => String::from("the git config editor session"),
     };
 }
@@ -64,7 +66,9 @@ fn consequence(write: &SharedRemoteWrite) -> &'static str {
         SharedRemoteWrite::Edit => {
             "an edit of that file can change any remote setting the main checkout uses"
         }
-        SharedRemoteWrite::RemoteSubcommand(_) | SharedRemoteWrite::Key(_) | SharedRemoteWrite::Section(_) => {
+        SharedRemoteWrite::RemoteSubcommand(_)
+        | SharedRemoteWrite::Key(_)
+        | SharedRemoteWrite::Section(_) => {
             "this command would change the remote settings the main checkout uses too"
         }
     };
@@ -88,7 +92,9 @@ fn editor_route(write: &SharedRemoteWrite) -> &'static str {
             "To change one setting that is not a remote setting from this worktree, name that setting here instead: \
              git config <key> <value>.\n"
         }
-        SharedRemoteWrite::RemoteSubcommand(_) | SharedRemoteWrite::Key(_) | SharedRemoteWrite::Section(_) => "",
+        SharedRemoteWrite::RemoteSubcommand(_)
+        | SharedRemoteWrite::Key(_)
+        | SharedRemoteWrite::Section(_) => "",
     };
 }
 

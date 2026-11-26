@@ -33,11 +33,19 @@
 //!  apply read before its carry,
 //! and the file that carries it is written and read here beside it.
 
-use crate::merge_isolation_changes::{FileIdentity, WorktreeState, file_identity, worktree_path};
+use crate::merge_isolation_changes::{
+    FileIdentity,
+    WorktreeState,
+    file_identity,
+    worktree_path,
+};
 
 /// The version of the record of what Git's update left.
 pub const LANDED_RECORD_SCHEMA_VERSION: i64 = 1;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// One worktree path as the file system named it when Git's update finished.
 ///
@@ -88,10 +96,18 @@ fn changed_time_of(found: &std::fs::Metadata) -> (i64, i64) {
 /// ```ts
 /// function landedFileAt(location: string, path: Uint8Array): LandedFile; // lstat, no link followed
 /// ```
-pub fn landed_file_at(location: &Path, path: &[u8]) -> LandedFile {
+pub fn landed_file_at(
+    location: &Path,
+    path: &[u8],
+) -> LandedFile {
     let found: Option<std::fs::Metadata> = std::fs::symlink_metadata(location).ok();
     let changed: (i64, i64) = found.as_ref().map(changed_time_of).unwrap_or_default();
-    return LandedFile { path: path.to_vec(), identity: file_identity(location), changed_seconds: changed.0, changed_nanos: changed.1 };
+    return LandedFile {
+        path: path.to_vec(),
+        identity: file_identity(location),
+        changed_seconds: changed.0,
+        changed_nanos: changed.1,
+    };
 }
 
 /// What:
@@ -105,7 +121,10 @@ pub fn landed_file_at(location: &Path, path: &[u8]) -> LandedFile {
 /// ```ts
 /// function landedOf(root: string, paths: Uint8Array[]): LandedFile[];
 /// ```
-pub fn landed_of(root: &Path, paths: &[Vec<u8>]) -> Vec<LandedFile> {
+pub fn landed_of(
+    root: &Path,
+    paths: &[Vec<u8>],
+) -> Vec<LandedFile> {
     let mut landed: Vec<LandedFile> = Vec::with_capacity(paths.len());
     for path in paths {
         let location: PathBuf = worktree_path(root, path.as_slice());
@@ -127,8 +146,12 @@ pub fn landed_of(root: &Path, paths: &[Vec<u8>]) -> Vec<LandedFile> {
 /// ```ts
 /// join(intentDirectory(gitDir), `${transactionId}.landed`)
 /// ```
-pub fn landed_record_path(git_dir: &Path, transaction_id: &str) -> PathBuf {
-    return crate::merge_isolation_journal::intent_directory(git_dir).join(format!("{transaction_id}.landed"));
+pub fn landed_record_path(
+    git_dir: &Path,
+    transaction_id: &str,
+) -> PathBuf {
+    return crate::merge_isolation_journal::intent_directory(git_dir)
+        .join(format!("{transaction_id}.landed"));
 }
 
 /// The hex text of one path,
@@ -194,8 +217,13 @@ fn number_text(value: i64) -> String {
 /// ```ts
 /// const numberField = (map, key) => Number(map[key]);
 /// ```
-fn number_field(map: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<i64> {
-    return crate::json_record::string_field(map, key)?.parse::<i64>().ok();
+fn number_field(
+    map: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Option<i64> {
+    return crate::json_record::string_field(map, key)?
+        .parse::<i64>()
+        .ok();
 }
 
 /// One landed path as the record holds it.
@@ -208,20 +236,54 @@ fn encode_one(landed: &LandedFile) -> String {
     let mut writer: crate::json_record::ObjectWriter = crate::json_record::ObjectWriter::new();
     writer
         .string("pathHex", hex_of(landed.path.as_slice()).as_str())
-        .string("path", crate::path_bytes::path_message_text(landed.path.as_slice()).as_str())
-        .string("holds", if landed.identity.is_some() { "file" } else { "nothing" })
-        .string("changedSeconds", number_text(landed.changed_seconds).as_str())
+        .string(
+            "path",
+            crate::path_bytes::path_message_text(landed.path.as_slice()).as_str(),
+        )
+        .string(
+            "holds",
+            if landed.identity.is_some() {
+                "file"
+            } else {
+                "nothing"
+            },
+        )
+        .string(
+            "changedSeconds",
+            number_text(landed.changed_seconds).as_str(),
+        )
         .string("changedNanos", number_text(landed.changed_nanos).as_str());
     if let Some(identity) = landed.identity {
         writer
-            .string("device", number_text(i64::try_from(identity.device).unwrap_or(i64::MAX)).as_str())
-            .string("inode", number_text(i64::try_from(identity.inode).unwrap_or(i64::MAX)).as_str())
-            .string("size", number_text(i64::try_from(identity.size).unwrap_or(i64::MAX)).as_str())
+            .string(
+                "device",
+                number_text(i64::try_from(identity.device).unwrap_or(i64::MAX)).as_str(),
+            )
+            .string(
+                "inode",
+                number_text(i64::try_from(identity.inode).unwrap_or(i64::MAX)).as_str(),
+            )
+            .string(
+                "size",
+                number_text(i64::try_from(identity.size).unwrap_or(i64::MAX)).as_str(),
+            )
             .string("mode", number_text(i64::from(identity.mode)).as_str())
-            .string("modifiedSeconds", number_text(identity.modified_seconds).as_str())
-            .string("modifiedNanos", number_text(identity.modified_nanos).as_str());
+            .string(
+                "modifiedSeconds",
+                number_text(identity.modified_seconds).as_str(),
+            )
+            .string(
+                "modifiedNanos",
+                number_text(identity.modified_nanos).as_str(),
+            );
     }
-    return format!("{{{}}}", writer.finish().trim_start_matches('{').trim_end_matches('}'));
+    return format!(
+        "{{{}}}",
+        writer
+            .finish()
+            .trim_start_matches('{')
+            .trim_end_matches('}')
+    );
 }
 
 /// What:
@@ -236,7 +298,10 @@ fn encode_one(landed: &LandedFile) -> String {
 /// ```ts
 /// `${JSON.stringify({ schemaVersion: 1, state: 'merge-landed', transactionId, paths: landed })}\n`
 /// ```
-pub fn encode_landed_record(transaction_id: &str, landed: &[LandedFile]) -> String {
+pub fn encode_landed_record(
+    transaction_id: &str,
+    landed: &[LandedFile],
+) -> String {
     let mut writer: crate::json_record::ObjectWriter = crate::json_record::ObjectWriter::new();
     writer
         .integer("schemaVersion", LANDED_RECORD_SCHEMA_VERSION)
@@ -271,14 +336,19 @@ pub fn parse_landed_record(bytes: &[u8]) -> Option<Vec<LandedFile>> {
     {
         return None;
     }
-    let serde_json::Value::Array(listed) = map.get("paths")? else { return None };
+    let serde_json::Value::Array(listed) = map.get("paths")? else {
+        return None;
+    };
     let mut landed: Vec<LandedFile> = Vec::with_capacity(listed.len());
     for value in listed {
-        let serde_json::Value::Object(entry) = value else { return None };
+        let serde_json::Value::Object(entry) = value else {
+            return None;
+        };
         let path: Vec<u8> = bytes_of_hex(crate::json_record::string_field(entry, "pathHex")?)?;
         let changed_seconds: i64 = number_field(entry, "changedSeconds")?;
         let changed_nanos: i64 = number_field(entry, "changedNanos")?;
-        let identity: Option<FileIdentity> = match crate::json_record::string_field(entry, "holds")? {
+        let identity: Option<FileIdentity> = match crate::json_record::string_field(entry, "holds")?
+        {
             "nothing" => None,
             "file" => Some(FileIdentity {
                 device: u64::try_from(number_field(entry, "device")?).ok()?,
@@ -290,7 +360,12 @@ pub fn parse_landed_record(bytes: &[u8]) -> Option<Vec<LandedFile>> {
             }),
             _ => return None,
         };
-        landed.push(LandedFile { path, identity, changed_seconds, changed_nanos });
+        landed.push(LandedFile {
+            path,
+            identity,
+            changed_seconds,
+            changed_nanos,
+        });
     }
     return Some(landed);
 }
@@ -322,7 +397,11 @@ pub fn parse_landed_record(bytes: &[u8]) -> Option<Vec<LandedFile>> {
 ///  as none.
 /// The private name carries the record's own name,
 /// so the removal of the record removes it too.
-pub fn write_landed_record(git_dir: &Path, transaction_id: &str, landed: &[LandedFile]) {
+pub fn write_landed_record(
+    git_dir: &Path,
+    transaction_id: &str,
+    landed: &[LandedFile],
+) {
     let path: PathBuf = landed_record_path(git_dir, transaction_id);
     if let Some(parent) = path.parent() {
         let _made = std::fs::create_dir_all(parent);
@@ -331,13 +410,21 @@ pub fn write_landed_record(git_dir: &Path, transaction_id: &str, landed: &[Lande
     let partial: PathBuf = partial_landed_record_path(git_dir, transaction_id);
     // A kill inside an earlier write of this same record leaves its private name; it holds no reading this command wants.
     let _stale = std::fs::remove_file(partial.as_path());
-    if let Err(error) = crate::private_storage::write_exclusive_synced(partial.as_path(), bytes.as_bytes()) {
-        crate::diagnostic_log::warn("mergeCarry", format!("the landed reading was not written: {error}").as_str());
+    if let Err(error) =
+        crate::private_storage::write_exclusive_synced(partial.as_path(), bytes.as_bytes())
+    {
+        crate::diagnostic_log::warn(
+            "mergeCarry",
+            format!("the landed reading was not written: {error}").as_str(),
+        );
         return;
     }
     if let Err(error) = std::fs::rename(partial.as_path(), path.as_path()) {
         let _unwritten = std::fs::remove_file(partial.as_path());
-        crate::diagnostic_log::warn("mergeCarry", format!("the landed reading was not written: {error}").as_str());
+        crate::diagnostic_log::warn(
+            "mergeCarry",
+            format!("the landed reading was not written: {error}").as_str(),
+        );
     }
 }
 
@@ -355,8 +442,12 @@ pub fn write_landed_record(git_dir: &Path, transaction_id: &str, landed: &[Lande
 /// ```ts
 /// join(intentDirectory(gitDir), `${transactionId}.landed.writing`)
 /// ```
-pub fn partial_landed_record_path(git_dir: &Path, transaction_id: &str) -> PathBuf {
-    return crate::merge_isolation_journal::intent_directory(git_dir).join(format!("{transaction_id}.landed.writing"));
+pub fn partial_landed_record_path(
+    git_dir: &Path,
+    transaction_id: &str,
+) -> PathBuf {
+    return crate::merge_isolation_journal::intent_directory(git_dir)
+        .join(format!("{transaction_id}.landed.writing"));
 }
 
 /// What:
@@ -371,7 +462,10 @@ pub fn partial_landed_record_path(git_dir: &Path, transaction_id: &str) -> PathB
 /// ```ts
 /// const landed = readFileSync(landedRecordPath(gitDir, id)).then(parseLandedRecord) ?? [];
 /// ```
-pub fn read_landed_record(git_dir: &Path, transaction_id: &str) -> Vec<LandedFile> {
+pub fn read_landed_record(
+    git_dir: &Path,
+    transaction_id: &str,
+) -> Vec<LandedFile> {
     let Ok(bytes) = std::fs::read(landed_record_path(git_dir, transaction_id).as_path()) else {
         return Vec::new();
     };
@@ -393,7 +487,10 @@ pub fn read_landed_record(git_dir: &Path, transaction_id: &str) -> Vec<LandedFil
 /// ```ts
 /// const theReadingNamesThePath = (landed, path) => landed.some((one) => sameBytes(one.path, path));
 /// ```
-pub fn the_reading_names_the_path(landed: &[LandedFile], path: &[u8]) -> bool {
+pub fn the_reading_names_the_path(
+    landed: &[LandedFile],
+    path: &[u8],
+) -> bool {
     for left in landed {
         if left.path == path {
             return true;
@@ -424,7 +521,10 @@ pub fn the_reading_names_the_path(landed: &[LandedFile], path: &[u8]) -> bool {
 /// ```ts
 /// const theFileGitLanded = (landed: LandedFile[], standing: LandedFile): boolean => landed.find((left) => sameBytes(left.path, standing.path)) === undefined ? true : deepEqual(left, standing);
 /// ```
-pub fn the_file_git_landed(landed: &[LandedFile], standing: &LandedFile) -> bool {
+pub fn the_file_git_landed(
+    landed: &[LandedFile],
+    standing: &LandedFile,
+) -> bool {
     for left in landed {
         if left.path == standing.path {
             return left == standing;
@@ -459,12 +559,23 @@ mod tests;
 /// ```ts
 /// const theWriteIsUnproven = (landed, path, state, merged) => !landed.some((one) => sameBytes(one.path, path)) && state.kind === 'content' && state.object === merged;
 /// ```
-pub fn the_write_is_unproven(landed: &[LandedFile], path: &[u8], state: &WorktreeState, merged: Option<&str>) -> bool {
+pub fn the_write_is_unproven(
+    landed: &[LandedFile],
+    path: &[u8],
+    state: &WorktreeState,
+    merged: Option<&str>,
+) -> bool {
     if the_reading_names_the_path(landed, path) {
         return false;
     }
     return match (state, merged) {
-        (WorktreeState::Content { object, .. }, Some(found)) => object == found,
+        (
+            WorktreeState::Content {
+                object,
+                ..
+            },
+            Some(found),
+        ) => object == found,
         _ => false,
     };
 }

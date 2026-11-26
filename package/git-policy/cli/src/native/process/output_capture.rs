@@ -80,7 +80,8 @@ fn anonymous_file() -> std::io::Result<File> {
     {
         use std::os::unix::io::FromRawFd;
         // SAFETY: the name is a NUL-terminated literal; the call returns a new descriptor or -1.
-        let descriptor: libc::c_int = unsafe { libc::memfd_create(c"cli-git-output".as_ptr(), libc::MFD_CLOEXEC) };
+        let descriptor: libc::c_int =
+            unsafe { libc::memfd_create(c"cli-git-output".as_ptr(), libc::MFD_CLOEXEC) };
         if descriptor < 0 {
             return Err(std::io::Error::last_os_error());
         }
@@ -93,7 +94,10 @@ fn anonymous_file() -> std::io::Result<File> {
     // C's `tmpfile` would be made in `/tmp`, which this repository never uses (the device behind it is unknowable), so there is none.
     #[cfg(not(target_os = "linux"))]
     {
-        return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "anonymous output files need memfd_create, which this system lacks"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "anonymous output files need memfd_create, which this system lacks",
+        ));
     }
 }
 
@@ -137,12 +141,18 @@ fn append_only(file: &File) -> std::io::Result<()> {
 impl Capture {
     /// Two new empty anonymous files.
     pub fn new() -> std::io::Result<Self> {
-        return Ok(Self { out: anonymous_file()?, err: anonymous_file()? });
+        return Ok(Self {
+            out: anonymous_file()?,
+            err: anonymous_file()?,
+        });
     }
 
     /// The two files as the standard output and standard error of a child.
     pub fn stdio(&self) -> std::io::Result<(Stdio, Stdio)> {
-        return Ok((Stdio::from(self.out.try_clone()?), Stdio::from(self.err.try_clone()?)));
+        return Ok((
+            Stdio::from(self.out.try_clone()?),
+            Stdio::from(self.err.try_clone()?),
+        ));
     }
 
     /// What:
@@ -167,11 +177,30 @@ impl Capture {
     /// ```ts
     /// const { stdout, stderr, notes } = capture.snapshot(limit);
     /// ```
-    pub fn snapshot(&self, limit: usize) -> Captured {
+    pub fn snapshot(
+        &self,
+        limit: usize,
+    ) -> Captured {
         let mut notes: Vec<String> = Vec::new();
-        let stdout: Vec<u8> = snapshot_of(&self.out, "standard output", limit, &mut notes, &mut do_nothing);
-        let stderr: Vec<u8> = snapshot_of(&self.err, "standard error", limit, &mut notes, &mut do_nothing);
-        return Captured { stdout, stderr, notes };
+        let stdout: Vec<u8> = snapshot_of(
+            &self.out,
+            "standard output",
+            limit,
+            &mut notes,
+            &mut do_nothing,
+        );
+        let stderr: Vec<u8> = snapshot_of(
+            &self.err,
+            "standard error",
+            limit,
+            &mut notes,
+            &mut do_nothing,
+        );
+        return Captured {
+            stdout,
+            stderr,
+            notes,
+        };
     }
 
     /// `snapshot` of standard output,
@@ -180,9 +209,14 @@ impl Capture {
     /// which a
     ///  reader that chases the end of the file would follow for ever.
     #[cfg(test)]
-    pub fn snapshot_stdout_with(&self, limit: usize, after_chunk: &mut dyn FnMut()) -> (Vec<u8>, Vec<String>) {
+    pub fn snapshot_stdout_with(
+        &self,
+        limit: usize,
+        after_chunk: &mut dyn FnMut(),
+    ) -> (Vec<u8>, Vec<String>) {
         let mut notes: Vec<String> = Vec::new();
-        let stdout: Vec<u8> = snapshot_of(&self.out, "standard output", limit, &mut notes, after_chunk);
+        let stdout: Vec<u8> =
+            snapshot_of(&self.out, "standard output", limit, &mut notes, after_chunk);
         return (stdout, notes);
     }
 
@@ -226,11 +260,19 @@ fn do_nothing() {}
 /// where `length` is the size when the call began;
 /// a note for the bytes
 ///  left out and for a read that failed.
-fn snapshot_of(file: &File, name: &str, limit: usize, notes: &mut Vec<String>, after_chunk: &mut dyn FnMut()) -> Vec<u8> {
+fn snapshot_of(
+    file: &File,
+    name: &str,
+    limit: usize,
+    notes: &mut Vec<String>,
+    after_chunk: &mut dyn FnMut(),
+) -> Vec<u8> {
     let length: u64 = match file.metadata() {
         Ok(found) => found.len(),
         Err(error) => {
-            notes.push(format!("the {name} of the step could not be measured ({error}), so none of it is shown"));
+            notes.push(format!(
+                "the {name} of the step could not be measured ({error}), so none of it is shown"
+            ));
             return Vec::new();
         }
     };
@@ -243,7 +285,8 @@ fn snapshot_of(file: &File, name: &str, limit: usize, notes: &mut Vec<String>, a
     let mut buffer: [u8; 8192] = [0; 8192];
     let mut position: u64 = start;
     while position < length {
-        let room: usize = usize::try_from((length - position).min(buffer.len() as u64)).unwrap_or(buffer.len());
+        let room: usize =
+            usize::try_from((length - position).min(buffer.len() as u64)).unwrap_or(buffer.len());
         match file.read_at(&mut buffer[..room], position) {
             Ok(0) => break,
             Ok(read) => {
@@ -258,7 +301,10 @@ fn snapshot_of(file: &File, name: &str, limit: usize, notes: &mut Vec<String>, a
         }
     }
     if (collected.len() as u64) < wanted {
-        notes.push(format!("the {name} of the step ended early: {} of {wanted} bytes are shown", collected.len()));
+        notes.push(format!(
+            "the {name} of the step ended early: {} of {wanted} bytes are shown",
+            collected.len()
+        ));
     }
     return collected;
 }

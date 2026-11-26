@@ -22,10 +22,21 @@
 //! const done = attemptTheOriginCleanup(input, plan);
 //! ```
 
-use crate::worktree_clone_origin_cleanup::origin_cleanup_attempt::{CleanupAttempt, CleanupOutcome, attempt_the_cleanup};
-use crate::worktree_clone_origin_cleanup::origin_cleanup_lines::{line_of_a_block, line_of_a_destruction, the_reason_changed};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_attempt::{
+    CleanupAttempt,
+    CleanupOutcome,
+    attempt_the_cleanup,
+};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_lines::{
+    line_of_a_block,
+    line_of_a_destruction,
+    the_reason_changed,
+};
 use crate::worktree_clone_origin_cleanup::origin_cleanup_publication::CleanupFolder;
-use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{an_existing_cleanup_record, origin_cleanups_folder};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{
+    an_existing_cleanup_record,
+    origin_cleanups_folder,
+};
 use crate::worktree_clone_origin_cleanup::origin_cleanup_record::OriginCleanupRecord;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_words::BlockReason;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
@@ -52,16 +63,31 @@ use std::path::PathBuf;
 /// ```ts
 /// const folder = publishTheOriginRecord(input, plan);
 /// ```
-pub(crate) fn publish_the_origin_record(input: &RemovalCompletion<'_>, plan: &DestructionPlan) -> Result<CleanupFolder, RemovalStop> {
-    let Some(own_name) = plan.facts.origin_snapshot.rsplit_once('@').map(|pair| return pair.1) else {
+pub(crate) fn publish_the_origin_record(
+    input: &RemovalCompletion<'_>,
+    plan: &DestructionPlan,
+) -> Result<CleanupFolder, RemovalStop> {
+    let Some(own_name) = plan
+        .facts
+        .origin_snapshot
+        .rsplit_once('@')
+        .map(|pair| return pair.1)
+    else {
         return Err(RemovalStop::TheOriginCleanupCouldNotBeRecorded {
             path: PathBuf::new(),
-            said: format!("the plan's origin snapshot `{}` names no own name", plan.facts.origin_snapshot),
+            said: format!(
+                "the plan's origin snapshot `{}` names no own name",
+                plan.facts.origin_snapshot
+            ),
         });
     };
-    let folder: CleanupFolder = CleanupFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
-        return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: refusal_field(&refusal), said: refusal.said.clone() };
-    })?;
+    let folder: CleanupFolder =
+        CleanupFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
+            return RemovalStop::TheOriginCleanupCouldNotBeRecorded {
+                path: refusal_field(&refusal),
+                said: refusal.said.clone(),
+            };
+        })?;
     let wanted: OriginCleanupRecord = OriginCleanupRecord::owed(
         plan.facts.origin_dataset.as_str(),
         plan.facts.origin_dataset_guid,
@@ -78,24 +104,42 @@ pub(crate) fn publish_the_origin_record(input: &RemovalCompletion<'_>, plan: &De
         Ok(Some(standing)) => {
             return Err(RemovalStop::TheOriginCleanupCouldNotBeRecorded {
                 path: folder.path().join(own_name),
-                said: format!("a record already names `{}` with another identity", standing.full_snapshot_name()),
+                said: format!(
+                    "a record already names `{}` with another identity",
+                    standing.full_snapshot_name()
+                ),
             });
         }
         Ok(None) => {}
-        Err(refusal) => return Err(RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: folder.path().join(own_name), said: refusal.said.clone() }),
+        Err(refusal) => {
+            return Err(RemovalStop::TheOriginCleanupCouldNotBeRecorded {
+                path: folder.path().join(own_name),
+                said: refusal.said.clone(),
+            });
+        }
     }
-    folder.publish(&wanted).map_err(|refusal| return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: refusal_field(&refusal), said: refusal.said.clone() })?;
+    folder.publish(&wanted).map_err(|refusal| {
+        return RemovalStop::TheOriginCleanupCouldNotBeRecorded {
+            path: refusal_field(&refusal),
+            said: refusal.said.clone(),
+        };
+    })?;
     return Ok(folder);
 }
 
 /// The path a record refusal names,
 /// which is the field the refusal already carries.
-fn refusal_field(refusal: &crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::CleanupRefusal) -> PathBuf {
+fn refusal_field(
+    refusal: &crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::CleanupRefusal
+) -> PathBuf {
     return PathBuf::from(refusal.field.clone());
 }
 
 /// Whether a standing record names the same objects as the one this run wants.
-fn same_identity(standing: &OriginCleanupRecord, wanted: &OriginCleanupRecord) -> bool {
+fn same_identity(
+    standing: &OriginCleanupRecord,
+    wanted: &OriginCleanupRecord,
+) -> bool {
     return standing.origin_dataset == wanted.origin_dataset
         && standing.origin_dataset_guid == wanted.origin_dataset_guid
         && standing.origin_snapshot == wanted.origin_snapshot
@@ -122,34 +166,96 @@ fn same_identity(standing: &OriginCleanupRecord, wanted: &OriginCleanupRecord) -
 /// ```ts
 /// const origin = attemptTheOriginCleanup(input, folder, plan);
 /// ```
-pub(crate) fn attempt_the_origin_cleanup(input: &RemovalCompletion<'_>, plan: &DestructionPlan) -> Result<OriginCleanupDone, RemovalStop> {
-    let Some(own_name) = plan.facts.origin_snapshot.rsplit_once('@').map(|pair| return pair.1) else {
-        return Ok(OriginCleanupDone::NoRecord { said: String::from("the plan's origin snapshot names no own name") });
+pub(crate) fn attempt_the_origin_cleanup(
+    input: &RemovalCompletion<'_>,
+    plan: &DestructionPlan,
+) -> Result<OriginCleanupDone, RemovalStop> {
+    let Some(own_name) = plan
+        .facts
+        .origin_snapshot
+        .rsplit_once('@')
+        .map(|pair| return pair.1)
+    else {
+        return Ok(OriginCleanupDone::NoRecord {
+            said: String::from("the plan's origin snapshot names no own name"),
+        });
     };
-    let record: OriginCleanupRecord = match an_existing_cleanup_record(input.entry.common_dir, own_name) {
-        Ok(Some(read)) => read,
-        Ok(None) => return Ok(OriginCleanupDone::NoRecord { said: String::from("no record stands, so a finished cleanup is the state the pool is read for") }),
-        Err(refusal) => return Ok(OriginCleanupDone::Unreadable { path: origin_cleanups_folder(input.entry.common_dir).join(own_name), said: refusal.said }),
-    };
-    let folder: CleanupFolder = CleanupFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
-        return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: refusal_field(&refusal), said: refusal.said.clone() };
-    })?;
-    let outcome: CleanupOutcome = attempt_the_cleanup(&CleanupAttempt { record: &record, reads: input.reads, device: input.snapshots, attempted_at: input.now });
+    let record: OriginCleanupRecord =
+        match an_existing_cleanup_record(input.entry.common_dir, own_name) {
+            Ok(Some(read)) => read,
+            Ok(None) => {
+                return Ok(OriginCleanupDone::NoRecord {
+                    said: String::from(
+                        "no record stands, so a finished cleanup is the state the pool is read for",
+                    ),
+                });
+            }
+            Err(refusal) => {
+                return Ok(OriginCleanupDone::Unreadable {
+                    path: origin_cleanups_folder(input.entry.common_dir).join(own_name),
+                    said: refusal.said,
+                });
+            }
+        };
+    let folder: CleanupFolder =
+        CleanupFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
+            return RemovalStop::TheOriginCleanupCouldNotBeRecorded {
+                path: refusal_field(&refusal),
+                said: refusal.said.clone(),
+            };
+        })?;
+    let outcome: CleanupOutcome = attempt_the_cleanup(&CleanupAttempt {
+        record: &record,
+        reads: input.reads,
+        device: input.snapshots,
+        attempted_at: input.now,
+    });
     return match outcome {
-        CleanupOutcome::Finished { destroyed } => {
-            folder.remove(own_name).map_err(|refusal| return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: folder.path().join(own_name), said: refusal.said })?;
-            let line: Option<String> = destroyed.as_ref().map(|name| return line_of_a_destruction(name.as_str()));
-            Ok(OriginCleanupDone::Finished { snapshot: destroyed, line })
+        CleanupOutcome::Finished {
+            destroyed,
+        } => {
+            folder.remove(own_name).map_err(|refusal| {
+                return RemovalStop::TheOriginCleanupCouldNotBeRecorded {
+                    path: folder.path().join(own_name),
+                    said: refusal.said,
+                };
+            })?;
+            let line: Option<String> = destroyed
+                .as_ref()
+                .map(|name| return line_of_a_destruction(name.as_str()));
+            Ok(OriginCleanupDone::Finished {
+                snapshot: destroyed,
+                line,
+            })
         }
-        CleanupOutcome::Blocked { record: next, detail } => {
-            folder.publish(next.as_ref()).map_err(|refusal| return RemovalStop::TheOriginCleanupCouldNotBeRecorded { path: folder.path().join(own_name), said: refusal.said })?;
-            let reason: BlockReason = next.block.map_or(BlockReason::Unproved, |held| return held.reason);
+        CleanupOutcome::Blocked {
+            record: next,
+            detail,
+        } => {
+            folder.publish(next.as_ref()).map_err(|refusal| {
+                return RemovalStop::TheOriginCleanupCouldNotBeRecorded {
+                    path: folder.path().join(own_name),
+                    said: refusal.said,
+                };
+            })?;
+            let reason: BlockReason = next
+                .block
+                .map_or(BlockReason::Unproved, |held| return held.reason);
             let line: Option<String> = if the_reason_changed(Some(&record), &next) {
-                Some(line_of_a_block(&next, folder.path().join(own_name).as_path(), detail.as_str()))
+                Some(line_of_a_block(
+                    &next,
+                    folder.path().join(own_name).as_path(),
+                    detail.as_str(),
+                ))
             } else {
                 None
             };
-            Ok(OriginCleanupDone::Blocked { snapshot: next.full_snapshot_name(), reason, detail, line })
+            Ok(OriginCleanupDone::Blocked {
+                snapshot: next.full_snapshot_name(),
+                reason,
+                detail,
+                line,
+            })
         }
     };
 }

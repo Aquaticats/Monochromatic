@@ -16,11 +16,24 @@
 //! const { gone, unmapped, journalsWithoutUnits, present } = survey(folders);
 //! ```
 
-use crate::service_files_of_a_stopped_instance::{NOTE_ENDING, NOTES_FOLDER, note_path};
-use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, socket_path};
+use crate::service_files_of_a_stopped_instance::{
+    NOTE_ENDING,
+    NOTES_FOLDER,
+    note_path,
+};
+use crate::service_instance::{
+    INSTANCE_LENGTH,
+    SOCKET_DIRECTORY,
+    socket_path,
+};
 use crate::service_journal_folder_of_an_instance::JOURNAL_FOLDER;
 use crate::service_provision_host_and_manager::runtime_unit_dir;
-use crate::service_unit_folders_and_the_worktree_of_an_instance::{UnitFolders, UnitWorktree, worktree_is_gone, worktree_of};
+use crate::service_unit_folders_and_the_worktree_of_an_instance::{
+    UnitFolders,
+    UnitWorktree,
+    worktree_is_gone,
+    worktree_of,
+};
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::Path;
 
@@ -55,14 +68,23 @@ fn is_instance_name(name: &str) -> bool {
 }
 
 /// The instance a file name belongs to when it ends with `ending` after an instance name.
-fn instance_before<'a>(name: &'a str, ending: &str) -> Option<&'a str> {
+fn instance_before<'a>(
+    name: &'a str,
+    ending: &str,
+) -> Option<&'a str> {
     let stem: &str = name.strip_suffix(ending)?;
     return is_instance_name(stem).then_some(stem);
 }
 
 /// Adds the instances that the files of `folder` ending with `ending` name.
-fn add_instances_of(folder: &Path, ending: &str, found: &mut Vec<String>) {
-    let Ok(listing) = std::fs::read_dir(folder) else { return };
+fn add_instances_of(
+    folder: &Path,
+    ending: &str,
+    found: &mut Vec<String>,
+) {
+    let Ok(listing) = std::fs::read_dir(folder) else {
+        return;
+    };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if let Some(instance) = instance_before(name.as_str(), ending) {
@@ -75,8 +97,16 @@ fn add_instances_of(folder: &Path, ending: &str, found: &mut Vec<String>) {
 /// sorted.
 pub fn instances_with_units(runtime_dir: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
-    add_instances_of(runtime_dir.join(SOCKET_DIRECTORY).as_path(), ".sock", &mut found);
-    add_instances_of(runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).as_path(), NOTE_ENDING, &mut found);
+    add_instances_of(
+        runtime_dir.join(SOCKET_DIRECTORY).as_path(),
+        ".sock",
+        &mut found,
+    );
+    add_instances_of(
+        runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).as_path(),
+        NOTE_ENDING,
+        &mut found,
+    );
     found.sort();
     found.dedup();
     return found;
@@ -94,8 +124,12 @@ pub fn instances_with_units(runtime_dir: &Path) -> Vec<String> {
 /// ```ts
 /// hasUnits(folders, instance) // socket file or note
 /// ```
-pub fn has_units(folders: &UnitFolders<'_>, instance: &str) -> bool {
-    return socket_path(folders.runtime_dir, instance).exists() || note_path(folders.runtime_dir, instance).exists();
+pub fn has_units(
+    folders: &UnitFolders<'_>,
+    instance: &str,
+) -> bool {
+    return socket_path(folders.runtime_dir, instance).exists()
+        || note_path(folders.runtime_dir, instance).exists();
 }
 
 /// What:
@@ -117,7 +151,14 @@ pub fn has_units(folders: &UnitFolders<'_>, instance: &str) -> bool {
 pub fn instances_with_units_or_journals(folders: &UnitFolders<'_>) -> Vec<String> {
     let mut found: Vec<String> = instances_with_units(folders.runtime_dir);
     if let Some(state) = folders.state_dir {
-        add_instances_of(state.join(SERVICE_UNIT.current).join(JOURNAL_FOLDER).as_path(), "", &mut found);
+        add_instances_of(
+            state
+                .join(SERVICE_UNIT.current)
+                .join(JOURNAL_FOLDER)
+                .as_path(),
+            "",
+            &mut found,
+        );
     }
     found.sort();
     found.dedup();
@@ -150,9 +191,13 @@ pub fn survey(folders: &UnitFolders<'_>) -> Survey {
     let mut found: Survey = Survey::default();
     for instance in instances_with_units_or_journals(folders) {
         match worktree_of(folders, instance.as_str()) {
-            UnitWorktree::Unmapped if has_units(folders, instance.as_str()) => found.unmapped.push(instance),
+            UnitWorktree::Unmapped if has_units(folders, instance.as_str()) => {
+                found.unmapped.push(instance)
+            }
             UnitWorktree::Unmapped => found.journals_without_units.push(instance),
-            UnitWorktree::Known(git_dir) if worktree_is_gone(git_dir.as_path()) => found.gone.push(instance),
+            UnitWorktree::Known(git_dir) if worktree_is_gone(git_dir.as_path()) => {
+                found.gone.push(instance)
+            }
             UnitWorktree::Known(_present) => found.present += 1,
         }
     }

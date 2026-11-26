@@ -34,52 +34,130 @@
 //! const prepared = await prepare(invocation, checks, request, scratchName, attempt);
 //! ```
 
-use crate::service_prepare_ready_shapes::ReplayConflict;
-pub use crate::service_prepare_ready_shapes::{HandedBackTree, NativeInputs, Prepared, Ready, Scratch};
-use crate::service_prepare_own_git_steps::{base_tree_of, stage_the_unmerged_files};
-use crate::service_prepare_ready_shapes::ReadyShape;
-pub use crate::service_prepare_changes_config_and_pathspec_steps::{config_needs_native, config_signs};
-use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, normalized, the_pathspec_file, zero_object};
-use crate::capture_invocation::{InvocationCapture, base_revision, capture_invocation_base, capture_invocation_layout};
-/// A reference name as the bytes Git printed it.
-use crate::ref_name::RefName;
-use crate::commit_prepare_part_durations::PreparePartClock;
-use crate::private_index_request::CaptureIndexes;
+use crate::capture_invocation::{
+    InvocationCapture,
+    base_revision,
+    capture_invocation_base,
+    capture_invocation_layout,
+};
 use crate::commit_conclusion::events_with_changed_summary;
-use crate::commit_convergence::{CommitConvergence, CommitConvergenceInput, converge_commit_policies};
+use crate::commit_convergence::{
+    CommitConvergence,
+    CommitConvergenceInput,
+    converge_commit_policies,
+};
 use crate::commit_facts::PrivateIndexFacts;
 use crate::commit_index::{
-    IndexSelection, initialize_commit_index, initialize_retry_index, list_changed_index_paths, list_unmerged_index_paths, prepare_interactive_selection,
+    IndexSelection,
+    initialize_commit_index,
+    initialize_retry_index,
+    list_changed_index_paths,
+    list_unmerged_index_paths,
+    prepare_interactive_selection,
     write_private_tree,
 };
+use crate::commit_prepare_part_durations::PreparePartClock;
 use crate::commit_selection_staging::SelectionStagingFailure;
-use crate::service_prepare_selection_refusals::{named_ignored_ending, pathspec_matching_nothing_ending, staged_deletion_ending};
 use crate::commit_transaction::{
-    CommitInvocation, Selection, TransactionResult, TransactionStop, base_object, decide_selection, failed, private_checks, settled_passes, staged_at_base,
+    CommitInvocation,
+    Selection,
+    TransactionResult,
+    TransactionStop,
+    base_object,
+    decide_selection,
+    failed,
+    private_checks,
+    settled_passes,
+    staged_at_base,
 };
 use crate::commit_worktree_records::selected_worktree_records;
-use crate::conclusion_cleanup::{CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY};
-use crate::policy_checks::ShippedChecks;
-use crate::policy_engine::{StageRequest, pass_exit_code};
-use crate::policy_events::PolicyEvent;
-use crate::policy_pass::{PassResult, run_policy_pass};
-use crate::private_index_stage::PrivateStage;
-use crate::repository_facts::RepositoryFacts;
-use crate::service_pruned::reach_service_phase;
-use crate::transaction_phase::Phase;
-use crate::service_protocol::{Change, Cleanup};
-use crate::merge_second_pass::Merged as MergedFile;
-use crate::service_replay::{MergeSite, Merged, Retry, already_committed_result, capture_stamp, first_landed, merge_captured, word_merge_notice};
+use crate::conclusion_cleanup::{
+    CONCLUSION_STATE_FILES,
+    SEQUENCER_DIRECTORY,
+};
+use crate::conclusion_copy::the_state_of_a_conclusion;
 use crate::external_hooks::warn_external_hooks;
+use crate::merge_second_pass::Merged as MergedFile;
+use crate::policy_checks::ShippedChecks;
+use crate::policy_engine::{
+    StageRequest,
+    pass_exit_code,
+};
+use crate::policy_events::PolicyEvent;
+use crate::policy_pass::{
+    PassResult,
+    run_policy_pass,
+};
 use crate::preparation_notice::deliver_notice;
+use crate::private_index_request::CaptureIndexes;
+use crate::private_index_stage::PrivateStage;
+/// A reference name as the bytes Git printed it.
+use crate::ref_name::RefName;
+use crate::repository_facts::RepositoryFacts;
+use crate::service_prepare_changes_config_and_pathspec_steps::{
+    changes_of,
+    normalized,
+    the_pathspec_file,
+    zero_object,
+};
+pub use crate::service_prepare_changes_config_and_pathspec_steps::{
+    config_needs_native,
+    config_signs,
+};
+use crate::service_prepare_own_git_steps::{
+    base_tree_of,
+    stage_the_unmerged_files,
+};
+use crate::service_prepare_ready_shapes::ReadyShape;
+use crate::service_prepare_ready_shapes::ReplayConflict;
+pub use crate::service_prepare_ready_shapes::{
+    HandedBackTree,
+    NativeInputs,
+    Prepared,
+    Ready,
+    Scratch,
+};
+use crate::service_prepare_selection_refusals::{
+    named_ignored_ending,
+    pathspec_matching_nothing_ending,
+    staged_deletion_ending,
+};
+use crate::service_protocol::{
+    Change,
+    Cleanup,
+};
+use crate::service_pruned::reach_service_phase;
+use crate::service_replay::{
+    MergeSite,
+    Merged,
+    Retry,
+    already_committed_result,
+    capture_stamp,
+    first_landed,
+    merge_captured,
+    word_merge_notice,
+};
+use crate::service_replay_conclusion::{
+    the_same_conclusion,
+    the_state_read_failure,
+};
 use crate::standard_error_descriptor::StandardErrorDescriptor;
 use crate::traditional_hook_warning::warn_traditional_hooks;
 use crate::transaction_git::GitContext;
-use crate::conclusion_copy::the_state_of_a_conclusion;
-use crate::service_replay_conclusion::{the_same_conclusion, the_state_read_failure};
-use crate::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
+use crate::transaction_journal::{
+    AddedPath,
+    Base,
+    Conclusion,
+    RefFormat,
+    SymbolicHead,
+    TransactionMode,
+};
+use crate::transaction_phase::Phase;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What the preparation reads that does not change between two preparations of one command.
 pub struct PrepareInputs<'a> {
@@ -126,7 +204,12 @@ pub fn prepare<F: RepositoryFacts>(
     //  be committed." The paths in conflict are listed here so the warning can name those the commit takes. `-a` stages the working
     //  copy of every tracked file, an unmerged one included, so it commits their markers too and is listed the same way.
     let names_paths: bool = !region.pathspecs.is_empty() || region.pathspec_from_file.is_some();
-    let unmerged_before: Vec<Vec<u8>> = if region.all || (matches!(layout.conclusion, Conclusion::Merge | Conclusion::CherryPick) && names_paths) {
+    let unmerged_before: Vec<Vec<u8>> = if region.all
+        || (matches!(
+            layout.conclusion,
+            Conclusion::Merge | Conclusion::CherryPick
+        ) && names_paths)
+    {
         list_unmerged_index_paths(context, cwd, layout.real_index_path.as_path())?
     } else {
         Vec::new()
@@ -163,7 +246,11 @@ pub fn prepare<F: RepositoryFacts>(
     let amends: bool = region.amend;
     // The tree goes where the sweep of the repository scratch directory covers it, so a command killed at any instruction leaves
     //  nothing that only this process could have removed (`Scratch`).
-    let scratch: Scratch = match Scratch::make(capture.layout.common_dir.as_path(), capture.layout.git_dir.as_path(), inputs.scratch_name) {
+    let scratch: Scratch = match Scratch::make(
+        capture.layout.common_dir.as_path(),
+        capture.layout.git_dir.as_path(),
+        inputs.scratch_name,
+    ) {
         Ok(made) => made,
         Err(error) => return Err(failed(format!("preparing the commit failed: {error}"))),
     };
@@ -172,7 +259,13 @@ pub fn prepare<F: RepositoryFacts>(
         commit_index: scratch.0.join("commit.index"),
         object_directory: capture.layout.object_directory.clone(),
     };
-    let pathspec_file: Option<PathBuf> = the_pathspec_file(region, region_arguments, scratch.0.as_path(), cwd, inputs.standard_input)?;
+    let pathspec_file: Option<PathBuf> = the_pathspec_file(
+        region,
+        region_arguments,
+        scratch.0.as_path(),
+        cwd,
+        inputs.standard_input,
+    )?;
     let index_selection: IndexSelection<'_> = IndexSelection {
         mode: selection.mode,
         pathspecs: pathspecs.as_slice(),
@@ -204,13 +297,21 @@ pub fn prepare<F: RepositoryFacts>(
     let mut word_merge_events: Option<PolicyEvent> = None;
     // The file the commit copies its index from, as it was before the copy: a live index that is another file later has entries
     //  the copy does not, and those are what the commit must not record.
-    let index_witness: crate::service_land_start::IndexWitness = crate::service_land_start::witness_of(capture.layout.real_index_path.as_path()).unwrap_or(crate::service_land_start::IndexWitness::Absent);
+    let index_witness: crate::service_land_start::IndexWitness =
+        crate::service_land_start::witness_of(capture.layout.real_index_path.as_path())
+            .unwrap_or(crate::service_land_start::IndexWitness::Absent);
     if let Some(again) = retry {
         // A conclusion is made again only over the state it was prepared over: another session that concluded or
         //  abandoned the merge, the cherry-pick or the revert meanwhile leaves nothing this commit could conclude, and an
         //  ordinary commit of the same tree is not what the person asked for (`Captured::conclusion`).
         if let Some(expected) = again.captured.conclusion.as_deref() {
-            the_same_conclusion(context, cwd, &capture, expected, reference.short().spoken().as_str())?;
+            the_same_conclusion(
+                context,
+                cwd,
+                &capture,
+                expected,
+                reference.short().spoken().as_str(),
+            )?;
         }
         // The change this command captured when it started, on the branch as it is now; the worktree is not read.
         let site: MergeSite<'_> = MergeSite {
@@ -220,31 +321,66 @@ pub fn prepare<F: RepositoryFacts>(
             object_directory: indexes.object_directory.as_path(),
             scratch: scratch.0.as_path(),
         };
-        let (tree, combined): (String, Vec<MergedFile>) = match merge_captured(&site, again.captured, base.as_str(), again.attempt)? {
-            Merged::Conflict(paths) => {
-                let landed = first_landed(context, cwd, (!again.captured.unborn).then_some(again.captured.base.as_str()), base.as_str(), paths.as_slice())?;
-                return Ok(Prepared::Conflict(Box::new(ReplayConflict { paths, landed, git_dir: capture.layout.git_dir.clone() })));
-            }
-            Merged::Tree(tree) => (tree, Vec::new()),
-            Merged::Combined { tree, files } => (tree, files),
-        };
+        let (tree, combined): (String, Vec<MergedFile>) =
+            match merge_captured(&site, again.captured, base.as_str(), again.attempt)? {
+                Merged::Conflict(paths) => {
+                    let landed = first_landed(
+                        context,
+                        cwd,
+                        (!again.captured.unborn).then_some(again.captured.base.as_str()),
+                        base.as_str(),
+                        paths.as_slice(),
+                    )?;
+                    return Ok(Prepared::Conflict(Box::new(ReplayConflict {
+                        paths,
+                        landed,
+                        git_dir: capture.layout.git_dir.clone(),
+                    })));
+                }
+                Merged::Tree(tree) => (tree, Vec::new()),
+                Merged::Combined {
+                    tree,
+                    files,
+                } => (tree, files),
+            };
         // Built from a copy of the real index, so the entries the tree shares with it keep their stat data and the scratch commit
         //  does not hash the whole work tree again (`commit_index.rs`, `initialize_retry_index`).
-        initialize_retry_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, tree.as_str())?;
+        initialize_retry_index(
+            context,
+            cwd,
+            capture.layout.real_index_path.as_path(),
+            &indexes,
+            tree.as_str(),
+        )?;
         // Every part the word pass merged is told to the person with the commit and sent to the journal.
         word_merge_events = word_merge_notice(combined.as_slice());
     } else {
         // A path an ignore rule matches is refused before the private staging runs, from the elements the command names,
         //  so the refusal is the command line's and never read from the words of a Git message (issue 6278).
-        if let Some(ending) = named_ignored_ending(context, cwd, worktree_root, capture.layout.real_index_path.as_path(), &index_selection)? {
+        if let Some(ending) = named_ignored_ending(
+            context,
+            cwd,
+            worktree_root,
+            capture.layout.real_index_path.as_path(),
+            &index_selection,
+        )? {
             return Ok(Prepared::Ended(ending));
         }
-        if let Err(stop) = initialize_commit_index(context, cwd, worktree_root, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
+        if let Err(stop) = initialize_commit_index(
+            context,
+            cwd,
+            worktree_root,
+            capture.layout.real_index_path.as_path(),
+            &indexes,
+            &index_selection,
+        ) {
             // Git refused a pathspec the caller wrote for matching nothing: that is the caller's input, not the engine's, so it
             // ends as the finding that names the token. Every other failure of the staging stays an engine failure (issue 6283).
             return match stop {
                 SelectionStagingFailure::Git(git) => Err(failed(git.0)),
-                SelectionStagingFailure::PathspecMatchesNothing(refused) => Ok(Prepared::Ended(pathspec_matching_nothing_ending(refused.as_slice()))),
+                SelectionStagingFailure::PathspecMatchesNothing(refused) => Ok(Prepared::Ended(
+                    pathspec_matching_nothing_ending(refused.as_slice()),
+                )),
             };
         }
     }
@@ -254,8 +390,17 @@ pub fn prepare<F: RepositoryFacts>(
     //  live index: this commit's own index is set to the head for the paths whose entry disagrees with it, and the person is told
     //  (`owed_index_repair.rs`, `doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`). An explicit-path commit names
     //  its own selection, so only the notice is given for it.
-    let (excluded, unreadable_note): (Vec<String>, Option<String>) = crate::owed_index_update::exclude_or_stop(context, &capture, &indexes, selection.mode, &index_witness)?;
-    if inputs.first && let Some(note) = unreadable_note.as_ref() {
+    let (excluded, unreadable_note): (Vec<String>, Option<String>) =
+        crate::owed_index_update::exclude_or_stop(
+            context,
+            &capture,
+            &indexes,
+            selection.mode,
+            &index_witness,
+        )?;
+    if inputs.first
+        && let Some(note) = unreadable_note.as_ref()
+    {
         // A notice is worth less than a commit that returns: what cannot be said within the ceiling is left unsaid.
         let _delivered = deliver_notice(format!("{note}\n"));
     }
@@ -273,14 +418,24 @@ pub fn prepare<F: RepositoryFacts>(
     // A test removes the staged content here, between the writing and the reading by the policies.
     reach_service_phase(Phase::ServiceStaged)?;
     if (region.interactive || region.patch) && retry.is_none() {
-        prepare_interactive_selection(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), region.patch, &index_selection)?;
+        prepare_interactive_selection(
+            context,
+            cwd,
+            indexes.commit_index.as_path(),
+            indexes.object_directory.as_path(),
+            region.patch,
+            &index_selection,
+        )?;
     }
     part.next("conclusionState");
     let interactive: bool = region.interactive || region.patch;
     let reftable: bool = capture.layout.ref_format == RefFormat::Reftable;
     // Whatever state a merge or a pick left (also a squash message with no merge in progress) is removed as native Git removes it.
     let mut state_present: bool = selection.concludes_sequencer;
-    for entry in CONCLUSION_STATE_FILES.iter().chain([SEQUENCER_DIRECTORY].iter()) {
+    for entry in CONCLUSION_STATE_FILES
+        .iter()
+        .chain([SEQUENCER_DIRECTORY].iter())
+    {
         if state_present {
             break;
         }
@@ -288,7 +443,15 @@ pub fn prepare<F: RepositoryFacts>(
             state_present = true;
         }
     }
-    let cleanup: Option<Cleanup> = if state_present { Some(Cleanup { git_dir: capture.layout.git_dir.clone(), scratch: scratch.0.clone(), reftable }) } else { None };
+    let cleanup: Option<Cleanup> = if state_present {
+        Some(Cleanup {
+            git_dir: capture.layout.git_dir.clone(),
+            scratch: scratch.0.clone(),
+            reftable,
+        })
+    } else {
+        None
+    };
     let selected_privately: bool = selection.read_only;
     let fixed_parents: bool = selection.concludes_sequencer || unborn;
     // What a conclusion was prepared over, read here and not when a retry needs it: another command may conclude the
@@ -321,18 +484,33 @@ pub fn prepare<F: RepositoryFacts>(
     //  (2026-11-03), so the working copy of each unmerged file is staged in the commit's private index, exactly as `git add` stages
     //  it, and the commit that follows is the one Git would have built for a resolved merge. The files are named in the warning.
     part.next("unmergedFiles");
-    let unmerged_files: Vec<Vec<u8>> = list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?;
+    let unmerged_files: Vec<Vec<u8>> =
+        list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?;
     stage_the_unmerged_files(context, cwd, &indexes, unmerged_files.as_slice())?;
     part.next("changedPaths");
-    let candidate_paths: Vec<Vec<u8>> =
-        list_changed_index_paths(context, cwd, indexes.commit_index.as_path(), base.as_str(), indexes.object_directory.as_path())?;
+    let candidate_paths: Vec<Vec<u8>> = list_changed_index_paths(
+        context,
+        cwd,
+        indexes.commit_index.as_path(),
+        base.as_str(),
+        indexes.object_directory.as_path(),
+    )?;
     // Nothing to commit is Git's to say, and an amend or an empty commit that was asked for is not nothing.
     if candidate_paths.is_empty() && !inputs.allow_empty && !amends {
         if retry.is_some() {
             // Commits that landed meanwhile hold everything this one changes.
-            return Ok(Prepared::Ended(already_committed_result(reference.short().spoken().as_str())));
+            return Ok(Prepared::Ended(already_committed_result(
+                reference.short().spoken().as_str(),
+            )));
         }
-        return Ok(Prepared::Ready(shape.by_git(capture, Vec::new(), None, Vec::new(), invocation.arguments.to_vec(), scratch)));
+        return Ok(Prepared::Ready(shape.by_git(
+            capture,
+            Vec::new(),
+            None,
+            Vec::new(),
+            invocation.arguments.to_vec(),
+            scratch,
+        )));
     }
     part.next("policies");
     let mut private: ShippedChecks<PrivateIndexFacts<&mut F>> = private_checks(
@@ -343,45 +521,95 @@ pub fn prepare<F: RepositoryFacts>(
         staged_at_base(base_object(&capture)?, candidate_paths.as_slice()),
     );
     // A selection the person made leaves the policies read-only: they report, and the commit is exactly what was chosen.
-    let (pass, changed_passes, changed_paths): (PassResult, u64, Vec<Vec<u8>>) = if selection.read_only {
-        private.can_apply_patches = false;
-        (run_policy_pass(request, &mut private), 0, Vec::new())
-    } else {
-        let outcome: CommitConvergence = converge_commit_policies(CommitConvergenceInput {
-            request,
-            checks: &mut private,
-            stage: PrivateStage { context, cwd, index: indexes.commit_index.as_path(), object_directory: Some(indexes.object_directory.as_path()) },
-        });
-        let passes: u64 = settled_passes(&outcome.convergence);
-        (outcome.pass, passes, outcome.changed_paths)
-    };
+    let (pass, changed_passes, changed_paths): (PassResult, u64, Vec<Vec<u8>>) =
+        if selection.read_only {
+            private.can_apply_patches = false;
+            (run_policy_pass(request, &mut private), 0, Vec::new())
+        } else {
+            let outcome: CommitConvergence = converge_commit_policies(CommitConvergenceInput {
+                request,
+                checks: &mut private,
+                stage: PrivateStage {
+                    context,
+                    cwd,
+                    index: indexes.commit_index.as_path(),
+                    object_directory: Some(indexes.object_directory.as_path()),
+                },
+            });
+            let passes: u64 = settled_passes(&outcome.convergence);
+            (outcome.pass, passes, outcome.changed_paths)
+        };
     let code: i32 = pass_exit_code(pass.events.as_slice(), pass.end);
     if code != 0 {
-        return Ok(Prepared::Ended(TransactionResult { events: pass.events, exit_code: code, landed_oid: None, uses_lfs: false }));
+        return Ok(Prepared::Ended(TransactionResult {
+            events: pass.events,
+            exit_code: code,
+            landed_oid: None,
+            uses_lfs: false,
+        }));
     }
     part.next("worktreeRecords");
     let repository_root: &Path = capture.layout.repository_root.as_path();
     let install = private.content.install_changes();
-    let records: Vec<AddedPath> = selected_worktree_records(context, cwd, repository_root, indexes.commit_index.as_path(), install.as_slice())?;
+    let records: Vec<AddedPath> = selected_worktree_records(
+        context,
+        cwd,
+        repository_root,
+        indexes.commit_index.as_path(),
+        install.as_slice(),
+    )?;
     // Corrections that removed every change leave nothing to commit: the copies are reconciled and the person is told.
-    let eligible: bool = !install.is_empty() && !region.allow_empty && !amends && !selection.concludes_sequencer;
+    let eligible: bool =
+        !install.is_empty() && !region.allow_empty && !amends && !selection.concludes_sequencer;
     part.next("treeCheck");
     if eligible && !unborn {
-        let intended: String = write_private_tree(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path())?;
+        let intended: String = write_private_tree(
+            context,
+            cwd,
+            indexes.commit_index.as_path(),
+            indexes.object_directory.as_path(),
+        )?;
         let base_tree: String = base_tree_of(context, cwd, base.as_str())?;
         if base_tree == intended {
-            return normalized(invocation, &capture, base.as_str(), &candidate_paths, records.as_slice(), &(pass.events, changed_passes, changed_paths));
+            return normalized(
+                invocation,
+                &capture,
+                base.as_str(),
+                &candidate_paths,
+                records.as_slice(),
+                &(pass.events, changed_passes, changed_paths),
+            );
         }
     }
     part.next("changes");
-    let mut events: Vec<PolicyEvent> = events_with_changed_summary(pass.events.clone(), changed_passes, changed_paths.as_slice());
+    let mut events: Vec<PolicyEvent> = events_with_changed_summary(
+        pass.events.clone(),
+        changed_passes,
+        changed_paths.as_slice(),
+    );
     events.extend(word_merge_events);
-    let changes: Option<Vec<Change>> = if config_native || unborn || detached || state_present { None } else { changes_of(context, cwd, &indexes, base.as_str())? };
+    let changes: Option<Vec<Change>> = if config_native || unborn || detached || state_present {
+        None
+    } else {
+        changes_of(context, cwd, &indexes, base.as_str())?
+    };
     let forced: bool = config_native || unborn || detached || state_present || changes.is_none();
     // A commit of named paths leaves the merge or cherry-pick whose state it does not conclude in progress.
     let conclusion_kind: Conclusion = capture.layout.conclusion;
-    let leaves_open: Option<Conclusion> = if named && matches!(conclusion_kind, Conclusion::Merge | Conclusion::CherryPick) { Some(conclusion_kind) } else { None };
-    let mut ready: Box<Ready> = shape.by_git(capture, events, changes, records, pass.arguments.clone(), scratch);
+    let leaves_open: Option<Conclusion> =
+        if named && matches!(conclusion_kind, Conclusion::Merge | Conclusion::CherryPick) {
+            Some(conclusion_kind)
+        } else {
+            None
+        };
+    let mut ready: Box<Ready> = shape.by_git(
+        capture,
+        events,
+        changes,
+        records,
+        pass.arguments.clone(),
+        scratch,
+    );
     ready.needs_native = forced;
     // A path in conflict that the commit takes is committed with the bytes the worktree holds, markers included.
     for path in unmerged_before {

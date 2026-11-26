@@ -247,18 +247,42 @@ pub mod handler_mode_dispatch;
 #[path = "root_mode_names_tests.rs"]
 mod root_mode_names_tests;
 
+/// The administrator's adoption and why it recorded nothing.
+pub use adopt_worktree_parent_mode::AdoptFailure;
 /// The paths one root-owned build serves,
 /// the checkout record's path,
 /// the words and the version line.
-pub use handler_install_paths::{CHECKOUT_RECORD_PATH, CONFIGURATION_PATH, ROOT_MODE_INSTALL_PATH, ZEDLET_INSTALL_PATH, root_modes_name, version_line};
+pub use handler_install_paths::{
+    CHECKOUT_RECORD_PATH,
+    CONFIGURATION_PATH,
+    ROOT_MODE_INSTALL_PATH,
+    ZEDLET_INSTALL_PATH,
+    root_modes_name,
+    version_line,
+};
 /// The mode grammar,
 /// its refusal and the requests the modes take.
-pub use handler_mode_arguments::{AdoptRequest, ArgumentRefusal, HandlerMode, HolderScanInvocation, MountPathDescendantRequest, RecordCheckoutRequest};
+pub use handler_mode_arguments::{
+    AdoptRequest,
+    ArgumentRefusal,
+    HandlerMode,
+    HolderScanInvocation,
+    MountPathDescendantRequest,
+    RecordCheckoutRequest,
+};
+/// The command line, the two statuses and the refusal a root-mode misuse answers.
+pub use handler_mode_dispatch::{
+    EXIT_DONE,
+    EXIT_REFUSED,
+    refuse_root_mode_misuse,
+    run,
+};
 /// The refusal of a mode whose step has not landed.
 pub use mode_awaiting_its_step::AwaitingItsStep;
-/// The administrator's adoption and why it recorded nothing.
-pub use adopt_worktree_parent_mode::AdoptFailure;
 /// The per-slot claim and its refusal.
-pub use per_slot_root_claim::{ClaimRefusal, HeldSlotClaim, SLOT_CLAIM_DIRECTORY, SlotClaimDirectory};
-/// The command line, the two statuses and the refusal a root-mode misuse answers.
-pub use handler_mode_dispatch::{EXIT_DONE, EXIT_REFUSED, refuse_root_mode_misuse, run};
+pub use per_slot_root_claim::{
+    ClaimRefusal,
+    HeldSlotClaim,
+    SLOT_CLAIM_DIRECTORY,
+    SlotClaimDirectory,
+};

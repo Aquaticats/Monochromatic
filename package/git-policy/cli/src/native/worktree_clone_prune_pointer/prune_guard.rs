@@ -29,15 +29,37 @@
 //! const guard = guardThePrune(commonDir, liveMounts); // { lines, refused }
 //! ```
 
-use crate::worktree_clone_binding_record::registration_home::{home_folder, record_name_of, slot_of, RecordKind};
 use crate::worktree_clone_binding_record::record_publication::read_binding;
-use crate::worktree_clone_prune_pointer::link_facts::{LinkFacts, link_facts_of, recorded_link_of};
-use crate::worktree_clone_prune_pointer::pointer_restore::{RestoreOutcome, restore_the_slot_pointer};
+use crate::worktree_clone_binding_record::registration_home::{
+    RecordKind,
+    home_folder,
+    record_name_of,
+    slot_of,
+};
+use crate::worktree_clone_prune_pointer::link_facts::{
+    LinkFacts,
+    link_facts_of,
+    recorded_link_of,
+};
+use crate::worktree_clone_prune_pointer::pointer_restore::{
+    RestoreOutcome,
+    restore_the_slot_pointer,
+};
 use crate::worktree_clone_prune_pointer::pointer_state::PointerState;
-use crate::worktree_clone_slot_state::slot_state_mounts::{clone_mount_of, read_mount_rows, slot_mount_of};
-use crate::worktree_clone_slot_state::slot_state_mounts::{CloneMount, MountRows};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    CloneMount,
+    MountRows,
+};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    clone_mount_of,
+    read_mount_rows,
+    slot_mount_of,
+};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Why one prune must not reach Git.
@@ -130,7 +152,10 @@ fn bound_slots(common_dir: &Path) -> Vec<String> {
 /// ```ts
 /// const guard = guardThePrune(commonDir, mounts);
 /// ```
-pub fn guard_the_prune(common_dir: &Path, mounts: &dyn MountedDatasets) -> PruneGuard {
+pub fn guard_the_prune(
+    common_dir: &Path,
+    mounts: &dyn MountedDatasets,
+) -> PruneGuard {
     let slots: Vec<String> = bound_slots(common_dir);
     // A repository with no record folder bounds no slot, so the pass is empty and the mount table is never read: this is
     // every prune in a repository the route has never served.
@@ -143,14 +168,27 @@ pub fn guard_the_prune(common_dir: &Path, mounts: &dyn MountedDatasets) -> Prune
         let record = match read_binding(home_folder(common_dir).as_path(), slot.as_str()) {
             Ok(found) => found,
             Err(refusal) => {
-                let message: String = refusal.message(home_folder(common_dir).join(crate::worktree_clone_binding_record::registration_home::binding_name(slot.as_str())).as_path());
+                let message: String = refusal.message(
+                    home_folder(common_dir)
+                        .join(
+                            crate::worktree_clone_binding_record::registration_home::binding_name(
+                                slot.as_str(),
+                            ),
+                        )
+                        .as_path(),
+                );
                 guard.lines.push(format!("the record filed under `{slot}` cannot be read, so its registration and pointer are unproved: {message}"));
-                guard.refused.push(PruneRefusal::Record { slot, message });
+                guard.refused.push(PruneRefusal::Record {
+                    slot,
+                    message,
+                });
                 continue;
             }
         };
         let Some(slot_path) = record.slot_path() else {
-            guard.lines.push(format!("the record filed under `{slot}` names no slot path, so its pointer was not checked"));
+            guard.lines.push(format!(
+                "the record filed under `{slot}` names no slot path, so its pointer was not checked"
+            ));
             continue;
         };
         if slot_of(slot_path.as_path()).as_deref() != Ok(slot.as_str()) {
@@ -161,7 +199,12 @@ pub fn guard_the_prune(common_dir: &Path, mounts: &dyn MountedDatasets) -> Prune
             continue;
         }
         let slot_mount = slot_mount_of(mounts, slot_path.as_path());
-        let mount: CloneMount = clone_mount_of(&rows, &slot_mount, record.clone_dataset.as_str(), slot_path.as_path());
+        let mount: CloneMount = clone_mount_of(
+            &rows,
+            &slot_mount,
+            record.clone_dataset.as_str(),
+            slot_path.as_path(),
+        );
         let link = recorded_link_of(&record);
         let facts: LinkFacts = link_facts_of(slot.as_str(), &link, &mount);
         if !facts.registration_stands {
@@ -169,9 +212,19 @@ pub fn guard_the_prune(common_dir: &Path, mounts: &dyn MountedDatasets) -> Prune
             continue;
         }
         match &facts.pointer {
-            PointerState::Intact | PointerState::Present { .. } => {}
-            PointerState::Missing | PointerState::Differs { .. } => {
-                let outcome: RestoreOutcome = restore_the_slot_pointer(slot_path.as_path(), &facts.site, record.pointer.as_deref());
+            PointerState::Intact
+            | PointerState::Present {
+                ..
+            } => {}
+            PointerState::Missing
+            | PointerState::Differs {
+                ..
+            } => {
+                let outcome: RestoreOutcome = restore_the_slot_pointer(
+                    slot_path.as_path(),
+                    &facts.site,
+                    record.pointer.as_deref(),
+                );
                 match outcome {
                     RestoreOutcome::Written { .. } | RestoreOutcome::AlreadyIntact => guard.lines.push(format!(
                         "{}; `git worktree prune` keeps the registration of `{slot}` because the pointer stands",
@@ -183,7 +236,9 @@ pub fn guard_the_prune(common_dir: &Path, mounts: &dyn MountedDatasets) -> Prune
                     }
                 }
             }
-            PointerState::Unprovable { .. } => guard.refused.push(PruneRefusal::Link(facts)),
+            PointerState::Unprovable {
+                ..
+            } => guard.refused.push(PruneRefusal::Link(facts)),
         }
     }
     return guard;

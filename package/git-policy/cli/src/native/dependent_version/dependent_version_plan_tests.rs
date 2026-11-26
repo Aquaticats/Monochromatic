@@ -16,13 +16,30 @@
 
 /// The plan,
 /// its outcome types and the in-memory workspace.
-use super::{ManifestBump, PlanOutcome, WorkspaceBumpPlan, plan_workspace_bumps};
-use crate::dependent_version_content::{ContentUnavailable, PlanError, PolicyIncomplete};
+use super::{
+    ManifestBump,
+    PlanOutcome,
+    WorkspaceBumpPlan,
+    plan_workspace_bumps,
+};
+use crate::dependent_version_content::{
+    ContentUnavailable,
+    PlanError,
+    PolicyIncomplete,
+};
 use crate::dependent_version_manifest::shape;
 use crate::dependent_version_release::UnsupportedVersion;
 use crate::dependent_version_test_support::{
-    CONFIG_PATH, MemoryFile, MemoryWorkspace, Read, changed, config,
-    config_with_a_narrower_list_above, manifest_text, unchanged, workspace,
+    CONFIG_PATH,
+    MemoryFile,
+    MemoryWorkspace,
+    Read,
+    changed,
+    config,
+    config_with_a_narrower_list_above,
+    manifest_text,
+    unchanged,
+    workspace,
 };
 
 /// The incumbent worktree test's baseline,

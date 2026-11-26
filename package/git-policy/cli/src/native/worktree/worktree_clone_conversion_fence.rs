@@ -39,25 +39,66 @@
 use crate::diagnostic_log::debug;
 use crate::repo_read_index::parse_index;
 use crate::repo_read_layout::ObjectFormat;
-use crate::transaction_git::{GitContext, GitOutput};
-use crate::worktree_clean::{StatEntry, stored_stats};
-use crate::worktree_clone_conversion_rules::{ConversionRules, FenceVerdict, PathAttributes, apply_attribute, checkout_converts, conversion_rules_from_config, decide, needs_blob_size};
-use crate::worktree_ladder_target::{checkout_environment, checkout_environment_with_index};
-use crate::worktree_snapshot_source::SnapshotSource;
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+};
 /// The change a rung cannot serve,
 /// and why,
 /// re-exported so every caller of this fence names it here.
-pub use crate::worktree_change_a_rung_cannot_serve::{ChangeNotServed, WhyNotServed};
+pub use crate::worktree_change_a_rung_cannot_serve::{
+    ChangeNotServed,
+    WhyNotServed,
+};
+use crate::worktree_clean::{
+    StatEntry,
+    stored_stats,
+};
 /// How many paths a rule of their own converts,
 /// and the share that declines the rung,
 /// re-exported so every caller of this fence names them here.
-pub use crate::worktree_clone_conversion_decline::{DECLINE_PATHS_FLOOR, DECLINE_SHARE_DIVISOR, converting_paths, declines};
-use crate::worktree_clone_conversion_decline::{MODE_SYMLINK, MODE_TYPE_MASK};
-use crate::worktree_clone_conversion_git_reads::{BlobSizes, blob_sizes, run_in, run_reason, words};
-use std::collections::{HashMap, HashSet};
+pub use crate::worktree_clone_conversion_decline::{
+    DECLINE_PATHS_FLOOR,
+    DECLINE_SHARE_DIVISOR,
+    converting_paths,
+    declines,
+};
+use crate::worktree_clone_conversion_decline::{
+    MODE_SYMLINK,
+    MODE_TYPE_MASK,
+};
+use crate::worktree_clone_conversion_git_reads::{
+    BlobSizes,
+    blob_sizes,
+    run_in,
+    run_reason,
+    words,
+};
+use crate::worktree_clone_conversion_rules::{
+    ConversionRules,
+    FenceVerdict,
+    PathAttributes,
+    apply_attribute,
+    checkout_converts,
+    conversion_rules_from_config,
+    decide,
+    needs_blob_size,
+};
+use crate::worktree_ladder_target::{
+    checkout_environment,
+    checkout_environment_with_index,
+};
+use crate::worktree_snapshot_source::SnapshotSource;
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeCloneConversionFence";
@@ -103,7 +144,10 @@ pub struct Fence {
 /// ```ts
 /// function firstUntrackedAttributes(entries, root): string | undefined;
 /// ```
-fn first_untracked_attributes(entries: &[StatEntry], root: &Path) -> Option<String> {
+fn first_untracked_attributes(
+    entries: &[StatEntry],
+    root: &Path,
+) -> Option<String> {
     let mut tracked: HashSet<Vec<u8>> = HashSet::new();
     for entry in entries {
         if is_attributes_path(entry.path.as_slice()) {
@@ -115,10 +159,17 @@ fn first_untracked_attributes(entries: &[StatEntry], root: &Path) -> Option<Stri
         let mut directory: Vec<u8> = Vec::new();
         let mut boundary: usize = 0;
         loop {
-            if looked.insert(directory.clone()) && let Some(reason) = attributes_file_at(root, directory.as_slice(), &tracked) {
+            if looked.insert(directory.clone())
+                && let Some(reason) = attributes_file_at(root, directory.as_slice(), &tracked)
+            {
                 return Some(reason);
             }
-            let Some(next) = entry.path[boundary..].iter().position(|byte| return *byte == b'/') else { break };
+            let Some(next) = entry.path[boundary..]
+                .iter()
+                .position(|byte| return *byte == b'/')
+            else {
+                break;
+            };
             boundary += next + 1;
             directory = entry.path[..boundary - 1].to_vec();
         }
@@ -133,7 +184,8 @@ fn first_untracked_attributes(entries: &[StatEntry], root: &Path) -> Option<Stri
 /// const isAttributes = (path) => path === '.gitattributes' || path.endsWith('/.gitattributes');
 /// ```
 fn is_attributes_path(path: &[u8]) -> bool {
-    return path == ATTRIBUTES_NAME.as_bytes() || path.ends_with(format!("/{ATTRIBUTES_NAME}").as_bytes());
+    return path == ATTRIBUTES_NAME.as_bytes()
+        || path.ends_with(format!("/{ATTRIBUTES_NAME}").as_bytes());
 }
 
 /// What:
@@ -147,7 +199,11 @@ fn is_attributes_path(path: &[u8]) -> bool {
 /// ```ts
 /// function attributesFileAt(root, directory, tracked): string | undefined;
 /// ```
-fn attributes_file_at(root: &Path, directory: &[u8], tracked: &HashSet<Vec<u8>>) -> Option<String> {
+fn attributes_file_at(
+    root: &Path,
+    directory: &[u8],
+    tracked: &HashSet<Vec<u8>>,
+) -> Option<String> {
     let mut path: Vec<u8> = directory.to_vec();
     if !path.is_empty() {
         path.push(b'/');
@@ -181,20 +237,36 @@ fn attributes_file_at(root: &Path, directory: &[u8], tracked: &HashSet<Vec<u8>>)
 /// ```ts
 /// function attributesOf(context, root, entries): Map<string, PathAttributes>;
 /// ```
-fn attributes_of(context: &GitContext, root: &Path, entries: &[StatEntry]) -> Result<HashMap<Vec<u8>, PathAttributes>, String> {
+fn attributes_of(
+    context: &GitContext,
+    root: &Path,
+    entries: &[StatEntry],
+) -> Result<HashMap<Vec<u8>, PathAttributes>, String> {
     let mut input: Vec<u8> = Vec::new();
     for entry in entries {
         input.extend_from_slice(entry.path.as_slice());
         input.push(0);
     }
-    let output: GitOutput = run_in(context, root, &words(&["check-attr", "--all", "-z", "--stdin"]), Some(input), Vec::new())?;
+    let output: GitOutput = run_in(
+        context,
+        root,
+        &words(&["check-attr", "--all", "-z", "--stdin"]),
+        Some(input),
+        Vec::new(),
+    )?;
     if output.code != Some(0) {
-        return Err(format!("the attributes of the source cannot be read: {}", run_reason("`git check-attr`", &output)));
+        return Err(format!(
+            "the attributes of the source cannot be read: {}",
+            run_reason("`git check-attr`", &output)
+        ));
     }
     let mut attributes: HashMap<Vec<u8>, PathAttributes> = HashMap::new();
     let mut fields = output.stdout.split(|byte| return *byte == 0);
     loop {
-        let (Some(path), Some(name), Some(value)) = (fields.next(), fields.next(), fields.next()) else { break };
+        let (Some(path), Some(name), Some(value)) = (fields.next(), fields.next(), fields.next())
+        else {
+            break;
+        };
         if path.is_empty() {
             break;
         }
@@ -222,7 +294,10 @@ fn attributes_of(context: &GitContext, root: &Path, entries: &[StatEntry]) -> Re
 /// refuseUntrackedAttributes(source); // throws the reason
 /// ```
 pub fn refuse_untracked_attributes(source: &SnapshotSource) -> Result<(), String> {
-    let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
+    let Some(entries) = stored_stats(
+        source.clean.index_bytes.as_slice(),
+        source.clean.hash_length,
+    ) else {
         return Err(String::from("the source's index changed shape"));
     };
     return match first_untracked_attributes(entries.as_slice(), source.root.as_path()) {
@@ -303,8 +378,13 @@ impl AttributeFence {
     /// ```
     pub fn needs_sizes(&self) -> bool {
         return self.entries.iter().any(|entry| {
-            let held: PathAttributes = self.attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
-            return entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && needs_blob_size(&held, &self.rules);
+            let held: PathAttributes = self
+                .attributes
+                .get(entry.path.as_slice())
+                .cloned()
+                .unwrap_or_default();
+            return entry.mode & MODE_TYPE_MASK != MODE_SYMLINK
+                && needs_blob_size(&held, &self.rules);
         });
     }
 
@@ -329,7 +409,11 @@ impl AttributeFence {
     pub fn bytes_the_clones_carry(&self) -> u64 {
         let mut total: usize = 0;
         for entry in &self.entries {
-            let held: PathAttributes = self.attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
+            let held: PathAttributes = self
+                .attributes
+                .get(entry.path.as_slice())
+                .cloned()
+                .unwrap_or_default();
             if entry.mode & MODE_TYPE_MASK == MODE_SYMLINK || needs_blob_size(&held, &self.rules) {
                 total += entry.stored.size as usize;
             }
@@ -357,21 +441,35 @@ impl AttributeFence {
     /// ```ts
     /// const firstNotServed = (read, changed) => read.entries.find((entry) => changed.has(entry.path) && (isLink(entry) || checkoutConverts(read.attributes.get(entry.path), read.rules)));
     /// ```
-    pub fn first_change_it_cannot_serve(&self, changed: &[Vec<u8>]) -> Option<ChangeNotServed> {
+    pub fn first_change_it_cannot_serve(
+        &self,
+        changed: &[Vec<u8>],
+    ) -> Option<ChangeNotServed> {
         if changed.is_empty() {
             return None;
         }
-        let changed_paths: HashSet<&[u8]> = changed.iter().map(|path| return path.as_slice()).collect();
+        let changed_paths: HashSet<&[u8]> =
+            changed.iter().map(|path| return path.as_slice()).collect();
         for entry in &self.entries {
             if !changed_paths.contains(entry.path.as_slice()) {
                 continue;
             }
             if entry.mode & MODE_TYPE_MASK == MODE_SYMLINK {
-                return Some(ChangeNotServed { path: entry.path.clone(), why: WhyNotServed::ALinkIsCopied });
+                return Some(ChangeNotServed {
+                    path: entry.path.clone(),
+                    why: WhyNotServed::ALinkIsCopied,
+                });
             }
-            let held: PathAttributes = self.attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
+            let held: PathAttributes = self
+                .attributes
+                .get(entry.path.as_slice())
+                .cloned()
+                .unwrap_or_default();
             if checkout_converts(&held, &self.rules) {
-                return Some(ChangeNotServed { path: entry.path.clone(), why: WhyNotServed::TheFenceWritesIt });
+                return Some(ChangeNotServed {
+                    path: entry.path.clone(),
+                    why: WhyNotServed::TheFenceWritesIt,
+                });
             }
         }
         return None;
@@ -392,17 +490,24 @@ impl AttributeFence {
 /// ```ts
 /// function fenceTheAttributes(source, context): AttributeFence; // throws the reason the rung cannot be proven
 /// ```
-pub fn fence_the_attributes(source: &SnapshotSource, context: &GitContext) -> Result<AttributeFence, String> {
+pub fn fence_the_attributes(
+    source: &SnapshotSource,
+    context: &GitContext,
+) -> Result<AttributeFence, String> {
     // The index is read once here and both the untracked-attributes refusal and the attributes walk judge those entries;
     // a second read of this repository's 24,648 entries costs about 2 ms on every add.
-    let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
+    let Some(entries) = stored_stats(
+        source.clean.index_bytes.as_slice(),
+        source.clean.hash_length,
+    ) else {
         return Err(String::from("the source's index changed shape"));
     };
     if let Some(reason) = first_untracked_attributes(entries.as_slice(), source.root.as_path()) {
         return Err(reason);
     }
     let rules: ConversionRules = conversion_rules_from_config(source.config.entries());
-    let attributes: HashMap<Vec<u8>, PathAttributes> = attributes_of(context, source.root.as_path(), entries.as_slice())?;
+    let attributes: HashMap<Vec<u8>, PathAttributes> =
+        attributes_of(context, source.root.as_path(), entries.as_slice())?;
     // What:
     //  The decline rule: how many paths a rule of their own would convert is known from the attributes alone, before any
     //  blob is read and before anything is cloned.
@@ -413,7 +518,8 @@ pub fn fence_the_attributes(source: &SnapshotSource, context: &GitContext) -> Re
     //  pays only these reads and Git's own single checkout (measured at 1.67 to 1.75 of `main` when the rule was decided
     //  after the copies, and at 1.06 to 1.09 when it was decided before them).
     #[cfg(feature = "measurement-routes")]
-    let measure_decline: bool = std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default() != "nodecline";
+    let measure_decline: bool =
+        std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default() != "nodecline";
     #[cfg(not(feature = "measurement-routes"))]
     let measure_decline: bool = true;
     let converting: usize = converting_paths(entries.as_slice(), &attributes, &rules);
@@ -425,8 +531,16 @@ pub fn fence_the_attributes(source: &SnapshotSource, context: &GitContext) -> Re
     }
     // A link is never converted by its path's rules, so the two questions are counted separately: a changed link is a path
     //  the copies cannot make Git's own entry, and one converting path is what the fence hands Git.
-    let a_changed_path_could_matter: bool = converting > 0 || entries.iter().any(|entry| return entry.mode & MODE_TYPE_MASK == MODE_SYMLINK);
-    return Ok(AttributeFence { entries, attributes, rules, a_changed_path_could_matter });
+    let a_changed_path_could_matter: bool = converting > 0
+        || entries
+            .iter()
+            .any(|entry| return entry.mode & MODE_TYPE_MASK == MODE_SYMLINK);
+    return Ok(AttributeFence {
+        entries,
+        attributes,
+        rules,
+        a_changed_path_could_matter,
+    });
 }
 
 /// What:
@@ -444,12 +558,20 @@ pub fn fence_the_attributes(source: &SnapshotSource, context: &GitContext) -> Re
 /// ```ts
 /// function decideThePaths(source, context, read): Fence; // throws the reason the rung cannot be proven
 /// ```
-pub fn decide_the_paths(source: &SnapshotSource, context: &GitContext, read: AttributeFence) -> Result<Fence, String> {
+pub fn decide_the_paths(
+    source: &SnapshotSource,
+    context: &GitContext,
+    read: AttributeFence,
+) -> Result<Fence, String> {
     // One `git ls-tree` for every path whose checkout can write the blob unchanged, which is every path this fence may
     // carry: the blob's size is the proof the file holds it, and a file can hold another rule's form even when today it
     // has no rule at all (an unset `core.autocrlf`, a tracked attributes file a later commit deleted).
     let sizes: Option<BlobSizes> = match read.needs_sizes() {
-        true => Some(blob_sizes(context, source.root.as_path(), source.clean.head_commit.as_str())?),
+        true => Some(blob_sizes(
+            context,
+            source.root.as_path(),
+            source.clean.head_commit.as_str(),
+        )?),
         false => None,
     };
     return decide_the_paths_with_sizes(read, sizes);
@@ -470,27 +592,53 @@ pub fn decide_the_paths(source: &SnapshotSource, context: &GitContext, read: Att
 /// ```ts
 /// function decideThePathsWithSizes(read, sizes): Fence;
 /// ```
-pub fn decide_the_paths_with_sizes(read: AttributeFence, sizes: Option<BlobSizes>) -> Result<Fence, String> {
-    let AttributeFence { entries, attributes, rules, a_changed_path_could_matter: _matters }: AttributeFence = read;
+pub fn decide_the_paths_with_sizes(
+    read: AttributeFence,
+    sizes: Option<BlobSizes>,
+) -> Result<Fence, String> {
+    let AttributeFence {
+        entries,
+        attributes,
+        rules,
+        a_changed_path_could_matter: _matters,
+    }: AttributeFence = read;
     let mut git_writes: Vec<Vec<u8>> = Vec::new();
     let mut carried: usize = 0;
     for entry in &entries {
-        let held: PathAttributes = attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
+        let held: PathAttributes = attributes
+            .get(entry.path.as_slice())
+            .cloned()
+            .unwrap_or_default();
         let is_link: bool = entry.mode & MODE_TYPE_MASK == MODE_SYMLINK;
         let file_size: u64 = u64::from(entry.stored.size);
-        let listed: Option<u64> = sizes.as_ref().and_then(|known| return known.get(entry.path.as_slice()).copied());
+        let listed: Option<u64> = sizes
+            .as_ref()
+            .and_then(|known| return known.get(entry.path.as_slice()).copied());
         match decide(&held, &rules, is_link, file_size, listed) {
             FenceVerdict::Carry => carried += 1,
             FenceVerdict::WriteThroughGit(reason) => {
                 if git_writes.len() < WRITTEN_PATHS_REPORTED {
-                    debug(TAG, fence_sentence(entry.path.as_slice(), reason.as_str()).as_str());
+                    debug(
+                        TAG,
+                        fence_sentence(entry.path.as_slice(), reason.as_str()).as_str(),
+                    );
                 }
                 git_writes.push(entry.path.clone());
             }
         }
     }
-    debug(TAG, format!("the fence carries {carried} paths and leaves {} to Git", git_writes.len()).as_str());
-    return Ok(Fence { git_writes, carried });
+    debug(
+        TAG,
+        format!(
+            "the fence carries {carried} paths and leaves {} to Git",
+            git_writes.len()
+        )
+        .as_str(),
+    );
+    return Ok(Fence {
+        git_writes,
+        carried,
+    });
 }
 
 /// What:
@@ -506,14 +654,20 @@ pub fn decide_the_paths_with_sizes(read: AttributeFence, sizes: Option<BlobSizes
 /// ```ts
 /// const firstWrittenChange = (fence, changed) => fence.gitWrites.find((path) => changed.has(path));
 /// ```
-pub fn first_written_change(fence: &Fence, changed: &[Vec<u8>]) -> Option<ChangeNotServed> {
+pub fn first_written_change(
+    fence: &Fence,
+    changed: &[Vec<u8>],
+) -> Option<ChangeNotServed> {
     if changed.is_empty() {
         return None;
     }
     let changed_paths: HashSet<&[u8]> = changed.iter().map(|path| return path.as_slice()).collect();
     for path in &fence.git_writes {
         if changed_paths.contains(path.as_slice()) {
-            return Some(ChangeNotServed { path: path.clone(), why: WhyNotServed::TheFenceWritesIt });
+            return Some(ChangeNotServed {
+                path: path.clone(),
+                why: WhyNotServed::TheFenceWritesIt,
+            });
         }
     }
     return None;
@@ -533,7 +687,10 @@ pub fn first_written_change(fence: &Fence, changed: &[Vec<u8>]) -> Option<Change
 /// ```ts
 /// const fence = decideThePaths(source, context, fenceTheAttributes(source, context));
 /// ```
-pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<Fence, String> {
+pub fn fence_the_clone(
+    source: &SnapshotSource,
+    context: &GitContext,
+) -> Result<Fence, String> {
     return decide_the_paths(source, context, fence_the_attributes(source, context)?);
 }
 
@@ -548,7 +705,10 @@ pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<
 /// ```ts
 /// const sentence = (path, reason) => `${path}: ${reason}`;
 /// ```
-fn fence_sentence(path: &[u8], reason: &str) -> String {
+fn fence_sentence(
+    path: &[u8],
+    reason: &str,
+) -> String {
     return format!("{}: {reason}", String::from_utf8_lossy(path));
 }
 
@@ -565,13 +725,26 @@ fn fence_sentence(path: &[u8], reason: &str) -> String {
 /// ```ts
 /// function pathsTheIndexHolds(index, hashLength): Set<string>; // throws the reason
 /// ```
-fn paths_the_index_holds(index: &Path, hash_length: usize) -> Result<HashSet<Vec<u8>>, String> {
-    let bytes: Vec<u8> = std::fs::read(index).map_err(|error| return format!("the new worktree's index cannot be read ({error})"))?;
-    let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
-    let Some(entries) = parse_index(bytes.as_slice(), format) else {
-        return Err(String::from("the new worktree's index has a layout the reader does not know"));
+fn paths_the_index_holds(
+    index: &Path,
+    hash_length: usize,
+) -> Result<HashSet<Vec<u8>>, String> {
+    let bytes: Vec<u8> = std::fs::read(index)
+        .map_err(|error| return format!("the new worktree's index cannot be read ({error})"))?;
+    let format: ObjectFormat = if hash_length == 32 {
+        ObjectFormat::Sha256
+    } else {
+        ObjectFormat::Sha1
     };
-    return Ok(entries.iter().map(|entry| return entry.path.clone()).collect());
+    let Some(entries) = parse_index(bytes.as_slice(), format) else {
+        return Err(String::from(
+            "the new worktree's index has a layout the reader does not know",
+        ));
+    };
+    return Ok(entries
+        .iter()
+        .map(|entry| return entry.path.clone())
+        .collect());
 }
 
 /// What:
@@ -602,12 +775,25 @@ fn paths_the_index_holds(index: &Path, hash_length: usize) -> Result<HashSet<Vec
 /// ```ts
 /// function zeroTheEntries(admin, destination, context, paths, hashLength); // throws the reason
 /// ```
-fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<Vec<Vec<u8>>, String> {
+fn zero_the_entries(
+    admin: &Path,
+    destination: &Path,
+    context: &GitContext,
+    paths: &[Vec<u8>],
+    hash_length: usize,
+) -> Result<Vec<Vec<u8>>, String> {
     let index_path: PathBuf = admin.join("index");
-    let bytes: Vec<u8> = std::fs::read(index_path.as_path()).map_err(|error| return format!("the new worktree's index cannot be read ({error})"))?;
-    let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+    let bytes: Vec<u8> = std::fs::read(index_path.as_path())
+        .map_err(|error| return format!("the new worktree's index cannot be read ({error})"))?;
+    let format: ObjectFormat = if hash_length == 32 {
+        ObjectFormat::Sha256
+    } else {
+        ObjectFormat::Sha1
+    };
     let Some(entries) = parse_index(bytes.as_slice(), format) else {
-        return Err(String::from("the new worktree's index has a layout the reader does not know"));
+        return Err(String::from(
+            "the new worktree's index has a layout the reader does not know",
+        ));
     };
     let wanted: HashSet<&[u8]> = paths.iter().map(|path| return path.as_slice()).collect();
     let mut input: Vec<u8> = Vec::new();
@@ -625,8 +811,18 @@ fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, path
     if input.is_empty() {
         return Ok(zeroed);
     }
-    let output: GitOutput = run_in(context, destination, words(&["update-index", "-z", "--index-info"]).as_slice(), Some(input), checkout_environment(admin, destination))?;
-    return if output.code == Some(0) { Ok(zeroed) } else { Err(run_reason("`git update-index --index-info`", &output)) };
+    let output: GitOutput = run_in(
+        context,
+        destination,
+        words(&["update-index", "-z", "--index-info"]).as_slice(),
+        Some(input),
+        checkout_environment(admin, destination),
+    )?;
+    return if output.code == Some(0) {
+        Ok(zeroed)
+    } else {
+        Err(run_reason("`git update-index --index-info`", &output))
+    };
 }
 
 /// What:
@@ -651,10 +847,22 @@ fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, path
 /// ```ts
 /// function writeThroughGit(admin, destination, context, paths, hashLength); // throws the reason
 /// ```
-pub fn write_through_git(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
+pub fn write_through_git(
+    admin: &Path,
+    destination: &Path,
+    context: &GitContext,
+    paths: &[Vec<u8>],
+    hash_length: usize,
+) -> Result<(), String> {
     let zeroed: Vec<Vec<u8>> = zero_the_entries(admin, destination, context, paths, hash_length)?;
     let index: PathBuf = admin.join("index");
-    return checkout_paths(admin, destination, context, zeroed.as_slice(), index.as_path());
+    return checkout_paths(
+        admin,
+        destination,
+        context,
+        zeroed.as_slice(),
+        index.as_path(),
+    );
 }
 
 /// What:
@@ -673,7 +881,13 @@ pub fn write_through_git(admin: &Path, destination: &Path, context: &GitContext,
 /// ```ts
 /// function checkoutPaths(admin, destination, context, paths, index); // throws the reason
 /// ```
-fn checkout_paths(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], index: &Path) -> Result<(), String> {
+fn checkout_paths(
+    admin: &Path,
+    destination: &Path,
+    context: &GitContext,
+    paths: &[Vec<u8>],
+    index: &Path,
+) -> Result<(), String> {
     if paths.is_empty() {
         return Ok(());
     }
@@ -682,8 +896,18 @@ fn checkout_paths(admin: &Path, destination: &Path, context: &GitContext, paths:
         input.extend_from_slice(path.as_slice());
         input.push(0);
     }
-    let output: GitOutput = run_in(context, destination, words(&["checkout-index", "--force", "-u", "-z", "--stdin"]).as_slice(), Some(input), checkout_environment_with_index((admin, destination), Some(index)))?;
-    return if output.code == Some(0) { Ok(()) } else { Err(run_reason("`git checkout-index`", &output)) };
+    let output: GitOutput = run_in(
+        context,
+        destination,
+        words(&["checkout-index", "--force", "-u", "-z", "--stdin"]).as_slice(),
+        Some(input),
+        checkout_environment_with_index((admin, destination), Some(index)),
+    )?;
+    return if output.code == Some(0) {
+        Ok(())
+    } else {
+        Err(run_reason("`git checkout-index`", &output))
+    };
 }
 
 /// What:
@@ -702,9 +926,20 @@ fn checkout_paths(admin: &Path, destination: &Path, context: &GitContext, paths:
 /// ```ts
 /// function checkoutIndexThroughGit(admin, destination, context, paths, hashLength); // throws the reason
 /// ```
-pub fn checkout_index_through_git(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
+pub fn checkout_index_through_git(
+    admin: &Path,
+    destination: &Path,
+    context: &GitContext,
+    paths: &[Vec<u8>],
+    hash_length: usize,
+) -> Result<(), String> {
     let index: PathBuf = admin.join("index");
-    return checkout_index_through_the_index_at((admin, destination, context), index.as_path(), paths, hash_length);
+    return checkout_index_through_the_index_at(
+        (admin, destination, context),
+        index.as_path(),
+        paths,
+        hash_length,
+    );
 }
 
 /// What:
@@ -720,9 +955,18 @@ pub fn checkout_index_through_git(admin: &Path, destination: &Path, context: &Gi
 /// ```ts
 /// function checkoutIndexThroughTheIndexAt({ admin, destination, context }, pendingPath, paths, hashLength); // throws the reason
 /// ```
-pub fn checkout_index_through_the_index_at((admin, destination, context): (&Path, &Path, &GitContext), index: &Path, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
+pub fn checkout_index_through_the_index_at(
+    (admin, destination, context): (&Path, &Path, &GitContext),
+    index: &Path,
+    paths: &[Vec<u8>],
+    hash_length: usize,
+) -> Result<(), String> {
     let held: HashSet<Vec<u8>> = paths_the_index_holds(index, hash_length)?;
-    let present: Vec<Vec<u8>> = paths.iter().filter(|path| return held.contains(path.as_slice())).cloned().collect();
+    let present: Vec<Vec<u8>> = paths
+        .iter()
+        .filter(|path| return held.contains(path.as_slice()))
+        .cloned()
+        .collect();
     return checkout_paths(admin, destination, context, present.as_slice(), index);
 }
 

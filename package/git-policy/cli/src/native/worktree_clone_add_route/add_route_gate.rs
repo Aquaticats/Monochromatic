@@ -24,12 +24,21 @@
 //! const facts = theRoutesAdd(identity, destination, mounts); // null: the ordinary add
 //! ```
 
-use crate::fs_kind::{FilesystemKind, filesystem_kind};
+use crate::fs_kind::{
+    FilesystemKind,
+    filesystem_kind,
+};
 use crate::worktree_clone_binding_record::slot_of;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
-use crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::{the_checkout_dataset_at, the_designs_container_beside};
-use std::path::{Path, PathBuf};
+use crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::{
+    the_checkout_dataset_at,
+    the_designs_container_beside,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder, below the checkout, that holds every worktree the route makes.
 pub const WORKTREES_FOLDER: &str = "worktrees";
@@ -94,7 +103,10 @@ pub struct RouteFacts {
 impl RouteFacts {
     /// The path of the `.claude/worktrees` folder the destination lies in.
     pub fn worktrees_parent(&self) -> PathBuf {
-        return self.source_root.join(WRAPPER_FOLDER_BELOW_THE_CHECKOUT).join(WORKTREES_FOLDER);
+        return self
+            .source_root
+            .join(WRAPPER_FOLDER_BELOW_THE_CHECKOUT)
+            .join(WORKTREES_FOLDER);
     }
 
     /// The dataset name of the clone this add will make for this slot.
@@ -129,8 +141,13 @@ impl RouteFacts {
 /// ```ts
 /// const mine = destination.parent === join(sourceRoot, '.claude', 'worktrees');
 /// ```
-pub fn destination_is_the_routes_slot(source_root: &Path, destination: &Path) -> bool {
-    let parent: PathBuf = source_root.join(WRAPPER_FOLDER_BELOW_THE_CHECKOUT).join(WORKTREES_FOLDER);
+pub fn destination_is_the_routes_slot(
+    source_root: &Path,
+    destination: &Path,
+) -> bool {
+    let parent: PathBuf = source_root
+        .join(WRAPPER_FOLDER_BELOW_THE_CHECKOUT)
+        .join(WORKTREES_FOLDER);
     return destination.parent() == Some(parent.as_path()) && destination.file_name().is_some();
 }
 
@@ -145,11 +162,23 @@ pub fn destination_is_the_routes_slot(source_root: &Path, destination: &Path) ->
 /// # Errors
 /// The checkout is the design's dataset but the destination breaks the route's
 /// shape, or its name is no slot.
-pub fn decide_the_routes_add(identity: &WorktreeIdentity, destination: &Path, checkout: &CheckoutMount) -> Result<Option<RouteFacts>, String> {
-    let WorktreeIdentity::MainWorktree { common_dir, git_dir, worktree_root } = identity else {
+pub fn decide_the_routes_add(
+    identity: &WorktreeIdentity,
+    destination: &Path,
+    checkout: &CheckoutMount,
+) -> Result<Option<RouteFacts>, String> {
+    let WorktreeIdentity::MainWorktree {
+        common_dir,
+        git_dir,
+        worktree_root,
+    } = identity
+    else {
         return Ok(None);
     };
-    let CheckoutMount::TheDesigns { dataset } = checkout else {
+    let CheckoutMount::TheDesigns {
+        dataset,
+    } = checkout
+    else {
         return Ok(None);
     };
     if !destination_is_the_routes_slot(worktree_root.as_path(), destination) {
@@ -157,13 +186,19 @@ pub fn decide_the_routes_add(identity: &WorktreeIdentity, destination: &Path, ch
     }
     let container_dataset: String =
         the_designs_container_beside(dataset.as_str()).map_err(|refusal| return format!("the checkout dataset `{dataset}` names no sibling clone container ({refusal:?}), so the ZFS clone route cannot name where the clone goes"))?;
-    let pool: String = dataset.split_once('/').map_or_else(|| return dataset.clone(), |(pool, _rest)| return String::from(pool));
+    let pool: String = dataset.split_once('/').map_or_else(
+        || return dataset.clone(),
+        |(pool, _rest)| return String::from(pool),
+    );
     let slot: String = match slot_of(destination) {
         Ok(found) => found,
         Err(reason) => {
             return Err(format!(
                 "the ZFS clone route cannot key a record for this add: {reason}. Ways forward: name the worktree with a plain folder name below {}, or remove the record that blocks the name.",
-                worktree_root.join(WRAPPER_FOLDER_BELOW_THE_CHECKOUT).join(WORKTREES_FOLDER).display()
+                worktree_root
+                    .join(WRAPPER_FOLDER_BELOW_THE_CHECKOUT)
+                    .join(WORKTREES_FOLDER)
+                    .display()
             ));
         }
     };
@@ -189,8 +224,16 @@ pub fn decide_the_routes_add(identity: &WorktreeIdentity, destination: &Path, ch
 ///
 /// # Errors
 /// The rule refused the add.
-pub fn the_routes_add(identity: &WorktreeIdentity, destination: &Path, mounts: &dyn MountedDatasets) -> Result<Option<RouteFacts>, String> {
-    let WorktreeIdentity::MainWorktree { worktree_root, .. } = identity else {
+pub fn the_routes_add(
+    identity: &WorktreeIdentity,
+    destination: &Path,
+    mounts: &dyn MountedDatasets,
+) -> Result<Option<RouteFacts>, String> {
+    let WorktreeIdentity::MainWorktree {
+        worktree_root,
+        ..
+    } = identity
+    else {
         return Ok(None);
     };
     // The destination's shape decides first, so an add anywhere else pays neither the `statfs` below nor the mount-table read.
@@ -200,7 +243,9 @@ pub fn the_routes_add(identity: &WorktreeIdentity, destination: &Path, mounts: &
     // One `statfs` keeps every add on another filesystem off the mount-table read.
     let checkout: CheckoutMount = match filesystem_kind(worktree_root.as_path()) {
         Ok(FilesystemKind::Zfs) => match the_checkout_dataset_at(worktree_root.as_path(), mounts) {
-            Ok(dataset) => CheckoutMount::TheDesigns { dataset },
+            Ok(dataset) => CheckoutMount::TheDesigns {
+                dataset,
+            },
             // A ZFS mount of another leaf name is this machine before the
             // migration, and it keeps Git's own checkout.
             Err(_another_dataset) => CheckoutMount::OtherDataset,

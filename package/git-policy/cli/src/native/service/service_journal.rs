@@ -21,13 +21,27 @@
 //! ```
 
 use crate::claim_time::ClaimTime;
-pub use crate::service_journal_intent_text_and_parse::{Intent, intent_text, parse_intent};
+pub use crate::service_journal_intent_text_and_parse::{
+    Intent,
+    intent_text,
+    parse_intent,
+};
 use crate::service_journal_record_age::a_client_may_still_read_finished_batch;
-use crate::service_land_start::{IndexWitness, decode, encode};
+use crate::service_land_start::{
+    IndexWitness,
+    decode,
+    encode,
+};
 use std::collections::HashMap;
-use std::fs::{self, File};
+use std::fs::{
+    self,
+    File,
+};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Extension of an intent whose batch may be unfinished.
 pub const OPEN_EXTENSION: &str = "intent";
@@ -98,7 +112,11 @@ pub enum Recovery {
 /// ```ts
 /// recoveryFor(intent, current, newIsAncestorOfCurrent)
 /// ```
-pub fn recovery_for(intent: &Intent, current: &str, new_is_ancestor_of_current: bool) -> Recovery {
+pub fn recovery_for(
+    intent: &Intent,
+    current: &str,
+    new_is_ancestor_of_current: bool,
+) -> Recovery {
     if current == intent.new || (current != intent.old && new_is_ancestor_of_current) {
         return Recovery::Finish;
     }
@@ -106,7 +124,11 @@ pub fn recovery_for(intent: &Intent, current: &str, new_is_ancestor_of_current: 
 }
 
 /// The path of a batch's file with an extension.
-pub fn batch_path(dir: &Path, seq: u64, extension: &str) -> PathBuf {
+pub fn batch_path(
+    dir: &Path,
+    seq: u64,
+    extension: &str,
+) -> PathBuf {
     return dir.join(format!("{seq}.{extension}"));
 }
 
@@ -139,11 +161,16 @@ impl Drop for BatchClaim {
 /// a finished batch,
 /// or the record of a scratch
 ///  reference.
-fn number_has_record(dir: &Path, seq: u64) -> bool {
+fn number_has_record(
+    dir: &Path,
+    seq: u64,
+) -> bool {
     // A record of a scratch reference outlives its landing only when that reference was left where it is, because a commit only
     //  the reference holds could not be proven safe elsewhere. A number whose reference may still be such a holder is not taken
     //  again: the next import would move that reference and lose what it held.
-    return batch_path(dir, seq, OPEN_EXTENSION).exists() || batch_path(dir, seq, DONE_EXTENSION).exists() || batch_path(dir, seq, SCRATCH_EXTENSION).exists();
+    return batch_path(dir, seq, OPEN_EXTENSION).exists()
+        || batch_path(dir, seq, DONE_EXTENSION).exists()
+        || batch_path(dir, seq, SCRATCH_EXTENSION).exists();
 }
 
 /// What:
@@ -177,13 +204,19 @@ fn number_has_record(dir: &Path, seq: u64) -> bool {
 /// # Errors
 ///
 /// The error of a claim file that cannot be created for a reason other than the number being held.
-pub fn claim_batch(dir: &Path, first: u64) -> std::io::Result<BatchClaim> {
+pub fn claim_batch(
+    dir: &Path,
+    first: u64,
+) -> std::io::Result<BatchClaim> {
     let mut seq: u64 = first;
     loop {
         let path: PathBuf = batch_path(dir, seq, CLAIM_EXTENSION);
         match File::options().write(true).create_new(true).open(&path) {
             Ok(_created) => {
-                let claim: BatchClaim = BatchClaim { seq, path };
+                let claim: BatchClaim = BatchClaim {
+                    seq,
+                    path,
+                };
                 if !number_has_record(dir, seq) {
                     return Ok(claim);
                 }
@@ -195,7 +228,11 @@ pub fn claim_batch(dir: &Path, first: u64) -> std::io::Result<BatchClaim> {
         }
         seq = match seq.checked_add(1) {
             Some(next) => next,
-            None => return Err(std::io::Error::other("the journal holds every batch number")),
+            None => {
+                return Err(std::io::Error::other(
+                    "the journal holds every batch number",
+                ));
+            }
         };
     }
 }
@@ -220,10 +257,17 @@ pub fn claim_batch(dir: &Path, first: u64) -> std::io::Result<BatchClaim> {
 /// ```ts
 /// await writeIntent(dir, intent) // the intent's lines and its clock reading, synced, renamed, and the directory synced
 /// ```
-pub fn write_intent(dir: &Path, intent: &Intent) -> std::io::Result<()> {
+pub fn write_intent(
+    dir: &Path,
+    intent: &Intent,
+) -> std::io::Result<()> {
     let temporary: PathBuf = batch_path(dir, intent.seq, TEMPORARY_EXTENSION);
     let mut file: File = File::create(&temporary)?;
-    let text: String = format!("{}{}", intent_text(intent), crate::service_journal_record_age::stamp_line(&crate::claim_time::ClaimTime::read()));
+    let text: String = format!(
+        "{}{}",
+        intent_text(intent),
+        crate::service_journal_record_age::stamp_line(&crate::claim_time::ClaimTime::read())
+    );
     file.write_all(text.as_bytes())?;
     crate::service_durable::flush_file(&file, "intent-file")?;
     fs::rename(&temporary, batch_path(dir, intent.seq, OPEN_EXTENSION))?;
@@ -249,7 +293,11 @@ pub const INDEXED_EXTENSION: &str = "indexed";
 /// ```ts
 /// await markIndexed(dir, seq, newCommit)
 /// ```
-pub fn mark_indexed(dir: &Path, seq: u64, new: &str) -> std::io::Result<()> {
+pub fn mark_indexed(
+    dir: &Path,
+    seq: u64,
+    new: &str,
+) -> std::io::Result<()> {
     let temporary: PathBuf = batch_path(dir, seq, TEMPORARY_EXTENSION);
     let mut file: File = File::create(&temporary)?;
     file.write_all(format!("{new}\n").as_bytes())?;
@@ -286,7 +334,11 @@ pub const CONCLUSION_COPY_EXTENSION: &str = "cleanup";
 /// ```ts
 /// await writeStart(dir, seq, witness)
 /// ```
-pub fn write_start(dir: &Path, seq: u64, witness: &IndexWitness) -> std::io::Result<()> {
+pub fn write_start(
+    dir: &Path,
+    seq: u64,
+    witness: &IndexWitness,
+) -> std::io::Result<()> {
     let temporary: PathBuf = batch_path(dir, seq, TEMPORARY_EXTENSION);
     let mut file: File = File::create(&temporary)?;
     file.write_all(format!("{}\n", encode(witness)).as_bytes())?;
@@ -313,7 +365,10 @@ pub enum Started {
 /// a missing file or damaged text is no record,
 /// and a file that cannot be read now is
 ///  unreadable.
-pub fn read_start(dir: &Path, seq: u64) -> Started {
+pub fn read_start(
+    dir: &Path,
+    seq: u64,
+) -> Started {
     return match fs::read_to_string(batch_path(dir, seq, START_EXTENSION)) {
         Ok(text) => decode(text.trim_end_matches('\n')).map_or(Started::Absent, Started::Recorded),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Started::Absent,
@@ -323,7 +378,10 @@ pub fn read_start(dir: &Path, seq: u64) -> Started {
 }
 
 /// Drops the start record of a batch that is finished or forgotten.
-pub fn remove_start(dir: &Path, seq: u64) {
+pub fn remove_start(
+    dir: &Path,
+    seq: u64,
+) {
     let _removed = fs::remove_file(batch_path(dir, seq, START_EXTENSION));
 }
 
@@ -355,7 +413,11 @@ pub enum Indexed {
 /// ```ts
 /// await indexedState(dir, seq, newCommit) // 'absent' | 'installed' | 'unreadable'
 /// ```
-pub fn indexed_state(dir: &Path, seq: u64, new: &str) -> Indexed {
+pub fn indexed_state(
+    dir: &Path,
+    seq: u64,
+    new: &str,
+) -> Indexed {
     return match fs::read_to_string(batch_path(dir, seq, INDEXED_EXTENSION)) {
         Ok(text) if text.trim_end() == new => Indexed::Installed,
         Ok(_) => Indexed::Unreadable,
@@ -376,8 +438,14 @@ pub fn indexed_state(dir: &Path, seq: u64, new: &str) -> Indexed {
 /// ```ts
 /// await markDone(dir, seq) // rename intent to done; fsync dir; unlink indexed
 /// ```
-pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
-    fs::rename(batch_path(dir, seq, OPEN_EXTENSION), batch_path(dir, seq, DONE_EXTENSION))?;
+pub fn mark_done(
+    dir: &Path,
+    seq: u64,
+) -> std::io::Result<()> {
+    fs::rename(
+        batch_path(dir, seq, OPEN_EXTENSION),
+        batch_path(dir, seq, DONE_EXTENSION),
+    )?;
     crate::service_durable::flush_directory(dir, "journal-dir")?;
     crate::service_fault::note("remove-indexed");
     let _record_removed = fs::remove_file(batch_path(dir, seq, INDEXED_EXTENSION));
@@ -478,7 +546,10 @@ fn newest_first_key(finished: &(u64, PathBuf)) -> std::cmp::Reverse<u64> {
 /// ```ts
 /// listIntents(dir, 'intent')
 /// ```
-pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>)> {
+pub fn list_intents(
+    dir: &Path,
+    extension: &str,
+) -> Vec<(PathBuf, Option<Intent>)> {
     return list_intents_removing_abandoned(dir, extension, true);
 }
 
@@ -496,13 +567,20 @@ pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>
 /// ```ts
 /// listIntentsReadOnly(dir, 'intent')
 /// ```
-pub fn list_intents_read_only(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>)> {
+pub fn list_intents_read_only(
+    dir: &Path,
+    extension: &str,
+) -> Vec<(PathBuf, Option<Intent>)> {
     return list_intents_removing_abandoned(dir, extension, false);
 }
 
 /// `list_intents`,
 /// with the removal of abandoned temporary and claim files chosen by the caller.
-fn list_intents_removing_abandoned(dir: &Path, extension: &str, remove_abandoned: bool) -> Vec<(PathBuf, Option<Intent>)> {
+fn list_intents_removing_abandoned(
+    dir: &Path,
+    extension: &str,
+    remove_abandoned: bool,
+) -> Vec<(PathBuf, Option<Intent>)> {
     let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -593,7 +671,11 @@ pub const DONE_RETAINED: usize = 1024;
 /// ```ts
 /// await pruneDone(dir, DONE_RETAINED, now) // 3: removed the three oldest no client can still read
 /// ```
-pub fn prune_done(dir: &Path, retained: usize, now: &ClaimTime) -> usize {
+pub fn prune_done(
+    dir: &Path,
+    retained: usize,
+    now: &ClaimTime,
+) -> usize {
     let Ok(entries) = fs::read_dir(dir) else {
         return 0;
     };
@@ -632,11 +714,17 @@ pub fn prune_done(dir: &Path, retained: usize, now: &ClaimTime) -> usize {
 /// ```ts
 /// newestFinishedBatchesReadOnly(dir, 16)
 /// ```
-pub fn newest_finished_batches_read_only(dir: &Path, newest: usize) -> Vec<(PathBuf, Option<Intent>)> {
+pub fn newest_finished_batches_read_only(
+    dir: &Path,
+    newest: usize,
+) -> Vec<(PathBuf, Option<Intent>)> {
     let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
     };
-    let mut finished: Vec<(u64, PathBuf)> = entries.flatten().filter_map(finished_batch_of_entry).collect();
+    let mut finished: Vec<(u64, PathBuf)> = entries
+        .flatten()
+        .filter_map(finished_batch_of_entry)
+        .collect();
     finished.sort_by_key(newest_first_key);
     let mut found: Vec<(PathBuf, Option<Intent>)> = Vec::new();
     for (_seq, path) in finished.into_iter().take(newest) {

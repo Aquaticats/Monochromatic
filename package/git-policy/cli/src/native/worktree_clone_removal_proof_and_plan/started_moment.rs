@@ -35,7 +35,8 @@ const DATE_TIME_MARKER: usize = 1;
 const OFFSET_BYTES: usize = 6;
 
 /// The bytes of one whole stamp with an offset.
-pub const STAMP_WITH_OFFSET_BYTES: usize = DATE_BYTES + DATE_TIME_MARKER + TIME_BYTES + OFFSET_BYTES;
+pub const STAMP_WITH_OFFSET_BYTES: usize =
+    DATE_BYTES + DATE_TIME_MARKER + TIME_BYTES + OFFSET_BYTES;
 
 /// The format this field writes.
 /// `%:z` is the offset with its colon,
@@ -100,7 +101,10 @@ pub fn is_seconds_with_offset(text: &str) -> bool {
 }
 
 /// The two digits of a stamp at one place.
-fn two_digits(bytes: &[u8], at: usize) -> u32 {
+fn two_digits(
+    bytes: &[u8],
+    at: usize,
+) -> u32 {
     return u32::from(bytes[at] - b'0') * 10 + u32::from(bytes[at + 1] - b'0');
 }
 

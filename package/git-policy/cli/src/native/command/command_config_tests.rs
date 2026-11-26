@@ -13,21 +13,65 @@
 //! // expect(parseConfigRegion(['user.name', '--global']).global).toBe(false);
 //! ```
 
+use super::ConfigFile::{
+    Global,
+    Named,
+    Shared,
+    System,
+    Worktree,
+};
 /// The parser,
 ///  its tables,
 ///  the oracles and the real-Git fixture helpers.
-use super::ConfigForm::{Edit, Get, Legacy, List, RemoveSection, RenameSection, Set, Unset};
-use super::ConfigFile::{Global, Named, Shared, System, Worktree};
-use super::ConfigWrite::{Edit as EditAction, Key, Nothing};
-use super::ConfigWrite::{RenameSection as RenameAction, RemoveSection as RemoveAction};
-use super::{ConfigFile, ConfigForm, ConfigRegion, config_table, parse_config_region};
-use crate::command_options::OptionErrorKind::{
-    AmbiguousOption, HelpRequested, MissingValue, UnexpectedValue, UnknownOption,
+use super::ConfigForm::{
+    Edit,
+    Get,
+    Legacy,
+    List,
+    RemoveSection,
+    RenameSection,
+    Set,
+    Unset,
 };
-use crate::command_options::{OptionError, WrapperOccurrence};
-use crate::command_test_completion::{git_completion, render_completion};
+use super::ConfigWrite::{
+    Edit as EditAction,
+    Key,
+    Nothing,
+};
+use super::ConfigWrite::{
+    RemoveSection as RemoveAction,
+    RenameSection as RenameAction,
+};
+use super::{
+    ConfigFile,
+    ConfigForm,
+    ConfigRegion,
+    config_table,
+    parse_config_region,
+};
+use crate::command_options::OptionErrorKind::{
+    AmbiguousOption,
+    HelpRequested,
+    MissingValue,
+    UnexpectedValue,
+    UnknownOption,
+};
+use crate::command_options::{
+    OptionError,
+    WrapperOccurrence,
+};
+use crate::command_test_completion::{
+    git_completion,
+    render_completion,
+};
 use crate::command_test_support::{
-    assert_table_invariants, fixture, git, git_status, os_arguments, output_text, remove,
+    assert_table_invariants,
+    fixture,
+    git,
+    git_status,
+    os_arguments,
+    output_text,
+    remove,
     repository,
 };
 use std::path::PathBuf;
@@ -231,7 +275,10 @@ fn reports_wrapper_flags_by_region_position() {
     );
     assert_eq!(
         listed.wrapper,
-        vec![WrapperOccurrence { flag: 1, token: 0 }]
+        vec![WrapperOccurrence {
+            flag: 1,
+            token: 0
+        }]
     );
     let separated: ConfigRegion = parse_config_region(
         os_arguments(&["--cli-git-keep-going", "--", "--global", "a"]).as_slice(),
@@ -385,7 +432,11 @@ fn reports_the_file_and_the_write_of_a_region() {
         ("--file other remote.origin.url one", Named, Key),
         ("--blob HEAD:.gitmodules remote.origin.url one", Named, Key),
         // Two scope options at once is a region Git refuses.
-        ("--global --local remote.origin.url one", ConfigFile::Contradictory, Key),
+        (
+            "--global --local remote.origin.url one",
+            ConfigFile::Contradictory,
+            Key,
+        ),
         // Reads and the editor write no key of their own.
         ("remote.origin.url", Shared, Nothing),
         ("--get remote.origin.url", Shared, Nothing),
@@ -425,7 +476,10 @@ fn reports_the_file_a_region_names() {
         ("-f other remote.origin.url one", Some("other")),
         ("set --file other remote.origin.url one", Some("other")),
         // The last use wins, as Git's own variables do.
-        ("--file first --file second remote.origin.url one", Some("second")),
+        (
+            "--file first --file second remote.origin.url one",
+            Some("second"),
+        ),
         ("--file other --edit", Some("other")),
         // A read names the file it reads, and this reader reports it all the same.
         ("--file other remote.origin.url", Some("other")),
@@ -437,7 +491,11 @@ fn reports_the_file_a_region_names() {
         ("remote.origin.url one", None),
         ("--global remote.origin.url one", None),
     ] {
-        assert_eq!(region(line).named_file, expected.map(PathBuf::from), "{line}");
+        assert_eq!(
+            region(line).named_file,
+            expected.map(PathBuf::from),
+            "{line}"
+        );
     }
     // Real Git writes the file this reader names, leaves the shared one as it was,
     //  and refuses the subcommand form with an argument.
@@ -451,14 +509,20 @@ fn reports_the_file_a_region_names() {
         &["config", "--file", "other", "remote.origin.url", "one"],
     );
     let written: String = std::fs::read_to_string(named.as_path()).expect("named configuration");
-    assert!(written.contains("one"), "the named file was not written: {written}");
+    assert!(
+        written.contains("one"),
+        "the named file was not written: {written}"
+    );
     assert_eq!(
         std::fs::read(shared.as_path()).expect("shared configuration"),
         before,
         "a write to a named file changed the shared configuration"
     );
     let refused: Output = git_status(root.as_path(), &["config", "edit", "user.name"]);
-    assert!(!refused.status.success(), "Git accepted an argument after the edit subcommand");
+    assert!(
+        !refused.status.success(),
+        "Git accepted an argument after the edit subcommand"
+    );
     assert!(
         String::from_utf8_lossy(&refused.stderr).contains("wrong number of arguments"),
         "Git refused the edit subcommand for another reason: {}",
@@ -493,17 +557,51 @@ fn the_scope_facts_match_where_git_writes() {
     let directory: PathBuf = fixture("config-write-scopes");
     let root: PathBuf = repository(directory.as_path(), "repository");
     // The default and `--local` write the repository's own file.
-    git(root.as_path(), &["config", "remote.origin.url", "local-one"]);
-    git(root.as_path(), &["config", "--local", "remote.origin.pushurl", "local-two"]);
-    let shared: Output = git(root.as_path(), &["config", "--local", "--get-regexp", "^remote\\.origin\\."]);
-    assert_eq!(output_text(&shared), "remote.origin.url local-one\nremote.origin.pushurl local-two");
-    assert_eq!((region("remote.origin.url local-one").file, region("--local remote.origin.url local-one").file), (Shared, Shared));
+    git(
+        root.as_path(),
+        &["config", "remote.origin.url", "local-one"],
+    );
+    git(
+        root.as_path(),
+        &["config", "--local", "remote.origin.pushurl", "local-two"],
+    );
+    let shared: Output = git(
+        root.as_path(),
+        &["config", "--local", "--get-regexp", "^remote\\.origin\\."],
+    );
+    assert_eq!(
+        output_text(&shared),
+        "remote.origin.url local-one\nremote.origin.pushurl local-two"
+    );
+    assert_eq!(
+        (
+            region("remote.origin.url local-one").file,
+            region("--local remote.origin.url local-one").file
+        ),
+        (Shared, Shared)
+    );
     // A named file is not the repository's file.
     let named: PathBuf = root.join("named.config");
-    git(root.as_path(), &["config", "--file", named.to_str().expect("text path"), "remote.origin.url", "named"]);
-    assert!(std::fs::read_to_string(named.as_path()).expect("named configuration").contains("named"));
+    git(
+        root.as_path(),
+        &[
+            "config",
+            "--file",
+            named.to_str().expect("text path"),
+            "remote.origin.url",
+            "named",
+        ],
+    );
+    assert!(
+        std::fs::read_to_string(named.as_path())
+            .expect("named configuration")
+            .contains("named")
+    );
     assert_eq!(
-        output_text(&git(root.as_path(), &["config", "--local", "--get", "remote.origin.url"])),
+        output_text(&git(
+            root.as_path(),
+            &["config", "--local", "--get", "remote.origin.url"]
+        )),
         "local-one"
     );
     assert_eq!(region("--file other remote.origin.url named").file, Named);
@@ -511,18 +609,42 @@ fn the_scope_facts_match_where_git_writes() {
     let linked: PathBuf = root.join("linked");
     git(
         root.as_path(),
-        &["worktree", "add", "--detach", linked.to_str().expect("text path"), "HEAD"],
+        &[
+            "worktree",
+            "add",
+            "--detach",
+            linked.to_str().expect("text path"),
+            "HEAD",
+        ],
     );
-    let without: Output = git_status(linked.as_path(), &["config", "--worktree", "remote.origin.url", "own"]);
-    assert!(!without.status.success(), "Git accepted --worktree without the extension");
-    git(root.as_path(), &["config", "extensions.worktreeConfig", "true"]);
-    git(linked.as_path(), &["config", "--worktree", "remote.origin.url", "own"]);
+    let without: Output = git_status(
+        linked.as_path(),
+        &["config", "--worktree", "remote.origin.url", "own"],
+    );
+    assert!(
+        !without.status.success(),
+        "Git accepted --worktree without the extension"
+    );
+    git(
+        root.as_path(),
+        &["config", "extensions.worktreeConfig", "true"],
+    );
+    git(
+        linked.as_path(),
+        &["config", "--worktree", "remote.origin.url", "own"],
+    );
     assert_eq!(
-        output_text(&git(root.as_path(), &["config", "--local", "--get", "remote.origin.url"])),
+        output_text(&git(
+            root.as_path(),
+            &["config", "--local", "--get", "remote.origin.url"]
+        )),
         "local-one"
     );
     assert_eq!(
-        output_text(&git(linked.as_path(), &["config", "--worktree", "--get", "remote.origin.url"])),
+        output_text(&git(
+            linked.as_path(),
+            &["config", "--worktree", "--get", "remote.origin.url"]
+        )),
         "own"
     );
     assert_eq!(region("--worktree remote.origin.url own").file, Worktree);

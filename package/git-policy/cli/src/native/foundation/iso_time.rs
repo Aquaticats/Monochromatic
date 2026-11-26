@@ -37,11 +37,12 @@ const STAMP_FORMAT: &str = "%Y-%m-%dT%H:%M:%S.%3fZ";
 /// new Date(milliseconds).toISOString()
 /// ```
 pub fn format_iso_milliseconds(milliseconds: i64) -> String {
-    let instant: jiff::Timestamp = jiff::Timestamp::from_millisecond(milliseconds).unwrap_or(if milliseconds < 0 {
-        jiff::Timestamp::MIN
-    } else {
-        jiff::Timestamp::MAX
-    });
+    let instant: jiff::Timestamp =
+        jiff::Timestamp::from_millisecond(milliseconds).unwrap_or(if milliseconds < 0 {
+            jiff::Timestamp::MIN
+        } else {
+            jiff::Timestamp::MAX
+        });
     return instant.strftime(STAMP_FORMAT).to_string();
 }
 
@@ -76,7 +77,9 @@ pub fn instant_of_iso(text: &str) -> Option<std::time::SystemTime> {
     let stamp: jiff::Timestamp = text.parse().ok()?;
     let millis: i64 = stamp.as_millisecond();
     let after_the_epoch: u64 = u64::try_from(millis).ok()?;
-    return Some(std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_millis(after_the_epoch));
+    return Some(
+        std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_millis(after_the_epoch),
+    );
 }
 
 /// The last millisecond this process wrote a stamp for,
@@ -109,8 +112,17 @@ pub fn now_iso_never_the_same_twice() -> String {
     let mut last: i64 = LAST_MILLISECOND.load(Ordering::Relaxed);
     loop {
         let now: i64 = jiff::Timestamp::now().as_millisecond();
-        let chosen: i64 = if now > last { now } else { last.saturating_add(1) };
-        match LAST_MILLISECOND.compare_exchange_weak(last, chosen, Ordering::Relaxed, Ordering::Relaxed) {
+        let chosen: i64 = if now > last {
+            now
+        } else {
+            last.saturating_add(1)
+        };
+        match LAST_MILLISECOND.compare_exchange_weak(
+            last,
+            chosen,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
             Ok(_written) => return format_iso_milliseconds(chosen),
             // Another thread wrote its own stamp first, so this one asks again from that stamp.
             Err(current) => last = current,

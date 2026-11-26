@@ -6,9 +6,12 @@
 //! file that holds no plan is removed instead of being said at every start.
 
 use super::*;
-use crate::test_support::{fixture, remove as remove_fixture};
-use crate::work_item::WorkKind;
+use crate::test_support::{
+    fixture,
+    remove as remove_fixture,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+use crate::work_item::WorkKind;
 
 /// The oid of the first commit of the controls.
 const FIRST_OID: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -16,7 +19,11 @@ const FIRST_OID: &str = "0123456789abcdef0123456789abcdef01234567";
 /// The oid of the second commit of the controls.
 const SECOND_OID: &str = "89abcdef0123456789abcdef0123456789abcdef";
 
-fn plan(branch: &str, oid: &str, attempt: u32) -> StoredPlan {
+fn plan(
+    branch: &str,
+    oid: &str,
+    attempt: u32,
+) -> StoredPlan {
     return StoredPlan {
         git_dir: PathBuf::from("/srv/repo/.git"),
         item: WorkItem {
@@ -44,7 +51,9 @@ fn a_saved_plan_is_read_back_whole() {
     save(root.as_path(), &main).expect("saved");
     save(root.as_path(), &topic).expect("saved");
     let mut loaded: Vec<StoredPlan> = load(root.as_path());
-    loaded.sort_by(|left, right| { return left.item.branch_ref.cmp(&right.item.branch_ref); });
+    loaded.sort_by(|left, right| {
+        return left.item.branch_ref.cmp(&right.item.branch_ref);
+    });
     assert_eq!(loaded, vec![main, topic]);
     remove_fixture(root.as_path());
 }
@@ -57,7 +66,9 @@ fn a_saved_plan_is_read_back_whole() {
 /// so a name that lost the path's bytes would leave the push untried and its file unremoved.
 #[test]
 fn a_plan_of_a_directory_that_is_not_text_is_read_back_whole() {
-    if !in_a_fixture_root_taking_any_name("push::push_retry_store::tests::a_plan_of_a_directory_that_is_not_text_is_read_back_whole") {
+    if !in_a_fixture_root_taking_any_name(
+        "push::push_retry_store::tests::a_plan_of_a_directory_that_is_not_text_is_read_back_whole",
+    ) {
         return;
     }
     use std::ffi::OsStr;
@@ -68,11 +79,20 @@ fn a_plan_of_a_directory_that_is_not_text_is_read_back_whole() {
     std::fs::create_dir_all(git_dir.as_path()).expect("Git directory");
     let saved: StoredPlan = StoredPlan {
         git_dir: git_dir.clone(),
-        item: WorkItem { repository: worktree, git_dir: git_dir.clone(), transport: false, ..plan("refs/heads/main", FIRST_OID, 2).item },
+        item: WorkItem {
+            repository: worktree,
+            git_dir: git_dir.clone(),
+            transport: false,
+            ..plan("refs/heads/main", FIRST_OID, 2).item
+        },
         attempt: 2,
     };
     save(root.as_path(), &saved).expect("saved");
-    assert_eq!(load(root.as_path()), vec![saved.clone()], "the plan comes back as it went in");
+    assert_eq!(
+        load(root.as_path()),
+        vec![saved.clone()],
+        "the plan comes back as it went in"
+    );
     remove_fixture(root.as_path());
 }
 
@@ -86,20 +106,35 @@ fn a_plan_of_a_directory_that_is_not_text_is_read_back_whole() {
 /// which is the real one.
 #[test]
 fn a_restored_list_keeps_the_plan_of_a_directory_that_is_not_text() {
-    if !in_a_fixture_root_taking_any_name("push::push_retry_store::tests::a_restored_list_keeps_the_plan_of_a_directory_that_is_not_text") {
+    if !in_a_fixture_root_taking_any_name(
+        "push::push_retry_store::tests::a_restored_list_keeps_the_plan_of_a_directory_that_is_not_text",
+    ) {
         return;
     }
-    use crate::push_retry::{Due, PushRetries};
+    use crate::push_retry::{
+        Due,
+        PushRetries,
+    };
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
-    use std::time::{Duration, Instant};
+    use std::time::{
+        Duration,
+        Instant,
+    };
     let root: PathBuf = fixture("retry-store-non-utf8-restored");
     let git_dir: PathBuf = root.join(OsStr::from_bytes(b"c\xffmmon"));
     std::fs::create_dir_all(git_dir.as_path()).expect("Git directory");
-    let saved: StoredPlan = StoredPlan { git_dir: git_dir.clone(), ..plan("refs/heads/main", FIRST_OID, 1) };
+    let saved: StoredPlan = StoredPlan {
+        git_dir: git_dir.clone(),
+        ..plan("refs/heads/main", FIRST_OID, 1)
+    };
     save(root.as_path(), &saved).expect("saved");
     let mut retries: PushRetries = PushRetries::restored(Duration::from_secs(1), root.as_path());
-    assert_eq!(retries.directories(), vec![git_dir.clone()], "the plan is held under the directory it was saved for");
+    assert_eq!(
+        retries.directories(),
+        vec![git_dir.clone()],
+        "the plan is held under the directory it was saved for"
+    );
     let later: Instant = Instant::now() + Duration::from_secs(600);
     let due: Vec<Due> = retries.take_due(git_dir.as_path(), later);
     assert_eq!(due.len(), 1, "the plan of this directory is due");
@@ -119,13 +154,25 @@ fn plans_of_directories_that_differ_only_in_bytes_are_kept_apart() {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("retry-store-distinct-bytes");
-    let higher: StoredPlan = StoredPlan { git_dir: root.join(OsStr::from_bytes(b"r\xff")).join(".git"), ..plan("refs/heads/main", FIRST_OID, 1) };
-    let lower: StoredPlan = StoredPlan { git_dir: root.join(OsStr::from_bytes(b"r\xfe")).join(".git"), ..plan("refs/heads/main", SECOND_OID, 2) };
+    let higher: StoredPlan = StoredPlan {
+        git_dir: root.join(OsStr::from_bytes(b"r\xff")).join(".git"),
+        ..plan("refs/heads/main", FIRST_OID, 1)
+    };
+    let lower: StoredPlan = StoredPlan {
+        git_dir: root.join(OsStr::from_bytes(b"r\xfe")).join(".git"),
+        ..plan("refs/heads/main", SECOND_OID, 2)
+    };
     save(root.as_path(), &higher).expect("saved");
     save(root.as_path(), &lower).expect("saved");
     let mut loaded: Vec<StoredPlan> = load(root.as_path());
-    loaded.sort_by(|left, right| { return left.git_dir.cmp(&right.git_dir); });
-    assert_eq!(loaded, vec![lower, higher], "both plans survive the second save");
+    loaded.sort_by(|left, right| {
+        return left.git_dir.cmp(&right.git_dir);
+    });
+    assert_eq!(
+        loaded,
+        vec![lower, higher],
+        "both plans survive the second save"
+    );
     remove_fixture(root.as_path());
 }
 
@@ -145,7 +192,11 @@ fn a_plan_file_of_an_earlier_release_is_removed_with_its_branch() {
         crate::push_failure_notice::fnv_hex(FIRST_OID)
     ));
     std::fs::write(earlier.as_path(), encode(&first)).expect("a plan an earlier release wrote");
-    assert_eq!(load(root.as_path()), vec![first], "the earlier plan is read before the upgrade writes one");
+    assert_eq!(
+        load(root.as_path()),
+        vec![first],
+        "the earlier plan is read before the upgrade writes one"
+    );
     save(root.as_path(), &plan("refs/heads/main", SECOND_OID, 1)).expect("saved");
     assert!(!earlier.exists(), "the earlier file goes with the branch");
     remove_fixture(root.as_path());
@@ -164,20 +215,40 @@ fn a_legacy_key_does_not_remove_another_directorys_plan() {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("retry-store-legacy-collision");
-    let replacement: StoredPlan = StoredPlan { git_dir: root.join("r\u{fffd}").join(".git"), ..plan("refs/heads/main", FIRST_OID, 1) };
-    let other: StoredPlan = StoredPlan { git_dir: root.join(OsStr::from_bytes(b"r\xff")).join(".git"), ..plan("refs/heads/main", SECOND_OID, 2) };
-    assert_eq!(replacement.git_dir.display().to_string(), other.git_dir.display().to_string(), "the two names have one text, which is what the earlier key was made of");
+    let replacement: StoredPlan = StoredPlan {
+        git_dir: root.join("r\u{fffd}").join(".git"),
+        ..plan("refs/heads/main", FIRST_OID, 1)
+    };
+    let other: StoredPlan = StoredPlan {
+        git_dir: root.join(OsStr::from_bytes(b"r\xff")).join(".git"),
+        ..plan("refs/heads/main", SECOND_OID, 2)
+    };
+    assert_eq!(
+        replacement.git_dir.display().to_string(),
+        other.git_dir.display().to_string(),
+        "the two names have one text, which is what the earlier key was made of"
+    );
     let legacy: PathBuf = root.join(format!(
         "{}{NAME_SEPARATOR}{}{NAME_SEPARATOR}{}.{PLAN_EXTENSION}",
-        earlier_branch_key(replacement.git_dir.as_path(), replacement.item.branch_ref.as_str()),
+        earlier_branch_key(
+            replacement.git_dir.as_path(),
+            replacement.item.branch_ref.as_str()
+        ),
         1,
         crate::push_failure_notice::fnv_hex(FIRST_OID)
     ));
-    std::fs::write(legacy.as_path(), encode(&replacement)).expect("a plan an earlier release wrote");
+    std::fs::write(legacy.as_path(), encode(&replacement))
+        .expect("a plan an earlier release wrote");
     save(root.as_path(), &other).expect("saved");
     let mut loaded: Vec<StoredPlan> = load(root.as_path());
-    loaded.sort_by(|left, right| { return left.git_dir.cmp(&right.git_dir); });
-    assert_eq!(loaded, vec![replacement, other], "the other directory's plan is still there");
+    loaded.sort_by(|left, right| {
+        return left.git_dir.cmp(&right.git_dir);
+    });
+    assert_eq!(
+        loaded,
+        vec![replacement, other],
+        "the other directory's plan is still there"
+    );
     remove_fixture(root.as_path());
 }
 
@@ -204,10 +275,19 @@ fn a_plan_that_cannot_be_read_is_not_removed() {
     let path: PathBuf = root.join(name);
     std::fs::write(path.as_path(), encode(&kept)).expect("a plan an earlier release wrote");
     // Nobody may read the record, and the directory it sits in is still writable, which is what deleting it needs.
-    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o000)).expect("unreadable");
-    remove(root.as_path(), kept.git_dir.as_path(), kept.item.branch_ref.as_str());
-    assert!(path.exists(), "a file that could not be read is kept, so its push is not forgotten");
-    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o600)).expect("readable again");
+    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o000))
+        .expect("unreadable");
+    remove(
+        root.as_path(),
+        kept.git_dir.as_path(),
+        kept.item.branch_ref.as_str(),
+    );
+    assert!(
+        path.exists(),
+        "a file that could not be read is kept, so its push is not forgotten"
+    );
+    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o600))
+        .expect("readable again");
     remove_fixture(root.as_path());
 }
 
@@ -221,7 +301,13 @@ fn a_newer_plan_of_a_branch_replaces_the_older() {
     let newest: StoredPlan = plan("refs/heads/main", SECOND_OID, 1);
     save(root.as_path(), &newest).expect("saved");
     assert_eq!(load(root.as_path()), vec![newest]);
-    assert_eq!(std::fs::read_dir(root.as_path()).expect("directory").count(), 1, "the earlier files went");
+    assert_eq!(
+        std::fs::read_dir(root.as_path())
+            .expect("directory")
+            .count(),
+        1,
+        "the earlier files went"
+    );
     remove_fixture(root.as_path());
 }
 
@@ -233,7 +319,11 @@ fn a_removed_plan_is_gone_and_another_branch_stays() {
     let kept: StoredPlan = plan("refs/heads/topic", SECOND_OID, 1);
     save(root.as_path(), &plan("refs/heads/main", FIRST_OID, 1)).expect("saved");
     save(root.as_path(), &kept).expect("saved");
-    remove(root.as_path(), Path::new("/srv/repo/.git"), "refs/heads/main");
+    remove(
+        root.as_path(),
+        Path::new("/srv/repo/.git"),
+        "refs/heads/main",
+    );
     assert_eq!(load(root.as_path()), vec![kept]);
     remove_fixture(root.as_path());
 }
@@ -269,9 +359,16 @@ const A_READ_THAT_MUST_NOT_WAIT: std::time::Duration = std::time::Duration::from
 /// assert(mkfifo(path, 0o600) === 0);
 /// ```
 fn a_pipe_at(path: &Path) {
-    let text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without NUL");
+    let text: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without NUL");
     let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
-    assert_eq!(made, 0, "the pipe stands at {}: {}", path.display(), std::io::Error::last_os_error());
+    assert_eq!(
+        made,
+        0,
+        "the pipe stands at {}: {}",
+        path.display(),
+        std::io::Error::last_os_error()
+    );
 }
 
 /// What:
@@ -284,7 +381,11 @@ fn end_the_read_of(path: &Path) {
     use std::os::unix::fs::OpenOptionsExt as _;
     let began: std::time::Instant = std::time::Instant::now();
     while began.elapsed() < A_READ_THAT_MUST_NOT_WAIT {
-        match std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(path) {
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(path)
+        {
             Ok(writer) => {
                 drop(writer);
                 return;
@@ -322,20 +423,38 @@ fn a_plan_file_that_is_a_pipe_is_never_waited_for() {
     let root: PathBuf = fixture("retry-store-plan-pipe");
     let waiting: StoredPlan = plan("refs/heads/main", FIRST_OID, 1);
     save(root.as_path(), &waiting).expect("saved");
-    let only: PathBuf = std::fs::read_dir(root.as_path()).expect("listing").flatten().next().expect("the plan's file").path();
+    let only: PathBuf = std::fs::read_dir(root.as_path())
+        .expect("listing")
+        .flatten()
+        .next()
+        .expect("the plan's file")
+        .path();
     std::fs::remove_file(only.as_path()).expect("the plan's file makes way for the pipe");
     a_pipe_at(only.as_path());
     let removed: Option<()> = finished_within_at(A_READ_THAT_MUST_NOT_WAIT, {
-        let (directory, git_dir, branch): (PathBuf, PathBuf, String) = (root.clone(), waiting.git_dir.clone(), waiting.item.branch_ref.clone());
-        move || { remove(directory.as_path(), git_dir.as_path(), branch.as_str()); }
+        let (directory, git_dir, branch): (PathBuf, PathBuf, String) = (
+            root.clone(),
+            waiting.git_dir.clone(),
+            waiting.item.branch_ref.clone(),
+        );
+        move || {
+            remove(directory.as_path(), git_dir.as_path(), branch.as_str());
+        }
     });
     if removed.is_none() {
         end_the_read_of(only.as_path());
     }
-    assert!(removed.is_some(), "the removal of a branch's plans waited for a writer of a pipe that holds no plan");
-    assert!(only.exists(), "a name the removal could not read as a plan stays, so nothing of the person's is discarded");
+    assert!(
+        removed.is_some(),
+        "the removal of a branch's plans waited for a writer of a pipe that holds no plan"
+    );
+    assert!(
+        only.exists(),
+        "a name the removal could not read as a plan stays, so nothing of the person's is discarded"
+    );
     let kept: Option<()> = finished_within_at(A_READ_THAT_MUST_NOT_WAIT, {
-        let (directory, next): (PathBuf, StoredPlan) = (root.clone(), plan("refs/heads/main", SECOND_OID, 2));
+        let (directory, next): (PathBuf, StoredPlan) =
+            (root.clone(), plan("refs/heads/main", SECOND_OID, 2));
         move || {
             save(directory.as_path(), &next).expect("the newer plan of the branch");
         }
@@ -343,19 +462,38 @@ fn a_plan_file_that_is_a_pipe_is_never_waited_for() {
     if kept.is_none() {
         end_the_read_of(only.as_path());
     }
-    assert!(kept.is_some(), "the save of a plan waited for a writer of a pipe that holds no plan");
-    assert!(only.exists(), "the save's cleanup of the branch's earlier files keeps what it cannot read as a plan");
+    assert!(
+        kept.is_some(),
+        "the save of a plan waited for a writer of a pipe that holds no plan"
+    );
+    assert!(
+        only.exists(),
+        "the save's cleanup of the branch's earlier files keeps what it cannot read as a plan"
+    );
     let read: Option<LoadedPlans> = finished_within_at(A_READ_THAT_MUST_NOT_WAIT, {
         let directory: PathBuf = root.clone();
-        move || { return load_reporting(directory.as_path()); }
+        move || {
+            return load_reporting(directory.as_path());
+        }
     });
     if read.is_none() {
         end_the_read_of(only.as_path());
     }
-    let journal: LoadedPlans = read.expect("the read of the journal waited for a writer of a pipe that holds no plan");
-    assert_eq!(journal.plans, vec![plan("refs/heads/main", SECOND_OID, 2)], "the plan beside the pipe is read, so the pipe costs no push its retry");
-    assert!(!journal.unread, "a name that is no plan is not read again after a pause, because a second read of it answers the same");
-    assert!(only.exists(), "the read keeps what is not a plan it can remove, so no file of another program is discarded");
+    let journal: LoadedPlans =
+        read.expect("the read of the journal waited for a writer of a pipe that holds no plan");
+    assert_eq!(
+        journal.plans,
+        vec![plan("refs/heads/main", SECOND_OID, 2)],
+        "the plan beside the pipe is read, so the pipe costs no push its retry"
+    );
+    assert!(
+        !journal.unread,
+        "a name that is no plan is not read again after a pause, because a second read of it answers the same"
+    );
+    assert!(
+        only.exists(),
+        "the read keeps what is not a plan it can remove, so no file of another program is discarded"
+    );
     remove_fixture(root.as_path());
 }
 
@@ -382,15 +520,31 @@ fn a_listing_that_failed_part_way_through_is_read_again() {
     let root: PathBuf = fixture("retry-store-listing-failed");
     let waiting: StoredPlan = plan("refs/heads/main", FIRST_OID, 1);
     save(root.as_path(), &waiting).expect("saved");
-    let only: PathBuf = std::fs::read_dir(root.as_path()).expect("listing").flatten().next().expect("the plan's file").path();
-    let written: SystemTime = std::fs::metadata(only.as_path()).and_then(|meta| { return meta.modified(); }).expect("the plan's own time");
+    let only: PathBuf = std::fs::read_dir(root.as_path())
+        .expect("listing")
+        .flatten()
+        .next()
+        .expect("the plan's file")
+        .path();
+    let written: SystemTime = std::fs::metadata(only.as_path())
+        .and_then(|meta| {
+            return meta.modified();
+        })
+        .expect("the plan's own time");
     // The listing names the plan first and fails after it, so the error is the entry the read below meets.
     let listed: Vec<std::io::Result<ListedPlan>> = vec![
-        Ok(ListedPlan { path: only.clone(), written }),
+        Ok(ListedPlan {
+            path: only.clone(),
+            written,
+        }),
         Err(std::io::Error::other("the directory stopped answering")),
     ];
     let read: LoadedPlans = read_the_plans(root.as_path(), listed.into_iter());
-    assert_eq!(read.plans, vec![waiting], "the plan the listing named before the failure is read");
+    assert_eq!(
+        read.plans,
+        vec![waiting],
+        "the plan the listing named before the failure is read"
+    );
     assert!(
         read.unread,
         "a listing that failed part way through is read again, so a plan it never named is not left for the life of the service"
@@ -419,12 +573,32 @@ fn a_plan_whose_record_could_not_be_read_is_kept_and_read_again() {
     let root: PathBuf = fixture("retry-store-unreadable-load");
     let waiting: StoredPlan = plan("refs/heads/main", FIRST_OID, 1);
     save(root.as_path(), &waiting).expect("saved");
-    let only: PathBuf = std::fs::read_dir(root.as_path()).expect("listing").flatten().next().expect("the plan's file").path();
-    std::fs::set_permissions(only.as_path(), std::fs::Permissions::from_mode(0o000)).expect("unreadable");
-    assert!(load(root.as_path()).is_empty(), "a plan that could not be read is not read as a push");
-    assert!(only.exists(), "a plan that could not be read is kept, so its push is not forgotten");
-    assert!(load_reporting(root.as_path()).unread, "a start that met a file it could not read says so, so it reads the plan again");
-    std::fs::set_permissions(only.as_path(), std::fs::Permissions::from_mode(0o600)).expect("readable again");
-    assert_eq!(load(root.as_path()), vec![waiting], "the next read finds the plan the failed one kept");
+    let only: PathBuf = std::fs::read_dir(root.as_path())
+        .expect("listing")
+        .flatten()
+        .next()
+        .expect("the plan's file")
+        .path();
+    std::fs::set_permissions(only.as_path(), std::fs::Permissions::from_mode(0o000))
+        .expect("unreadable");
+    assert!(
+        load(root.as_path()).is_empty(),
+        "a plan that could not be read is not read as a push"
+    );
+    assert!(
+        only.exists(),
+        "a plan that could not be read is kept, so its push is not forgotten"
+    );
+    assert!(
+        load_reporting(root.as_path()).unread,
+        "a start that met a file it could not read says so, so it reads the plan again"
+    );
+    std::fs::set_permissions(only.as_path(), std::fs::Permissions::from_mode(0o600))
+        .expect("readable again");
+    assert_eq!(
+        load(root.as_path()),
+        vec![waiting],
+        "the next read finds the plan the failed one kept"
+    );
     remove_fixture(root.as_path());
 }

@@ -28,14 +28,30 @@
 use crate::git_metadata::MetadataOutput;
 use crate::repository_facts::GitFacts;
 use crate::rule_abort_operation::{
-    AbortOperation, OPERATION_STATE_NAMES, OperationEnd, RESTORED_REVISION_NAMES, RestoredRevision, SEQUENCER_DIRECTORY, SKIP_RESTORES, OperationState,
-    abort_is_live, ended_operation, in_progress_operation, restored_revision,
+    AbortOperation,
+    OPERATION_STATE_NAMES,
+    OperationEnd,
+    OperationState,
+    RESTORED_REVISION_NAMES,
+    RestoredRevision,
+    SEQUENCER_DIRECTORY,
+    SKIP_RESTORES,
+    abort_is_live,
+    ended_operation,
+    in_progress_operation,
+    restored_revision,
 };
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_worktree_dirty::nul_separated_paths;
 use std::collections::BTreeSet;
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What an abort form would discard,
@@ -225,7 +241,8 @@ pub fn state_answer(answer: &[u8]) -> Result<StateAnswer, String> {
         ));
     }
     let mut present: [bool; 7] = [false; 7];
-    let mut records: Vec<(&'static str, PathBuf)> = Vec::with_capacity(RESTORED_REVISION_NAMES.len());
+    let mut records: Vec<(&'static str, PathBuf)> =
+        Vec::with_capacity(RESTORED_REVISION_NAMES.len());
     for (index, path) in paths.iter().enumerate() {
         if index < OPERATION_STATE_NAMES.len() + 1 {
             present[index] = as_path(path).exists();
@@ -234,7 +251,10 @@ pub fn state_answer(answer: &[u8]) -> Result<StateAnswer, String> {
         let name: &'static str = RESTORED_REVISION_NAMES[index - (OPERATION_STATE_NAMES.len() + 1)];
         records.push((name, as_path(path).to_path_buf()));
     }
-    return Ok(StateAnswer { state: state_from_presence(present), restored_paths: records });
+    return Ok(StateAnswer {
+        state: state_from_presence(present),
+        restored_paths: records,
+    });
 }
 
 /// Whether a byte of the state query's answer ends a path.
@@ -265,7 +285,9 @@ fn as_path(bytes: &[u8]) -> &Path {
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStrExt;
-        return Path::new(std::ffi::OsStr::from_bytes(bytes.strip_suffix(b"/").unwrap_or(bytes)));
+        return Path::new(std::ffi::OsStr::from_bytes(
+            bytes.strip_suffix(b"/").unwrap_or(bytes),
+        ));
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]
@@ -293,11 +315,25 @@ fn as_path(bytes: &[u8]) -> &Path {
 /// ```
 pub fn merge_result_queries(global_prefix: &[OsString]) -> [Vec<OsString>; 2] {
     let mut worktree: Vec<OsString> = global_prefix.to_vec();
-    for token in ["--no-optional-locks", "diff", "--name-only", "-z", "AUTO_MERGE"] {
+    for token in [
+        "--no-optional-locks",
+        "diff",
+        "--name-only",
+        "-z",
+        "AUTO_MERGE",
+    ] {
         worktree.push(OsString::from(token));
     }
     let mut index: Vec<OsString> = global_prefix.to_vec();
-    for token in ["--no-optional-locks", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACDMRTB", "AUTO_MERGE"] {
+    for token in [
+        "--no-optional-locks",
+        "diff",
+        "--cached",
+        "--name-only",
+        "-z",
+        "--diff-filter=ACDMRTB",
+        "AUTO_MERGE",
+    ] {
         index.push(OsString::from(token));
     }
     return [worktree, index];
@@ -327,7 +363,14 @@ pub fn uncommitted_queries(global_prefix: &[OsString]) -> [Vec<OsString>; 2] {
         worktree.push(OsString::from(token));
     }
     let mut index: Vec<OsString> = global_prefix.to_vec();
-    for token in ["--no-optional-locks", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACDMRTB"] {
+    for token in [
+        "--no-optional-locks",
+        "diff",
+        "--cached",
+        "--name-only",
+        "-z",
+        "--diff-filter=ACDMRTB",
+    ] {
         index.push(OsString::from(token));
     }
     return [worktree, index];
@@ -352,7 +395,9 @@ pub fn listed_paths(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
             .unwrap_or_default()
             .trim()
             .to_string();
-        return Err(format!("Git could not list the paths this command would discard: {detail}"));
+        return Err(format!(
+            "Git could not list the paths this command would discard: {detail}"
+        ));
     }
     return Ok(nul_separated_paths(answer.stdout.as_slice()));
 }
@@ -377,7 +422,13 @@ pub fn listed_paths(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
 /// ```
 pub fn unresolved_query(global_prefix: &[OsString]) -> Vec<OsString> {
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
-    for token in ["--no-optional-locks", "diff", "--name-only", "-z", "--diff-filter=U"] {
+    for token in [
+        "--no-optional-locks",
+        "diff",
+        "--name-only",
+        "-z",
+        "--diff-filter=U",
+    ] {
         arguments.push(OsString::from(token));
     }
     return arguments;
@@ -397,7 +448,10 @@ pub fn unresolved_query(global_prefix: &[OsString]) -> Vec<OsString> {
 /// async function unresolvedPaths(facts: GitFacts): Promise<Buffer[]>; // throws
 /// ```
 fn unresolved_paths(facts: &mut GitFacts) -> Result<Vec<Vec<u8>>, String> {
-    let answer: MetadataOutput = facts.query(unresolved_query(facts.global_prefix.as_slice()), "the paths the operation still stands at")?;
+    let answer: MetadataOutput = facts.query(
+        unresolved_query(facts.global_prefix.as_slice()),
+        "the paths the operation still stands at",
+    )?;
     return listed_paths(&answer);
 }
 
@@ -412,7 +466,10 @@ fn unresolved_paths(facts: &mut GitFacts) -> Result<Vec<Vec<u8>>, String> {
 /// ```ts
 /// const all = new Set([...worktree, ...index]);
 /// ```
-pub fn both_listings(worktree: Vec<Vec<u8>>, index: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+pub fn both_listings(
+    worktree: Vec<Vec<u8>>,
+    index: Vec<Vec<u8>>,
+) -> Vec<Vec<u8>> {
     let mut all: BTreeSet<Vec<u8>> = BTreeSet::<Vec<u8>>::new();
     for path in worktree.into_iter().chain(index) {
         all.insert(path);
@@ -463,7 +520,10 @@ fn merge_result_readable(facts: &mut GitFacts) -> Result<bool, String> {
 /// ```ts
 /// async function recordedCommit(answer: StateAnswer, record: 'sequencer/head'): Promise<string>; // throws
 /// ```
-fn recorded_commit(answer: &StateAnswer, record: &OsStr) -> Result<OsString, String> {
+fn recorded_commit(
+    answer: &StateAnswer,
+    record: &OsStr,
+) -> Result<OsString, String> {
     let mut place: Option<&PathBuf> = None;
     for (name, path) in &answer.restored_paths {
         if OsStr::new(name) == record {
@@ -508,11 +568,18 @@ fn is_hex_digit(byte: u8) -> bool {
 /// ```ts
 /// async function abortDiscard(facts: GitFacts, command: GuardedCommand): Promise<AbortDiscard>;
 /// ```
-pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Result<AbortDiscard, String> {
-    let Some((aborted, ends)): Option<(AbortOperation, OperationEnd)> = ended_operation(command) else {
+pub(super) fn abort_discard(
+    facts: &mut GitFacts,
+    command: GuardedCommand,
+) -> Result<AbortDiscard, String> {
+    let Some((aborted, ends)): Option<(AbortOperation, OperationEnd)> = ended_operation(command)
+    else {
         return Ok(AbortDiscard::NothingWaiting);
     };
-    let state_output: MetadataOutput = facts.query(state_query_arguments(facts.global_prefix.as_slice()), "the operation state")?;
+    let state_output: MetadataOutput = facts.query(
+        state_query_arguments(facts.global_prefix.as_slice()),
+        "the operation state",
+    )?;
     if !state_output.success {
         let detail: String = String::from_utf8_lossy(&state_output.stderr)
             .lines()
@@ -543,11 +610,21 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
     //  and every uncommitted change is at risk.
     let recorded: bool = merge_result_readable(facts)?;
     let (queries, baseline): ([Vec<OsString>; 2], DiscardBaseline) = match recorded {
-        true => (merge_result_queries(facts.global_prefix.as_slice()), DiscardBaseline::RecordedResult),
-        false => (uncommitted_queries(facts.global_prefix.as_slice()), DiscardBaseline::OperationStart),
+        true => (
+            merge_result_queries(facts.global_prefix.as_slice()),
+            DiscardBaseline::RecordedResult,
+        ),
+        false => (
+            uncommitted_queries(facts.global_prefix.as_slice()),
+            DiscardBaseline::OperationStart,
+        ),
     };
-    let first: MetadataOutput = facts.query(queries[0].clone(), "the paths this command would discard")?;
-    let second: MetadataOutput = facts.query(queries[1].clone(), "the staged paths this command would discard")?;
+    let first: MetadataOutput =
+        facts.query(queries[0].clone(), "the paths this command would discard")?;
+    let second: MetadataOutput = facts.query(
+        queries[1].clone(),
+        "the staged paths this command would discard",
+    )?;
     let mut worktree_paths: Vec<Vec<u8>> = listed_paths(&first)?;
     let index_paths: Vec<Vec<u8>> = listed_paths(&second)?;
     // Without a recorded result, a path the operation is still stopped at holds either the conflict text Git wrote
@@ -562,10 +639,14 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
     };
     // A path the worktree no longer holds is no work of the person's: the reset writes the tree back over it.
     //  The answer is read from the filesystem, after the location Git already named.
-    let top: Option<PathBuf> = crate::repository_facts_abort_discard_worktree_entries::worktree_top(facts);
+    let top: Option<PathBuf> =
+        crate::repository_facts_abort_discard_worktree_entries::worktree_top(facts);
     let mut held: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(worktree_paths.len());
     for path in worktree_paths {
-        if crate::repository_facts_abort_discard_worktree_entries::holds_an_entry(top.as_deref(), path.as_slice()) {
+        if crate::repository_facts_abort_discard_worktree_entries::holds_an_entry(
+            top.as_deref(),
+            path.as_slice(),
+        ) {
             held.push(path);
         }
     }
@@ -573,7 +654,8 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
     // The content a whole index entry holds is work the command would discard;
     //  a path whose index entry was erased holds none, and the reset writes the tree back over it,
     //  so it is no reason to refuse the command.
-    let staged: Vec<Vec<u8>> = crate::repository_facts_staged_entries::staged_entries(facts, index_paths.as_slice())?;
+    let staged: Vec<Vec<u8>> =
+        crate::repository_facts_staged_entries::staged_entries(facts, index_paths.as_slice())?;
     return Ok(AbortDiscard::Waiting {
         in_progress: in_progress_operation(aborted, state),
         ends,

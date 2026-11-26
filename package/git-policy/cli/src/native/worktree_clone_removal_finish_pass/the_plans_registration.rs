@@ -22,15 +22,33 @@
 //! const settled = settleThePlansRegistration(commonDir, slot, plan, settle);
 //! ```
 
-use crate::fs_beneath::{ObjectId, identity_of};
-use crate::worktree_clone_managed_lock::clone_destruction_proof::{CloneDestructionProof, TheLiveCloneAnswer, prove_the_recorded_clone_is_gone};
-use crate::worktree_clone_managed_lock::recorded_lock_facts::{RecordedClone, RecordedLockFacts, read_the_recorded_facts};
+use crate::fs_beneath::{
+    ObjectId,
+    identity_of,
+};
+use crate::worktree_clone_managed_lock::clone_destruction_proof::{
+    CloneDestructionProof,
+    TheLiveCloneAnswer,
+    prove_the_recorded_clone_is_gone,
+};
+use crate::worktree_clone_managed_lock::recorded_lock_facts::{
+    RecordedClone,
+    RecordedLockFacts,
+    read_the_recorded_facts,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::removal_settle::{RegistrationSettle, SettleAnswer, SettleRequest};
+use crate::worktree_clone_removal_proof_and_plan::removal_settle::{
+    RegistrationSettle,
+    SettleAnswer,
+    SettleRequest,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Which registration the plan's own registration name holds.
@@ -73,20 +91,40 @@ pub enum RegistrationStanding {
 /// ```ts
 /// const standing = theRegistrationStandingFor(commonDir, plan);
 /// ```
-pub fn the_registration_standing_for(common_dir: &Path, plan: &DestructionPlan) -> RegistrationStanding {
+pub fn the_registration_standing_for(
+    common_dir: &Path,
+    plan: &DestructionPlan,
+) -> RegistrationStanding {
     let worktrees: PathBuf = common_dir.join("worktrees");
     let path: PathBuf = worktrees.join(OsStr::from_bytes(plan.facts.registration_id.as_slice()));
     if plan.facts.registration_id.is_empty() {
-        return RegistrationStanding::Unreadable { path, said: String::from("the plan names no registration directory name, so no registration can be matched to it") };
+        return RegistrationStanding::Unreadable {
+            path,
+            said: String::from(
+                "the plan names no registration directory name, so no registration can be matched to it",
+            ),
+        };
     }
     let opened: std::fs::File = match std::fs::File::open(path.as_path()) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return RegistrationStanding::Absent,
-        Err(error) => return RegistrationStanding::Unreadable { path, said: error.to_string() },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return RegistrationStanding::Absent;
+        }
+        Err(error) => {
+            return RegistrationStanding::Unreadable {
+                path,
+                said: error.to_string(),
+            };
+        }
     };
     let live: ObjectId = match identity_of(&opened) {
         Ok(found) => found,
-        Err(error) => return RegistrationStanding::Unreadable { path, said: error.to_string() },
+        Err(error) => {
+            return RegistrationStanding::Unreadable {
+                path,
+                said: error.to_string(),
+            };
+        }
     };
     return match live.encode() == plan.facts.admin {
         true => RegistrationStanding::ThisPlans,
@@ -114,17 +152,41 @@ pub fn the_registration_standing_for(common_dir: &Path, plan: &DestructionPlan) 
 /// ```ts
 /// const settled = settleThePlansRegistration(commonDir, slot, plan, settle);
 /// ```
-pub fn settle_the_plans_registration(common_dir: &Path, slot: &str, plan: &DestructionPlan, settle: &dyn RegistrationSettle) -> Result<SettleAnswer, RemovalStop> {
-    let facts: RecordedLockFacts = read_the_recorded_facts(common_dir, slot).map_err(|refusal| {
-        return RemovalStop::TheSettleRefused { step: String::from("the binding's lock facts"), said: format!("{refusal:?}") };
-    })?;
+pub fn settle_the_plans_registration(
+    common_dir: &Path,
+    slot: &str,
+    plan: &DestructionPlan,
+    settle: &dyn RegistrationSettle,
+) -> Result<SettleAnswer, RemovalStop> {
+    let facts: RecordedLockFacts =
+        read_the_recorded_facts(common_dir, slot).map_err(|refusal| {
+            return RemovalStop::TheSettleRefused {
+                step: String::from("the binding's lock facts"),
+                said: format!("{refusal:?}"),
+            };
+        })?;
     let Some(_registration) = facts.registration.clone() else {
-        return Ok(SettleAnswer { wrote_the_lost_lock: false, released_the_lock: false, removed_the_registration: false, removed_the_underlay: false, lines: Vec::new() });
+        return Ok(SettleAnswer {
+            wrote_the_lost_lock: false,
+            released_the_lock: false,
+            removed_the_registration: false,
+            removed_the_underlay: false,
+            lines: Vec::new(),
+        });
     };
-    let clone: RecordedClone = RecordedClone { dataset: plan.facts.clone_dataset.clone(), guid: Some(plan.facts.clone_guid) };
-    let proof: CloneDestructionProof = prove_the_recorded_clone_is_gone(slot, &clone, &TheLiveCloneAnswer::Absent).map_err(|refusal| {
-        return RemovalStop::TheSettleRefused { step: String::from("the destruction proof"), said: refusal.words() };
-    })?;
+    let clone: RecordedClone = RecordedClone {
+        dataset: plan.facts.clone_dataset.clone(),
+        guid: Some(plan.facts.clone_guid),
+    };
+    let proof: CloneDestructionProof =
+        prove_the_recorded_clone_is_gone(slot, &clone, &TheLiveCloneAnswer::Absent).map_err(
+            |refusal| {
+                return RemovalStop::TheSettleRefused {
+                    step: String::from("the destruction proof"),
+                    said: refusal.words(),
+                };
+            },
+        )?;
     return settle.settle_the_registration(&SettleRequest {
         common_dir,
         slot,

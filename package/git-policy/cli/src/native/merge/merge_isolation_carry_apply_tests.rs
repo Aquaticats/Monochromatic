@@ -5,11 +5,27 @@
 //! each in a disposable repository.
 
 use super::*;
-use crate::merge_isolation_carry::{capture_work, keep_capture};
+use crate::merge_isolation_carry::{
+    capture_work,
+    keep_capture,
+};
 use crate::merge_isolation_carry_parts::Capture;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The identifier a merge of a fixture names itself by,
 /// which every private name a control's clear,
@@ -31,29 +47,73 @@ fn diverged(name: &str) -> (PathBuf, PathBuf, String, String) {
     std::fs::write(repo.join("keep.txt"), b"keep\n").expect("keep");
     git(repo.as_path(), &["add", "--", "a.txt", "keep.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    git(
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "feature"],
+    );
     std::fs::write(repo.join("a.txt"), LINES.replace("three", "three feature")).expect("a");
-    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=feature"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=feature"],
+    );
     git(repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("a.txt"), LINES.replace("one", "one main")).expect("a");
-    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
-    let old: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
-    let tree: String = git_text(repo.as_path(), &["merge-tree", "--write-tree", "main", "feature"]).split('\n').next().unwrap_or_default().trim().to_owned();
-    let new: String = git_text(repo.as_path(), &["commit-tree", tree.as_str(), "-p", "main", "-p", "feature", "-m", "merge feature"]).trim().to_owned();
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main"],
+    );
+    let old: String = git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
+    let tree: String = git_text(
+        repo.as_path(),
+        &["merge-tree", "--write-tree", "main", "feature"],
+    )
+    .split('\n')
+    .next()
+    .unwrap_or_default()
+    .trim()
+    .to_owned();
+    let new: String = git_text(
+        repo.as_path(),
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            "main",
+            "-p",
+            "feature",
+            "-m",
+            "merge feature",
+        ],
+    )
+    .trim()
+    .to_owned();
     return (root, repo, old, new);
 }
 
 /// The merge's paths,
 /// as the clear and the carry read them.
-fn changes(repo: &Path, old: &str, new: &str) -> Vec<Change> {
+fn changes(
+    repo: &Path,
+    old: &str,
+    new: &str,
+) -> Vec<Change> {
     return changes_between(&git_context(), repo, old, new).expect("the merge's changes");
 }
 
 /// The index entry of one path as `mode oid`.
-fn entry(repo: &Path, path: &str) -> String {
+fn entry(
+    repo: &Path,
+    path: &str,
+) -> String {
     let text: String = git_text(repo, &["ls-files", "--stage", "--", path]);
     let parts: Vec<&str> = text.split_whitespace().collect();
-    return format!("{} {}", parts.first().copied().unwrap_or("-"), parts.get(1).copied().unwrap_or("-"));
+    return format!(
+        "{} {}",
+        parts.first().copied().unwrap_or("-"),
+        parts.get(1).copied().unwrap_or("-")
+    );
 }
 
 /// What Git's own update left at the merge's path,
@@ -83,21 +143,72 @@ fn the_reading(repo: &Path) -> Vec<crate::merge_isolation_carry_landed::LandedFi
 fn a_clear_hands_the_path_to_git_and_a_restore_gives_it_back() {
     let (root, repo, old, new) = diverged("carry-clear-restore");
     let context = git_context();
-    std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"))).expect("the person's edit");
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main")),
+    )
+    .expect("the person's edit");
     git(repo.as_path(), &["add", "--", "a.txt"]);
-    std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"))).expect("the person's edit again");
-    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main")),
+    )
+    .expect("the person's edit again");
+    let capture: Capture = keep_capture(
+        &context,
+        repo.as_path(),
+        &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
     let mut out: Vec<u8> = Vec::new();
-    clear(&context, repo.as_path(), repo.join(".git").as_path(), changes(repo.as_path(), old.as_str(), new.as_str()).as_slice(), &capture, A_MERGES_ID, LockWait::BeforeTheApply, &mut out).expect("the clear");
-    assert_eq!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt"), LINES.replace("one", "one main"), "the path is the branch's");
-    assert_eq!(entry(repo.as_path(), "a.txt"), format!("100644 {}", git_text(repo.as_path(), &["rev-parse", "HEAD:a.txt"]).trim()), "the index is the branch's");
-    restore(&context, repo.as_path(), repo.join(".git").as_path(), changes(repo.as_path(), old.as_str(), new.as_str()).as_slice(), &capture, A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the restore");
+    clear(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        changes(repo.as_path(), old.as_str(), new.as_str()).as_slice(),
+        &capture,
+        A_MERGES_ID,
+        LockWait::BeforeTheApply,
+        &mut out,
+    )
+    .expect("the clear");
+    assert_eq!(
+        std::fs::read_to_string(repo.join("a.txt")).expect("a.txt"),
+        LINES.replace("one", "one main"),
+        "the path is the branch's"
+    );
+    assert_eq!(
+        entry(repo.as_path(), "a.txt"),
+        format!(
+            "100644 {}",
+            git_text(repo.as_path(), &["rev-parse", "HEAD:a.txt"]).trim()
+        ),
+        "the index is the branch's"
+    );
+    restore(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        changes(repo.as_path(), old.as_str(), new.as_str()).as_slice(),
+        &capture,
+        A_MERGES_ID,
+        LockWait::WhileFinishing,
+        &mut out,
+    )
+    .expect("the restore");
     assert_eq!(
         std::fs::read_to_string(repo.join("a.txt")).expect("a.txt"),
         format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main")),
         "the person's bytes are back"
     );
-    assert_ne!(entry(repo.as_path(), "a.txt"), format!("100644 {}", git_text(repo.as_path(), &["rev-parse", "HEAD:a.txt"]).trim()), "the staged entry is back");
+    assert_ne!(
+        entry(repo.as_path(), "a.txt"),
+        format!(
+            "100644 {}",
+            git_text(repo.as_path(), &["rev-parse", "HEAD:a.txt"]).trim()
+        ),
+        "the staged entry is back"
+    );
     remove(root.as_path());
 }
 
@@ -112,20 +223,69 @@ fn a_clear_hands_the_path_to_git_and_a_restore_gives_it_back() {
 fn a_carry_merges_the_edit_with_the_merge() {
     let (root, repo, old, new) = diverged("carry-clean-merge");
     let context = git_context();
-    let edited: String = format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main").replace("three", "three feature"));
+    let edited: String = format!(
+        "{}{PERSON_LINE}\n",
+        LINES
+            .replace("one", "one main")
+            .replace("three", "three feature")
+    );
     let person: String = format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"));
     std::fs::write(repo.join("a.txt"), person.as_str()).expect("the person's edit");
-    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    let capture: Capture = keep_capture(
+        &context,
+        repo.as_path(),
+        &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
     let mut out: Vec<u8> = Vec::new();
     let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
-    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, A_MERGES_ID, LockWait::BeforeTheApply, &mut out).expect("the clear");
+    clear(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        A_MERGES_ID,
+        LockWait::BeforeTheApply,
+        &mut out,
+    )
+    .expect("the clear");
     // Git's own two-way update of the branch, which is what the merge does with the paths free.
-    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
-    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, the_reading(repo.as_path()).as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
+    git(
+        repo.as_path(),
+        &["read-tree", "-u", "-m", old.as_str(), new.as_str()],
+    );
+    let report: Report = carry(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        the_reading(repo.as_path()).as_slice(),
+        A_MERGES_ID,
+        LockWait::WhileFinishing,
+        &mut out,
+    )
+    .expect("the carry");
     assert_eq!(report.conflicts.len(), 0, "nothing conflicts");
-    assert_eq!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt"), edited, "the merged line and the person's line");
-    assert_eq!(entry(repo.as_path(), "a.txt"), format!("100644 {}", git_text(repo.as_path(), &["rev-parse", &format!("{new}:a.txt")]).trim()), "the index holds the merge's entry");
-    assert_eq!(git_text(repo.as_path(), &["diff", "--name-only"]).trim(), "a.txt", "the edit is unstaged");
+    assert_eq!(
+        std::fs::read_to_string(repo.join("a.txt")).expect("a.txt"),
+        edited,
+        "the merged line and the person's line"
+    );
+    assert_eq!(
+        entry(repo.as_path(), "a.txt"),
+        format!(
+            "100644 {}",
+            git_text(repo.as_path(), &["rev-parse", &format!("{new}:a.txt")]).trim()
+        ),
+        "the index holds the merge's entry"
+    );
+    assert_eq!(
+        git_text(repo.as_path(), &["diff", "--name-only"]).trim(),
+        "a.txt",
+        "the edit is unstaged"
+    );
     remove(root.as_path());
 }
 
@@ -142,30 +302,109 @@ fn a_staged_edit_stays_staged_and_a_conflict_keeps_both_sides() {
     let staged: String = format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"));
     std::fs::write(repo.join("a.txt"), staged.as_str()).expect("the person's edit");
     git(repo.as_path(), &["add", "--", "a.txt"]);
-    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    let capture: Capture = keep_capture(
+        &context,
+        repo.as_path(),
+        &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
     let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
     let mut out: Vec<u8> = Vec::new();
-    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, A_MERGES_ID, LockWait::BeforeTheApply, &mut out).expect("the clear");
-    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
-    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, the_reading(repo.as_path()).as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
+    clear(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        A_MERGES_ID,
+        LockWait::BeforeTheApply,
+        &mut out,
+    )
+    .expect("the clear");
+    git(
+        repo.as_path(),
+        &["read-tree", "-u", "-m", old.as_str(), new.as_str()],
+    );
+    let report: Report = carry(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        the_reading(repo.as_path()).as_slice(),
+        A_MERGES_ID,
+        LockWait::WhileFinishing,
+        &mut out,
+    )
+    .expect("the carry");
     assert_eq!(report.conflicts.len(), 0);
     let status: String = git_text(repo.as_path(), &["status", "--porcelain=v1"]);
-    assert_eq!(status, "M  a.txt", "the edit is staged and nothing is unstaged over it");
+    assert_eq!(
+        status, "M  a.txt",
+        "the edit is staged and nothing is unstaged over it"
+    );
     // Against the merge itself, the staged difference is the person's own line and nothing the merge brought.
-    let cached: String = git_text(repo.as_path(), &["diff", "--cached", "--unified=0", new.as_str()]);
+    let cached: String = git_text(
+        repo.as_path(),
+        &["diff", "--cached", "--unified=0", new.as_str()],
+    );
     assert!(cached.contains(&format!("+{PERSON_LINE}")), "{cached}");
-    assert!(!cached.contains("one main") && !cached.contains("three feature"), "the merge's own lines are not staged back: {cached}");
+    assert!(
+        !cached.contains("one main") && !cached.contains("three feature"),
+        "the merge's own lines are not staged back: {cached}"
+    );
 
     // The same path, with the person's edit on the very line the merge changes.
-    std::fs::write(repo.join("a.txt"), LINES.replace("one", "one main").replace("three", "three person")).expect("the conflicting edit");
-    let conflicting: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
-    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &conflicting, A_MERGES_ID, LockWait::BeforeTheApply, &mut out).expect("the clear");
-    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
-    let conflicted: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &conflicting, the_reading(repo.as_path()).as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
+    std::fs::write(
+        repo.join("a.txt"),
+        LINES
+            .replace("one", "one main")
+            .replace("three", "three person"),
+    )
+    .expect("the conflicting edit");
+    let conflicting: Capture = keep_capture(
+        &context,
+        repo.as_path(),
+        &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
+    clear(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &conflicting,
+        A_MERGES_ID,
+        LockWait::BeforeTheApply,
+        &mut out,
+    )
+    .expect("the clear");
+    git(
+        repo.as_path(),
+        &["read-tree", "-u", "-m", old.as_str(), new.as_str()],
+    );
+    let conflicted: Report = carry(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &conflicting,
+        the_reading(repo.as_path()).as_slice(),
+        A_MERGES_ID,
+        LockWait::WhileFinishing,
+        &mut out,
+    )
+    .expect("the carry");
     assert_eq!(conflicted.conflicts, vec![b"a.txt".to_vec()]);
     let text: String = std::fs::read_to_string(repo.join("a.txt")).expect("a.txt");
-    assert!(text.contains("three person") && text.contains("three feature"), "both sides are in the file: {text}");
-    assert!(text.contains("<<<<<<<") && text.contains(">>>>>>>"), "the file holds markers: {text}");
+    assert!(
+        text.contains("three person") && text.contains("three feature"),
+        "both sides are in the file: {text}"
+    );
+    assert!(
+        text.contains("<<<<<<<") && text.contains(">>>>>>>"),
+        "the file holds markers: {text}"
+    );
     remove(root.as_path());
 }
 
@@ -178,16 +417,53 @@ fn a_staged_edit_stays_staged_and_a_conflict_keeps_both_sides() {
 fn a_path_changed_after_the_capture_is_left_alone() {
     let (root, repo, old, new) = diverged("carry-changed-after");
     let context = git_context();
-    std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"))).expect("the person's edit");
-    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main")),
+    )
+    .expect("the person's edit");
+    let capture: Capture = keep_capture(
+        &context,
+        repo.as_path(),
+        &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
     let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
     let mut out: Vec<u8> = Vec::new();
-    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, A_MERGES_ID, LockWait::BeforeTheApply, &mut out).expect("the clear");
-    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
+    clear(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        A_MERGES_ID,
+        LockWait::BeforeTheApply,
+        &mut out,
+    )
+    .expect("the clear");
+    git(
+        repo.as_path(),
+        &["read-tree", "-u", "-m", old.as_str(), new.as_str()],
+    );
     std::fs::write(repo.join("a.txt"), "written by another program\n").expect("a later write");
-    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, the_reading(repo.as_path()).as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
+    let report: Report = carry(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        the_reading(repo.as_path()).as_slice(),
+        A_MERGES_ID,
+        LockWait::WhileFinishing,
+        &mut out,
+    )
+    .expect("the carry");
     assert_eq!(report.changed, vec![b"a.txt".to_vec()]);
-    assert_eq!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt"), "written by another program\n", "the later bytes stay");
+    assert_eq!(
+        std::fs::read_to_string(repo.join("a.txt")).expect("a.txt"),
+        "written by another program\n",
+        "the later bytes stay"
+    );
     remove(root.as_path());
 }
 
@@ -205,7 +481,11 @@ fn a_path_changed_after_the_capture_is_left_alone() {
 fn a_holder_of(location: &Path) -> std::process::Child {
     let child: std::process::Child = crate::test_support::spawn_owned(
         std::process::Command::new("sh")
-            .args(["-c", "exec 3<>\"$0\"; exec sleep 30", location.to_str().expect("a UTF-8 path")])
+            .args([
+                "-c",
+                "exec 3<>\"$0\"; exec sleep 30",
+                location.to_str().expect("a UTF-8 path"),
+            ])
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null()),
@@ -228,7 +508,10 @@ fn a_holder_of(location: &Path) -> std::process::Child {
 /// ```ts
 /// await until(() => identityOf(`/proc/${holder.pid}/fd/3`) === identityOf(location));
 /// ```
-fn the_holder_has_its_descriptor_on(holder: &std::process::Child, location: &Path) {
+fn the_holder_has_its_descriptor_on(
+    holder: &std::process::Child,
+    location: &Path,
+) {
     use std::os::unix::fs::MetadataExt;
     let found: std::fs::Metadata = std::fs::metadata(location).expect("the file the holder opens");
     let wanted: (u64, u64) = (found.dev(), found.ino());
@@ -258,11 +541,19 @@ fn the_holder_has_its_descriptor_on(holder: &std::process::Child, location: &Pat
 /// const holder = spawnOwned(['python3', '-c', program, location, marker]);
 /// ```
 #[cfg(target_os = "linux")]
-fn a_holder_nobody_can_read(location: &Path, marker: &Path) -> std::process::Child {
+fn a_holder_nobody_can_read(
+    location: &Path,
+    marker: &Path,
+) -> std::process::Child {
     let program: &str = "import ctypes, os, sys, time\nfd = os.open(sys.argv[1], os.O_RDWR)\nctypes.CDLL(None, use_errno=True).prctl(4, 0, 0, 0, 0)\nopen(sys.argv[2], 'w').close()\ntime.sleep(30)\n";
     return crate::test_support::spawn_owned(
         std::process::Command::new("python3")
-            .args(["-c", program, location.to_str().expect("a UTF-8 path"), marker.to_str().expect("a UTF-8 marker")])
+            .args([
+                "-c",
+                program,
+                location.to_str().expect("a UTF-8 path"),
+                marker.to_str().expect("a UTF-8 marker"),
+            ])
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null()),
@@ -300,11 +591,22 @@ fn the_holder_holds_a_file(marker: &Path) {
 /// ```ts
 /// const filesHolding = (repository, bytes) => readdir(repository).filter((name) => read(join(repository, name)).equals(bytes));
 /// ```
-fn files_that_hold(repository: &Path, bytes: &[u8]) -> Vec<PathBuf> {
+fn files_that_hold(
+    repository: &Path,
+    bytes: &[u8],
+) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
-    for entry in std::fs::read_dir(repository).expect("the worktree top").flatten() {
+    for entry in std::fs::read_dir(repository)
+        .expect("the worktree top")
+        .flatten()
+    {
         let path: PathBuf = entry.path();
-        if std::fs::read(path.as_path()).map(|content| { return content == bytes; }).unwrap_or(false) {
+        if std::fs::read(path.as_path())
+            .map(|content| {
+                return content == bytes;
+            })
+            .unwrap_or(false)
+        {
             found.push(path);
         }
     }
@@ -348,11 +650,16 @@ const CLOCK_MOVES_WITHIN: Duration = Duration::from_secs(1);
 /// ```ts
 /// const saveAsALaterWrite = (landed, location, bytes) => { for (;;) { write(location, bytes); if (!sameEntry(landedFileAt(location), landed)) return; sleep(1); } };
 /// ```
-fn save_as_a_later_write(landed: &LandedFile, location: &Path, bytes: &[u8]) {
+fn save_as_a_later_write(
+    landed: &LandedFile,
+    location: &Path,
+    bytes: &[u8],
+) {
     let began: Instant = Instant::now();
     loop {
         std::fs::write(location, bytes).expect("the save");
-        let standing: LandedFile = crate::merge_isolation_carry_landed::landed_file_at(location, landed.path.as_slice());
+        let standing: LandedFile =
+            crate::merge_isolation_carry_landed::landed_file_at(location, landed.path.as_slice());
         if standing != *landed {
             return;
         }
@@ -383,22 +690,66 @@ fn save_as_a_later_write(landed: &LandedFile, location: &Path, bytes: &[u8]) {
 fn a_save_through_a_descriptor_opened_before_the_take_is_kept_beside_the_carried_file() {
     let (root, repo, old, new) = diverged("carry-save-through-descriptor");
     let context = git_context();
-    std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"))).expect("the person's edit");
-    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main")),
+    )
+    .expect("the person's edit");
+    let capture: Capture = keep_capture(
+        &context,
+        repo.as_path(),
+        &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
     let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
     let mut out: Vec<u8> = Vec::new();
-    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, A_MERGES_ID, LockWait::BeforeTheApply, &mut out).expect("the clear");
-    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
+    clear(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        A_MERGES_ID,
+        LockWait::BeforeTheApply,
+        &mut out,
+    )
+    .expect("the clear");
+    git(
+        repo.as_path(),
+        &["read-tree", "-u", "-m", old.as_str(), new.as_str()],
+    );
     let location: PathBuf = repo.join("a.txt");
     // A program opened the file before the carry, keeps that descriptor across the take, and has a process of its own that
     //  the scan can see holding it too; it saves once the carry has placed its own bytes.
-    let mut buffer: std::fs::File = std::fs::File::options().read(true).write(true).open(location.as_path()).expect("the program's descriptor");
+    let mut buffer: std::fs::File = std::fs::File::options()
+        .read(true)
+        .write(true)
+        .open(location.as_path())
+        .expect("the program's descriptor");
     let holder: std::process::Child = a_holder_of(location.as_path());
     the_holder_has_its_descriptor_on(&holder, location.as_path());
-    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, the_reading(repo.as_path()).as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
-    assert_eq!(report.changed, Vec::<Vec<u8>>::new(), "the carry wrote its own layer");
+    let report: Report = carry(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        the_reading(repo.as_path()).as_slice(),
+        A_MERGES_ID,
+        LockWait::WhileFinishing,
+        &mut out,
+    )
+    .expect("the carry");
+    assert_eq!(
+        report.changed,
+        Vec::<Vec<u8>>::new(),
+        "the carry wrote its own layer"
+    );
     let save: &[u8] = b"SAVE-THROUGH-OPEN-DESCRIPTOR\n";
-    use std::io::{Seek, Write};
+    use std::io::{
+        Seek,
+        Write,
+    };
     buffer.set_len(0).expect("the buffer is replaced");
     buffer.rewind().expect("the buffer's start");
     buffer.write_all(save).expect("the save");
@@ -408,9 +759,16 @@ fn a_save_through_a_descriptor_opened_before_the_take_is_kept_beside_the_carried
     let _killed = stopped.kill();
     let _waited = stopped.wait();
     let kept: Vec<PathBuf> = files_that_hold(repo.as_path(), save);
-    assert_eq!(kept.len(), 1, "the save is in one file a person can reach: {kept:?}");
+    assert_eq!(
+        kept.len(),
+        1,
+        "the save is in one file a person can reach: {kept:?}"
+    );
     let said: String = String::from_utf8_lossy(out.as_slice()).into_owned();
-    assert!(said.contains(kept[0].to_string_lossy().as_ref()), "the file that holds it is named: {said}");
+    assert!(
+        said.contains(kept[0].to_string_lossy().as_ref()),
+        "the file that holds it is named: {said}"
+    );
     remove(root.as_path());
 }
 
@@ -436,27 +794,72 @@ fn a_save_through_a_descriptor_opened_before_the_take_is_kept_beside_the_carried
 fn a_save_through_the_descriptor_of_a_process_nobody_can_read_is_kept() {
     let (root, repo, old, new) = diverged("carry-save-through-unreadable-descriptor");
     let context = git_context();
-    std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"))).expect("the person's edit");
-    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main")),
+    )
+    .expect("the person's edit");
+    let capture: Capture = keep_capture(
+        &context,
+        repo.as_path(),
+        &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
     let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
     let mut out: Vec<u8> = Vec::new();
-    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, A_MERGES_ID, LockWait::BeforeTheApply, &mut out).expect("the clear");
-    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
+    clear(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        A_MERGES_ID,
+        LockWait::BeforeTheApply,
+        &mut out,
+    )
+    .expect("the clear");
+    git(
+        repo.as_path(),
+        &["read-tree", "-u", "-m", old.as_str(), new.as_str()],
+    );
     let location: PathBuf = repo.join("a.txt");
     // The program opens the file before the carry and closes its own `/proc` entries to every other process of this account;
     //  this control's own descriptor is on the same entry, and the scan skips the process it runs in.
-    let mut buffer: std::fs::File = std::fs::File::options().read(true).write(true).open(location.as_path()).expect("the program's descriptor");
+    let mut buffer: std::fs::File = std::fs::File::options()
+        .read(true)
+        .write(true)
+        .open(location.as_path())
+        .expect("the program's descriptor");
     let marker: PathBuf = root.join("unreadable-holder-opened");
-    let holder: std::process::Child = a_holder_nobody_can_read(location.as_path(), marker.as_path());
+    let holder: std::process::Child =
+        a_holder_nobody_can_read(location.as_path(), marker.as_path());
     the_holder_holds_a_file(marker.as_path());
     assert!(
         std::fs::read_dir(format!("/proc/{}/fd", holder.id())).is_err(),
         "the control's holder must be one no process of this account can inspect"
     );
-    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, the_reading(repo.as_path()).as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
-    assert_eq!(report.changed, Vec::<Vec<u8>>::new(), "the carry wrote its own layer");
+    let report: Report = carry(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        the_reading(repo.as_path()).as_slice(),
+        A_MERGES_ID,
+        LockWait::WhileFinishing,
+        &mut out,
+    )
+    .expect("the carry");
+    assert_eq!(
+        report.changed,
+        Vec::<Vec<u8>>::new(),
+        "the carry wrote its own layer"
+    );
     let save: &[u8] = b"SAVE-THROUGH-UNREADABLE-DESCRIPTOR\n";
-    use std::io::{Seek, Write};
+    use std::io::{
+        Seek,
+        Write,
+    };
     buffer.set_len(0).expect("the buffer is replaced");
     buffer.rewind().expect("the buffer's start");
     buffer.write_all(save).expect("the save");
@@ -466,9 +869,16 @@ fn a_save_through_the_descriptor_of_a_process_nobody_can_read_is_kept() {
     let _killed = stopped.kill();
     let _waited = stopped.wait();
     let kept: Vec<PathBuf> = files_that_hold(repo.as_path(), save);
-    assert_eq!(kept.len(), 1, "the save is in one file a person can reach: {kept:?}");
+    assert_eq!(
+        kept.len(),
+        1,
+        "the save is in one file a person can reach: {kept:?}"
+    );
     let said: String = String::from_utf8_lossy(out.as_slice()).into_owned();
-    assert!(said.contains(kept[0].to_string_lossy().as_ref()), "the file that holds it is named: {said}");
+    assert!(
+        said.contains(kept[0].to_string_lossy().as_ref()),
+        "the file that holds it is named: {said}"
+    );
     remove(root.as_path());
 }
 
@@ -494,20 +904,60 @@ fn a_save_through_a_descriptor_opened_before_the_take_of_a_deleted_file_is_kept(
     let context = git_context();
     // The person deleted the file, which the merge keeps, so the carry removes the file the merge put there.
     std::fs::remove_file(repo.join("a.txt")).expect("the person's deletion");
-    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    let capture: Capture = keep_capture(
+        &context,
+        repo.as_path(),
+        &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
     let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
     let mut out: Vec<u8> = Vec::new();
-    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, A_MERGES_ID, LockWait::BeforeTheApply, &mut out).expect("the clear");
-    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
+    clear(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        A_MERGES_ID,
+        LockWait::BeforeTheApply,
+        &mut out,
+    )
+    .expect("the clear");
+    git(
+        repo.as_path(),
+        &["read-tree", "-u", "-m", old.as_str(), new.as_str()],
+    );
     let location: PathBuf = repo.join("a.txt");
-    let mut buffer: std::fs::File = std::fs::File::options().read(true).write(true).open(location.as_path()).expect("the program's descriptor");
+    let mut buffer: std::fs::File = std::fs::File::options()
+        .read(true)
+        .write(true)
+        .open(location.as_path())
+        .expect("the program's descriptor");
     let holder: std::process::Child = a_holder_of(location.as_path());
     the_holder_has_its_descriptor_on(&holder, location.as_path());
-    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, the_reading(repo.as_path()).as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
-    assert_eq!(report.changed, Vec::<Vec<u8>>::new(), "the carry removed the file the merge put there");
+    let report: Report = carry(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        the_reading(repo.as_path()).as_slice(),
+        A_MERGES_ID,
+        LockWait::WhileFinishing,
+        &mut out,
+    )
+    .expect("the carry");
+    assert_eq!(
+        report.changed,
+        Vec::<Vec<u8>>::new(),
+        "the carry removed the file the merge put there"
+    );
     assert!(!location.exists(), "the path the person deleted is gone");
     let save: &[u8] = b"SAVE-AFTER-THE-DELETION\n";
-    use std::io::{Seek, Write};
+    use std::io::{
+        Seek,
+        Write,
+    };
     buffer.set_len(0).expect("the buffer is replaced");
     buffer.rewind().expect("the buffer's start");
     buffer.write_all(save).expect("the save");
@@ -517,9 +967,16 @@ fn a_save_through_a_descriptor_opened_before_the_take_of_a_deleted_file_is_kept(
     let _killed = stopped.kill();
     let _waited = stopped.wait();
     let kept: Vec<PathBuf> = files_that_hold(repo.as_path(), save);
-    assert_eq!(kept.len(), 1, "the save is in one file a person can reach: {kept:?}");
+    assert_eq!(
+        kept.len(),
+        1,
+        "the save is in one file a person can reach: {kept:?}"
+    );
     let said: String = String::from_utf8_lossy(out.as_slice()).into_owned();
-    assert!(said.contains(kept[0].to_string_lossy().as_ref()), "the file that holds it is named: {said}");
+    assert!(
+        said.contains(kept[0].to_string_lossy().as_ref()),
+        "the file that holds it is named: {said}"
+    );
     remove(root.as_path());
 }
 
@@ -548,21 +1005,63 @@ fn a_save_whose_bytes_accept_the_whole_merge_is_not_replaced_by_the_captured_lay
     let (root, repo, old, new) = diverged("carry-save-of-the-merge-version");
     let context = git_context();
     // The person's unsaved edit is a line of its own, which the merge's own lines do not touch.
-    std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"))).expect("the person's edit");
-    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main")),
+    )
+    .expect("the person's edit");
+    let capture: Capture = keep_capture(
+        &context,
+        repo.as_path(),
+        &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
     let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
     let mut out: Vec<u8> = Vec::new();
-    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, A_MERGES_ID, LockWait::BeforeTheApply, &mut out).expect("the clear");
-    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
+    clear(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        A_MERGES_ID,
+        LockWait::BeforeTheApply,
+        &mut out,
+    )
+    .expect("the clear");
+    git(
+        repo.as_path(),
+        &["read-tree", "-u", "-m", old.as_str(), new.as_str()],
+    );
     let location: PathBuf = repo.join("a.txt");
     // What Git's own update left, read where the merge lands and before any save can arrive.
-    let landed: Vec<LandedFile> = crate::merge_isolation_carry_landed::landed_of(repo.as_path(), &[b"a.txt".to_vec()]);
+    let landed: Vec<LandedFile> =
+        crate::merge_isolation_carry_landed::landed_of(repo.as_path(), &[b"a.txt".to_vec()]);
     let saved: Vec<u8> = std::fs::read(location.as_path()).expect("the file Git wrote");
     // The editor saves its buffer, which holds the merge's version and no longer the person's older line.
     save_as_a_later_write(&landed[0], location.as_path(), saved.as_slice());
-    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, landed.as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
-    assert_eq!(report.changed, vec![b"a.txt".to_vec()], "the carry says the path was written after the capture and leaves it");
-    assert_eq!(std::fs::read(location.as_path()).expect("a.txt"), saved, "the newer save stands");
+    let report: Report = carry(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        landed.as_slice(),
+        A_MERGES_ID,
+        LockWait::WhileFinishing,
+        &mut out,
+    )
+    .expect("the carry");
+    assert_eq!(
+        report.changed,
+        vec![b"a.txt".to_vec()],
+        "the carry says the path was written after the capture and leaves it"
+    );
+    assert_eq!(
+        std::fs::read(location.as_path()).expect("a.txt"),
+        saved,
+        "the newer save stands"
+    );
     remove(root.as_path());
 }
 
@@ -592,22 +1091,66 @@ fn a_save_that_lands_before_the_reading_keeps_both_sides() {
     let (root, repo, old, new) = diverged("carry-save-before-the-reading");
     let context = git_context();
     // The person's unsaved edit is a line of its own, which the merge's own lines do not touch.
-    std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"))).expect("the person's edit");
-    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main")),
+    )
+    .expect("the person's edit");
+    let capture: Capture = keep_capture(
+        &context,
+        repo.as_path(),
+        &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
     let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
     let mut out: Vec<u8> = Vec::new();
-    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, A_MERGES_ID, LockWait::BeforeTheApply, &mut out).expect("the clear");
-    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
+    clear(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        A_MERGES_ID,
+        LockWait::BeforeTheApply,
+        &mut out,
+    )
+    .expect("the clear");
+    git(
+        repo.as_path(),
+        &["read-tree", "-u", "-m", old.as_str(), new.as_str()],
+    );
     let location: PathBuf = repo.join("a.txt");
     let merged: Vec<u8> = std::fs::read(location.as_path()).expect("the file Git wrote");
     // The editor saves its buffer, which holds the merge's version and no longer the person's older line,
     //  and the reading is taken after that save, as a reading that arrives in that instant is.
     std::fs::write(location.as_path(), merged.as_slice()).expect("the save");
-    let landed: Vec<LandedFile> = crate::merge_isolation_carry_landed::landed_of(repo.as_path(), &[b"a.txt".to_vec()]);
-    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, landed.as_slice(), A_MERGES_ID, LockWait::WhileFinishing, &mut out).expect("the carry");
+    let landed: Vec<LandedFile> =
+        crate::merge_isolation_carry_landed::landed_of(repo.as_path(), &[b"a.txt".to_vec()]);
+    let report: Report = carry(
+        &context,
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        merge.as_slice(),
+        &capture,
+        landed.as_slice(),
+        A_MERGES_ID,
+        LockWait::WhileFinishing,
+        &mut out,
+    )
+    .expect("the carry");
     let after: String = std::fs::read_to_string(location.as_path()).expect("a.txt");
-    assert!(after.contains("three feature"), "the merge's line is in the file: {after:?}");
-    assert!(after.contains(PERSON_LINE), "the person's older line is in the file rather than discarded: {after:?}");
-    assert_eq!(report.conflicts.len() + report.merged.len() + report.changed.len(), 1, "the command names the one path it touched: {report:?}");
+    assert!(
+        after.contains("three feature"),
+        "the merge's line is in the file: {after:?}"
+    );
+    assert!(
+        after.contains(PERSON_LINE),
+        "the person's older line is in the file rather than discarded: {after:?}"
+    );
+    assert_eq!(
+        report.conflicts.len() + report.merged.len() + report.changed.len(),
+        1,
+        "the command names the one path it touched: {report:?}"
+    );
     remove(root.as_path());
 }

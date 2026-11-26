@@ -75,10 +75,19 @@
 //! ```
 
 use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::hash::{
+    Hash,
+    Hasher,
+};
 use std::path::Path;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{
+    AtomicU32,
+    Ordering,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How many names can be claimed independently:
 /// a power of two far above the threads that publish at once (the service answers
@@ -149,7 +158,9 @@ impl Drop for HeldName {
 fn wake_one_sleeper(slot: &AtomicU32) {
     // No sleeper may be there any more (it timed out); a wake of nobody is harmless, and a failed wake leaves the sleeper to its
     //  own bound, which ends it.
-    let _woken: std::io::Result<usize> = rustix::thread::futex::wake(slot, rustix::thread::futex::Flags::PRIVATE, 1).map_err(std::io::Error::from);
+    let _woken: std::io::Result<usize> =
+        rustix::thread::futex::wake(slot, rustix::thread::futex::Flags::PRIVATE, 1)
+            .map_err(std::io::Error::from);
 }
 
 /// Where the platform has no futex the sleepers look at the word on their own;
@@ -173,19 +184,30 @@ fn wake_one_sleeper(_slot: &AtomicU32) {}
 /// Atomics.wait(words, index, HELD_WITH_A_SLEEPER, atMostMs);
 /// ```
 #[cfg(target_os = "linux")]
-fn sleep_while_a_sleeper_is_marked(slot: &AtomicU32, at_most: Duration) {
+fn sleep_while_a_sleeper_is_marked(
+    slot: &AtomicU32,
+    at_most: Duration,
+) {
     let remaining: rustix::thread::futex::Timespec = rustix::thread::futex::Timespec {
         tv_sec: i64::try_from(at_most.as_secs()).unwrap_or(i64::MAX),
         tv_nsec: i64::from(at_most.subsec_nanos()),
     };
     // `EAGAIN` (the word changed), `EINTR` and `ETIMEDOUT` are all answered by the caller's next look.
-    let _slept: std::io::Result<()> =
-        rustix::thread::futex::wait(slot, rustix::thread::futex::Flags::PRIVATE, HELD_WITH_A_SLEEPER, Some(&remaining)).map_err(std::io::Error::from);
+    let _slept: std::io::Result<()> = rustix::thread::futex::wait(
+        slot,
+        rustix::thread::futex::Flags::PRIVATE,
+        HELD_WITH_A_SLEEPER,
+        Some(&remaining),
+    )
+    .map_err(std::io::Error::from);
 }
 
 /// Where the platform has no futex the sleeper parks for a short slice (never past the bound) and looks again.
 #[cfg(not(target_os = "linux"))]
-fn sleep_while_a_sleeper_is_marked(_slot: &AtomicU32, at_most: Duration) {
+fn sleep_while_a_sleeper_is_marked(
+    _slot: &AtomicU32,
+    at_most: Duration,
+) {
     std::thread::park_timeout(at_most.min(PARK_SLICE));
 }
 
@@ -220,11 +242,19 @@ fn slot_of(path: &Path) -> usize {
 /// if (compareExchange(slot(path), FREE, HELD)) return held;
 /// while (true) { if (elapsed() >= waitAtMost) throw timedOut(path); if (exchange(slot(path), SLEEPER) === FREE) return held; wait(slot, SLEEPER, waitAtMost - elapsed()); }
 /// ```
-pub fn hold_name_while_publishing(path: &Path, wait_at_most: Duration) -> std::io::Result<HeldName> {
+pub fn hold_name_while_publishing(
+    path: &Path,
+    wait_at_most: Duration,
+) -> std::io::Result<HeldName> {
     let slot: &'static AtomicU32 = &CLAIMS[slot_of(path)];
     let started: Instant = Instant::now();
-    if slot.compare_exchange(FREE, HELD, Ordering::Acquire, Ordering::Relaxed).is_ok() {
-        return Ok(HeldName { slot });
+    if slot
+        .compare_exchange(FREE, HELD, Ordering::Acquire, Ordering::Relaxed)
+        .is_ok()
+    {
+        return Ok(HeldName {
+            slot,
+        });
     }
     loop {
         let waited: Duration = started.elapsed();
@@ -242,7 +272,9 @@ pub fn hold_name_while_publishing(path: &Path, wait_at_most: Duration) -> std::i
         //  still saying a sleeper may exist, and never with `HELD`: other sleepers may be there, and the release of the name it takes
         //  must wake the next of them or that one sleeps out its whole bound. A release that wakes nobody is harmless.
         if slot.swap(HELD_WITH_A_SLEEPER, Ordering::Acquire) == FREE {
-            return Ok(HeldName { slot });
+            return Ok(HeldName {
+                slot,
+            });
         }
         sleep_while_a_sleeper_is_marked(slot, wait_at_most - waited);
     }

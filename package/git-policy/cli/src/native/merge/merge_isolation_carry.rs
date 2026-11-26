@@ -29,18 +29,28 @@
 //! const capture = await captureWork({ session, root, paths }); await keepObjects({ session, root, capture });
 //! ```
 
-/// The captured work,
-/// and the slots that keep it.
-use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture, slots};
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
 /// Real Git,
 /// on either face.
 use crate::lazy_runtime::run_on_runtime;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest};
-use crate::transaction_git_awaiting::run_git_awaiting;
+/// The captured work,
+/// and the slots that keep it.
+use crate::merge_isolation_carry_parts::{
+    Capture,
+    CapturedFile,
+    CapturedIndex,
+    CapturedPath,
+    slots,
+};
 /// The worktree shapes.
 use crate::merge_isolation_changes::worktree_path;
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+};
+use crate::transaction_git_awaiting::run_git_awaiting;
 /// Owned operating-system text.
 use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
@@ -49,7 +59,11 @@ use std::path::Path;
 /// What stands at one worktree path,
 /// as a merge reads it,
 /// in the file that reads it.
-pub(crate) use crate::merge_isolation_worktree_entry::{WorktreeEntry, not_one_edit_a_merge_can_carry, worktree_entry_at};
+pub(crate) use crate::merge_isolation_worktree_entry::{
+    WorktreeEntry,
+    not_one_edit_a_merge_can_carry,
+    worktree_entry_at,
+};
 
 /// The tag of this module in the diagnostic log.
 const TAG: &str = "mergeCarry";
@@ -89,7 +103,10 @@ fn is_a_tab(byte: &u8) -> bool {
 /// Why:
 ///   Two reads of one path answer with the same sentence,
 ///  and the path is the one the person names.
-pub(crate) fn could_not_be_read(location: &Path, error: std::io::Error) -> String {
+pub(crate) fn could_not_be_read(
+    location: &Path,
+    error: std::io::Error,
+) -> String {
     return format!("{} could not be read: {error}", location.display());
 }
 
@@ -99,7 +116,10 @@ pub(crate) fn could_not_be_read(location: &Path, error: std::io::Error) -> Strin
 /// Why:
 ///   The capture keeps the entry of each path it carries,
 ///  and a path with no entry is one the index never held.
-fn entry_at<'a>(entries: &'a [Entry], path: &[u8]) -> Option<&'a Entry> {
+fn entry_at<'a>(
+    entries: &'a [Entry],
+    path: &[u8],
+) -> Option<&'a Entry> {
     for entry in entries {
         if entry.path.as_slice() == path {
             return Some(entry);
@@ -110,7 +130,10 @@ fn entry_at<'a>(entries: &'a [Entry], path: &[u8]) -> Option<&'a Entry> {
 
 /// The capture's own record of one index entry.
 fn captured_index_of(entry: &Entry) -> CapturedIndex {
-    return CapturedIndex { mode: entry.mode.clone(), oid: entry.oid.clone() };
+    return CapturedIndex {
+        mode: entry.mode.clone(),
+        oid: entry.oid.clone(),
+    };
 }
 
 /// What:
@@ -137,7 +160,10 @@ fn the_clock_could_not_be_read(error: std::time::SystemTimeError) -> String {
 /// ```ts
 /// const cwd = (context, root) => context.globalPrefix.length === 0 ? root : '.';
 /// ```
-pub fn git_cwd<'a>(context: &GitContext, root: &'a Path) -> &'a Path {
+pub fn git_cwd<'a>(
+    context: &GitContext,
+    root: &'a Path,
+) -> &'a Path {
     if context.global_prefix.is_empty() {
         return root;
     }
@@ -150,7 +176,12 @@ pub fn git_cwd<'a>(context: &GitContext, root: &'a Path) -> &'a Path {
 /// ```ts
 /// async function runBytes(context, root: string, args: OsString[], input?: Uint8Array): Promise<GitOutput>;
 /// ```
-async fn run_bytes_awaiting(context: &GitContext, root: &Path, arguments: &[OsString], input: Option<Vec<u8>>) -> Result<GitOutput, String> {
+async fn run_bytes_awaiting(
+    context: &GitContext,
+    root: &Path,
+    arguments: &[OsString],
+    input: Option<Vec<u8>>,
+) -> Result<GitOutput, String> {
     let mut request: GitRequest = GitRequest::new::<&str>(git_cwd(context, root), &[]);
     request.arguments = arguments.to_vec();
     request.input = input;
@@ -220,9 +251,15 @@ pub(crate) fn mode_of(metadata: &std::fs::Metadata) -> &'static str {
 /// ```ts
 /// function bytesAt(location: string): { bytes: Uint8Array; mode: string; permissions?: number } | null;
 /// ```
-pub(crate) fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str, Option<u32>)>, String> {
+pub(crate) fn bytes_at(
+    location: &Path
+) -> Result<Option<(Vec<u8>, &'static str, Option<u32>)>, String> {
     return match worktree_entry_at(location)? {
-        WorktreeEntry::Holds { bytes, mode, permissions } => Ok(Some((bytes, mode, permissions))),
+        WorktreeEntry::Holds {
+            bytes,
+            mode,
+            permissions,
+        } => Ok(Some((bytes, mode, permissions))),
         WorktreeEntry::Absent => Ok(None),
         WorktreeEntry::NoBytes(kind) => Err(not_one_edit_a_merge_can_carry(location, &kind)),
     };
@@ -280,7 +317,13 @@ pub(crate) fn the_permissions(metadata: &std::fs::Metadata) -> Option<u32> {
 /// ```ts
 /// async function objectFor(context, root, path: Uint8Array, bytes: Uint8Array, filtered: boolean): Promise<string>;
 /// ```
-pub(crate) async fn object_for_awaiting(context: &GitContext, root: &Path, path: &[u8], bytes: &[u8], filtered: bool) -> Result<String, String> {
+pub(crate) async fn object_for_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+    bytes: &[u8],
+    filtered: bool,
+) -> Result<String, String> {
     return object_with_awaiting(context, root, path, bytes, filtered, true).await;
 }
 
@@ -298,7 +341,12 @@ pub(crate) async fn object_for_awaiting(context: &GitContext, root: &Path, path:
 /// ```ts
 /// async function objectName(context, root, path, bytes): Promise<string>;
 /// ```
-pub(crate) async fn object_name_awaiting(context: &GitContext, root: &Path, path: &[u8], bytes: &[u8]) -> Result<String, String> {
+pub(crate) async fn object_name_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+    bytes: &[u8],
+) -> Result<String, String> {
     return object_with_awaiting(context, root, path, bytes, true, false).await;
 }
 
@@ -334,11 +382,18 @@ async fn object_with_awaiting(
         arguments.push(OsString::from("--no-filters"));
     }
     arguments.push(OsString::from("--stdin"));
-    let output: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), Some(bytes.to_vec())).await?;
+    let output: GitOutput =
+        run_bytes_awaiting(context, root, arguments.as_slice(), Some(bytes.to_vec())).await?;
     if !output.succeeded() {
-        return Err(format!("the bytes of {} could not be read as an object: {}", String::from_utf8_lossy(path), output.error_text()));
+        return Err(format!(
+            "the bytes of {} could not be read as an object: {}",
+            String::from_utf8_lossy(path),
+            output.error_text()
+        ));
     }
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
+    return Ok(String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned());
 }
 
 /// One index entry as the index prints it.
@@ -364,22 +419,39 @@ struct Entry {
 /// ```ts
 /// async function stagedEntries(context, root): Promise<Entry[]>;
 /// ```
-async fn staged_entries_awaiting(context: &GitContext, root: &Path) -> Result<Vec<Entry>, String> {
-    let arguments: Vec<OsString> = vec![OsString::from("ls-files"), OsString::from("--stage"), OsString::from("-z")];
+async fn staged_entries_awaiting(
+    context: &GitContext,
+    root: &Path,
+) -> Result<Vec<Entry>, String> {
+    let arguments: Vec<OsString> = vec![
+        OsString::from("ls-files"),
+        OsString::from("--stage"),
+        OsString::from("-z"),
+    ];
     let output: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), None).await?;
     if !output.succeeded() {
         return Err(format!("git ls-files failed: {}", output.error_text()));
     }
     let mut found: Vec<Entry> = Vec::new();
     for field in output.stdout.split(is_nul) {
-        let Some(split) = field.iter().position(is_a_tab) else { continue };
+        let Some(split) = field.iter().position(is_a_tab) else {
+            continue;
+        };
         let header: String = String::from_utf8_lossy(&field[..split]).into_owned();
         let parts: Vec<&str> = header.split(' ').collect();
-        let [mode, oid, stage] = parts.as_slice() else { continue };
+        let [mode, oid, stage] = parts.as_slice() else {
+            continue;
+        };
         if *stage != "0" {
-            return Err(String::from("the index holds unmerged entries, which native Git reports itself"));
+            return Err(String::from(
+                "the index holds unmerged entries, which native Git reports itself",
+            ));
         }
-        found.push(Entry { mode: String::from(*mode), oid: String::from(*oid), path: field[split + 1..].to_vec() });
+        found.push(Entry {
+            mode: String::from(*mode),
+            oid: String::from(*oid),
+            path: field[split + 1..].to_vec(),
+        });
     }
     return Ok(found);
 }
@@ -396,7 +468,11 @@ async fn staged_entries_awaiting(context: &GitContext, root: &Path) -> Result<Ve
 /// ```ts
 /// async function captureWork({ context, root, paths }): Promise<Capture>;
 /// ```
-pub fn capture_work(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Result<Capture, String> {
+pub fn capture_work(
+    context: &GitContext,
+    root: &Path,
+    paths: &[Vec<u8>],
+) -> Result<Capture, String> {
     return match run_on_runtime(capture_work_awaiting(context, root, paths)) {
         Ok(found) => found,
         Err(refusal) => Err(format!("{refusal}")),
@@ -415,7 +491,11 @@ pub fn capture_work(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Res
 /// ```ts
 /// async function captureWork({ context, root, paths }): Promise<Capture>;
 /// ```
-pub async fn capture_work_awaiting(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Result<Capture, String> {
+pub async fn capture_work_awaiting(
+    context: &GitContext,
+    root: &Path,
+    paths: &[Vec<u8>],
+) -> Result<Capture, String> {
     if paths.is_empty() {
         return Err(String::from("no path holds work to carry"));
     }
@@ -425,25 +505,42 @@ pub async fn capture_work_awaiting(context: &GitContext, root: &Path, paths: &[V
         let location = worktree_path(root, path.as_slice());
         let worktree: Option<CapturedFile> = match bytes_at(location.as_path())? {
             Some((bytes, mode, permissions)) => {
-                let raw: String = object_for_awaiting(context, root, path.as_slice(), bytes.as_slice(), false).await?;
+                let raw: String =
+                    object_for_awaiting(context, root, path.as_slice(), bytes.as_slice(), false)
+                        .await?;
                 let blob: String = if mode == SYMBOLIC_LINK_MODE {
                     raw.clone()
                 } else {
-                    object_for_awaiting(context, root, path.as_slice(), bytes.as_slice(), true).await?
+                    object_for_awaiting(context, root, path.as_slice(), bytes.as_slice(), true)
+                        .await?
                 };
-                Some(CapturedFile { mode: String::from(mode), raw, blob, permissions })
+                Some(CapturedFile {
+                    mode: String::from(mode),
+                    raw,
+                    blob,
+                    permissions,
+                })
             }
             None => None,
         };
-        let index: Option<CapturedIndex> = entry_at(staged.as_slice(), path.as_slice()).map(captured_index_of);
+        let index: Option<CapturedIndex> =
+            entry_at(staged.as_slice(), path.as_slice()).map(captured_index_of);
         // Both layers absent is the person's own deletion of a path the merge changes, which is work to carry as much as an
         //  edit is: the merge would put a file back they removed.
-        captured.push(CapturedPath { path: path.clone(), worktree, index });
+        captured.push(CapturedPath {
+            path: path.clone(),
+            worktree,
+            index,
+        });
     }
     if captured.is_empty() {
         return Err(String::from("no path holds work to carry"));
     }
-    return Ok(Capture { commit: String::new(), reference: None, paths: captured });
+    return Ok(Capture {
+        commit: String::new(),
+        reference: None,
+        paths: captured,
+    });
 }
 
 /// What:
@@ -458,17 +555,27 @@ pub async fn capture_work_awaiting(context: &GitContext, root: &Path, paths: &[V
 /// ```ts
 /// async function captureTree(context, root, capture): Promise<string>;
 /// ```
-async fn capture_tree_awaiting(context: &GitContext, root: &Path, capture: &Capture) -> Result<String, String> {
+async fn capture_tree_awaiting(
+    context: &GitContext,
+    root: &Path,
+    capture: &Capture,
+) -> Result<String, String> {
     let mut listing: Vec<u8> = Vec::new();
     for slot in slots(capture.paths.as_slice()) {
         listing.extend_from_slice(format!("100644 blob {}\t{}\n", slot.oid, slot.name).as_bytes());
     }
     let arguments: Vec<OsString> = vec![OsString::from("mktree")];
-    let output: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), Some(listing)).await?;
+    let output: GitOutput =
+        run_bytes_awaiting(context, root, arguments.as_slice(), Some(listing)).await?;
     if !output.succeeded() {
-        return Err(format!("the capture's tree could not be written: {}", output.error_text()));
+        return Err(format!(
+            "the capture's tree could not be written: {}",
+            output.error_text()
+        ));
     }
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
+    return Ok(String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned());
 }
 
 /// What:
@@ -489,7 +596,11 @@ async fn capture_tree_awaiting(context: &GitContext, root: &Path, capture: &Capt
 /// ```ts
 /// async function keepCapture({ context, root, capture }): Promise<Capture>;
 /// ```
-pub fn keep_capture(context: &GitContext, root: &Path, capture: &Capture) -> Result<Capture, String> {
+pub fn keep_capture(
+    context: &GitContext,
+    root: &Path,
+    capture: &Capture,
+) -> Result<Capture, String> {
     return match run_on_runtime(keep_capture_awaiting(context, root, capture)) {
         Ok(found) => found,
         Err(refusal) => Err(format!("{refusal}")),
@@ -509,23 +620,39 @@ pub fn keep_capture(context: &GitContext, root: &Path, capture: &Capture) -> Res
 /// ```ts
 /// async function keepCapture({ context, root, capture }): Promise<Capture>;
 /// ```
-pub async fn keep_capture_awaiting(context: &GitContext, root: &Path, capture: &Capture) -> Result<Capture, String> {
+pub async fn keep_capture_awaiting(
+    context: &GitContext,
+    root: &Path,
+    capture: &Capture,
+) -> Result<Capture, String> {
     let tree: String = capture_tree_awaiting(context, root, capture).await?;
-    let mut arguments: Vec<OsString> = vec![OsString::from("commit-tree"), OsString::from(tree.as_str())];
+    let mut arguments: Vec<OsString> =
+        vec![OsString::from("commit-tree"), OsString::from(tree.as_str())];
     arguments.push(OsString::from("-m"));
-    arguments.push(OsString::from("monochromatic-git-policy-cli: the work a merge carries"));
+    arguments.push(OsString::from(
+        "monochromatic-git-policy-cli: the work a merge carries",
+    ));
     let created: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), None).await?;
     if !created.succeeded() {
-        return Err(format!("the capture could not be committed: {}", created.error_text()));
+        return Err(format!(
+            "the capture could not be committed: {}",
+            created.error_text()
+        ));
     }
-    let commit: String = String::from_utf8_lossy(created.stdout.as_slice()).trim().to_owned();
+    let commit: String = String::from_utf8_lossy(created.stdout.as_slice())
+        .trim()
+        .to_owned();
     let first: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(the_clock_could_not_be_read)?
         .as_millis();
     let zeros: OsString = OsString::from("0".repeat(commit.len()).as_str());
     for step in 0..REF_ATTEMPTS {
-        let reference: String = format!("{CARRIED_REF_PREFIX}{}-{}-{step}", first, std::process::id());
+        let reference: String = format!(
+            "{CARRIED_REF_PREFIX}{}-{}-{step}",
+            first,
+            std::process::id()
+        );
         let mut write: Vec<OsString> = vec![
             OsString::from("update-ref"),
             OsString::from("--no-deref"),
@@ -535,9 +662,20 @@ pub async fn keep_capture_awaiting(context: &GitContext, root: &Path, capture: &
         ];
         let written: GitOutput = run_bytes_awaiting(context, root, write.as_slice(), None).await?;
         if written.succeeded() {
-            return Ok(Capture { commit, reference: Some(reference), paths: capture.paths.clone() });
+            return Ok(Capture {
+                commit,
+                reference: Some(reference),
+                paths: capture.paths.clone(),
+            });
         }
-        debug(TAG, format!("the capture could not take {reference}: {}", written.error_text()).as_str());
+        debug(
+            TAG,
+            format!(
+                "the capture could not take {reference}: {}",
+                written.error_text()
+            )
+            .as_str(),
+        );
         write.clear();
     }
     return Err(String::from("no name for the capture was free"));
@@ -576,8 +714,14 @@ pub async fn keep_capture_awaiting(context: &GitContext, root: &Path, capture: &
 /// ```ts
 /// function anotherRecordStillNeedsTheCapture(gitDir, capture, finishing) { return listMergeIntents().some((one) => one.path !== finishing && !existsSync(settledOf(one)) && one.carried?.reference === capture.reference) }
 /// ```
-pub(crate) fn another_record_still_needs_the_capture(git_dir: &Path, capture: &Capture, finishing: Option<&Path>) -> bool {
-    let Some(reference) = capture.reference.as_deref() else { return false };
+pub(crate) fn another_record_still_needs_the_capture(
+    git_dir: &Path,
+    capture: &Capture,
+    finishing: Option<&Path>,
+) -> bool {
+    let Some(reference) = capture.reference.as_deref() else {
+        return false;
+    };
     let Ok(records) = crate::merge_isolation_journal::list_merge_intents(git_dir) else {
         return true;
     };
@@ -591,9 +735,16 @@ pub(crate) fn another_record_still_needs_the_capture(git_dir: &Path, capture: &C
         if crate::merge_isolation_journal::carry_finished(record.as_path()) {
             continue;
         }
-        let Ok(bytes) = std::fs::read(record.as_path()) else { continue };
-        let Some(intent) = crate::merge_isolation_journal::parse_merge_intent(bytes.as_slice()) else { continue };
-        let Some(carried) = intent.carried.as_ref() else { continue };
+        let Ok(bytes) = std::fs::read(record.as_path()) else {
+            continue;
+        };
+        let Some(intent) = crate::merge_isolation_journal::parse_merge_intent(bytes.as_slice())
+        else {
+            continue;
+        };
+        let Some(carried) = intent.carried.as_ref() else {
+            continue;
+        };
         if carried.reference.as_deref() == Some(reference) && carried.commit == capture.commit {
             return true;
         }
@@ -620,12 +771,23 @@ pub(crate) fn another_record_still_needs_the_capture(git_dir: &Path, capture: &C
 /// ```ts
 /// async function dropCaptureRef({ context, root, capture }): Promise<boolean>;
 /// ```
-pub fn drop_capture_ref(context: &GitContext, git_dir: &Path, root: &Path, capture: &Capture, finishing: Option<&Path>) -> bool {
-    return match run_on_runtime(drop_capture_ref_awaiting(context, git_dir, root, capture, finishing)) {
+pub fn drop_capture_ref(
+    context: &GitContext,
+    git_dir: &Path,
+    root: &Path,
+    capture: &Capture,
+    finishing: Option<&Path>,
+) -> bool {
+    return match run_on_runtime(drop_capture_ref_awaiting(
+        context, git_dir, root, capture, finishing,
+    )) {
         Ok(dropped) => dropped,
         // A deletion that could not be started leaves the ref where it is, which is what the awaited face reports too.
         Err(refusal) => {
-            debug(TAG, format!("the capture's ref was left where it is: {refusal}").as_str());
+            debug(
+                TAG,
+                format!("the capture's ref was left where it is: {refusal}").as_str(),
+            );
             false
         }
     };
@@ -652,7 +814,11 @@ pub fn drop_capture_ref(context: &GitContext, git_dir: &Path, root: &Path, captu
 /// ```ts
 /// async function theRefNamesNothing(context, root, name): Promise<boolean>; // for-each-ref --count=1 --format=%(objectname) <name>
 /// ```
-async fn the_ref_names_nothing(context: &GitContext, root: &Path, name: &str) -> bool {
+async fn the_ref_names_nothing(
+    context: &GitContext,
+    root: &Path,
+    name: &str,
+) -> bool {
     let arguments: Vec<OsString> = vec![
         OsString::from("for-each-ref"),
         OsString::from("--count=1"),
@@ -660,7 +826,9 @@ async fn the_ref_names_nothing(context: &GitContext, root: &Path, name: &str) ->
         OsString::from(name),
     ];
     return match run_bytes_awaiting(context, root, arguments.as_slice(), None).await {
-        Ok(output) if output.succeeded() => output.stdout.iter().all(|byte| { return byte.is_ascii_whitespace(); }),
+        Ok(output) if output.succeeded() => output.stdout.iter().all(|byte| {
+            return byte.is_ascii_whitespace();
+        }),
         Ok(_) | Err(_) => false,
     };
 }
@@ -689,8 +857,16 @@ async fn the_ref_names_nothing(context: &GitContext, root: &Path, name: &str) ->
 /// ```ts
 /// async function dropCaptureRef({ context, root, capture }): Promise<boolean>;
 /// ```
-pub async fn drop_capture_ref_awaiting(context: &GitContext, git_dir: &Path, root: &Path, capture: &Capture, finishing: Option<&Path>) -> bool {
-    let Some(reference) = capture.reference.as_deref() else { return true };
+pub async fn drop_capture_ref_awaiting(
+    context: &GitContext,
+    git_dir: &Path,
+    root: &Path,
+    capture: &Capture,
+    finishing: Option<&Path>,
+) -> bool {
+    let Some(reference) = capture.reference.as_deref() else {
+        return true;
+    };
     // The record this command is finishing may not be the only one whose carry still names this capture. While one does, its
     //  bytes are the person's only copy of that work, so the name stays and that record's finish drops it.
     if another_record_still_needs_the_capture(git_dir, capture, finishing) {
@@ -711,7 +887,14 @@ pub async fn drop_capture_ref_awaiting(context: &GitContext, git_dir: &Path, roo
                 debug(TAG, format!("the capture's ref {reference} was already gone, which is what its deletion wanted: {}", output.error_text()).as_str());
                 return true;
             }
-            debug(TAG, format!("the capture's ref {reference} was left where it is: {}", output.error_text()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "the capture's ref {reference} was left where it is: {}",
+                    output.error_text()
+                )
+                .as_str(),
+            );
             false
         }
         Err(error) => {
@@ -719,7 +902,10 @@ pub async fn drop_capture_ref_awaiting(context: &GitContext, git_dir: &Path, roo
                 debug(TAG, format!("the capture's ref {reference} was already gone, which is what its deletion wanted: {error}").as_str());
                 return true;
             }
-            debug(TAG, format!("the capture's ref {reference} was left where it is: {error}").as_str());
+            debug(
+                TAG,
+                format!("the capture's ref {reference} was left where it is: {error}").as_str(),
+            );
             false
         }
     };

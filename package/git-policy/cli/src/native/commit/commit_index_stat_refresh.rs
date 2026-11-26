@@ -51,20 +51,28 @@
 //! const outcome = statRefreshIfStale({ context, cwd, index, staging });
 //! ```
 
-/// A Git request naming one index,
-/// so the step is classed and bounded as the index writer it is.
-use crate::private_index_request::indexed_request;
-/// One Git start,
-/// its output,
-/// and the context it runs in.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// What a commit stages from the worktree,
 /// which decides whose recorded stat data still matters.
 use crate::commit_index_stat_staleness::WorktreeStaging;
 /// What the walk found about the index's stat data,
 /// answered without starting Git,
 /// and the paths a refresh has to look at.
-use crate::commit_index_stat_staleness::{StaleStatData, stale_stat_data};
+use crate::commit_index_stat_staleness::{
+    StaleStatData,
+    stale_stat_data,
+};
+/// A Git request naming one index,
+/// so the step is classed and bounded as the index writer it is.
+use crate::private_index_request::indexed_request;
+/// One Git start,
+/// its output,
+/// and the context it runs in.
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -125,7 +133,6 @@ pub const REFRESH_NAMES_ONE_PATH_IN: usize = 2;
 /// for instance when another program holds `index.lock`.
 const STATUSES_THAT_KEEP_THE_REFRESH: [i32; 2] = [0, 1];
 
-
 /// What:
 ///  Whether one exit status means the index holds the worktree's stat data after the refresh.
 /// Why:
@@ -162,14 +169,24 @@ fn keeps_the_refresh(code: i32) -> bool {
 /// ```ts
 /// await runGit(['add', '--refresh', '--pathspec-from-file=-', '--pathspec-file-nul'], { indexFile: index, input: paths.map((p) => ':(top,literal)' + p).join('\\0') });
 /// ```
-pub fn refresh_named_stat_data(context: &GitContext, cwd: &Path, index: &Path, paths: &[Vec<u8>]) -> bool {
+pub fn refresh_named_stat_data(
+    context: &GitContext,
+    cwd: &Path,
+    index: &Path,
+    paths: &[Vec<u8>],
+) -> bool {
     let mut input: Vec<u8> = Vec::new();
     for path in paths {
         input.extend_from_slice(b":(top,literal)");
         input.extend_from_slice(path);
         input.push(0);
     }
-    let arguments: [&str; 4] = ["add", "--refresh", "--pathspec-from-file=-", "--pathspec-file-nul"];
+    let arguments: [&str; 4] = [
+        "add",
+        "--refresh",
+        "--pathspec-from-file=-",
+        "--pathspec-file-nul",
+    ];
     let mut request: GitRequest = indexed_request(context, cwd, &arguments, Some(index), None);
     request.input = Some(input);
     let output: GitOutput = match run_git(context, &request) {
@@ -177,10 +194,21 @@ pub fn refresh_named_stat_data(context: &GitContext, cwd: &Path, index: &Path, p
         Err(error) => return without_the_refresh(index, error.to_string().as_str()),
     };
     if output.code.is_some_and(keeps_the_refresh) {
-        crate::diagnostic_log::debug("refreshStatData", format!("{} holds the stat data of {} paths now", index.display(), paths.len()).as_str());
+        crate::diagnostic_log::debug(
+            "refreshStatData",
+            format!(
+                "{} holds the stat data of {} paths now",
+                index.display(),
+                paths.len()
+            )
+            .as_str(),
+        );
         return true;
     }
-    return without_the_refresh(index, String::from_utf8_lossy(output.stderr.as_slice()).trim());
+    return without_the_refresh(
+        index,
+        String::from_utf8_lossy(output.stderr.as_slice()).trim(),
+    );
 }
 
 /// What:
@@ -197,7 +225,11 @@ pub fn refresh_named_stat_data(context: &GitContext, cwd: &Path, index: &Path, p
 /// ```ts
 /// await runGit(['update-index', '--refresh'], { indexFile: index, allowFailure: true });
 /// ```
-pub fn refresh_stat_data(context: &GitContext, cwd: &Path, index: &Path) -> bool {
+pub fn refresh_stat_data(
+    context: &GitContext,
+    cwd: &Path,
+    index: &Path,
+) -> bool {
     let arguments: [&str; 2] = ["update-index", "--refresh"];
     let request = indexed_request(context, cwd, arguments.as_slice(), Some(index), None);
     let output: GitOutput = match run_git(context, &request) {
@@ -205,10 +237,16 @@ pub fn refresh_stat_data(context: &GitContext, cwd: &Path, index: &Path) -> bool
         Err(error) => return without_the_refresh(index, error.to_string().as_str()),
     };
     if output.code.is_some_and(keeps_the_refresh) {
-        crate::diagnostic_log::debug("refreshStatData", format!("{} holds the worktree's stat data now", index.display()).as_str());
+        crate::diagnostic_log::debug(
+            "refreshStatData",
+            format!("{} holds the worktree's stat data now", index.display()).as_str(),
+        );
         return true;
     }
-    return without_the_refresh(index, String::from_utf8_lossy(output.stderr.as_slice()).trim());
+    return without_the_refresh(
+        index,
+        String::from_utf8_lossy(output.stderr.as_slice()).trim(),
+    );
 }
 
 /// What:
@@ -222,8 +260,14 @@ pub fn refresh_stat_data(context: &GitContext, cwd: &Path, index: &Path) -> bool
 /// ```ts
 /// const withoutTheRefresh = (index: string, why: string): boolean => { log.debug(`...: ${why}`); return false; };
 /// ```
-fn without_the_refresh(index: &Path, why: &str) -> bool {
-    crate::diagnostic_log::debug("refreshStatData", format!("the refresh of {} was not kept: {why}", index.display()).as_str());
+fn without_the_refresh(
+    index: &Path,
+    why: &str,
+) -> bool {
+    crate::diagnostic_log::debug(
+        "refreshStatData",
+        format!("the refresh of {} was not kept: {why}", index.display()).as_str(),
+    );
     return false;
 }
 
@@ -238,7 +282,12 @@ fn without_the_refresh(index: &Path, why: &str) -> bool {
 /// ```ts
 /// const outcome = statRefreshIfStale({ context, cwd, index, staging });
 /// ```
-pub fn refresh_stat_data_when_stale(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> StatRefresh {
+pub fn refresh_stat_data_when_stale(
+    context: &GitContext,
+    cwd: &Path,
+    index: &Path,
+    staging: WorktreeStaging<'_>,
+) -> StatRefresh {
     // What:
     //  The in-process question,
     //  whose answer decides whether Git runs at all, and what it is asked to look at.
@@ -275,7 +324,10 @@ pub fn refresh_stat_data_when_stale(context: &GitContext, cwd: &Path, index: &Pa
         // ```ts
         // const named = answer.kind === 'stale' && answer.paths.length * REFRESH_NAMES_ONE_PATH_IN <= answer.entries ? answer.paths : undefined;
         // ```
-        StaleStatData::Stale { paths, entries } => (paths.len() * REFRESH_NAMES_ONE_PATH_IN <= entries).then_some(paths),
+        StaleStatData::Stale {
+            paths,
+            entries,
+        } => (paths.len() * REFRESH_NAMES_ONE_PATH_IN <= entries).then_some(paths),
         StaleStatData::Unknown => None,
     };
     // What:
@@ -292,7 +344,11 @@ pub fn refresh_stat_data_when_stale(context: &GitContext, cwd: &Path, index: &Pa
         Some(paths) => refresh_named_stat_data(context, cwd, index, paths.as_slice()),
         None => refresh_stat_data(context, cwd, index),
     };
-    return if kept { StatRefresh::Kept } else { StatRefresh::NotKept };
+    return if kept {
+        StatRefresh::Kept
+    } else {
+        StatRefresh::NotKept
+    };
 }
 
 /// Refreshing an index stays out of the release executable.

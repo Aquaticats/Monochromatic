@@ -61,7 +61,9 @@ pub fn finish_and_remove(destination: &Path) -> (String, String) {
     // `--no-recurse-submodules` is the ladder's own checkout step (`worktree_ladder_finish.rs`): with `submodule.recurse`
     // set, Git's reset of a worktree whose checkout never ran dies in "could not reset submodule index" and leaves staged
     // deletions behind, which is the failure of the remedy this command is.
-    let finish: String = format!("git -C {shown} reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard --no-recurse-submodules");
+    let finish: String = format!(
+        "git -C {shown} reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard --no-recurse-submodules"
+    );
     let remove: String = format!("git worktree remove --force {shown}");
     return (finish, remove);
 }

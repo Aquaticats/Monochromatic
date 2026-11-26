@@ -5,35 +5,63 @@
 
 use super::*;
 use crate::candidate_prediction::CandidateRequest;
-/// The tool-cache exemption entry these checks are built with.
-use crate::effective_target::ToolCacheDirectory;
 use crate::command_test_support::os_arguments;
 use crate::config_schema::PolicyConfig;
+/// The tool-cache exemption entry these checks are built with.
+use crate::effective_target::ToolCacheDirectory;
 use crate::policy_checks::shipped_checks;
 use crate::policy_content::LifecycleContent;
 use crate::policy_engine::StageRequest;
 use crate::repository_facts::git_facts;
-use crate::test_support::{REAL_GIT, fixture, git, git_context, remove, repository};
-use crate::transaction_git::{GitRequest, run_git};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
+use crate::transaction_git::{
+    GitRequest,
+    run_git,
+};
 use crate::wrapper_controls::no_controls;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The private index variable name,
 /// as the overlay of every private Git command carries it.
 const INDEX_VARIABLE: &str = "GIT_INDEX_FILE";
 
 /// The overlay that points every Git command of the facts at the repository and its private index.
-fn overlay(repo: &Path, index: &Path) -> Vec<(OsString, OsString)> {
+fn overlay(
+    repo: &Path,
+    index: &Path,
+) -> Vec<(OsString, OsString)> {
     return vec![
-        (OsString::from("GIT_DIR"), repo.join(".git").into_os_string()),
-        (OsString::from("GIT_WORK_TREE"), repo.as_os_str().to_os_string()),
-        (OsString::from(INDEX_VARIABLE), index.as_os_str().to_os_string()),
+        (
+            OsString::from("GIT_DIR"),
+            repo.join(".git").into_os_string(),
+        ),
+        (
+            OsString::from("GIT_WORK_TREE"),
+            repo.as_os_str().to_os_string(),
+        ),
+        (
+            OsString::from(INDEX_VARIABLE),
+            index.as_os_str().to_os_string(),
+        ),
     ];
 }
 
 /// A repository whose `HEAD` holds `a.txt` with `base\n`,
 /// and whose private index holds `staged` for it.
-fn scene(name: &str, staged: &[u8]) -> (PathBuf, PathBuf, PathBuf) {
+fn scene(
+    name: &str,
+    staged: &[u8],
+) -> (PathBuf, PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join("a.txt"), b"base\n").expect("a");
@@ -57,13 +85,20 @@ fn scene(name: &str, staged: &[u8]) -> (PathBuf, PathBuf, PathBuf) {
         before: std::rc::Rc::from(b"base\n".as_slice()),
         after: std::rc::Rc::from(staged),
     };
-    assert_eq!(stage_correction(&stage, &entry), Ok(()), "the staged text is written");
+    assert_eq!(
+        stage_correction(&stage, &entry),
+        Ok(()),
+        "the staged text is written"
+    );
     return (root, repo, index);
 }
 
 /// The blob the private index holds for `a.txt`,
 /// read through the private index.
-fn private_text(repo: &Path, index: &Path) -> String {
+fn private_text(
+    repo: &Path,
+    index: &Path,
+) -> String {
     let mut show: GitRequest = GitRequest::new(repo, &["show", ":a.txt"]);
     show.without_prefix = true;
     show.index = Some(index.to_path_buf());
@@ -73,7 +108,11 @@ fn private_text(repo: &Path, index: &Path) -> String {
 }
 
 /// Runs the commit-path convergence over the index with the shipped policies.
-fn converge_index(repo: &Path, index: &Path, object_directory: Option<&Path>) -> CommitConvergence {
+fn converge_index(
+    repo: &Path,
+    index: &Path,
+    object_directory: Option<&Path>,
+) -> CommitConvergence {
     let facts = git_facts(Path::new(REAL_GIT), &[], overlay(repo, index).as_slice());
     let mut checks: ShippedChecks<_> = shipped_checks(
         facts,
@@ -100,7 +139,6 @@ fn converge_index(repo: &Path, index: &Path, object_directory: Option<&Path>) ->
     });
 }
 
-
 /// What:
 ///  The commit's patch-enabled pass lands the Markdown rewrite the policy promises,
 ///  and the committed blob holds the object URL.
@@ -119,9 +157,14 @@ fn converge_index(repo: &Path, index: &Path, object_directory: Option<&Path>) ->
 /// ```
 #[test]
 fn the_markdown_rewrite_lands_in_the_commit_index() {
-    let (root, repo, index): (PathBuf, PathBuf, PathBuf) = scene("commit-markdown-rewrite", b"changed\n");
+    let (root, repo, index): (PathBuf, PathBuf, PathBuf) =
+        scene("commit-markdown-rewrite", b"changed\n");
     // The repository that declares an endpoint, tracks PNGs with LFS and holds the image the candidate links.
-    std::fs::write(repo.join(".lfsconfig"), b"[lfs]\nurl = https://lfs.example.com/org/repo\n").expect("endpoint");
+    std::fs::write(
+        repo.join(".lfsconfig"),
+        b"[lfs]\nurl = https://lfs.example.com/org/repo\n",
+    )
+    .expect("endpoint");
     std::fs::write(repo.join(".gitattributes"), b"*.png filter=lfs\n").expect("attributes");
     std::fs::write(repo.join("image.png"), b"image bytes").expect("image");
     let staged: &str = "![image](image.png)\n";
@@ -129,10 +172,18 @@ fn the_markdown_rewrite_lands_in_the_commit_index() {
     let mut add: GitRequest = GitRequest::new(repo.as_path(), &["add", "--", "README.md"]);
     add.without_prefix = true;
     add.index = Some(index.clone());
-    assert!(run_git(&git_context(), &add).expect("private add").succeeded());
+    assert!(
+        run_git(&git_context(), &add)
+            .expect("private add")
+            .succeeded()
+    );
     // The working file is not what the commit holds: the correction must come from the staged bytes.
     std::fs::write(repo.join("README.md"), b"unstaged prose\n").expect("unstaged text");
-    let facts = git_facts(Path::new(REAL_GIT), &[], overlay(repo.as_path(), index.as_path()).as_slice());
+    let facts = git_facts(
+        Path::new(REAL_GIT),
+        &[],
+        overlay(repo.as_path(), index.as_path()).as_slice(),
+    );
     let mut checks: ShippedChecks<_> = shipped_checks(
         facts,
         os_arguments(&[]),
@@ -141,7 +192,8 @@ fn the_markdown_rewrite_lands_in_the_commit_index() {
         &crate::start_directory::StartDirectory::at(std::path::Path::new("/")),
     );
     let config: crate::config_schema::CliGitConfig =
-        crate::config_parse::parse_config(r#"{"policies":{"markdown/autofix":"warn"}}"#).expect("policy config");
+        crate::config_parse::parse_config(r#"{"policies":{"markdown/autofix":"warn"}}"#)
+            .expect("policy config");
     let request: StageRequest = StageRequest {
         trigger: Trigger::PreForward,
         config: config.policies,
@@ -160,7 +212,9 @@ fn the_markdown_rewrite_lands_in_the_commit_index() {
     });
     assert_eq!(
         outcome.convergence,
-        Convergence::Settled { changed_passes: 1 },
+        Convergence::Settled {
+            changed_passes: 1
+        },
         "{:?}",
         outcome.pass.events
     );
@@ -174,7 +228,10 @@ fn the_markdown_rewrite_lands_in_the_commit_index() {
         text.starts_with("![image](https://lfs.example.com/org/repo/"),
         "the staged Markdown holds the object URL: {text}"
     );
-    assert!(!text.contains("unstaged"), "the working file's prose never enters the commit: {text}");
+    assert!(
+        !text.contains("unstaged"),
+        "the working file's prose never enters the commit: {text}"
+    );
     remove(root.as_path());
 }
 
@@ -182,9 +239,17 @@ fn the_markdown_rewrite_lands_in_the_commit_index() {
 /// and the path is reported once.
 #[test]
 fn the_final_newline_correction_lands_in_the_private_index() {
-    let (root, repo, index): (PathBuf, PathBuf, PathBuf) = scene("commit-convergence-newline", b"changed");
+    let (root, repo, index): (PathBuf, PathBuf, PathBuf) =
+        scene("commit-convergence-newline", b"changed");
     let outcome: CommitConvergence = converge_index(repo.as_path(), index.as_path(), None);
-    assert_eq!(outcome.convergence, Convergence::Settled { changed_passes: 1 }, "{:?}", outcome.pass.events);
+    assert_eq!(
+        outcome.convergence,
+        Convergence::Settled {
+            changed_passes: 1
+        },
+        "{:?}",
+        outcome.pass.events
+    );
     assert_eq!(outcome.changed_paths, vec![b"a.txt".to_vec()]);
     assert_eq!(private_text(repo.as_path(), index.as_path()), "changed\n");
     remove(root.as_path());
@@ -193,18 +258,35 @@ fn the_final_newline_correction_lands_in_the_private_index() {
 /// Converging a settled private index changes nothing and reports no paths.
 #[test]
 fn a_settled_private_index_is_left_unchanged() {
-    let (root, repo, index): (PathBuf, PathBuf, PathBuf) = scene("commit-convergence-settled", b"already\n");
+    let (root, repo, index): (PathBuf, PathBuf, PathBuf) =
+        scene("commit-convergence-settled", b"already\n");
     let outcome: CommitConvergence = converge_index(repo.as_path(), index.as_path(), None);
-    assert_eq!(outcome.convergence, Convergence::Settled { changed_passes: 0 }, "{:?}", outcome.pass.events);
+    assert_eq!(
+        outcome.convergence,
+        Convergence::Settled {
+            changed_passes: 0
+        },
+        "{:?}",
+        outcome.pass.events
+    );
     assert!(outcome.changed_paths.is_empty());
     assert_eq!(private_text(repo.as_path(), index.as_path()), "already\n");
     remove(root.as_path());
 }
 
 /// Whether an engine failure event names a patch conflict on the path.
-fn names_conflict(events: &[PolicyEvent], path_name: &str) -> bool {
+fn names_conflict(
+    events: &[PolicyEvent],
+    path_name: &str,
+) -> bool {
     for event in events {
-        if let PolicyEvent::EngineFailure { code: EngineFailureCode::PatchConflict, path: Some(path), .. } = event && path.text() == path_name {
+        if let PolicyEvent::EngineFailure {
+            code: EngineFailureCode::PatchConflict,
+            path: Some(path),
+            ..
+        } = event
+            && path.text() == path_name
+        {
             return true;
         }
     }
@@ -215,10 +297,12 @@ fn names_conflict(events: &[PolicyEvent], path_name: &str) -> bool {
 /// naming the path.
 #[test]
 fn a_correction_the_index_cannot_take_is_a_patch_conflict() {
-    let (root, repo, index): (PathBuf, PathBuf, PathBuf) = scene("commit-convergence-conflict", b"changed");
+    let (root, repo, index): (PathBuf, PathBuf, PathBuf) =
+        scene("commit-convergence-conflict", b"changed");
     let blocked: PathBuf = root.join("not-a-directory");
     std::fs::write(&blocked, b"a file").expect("blocker");
-    let outcome: CommitConvergence = converge_index(repo.as_path(), index.as_path(), Some(blocked.as_path()));
+    let outcome: CommitConvergence =
+        converge_index(repo.as_path(), index.as_path(), Some(blocked.as_path()));
     assert_eq!(outcome.convergence, Convergence::Blocked);
     let coded: bool = names_conflict(outcome.pass.events.as_slice(), "a.txt");
     assert!(coded, "{:?}", outcome.pass.events);
@@ -230,8 +314,13 @@ fn a_correction_the_index_cannot_take_is_a_patch_conflict() {
 ///  and no other pair of the three states is equal.
 #[test]
 fn stored_states_compare_equal_exactly_when_the_corrected_bytes_match() {
-    let (root, repo, index): (PathBuf, PathBuf, PathBuf) = scene("commit-convergence-states", b"changed");
-    let facts = git_facts(Path::new(REAL_GIT), &[], overlay(repo.as_path(), index.as_path()).as_slice());
+    let (root, repo, index): (PathBuf, PathBuf, PathBuf) =
+        scene("commit-convergence-states", b"changed");
+    let facts = git_facts(
+        Path::new(REAL_GIT),
+        &[],
+        overlay(repo.as_path(), index.as_path()).as_slice(),
+    );
     let mut checks: ShippedChecks<_> = shipped_checks(
         facts,
         os_arguments(&[]),
@@ -267,9 +356,18 @@ fn stored_states_compare_equal_exactly_when_the_corrected_bytes_match() {
     };
     passes.checks.content.propose(reversal);
     assert!(passes.apply(2), "the reversal is written");
-    assert!(!passes.snapshots_equal(0, 1), "the corrected state differs from the uncorrected one");
-    assert!(!passes.snapshots_equal(1, 2), "the reversed state differs from the corrected one");
-    assert!(passes.snapshots_equal(0, 2), "the reversed state repeats the uncorrected one");
+    assert!(
+        !passes.snapshots_equal(0, 1),
+        "the corrected state differs from the uncorrected one"
+    );
+    assert!(
+        !passes.snapshots_equal(1, 2),
+        "the reversed state differs from the corrected one"
+    );
+    assert!(
+        passes.snapshots_equal(0, 2),
+        "the reversed state repeats the uncorrected one"
+    );
     assert!(passes.snapshots_equal(1, 1), "a state equals itself");
     remove(root.as_path());
 }
@@ -279,7 +377,8 @@ fn stored_states_compare_equal_exactly_when_the_corrected_bytes_match() {
 ///  and is listed back with the same bytes.
 #[test]
 fn a_correction_of_a_name_that_is_not_utf8_is_written_by_its_bytes() {
-    let (root, repo, index): (PathBuf, PathBuf, PathBuf) = scene("commit-convergence-odd-name", b"changed\n");
+    let (root, repo, index): (PathBuf, PathBuf, PathBuf) =
+        scene("commit-convergence-odd-name", b"changed\n");
     let stage: PrivateStage<'_> = PrivateStage {
         context: &git_context(),
         cwd: repo.as_path(),
@@ -297,7 +396,15 @@ fn a_correction_of_a_name_that_is_not_utf8_is_written_by_its_bytes() {
     listing.without_prefix = true;
     listing.index = Some(index.clone());
     let output = run_git(&git_context(), &listing).expect("ls-files starts");
-    let names: Vec<&[u8]> = output.stdout.split(|byte| { return *byte == 0; }).filter(|name| { return !name.is_empty(); }).collect();
+    let names: Vec<&[u8]> = output
+        .stdout
+        .split(|byte| {
+            return *byte == 0;
+        })
+        .filter(|name| {
+            return !name.is_empty();
+        })
+        .collect();
     assert_eq!(names, vec![b"a.txt".as_slice(), b"caf\xe9.txt".as_slice()]);
     remove(root.as_path());
 }
@@ -306,9 +413,22 @@ fn a_correction_of_a_name_that_is_not_utf8_is_written_by_its_bytes() {
 #[test]
 fn a_patch_conflict_over_a_name_that_is_not_utf8_carries_the_exact_bytes() {
     let pass: PassResult = patch_conflict_pass(&[], b"caf\xe9.txt", String::from("cause"));
-    let [PolicyEvent::EngineFailure { message, path: Some(path), .. }] = pass.events.as_slice() else {
+    let [
+        PolicyEvent::EngineFailure {
+            message,
+            path: Some(path),
+            ..
+        },
+    ] = pass.events.as_slice()
+    else {
         panic!("expected one engine failure with a path: {:?}", pass.events);
     };
-    assert_eq!(message, "Policy patch for caf\u{fffd}.txt does not apply to the private index: cause");
-    assert_eq!((path.text(), path.exact()), ("caf\u{fffd}.txt", Some(b"caf\xe9.txt".as_slice())));
+    assert_eq!(
+        message,
+        "Policy patch for caf\u{fffd}.txt does not apply to the private index: cause"
+    );
+    assert_eq!(
+        (path.text(), path.exact()),
+        ("caf\u{fffd}.txt", Some(b"caf\xe9.txt".as_slice()))
+    );
 }

@@ -51,9 +51,18 @@
 //! ```
 
 use crate::service_claim_watch::note_for_the_next_service;
-use crate::work_awaited_within_a_ceiling::{TheAnswerOfAThreadOfWork, work_within_reporting};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use crate::work_awaited_within_a_ceiling::{
+    TheAnswerOfAThreadOfWork,
+    work_within_reporting,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 use std::time::Duration;
 
 /// What became of a landing's note for the service that starts next.
@@ -133,19 +142,33 @@ impl Drop for TheOneNoteWrite {
 /// ```ts
 /// const theNote = noteForTheNextServiceWithin(ceiling, store, instance, gitDir);
 /// ```
-pub fn note_for_the_next_service_within(ceiling: Duration, store: &Path, instance: Option<&str>, git_dir: &Path) -> NoteForTheNextService {
+pub fn note_for_the_next_service_within(
+    ceiling: Duration,
+    store: &Path,
+    instance: Option<&str>,
+    git_dir: &Path,
+) -> NoteForTheNextService {
     // The place of the one write is taken here and carried into the job below, whatever the store does.
     if A_NOTE_WRITE_IS_OUTSTANDING.swap(true, Ordering::SeqCst) {
         return NoteForTheNextService::AnEarlierWriteHasNotEnded;
     }
     let place: TheOneNoteWrite = TheOneNoteWrite;
-    let asked: (PathBuf, Option<String>, PathBuf) = (store.to_path_buf(), instance.map(str::to_string), git_dir.to_path_buf());
+    let asked: (PathBuf, Option<String>, PathBuf) = (
+        store.to_path_buf(),
+        instance.map(str::to_string),
+        git_dir.to_path_buf(),
+    );
     let answered: TheAnswerOfAThreadOfWork<()> = work_within_reporting(ceiling, move || {
         // The place came in with this closure: it is given back when this body ends, and a system that refused the
         //  thread drops this closure, and the place with it, before anything is written.
         let _place: TheOneNoteWrite = place;
-        let (owned_store, owned_instance, owned_git_dir): (PathBuf, Option<String>, PathBuf) = asked;
-        note_for_the_next_service(owned_store.as_path(), owned_instance.as_deref(), owned_git_dir.as_path());
+        let (owned_store, owned_instance, owned_git_dir): (PathBuf, Option<String>, PathBuf) =
+            asked;
+        note_for_the_next_service(
+            owned_store.as_path(),
+            owned_instance.as_deref(),
+            owned_git_dir.as_path(),
+        );
     });
     return match answered {
         TheAnswerOfAThreadOfWork::Ran(()) => NoteForTheNextService::Answered,

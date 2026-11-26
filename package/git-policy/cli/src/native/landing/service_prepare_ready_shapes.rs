@@ -24,12 +24,26 @@ use crate::capture_invocation::InvocationCapture;
 use crate::commit_transaction::TransactionResult;
 use crate::lfs_pre_push::uses_lfs;
 use crate::policy_events::PolicyEvent;
+use crate::scratch_entry_removal::{
+    Removal,
+    SCRATCH_REMOVAL_CEILING,
+    remove_within,
+};
 use crate::scratch_location::prepare_commit_scratch;
-use crate::scratch_entry_removal::{Removal, SCRATCH_REMOVAL_CEILING, remove_within};
-use crate::service_protocol::{Change, Cleanup};
-use crate::transaction_journal::{AddedPath, Conclusion, TransactionMode};
+use crate::service_protocol::{
+    Change,
+    Cleanup,
+};
+use crate::transaction_journal::{
+    AddedPath,
+    Conclusion,
+    TransactionMode,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// The commit's scratch directory:
 /// the private indexes and Git's scratch repository,
 /// and who removes it.
@@ -73,9 +87,15 @@ impl Scratch {
     /// ```ts
     /// const scratch = makeScratch(commonDir, gitDir, name);
     /// ```
-    pub fn make(common_dir: &Path, git_dir: &Path, name: &str) -> std::io::Result<Self> {
-        let path: PathBuf = prepare_commit_scratch(common_dir, git_dir, name, SCRATCH_REMOVAL_CEILING)?;
-        let renewal: crate::service_scratch_renewal::ScratchRenewal = crate::service_scratch_renewal::ScratchRenewal::of_a_commit(path.as_path());
+    pub fn make(
+        common_dir: &Path,
+        git_dir: &Path,
+        name: &str,
+    ) -> std::io::Result<Self> {
+        let path: PathBuf =
+            prepare_commit_scratch(common_dir, git_dir, name, SCRATCH_REMOVAL_CEILING)?;
+        let renewal: crate::service_scratch_renewal::ScratchRenewal =
+            crate::service_scratch_renewal::ScratchRenewal::of_a_commit(path.as_path());
         return Ok(Self(path, false, Some(renewal)));
     }
 
@@ -91,7 +111,10 @@ impl Scratch {
     /// ```ts
     /// scratch.heldByTheService(theServiceLandedTheCommit);
     /// ```
-    pub fn held_by_the_service(&mut self, held: bool) {
+    pub fn held_by_the_service(
+        &mut self,
+        held: bool,
+    ) {
         self.1 = held;
     }
 }
@@ -301,7 +324,11 @@ pub(crate) struct ReadyShape {
 /// Builders of a `Ready` from a shape.
 impl ReadyShape {
     /// The inputs of the native Git run for an invocation capture and the arguments after the policies' transforms.
-    pub(crate) fn native_inputs(&self, arguments: Vec<OsString>, captured: InvocationCapture) -> NativeInputs {
+    pub(crate) fn native_inputs(
+        &self,
+        arguments: Vec<OsString>,
+        captured: InvocationCapture,
+    ) -> NativeInputs {
         return NativeInputs {
             arguments,
             pathspecs: self.pathspecs.clone(),
@@ -315,7 +342,15 @@ impl ReadyShape {
 
     /// A preparation that Git builds:
     /// the `Ready` that needs the native run.
-    pub(crate) fn by_git(&self, taken: InvocationCapture, events: Vec<PolicyEvent>, changes: Option<Vec<Change>>, records: Vec<AddedPath>, arguments: Vec<OsString>, scratch_dir: Scratch) -> Box<Ready> {
+    pub(crate) fn by_git(
+        &self,
+        taken: InvocationCapture,
+        events: Vec<PolicyEvent>,
+        changes: Option<Vec<Change>>,
+        records: Vec<AddedPath>,
+        arguments: Vec<OsString>,
+        scratch_dir: Scratch,
+    ) -> Box<Ready> {
         return Box::new(Ready {
             repository: taken.layout.repository_root.clone(),
             common_dir: taken.layout.common_dir.clone(),

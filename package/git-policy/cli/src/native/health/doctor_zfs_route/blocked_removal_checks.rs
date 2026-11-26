@@ -32,7 +32,12 @@
 //! const outcome = checkBlockedRemoval(facts); // pass | finding('removal'|'intent') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
 use super::holder_checks::HolderFacts;
 use super::removal_plan_checks::RecordedSnapshot;
 use crate::worktree_clone_binding_record::add_state_commands::NO_REMOVAL_WORDS;
@@ -101,7 +106,9 @@ pub fn check_blocked_removal(facts: &BlockedRemovalFacts) -> CheckOutcome {
     let clone: &str = facts.clone.as_str();
     if !facts.plan_stands {
         return match &facts.intent {
-            None => pass(format!("no destruction plan stands for `{clone}` and no unmount intent does, so no removal is pending for it and nothing is blocked")),
+            None => pass(format!(
+                "no destruction plan stands for `{clone}` and no unmount intent does, so no removal is pending for it and nothing is blocked"
+            )),
             Some(nonce) => finding(
                 "intent",
                 format!(
@@ -118,39 +125,83 @@ pub fn check_blocked_removal(facts: &BlockedRemovalFacts) -> CheckOutcome {
         ));
     }
     if facts.holders.holders.is_empty() {
-        return pass(format!("a destruction plan stands for `{clone}` and no namespace holds the clone, so the removal is not blocked by a holder"));
+        return pass(format!(
+            "a destruction plan stands for `{clone}` and no namespace holds the clone, so the removal is not blocked by a holder"
+        ));
     }
-    let destroyed: Vec<String> = facts.recorded.iter().filter(|line| return line.outcome == SnapshotOutcome::Destroyed).map(|line| return line.name.clone()).collect();
-    let remaining: Vec<String> = facts.recorded.iter().filter(|line| return line.outcome != SnapshotOutcome::Destroyed).map(|line| return line.name.clone()).collect();
+    let destroyed: Vec<String> = facts
+        .recorded
+        .iter()
+        .filter(|line| return line.outcome == SnapshotOutcome::Destroyed)
+        .map(|line| return line.name.clone())
+        .collect();
+    let remaining: Vec<String> = facts
+        .recorded
+        .iter()
+        .filter(|line| return line.outcome != SnapshotOutcome::Destroyed)
+        .map(|line| return line.name.clone())
+        .collect();
     let loss: String = if destroyed.is_empty() {
         String::from("no snapshot of the clone is recorded as destroyed, so nothing is lost yet")
     } else {
-        format!("{} snapshot(s) are recorded as destroyed and cannot be restored: {}", destroyed.len(), destroyed.join(", "))
+        format!(
+            "{} snapshot(s) are recorded as destroyed and cannot be restored: {}",
+            destroyed.len(),
+            destroyed.join(", ")
+        )
     };
     let standing: String = if remaining.is_empty() {
         format!("The clone's head `{clone}` and no other name this plan holds")
     } else {
-        format!("The clone's head `{clone}` and {} name(s) the plan does not record as destroyed: {}", remaining.len(), remaining.join(", "))
+        format!(
+            "The clone's head `{clone}` and {} name(s) the plan does not record as destroyed: {}",
+            remaining.len(),
+            remaining.join(", ")
+        )
     };
     let intent: String = match &facts.intent {
-        Some(nonce) => format!("The clone's own `unmount` intent stands under nonce `{nonce}`, so this is the state a removal asked for."),
-        None => String::from("No `unmount` intent of the clone's own stands, so nothing the wrapper wrote keeps it unmounted."),
+        Some(nonce) => format!(
+            "The clone's own `unmount` intent stands under nonce `{nonce}`, so this is the state a removal asked for."
+        ),
+        None => String::from(
+            "No `unmount` intent of the clone's own stands, so nothing the wrapper wrote keeps it unmounted.",
+        ),
     };
     let blocked_by: Vec<String> = facts
         .holders
         .holders
         .iter()
-        .map(|holder| return format!("{} (task {}) mounts it at {}", holder.namespace, holder.representative_pid, holder.mount_point.display()))
+        .map(|holder| {
+            return format!(
+                "{} (task {}) mounts it at {}",
+                holder.namespace,
+                holder.representative_pid,
+                holder.mount_point.display()
+            );
+        })
         .collect();
     let caller: String = if facts.in_the_callers_session.is_empty() {
         String::from("No holder belongs to the caller's own session.")
     } else {
-        format!("{} holder(s) belong to the caller's own session ({}), and a removal never ends the caller or its session even with `--force`, so it refuses here instead: leave the folder and run the command again from outside it.", facts.in_the_callers_session.len(), facts.in_the_callers_session.iter().map(u32::to_string).collect::<Vec<String>>().join(", "))
+        format!(
+            "{} holder(s) belong to the caller's own session ({}), and a removal never ends the caller or its session even with `--force`, so it refuses here instead: leave the folder and run the command again from outside it.",
+            facts.in_the_callers_session.len(),
+            facts
+                .in_the_callers_session
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<String>>()
+                .join(", ")
+        )
     };
     let force: String = if facts.the_forced_arm_is_measured {
-        String::from("Without `--force` the removal cancels itself; with it, every holder other than the caller and its session is ended, which is the measured arm.")
+        String::from(
+            "Without `--force` the removal cancels itself; with it, every holder other than the caller and its session is ended, which is the measured arm.",
+        )
     } else {
-        String::from("Without `--force` the removal cancels itself. The arm that ends the holders with `--force` has no measurement yet, so nothing here offers it and the holders have to let go for the removal to go on.")
+        String::from(
+            "Without `--force` the removal cancels itself. The arm that ends the holders with `--force` has no measurement yet, so nothing here offers it and the holders have to let go for the removal to go on.",
+        )
     };
     return finding(
         "removal",

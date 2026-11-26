@@ -25,7 +25,8 @@ fn listing_snapshot(records: &[(&str, &str)]) -> ConfigSnapshot {
 #[test]
 fn core_fsmonitor_is_not_reported_as_a_hook() {
     for value in ["/usr/local/bin/watch", "true", "false"] {
-        let snapshot: ConfigSnapshot = listing_snapshot(&[("local", format!("core.fsmonitor\n{value}").as_str())]);
+        let snapshot: ConfigSnapshot =
+            listing_snapshot(&[("local", format!("core.fsmonitor\n{value}").as_str())]);
         assert!(configured_hooks(&snapshot).is_empty(), "{value}");
         assert_eq!(external_hooks_warning(Some(&snapshot)), None, "{value}");
     }
@@ -36,7 +37,10 @@ struct RefusingStream;
 
 impl Write for RefusingStream {
     /// Refuses the bytes.
-    fn write(&mut self, _buffer: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        _buffer: &[u8],
+    ) -> std::io::Result<usize> {
         return Err(std::io::Error::other("closed"));
     }
 
@@ -65,16 +69,27 @@ fn hooks_group_by_name_with_their_events_and_commands() {
         ("local", "hook.a.b.event\nupdate"),
     ]);
     let hooks: Vec<ConfiguredHook> = configured_hooks(&snapshot);
-    let names: Vec<&str> = hooks.iter().map(|hook| { return hook.name.as_str(); }).collect();
+    let names: Vec<&str> = hooks
+        .iter()
+        .map(|hook| {
+            return hook.name.as_str();
+        })
+        .collect();
     assert_eq!(names, vec!["review", "lint", "reset", "orphan", "a.b"]);
     assert_eq!(hooks[0].events, vec![String::from("post-commit")]);
     assert!(hooks[0].has_command);
-    assert_eq!(hooks[1].events, vec![String::from("pre-commit"), String::from("commit-msg")]);
+    assert_eq!(
+        hooks[1].events,
+        vec![String::from("pre-commit"), String::from("commit-msg")]
+    );
     assert!(!hooks[1].has_command);
     assert_eq!(hooks[2].events, vec![String::from("post-merge")]);
     assert!(hooks[3].events.is_empty() && hooks[3].has_command);
     assert_eq!(describe_hook(&hooks[3]), "hook.orphan (no event)");
-    assert_eq!(describe_hook(&hooks[1]), "hook.lint (events: pre-commit, commit-msg)");
+    assert_eq!(
+        describe_hook(&hooks[1]),
+        "hook.lint (events: pre-commit, commit-msg)"
+    );
 }
 
 /// Keys that only look like hooks name none:
@@ -120,9 +135,23 @@ fn the_warning_names_the_hooks_and_the_ways_forward() {
         ("global", "hook.lint.event\npre-commit"),
     ]);
     let line: String = external_hooks_warning(Some(&snapshot)).expect("warning");
-    assert!(line.ends_with('\n') && line.matches('\n').count() == 1, "one line: {line:?}");
-    assert!(line.contains("\"type\":\"configuration-warning\"") && line.contains(EXTERNAL_HOOKS_UNSUPPORTED_CODE), "{line}");
-    for expected in ["hook.review (events: post-commit)", "hook.lint (events: pre-commit)", "--unset-all", "runs no program named by any configuration", "policies", "git monochromatic-git-policy-cli doctor"] {
+    assert!(
+        line.ends_with('\n') && line.matches('\n').count() == 1,
+        "one line: {line:?}"
+    );
+    assert!(
+        line.contains("\"type\":\"configuration-warning\"")
+            && line.contains(EXTERNAL_HOOKS_UNSUPPORTED_CODE),
+        "{line}"
+    );
+    for expected in [
+        "hook.review (events: post-commit)",
+        "hook.lint (events: pre-commit)",
+        "--unset-all",
+        "runs no program named by any configuration",
+        "policies",
+        "git monochromatic-git-policy-cli doctor",
+    ] {
         assert!(line.contains(expected), "{expected} in {line}");
     }
 }
@@ -133,12 +162,21 @@ fn the_warning_names_the_hooks_and_the_ways_forward() {
 fn the_writer_emits_one_line_or_nothing() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[("local", "hook.a.event\npost-commit")]);
     let written: SharedSink = SharedSink::default();
-    assert!(warn_external_hooks(Some(&snapshot), written.clone()), "the line reached the stream");
-    assert_eq!(written.text(), external_hooks_warning(Some(&snapshot)).expect("warning"));
+    assert!(
+        warn_external_hooks(Some(&snapshot), written.clone()),
+        "the line reached the stream"
+    );
+    assert_eq!(
+        written.text(),
+        external_hooks_warning(Some(&snapshot)).expect("warning")
+    );
     let nothing: SharedSink = SharedSink::default();
     assert!(warn_external_hooks(None, nothing.clone()));
     assert_eq!(nothing.text(), "");
-    assert!(!warn_external_hooks(Some(&snapshot), RefusingStream), "a stream that refuses the line is a line not delivered");
+    assert!(
+        !warn_external_hooks(Some(&snapshot), RefusingStream),
+        "a stream that refuses the line is a line not delivered"
+    );
 }
 
 /// What:
@@ -173,9 +211,15 @@ fn a_hook_disabled_with_a_numeric_false_is_not_reported() {
 fn a_warning_reaches_standard_error_while_its_shared_lock_is_held() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[("local", "hook.a.event\npost-commit")]);
     let held = std::io::stderr().lock();
-    let delivered: bool = warn_external_hooks(Some(&snapshot), crate::standard_error_descriptor::StandardErrorDescriptor);
+    let delivered: bool = warn_external_hooks(
+        Some(&snapshot),
+        crate::standard_error_descriptor::StandardErrorDescriptor,
+    );
     drop(held);
-    assert!(delivered, "the warning needed the lock a synchronous writer holds, so a worker left at the ceiling would keep it");
+    assert!(
+        delivered,
+        "the warning needed the lock a synchronous writer holds, so a worker left at the ceiling would keep it"
+    );
 }
 
 /// What:
@@ -201,11 +245,24 @@ fn a_hook_whose_every_event_the_author_switched_off_is_not_reported() {
         ("global", "hook.on.command\nrun it"),
     ]);
     let hooks: Vec<ConfiguredHook> = configured_hooks(&snapshot);
-    let names: Vec<&str> = hooks.iter().map(|hook| { return hook.name.as_str(); }).collect();
-    assert_eq!(names, vec!["half", "on"], "the hook of the disabled event is gone, the others stay");
-    let line: String = external_hooks_warning(Some(&snapshot)).expect("a warning about the hooks that remain");
+    let names: Vec<&str> = hooks
+        .iter()
+        .map(|hook| {
+            return hook.name.as_str();
+        })
+        .collect();
+    assert_eq!(
+        names,
+        vec!["half", "on"],
+        "the hook of the disabled event is gone, the others stay"
+    );
+    let line: String =
+        external_hooks_warning(Some(&snapshot)).expect("a warning about the hooks that remain");
     assert!(!line.contains("hook.control"), "{line}");
-    assert!(line.contains("hook.half") && line.contains("hook.on"), "{line}");
+    assert!(
+        line.contains("hook.half") && line.contains("hook.on"),
+        "{line}"
+    );
 }
 
 /// What:
@@ -227,15 +284,30 @@ fn a_switch_the_wrapper_supplied_does_not_hide_the_persons_hook() {
         ("command", "hook.pre-commit.enabled\nfalse"),
         ("command", "core.hooksPath\n/dev/null/cli-git-no-hooks"),
     ]);
-    let names: Vec<String> = configured_hooks(&suppressed).into_iter().map(|hook| { return hook.name; }).collect();
-    assert_eq!(names, vec![String::from("control")], "the person's hook is still reported");
-    assert!(external_hooks_warning(Some(&suppressed)).is_some(), "and the commit still warns about it");
+    let names: Vec<String> = configured_hooks(&suppressed)
+        .into_iter()
+        .map(|hook| {
+            return hook.name;
+        })
+        .collect();
+    assert_eq!(
+        names,
+        vec![String::from("control")],
+        "the person's hook is still reported"
+    );
+    assert!(
+        external_hooks_warning(Some(&suppressed)).is_some(),
+        "and the commit still warns about it"
+    );
     // The person's own switch, written in a file, still hides the hook: that one is their choice.
     let chosen: ConfigSnapshot = listing_snapshot(&[
         ("local", "hook.control.event\npre-commit"),
         ("local", "hook.pre-commit.enabled\nfalse"),
     ]);
-    assert!(configured_hooks(&chosen).is_empty(), "a switch in the person's configuration is theirs");
+    assert!(
+        configured_hooks(&chosen).is_empty(),
+        "a switch in the person's configuration is theirs"
+    );
 }
 
 /// What:
@@ -256,14 +328,29 @@ fn a_switch_the_caller_wrote_wins_over_a_file_as_it_does_in_git() {
         ("local", "hook.control.enabled\nfalse"),
         ("command", "hook.control.enabled\ntrue"),
     ]);
-    let names: Vec<String> = configured_hooks(&enabled_by_the_caller).into_iter().map(|hook| { return hook.name; }).collect();
-    assert_eq!(names, vec![String::from("control")], "the caller's own switch enabled the hook");
-    assert!(external_hooks_warning(Some(&enabled_by_the_caller)).is_some(), "and the commit warns about it again");
+    let names: Vec<String> = configured_hooks(&enabled_by_the_caller)
+        .into_iter()
+        .map(|hook| {
+            return hook.name;
+        })
+        .collect();
+    assert_eq!(
+        names,
+        vec![String::from("control")],
+        "the caller's own switch enabled the hook"
+    );
+    assert!(
+        external_hooks_warning(Some(&enabled_by_the_caller)).is_some(),
+        "and the commit warns about it again"
+    );
     // The other direction: a caller who switches the hook off is not told about it.
     let disabled_by_the_caller: ConfigSnapshot = listing_snapshot(&[
         ("local", "hook.control.event\npre-commit"),
         ("local", "hook.control.command\nrun the linter"),
         ("command", "hook.control.enabled\nfalse"),
     ]);
-    assert!(configured_hooks(&disabled_by_the_caller).is_empty(), "the caller switched the hook off for this command");
+    assert!(
+        configured_hooks(&disabled_by_the_caller).is_empty(),
+        "the caller switched the hook off for this command"
+    );
 }

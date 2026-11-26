@@ -23,12 +23,37 @@
 //! await hold(workDir, item); promote(workDir, id); forgetHeld(workDir, id);
 //! ```
 
-use crate::held_push_holder_and_verdict::{Holding, Verdict, holding_in, proven_gone, this_command, with_holding};
-use crate::private_storage::{
-    create_private_directory_all, replace_private_file, replace_private_file_unsynced, sync_directory, write_private_file, write_private_file_unsynced,
+use crate::held_push_holder_and_verdict::{
+    Holding,
+    Verdict,
+    holding_in,
+    proven_gone,
+    this_command,
+    with_holding,
 };
-use crate::work_item::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
-use std::path::{Path, PathBuf};
+use crate::private_storage::{
+    create_private_directory_all,
+    replace_private_file,
+    replace_private_file_unsynced,
+    sync_directory,
+    write_private_file,
+    write_private_file_unsynced,
+};
+use crate::work_item::{
+    CLAIMED,
+    DONE,
+    FAILED,
+    HELD,
+    PENDING,
+    RECOVERING,
+    WorkItem,
+    WorkKind,
+    state_directory,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Holds one item where nothing drains it,
@@ -50,7 +75,11 @@ use std::path::{Path, PathBuf};
 /// # Errors
 ///
 /// The work queue's own words when the record cannot be written.
-pub fn hold(work_dir: &Path, item: &WorkItem, holder: &str) -> Result<(), String> {
+pub fn hold(
+    work_dir: &Path,
+    item: &WorkItem,
+    holder: &str,
+) -> Result<(), String> {
     // A gate that blocked this commit keeps it local: no later hold, recovery included, may publish it.
     if is_blocked(work_dir, item.id().as_str()) {
         return Ok(());
@@ -64,7 +93,11 @@ pub fn hold(work_dir: &Path, item: &WorkItem, holder: &str) -> Result<(), String
     if let Err(error) = create_private_directory_all(state_directory(work_dir, HELD).as_path()) {
         return Err(format!("creating the {HELD} directory failed: {error}"));
     }
-    let holding: Holding = Holding { holder: holder.to_string(), verdict: Verdict::Undecided, reason: String::new() };
+    let holding: Holding = Holding {
+        holder: holder.to_string(),
+        verdict: Verdict::Undecided,
+        reason: String::new(),
+    };
     let item_text: String = item.encode();
     // A record this module cannot rewrite is the item's own words, which hold no holder and so release nothing.
     let record: String = match with_holding(item_text.as_str(), &holding) {
@@ -115,8 +148,23 @@ pub fn hold(work_dir: &Path, item: &WorkItem, holder: &str) -> Result<(), String
 /// ```ts
 /// recordVerdict(held/<id>, holder, verdict, reason, durable) // replace the record whole; false when there is none
 /// ```
-pub fn record_verdict(work_dir: &Path, id: &str, holder: &str, verdict: Verdict, reason: &str) -> bool {
-    return write_verdict(work_dir, id, &Holding { holder: holder.to_string(), verdict, reason: reason.to_string() }, false);
+pub fn record_verdict(
+    work_dir: &Path,
+    id: &str,
+    holder: &str,
+    verdict: Verdict,
+    reason: &str,
+) -> bool {
+    return write_verdict(
+        work_dir,
+        id,
+        &Holding {
+            holder: holder.to_string(),
+            verdict,
+            reason: reason.to_string(),
+        },
+        false,
+    );
 }
 
 /// What:
@@ -132,7 +180,12 @@ pub fn record_verdict(work_dir: &Path, id: &str, holder: &str, verdict: Verdict,
 /// ```ts
 /// writeVerdict(workDir, id, holding, durable) // false when there is no record
 /// ```
-fn write_verdict(work_dir: &Path, id: &str, holding: &Holding, durable: bool) -> bool {
+fn write_verdict(
+    work_dir: &Path,
+    id: &str,
+    holding: &Holding,
+    durable: bool,
+) -> bool {
     let path: PathBuf = state_directory(work_dir, HELD).join(id);
     // A named pipe at a held record's name is a record this pass cannot read, answered at once rather than waited on.
     let Ok(text) = crate::plain_file::read_plain_text(path.as_path()) else {
@@ -160,7 +213,10 @@ fn write_verdict(work_dir: &Path, id: &str, holding: &Holding, durable: bool) ->
 /// ```ts
 /// const approved = recordVerdict(workDir, id, thisCommand(), 'passed', '');
 /// ```
-pub fn record_pass(work_dir: &Path, id: &str) -> bool {
+pub fn record_pass(
+    work_dir: &Path,
+    id: &str,
+) -> bool {
     return record_verdict(work_dir, id, this_command().as_str(), Verdict::Passed, "");
 }
 
@@ -182,8 +238,21 @@ pub fn record_pass(work_dir: &Path, id: &str) -> bool {
 /// ```ts
 /// const refused = recordVerdict(workDir, id, thisCommand(), 'blocked', reason) // durable
 /// ```
-pub fn record_refusal(work_dir: &Path, id: &str, reason: &str) -> bool {
-    return write_verdict(work_dir, id, &Holding { holder: this_command(), verdict: Verdict::Blocked, reason: reason.to_string() }, true);
+pub fn record_refusal(
+    work_dir: &Path,
+    id: &str,
+    reason: &str,
+) -> bool {
+    return write_verdict(
+        work_dir,
+        id,
+        &Holding {
+            holder: this_command(),
+            verdict: Verdict::Blocked,
+            reason: reason.to_string(),
+        },
+        true,
+    );
 }
 
 /// What:
@@ -203,7 +272,10 @@ pub fn record_refusal(work_dir: &Path, id: &str, reason: &str) -> bool {
 /// ```ts
 /// promote(workDir, id) // rename held/<id> to pending/<id>
 /// ```
-pub fn promote(work_dir: &Path, id: &str) -> bool {
+pub fn promote(
+    work_dir: &Path,
+    id: &str,
+) -> bool {
     let held: PathBuf = state_directory(work_dir, HELD).join(id);
     let pending: PathBuf = state_directory(work_dir, PENDING).join(id);
     if std::fs::rename(&held, &pending).is_ok() {
@@ -238,7 +310,10 @@ pub const BLOCKED: &str = "blocked";
 /// ```ts
 /// undecidedCommits(workDir, branchRef) // the commits whose gate runs now
 /// ```
-pub fn undecided_commits(work_dir: &Path, branch_ref: &str) -> Vec<String> {
+pub fn undecided_commits(
+    work_dir: &Path,
+    branch_ref: &str,
+) -> Vec<String> {
     let held: PathBuf = state_directory(work_dir, HELD);
     let Ok(listing) = std::fs::read_dir(held.as_path()) else {
         return Vec::new();
@@ -246,18 +321,28 @@ pub fn undecided_commits(work_dir: &Path, branch_ref: &str) -> Vec<String> {
     let mut commits: Vec<String> = Vec::new();
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        let Some(commit) = crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) else { continue };
+        let Some(commit) = crate::work_item_ids_and_names::object_of_a_record_name(name.as_str())
+        else {
+            continue;
+        };
         // A record that cannot be read names no branch: a pipe there answers at once instead of waiting for a writer.
-        let Ok(text) = crate::plain_file::read_plain_text(&entry.path()) else { continue };
+        let Ok(text) = crate::plain_file::read_plain_text(&entry.path()) else {
+            continue;
+        };
         // The branch is the record's,
         // and a record this module cannot read names no branch:
         // it is left to the line every command prints for it.
-        let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
+        let Ok(item) = WorkItem::decode(text.as_str()) else {
+            continue;
+        };
         if item.branch_ref != branch_ref {
             continue;
         }
         let holding: Holding = holding_in(text.as_str());
-        if holding.verdict != Verdict::Undecided || holding.holder.is_empty() || proven_gone(holding.holder.as_str()) {
+        if holding.verdict != Verdict::Undecided
+            || holding.holder.is_empty()
+            || proven_gone(holding.holder.as_str())
+        {
             continue;
         }
         // An earlier release's name and this release's name can both hold one commit, so the answer is one commit.
@@ -337,7 +422,11 @@ pub struct BlockedVerdict {
 /// ```ts
 /// block(workDir, item, reason) // write `blocked/<id>` durably with the branch and the words, then forget the held record; false when it could not be kept
 /// ```
-pub fn block(work_dir: &Path, item: &WorkItem, reason: &str) -> bool {
+pub fn block(
+    work_dir: &Path,
+    item: &WorkItem,
+    reason: &str,
+) -> bool {
     let id: String = item.id();
     let blocked: PathBuf = state_directory(work_dir, BLOCKED);
     if let Err(error) = create_private_directory_all(blocked.as_path()) {
@@ -386,10 +475,18 @@ pub fn block(work_dir: &Path, item: &WorkItem, reason: &str) -> bool {
 /// ```ts
 /// JSON.stringify({ v: 1, branch, commit, reason }) + '\n'
 /// ```
-fn blocked_record(branch_ref: &str, commit: &str, reason: &str) -> String {
+fn blocked_record(
+    branch_ref: &str,
+    commit: &str,
+    reason: &str,
+) -> String {
     let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
     fields.insert(String::from("v"), serde_json::Value::from(1));
-    for (name, text) in [("branch", branch_ref), ("commit", commit), ("reason", reason)] {
+    for (name, text) in [
+        ("branch", branch_ref),
+        ("commit", commit),
+        ("reason", reason),
+    ] {
         fields.insert(String::from(name), serde_json::Value::from(text));
     }
     return format!("{}\n", serde_json::Value::Object(fields));
@@ -436,16 +533,22 @@ pub fn blocked_verdicts(work_dir: &Path) -> Vec<BlockedVerdict> {
     entries.sort();
     let mut verdicts: Vec<BlockedVerdict> = Vec::new();
     for (name, path) in entries {
-        let commit: String = match crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) {
-            Some(object) => object.to_owned(),
-            None => continue,
-        };
+        let commit: String =
+            match crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) {
+                Some(object) => object.to_owned(),
+                None => continue,
+            };
         // A record that cannot be read is still a verdict on a commit the gate refused, so it keeps the commit and says nothing more.
-        let read: Option<BlockedVerdict> = match crate::plain_file::read_plain_text(path.as_path()) {
+        let read: Option<BlockedVerdict> = match crate::plain_file::read_plain_text(path.as_path())
+        {
             Ok(text) => blocked_verdict_of(text.as_str(), commit.as_str()),
             Err(_unreadable) => None,
         };
-        verdicts.push(read.unwrap_or(BlockedVerdict { branch_ref: String::new(), commit, reason: String::new() }));
+        verdicts.push(read.unwrap_or(BlockedVerdict {
+            branch_ref: String::new(),
+            commit,
+            reason: String::new(),
+        }));
     }
     // A held record whose own words say its gate refused the commit is a refusal as well: the command that wrote them was killed
     //  between the verdict and the verdict record, or that record could not be written. The commit must not be published by the
@@ -490,13 +593,20 @@ fn refused_while_held(work_dir: &Path) -> Vec<BlockedVerdict> {
     };
     let mut entries: Vec<(String, PathBuf)> = Vec::new();
     for entry in listing.flatten() {
-        entries.push((entry.file_name().to_string_lossy().into_owned(), entry.path()));
+        entries.push((
+            entry.file_name().to_string_lossy().into_owned(),
+            entry.path(),
+        ));
     }
     entries.sort();
     let mut refusals: Vec<BlockedVerdict> = Vec::new();
     for (_name, path) in entries {
-        let Ok(text) = crate::plain_file::read_plain_text(path.as_path()) else { continue };
-        let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
+        let Ok(text) = crate::plain_file::read_plain_text(path.as_path()) else {
+            continue;
+        };
+        let Ok(item) = WorkItem::decode(text.as_str()) else {
+            continue;
+        };
         if item.kind != WorkKind::Push {
             continue;
         }
@@ -504,7 +614,11 @@ fn refused_while_held(work_dir: &Path) -> Vec<BlockedVerdict> {
         if holding.verdict != Verdict::Blocked {
             continue;
         }
-        refusals.push(BlockedVerdict { branch_ref: item.branch_ref.clone(), commit: item.oid.clone(), reason: holding.reason.clone() });
+        refusals.push(BlockedVerdict {
+            branch_ref: item.branch_ref.clone(),
+            commit: item.oid.clone(),
+            reason: holding.reason.clone(),
+        });
     }
     return refusals;
 }
@@ -522,17 +636,31 @@ fn refused_while_held(work_dir: &Path) -> Vec<BlockedVerdict> {
 /// ```ts
 /// const parse = (text, commit) => { try { const held = JSON.parse(text); return { branchRef: held.branch, commit, reason: held.reason }; } catch { return undefined; } };
 /// ```
-fn blocked_verdict_of(text: &str, commit: &str) -> Option<BlockedVerdict> {
+fn blocked_verdict_of(
+    text: &str,
+    commit: &str,
+) -> Option<BlockedVerdict> {
     let value: serde_json::Value = serde_json::from_str(text).ok()?;
     return Some(BlockedVerdict {
-        branch_ref: value.get("branch").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned(),
+        branch_ref: value
+            .get("branch")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_owned(),
         commit: commit.to_owned(),
-        reason: value.get("reason").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned(),
+        reason: value
+            .get("reason")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_owned(),
     });
 }
 
 /// Whether the gate of this commit kept it local.
-fn is_blocked(work_dir: &Path, id: &str) -> bool {
+fn is_blocked(
+    work_dir: &Path,
+    id: &str,
+) -> bool {
     return state_directory(work_dir, BLOCKED).join(id).exists();
 }
 
@@ -554,9 +682,14 @@ fn is_blocked(work_dir: &Path, id: &str) -> bool {
 /// ```ts
 /// const taken = exists(join(workDir, 'done', id)) || exists(join(workDir, 'failed', id)) || findClaim(workDir, id) !== undefined;
 /// ```
-fn settled_or_taken(work_dir: &Path, id: &str) -> bool {
+fn settled_or_taken(
+    work_dir: &Path,
+    id: &str,
+) -> bool {
     // `done` and `failed` name the record itself, so they are one look each.
-    if state_directory(work_dir, DONE).join(id).exists() || state_directory(work_dir, FAILED).join(id).exists() {
+    if state_directory(work_dir, DONE).join(id).exists()
+        || state_directory(work_dir, FAILED).join(id).exists()
+    {
         return true;
     }
     // A claim is named by its id and the generation and reading of its holder, so it is found by its id.
@@ -614,17 +747,28 @@ fn create_states(work_dir: &Path) -> bool {
 /// ```ts
 /// const requeueAfterGivingUp = (workDir, id) => rename(join(workDir, 'failed', id), join(workDir, 'pending', id));
 /// ```
-pub fn requeue_after_giving_up(work_dir: &Path, id: &str) -> bool {
+pub fn requeue_after_giving_up(
+    work_dir: &Path,
+    id: &str,
+) -> bool {
     if !create_states(work_dir) {
         return false;
     }
-    return std::fs::rename(state_directory(work_dir, FAILED).join(id), state_directory(work_dir, PENDING).join(id)).is_ok();
+    return std::fs::rename(
+        state_directory(work_dir, FAILED).join(id),
+        state_directory(work_dir, PENDING).join(id),
+    )
+    .is_ok();
 }
 
 /// Forgets a held item whose producer refused it;
 /// one that is already promoted is not reached.
-pub fn forget_held(work_dir: &Path, id: &str) {
-    let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir, HELD).join(id));
+pub fn forget_held(
+    work_dir: &Path,
+    id: &str,
+) {
+    let _removed: std::io::Result<()> =
+        std::fs::remove_file(state_directory(work_dir, HELD).join(id));
 }
 
 /// Controls stay out of the release executable.

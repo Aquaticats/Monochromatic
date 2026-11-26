@@ -15,14 +15,29 @@
 //! const finding = await repairPnpm(destination, environment); // undefined when pnpm has nothing to relink
 //! ```
 
+use crate::package_repair_command::{
+    ToolCommand,
+    ToolLimits,
+    ToolRun,
+    find_program,
+    run_refused,
+    run_tool_awaiting,
+};
+use crate::package_repair_report::{
+    Finding,
+    Tool,
+    finding_from,
+    missing_tool,
+};
 use crate::package_repair_request::RepairEnvironment;
-use crate::package_repair_command::{ToolCommand, ToolLimits, ToolRun, find_program, run_refused, run_tool_awaiting};
-use crate::package_repair_report::{Finding, Tool, finding_from, missing_tool};
 /// Whether the directory the relink writes in is still inside the worktree it serves.
 use crate::package_repair_touches_only_its_own_worktree::is_inside_the_worktree;
 use crate::shell_quote::shell_quote;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Instant;
 
 /// The program the person's environment resolves;
@@ -53,7 +68,11 @@ const ARGUMENTS: [&str; 3] = ["install", "--offline", "--frozen-lockfile"];
 /// function manualCommand(destination: string): string;
 /// ```
 pub fn manual_command(destination: &Path) -> String {
-    return format!("{PROGRAM} --dir {} {}", shell_quote(destination.as_os_str().as_encoded_bytes()), ARGUMENTS.join(" "));
+    return format!(
+        "{PROGRAM} --dir {} {}",
+        shell_quote(destination.as_os_str().as_encoded_bytes()),
+        ARGUMENTS.join(" ")
+    );
 }
 
 /// What:
@@ -117,10 +136,20 @@ enum PnpmRepair {
 /// ```ts
 /// function prepareRelink(destination: string, environment: RepairEnvironment): PnpmRepair;
 /// ```
-fn prepare_relink(destination: &Path, environment: &RepairEnvironment) -> PnpmRepair {
+fn prepare_relink(
+    destination: &Path,
+    environment: &RepairEnvironment,
+) -> PnpmRepair {
     let modules: PathBuf = destination.join(MODULES);
     if !destination.join(LOCKFILE).is_file() || !modules.is_dir() {
-        crate::diagnostic_log::debug("packageRepairPnpm", format!("{}: no lockfile or no node_modules, nothing to relink", destination.display()).as_str());
+        crate::diagnostic_log::debug(
+            "packageRepairPnpm",
+            format!(
+                "{}: no lockfile or no node_modules, nothing to relink",
+                destination.display()
+            )
+            .as_str(),
+        );
         return PnpmRepair::NothingToDo;
     }
     // A copied `node_modules` can be a link to the source checkout's, and an install here would rewrite that directory's
@@ -133,11 +162,21 @@ fn prepare_relink(destination: &Path, environment: &RepairEnvironment) -> PnpmRe
         return PnpmRepair::NothingToDo;
     }
     let manual: String = manual_command(destination);
-    let Some(program) = find_program(PROGRAM, environment.path(), &environment.start_directory) else {
+    let Some(program) = find_program(PROGRAM, environment.path(), &environment.start_directory)
+    else {
         return PnpmRepair::NoPnpm(missing_tool(Tool::Pnpm, PROGRAM, manual.as_str()));
     };
-    let command: ToolCommand = ToolCommand { arguments: ARGUMENTS.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set: crate::package_repair_request::with_the_persons_path(environment) };
-    return PnpmRepair::Relink(Relink { program, command, manual, limits: environment.limits() });
+    let command: ToolCommand = ToolCommand {
+        arguments: ARGUMENTS.iter().map(OsString::from).collect(),
+        directory: PathBuf::from(destination),
+        set: crate::package_repair_request::with_the_persons_path(environment),
+    };
+    return PnpmRepair::Relink(Relink {
+        program,
+        command,
+        manual,
+        limits: environment.limits(),
+    });
 }
 
 /// What:
@@ -176,7 +215,10 @@ pub(crate) enum PnpmNeed {
 /// ```ts
 /// const needOf = (destination, environment) => decide(prepareRelink(destination, environment));
 /// ```
-pub(crate) fn need_of(destination: &Path, environment: &RepairEnvironment) -> PnpmNeed {
+pub(crate) fn need_of(
+    destination: &Path,
+    environment: &RepairEnvironment,
+) -> PnpmNeed {
     return match prepare_relink(destination, environment) {
         PnpmRepair::NothingToDo => PnpmNeed::Nothing,
         PnpmRepair::NoPnpm(finding) => PnpmNeed::NoProgram(finding),
@@ -201,9 +243,28 @@ async fn relink_awaiting(work: &Relink) -> ToolRun {
 /// ```ts
 /// const relinkFinding = (work: Relink, destination: string, run: ToolRun) => findingFrom('pnpm', run, 'pnpm relinked node_modules', work.manual);
 /// ```
-fn relink_finding(work: &Relink, destination: &Path, run: &ToolRun) -> Finding {
-    crate::diagnostic_log::debug("packageRepairPnpm", format!("{}: {} ended {:?} after {} ms", destination.display(), work.program.display(), run.end, run.millis).as_str());
-    return finding_from(Tool::Pnpm, run, "pnpm relinked node_modules", work.manual.as_str());
+fn relink_finding(
+    work: &Relink,
+    destination: &Path,
+    run: &ToolRun,
+) -> Finding {
+    crate::diagnostic_log::debug(
+        "packageRepairPnpm",
+        format!(
+            "{}: {} ended {:?} after {} ms",
+            destination.display(),
+            work.program.display(),
+            run.end,
+            run.millis
+        )
+        .as_str(),
+    );
+    return finding_from(
+        Tool::Pnpm,
+        run,
+        "pnpm relinked node_modules",
+        work.manual.as_str(),
+    );
 }
 
 /// What:
@@ -222,7 +283,10 @@ fn relink_finding(work: &Relink, destination: &Path, run: &ToolRun) -> Finding {
 /// ```ts
 /// function repairPnpm(destination: string, environment: RepairEnvironment): Finding | undefined;
 /// ```
-pub fn repair_pnpm(destination: &Path, environment: &RepairEnvironment) -> Option<Finding> {
+pub fn repair_pnpm(
+    destination: &Path,
+    environment: &RepairEnvironment,
+) -> Option<Finding> {
     return match prepare_relink(destination, environment) {
         PnpmRepair::NothingToDo => None,
         PnpmRepair::NoPnpm(finding) => Some(finding),
@@ -252,7 +316,10 @@ pub fn repair_pnpm(destination: &Path, environment: &RepairEnvironment) -> Optio
 /// ```ts
 /// async function repairPnpmAwaiting(destination: string, environment: RepairEnvironment): Promise<Finding | undefined>;
 /// ```
-pub async fn repair_pnpm_awaiting(destination: &Path, environment: &RepairEnvironment) -> Option<Finding> {
+pub async fn repair_pnpm_awaiting(
+    destination: &Path,
+    environment: &RepairEnvironment,
+) -> Option<Finding> {
     return match prepare_relink(destination, environment) {
         PnpmRepair::NothingToDo => None,
         PnpmRepair::NoPnpm(finding) => Some(finding),

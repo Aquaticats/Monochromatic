@@ -30,7 +30,10 @@ use std::path::Path;
 /// which no other line has:
 /// a conflicted file the command replaced,
 /// and a nested repository the command would have deleted.
-const SAVED_COPY_MARKS: [&[u8]; 2] = [b"\"outcome\":\"saved-conflict\"", b"\"outcome\":\"saved-nested-repository\""];
+const SAVED_COPY_MARKS: [&[u8]; 2] = [
+    b"\"outcome\":\"saved-conflict\"",
+    b"\"outcome\":\"saved-nested-repository\"",
+];
 
 /// The characters that stand for a byte the line's writer could not show as text:
 /// a place that has one cannot be looked up.
@@ -110,7 +113,8 @@ fn line_names_a_copy(line: &[u8]) -> bool {
 /// # Errors
 /// The system's error when the file cannot be opened or read.
 pub fn names_a_copy_on_disk(path: &Path) -> std::io::Result<bool> {
-    let mut reader: std::io::BufReader<std::fs::File> = std::io::BufReader::new(std::fs::File::open(path)?);
+    let mut reader: std::io::BufReader<std::fs::File> =
+        std::io::BufReader::new(std::fs::File::open(path)?);
     let mut line: Vec<u8> = Vec::new();
     loop {
         line.clear();

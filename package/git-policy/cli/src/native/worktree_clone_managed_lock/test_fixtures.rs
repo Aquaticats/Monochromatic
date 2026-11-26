@@ -24,12 +24,25 @@ use crate::testing::test_support::fixture;
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use crate::worktree_clone_binding_record::binding_words::BINDING_HEADER;
 use crate::worktree_clone_binding_record::lock_words::lock_file_bytes;
-use crate::worktree_clone_binding_record::registration_home::{binding_name, home_folder};
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    home_folder,
+};
 use crate::worktree_clone_managed_lock::dataset_guid_reads::DatasetGuidReads;
-use crate::worktree_clone_mount_protocol::{DatasetGuid, RequestNonce};
-use crate::zfs_mounted_dataset::mounted_dataset_instance::{MountHoldingAPath, MountedDatasetInstance, MountedDatasets};
+use crate::worktree_clone_mount_protocol::{
+    DatasetGuid,
+    RequestNonce,
+};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{
+    MountHoldingAPath,
+    MountedDatasetInstance,
+    MountedDatasets,
+};
 use std::os::unix::fs::PermissionsExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A mount table a control writes,
@@ -55,20 +68,37 @@ pub struct ScriptedMounts {
 impl ScriptedMounts {
     /// No mount covers any path.
     pub fn nothing() -> ScriptedMounts {
-        return ScriptedMounts { holding: Ok(None), rows: Vec::new() };
+        return ScriptedMounts {
+            holding: Ok(None),
+            rows: Vec::new(),
+        };
     }
 
     /// One dataset mounted at one path.
-    pub fn a_mount_of(dataset: &str, at: &Path) -> ScriptedMounts {
+    pub fn a_mount_of(
+        dataset: &str,
+        at: &Path,
+    ) -> ScriptedMounts {
         return ScriptedMounts {
-            holding: Ok(Some(MountHoldingAPath { dataset: Some(String::from(dataset)), filesystem_type: String::from("zfs"), mount_point: at.to_path_buf() })),
-            rows: vec![MountedDatasetInstance { dataset: String::from(dataset), mount_point: at.to_path_buf(), root: PathBuf::from("/") }],
+            holding: Ok(Some(MountHoldingAPath {
+                dataset: Some(String::from(dataset)),
+                filesystem_type: String::from("zfs"),
+                mount_point: at.to_path_buf(),
+            })),
+            rows: vec![MountedDatasetInstance {
+                dataset: String::from(dataset),
+                mount_point: at.to_path_buf(),
+                root: PathBuf::from("/"),
+            }],
         };
     }
 
     /// A table that cannot be read.
     pub fn unreadable(reason: &str) -> ScriptedMounts {
-        return ScriptedMounts { holding: Err(String::from(reason)), rows: Vec::new() };
+        return ScriptedMounts {
+            holding: Err(String::from(reason)),
+            rows: Vec::new(),
+        };
     }
 }
 
@@ -80,12 +110,19 @@ impl MountedDatasets for ScriptedMounts {
         };
     }
 
-    fn mount_holding(&self, path: &Path) -> Result<Option<MountHoldingAPath>, String> {
+    fn mount_holding(
+        &self,
+        path: &Path,
+    ) -> Result<Option<MountHoldingAPath>, String> {
         // The trait answers the mount the path is *on*, so an unmounted slot under a
         // mounted parent answers its parent; a scripted table says only what it was given.
         return match &self.holding {
             Ok(Some(found)) if found.mount_point == path => Ok(Some(found.clone())),
-            Ok(_covered_by_a_parent) => Ok(Some(MountHoldingAPath { dataset: Some(String::from("pool/monochromatic-git-checkout")), filesystem_type: String::from("zfs"), mount_point: path.parent().unwrap_or(path).to_path_buf() })),
+            Ok(_covered_by_a_parent) => Ok(Some(MountHoldingAPath {
+                dataset: Some(String::from("pool/monochromatic-git-checkout")),
+                filesystem_type: String::from("zfs"),
+                mount_point: path.parent().unwrap_or(path).to_path_buf(),
+            })),
             Err(reason) => Err(reason.clone()),
         };
     }
@@ -112,27 +149,44 @@ pub struct ScriptedGuids {
 
 impl ScriptedGuids {
     /// One dataset answering the GUID the record holds.
-    pub fn answering(dataset: &str, guid: &str) -> ScriptedGuids {
-        return ScriptedGuids { answers: vec![(String::from(dataset), Ok(String::from(guid)))] };
+    pub fn answering(
+        dataset: &str,
+        guid: &str,
+    ) -> ScriptedGuids {
+        return ScriptedGuids {
+            answers: vec![(String::from(dataset), Ok(String::from(guid)))],
+        };
     }
 
     /// One dataset whose read the pool refused.
-    pub fn refusing(dataset: &str, reason: &str) -> ScriptedGuids {
-        return ScriptedGuids { answers: vec![(String::from(dataset), Err(String::from(reason)))] };
+    pub fn refusing(
+        dataset: &str,
+        reason: &str,
+    ) -> ScriptedGuids {
+        return ScriptedGuids {
+            answers: vec![(String::from(dataset), Err(String::from(reason)))],
+        };
     }
 
     /// A pool this arm must not read at all.
     pub fn never_asked() -> ScriptedGuids {
-        return ScriptedGuids { answers: Vec::new() };
+        return ScriptedGuids {
+            answers: Vec::new(),
+        };
     }
 }
 
 impl DatasetGuidReads for ScriptedGuids {
-    fn guid_of(&self, dataset: &str) -> Result<DatasetGuid, String> {
+    fn guid_of(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetGuid, String> {
         for (named, answer) in &self.answers {
             if named == dataset {
                 return match answer {
-                    Ok(guid) => Ok(DatasetGuid::parse(guid.as_str()).expect("the control's GUID reads")),
+                    Ok(guid) => {
+                        Ok(DatasetGuid::parse(guid.as_str()).expect("the control's GUID reads"))
+                    }
                     Err(reason) => Err(reason.clone()),
                 };
             }
@@ -221,10 +275,19 @@ impl Fixture {
     pub fn new(label: &str) -> Fixture {
         let root: PathBuf = fixture(label);
         let common_dir: PathBuf = root.join("repository").join(".git");
-        let slot_path: PathBuf = root.join("repository").join(".claude").join("worktrees").join(SLOT);
+        let slot_path: PathBuf = root
+            .join("repository")
+            .join(".claude")
+            .join("worktrees")
+            .join(SLOT);
         std::fs::create_dir_all(common_dir.as_path()).expect("the common directory is made");
         std::fs::create_dir_all(slot_path.as_path()).expect("the slot is made");
-        return Fixture { root, common_dir, slot: String::from(SLOT), slot_path };
+        return Fixture {
+            root,
+            common_dir,
+            slot: String::from(SLOT),
+            slot_path,
+        };
     }
 
     /// The wrapper's record folder.
@@ -239,25 +302,52 @@ impl Fixture {
 
     /// The slot folder's identity as a record writes it.
     pub fn slot_identity(&self) -> String {
-        let identity: FolderIdentity = FolderIdentity::of_folder(self.slot_path.as_path()).expect("the slot's identity reads");
+        let identity: FolderIdentity =
+            FolderIdentity::of_folder(self.slot_path.as_path()).expect("the slot's identity reads");
         return identity.encode();
     }
 
     /// Write this slot's binding record,
     /// private to the account as the add writes it.
-    pub fn write_record(&self, spec: &RecordSpec) -> PathBuf {
+    pub fn write_record(
+        &self,
+        spec: &RecordSpec,
+    ) -> PathBuf {
         let home: PathBuf = self.home();
         std::fs::create_dir_all(home.as_path()).expect("the record folder is made");
-        std::fs::set_permissions(home.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the record folder holds its mode");
+        std::fs::set_permissions(home.as_path(), std::fs::Permissions::from_mode(0o700))
+            .expect("the record folder holds its mode");
         let mut text: String = String::from(BINDING_HEADER);
         text.push('\n');
-        text.push_str(format!("claim=1\nnonce={}\nrequest=origin\nphase=registered\n", spec.nonce).as_str());
-        text.push_str(format!("slot={}\n", crate::worktree_clone_binding_record::binding_encoding::path_as_hexadecimal(self.slot_path.as_path())).as_str());
+        text.push_str(
+            format!(
+                "claim=1\nnonce={}\nrequest=origin\nphase=registered\n",
+                spec.nonce
+            )
+            .as_str(),
+        );
+        text.push_str(
+            format!(
+                "slot={}\n",
+                crate::worktree_clone_binding_record::binding_encoding::path_as_hexadecimal(
+                    self.slot_path.as_path()
+                )
+            )
+            .as_str(),
+        );
         if let Some(identity) = spec.slot_identity.as_ref() {
             text.push_str(format!("slotIdentity={identity}\n").as_str());
         }
         if let Some(registration) = spec.registration.as_ref() {
-            text.push_str(format!("registration={}\n", crate::worktree_clone_binding_record::binding_encoding::path_as_hexadecimal(registration.as_path())).as_str());
+            text.push_str(
+                format!(
+                    "registration={}\n",
+                    crate::worktree_clone_binding_record::binding_encoding::path_as_hexadecimal(
+                        registration.as_path()
+                    )
+                )
+                .as_str(),
+            );
         }
         if let Some(identity) = spec.registration_identity.as_ref() {
             text.push_str(format!("registrationIdentity={identity}\n").as_str());
@@ -272,38 +362,63 @@ impl Fixture {
         }
         let path: PathBuf = home.join(binding_name(self.slot.as_str()));
         std::fs::write(path.as_path(), text.as_bytes()).expect("the record is written");
-        std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o600)).expect("the record holds its mode");
+        std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o600))
+            .expect("the record holds its mode");
         return path;
     }
 
     /// Make one `worktrees/<entry>` registration whose `gitdir` names this slot's `.git`,
     /// with `commondir` and `HEAD` as Git leaves them.
-    pub fn write_registration(&self, entry: &str) -> PathBuf {
+    pub fn write_registration(
+        &self,
+        entry: &str,
+    ) -> PathBuf {
         let registration: PathBuf = self.worktrees().join(entry);
         std::fs::create_dir_all(registration.as_path()).expect("the registration is made");
-        std::fs::write(registration.join("gitdir"), format!("{}\n", self.slot_path.join(".git").display()).as_bytes()).expect("the back-link is written");
-        std::fs::write(registration.join("commondir"), b"../..\n").expect("the common directory's record is written");
-        std::fs::write(registration.join("HEAD"), b"ref: refs/heads/main\n").expect("the head is written");
+        std::fs::write(
+            registration.join("gitdir"),
+            format!("{}\n", self.slot_path.join(".git").display()).as_bytes(),
+        )
+        .expect("the back-link is written");
+        std::fs::write(registration.join("commondir"), b"../..\n")
+            .expect("the common directory's record is written");
+        std::fs::write(registration.join("HEAD"), b"ref: refs/heads/main\n")
+            .expect("the head is written");
         return registration;
     }
 
     /// Write the slot's `.git` as Git writes it for one registration.
-    pub fn write_pointer(&self, registration: &Path) {
-        std::fs::write(self.slot_path.join(".git"), format!("gitdir: {}\n", registration.display()).as_bytes()).expect("the pointer is written");
+    pub fn write_pointer(
+        &self,
+        registration: &Path,
+    ) {
+        std::fs::write(
+            self.slot_path.join(".git"),
+            format!("gitdir: {}\n", registration.display()).as_bytes(),
+        )
+        .expect("the pointer is written");
     }
 
     /// Write one registration's `locked` file,
     /// with the mode Git's own write leaves.
-    pub fn write_lock(&self, registration: &Path, bytes: &[u8]) -> PathBuf {
+    pub fn write_lock(
+        &self,
+        registration: &Path,
+        bytes: &[u8],
+    ) -> PathBuf {
         let path: PathBuf = registration.join("locked");
         std::fs::write(path.as_path(), bytes).expect("the lock is written");
-        std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o644)).expect("the lock holds its mode");
+        std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o644))
+            .expect("the lock holds its mode");
         return path;
     }
 
     /// The bytes Git's file holds for one nonce,
     /// which is the sentence and the newline.
-    pub fn the_sentence(&self, nonce: &str) -> Vec<u8> {
+    pub fn the_sentence(
+        &self,
+        nonce: &str,
+    ) -> Vec<u8> {
         let parsed: RequestNonce = RequestNonce::parse(nonce).expect("the fixture nonce reads");
         return lock_file_bytes(&parsed);
     }

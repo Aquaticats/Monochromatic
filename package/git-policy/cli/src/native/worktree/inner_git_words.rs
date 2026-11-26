@@ -23,9 +23,6 @@
 //! const words = [stdout, stderr].filter((text) => text.trim() !== '').join('\n'); if (words) journal.info(`git ${command} said: ${words}`);
 //! ```
 
-/// Masks the userinfo of any URL in Git's words,
-/// as every journal entry of the service is masked.
-use crate::lfs_output_mask::mask_url_secrets_text;
 /// The entry from a wrapper a person ran,
 /// which only Linux writes.
 #[cfg(target_os = "linux")]
@@ -33,7 +30,13 @@ use crate::client_journal::record_entry;
 /// The priority an entry carries,
 /// and the service's way to write one.
 use crate::journald_native::Priority;
-use crate::service_timing::{in_service, log_entry};
+/// Masks the userinfo of any URL in Git's words,
+/// as every journal entry of the service is masked.
+use crate::lfs_output_mask::mask_url_secrets_text;
+use crate::service_timing::{
+    in_service,
+    log_entry,
+};
 /// The captured output of one Git start.
 use crate::transaction_git::GitOutput;
 
@@ -54,7 +57,10 @@ pub const COMMAND_FIELD: &str = "CLI_GIT_INNER_COMMAND";
 /// ```ts
 /// [stdout, stderr].map((text) => text.trim()).filter(Boolean).join('\n') || undefined
 /// ```
-pub fn words_of(stdout: &[u8], stderr: &[u8]) -> Option<String> {
+pub fn words_of(
+    stdout: &[u8],
+    stderr: &[u8],
+) -> Option<String> {
     // The two streams in the order they are shown: standard output, then standard error.
     let mut parts: Vec<String> = Vec::new();
     for bytes in [stdout, stderr] {
@@ -88,7 +94,10 @@ pub fn words_of(stdout: &[u8], stderr: &[u8]) -> Option<String> {
 /// ```ts
 /// recordWords(['fetch', '--no-tags', remote], `${stdout}${stderr}`)
 /// ```
-pub fn record_text<S: AsRef<str>>(arguments: &[S], text: &str) {
+pub fn record_text<S: AsRef<str>>(
+    arguments: &[S],
+    text: &str,
+) {
     let trimmed: &str = text.trim();
     if trimmed.is_empty() {
         return;
@@ -111,7 +120,10 @@ pub fn record_text<S: AsRef<str>>(arguments: &[S], text: &str) {
 /// Send the entry of a wrapper a person ran to the journal;
 /// whether the socket took it is of no use to the command.
 #[cfg(target_os = "linux")]
-fn deliver_from_wrapper(message: &str, fields: &[(&str, String)]) {
+fn deliver_from_wrapper(
+    message: &str,
+    fields: &[(&str, String)],
+) {
     let _sent: bool = record_entry(Priority::Info, message, fields);
 }
 
@@ -119,7 +131,11 @@ fn deliver_from_wrapper(message: &str, fields: &[(&str, String)]) {
 /// elsewhere the words are not kept.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
-fn deliver_from_wrapper(_message: &str, _fields: &[(&str, String)]) {}
+fn deliver_from_wrapper(
+    _message: &str,
+    _fields: &[(&str, String)],
+) {
+}
 
 /// What:
 ///  Record the words of a finished run from its captured output.
@@ -131,8 +147,15 @@ fn deliver_from_wrapper(_message: &str, _fields: &[(&str, String)]) {}
 /// ```ts
 /// recordWords(['reset', newCommit, '--', path], output)
 /// ```
-pub fn record_words<S: AsRef<str>>(arguments: &[S], output: &GitOutput) {
-    record_streams(arguments, output.stdout.as_slice(), output.stderr.as_slice());
+pub fn record_words<S: AsRef<str>>(
+    arguments: &[S],
+    output: &GitOutput,
+) {
+    record_streams(
+        arguments,
+        output.stdout.as_slice(),
+        output.stderr.as_slice(),
+    );
 }
 
 /// What:
@@ -145,7 +168,11 @@ pub fn record_words<S: AsRef<str>>(arguments: &[S], output: &GitOutput) {
 /// ```ts
 /// recordWords(['merge', '--ff-only', oid], { stdout, stderr })
 /// ```
-pub fn record_streams<S: AsRef<str>>(arguments: &[S], stdout: &[u8], stderr: &[u8]) {
+pub fn record_streams<S: AsRef<str>>(
+    arguments: &[S],
+    stdout: &[u8],
+    stderr: &[u8],
+) {
     if let Some(text) = words_of(stdout, stderr) {
         record_text(arguments, text.as_str());
     }

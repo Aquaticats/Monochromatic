@@ -26,8 +26,17 @@
 //! const decision = await decisionForAwaiting(git, intent); // 'drop' | 'finish' | undefined
 //! ```
 
-use crate::service_journal::{Intent, Recovery, recovery_for};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::service_journal::{
+    Intent,
+    Recovery,
+    recovery_for,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 
 /// The exit status `git rev-parse --verify --quiet` gives for a name that is no object:
@@ -63,7 +72,10 @@ const NOT_AN_ANCESTOR: i32 = 1;
 /// ```ts
 /// function currentValue(git, intent): string | undefined // '' for a missing reference
 /// ```
-fn current_value(git: &GitContext, intent: &Intent) -> Option<String> {
+fn current_value(
+    git: &GitContext,
+    intent: &Intent,
+) -> Option<String> {
     return value_answered(run_git(git, &current_value_request(intent)));
 }
 
@@ -82,14 +94,20 @@ fn current_value(git: &GitContext, intent: &Intent) -> Option<String> {
 /// ```ts
 /// async function currentValueAwaiting(git, intent): Promise<string | undefined> // '' for a missing reference
 /// ```
-async fn current_value_awaiting(git: &GitContext, intent: &Intent) -> Option<String> {
+async fn current_value_awaiting(
+    git: &GitContext,
+    intent: &Intent,
+) -> Option<String> {
     return value_answered(run_git_awaiting(git, &current_value_request(intent)).await);
 }
 
 /// The question `current_value` asks Git.
 fn current_value_request(intent: &Intent) -> GitRequest {
     // The name is asked as the bytes Git printed for it, so a branch whose name is not text is still the branch asked about.
-    return GitRequest::new(intent.repository.as_path(), intent.reference.value_question().as_slice());
+    return GitRequest::new(
+        intent.repository.as_path(),
+        intent.reference.value_question().as_slice(),
+    );
 }
 
 /// What:
@@ -109,7 +127,11 @@ fn value_answered(answered: std::io::Result<GitOutput>) -> Option<String> {
         return None;
     };
     if output.succeeded() {
-        return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+        return Some(
+            String::from_utf8_lossy(output.stdout.as_slice())
+                .trim()
+                .to_string(),
+        );
     }
     if output.code == Some(NAME_IS_NO_OBJECT) && output.stderr.is_empty() {
         return Some(String::new());
@@ -132,7 +154,11 @@ fn value_answered(answered: std::io::Result<GitOutput>) -> Option<String> {
 /// ```ts
 /// function landedBelow(git, intent, current): boolean | undefined
 /// ```
-fn landed_below(git: &GitContext, intent: &Intent, current: &str) -> Option<bool> {
+fn landed_below(
+    git: &GitContext,
+    intent: &Intent,
+    current: &str,
+) -> Option<bool> {
     return below_answered(run_git(git, &landed_below_request(intent, current)));
 }
 
@@ -150,13 +176,23 @@ fn landed_below(git: &GitContext, intent: &Intent, current: &str) -> Option<bool
 /// ```ts
 /// async function landedBelowAwaiting(git, intent, current): Promise<boolean | undefined>
 /// ```
-async fn landed_below_awaiting(git: &GitContext, intent: &Intent, current: &str) -> Option<bool> {
+async fn landed_below_awaiting(
+    git: &GitContext,
+    intent: &Intent,
+    current: &str,
+) -> Option<bool> {
     return below_answered(run_git_awaiting(git, &landed_below_request(intent, current)).await);
 }
 
 /// The question `landed_below` asks Git.
-fn landed_below_request(intent: &Intent, current: &str) -> GitRequest {
-    return GitRequest::new(intent.repository.as_path(), &["merge-base", "--is-ancestor", intent.new.as_str(), current]);
+fn landed_below_request(
+    intent: &Intent,
+    current: &str,
+) -> GitRequest {
+    return GitRequest::new(
+        intent.repository.as_path(),
+        &["merge-base", "--is-ancestor", intent.new.as_str(), current],
+    );
 }
 
 /// What:
@@ -177,7 +213,11 @@ fn below_answered(answered: std::io::Result<GitOutput>) -> Option<bool> {
     if output.succeeded() {
         return Some(true);
     }
-    return if output.code == Some(NOT_AN_ANCESTOR) { Some(false) } else { None };
+    return if output.code == Some(NOT_AN_ANCESTOR) {
+        Some(false)
+    } else {
+        None
+    };
 }
 
 /// What:
@@ -193,10 +233,18 @@ fn below_answered(answered: std::io::Result<GitOutput>) -> Option<bool> {
 /// ```ts
 /// function decisionFor(git, intent): Recovery | undefined
 /// ```
-pub(crate) fn decision_for(git: &GitContext, intent: &Intent) -> Option<Recovery> {
+pub(crate) fn decision_for(
+    git: &GitContext,
+    intent: &Intent,
+) -> Option<Recovery> {
     let current: String = current_value(git, intent)?;
-    let decided_without_ancestry: bool = current.is_empty() || current == intent.old || current == intent.new;
-    let ancestor: bool = if decided_without_ancestry { false } else { landed_below(git, intent, current.as_str())? };
+    let decided_without_ancestry: bool =
+        current.is_empty() || current == intent.old || current == intent.new;
+    let ancestor: bool = if decided_without_ancestry {
+        false
+    } else {
+        landed_below(git, intent, current.as_str())?
+    };
     return Some(recovery_for(intent, current.as_str(), ancestor));
 }
 
@@ -214,10 +262,24 @@ pub(crate) fn decision_for(git: &GitContext, intent: &Intent) -> Option<Recovery
 /// ```ts
 /// async function decisionForAwaiting(git, intent): Promise<Recovery | undefined>
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the recovery calls the synchronous decision until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn decision_for_awaiting(git: &GitContext, intent: &Intent) -> Option<Recovery> {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the recovery calls the synchronous decision until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn decision_for_awaiting(
+    git: &GitContext,
+    intent: &Intent,
+) -> Option<Recovery> {
     let current: String = current_value_awaiting(git, intent).await?;
-    let decided_without_ancestry: bool = current.is_empty() || current == intent.old || current == intent.new;
-    let ancestor: bool = if decided_without_ancestry { false } else { landed_below_awaiting(git, intent, current.as_str()).await? };
+    let decided_without_ancestry: bool =
+        current.is_empty() || current == intent.old || current == intent.new;
+    let ancestor: bool = if decided_without_ancestry {
+        false
+    } else {
+        landed_below_awaiting(git, intent, current.as_str()).await?
+    };
     return Some(recovery_for(intent, current.as_str(), ancestor));
 }

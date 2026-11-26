@@ -5,12 +5,21 @@
 //!  and the Linux reader run against a fixture proc root and against this process.
 
 use super::*;
-use crate::test_support::{fixture, remove};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A `/proc/<pid>/stat` line with the given command and state;
 ///  start tick 4200.
-fn stat_line(command: &str, state: &str) -> String {
+fn stat_line(
+    command: &str,
+    state: &str,
+) -> String {
     return format!(
         "4242 ({command}) {state} 1 4242 4242 0 -1 4194560 100 0 0 0 1 2 0 0 20 0 1 0 4200 \
          1000 100 18446744073709551615 1 1 0 0 0 0 0 0 0 0 0 0 17 3 0 0 0 0 0\n"
@@ -18,7 +27,12 @@ fn stat_line(command: &str, state: &str) -> String {
 }
 
 /// Write a fake proc root with one process `pid` in `state` and an uptime of `uptime`.
-fn plant_proc(root: &Path, pid: i64, stat: &str, uptime: &str) {
+fn plant_proc(
+    root: &Path,
+    pid: i64,
+    stat: &str,
+    uptime: &str,
+) {
     let directory: PathBuf = root.join(pid.to_string());
     std::fs::create_dir_all(&directory).expect("fake process directory");
     std::fs::write(directory.join("stat"), stat).expect("fake stat");
@@ -52,8 +66,14 @@ fn malformed_stat_lines_are_refused() {
     assert_eq!(parse_linux_stat("4242 (git) S 1 2 3"), None);
     assert_eq!(parse_linux_stat("4242 (git)"), None);
     assert_eq!(parse_linux_stat(")"), None);
-    assert_eq!(parse_linux_stat(stat_line("git", "S").replace("4200", "-4200").as_str()), None);
-    assert_eq!(parse_linux_stat(stat_line("git", "S").replace("4200", "42x").as_str()), None);
+    assert_eq!(
+        parse_linux_stat(stat_line("git", "S").replace("4200", "-4200").as_str()),
+        None
+    );
+    assert_eq!(
+        parse_linux_stat(stat_line("git", "S").replace("4200", "42x").as_str()),
+        None
+    );
 }
 
 /// A start tick above the largest safe integer is refused,
@@ -137,9 +157,15 @@ fn a_running_process_starts_at_now_minus_uptime_plus_its_ticks() {
 fn zombie_and_dead_processes_are_missing() {
     let root: PathBuf = fixture("process-start-exited");
     plant_proc(&root, 4242, stat_line("git", "Z").as_str(), "100.00 0.00\n");
-    assert_eq!(linux_start(4242, root.as_path(), 1.0), ProcessStart::Missing);
+    assert_eq!(
+        linux_start(4242, root.as_path(), 1.0),
+        ProcessStart::Missing
+    );
     plant_proc(&root, 4242, stat_line("git", "X").as_str(), "100.00 0.00\n");
-    assert_eq!(linux_start(4242, root.as_path(), 1.0), ProcessStart::Missing);
+    assert_eq!(
+        linux_start(4242, root.as_path(), 1.0),
+        ProcessStart::Missing
+    );
     remove(root.as_path());
 }
 
@@ -148,7 +174,10 @@ fn zombie_and_dead_processes_are_missing() {
 #[test]
 fn an_absent_stat_file_is_missing() {
     let root: PathBuf = fixture("process-start-absent");
-    assert_eq!(linux_start(4242, root.as_path(), 1.0), ProcessStart::Missing);
+    assert_eq!(
+        linux_start(4242, root.as_path(), 1.0),
+        ProcessStart::Missing
+    );
     remove(root.as_path());
 }
 
@@ -162,7 +191,12 @@ fn malformed_proc_files_are_unknown() {
         linux_start(4242, root.as_path(), 1.0),
         ProcessStart::Unknown(String::from("Malformed Linux process stat."))
     );
-    plant_proc(&root, 4242, stat_line("git", "S").as_str(), "not-a-number\n");
+    plant_proc(
+        &root,
+        4242,
+        stat_line("git", "S").as_str(),
+        "not-a-number\n",
+    );
     assert_eq!(
         linux_start(4242, root.as_path(), 1.0),
         ProcessStart::Unknown(String::from("Malformed /proc/uptime."))

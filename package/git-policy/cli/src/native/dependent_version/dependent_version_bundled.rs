@@ -33,9 +33,16 @@
 /// ```ts
 /// import { transitiveDependentNames } from './dependent_version_graph.ts';
 /// ```
-use crate::dependent_version_content::{ContentUnavailable, TrackedPath, WorkspaceContent};
+use crate::dependent_version_content::{
+    ContentUnavailable,
+    TrackedPath,
+    WorkspaceContent,
+};
 /// The superset walk over every edge.
-use crate::dependent_version_graph::{WorkspaceNode, transitive_dependent_names};
+use crate::dependent_version_graph::{
+    WorkspaceNode,
+    transitive_dependent_names,
+};
 /// The specifier scan.
 use crate::dependent_version_imports::imports_package;
 /// Which tracked paths are a package's non-test source.
@@ -56,7 +63,10 @@ use std::collections::HashSet;
 /// ```ts
 /// state.current.devDependencyNames.filter(name => relevant.has(name) && name !== state.current.name);
 /// ```
-fn candidate_edges(state: &ManifestState, relevant: &HashSet<String>) -> Vec<String> {
+fn candidate_edges(
+    state: &ManifestState,
+    relevant: &HashSet<String>,
+) -> Vec<String> {
     let mut edges: Vec<String> = Vec::new();
     for name in &state.facts.dev_dependency_names {
         if relevant.contains(name) && *name != state.facts.name {

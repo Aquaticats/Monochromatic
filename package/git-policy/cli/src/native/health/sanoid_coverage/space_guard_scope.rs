@@ -28,7 +28,11 @@
 //! const answer = checkSpaceGuardScope(facts); // { outcome, lines: ['the guard cannot prune ...'] }
 //! ```
 
-use crate::doctor_zfs_route::{CheckOutcome, finding, pass};
+use crate::doctor_zfs_route::{
+    CheckOutcome,
+    finding,
+    pass,
+};
 use crate::worktree_clone_mount_handler::sweep_clone_check::CLONE_ORIGIN_SNAPSHOT_PREFIX;
 
 use super::decided_coverage::CoverageDecision;
@@ -119,15 +123,33 @@ pub fn check_space_guard_scope(facts: &SpaceGuardFacts) -> ScopeAnswer {
     }
     lines.push(format!("the guard prunes only names beginning {} on {dataset}, so any other snapshot of {dataset} stays", facts.pruned_prefix));
     if facts.recursive {
-        let detail: String = format!("the guard descends into child datasets while pruning, and the project kept the current scope of one dataset so a living worktree's history is not destroyed before its expiry");
-        return ScopeAnswer { outcome: finding(FIELD_GUARD_RECURSION, detail), lines };
+        let detail: String = format!(
+            "the guard descends into child datasets while pruning, and the project kept the current scope of one dataset so a living worktree's history is not destroyed before its expiry"
+        );
+        return ScopeAnswer {
+            outcome: finding(FIELD_GUARD_RECURSION, detail),
+            lines,
+        };
     }
     if dataset != facts.decision.recursive_root {
-        let detail: String = format!("the guard prunes {dataset} and the recursive section snapshots {}, so the hourlies of {} itself are never pruned while they fill the pool", facts.decision.recursive_root, facts.decision.recursive_root);
-        return ScopeAnswer { outcome: finding(FIELD_GUARD_DATASET, detail), lines };
+        let detail: String = format!(
+            "the guard prunes {dataset} and the recursive section snapshots {}, so the hourlies of {} itself are never pruned while they fill the pool",
+            facts.decision.recursive_root, facts.decision.recursive_root
+        );
+        return ScopeAnswer {
+            outcome: finding(FIELD_GUARD_DATASET, detail),
+            lines,
+        };
     }
-    let detail: String = format!("the guard prunes only {dataset}@{}* and cannot free the hourlies of {} dataset(s) under it or the {CLONE_ORIGIN_SNAPSHOT_PREFIX} snapshots a living clone pins", facts.pruned_prefix, descendants.len());
-    return ScopeAnswer { outcome: pass(detail), lines };
+    let detail: String = format!(
+        "the guard prunes only {dataset}@{}* and cannot free the hourlies of {} dataset(s) under it or the {CLONE_ORIGIN_SNAPSHOT_PREFIX} snapshots a living clone pins",
+        facts.pruned_prefix,
+        descendants.len()
+    );
+    return ScopeAnswer {
+        outcome: pass(detail),
+        lines,
+    };
 }
 
 /// Controls stay out of the release executable.

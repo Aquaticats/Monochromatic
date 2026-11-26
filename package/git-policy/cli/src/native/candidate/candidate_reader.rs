@@ -14,21 +14,33 @@
 //! ```
 
 /// Import the pure reply reader and the values it produces.
-use crate::candidate_batch::{BatchReply, ObjectKind, read_batch_reply_within};
+use crate::candidate_batch::{
+    BatchReply,
+    ObjectKind,
+    read_batch_reply_within,
+};
 /// Import the layer's failure type and its closed list of causes.
-use crate::candidate_error::{CandidateError, CandidateFailure};
-/// Starts that ride out a short shortage of processes.
-use crate::start_retry::RetryStart;
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// Import the validated object name.
 use crate::candidate_object::ObjectId;
+/// The watch that announces a request that takes long and stops the process at the bound.
+use crate::child_watch::{
+    ChildWatch,
+    WatchTerms,
+    reader_subject,
+    watched_timeout_text,
+};
 /// Import the shared child-command builder.
 use crate::forwarding::git_command;
 /// Who a real-Git start runs for:
 /// the wrapper's own work,
 /// not the person's command.
 use crate::hooks_off::StartOwner;
-/// The watch that announces a request that takes long and stops the process at the bound.
-use crate::child_watch::{ChildWatch, WatchTerms, reader_subject, watched_timeout_text};
+/// Starts that ride out a short shortage of processes.
+use crate::start_retry::RetryStart;
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table (siblings:
 ///  `BTreeMap`,
@@ -47,13 +59,21 @@ use std::collections::HashMap;
 use std::ffi::OsString;
 /// `BufReader` adds a read buffer to a pipe;
 ///  `Write` is the trait that gives pipes `.write_all(..)`.
-use std::io::{BufReader, Write};
+use std::io::{
+    BufReader,
+    Write,
+};
 /// `Path` is a borrowed filesystem path of raw OS bytes.
 use std::path::Path;
 /// The child process record,
 ///  its two pipes,
 ///  and the stream selector.
-use std::process::{Child, ChildStdin, ChildStdout, Stdio};
+use std::process::{
+    Child,
+    ChildStdin,
+    ChildStdout,
+    Stdio,
+};
 /// What:
 ///  `Rc<T>` is a shared,
 ///  read-only handle to one heap value,
@@ -93,7 +113,8 @@ use std::rc::Rc;
 /// ```ts
 /// const OBJECT_MISSING_PREFIX = 'monochromatic-git-policy-cli could not read candidate content: Git has no object ';
 /// ```
-pub const OBJECT_MISSING_PREFIX: &str = "monochromatic-git-policy-cli could not read candidate content: Git has no object ";
+pub const OBJECT_MISSING_PREFIX: &str =
+    "monochromatic-git-policy-cli could not read candidate content: Git has no object ";
 
 /// What:
 ///  The request and reply pipes of a running reader.
@@ -189,7 +210,12 @@ pub fn start_object_reader(
     global_prefix: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> Result<ObjectReader, CandidateError> {
-    return start_object_reader_with(real_git, global_prefix, overlay, WatchTerms::from_environment());
+    return start_object_reader_with(
+        real_git,
+        global_prefix,
+        overlay,
+        WatchTerms::from_environment(),
+    );
 }
 
 /// What:
@@ -252,11 +278,12 @@ pub fn start_object_reader_within(
     // ```ts
     // const child = spawn(realGit, args, { stdio: ['pipe', 'pipe', 'ignore'] });
     // ```
-    let started: std::io::Result<Child> = git_command(real_git, arguments.as_slice(), overlay, StartOwner::Wrapper)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn_retrying();
+    let started: std::io::Result<Child> =
+        git_command(real_git, arguments.as_slice(), overlay, StartOwner::Wrapper)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn_retrying();
     let mut child: Child = match started {
         Ok(spawned) => spawned,
         Err(error) => {
@@ -285,7 +312,9 @@ pub fn start_object_reader_within(
         return Err(reader_ended("started without its request and reply pipes"));
     };
     // `Ok(...)` is the success variant; `Some(...)` is the "present" variant.
-    let watch: ChildWatch = ChildWatch::start(reader_subject().as_str(), child.id(), terms).kept_as("git cat-file --batch").within(crate::wait_ceilings::OBJECT_STEP_CEILING);
+    let watch: ChildWatch = ChildWatch::start(reader_subject().as_str(), child.id(), terms)
+        .kept_as("git cat-file --batch")
+        .within(crate::wait_ceilings::OBJECT_STEP_CEILING);
     return Ok(ObjectReader {
         child,
         pipes: Some(ReaderPipes {
@@ -328,7 +357,10 @@ impl ObjectReader {
     /// ```ts
     /// async #request(name: Buffer): Promise<BatchReply>
     /// ```
-    fn request(&mut self, name: &[u8]) -> Result<BatchReply, CandidateError> {
+    fn request(
+        &mut self,
+        name: &[u8],
+    ) -> Result<BatchReply, CandidateError> {
         // The watch announces a request that takes long and stops the process when one crosses the bound.
         self.watch.begin();
         let reply: Result<BatchReply, CandidateError> = self.exchange(name);
@@ -357,7 +389,10 @@ impl ObjectReader {
     /// ```ts
     /// async #exchange(name: Buffer): Promise<BatchReply>
     /// ```
-    fn exchange(&mut self, name: &[u8]) -> Result<BatchReply, CandidateError> {
+    fn exchange(
+        &mut self,
+        name: &[u8],
+    ) -> Result<BatchReply, CandidateError> {
         // `.as_mut()` lends the open pipes for changing without taking them out.
         let Some(pipes) = self.pipes.as_mut() else {
             return Err(reader_ended("was closed after an earlier failure"));
@@ -394,7 +429,10 @@ impl ObjectReader {
     /// ```ts
     /// async blob(oid: ObjectId): Promise<Uint8Array>
     /// ```
-    pub fn blob(&mut self, object: &ObjectId) -> Result<Rc<[u8]>, CandidateError> {
+    pub fn blob(
+        &mut self,
+        object: &ObjectId,
+    ) -> Result<Rc<[u8]>, CandidateError> {
         // `.get(object)` is `Option<&Rc<[u8]>>`: the remembered bytes, if any.
         if let Some(bytes) = self.blobs.get(object) {
             return Ok(Rc::clone(bytes));
@@ -421,7 +459,10 @@ impl ObjectReader {
                     .as_str(),
                 ));
             }
-            BatchReply::TooLarge { size, .. } => {
+            BatchReply::TooLarge {
+                size,
+                ..
+            } => {
                 // A check that reads no whole object reports the skip and goes on; the reply was consumed, so the
                 // next request is answered normally.
                 return Err(CandidateError::new(
@@ -436,7 +477,11 @@ impl ObjectReader {
                     .as_str(),
                 ));
             }
-            BatchReply::Found { kind, bytes, .. } => {
+            BatchReply::Found {
+                kind,
+                bytes,
+                ..
+            } => {
                 if kind != ObjectKind::Blob {
                     return Err(CandidateError::new(
                         CandidateFailure::ObjectKindUnexpected,
@@ -481,8 +526,15 @@ impl ObjectReader {
             // ```ts
             // if (reply.kind === 'too-large') return reply.object;
             // ```
-            BatchReply::TooLarge { object, .. } => return Ok(Some(object)),
-            BatchReply::Found { object, kind, .. } => {
+            BatchReply::TooLarge {
+                object,
+                ..
+            } => return Ok(Some(object)),
+            BatchReply::Found {
+                object,
+                kind,
+                ..
+            } => {
                 if kind != ObjectKind::Commit {
                     return Err(CandidateError::new(
                         CandidateFailure::ObjectKindUnexpected,

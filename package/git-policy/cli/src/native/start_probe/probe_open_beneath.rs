@@ -21,7 +21,11 @@
 
 use super::probe_call_error::CallError;
 use std::ffi::CString;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
 
 /// `RESOLVE_NO_XDEV`:
 /// no mount point is crossed.
@@ -59,15 +63,33 @@ struct OpenHow {
 /// # Errors
 /// The call refused,
 ///  with the errno the kernel answered.
-pub fn open_directory_beneath(held: &std::fs::File, relative: &str) -> Result<OwnedFd, CallError> {
+pub fn open_directory_beneath(
+    held: &std::fs::File,
+    relative: &str,
+) -> Result<OwnedFd, CallError> {
     let path: CString = CString::new(relative).expect("no NUL in a relative path");
-    let how: OpenHow = OpenHow { flags: (libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC) as u64, mode: 0, resolve: RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS | RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH };
+    let how: OpenHow = OpenHow {
+        flags: (libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC) as u64,
+        mode: 0,
+        resolve: RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS | RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH,
+    };
     // SAFETY: the held descriptor is the caller's, the path and the structure outlive the call, and the answer is owned once.
     let opened: libc::c_int = unsafe {
-        libc::syscall(libc::SYS_openat2, held.as_raw_fd(), path.as_ptr(), (&how as *const OpenHow).cast::<libc::c_void>(), std::mem::size_of::<OpenHow>()) as libc::c_int
+        libc::syscall(
+            libc::SYS_openat2,
+            held.as_raw_fd(),
+            path.as_ptr(),
+            (&how as *const OpenHow).cast::<libc::c_void>(),
+            std::mem::size_of::<OpenHow>(),
+        ) as libc::c_int
     };
     if opened < 0 {
-        return Err(CallError { call: "openat2", errno: std::io::Error::last_os_error().raw_os_error().unwrap_or(libc::EIO) });
+        return Err(CallError {
+            call: "openat2",
+            errno: std::io::Error::last_os_error()
+                .raw_os_error()
+                .unwrap_or(libc::EIO),
+        });
     }
     // SAFETY: the call answered a descriptor this process owns, and it is owned exactly once.
     return Ok(unsafe { OwnedFd::from_raw_fd(opened) });
@@ -87,9 +109,19 @@ pub fn open_path_handle(path: &std::path::Path) -> Result<OwnedFd, CallError> {
     use std::os::unix::ffi::OsStrExt;
     let name: CString = CString::new(path.as_os_str().as_bytes()).expect("a path holds no NUL");
     // SAFETY: the path is this call's own and outlives it; the descriptor it answers is owned once.
-    let opened: libc::c_int = unsafe { libc::open(name.as_ptr(), libc::O_PATH | libc::O_DIRECTORY | libc::O_CLOEXEC) };
+    let opened: libc::c_int = unsafe {
+        libc::open(
+            name.as_ptr(),
+            libc::O_PATH | libc::O_DIRECTORY | libc::O_CLOEXEC,
+        )
+    };
     if opened < 0 {
-        return Err(CallError { call: "open O_PATH", errno: std::io::Error::last_os_error().raw_os_error().unwrap_or(libc::EIO) });
+        return Err(CallError {
+            call: "open O_PATH",
+            errno: std::io::Error::last_os_error()
+                .raw_os_error()
+                .unwrap_or(libc::EIO),
+        });
     }
     // SAFETY: the call answered a descriptor this process owns, and it is owned exactly once.
     return Ok(unsafe { OwnedFd::from_raw_fd(opened) });

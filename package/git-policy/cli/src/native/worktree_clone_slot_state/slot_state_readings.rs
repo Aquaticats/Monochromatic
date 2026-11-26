@@ -28,12 +28,24 @@
 
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::plan_folder_read::the_plan_naming_the_clone;
-use crate::worktree_clone_binding_record::record_publication::{RecordRefusalAtTheFile, read_binding};
+use crate::worktree_clone_binding_record::record_publication::{
+    RecordRefusalAtTheFile,
+    read_binding,
+};
 use crate::worktree_clone_binding_record::registration_home::binding_name;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use crate::worktree_clone_mount_protocol::clone_mount_intent::{IntentReading, MountOperation};
-use crate::worktree_clone_slot_state::slot_state_mounts::{MountRows, SlotMount};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_mount_protocol::clone_mount_intent::{
+    IntentReading,
+    MountOperation,
+};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    MountRows,
+    SlotMount,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What stands at one slot's record name.
@@ -78,12 +90,17 @@ pub enum BindingReading {
 /// ```ts
 /// const reading = readBindingReading(home, slot);
 /// ```
-pub fn read_binding_reading(home: &Path, slot: &str) -> BindingReading {
+pub fn read_binding_reading(
+    home: &Path,
+    slot: &str,
+) -> BindingReading {
     let path: PathBuf = home.join(binding_name(slot));
     return match read_binding(home, slot) {
         Ok(record) => BindingReading::Record(Box::new(record)),
         Err(RecordRefusalAtTheFile::Missing) => BindingReading::Absent,
-        Err(refusal) => BindingReading::Unreadable { reason: refusal.message(path.as_path()) },
+        Err(refusal) => BindingReading::Unreadable {
+            reason: refusal.message(path.as_path()),
+        },
     };
 }
 
@@ -133,11 +150,20 @@ pub enum PlanReading {
 /// ```ts
 /// const plan = readPlan(commonDir, cloneGuid, cloneDataset);
 /// ```
-pub fn read_plan(common_dir: &Path, clone_guid: Option<DatasetGuid>, clone_dataset: &str) -> PlanReading {
+pub fn read_plan(
+    common_dir: &Path,
+    clone_guid: Option<DatasetGuid>,
+    clone_dataset: &str,
+) -> PlanReading {
     return match the_plan_naming_the_clone(common_dir, clone_guid, clone_dataset) {
         Ok(None) => PlanReading::NoPlan,
-        Ok(Some(found)) => PlanReading::NamesTheClone { plan: found.plan },
-        Err(unreadable) => PlanReading::Unreadable { plan: unreadable.plan, reason: unreadable.sentence },
+        Ok(Some(found)) => PlanReading::NamesTheClone {
+            plan: found.plan,
+        },
+        Err(unreadable) => PlanReading::Unreadable {
+            plan: unreadable.plan,
+            reason: unreadable.sentence,
+        },
     };
 }
 
@@ -199,12 +225,22 @@ pub enum IntentFacts {
 pub fn intent_facts_of(reading: &IntentReading) -> IntentFacts {
     return match reading {
         IntentReading::Absent => IntentFacts::Absent,
-        IntentReading::Inherited { from } => IntentFacts::Inherited { from: from.clone() },
-        IntentReading::Request(intent) => match intent.operation {
-            MountOperation::Mount => IntentFacts::Mounting { nonce: String::from(intent.nonce.as_str()) },
-            MountOperation::Unmount => IntentFacts::Unmounting { nonce: String::from(intent.nonce.as_str()) },
+        IntentReading::Inherited {
+            from,
+        } => IntentFacts::Inherited {
+            from: from.clone(),
         },
-        IntentReading::Refused(refusal) => IntentFacts::Unreadable { reason: refusal.message() },
+        IntentReading::Request(intent) => match intent.operation {
+            MountOperation::Mount => IntentFacts::Mounting {
+                nonce: String::from(intent.nonce.as_str()),
+            },
+            MountOperation::Unmount => IntentFacts::Unmounting {
+                nonce: String::from(intent.nonce.as_str()),
+            },
+        },
+        IntentReading::Refused(refusal) => IntentFacts::Unreadable {
+            reason: refusal.message(),
+        },
     };
 }
 

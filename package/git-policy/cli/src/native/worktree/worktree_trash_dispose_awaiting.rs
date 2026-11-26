@@ -53,11 +53,14 @@ pub async fn empty_trash_awaiting(item: &WorkItem) -> Verdict {
     //  so a control can say what the round did while the trash ran. The release executable keeps nothing of it.
     #[cfg(test)]
     crate::service_fault::hooks::await_on_any_thread(INSIDE_A_SLOW_STEP).await;
-    let manifest: TrashManifest = match TrashManifest::decode(item.oid.as_str(), item.parent.as_str()) {
-        Ok(found) => found,
-        Err(reason) => return Verdict::Failed(reason),
-    };
-    return match delete_trash_awaiting(item.repository.as_path(), item.git_dir.as_path(), &manifest).await {
+    let manifest: TrashManifest =
+        match TrashManifest::decode(item.oid.as_str(), item.parent.as_str()) {
+            Ok(found) => found,
+            Err(reason) => return Verdict::Failed(reason),
+        };
+    return match delete_trash_awaiting(item.repository.as_path(), item.git_dir.as_path(), &manifest)
+        .await
+    {
         Ok(()) => Verdict::Done,
         Err(left) => Verdict::Failed(left.reason),
     };

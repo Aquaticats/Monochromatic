@@ -21,44 +21,64 @@
 //! ```
 
 /// The command being run.
-use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop};
-/// Standard error as a stream whose lines a thread of their own writes.
-use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
-/// The prepared commit and what it came to.
-use crate::service_prepare::{NativeInputs, Ready};
-/// The commit the service built from the request,
-/// when it did.
-use crate::service_commit_input_notes_and_embedded_commit::Embedded;
-/// The commit an amend makes when the branch moved under it.
-use crate::service_amend_replayed::AmendedCommit;
-/// The landing report.
-use crate::service_commit_requests_and_landing_report::report_landing;
-/// The result and the after-commit work.
-use crate::service_commit::ServiceCommit;
-/// The words of a failure.
-use crate::service_messages::{ClientFailure, render};
-/// What the branch shows once the service went silent.
-use crate::service_branch_shows::the_silent_service_after_a_prepare;
-/// The look for the commit a request that was already sent made,
-/// and the record of a commit the same request left held behind a reference lock.
-use crate::service_commit_looking_for_what_landed::{LookForWhatLanded, a_held_batch_of, looking_for_what_landed};
-/// The record of a held commit.
-use crate::held_commit_record::{self, Held};
-/// The words a held commit ends with.
-use crate::held_commit_words;
-/// The Git the short name of a held commit is asked for.
-use crate::transaction_git::GitContext;
-/// The after-commit work handed to the service.
-use crate::service_handoff::ServiceHandoff;
-/// How to reach the service.
-use crate::service_client::ClientConfig;
-use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
+use crate::commit_transaction::{
+    CommitInvocation,
+    TransactionResult,
+    TransactionStop,
+};
 /// The events the result carries.
 /// A diagnostics line.
 use crate::diagnostic_log::warn;
+/// The record of a held commit.
+use crate::held_commit_record::{
+    self,
+    Held,
+};
+/// The words a held commit ends with.
+use crate::held_commit_words;
+/// The commit an amend makes when the branch moved under it.
+use crate::service_amend_replayed::AmendedCommit;
+/// What the branch shows once the service went silent.
+use crate::service_branch_shows::the_silent_service_after_a_prepare;
+/// How to reach the service.
+use crate::service_client::ClientConfig;
+/// The result and the after-commit work.
+use crate::service_commit::ServiceCommit;
+/// The commit the service built from the request,
+/// when it did.
+use crate::service_commit_input_notes_and_embedded_commit::Embedded;
+/// The look for the commit a request that was already sent made,
+/// and the record of a commit the same request left held behind a reference lock.
+use crate::service_commit_looking_for_what_landed::{
+    LookForWhatLanded,
+    a_held_batch_of,
+    looking_for_what_landed,
+};
+/// The landing report.
+use crate::service_commit_requests_and_landing_report::report_landing;
+/// The after-commit work handed to the service.
+use crate::service_handoff::ServiceHandoff;
+/// The words of a failure.
+use crate::service_messages::{
+    ClientFailure,
+    render,
+};
+/// The prepared commit and what it came to.
+use crate::service_prepare::{
+    NativeInputs,
+    Ready,
+};
+/// Standard error as a stream whose lines a thread of their own writes.
+use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
+/// The Git the short name of a held commit is asked for.
+use crate::transaction_git::GitContext;
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 /// A path on the filesystem.
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Everything a commit that landed still needs,
@@ -114,20 +134,21 @@ pub(crate) struct LandedAftermath<'landed> {
 /// ```
 pub(crate) fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
     // A commit the service builds itself has no commit of its own to name, so the branch value it was made on stands in.
-    let commit: String = input.commit.unwrap_or(input.ready.base.as_str()).to_string();
-    report_after_a_landing(
-        report_landing(
-            input.invocation,
-            input.ready,
-            input.native_inputs,
-            commit.as_str(),
-            input.first_parent.as_str(),
-            input.fixed_message,
-            input.embedded_in_use,
-            input.amended_as_new,
-            input.unlanded,
-        ),
-    );
+    let commit: String = input
+        .commit
+        .unwrap_or(input.ready.base.as_str())
+        .to_string();
+    report_after_a_landing(report_landing(
+        input.invocation,
+        input.ready,
+        input.native_inputs,
+        commit.as_str(),
+        input.first_parent.as_str(),
+        input.fixed_message,
+        input.embedded_in_use,
+        input.amended_as_new,
+        input.unlanded,
+    ));
     let handoff: ServiceHandoff = ServiceHandoff {
         // What: The work after a landing is woken with the hand-over's own greeting bound, never with the wait the commit's own
         //       request is granted.
@@ -135,14 +156,26 @@ pub(crate) fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
         //       a greeting that does not come within that bound is a service that stopped after answering: the commit landed, and
         //       its command must not hold the person for a start it does not need (`wait_ceilings.rs`,
         //       `HAND_OVER_GREETING_WAIT`).
-        config: ClientConfig { start_wait: HAND_OVER_GREETING_WAIT, start_ceiling: HAND_OVER_GREETING_WAIT, ..input.config },
+        config: ClientConfig {
+            start_wait: HAND_OVER_GREETING_WAIT,
+            start_ceiling: HAND_OVER_GREETING_WAIT,
+            ..input.config
+        },
         repository: input.ready.repository.clone(),
         git_dir: input.native_inputs.capture.layout.git_dir.clone(),
         reference: input.ready.reference.clone(),
         parent: input.first_parent,
     };
-    let result: TransactionResult = TransactionResult { events: input.events, exit_code: 0, landed_oid: Some(commit), uses_lfs: input.ready.uses_lfs };
-    return ServiceCommit { result, handoff: Some(handoff) };
+    let result: TransactionResult = TransactionResult {
+        events: input.events,
+        exit_code: 0,
+        landed_oid: Some(commit),
+        uses_lfs: input.ready.uses_lfs,
+    };
+    return ServiceCommit {
+        result,
+        handoff: Some(handoff),
+    };
 }
 
 /// What:
@@ -164,16 +197,21 @@ pub(crate) fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
 /// ```ts
 /// afterASilentOrFailedService(failure, placed);
 /// ```
-pub(crate) fn after_a_silent_or_failed_service(failure: ClientFailure, placed: LandedAftermath<'_>) -> Result<ServiceCommit, TransactionStop> {
+pub(crate) fn after_a_silent_or_failed_service(
+    failure: ClientFailure,
+    placed: LandedAftermath<'_>,
+) -> Result<ServiceCommit, TransactionStop> {
     // The failures a lost answer leaves: the service went silent, or it broke the connection after the request was written.
     let found: Option<String> = match failure {
-        ClientFailure::ServiceSilent | ClientFailure::MayNotHaveLanded => looking_for_what_landed(LookForWhatLanded {
-            context: placed.invocation.context,
-            cwd: placed.invocation.cwd,
-            journal: placed.journal,
-            id: placed.request_id,
-            wait: crate::wait_ceilings::LOOKING_FOR_A_LANDED_COMMIT,
-        }),
+        ClientFailure::ServiceSilent | ClientFailure::MayNotHaveLanded => {
+            looking_for_what_landed(LookForWhatLanded {
+                context: placed.invocation.context,
+                cwd: placed.invocation.cwd,
+                journal: placed.journal,
+                id: placed.request_id,
+                wait: crate::wait_ceilings::LOOKING_FOR_A_LANDED_COMMIT,
+            })
+        }
         _ => None,
     };
     if let Some(commit) = found {
@@ -185,21 +223,42 @@ pub(crate) fn after_a_silent_or_failed_service(failure: ClientFailure, placed: L
     // The service made the commit and held it behind a reference lock, and only its answer was lost: the branch cannot show
     //  the commit while the lock stands, so the look above finds nothing, and the record of the hold is what says it was made.
     //  A received `held` answer exits 0, so this one does too (`held_commit_record.rs`, "Commits should never fail.").
-    if matches!(failure, ClientFailure::ServiceSilent | ClientFailure::MayNotHaveLanded)
-        && let Some(journal) = placed.journal
-        && let Some(held) = a_held_batch_of(journal, placed.native_inputs.capture.layout.git_dir.as_path(), placed.request_id)
+    if matches!(
+        failure,
+        ClientFailure::ServiceSilent | ClientFailure::MayNotHaveLanded
+    ) && let Some(journal) = placed.journal
+        && let Some(held) = a_held_batch_of(
+            journal,
+            placed.native_inputs.capture.layout.git_dir.as_path(),
+            placed.request_id,
+        )
     {
-        let ending: ServiceCommit = the_held_ending(placed.invocation.context, placed.invocation.cwd, &held);
+        let ending: ServiceCommit =
+            the_held_ending(placed.invocation.context, placed.invocation.cwd, &held);
         return Ok(ending);
     }
     // A commit the person interrupted is not made, and the command ends as the signal ends it: the words say what became of the
     //  commit, and the shell reports the death an interrupted native Git reports (`commit_command.rs`, `report_stop`).
-    if let crate::service_messages::ClientFailure::Interrupted { signal, sender, .. } = failure {
-        return Err(TransactionStop::EndedBySignal { signal, sender, message: render(&failure) });
+    if let crate::service_messages::ClientFailure::Interrupted {
+        signal,
+        sender,
+        ..
+    } = failure
+    {
+        return Err(TransactionStop::EndedBySignal {
+            signal,
+            sender,
+            message: render(&failure),
+        });
     }
     let worded: Option<ClientFailure> = match failure {
         // The one silence that could not state a fact reads the branch once and states what it shows.
-        ClientFailure::ServiceSilent => the_silent_service_after_a_prepare(placed.invocation.context, placed.invocation.cwd, &placed.ready.reference, placed.commit),
+        ClientFailure::ServiceSilent => the_silent_service_after_a_prepare(
+            placed.invocation.context,
+            placed.invocation.cwd,
+            &placed.ready.reference,
+            placed.commit,
+        ),
         other => Some(other),
     };
     let Some(reported) = worded else {
@@ -226,17 +285,35 @@ pub(crate) fn after_a_silent_or_failed_service(failure: ClientFailure, placed: L
 /// ```ts
 /// console.error(`${PROGRAM}: ${heldAnswer(held, shortName(held.new), heldCount)}`); return { exitCode: 0, handoff: undefined }
 /// ```
-pub(crate) fn the_held_ending(context: &GitContext, cwd: &Path, held: &Held) -> ServiceCommit {
+pub(crate) fn the_held_ending(
+    context: &GitContext,
+    cwd: &Path,
+    held: &Held,
+) -> ServiceCommit {
     let objects: PathBuf = held.common_dir.join("objects");
-    let short: String = crate::landed_summary::short_name(context, cwd, objects.as_path(), None, held.new.as_str());
+    let short: String =
+        crate::landed_summary::short_name(context, cwd, objects.as_path(), None, held.new.as_str());
     let waiting: usize = held_commit_record::list(held.git_dir.as_path()).0.len();
     let words: String = held_commit_words::answer(held, short.as_str(), waiting);
     // What: The held commit's words go to the thread that writes standard error.
     // Why:  The exit status already says the result, and a reader that stopped draining must not
     //       keep the commit's own answer from returning.
-    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
-    let _written = writeln!(notes, "{}: {words}", crate::wrapper_names_old_and_new::PROGRAM.current);
-    return ServiceCommit { result: TransactionResult { events: Vec::new(), exit_code: 0, landed_oid: None, uses_lfs: false }, handoff: None };
+    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+        StandardErrorOffTheCallingThread::new();
+    let _written = writeln!(
+        notes,
+        "{}: {words}",
+        crate::wrapper_names_old_and_new::PROGRAM.current
+    );
+    return ServiceCommit {
+        result: TransactionResult {
+            events: Vec::new(),
+            exit_code: 0,
+            landed_oid: None,
+            uses_lfs: false,
+        },
+        handoff: None,
+    };
 }
 
 /// What:
@@ -257,11 +334,39 @@ fn report_after_a_landing(reported: Result<(), TransactionStop>) {
         return;
     };
     return match stop {
-        TransactionStop::NativeExit(code) => warn("serviceCommit", format!("the commit landed and the work after it exited {code}").as_str()),
-        TransactionStop::Message(words) => warn("serviceCommit", format!("the commit landed and the work after it failed: {words}").as_str()),
-        TransactionStop::Failed { code, message } => warn("serviceCommit", format!("the commit landed and the work after it failed ({code:?}): {message}").as_str()),
-        TransactionStop::EndedBySignal { signal, .. } => warn("serviceCommit", format!("the commit landed and the work after it was interrupted by signal {signal}").as_str()),
-        TransactionStop::Client(failure) => warn("serviceCommit", format!("the commit landed and the work after it failed ({}): {}", crate::service_messages::failure_code(&failure), crate::service_messages::render(&failure)).as_str()),
+        TransactionStop::NativeExit(code) => warn(
+            "serviceCommit",
+            format!("the commit landed and the work after it exited {code}").as_str(),
+        ),
+        TransactionStop::Message(words) => warn(
+            "serviceCommit",
+            format!("the commit landed and the work after it failed: {words}").as_str(),
+        ),
+        TransactionStop::Failed {
+            code,
+            message,
+        } => warn(
+            "serviceCommit",
+            format!("the commit landed and the work after it failed ({code:?}): {message}")
+                .as_str(),
+        ),
+        TransactionStop::EndedBySignal {
+            signal,
+            ..
+        } => warn(
+            "serviceCommit",
+            format!("the commit landed and the work after it was interrupted by signal {signal}")
+                .as_str(),
+        ),
+        TransactionStop::Client(failure) => warn(
+            "serviceCommit",
+            format!(
+                "the commit landed and the work after it failed ({}): {}",
+                crate::service_messages::failure_code(&failure),
+                crate::service_messages::render(&failure)
+            )
+            .as_str(),
+        ),
     };
 }
 

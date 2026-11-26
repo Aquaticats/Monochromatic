@@ -28,7 +28,11 @@
 //! ```
 
 use std::ffi::CString;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
 use std::os::unix::fs::MetadataExt;
 
 /// What:
@@ -113,8 +117,15 @@ pub struct HandleRefusal {
 
 impl std::fmt::Display for HandleRefusal {
     /// One sentence naming the call, the errno and what it said.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return write!(formatter, "{} answered errno {}: {}", self.calling, self.errno, self.said);
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        return write!(
+            formatter,
+            "{} answered errno {}: {}",
+            self.calling, self.errno, self.said
+        );
     }
 }
 
@@ -150,7 +161,11 @@ impl RecordedHandle {
     /// The text is not one this grammar reads.
     pub fn decode(text: &str) -> Result<RecordedHandle, HandleRefusal> {
         let refusal = |said: &str| -> HandleRefusal {
-            return HandleRefusal { calling: "record", errno: libc::EINVAL, said: String::from(said) };
+            return HandleRefusal {
+                calling: "record",
+                errno: libc::EINVAL,
+                said: String::from(said),
+            };
         };
         if text.is_empty() {
             return Err(refusal("the line is empty"));
@@ -190,7 +205,10 @@ impl RecordedHandle {
             handle.push(byte);
             at += HEX_DIGITS_ONE_BYTE;
         }
-        return Ok(RecordedHandle { handle_type, handle });
+        return Ok(RecordedHandle {
+            handle_type,
+            handle,
+        });
     }
 }
 
@@ -204,18 +222,41 @@ impl RecordedHandle {
 /// `name_to_handle_at` refused, which a file system without handles answers
 /// with `EOPNOTSUPP`.
 pub fn name_the_handle(folder: &std::fs::File) -> Result<RecordedHandle, HandleRefusal> {
-    let mut handle: FileHandle = FileHandle { handle_bytes: u32::try_from(MAXIMUM_HANDLE_BYTES).expect("the kernel's handle bound fits"), handle_type: 0, f_handle: [0; MAXIMUM_HANDLE_BYTES] };
+    let mut handle: FileHandle = FileHandle {
+        handle_bytes: u32::try_from(MAXIMUM_HANDLE_BYTES).expect("the kernel's handle bound fits"),
+        handle_type: 0,
+        f_handle: [0; MAXIMUM_HANDLE_BYTES],
+    };
     let mut mount_id: libc::c_int = 0;
     let empty: CString = CString::new("").expect("no NUL in an empty path");
     // SAFETY: `handle` is a live buffer of the size it declares, `mount_id` is this call's own, and the empty path
     // outlives the call; `AT_EMPTY_PATH` reads the empty string and the descriptor names the folder; the cast is to the
     // C binding's own structure, whose zero-length array is not the buffer.
-    let named: libc::c_int = unsafe { libc::name_to_handle_at(folder.as_raw_fd(), empty.as_ptr(), (&mut handle as *mut FileHandle).cast::<libc::file_handle>(), &mut mount_id, libc::AT_EMPTY_PATH) };
+    let named: libc::c_int = unsafe {
+        libc::name_to_handle_at(
+            folder.as_raw_fd(),
+            empty.as_ptr(),
+            (&mut handle as *mut FileHandle).cast::<libc::file_handle>(),
+            &mut mount_id,
+            libc::AT_EMPTY_PATH,
+        )
+    };
     if named != 0 {
-        return Err(HandleRefusal { calling: "name_to_handle_at", errno: std::io::Error::last_os_error().raw_os_error().unwrap_or(libc::EINVAL), said: String::from("the folder's handle") });
+        return Err(HandleRefusal {
+            calling: "name_to_handle_at",
+            errno: std::io::Error::last_os_error()
+                .raw_os_error()
+                .unwrap_or(libc::EINVAL),
+            said: String::from("the folder's handle"),
+        });
     }
-    let bytes: usize = usize::try_from(handle.handle_bytes).unwrap_or(0).min(MAXIMUM_HANDLE_BYTES);
-    return Ok(RecordedHandle { handle_type: handle.handle_type, handle: handle.f_handle[..bytes].to_vec() });
+    let bytes: usize = usize::try_from(handle.handle_bytes)
+        .unwrap_or(0)
+        .min(MAXIMUM_HANDLE_BYTES);
+    return Ok(RecordedHandle {
+        handle_type: handle.handle_type,
+        handle: handle.f_handle[..bytes].to_vec(),
+    });
 }
 
 /// What:
@@ -232,17 +273,40 @@ pub fn name_the_handle(folder: &std::fs::File) -> Result<RecordedHandle, HandleR
 /// The handle is longer than the kernel's,
 /// or `open_by_handle_at` refused,
 /// which inside a namespace whose user namespace is another answers `EINVAL`.
-pub fn open_from_the_handle(mount: &std::fs::File, recorded: &RecordedHandle) -> Result<std::fs::File, HandleRefusal> {
+pub fn open_from_the_handle(
+    mount: &std::fs::File,
+    recorded: &RecordedHandle,
+) -> Result<std::fs::File, HandleRefusal> {
     if recorded.handle.len() > MAXIMUM_HANDLE_BYTES {
-        return Err(HandleRefusal { calling: "record", errno: libc::EINVAL, said: String::from("the handle is longer than the kernel's own") });
+        return Err(HandleRefusal {
+            calling: "record",
+            errno: libc::EINVAL,
+            said: String::from("the handle is longer than the kernel's own"),
+        });
     }
-    let mut owned: FileHandle = FileHandle { handle_bytes: u32::try_from(recorded.handle.len()).unwrap_or(0), handle_type: recorded.handle_type, f_handle: [0; MAXIMUM_HANDLE_BYTES] };
+    let mut owned: FileHandle = FileHandle {
+        handle_bytes: u32::try_from(recorded.handle.len()).unwrap_or(0),
+        handle_type: recorded.handle_type,
+        f_handle: [0; MAXIMUM_HANDLE_BYTES],
+    };
     owned.f_handle[..recorded.handle.len()].copy_from_slice(recorded.handle.as_slice());
     // SAFETY: `owned` is a live handle of the size it declares, and the descriptor is the caller's own mount; the
     // descriptor it answers is owned exactly once, by the `File` below; the cast is to the C binding's own structure.
-    let opened: libc::c_int = unsafe { libc::open_by_handle_at(mount.as_raw_fd(), (&mut owned as *mut FileHandle).cast::<libc::file_handle>(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC) };
+    let opened: libc::c_int = unsafe {
+        libc::open_by_handle_at(
+            mount.as_raw_fd(),
+            (&mut owned as *mut FileHandle).cast::<libc::file_handle>(),
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC,
+        )
+    };
     if opened < 0 {
-        return Err(HandleRefusal { calling: "open_by_handle_at", errno: std::io::Error::last_os_error().raw_os_error().unwrap_or(libc::EINVAL), said: String::from("the recorded handle on this mount") });
+        return Err(HandleRefusal {
+            calling: "open_by_handle_at",
+            errno: std::io::Error::last_os_error()
+                .raw_os_error()
+                .unwrap_or(libc::EINVAL),
+            said: String::from("the recorded handle on this mount"),
+        });
     }
     // SAFETY: the call answered a descriptor that nothing else owns.
     return Ok(std::fs::File::from(unsafe { OwnedFd::from_raw_fd(opened) }));
@@ -259,20 +323,31 @@ pub fn open_from_the_handle(mount: &std::fs::File, recorded: &RecordedHandle) ->
 /// The descriptor's `fdinfo` could not be read or carries no mount id.
 pub fn mount_id_of(descriptor: &std::fs::File) -> Result<u64, HandleRefusal> {
     let path: String = format!("/proc/self/fdinfo/{}", descriptor.as_raw_fd());
-    let text: String = crate::plain_file::read_plain_text(std::path::Path::new(path.as_str())).map_err(|error| return HandleRefusal {
-        calling: "fdinfo",
-        errno: error.raw_os_error().unwrap_or(libc::ENOENT),
-        said: String::from("a descriptor's own record"),
-    })?;
+    let text: String = crate::plain_file::read_plain_text(std::path::Path::new(path.as_str()))
+        .map_err(|error| {
+            return HandleRefusal {
+                calling: "fdinfo",
+                errno: error.raw_os_error().unwrap_or(libc::ENOENT),
+                said: String::from("a descriptor's own record"),
+            };
+        })?;
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix("mnt_id:") {
             let Ok(number) = rest.trim().parse::<u64>() else {
-                return Err(HandleRefusal { calling: "fdinfo", errno: libc::EINVAL, said: String::from("the mount id is not a number") });
+                return Err(HandleRefusal {
+                    calling: "fdinfo",
+                    errno: libc::EINVAL,
+                    said: String::from("the mount id is not a number"),
+                });
             };
             return Ok(number);
         }
     }
-    return Err(HandleRefusal { calling: "fdinfo", errno: libc::ENOENT, said: String::from("no line names a mount id") });
+    return Err(HandleRefusal {
+        calling: "fdinfo",
+        errno: libc::ENOENT,
+        said: String::from("no line names a mount id"),
+    });
 }
 
 /// What:
@@ -282,10 +357,12 @@ pub fn mount_id_of(descriptor: &std::fs::File) -> Result<u64, HandleRefusal> {
 ///  A report names the folder the handle reopened,
 ///  and a control compares it with the underlay it named before the mount.
 pub fn folder_facts(folder: &std::fs::File) -> Result<(u64, u64), HandleRefusal> {
-    let facts: std::fs::Metadata = folder.metadata().map_err(|error| return HandleRefusal {
-        calling: "fdinfo",
-        errno: error.raw_os_error().unwrap_or(libc::EINVAL),
-        said: String::from("a folder descriptor's own facts"),
+    let facts: std::fs::Metadata = folder.metadata().map_err(|error| {
+        return HandleRefusal {
+            calling: "fdinfo",
+            errno: error.raw_os_error().unwrap_or(libc::EINVAL),
+            said: String::from("a folder descriptor's own facts"),
+        };
     })?;
     return Ok((facts.dev(), facts.ino()));
 }

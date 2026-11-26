@@ -15,7 +15,10 @@
 /// Shadow runs for the two listings.
 use crate::replay_shadow::run_shadow_checked;
 /// The shadow runner's context and failure.
-use crate::transaction_git::{GitContext, GitFailure};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+};
 /// `Path` names the shadow and the working directory.
 use std::path::Path;
 
@@ -124,7 +127,10 @@ pub struct RawFormatError(pub String);
 /// ```ts
 /// entryOf({ mode, oid }); // ABSENT_ENTRY for mode 000000
 /// ```
-fn entry_of(mode: &str, oid: &str) -> Option<TreeEntry> {
+fn entry_of(
+    mode: &str,
+    oid: &str,
+) -> Option<TreeEntry> {
     if mode == ABSENT_MODE {
         return None;
     }
@@ -260,10 +266,13 @@ pub fn list_shared_paths(
     // A map answers "did the prepared side change this path" by naming the one change it
     //  compares with, so building the intersection is one pass over each listing
     //  (`AGENTS.md` `RG2`); the first change a path gets is the one the walk took.
-    let mut mine_by_path: std::collections::HashMap<&[u8], &RawChange> = std::collections::HashMap::new();
+    let mut mine_by_path: std::collections::HashMap<&[u8], &RawChange> =
+        std::collections::HashMap::new();
     for candidate in &mine {
         crate::collected_elements_looked_at::note_looked_at(1);
-        mine_by_path.entry(candidate.path.as_slice()).or_insert(candidate);
+        mine_by_path
+            .entry(candidate.path.as_slice())
+            .or_insert(candidate);
     }
     let mut shared: Vec<SharedPath> = Vec::new();
     for change in landed {
@@ -292,7 +301,10 @@ pub fn list_shared_paths(
 /// ```ts
 /// sameEntry({ left, right });
 /// ```
-pub fn same_entry(left: &Option<TreeEntry>, right: &Option<TreeEntry>) -> bool {
+pub fn same_entry(
+    left: &Option<TreeEntry>,
+    right: &Option<TreeEntry>,
+) -> bool {
     return left == right;
 }
 
@@ -337,7 +349,8 @@ pub fn is_regular_triple(shared: &SharedPath) -> bool {
 /// isTextCandidate(shared);
 /// ```
 pub fn is_text_candidate(shared: &SharedPath) -> bool {
-    let changed_regular: bool = is_regular_entry(&shared.landed) && is_regular_entry(&shared.prepared);
+    let changed_regular: bool =
+        is_regular_entry(&shared.landed) && is_regular_entry(&shared.prepared);
     let base_regular: bool = match &shared.base {
         None => true,
         Some(entry) => is_regular_mode(entry.mode.as_str()),

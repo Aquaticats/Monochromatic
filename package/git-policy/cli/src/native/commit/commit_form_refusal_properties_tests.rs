@@ -22,11 +22,23 @@
 //! ```
 
 use crate::command_commit::parse_commit_region;
-use crate::commit_form_refusal_from_git::{Answer, ask_git};
+use crate::commit_form_refusal_from_git::{
+    Answer,
+    ask_git,
+};
 use crate::rule_commit_region_git_refuses::form_git_refuses;
-use crate::testing::test_support::{fixture, git, git_context, git_text, repository};
+use crate::testing::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    repository,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The selection options,
 /// which decide the compatibility check and the pathless-selection rule.
@@ -89,7 +101,14 @@ fn every_line() -> Vec<Vec<String>> {
     // A `--` that is an option's value is the separator to nothing but a reading that skips values, and a question that
     //  placed its own option before that token made a commit instead of asking one.
     for separator_as_value in SEPARATORS_AS_VALUES {
-        lines.push(separator_as_value.iter().map(|token| { return (*token).to_owned(); }).collect());
+        lines.push(
+            separator_as_value
+                .iter()
+                .map(|token| {
+                    return (*token).to_owned();
+                })
+                .collect(),
+        );
     }
     return lines;
 }
@@ -114,9 +133,16 @@ fn is_a_form_message(stderr: &[u8]) -> bool {
     let first: &str = printed.lines().next().unwrap_or("");
     // The compatibility check names the options it counts, so a selection conflict always names one of them.
     if first.starts_with("fatal: options '")
-        && ["-i/--include", "-o/--only", "-a/--all", "--interactive/-p/--patch"]
-            .iter()
-            .any(|option| { return first.contains(option); })
+        && [
+            "-i/--include",
+            "-o/--only",
+            "-a/--all",
+            "--interactive/-p/--patch",
+        ]
+        .iter()
+        .any(|option| {
+            return first.contains(option);
+        })
     {
         return true;
     }
@@ -128,7 +154,9 @@ fn is_a_form_message(stderr: &[u8]) -> bool {
         "fatal: the option '--pathspec-file-nul' requires '--pathspec-from-file'",
         "fatal: paths '",
     ];
-    return patterns.iter().any(|pattern| { return first.starts_with(pattern); });
+    return patterns.iter().any(|pattern| {
+        return first.starts_with(pattern);
+    });
 }
 
 /// What:
@@ -171,7 +199,11 @@ fn unchanged(repo: &Path) -> Unchanged {
         };
         for entry in entries.flatten() {
             let path: PathBuf = entry.path();
-            let name: String = path.strip_prefix(repo).unwrap_or(path.as_path()).display().to_string();
+            let name: String = path
+                .strip_prefix(repo)
+                .unwrap_or(path.as_path())
+                .display()
+                .to_string();
             // The object store is not read: a dry run writes no object, and reading a pack is no part of this property.
             //  Everything else is, the question's own scratch index and the repository's logs included, so a leftover from
             //  the question shows up as a difference.
@@ -214,7 +246,9 @@ fn the_rule_refuses_exactly_what_git_refuses_and_the_question_changes_nothing() 
     std::fs::write(repo.join("paths.txt"), "a.txt\n").expect("pathspecs");
     let mut context: crate::transaction_git::GitContext = git_context();
     // Git's own words are English whatever locale the machine runs with, so the classification below reads them.
-    context.overlay.push((OsString::from("LC_ALL"), OsString::from("C")));
+    context
+        .overlay
+        .push((OsString::from("LC_ALL"), OsString::from("C")));
     let mut counted: usize = 0;
     for line in every_line() {
         let region_args: Vec<OsString> = line.iter().map(OsString::from).collect();
@@ -226,16 +260,24 @@ fn the_rule_refuses_exactly_what_git_refuses_and_the_question_changes_nothing() 
         let after: Unchanged = unchanged(repo.as_path());
         let flagged: bool = form_git_refuses(&region).is_some();
         let git_refused: bool = match &answer {
-            Answer::Answered { status, stderr } => *status == 128 && is_a_form_message(stderr.as_slice()),
+            Answer::Answered {
+                status,
+                stderr,
+            } => *status == 128 && is_a_form_message(stderr.as_slice()),
             Answer::Unanswered(_) => false,
         };
         assert_eq!(
-            flagged,
-            git_refused,
+            flagged, git_refused,
             "{line:?}: the rule says {flagged}, real Git says {git_refused} ({answer:?})"
         );
-        assert_eq!(after, before, "{line:?}: the question changed the repository ({answer:?})");
+        assert_eq!(
+            after, before,
+            "{line:?}: the question changed the repository ({answer:?})"
+        );
         counted += 1;
     }
-    assert!(counted > 100, "the table covers the generated lines: {counted}");
+    assert!(
+        counted > 100,
+        "the table covers the generated lines: {counted}"
+    );
 }

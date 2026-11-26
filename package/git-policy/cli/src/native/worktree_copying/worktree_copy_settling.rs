@@ -26,14 +26,32 @@
 //! const { entries, stamps, unsettled } = settleTheCopy({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, prune, entries, stamps, clone });
 //! ```
 
-use crate::worktree_copy_compare::{FinalCheck, differences_from_the_source_sync};
+use crate::worktree_copy_compare::{
+    FinalCheck,
+    differences_from_the_source_sync,
+};
 use crate::worktree_copy_error::WorktreeCopyError;
-use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, apply_entry_modes, retained_mode};
+use crate::worktree_copy_manifest::{
+    EntryKind,
+    FileStamp,
+    WorktreeCopyEntry,
+    apply_entry_modes,
+    retained_mode,
+};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::filesystem_path;
-use crate::worktree_copy_stage_leaf_copying::{CopiedLeaf, copy_one_leaf};
-use crate::worktree_copy_vanished_entry::{lstat_or_absent, went_away};
-use std::path::{Path, PathBuf};
+use crate::worktree_copy_stage_leaf_copying::{
+    CopiedLeaf,
+    copy_one_leaf,
+};
+use crate::worktree_copy_vanished_entry::{
+    lstat_or_absent,
+    went_away,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  How many more times one entry that changed under the copy is copied before it is left in its source.
@@ -164,7 +182,10 @@ pub struct Settled {
 /// ```ts
 /// function splitGone(sourceRoot, paths) { const absent = [], replaced = []; for (const path of paths) { (lstatOrAbsent(join(sourceRoot, path)) === undefined ? absent : replaced).push(path); } return [absent, replaced]; }
 /// ```
-fn split_gone(source_root: &Path, paths: &[Vec<u8>]) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
+fn split_gone(
+    source_root: &Path,
+    paths: &[Vec<u8>],
+) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
     let mut absent: Vec<Vec<u8>> = Vec::new();
     let mut replaced: Vec<Vec<u8>> = Vec::new();
     for path in paths {
@@ -210,11 +231,17 @@ pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, Worktree
     let mut uncopiable: Vec<Vec<u8>> = Vec::new();
     // An entry the copy found gone has no stage file, so it leaves the manifest before the modes are applied. A name that
     // now holds something a worktree cannot copy leaves it too, and is named for the person.
-    let (absent, replaced): (Vec<Vec<u8>>, Vec<Vec<u8>>) = split_gone(request.source_root, request.gone.as_slice());
+    let (absent, replaced): (Vec<Vec<u8>>, Vec<Vec<u8>>) =
+        split_gone(request.source_root, request.gone.as_slice());
     let gone_count: usize = absent.len();
     let dropped: Vec<Vec<u8>> = absent.iter().chain(replaced.iter()).cloned().collect();
     uncopiable.extend(replaced);
-    leave_out(&mut entries, &mut stamps, dropped.as_slice(), request.stage_root)?;
+    leave_out(
+        &mut entries,
+        &mut stamps,
+        dropped.as_slice(),
+        request.stage_root,
+    )?;
     // The comparison compares modes, and a copy makes its own entries private, so the source's modes are applied first.
     apply_entry_modes(request.stage_root, entries.as_slice())?;
     let mut pass: usize = 0;
@@ -225,28 +252,59 @@ pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, Worktree
             request.selected_roots,
             request.excluded_source_roots,
             entries.as_slice(),
-            &FinalCheck { prune: request.prune, stamps: stamps.as_slice() },
+            &FinalCheck {
+                prune: request.prune,
+                stamps: stamps.as_slice(),
+            },
         )?;
         if differences.gone.is_empty() && differences.changed.is_empty() {
-            return Ok(Settled { entries, stamps, unsettled, uncopiable, gone: gone_count });
+            return Ok(Settled {
+                entries,
+                stamps,
+                unsettled,
+                uncopiable,
+                gone: gone_count,
+            });
         }
         // An entry the source removed has no stage file to keep and nothing to install; a name that now holds a socket,
         // a named pipe or a device node is the entry the person is told a worktree cannot hold.
-        let (later_away, later_replaced): (Vec<Vec<u8>>, Vec<Vec<u8>>) = split_gone(request.source_root, differences.gone.as_slice());
-        let dropped_now: Vec<Vec<u8>> = later_away.iter().chain(later_replaced.iter()).cloned().collect();
+        let (later_away, later_replaced): (Vec<Vec<u8>>, Vec<Vec<u8>>) =
+            split_gone(request.source_root, differences.gone.as_slice());
+        let dropped_now: Vec<Vec<u8>> = later_away
+            .iter()
+            .chain(later_replaced.iter())
+            .cloned()
+            .collect();
         uncopiable.extend(later_replaced);
-        leave_out(&mut entries, &mut stamps, dropped_now.as_slice(), request.stage_root)?;
+        leave_out(
+            &mut entries,
+            &mut stamps,
+            dropped_now.as_slice(),
+            request.stage_root,
+        )?;
         if differences.changed.is_empty() {
             pass = next_pass(pass, later_away.as_slice())?;
             continue;
         }
         if pass < SETTLING_RETRIES {
-            copy_again(&mut entries, &mut stamps, differences.changed.as_slice(), request.source_root, request.stage_root, request.clone)?;
+            copy_again(
+                &mut entries,
+                &mut stamps,
+                differences.changed.as_slice(),
+                request.source_root,
+                request.stage_root,
+                request.clone,
+            )?;
             pass += 1;
             continue;
         }
         // Left where it is, in its source, and named: a file a build keeps writing is no reason to fail the add.
-        leave_out(&mut entries, &mut stamps, differences.changed.as_slice(), request.stage_root)?;
+        leave_out(
+            &mut entries,
+            &mut stamps,
+            differences.changed.as_slice(),
+            request.stage_root,
+        )?;
         unsettled.extend(differences.changed);
         pass = next_pass(pass, &[])?;
     }
@@ -265,7 +323,10 @@ pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, Worktree
 /// ```ts
 /// const nextPass = (pass, dropped) => { if (pass >= MOST_PASSES) throw `the ignored entries would not hold still while the copy was made`; return pass + 1; };
 /// ```
-fn next_pass(pass: usize, dropped: &[Vec<u8>]) -> Result<usize, WorktreeCopyError> {
+fn next_pass(
+    pass: usize,
+    dropped: &[Vec<u8>],
+) -> Result<usize, WorktreeCopyError> {
     let _counted: usize = dropped.len();
     if pass >= MOST_PASSES {
         return Err(crate::worktree_copy_error::failure_with_cause(
@@ -304,7 +365,9 @@ fn copy_again(
 ) -> Result<(), WorktreeCopyError> {
     let mut re_mode: Vec<Vec<u8>> = Vec::new();
     for path in changed {
-        let Some(index) = index_of_path(entries, path.as_slice()) else { continue };
+        let Some(index) = index_of_path(entries, path.as_slice()) else {
+            continue;
+        };
         if entries[index].kind == EntryKind::Directory {
             re_mode.push(path.clone());
             continue;
@@ -323,10 +386,14 @@ fn copy_again(
         };
     }
     for path in re_mode {
-        let Some(index) = index_of_path(entries, path.as_slice()) else { continue };
+        let Some(index) = index_of_path(entries, path.as_slice()) else {
+            continue;
+        };
         let source_path: PathBuf = filesystem_path(source_root, path.as_slice())?;
         // A directory the source removed in the meantime is the next pass's to drop, with the staged tree below it.
-        let Some(metadata) = lstat_or_absent(source_path.as_path())? else { continue };
+        let Some(metadata) = lstat_or_absent(source_path.as_path())? else {
+            continue;
+        };
         entries[index].mode = retained_mode(&metadata);
         let entry: WorktreeCopyEntry = entries[index].clone();
         apply_entry_modes(stage_root, std::slice::from_ref(&entry))?;
@@ -355,7 +422,9 @@ fn leave_out(
     for path in paths {
         let stage_path: PathBuf = filesystem_path(stage_root, path.as_slice())?;
         remove_the_staged_copy(stage_path.as_path())?;
-        let Some(index) = index_of_path(entries, path.as_slice()) else { continue };
+        let Some(index) = index_of_path(entries, path.as_slice()) else {
+            continue;
+        };
         entries.remove(index);
         stamps.remove(index);
     }
@@ -374,7 +443,10 @@ fn leave_out(
 /// ```ts
 /// const indexOfPath = (entries, path) => entries.findIndex((entry) => entry.relativePath === path);
 /// ```
-fn index_of_path(entries: &[WorktreeCopyEntry], path: &[u8]) -> Option<usize> {
+fn index_of_path(
+    entries: &[WorktreeCopyEntry],
+    path: &[u8],
+) -> Option<usize> {
     for (index, entry) in entries.iter().enumerate() {
         if entry.relative_path == path {
             return Some(index);
@@ -410,7 +482,11 @@ fn remove_the_staged_copy(stage_path: &Path) -> Result<(), WorktreeCopyError> {
         Ok(()) => Ok(()),
         Err(error) if went_away(&error) => Ok(()),
         Err(error) => Err(crate::worktree_copy_error::failure_with_cause(
-            format!("{} cannot be removed from the private stage ({error})", stage_path.display()).as_str(),
+            format!(
+                "{} cannot be removed from the private stage ({error})",
+                stage_path.display()
+            )
+            .as_str(),
             None,
         )),
     };

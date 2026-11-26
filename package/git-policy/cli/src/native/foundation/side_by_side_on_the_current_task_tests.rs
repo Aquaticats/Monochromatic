@@ -9,8 +9,14 @@
 use super::*;
 use std::future::Future;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How many futures these controls run.
 const FUTURES: usize = 4;
@@ -22,7 +28,10 @@ const PATIENCE: Duration = Duration::from_secs(20);
 /// A runtime of this thread,
 /// which polls every future of a wave.
 fn runtime() -> tokio::runtime::Runtime {
-    return tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    return tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a current-thread runtime");
 }
 
 /// One future of a wave:
@@ -55,7 +64,9 @@ fn answered(answers: Vec<AnAnswer<usize>>) -> Vec<usize> {
     for answer in answers {
         match answer {
             AnAnswer::Answered(value) => values.push(value),
-            AnAnswer::Stopped(said) => panic!("an item of this control stopped unexpectedly: {said}"),
+            AnAnswer::Stopped(said) => {
+                panic!("an item of this control stopped unexpectedly: {said}")
+            }
         }
     }
     return values;
@@ -86,7 +97,10 @@ struct Polled {
 impl Future for Polled {
     type Output = usize;
 
-    fn poll(self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<usize> {
+    fn poll(
+        self: Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+    ) -> Poll<usize> {
         let polls: usize = self.polls.fetch_add(1, Ordering::SeqCst) + 1;
         if polls == 1 {
             context.waker().wake_by_ref();
@@ -110,10 +124,23 @@ impl Future for Polled {
 #[test]
 fn every_future_of_the_wave_is_in_flight_at_once() {
     let barrier: Arc<tokio::sync::Barrier> = Arc::new(tokio::sync::Barrier::new(FUTURES));
-    let amounts: Vec<Pin<Box<dyn Future<Output = usize> + Send + '_>>> = (0..FUTURES).map(|amount| { return Box::pin(joins_the_wave((Arc::clone(&barrier), amount))) as Pin<Box<dyn Future<Output = usize> + Send + '_>>; }).collect();
-    let waited = runtime().block_on(async { return tokio::time::timeout(PATIENCE, run_all_side_by_side_on_the_current_task(amounts)).await; });
-    let answers: Vec<usize> = answered(waited.expect("every future of the wave was in flight at once"));
-    assert_eq!(answers, vec![0, 10, 20, 30], "the answers keep the order the futures were given in");
+    let amounts: Vec<Pin<Box<dyn Future<Output = usize> + Send + '_>>> = (0..FUTURES)
+        .map(|amount| {
+            return Box::pin(joins_the_wave((Arc::clone(&barrier), amount)))
+                as Pin<Box<dyn Future<Output = usize> + Send + '_>>;
+        })
+        .collect();
+    let waited = runtime().block_on(async {
+        return tokio::time::timeout(PATIENCE, run_all_side_by_side_on_the_current_task(amounts))
+            .await;
+    });
+    let answers: Vec<usize> =
+        answered(waited.expect("every future of the wave was in flight at once"));
+    assert_eq!(
+        answers,
+        vec![0, 10, 20, 30],
+        "the answers keep the order the futures were given in"
+    );
 }
 
 /// What:
@@ -130,12 +157,20 @@ fn every_future_of_the_wave_is_in_flight_at_once() {
 #[test]
 fn the_answers_keep_the_order_the_futures_were_given_in() {
     let pauses: Vec<Pin<Box<dyn Future<Output = usize> + Send + '_>>> = Vec::from([
-        Box::pin(answers_after((Duration::from_millis(60), 1))) as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
-        Box::pin(answers_after((Duration::from_millis(1), 2))) as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
-        Box::pin(answers_after((Duration::from_millis(30), 3))) as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
+        Box::pin(answers_after((Duration::from_millis(60), 1)))
+            as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
+        Box::pin(answers_after((Duration::from_millis(1), 2)))
+            as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
+        Box::pin(answers_after((Duration::from_millis(30), 3)))
+            as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
     ]);
-    let answers: Vec<usize> = answered(runtime().block_on(run_all_side_by_side_on_the_current_task(pauses)));
-    assert_eq!(answers, vec![1, 2, 3], "the answers keep the order the futures were given in");
+    let answers: Vec<usize> =
+        answered(runtime().block_on(run_all_side_by_side_on_the_current_task(pauses)));
+    assert_eq!(
+        answers,
+        vec![1, 2, 3],
+        "the answers keep the order the futures were given in"
+    );
 }
 
 /// What:
@@ -152,12 +187,18 @@ fn the_answers_keep_the_order_the_futures_were_given_in() {
 #[test]
 fn a_future_that_answered_is_not_asked_again() {
     let polls: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let one: Vec<Pin<Box<dyn Future<Output = usize> + Send + '_>>> = Vec::from([
-        Box::pin(Polled { polls: Arc::clone(&polls) }) as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
-    ]);
-    let answers: Vec<usize> = answered(runtime().block_on(run_all_side_by_side_on_the_current_task(one)));
+    let one: Vec<Pin<Box<dyn Future<Output = usize> + Send + '_>>> = Vec::from([Box::pin(Polled {
+        polls: Arc::clone(&polls),
+    })
+        as Pin<Box<dyn Future<Output = usize> + Send + '_>>]);
+    let answers: Vec<usize> =
+        answered(runtime().block_on(run_all_side_by_side_on_the_current_task(one)));
     assert_eq!(answers, vec![2], "the future answered on its second poll");
-    assert_eq!(polls.load(Ordering::SeqCst), 2, "the future was polled exactly until it answered");
+    assert_eq!(
+        polls.load(Ordering::SeqCst),
+        2,
+        "the future was polled exactly until it answered"
+    );
 }
 
 /// What:
@@ -172,8 +213,13 @@ fn a_future_that_answered_is_not_asked_again() {
 /// ```
 #[test]
 fn a_wave_with_no_future_answers_nothing() {
-    let answers: Vec<AnAnswer<usize>> = runtime().block_on(run_all_side_by_side_on_the_current_task(Vec::new()));
-    assert_eq!(answers, Vec::<AnAnswer<usize>>::new(), "an empty wave answers nothing");
+    let answers: Vec<AnAnswer<usize>> =
+        runtime().block_on(run_all_side_by_side_on_the_current_task(Vec::new()));
+    assert_eq!(
+        answers,
+        Vec::<AnAnswer<usize>>::new(),
+        "an empty wave answers nothing"
+    );
 }
 
 /// What:
@@ -190,20 +236,28 @@ fn a_wave_with_no_future_answers_nothing() {
 #[test]
 fn an_answer_comes_back_as_its_item_ends() {
     let futures: Vec<Pin<Box<dyn Future<Output = usize> + Send + '_>>> = Vec::from([
-        Box::pin(answers_after((Duration::from_millis(1), 1))) as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
-        Box::pin(answers_after((Duration::from_millis(300), 2))) as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
+        Box::pin(answers_after((Duration::from_millis(1), 1)))
+            as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
+        Box::pin(answers_after((Duration::from_millis(300), 2)))
+            as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
     ]);
     let (at, answer, waited) = runtime().block_on(async move {
         let mut wave: AnswersAsTheyCome<'_, usize> = AnswersAsTheyCome::starting(futures);
         let began: Instant = Instant::now();
-        let (at, answer): (usize, AnAnswer<usize>) = wave.the_next_answer().await.expect("the quick item answers");
+        let (at, answer): (usize, AnAnswer<usize>) = wave
+            .the_next_answer()
+            .await
+            .expect("the quick item answers");
         let waited: Duration = began.elapsed();
         wave.the_rest().await;
         return (at, answer, waited);
     });
     assert_eq!(at, 0, "the item that answered is the quick one");
     assert_eq!(answered(vec![answer]), vec![1]);
-    assert!(waited < Duration::from_millis(150), "the quick item's answer came back before its slow sibling ended (waited {waited:?})");
+    assert!(
+        waited < Duration::from_millis(150),
+        "the quick item's answer came back before its slow sibling ended (waited {waited:?})"
+    );
 }
 
 /// What:
@@ -220,13 +274,20 @@ fn an_answer_comes_back_as_its_item_ends() {
 #[test]
 fn a_panic_is_one_items_answer_and_its_siblings_still_answer() {
     let futures: Vec<Pin<Box<dyn Future<Output = usize> + Send + '_>>> = Vec::from([
-        Box::pin(panics::<usize>("an item of the wave stopped unexpectedly")) as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
-        Box::pin(answers_after((Duration::from_millis(1), 10))) as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
+        Box::pin(panics::<usize>("an item of the wave stopped unexpectedly"))
+            as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
+        Box::pin(answers_after((Duration::from_millis(1), 10)))
+            as Pin<Box<dyn Future<Output = usize> + Send + '_>>,
     ]);
-    let answers: Vec<AnAnswer<usize>> = runtime().block_on(run_all_side_by_side_on_the_current_task(futures));
+    let answers: Vec<AnAnswer<usize>> =
+        runtime().block_on(run_all_side_by_side_on_the_current_task(futures));
     assert_eq!(answers.len(), 2);
     match &answers[0] {
-        AnAnswer::Stopped(said) => assert!(said.contains("stopped unexpectedly") && said.contains("an item of the wave stopped unexpectedly"), "{said}"),
+        AnAnswer::Stopped(said) => assert!(
+            said.contains("stopped unexpectedly")
+                && said.contains("an item of the wave stopped unexpectedly"),
+            "{said}"
+        ),
         AnAnswer::Answered(value) => panic!("the item that panicked answered {value}"),
     }
     match &answers[1] {

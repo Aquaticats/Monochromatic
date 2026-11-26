@@ -20,14 +20,29 @@
 /// Import the shared fixtures,
 ///  the bounded process helpers and the control table.
 use super::support::{
-    Fixture, Observed, fixture, git, porcelain, remove, repository, run_direct, run_wrapped,
-    silent_success, stderr_of,
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    porcelain,
+    remove,
+    repository,
+    run_direct,
+    run_wrapped,
+    silent_success,
+    stderr_of,
 };
 use git_policy_cli::policy_registry::PolicyId;
 
-use git_policy_cli::wrapper_controls::{CONTROL_SPELLINGS, ControlMeaning};
+use git_policy_cli::wrapper_controls::{
+    CONTROL_SPELLINGS,
+    ControlMeaning,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The single require-root finding line for a command run in `nested/` of `repo`.
 fn not_at_root(repo: &Path) -> String {
@@ -105,10 +120,19 @@ fn every_control_before_the_subcommand_is_removed() {
         run_direct(&fixture, nested.as_path(), &["status", "--porcelain=v1"]);
     assert_eq!(below_root.code, Some(0));
     // Each control is spelled once, so the loop below exercises the whole table without repeats.
-    let mut flags: Vec<&str> = CONTROL_SPELLINGS.iter().map(|spelling| { return spelling.flag; }).collect();
+    let mut flags: Vec<&str> = CONTROL_SPELLINGS
+        .iter()
+        .map(|spelling| {
+            return spelling.flag;
+        })
+        .collect();
     flags.sort_unstable();
     flags.dedup();
-    assert_eq!(flags.len(), CONTROL_SPELLINGS.len(), "no control is spelled twice");
+    assert_eq!(
+        flags.len(),
+        CONTROL_SPELLINGS.len(),
+        "no control is spelled twice"
+    );
     for spelling in CONTROL_SPELLINGS {
         assert_eq!(
             run_wrapped(
@@ -202,7 +226,13 @@ fn a_path_named_like_a_hatch_is_forwarded_and_a_hatch_is_removed() {
         run_wrapped(
             &fixture,
             repo.as_path(),
-            &["reset", "--no-enforce-worktree", "--quiet", "--", "--no-enforce-worktree"]
+            &[
+                "reset",
+                "--no-enforce-worktree",
+                "--quiet",
+                "--",
+                "--no-enforce-worktree"
+            ]
         ),
         silent_success()
     );

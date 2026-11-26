@@ -17,7 +17,6 @@
 //! function kindOf(key: string): Kind | undefined;
 //! ```
 
-
 /// The words Git reads as true.
 pub(crate) const TRUE_WORDS: [&str; 3] = ["true", "yes", "on"];
 
@@ -107,7 +106,13 @@ pub(crate) const TEXT_KEYS: [&str; 21] = [
 /// which Git expands (`~/x`,
 /// and `~user/x`,
 /// which fails for an unknown user).
-pub(crate) const PATHNAME_KEYS: [&str; 5] = ["core.attributesfile", "core.excludesfile", "core.hookspath", "fsmonitor.socketdir", "mailmap.file"];
+pub(crate) const PATHNAME_KEYS: [&str; 5] = [
+    "core.attributesfile",
+    "core.excludesfile",
+    "core.hookspath",
+    "fsmonitor.socketdir",
+    "mailmap.file",
+];
 
 /// Per-driver keys (`diff.<driver>.<name>`) whose value is a boolean.
 pub(crate) const DRIVER_BOOLEAN_NAMES: [&str; 3] = ["binary", "cachetextconv", "trustexitcode"];
@@ -116,7 +121,14 @@ pub(crate) const DRIVER_BOOLEAN_NAMES: [&str; 3] = ["binary", "cachetextconv", "
 pub(crate) const DRIVER_TEXT_NAMES: [&str; 4] = ["command", "textconv", "wordregex", "xfuncname"];
 
 /// Per-remote keys (`remote.<name>.<key>`) whose value is a boolean.
-pub(crate) const REMOTE_BOOLEAN_NAMES: [&str; 6] = ["mirror", "promisor", "prune", "prunetags", "skipdefaultupdate", "skipfetchall"];
+pub(crate) const REMOTE_BOOLEAN_NAMES: [&str; 6] = [
+    "mirror",
+    "promisor",
+    "prune",
+    "prunetags",
+    "skipdefaultupdate",
+    "skipfetchall",
+];
 
 /// Per-remote keys whose value is text.
 pub(crate) const REMOTE_TEXT_NAMES: [&str; 12] = [
@@ -153,10 +165,13 @@ pub(crate) const GREP_COLOR_SLOTS: [&str; 10] = [
 pub(crate) const PLAIN_COLOR_WORDS: [&str; 2] = ["normal", "default"];
 
 /// The color words that also exist with a `bright` prefix.
-pub(crate) const BRIGHT_COLOR_WORDS: [&str; 8] = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
+pub(crate) const BRIGHT_COLOR_WORDS: [&str; 8] = [
+    "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+];
 
 /// The attribute words Git reads (each also with a `no` or `no-` prefix).
-pub(crate) const ATTRIBUTE_WORDS: [&str; 7] = ["bold", "dim", "ul", "blink", "reverse", "italic", "strike"];
+pub(crate) const ATTRIBUTE_WORDS: [&str; 7] =
+    ["bold", "dim", "ul", "blink", "reverse", "italic", "strike"];
 
 /// How Git reads the value of one key.
 #[derive(Clone, Copy)]
@@ -190,10 +205,17 @@ pub(crate) enum Kind {
     /// Exactly one of the listed words,
     /// or an empty value when `empty` is set;
     /// never bare.
-    OneOf { words: &'static [&'static str], empty: bool },
+    OneOf {
+        words: &'static [&'static str],
+        empty: bool,
+    },
     /// A comma-separated list of the listed words,
     /// each with an optional `-` prefix when `negatable` is set.
-    Words { words: &'static [&'static str], empty: bool, negatable: bool },
+    Words {
+        words: &'static [&'static str],
+        empty: bool,
+        negatable: bool,
+    },
     /// A color specification of at most two colors and any attributes.
     Color,
     /// `core.abbrev`:
@@ -254,15 +276,24 @@ pub(crate) const MAXIMUM_ABBREVIATION: i64 = 64;
 
 /// The compression levels of zlib,
 /// with the default marker `-1`.
-pub(crate) const COMPRESSION: Kind = Kind::Integer { low: -1, high: 9 };
+pub(crate) const COMPRESSION: Kind = Kind::Integer {
+    low: -1,
+    high: 9,
+};
 
 /// A number Git stores in an `int`,
 /// not below zero.
-pub(crate) const NON_NEGATIVE: Kind = Kind::Integer { low: 0, high: i32::MAX as i64 };
+pub(crate) const NON_NEGATIVE: Kind = Kind::Integer {
+    low: 0,
+    high: i32::MAX as i64,
+};
 
 /// A number Git stores in an `unsigned long`;
 /// the proof keeps to the range both widths hold.
-pub(crate) const SIZE: Kind = Kind::Integer { low: 0, high: i32::MAX as i64 };
+pub(crate) const SIZE: Kind = Kind::Integer {
+    low: 0,
+    high: i32::MAX as i64,
+};
 
 /// Split a canonical key into section,
 /// subsection and name;
@@ -300,7 +331,10 @@ pub(crate) fn kind_of(key: &str) -> Option<Kind> {
         ("diff", _) if DRIVER_TEXT_NAMES.contains(&name) => Some(Kind::Text),
         ("remote", _) if REMOTE_BOOLEAN_NAMES.contains(&name) => Some(Kind::Boolean),
         ("remote", _) if REMOTE_TEXT_NAMES.contains(&name) => Some(Kind::Text),
-        ("remote", "followremotehead") => Some(Kind::OneOf { words: &["create", "warn", "always", "never"], empty: false }),
+        ("remote", "followremotehead") => Some(Kind::OneOf {
+            words: &["create", "warn", "always", "never"],
+            empty: false,
+        }),
         ("remote", "fetch" | "push") => Some(Kind::Refspec),
         ("url", "insteadof" | "pushinsteadof") => Some(Kind::Text),
         ("color", _) => color_kind(subsection, name),
@@ -313,7 +347,10 @@ pub(crate) fn kind_of(key: &str) -> Option<Kind> {
 /// `color.decorate.<slot>`,
 /// `color.advice.hint`,
 /// `color.grep.<slot>`.
-pub(crate) fn color_kind(subsection: Option<&str>, name: &str) -> Option<Kind> {
+pub(crate) fn color_kind(
+    subsection: Option<&str>,
+    name: &str,
+) -> Option<Kind> {
     return match subsection {
         Some("diff" | "decorate" | "advice") => Some(Kind::Color),
         Some("grep") if GREP_COLOR_SLOTS.contains(&name) => Some(Kind::Color),
@@ -326,55 +363,168 @@ pub(crate) fn color_kind(subsection: Option<&str>, name: &str) -> Option<Kind> {
 pub(crate) fn plain_kind(key: &str) -> Option<Kind> {
     return Some(match key {
         "branch.autosetupmerge" => Kind::BooleanOr(&["always", "inherit", "simple"]),
-        "branch.autosetuprebase" => Kind::OneOf { words: &["never", "local", "remote", "always"], empty: false },
+        "branch.autosetuprebase" => Kind::OneOf {
+            words: &["never", "local", "remote", "always"],
+            empty: false,
+        },
         "color.ui" | "color.diff" | "color.grep" => Kind::BooleanOr(&["always", "never", "auto"]),
         "commitgraph.changedpathsversion" | "commitgraph.generationversion" => NON_NEGATIVE,
         "core.abbrev" => Kind::Abbreviation,
         "core.autocrlf" => Kind::BooleanOr(&["input"]),
-        "core.bigfilethreshold" | "core.deltabasecachelimit" | "core.packedgitlimit" | "core.packedgitwindowsize" => SIZE,
-        "core.checkstat" => Kind::OneOf { words: &["default", "minimal"], empty: false },
+        "core.bigfilethreshold"
+        | "core.deltabasecachelimit"
+        | "core.packedgitlimit"
+        | "core.packedgitwindowsize" => SIZE,
+        "core.checkstat" => Kind::OneOf {
+            words: &["default", "minimal"],
+            empty: false,
+        },
         "core.commentchar" | "core.commentstring" => Kind::CommentText,
         "core.compression" | "core.loosecompression" | "pack.compression" => COMPRESSION,
-        "core.createobject" => Kind::OneOf { words: &["rename", "link"], empty: false },
+        "core.createobject" => Kind::OneOf {
+            words: &["rename", "link"],
+            empty: false,
+        },
         "core.fsmonitor" => Kind::OffOrBuiltinDaemon,
         "trace2.normaltarget" | "trace2.eventtarget" | "trace2.perftarget" => Kind::TraceTarget,
         "core.fsync" => Kind::Words {
-            words: &["loose-object", "pack", "pack-metadata", "commit-graph", "index", "objects", "reference", "derived-metadata", "committed", "added", "all", "none"],
+            words: &[
+                "loose-object",
+                "pack",
+                "pack-metadata",
+                "commit-graph",
+                "index",
+                "objects",
+                "reference",
+                "derived-metadata",
+                "committed",
+                "added",
+                "all",
+                "none",
+            ],
             empty: false,
             negatable: true,
         },
-        "core.fsyncmethod" => Kind::OneOf { words: &["fsync", "writeout-only", "batch"], empty: false },
+        "core.fsyncmethod" => Kind::OneOf {
+            words: &["fsync", "writeout-only", "batch"],
+            empty: false,
+        },
         "core.fsyncobjectfiles" | "diff.dirstat" => Kind::Refused,
-        "core.maxtreedepth" | "diff.context" | "diff.interhunkcontext" | "diff.renamelimit" | "diff.statgraphwidth" | "diff.statnamewidth" | "format.filenamemaxlength" => NON_NEGATIVE,
+        "core.maxtreedepth"
+        | "diff.context"
+        | "diff.interhunkcontext"
+        | "diff.renamelimit"
+        | "diff.statgraphwidth"
+        | "diff.statnamewidth"
+        | "format.filenamemaxlength" => NON_NEGATIVE,
         "core.safecrlf" => Kind::BooleanOr(&["warn"]),
-        "diff.algorithm" => Kind::OneOf { words: &["default", "myers", "minimal", "patience", "histogram"], empty: false },
-        "diff.colormoved" => Kind::BooleanOr(&["default", "blocks", "zebra", "dimmed-zebra", "plain"]),
+        "diff.algorithm" => Kind::OneOf {
+            words: &["default", "myers", "minimal", "patience", "histogram"],
+            empty: false,
+        },
+        "diff.colormoved" => {
+            Kind::BooleanOr(&["default", "blocks", "zebra", "dimmed-zebra", "plain"])
+        }
         "diff.colormovedws" => Kind::Words {
-            words: &["no", "ignore-space-at-eol", "ignore-space-change", "ignore-all-space", "allow-indentation-change"],
+            words: &[
+                "no",
+                "ignore-space-at-eol",
+                "ignore-space-change",
+                "ignore-all-space",
+                "allow-indentation-change",
+            ],
             empty: false,
             negatable: false,
         },
-        "diff.ignoresubmodules" => Kind::OneOf { words: &["none", "untracked", "dirty", "all"], empty: false },
+        "diff.ignoresubmodules" => Kind::OneOf {
+            words: &["none", "untracked", "dirty", "all"],
+            empty: false,
+        },
         "diff.renames" => Kind::BooleanOr(&["copy", "copies"]),
-        "diff.submodule" => Kind::OneOf { words: &["log", "short", "diff"], empty: false },
-        "diff.wserrorhighlight" => Kind::Words { words: &["old", "new", "context", "all", "default", "none"], empty: true, negatable: false },
-        "fetch.negotiationalgorithm" => Kind::OneOf { words: &["skipping", "noop", "consecutive", "default"], empty: false },
-        "format.pretty" => Kind::OneOf { words: &["oneline", "short", "medium", "full", "fuller", "reference", "email", "raw", "mboxrd"], empty: true },
-        "grep.patterntype" => Kind::OneOf { words: &["default", "basic", "extended", "fixed", "perl"], empty: false },
+        "diff.submodule" => Kind::OneOf {
+            words: &["log", "short", "diff"],
+            empty: false,
+        },
+        "diff.wserrorhighlight" => Kind::Words {
+            words: &["old", "new", "context", "all", "default", "none"],
+            empty: true,
+            negatable: false,
+        },
+        "fetch.negotiationalgorithm" => Kind::OneOf {
+            words: &["skipping", "noop", "consecutive", "default"],
+            empty: false,
+        },
+        "format.pretty" => Kind::OneOf {
+            words: &[
+                "oneline",
+                "short",
+                "medium",
+                "full",
+                "fuller",
+                "reference",
+                "email",
+                "raw",
+                "mboxrd",
+            ],
+            empty: true,
+        },
+        "grep.patterntype" => Kind::OneOf {
+            words: &["default", "basic", "extended", "fixed", "perl"],
+            empty: false,
+        },
         "index.maxpathlen" => NON_NEGATIVE,
         "index.threads" => Kind::IntegerOrBoolean,
-        "index.version" => Kind::Integer { low: 2, high: 4 },
+        "index.version" => Kind::Integer {
+            low: 2,
+            high: 4,
+        },
         "log.date" => Kind::OneOf {
-            words: &["relative", "local", "iso", "iso8601", "iso-strict", "iso8601-strict", "rfc", "rfc2822", "short", "raw", "human", "unix", "default"],
+            words: &[
+                "relative",
+                "local",
+                "iso",
+                "iso8601",
+                "iso-strict",
+                "iso8601-strict",
+                "rfc",
+                "rfc2822",
+                "short",
+                "raw",
+                "human",
+                "unix",
+                "default",
+            ],
             empty: false,
         },
         "log.diffmerges" => Kind::OneOf {
-            words: &["off", "none", "on", "m", "first-parent", "1", "separate", "combined", "c", "dense-combined", "cc", "remerge", "r"],
+            words: &[
+                "off",
+                "none",
+                "on",
+                "m",
+                "first-parent",
+                "1",
+                "separate",
+                "combined",
+                "c",
+                "dense-combined",
+                "cc",
+                "remerge",
+                "r",
+            ],
             empty: false,
         },
         "pack.packsizelimit" => SIZE,
-        "push.default" => Kind::OneOf { words: &["nothing", "matching", "simple", "upstream", "tracking", "current"], empty: false },
-        "transfer.credentialsinurl" => Kind::OneOf { words: &["allow", "warn", "die"], empty: false },
+        "push.default" => Kind::OneOf {
+            words: &[
+                "nothing", "matching", "simple", "upstream", "tracking", "current",
+            ],
+            empty: false,
+        },
+        "transfer.credentialsinurl" => Kind::OneOf {
+            words: &["allow", "warn", "die"],
+            empty: false,
+        },
         _ => return None,
     });
 }

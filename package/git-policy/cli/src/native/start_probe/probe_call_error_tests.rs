@@ -17,6 +17,20 @@ use super::CallError;
 /// and an unnamed one becomes nothing.
 #[test]
 fn the_errno_becomes_its_word_or_nothing() {
-    assert_eq!(CallError { call: "mount", errno: libc::EBUSY }.errno_name(), Some("EBUSY"));
-    assert_eq!(CallError { call: "mount", errno: 4242 }.errno_name(), None);
+    assert_eq!(
+        CallError {
+            call: "mount",
+            errno: libc::EBUSY
+        }
+        .errno_name(),
+        Some("EBUSY")
+    );
+    assert_eq!(
+        CallError {
+            call: "mount",
+            errno: 4242
+        }
+        .errno_name(),
+        None
+    );
 }

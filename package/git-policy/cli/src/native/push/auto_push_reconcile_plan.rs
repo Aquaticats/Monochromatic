@@ -33,7 +33,10 @@ use crate::auto_push_destination::Destination;
 /// The push's own status and text,
 /// which a reconcile run answers with,
 /// and the failures a run can stop on.
-use crate::auto_push_single_flight::{PushAttempt, SingleFlightError};
+use crate::auto_push_single_flight::{
+    PushAttempt,
+    SingleFlightError,
+};
 
 /// What:
 ///  What one reconcile run integrates,
@@ -134,19 +137,31 @@ pub(crate) fn wording_of(plan: &Reconcile<'_>) -> Wording {
         .unwrap_or(&plan.destination.merge_ref)
         .to_owned();
     let merged_into: String = match plan.branch_ref {
-        Some(reference) => reference.strip_prefix("refs/heads/").unwrap_or(reference).to_owned(),
+        Some(reference) => reference
+            .strip_prefix("refs/heads/")
+            .unwrap_or(reference)
+            .to_owned(),
         None => short.clone(),
     };
     let published: String = if merged_into == short {
         String::new()
     } else {
-        format!("\nPublished to {remote}/{short}.", remote = plan.destination.remote)
+        format!(
+            "\nPublished to {remote}/{short}.",
+            remote = plan.destination.remote
+        )
     };
     let message: String = format!(
         "Merge {remote}/{short} into {merged_into}\n\nCreated by monochromatic-git-policy-cli {label} because {remote}/{short} advanced after the commit landed.{published}",
         remote = plan.destination.remote
     );
-    return Wording { line_prefix, failed_prefix, short, merged_into, message };
+    return Wording {
+        line_prefix,
+        failed_prefix,
+        short,
+        merged_into,
+        message,
+    };
 }
 
 /// What:
@@ -162,7 +177,11 @@ pub(crate) fn wording_of(plan: &Reconcile<'_>) -> Wording {
 /// ```ts
 /// const autoPushPlan = (destination, local, branchRef): Reconcile => ({ destination, local, branchRef, label: 'auto-push', explicit: false });
 /// ```
-pub fn auto_push_plan<'a>(destination: Destination, local: &'a str, branch_ref: &'a str) -> Reconcile<'a> {
+pub fn auto_push_plan<'a>(
+    destination: Destination,
+    local: &'a str,
+    branch_ref: &'a str,
+) -> Reconcile<'a> {
     // What:     `Reconcile { .. }` builds the plan record; `local.to_owned()` copies the caller's borrowed text into the owned
     //           `String` the plan keeps, and `Some(branch_ref)` keeps the branch the merge is into.
     // Why:      The run outlives the caller's borrow of the branch's name for `branch_ref` only while the caller's frame lives,
@@ -193,7 +212,9 @@ pub fn auto_push_plan<'a>(destination: Destination, local: &'a str, branch_ref: 
 /// ```ts
 /// const attemptOf = (integrated) => integrated.kind === 'error' ? integrated : integrated.attempt;
 /// ```
-pub fn attempt_of(integrated: Result<Integrated, SingleFlightError>) -> Result<PushAttempt, SingleFlightError> {
+pub fn attempt_of(
+    integrated: Result<Integrated, SingleFlightError>
+) -> Result<PushAttempt, SingleFlightError> {
     // What:     `match` opens the run's answer: `Ok(..)` holds an `Integrated`, and `Err(stopped)` the failure that ended it.
     // Why:      The two kinds of `Integrated` each carry the attempt the push is answered with, and nothing else may be reported.
     //

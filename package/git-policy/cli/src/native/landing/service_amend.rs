@@ -27,10 +27,21 @@
 //! const source = await readAmendSourceAwaiting(context, cwd); // undefined when native git must amend
 //! ```
 
-use crate::commit_transaction::{TransactionStop, failed};
+use crate::commit_transaction::{
+    TransactionStop,
+    failed,
+};
 use crate::service_commit_args::ServiceCommitArgs;
-use crate::service_message::{author_overrides, identity};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::service_message::{
+    author_overrides,
+    identity,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use std::path::Path;
 
@@ -111,7 +122,11 @@ pub fn parse_stored_commit(raw: &str) -> Option<StoredCommit> {
     if !has_tree {
         return None;
     }
-    return Some(StoredCommit { parents, author: author?, message: message.to_string() });
+    return Some(StoredCommit {
+        parents,
+        author: author?,
+        message: message.to_string(),
+    });
 }
 
 /// What:
@@ -130,24 +145,43 @@ pub fn parse_stored_commit(raw: &str) -> Option<StoredCommit> {
 fn query_answered(answered: std::io::Result<GitOutput>) -> Result<Option<String>, TransactionStop> {
     let output: GitOutput = match answered {
         Ok(finished) => finished,
-        Err(error) => return Err(failed(format!("reading the commit to amend failed: {error:?}"))),
+        Err(error) => {
+            return Err(failed(format!(
+                "reading the commit to amend failed: {error:?}"
+            )));
+        }
     };
-    return Ok(if output.code == Some(0) { String::from_utf8(output.stdout).ok() } else { None });
+    return Ok(if output.code == Some(0) {
+        String::from_utf8(output.stdout).ok()
+    } else {
+        None
+    });
 }
 
 /// The question one query asks Git,
 /// which both faces ask.
-fn query_request(cwd: &Path, arguments: &[&str]) -> GitRequest {
+fn query_request(
+    cwd: &Path,
+    arguments: &[&str],
+) -> GitRequest {
     return GitRequest::new(cwd, arguments);
 }
 
 /// The text of a Git query that must succeed for the line to be covered.
-fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, TransactionStop> {
+fn query(
+    context: &GitContext,
+    cwd: &Path,
+    arguments: &[&str],
+) -> Result<Option<String>, TransactionStop> {
     return query_answered(run_git(context, &query_request(cwd, arguments)));
 }
 
 /// `query` with its Git child awaited on the runtime.
-async fn query_awaiting(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, TransactionStop> {
+async fn query_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+    arguments: &[&str],
+) -> Result<Option<String>, TransactionStop> {
     return query_answered(run_git_awaiting(context, &query_request(cwd, arguments)).await);
 }
 
@@ -165,21 +199,51 @@ async fn query_awaiting(context: &GitContext, cwd: &Path, arguments: &[&str]) ->
 /// ```ts
 /// await readAmendSource(context, cwd)
 /// ```
-pub fn read_amend_source(context: &GitContext, cwd: &Path) -> Result<Option<AmendSource>, TransactionStop> {
-    let Some(named) = query(context, cwd, &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"])? else { return Ok(None) };
+pub fn read_amend_source(
+    context: &GitContext,
+    cwd: &Path,
+) -> Result<Option<AmendSource>, TransactionStop> {
+    let Some(named) = query(
+        context,
+        cwd,
+        &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+    )?
+    else {
+        return Ok(None);
+    };
     let base: String = named.trim().to_string();
-    let Some(raw) = query(context, cwd, &["cat-file", "commit", base.as_str()])? else { return Ok(None) };
-    let Some(stored) = parse_stored_commit(raw.as_str()) else { return Ok(None) };
+    let Some(raw) = query(context, cwd, &["cat-file", "commit", base.as_str()])? else {
+        return Ok(None);
+    };
+    let Some(stored) = parse_stored_commit(raw.as_str()) else {
+        return Ok(None);
+    };
     let parent_tree: Option<String> = match stored.parents.first() {
         Some(parent) => {
-            let Some(tree) = query(context, cwd, &["rev-parse", "--verify", "--quiet", format!("{parent}^{{tree}}").as_str()])? else {
+            let Some(tree) = query(
+                context,
+                cwd,
+                &[
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    format!("{parent}^{{tree}}").as_str(),
+                ],
+            )?
+            else {
                 return Ok(None);
             };
             Some(tree.trim().to_string())
         }
         None => None,
     };
-    return Ok(Some(AmendSource { base, parents: stored.parents, parent_tree, author: stored.author, message: stored.message }));
+    return Ok(Some(AmendSource {
+        base,
+        parents: stored.parents,
+        parent_tree,
+        author: stored.author,
+        message: stored.message,
+    }));
 }
 
 /// What:
@@ -198,21 +262,54 @@ pub fn read_amend_source(context: &GitContext, cwd: &Path) -> Result<Option<Amen
 /// ```ts
 /// const source = await readAmendSourceAwaiting(context, cwd)
 /// ```
-pub async fn read_amend_source_awaiting(context: &GitContext, cwd: &Path) -> Result<Option<AmendSource>, TransactionStop> {
-    let Some(named) = query_awaiting(context, cwd, &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]).await? else { return Ok(None) };
+pub async fn read_amend_source_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+) -> Result<Option<AmendSource>, TransactionStop> {
+    let Some(named) = query_awaiting(
+        context,
+        cwd,
+        &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+    )
+    .await?
+    else {
+        return Ok(None);
+    };
     let base: String = named.trim().to_string();
-    let Some(raw) = query_awaiting(context, cwd, &["cat-file", "commit", base.as_str()]).await? else { return Ok(None) };
-    let Some(stored) = parse_stored_commit(raw.as_str()) else { return Ok(None) };
+    let Some(raw) = query_awaiting(context, cwd, &["cat-file", "commit", base.as_str()]).await?
+    else {
+        return Ok(None);
+    };
+    let Some(stored) = parse_stored_commit(raw.as_str()) else {
+        return Ok(None);
+    };
     let parent_tree: Option<String> = match stored.parents.first() {
         Some(parent) => {
-            let Some(tree) = query_awaiting(context, cwd, &["rev-parse", "--verify", "--quiet", format!("{parent}^{{tree}}").as_str()]).await? else {
+            let Some(tree) = query_awaiting(
+                context,
+                cwd,
+                &[
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    format!("{parent}^{{tree}}").as_str(),
+                ],
+            )
+            .await?
+            else {
                 return Ok(None);
             };
             Some(tree.trim().to_string())
         }
         None => None,
     };
-    return Ok(Some(AmendSource { base, parents: stored.parents, parent_tree, author: stored.author, message: stored.message }));
+    return Ok(Some(AmendSource {
+        base,
+        parents: stored.parents,
+        parent_tree,
+        author: stored.author,
+        message: stored.message,
+    }));
 }
 
 /// The name,
@@ -249,7 +346,12 @@ pub fn split_author(line: &str) -> Option<(String, String, String)> {
 /// ```ts
 /// await amendedAuthor(context, cwd, source, parsed)
 /// ```
-pub fn amended_author(context: &GitContext, cwd: &Path, source: &AmendSource, parsed: &ServiceCommitArgs) -> Result<Option<String>, TransactionStop> {
+pub fn amended_author(
+    context: &GitContext,
+    cwd: &Path,
+    source: &AmendSource,
+    parsed: &ServiceCommitArgs,
+) -> Result<Option<String>, TransactionStop> {
     if parsed.reset_author {
         return identity(context, cwd, "GIT_AUTHOR_IDENT", &[]);
     }
@@ -257,8 +359,14 @@ pub fn amended_author(context: &GitContext, cwd: &Path, source: &AmendSource, pa
     if replaced.is_empty() {
         return Ok(Some(source.author.clone()));
     }
-    let Some((name, email, date)) = split_author(source.author.as_str()) else { return Ok(None) };
-    let mut parts: Vec<(&'static str, String)> = vec![("GIT_AUTHOR_NAME", name), ("GIT_AUTHOR_EMAIL", email), ("GIT_AUTHOR_DATE", date)];
+    let Some((name, email, date)) = split_author(source.author.as_str()) else {
+        return Ok(None);
+    };
+    let mut parts: Vec<(&'static str, String)> = vec![
+        ("GIT_AUTHOR_NAME", name),
+        ("GIT_AUTHOR_EMAIL", email),
+        ("GIT_AUTHOR_DATE", date),
+    ];
     for (key, value) in replaced {
         for slot in parts.iter_mut() {
             if slot.0 == key {

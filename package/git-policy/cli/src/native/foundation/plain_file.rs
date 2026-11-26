@@ -101,12 +101,18 @@ enum Links {
 /// ```ts
 /// function openWith(path, links) { const flags = O_NONBLOCK | O_CLOEXEC | (links === 'followed' ? 0 : O_NOFOLLOW); return openSync(path, 'r', 0o666, flags); }
 /// ```
-fn open_with(path: &Path, links: Links) -> std::io::Result<std::fs::File> {
+fn open_with(
+    path: &Path,
+    links: Links,
+) -> std::io::Result<std::fs::File> {
     let following: libc::c_int = match links {
         Links::NotFollowed => libc::O_NOFOLLOW,
         Links::Followed => 0,
     };
-    return std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | following).open(path);
+    return std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | following)
+        .open(path);
 }
 
 /// What:
@@ -142,10 +148,16 @@ pub fn open_without_blocking(path: &Path) -> std::io::Result<std::fs::File> {
 /// ```ts
 /// function openedPlain(path, links) { const file = openWith(path, links); return fstatSync(file).isFile() ? file : refuse(); }
 /// ```
-fn opened_plain(path: &Path, links: Links) -> std::io::Result<std::fs::File> {
+fn opened_plain(
+    path: &Path,
+    links: Links,
+) -> std::io::Result<std::fs::File> {
     let file: std::fs::File = open_with(path, links)?;
     if !file.metadata()?.file_type().is_file() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            NOT_A_PLAIN_FILE,
+        ));
     }
     return Ok(file);
 }
@@ -180,14 +192,21 @@ pub fn open_plain_file(path: &Path) -> std::io::Result<std::fs::File> {
 /// ```ts
 /// function readPlainFileWith(path, limit, links) { const file = openedPlain(path, links); ...; }
 /// ```
-fn read_plain_file_with(path: &Path, limit: u64, links: Links) -> std::io::Result<Vec<u8>> {
+fn read_plain_file_with(
+    path: &Path,
+    limit: u64,
+    links: Links,
+) -> std::io::Result<Vec<u8>> {
     #[cfg(test)]
     note_a_read(path);
     let file: std::fs::File = opened_plain(path, links)?;
     let mut bytes: Vec<u8> = Vec::new();
     std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
     if bytes.len() as u64 > limit {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is larger than this command reads"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "it is larger than this command reads",
+        ));
     }
     return Ok(bytes);
 }
@@ -204,7 +223,10 @@ fn read_plain_file_with(path: &Path, limit: u64, links: Links) -> std::io::Resul
 /// ```ts
 /// function readPlainFile(path: string, limit: number): Buffer; // throws
 /// ```
-pub fn read_plain_file(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
+pub fn read_plain_file(
+    path: &Path,
+    limit: u64,
+) -> std::io::Result<Vec<u8>> {
     return read_plain_file_with(path, limit, Links::NotFollowed);
 }
 
@@ -228,7 +250,10 @@ pub fn read_plain_file(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
 /// ```ts
 /// function readPlainFileThroughLinks(path: string, limit: number): Buffer; // throws
 /// ```
-pub fn read_plain_file_through_links(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
+pub fn read_plain_file_through_links(
+    path: &Path,
+    limit: u64,
+) -> std::io::Result<Vec<u8>> {
     return read_plain_file_with(path, limit, Links::Followed);
 }
 
@@ -265,10 +290,16 @@ pub const MOUNT_TABLE_LIMIT: u64 = 4 << 20;
 /// ```ts
 /// function readPlainTextAt(path: string, limit: number): string;
 /// ```
-pub fn read_plain_text_at(path: &Path, limit: u64) -> std::io::Result<String> {
+pub fn read_plain_text_at(
+    path: &Path,
+    limit: u64,
+) -> std::io::Result<String> {
     return match String::from_utf8(read_plain_file(path, limit)?) {
         Ok(text) => Ok(text),
-        Err(_not_text) => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is not text")),
+        Err(_not_text) => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "it is not text",
+        )),
     };
 }
 
@@ -288,15 +319,29 @@ pub fn read_plain_text_at(path: &Path, limit: u64) -> std::io::Result<String> {
 /// function openedForWriting(path: string): File { const file = openSync(path, 'w', 0o666, O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW); return fstatSync(file).isFile() ? file : refuse(); }
 /// ```
 fn opened_for_writing(path: &Path) -> std::io::Result<std::fs::File> {
-    let file: std::fs::File = match std::fs::OpenOptions::new().write(true).create(true).truncate(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | libc::O_NOFOLLOW).open(path) {
+    let file: std::fs::File = match std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | libc::O_NOFOLLOW)
+        .open(path)
+    {
         Ok(opened) => opened,
         // A named pipe opened for writing without a reader answers this at once, so the caller's message says what the name
         //  holds rather than what the kernel calls it.
-        Err(error) if error.raw_os_error() == Some(libc::ENXIO) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE)),
+        Err(error) if error.raw_os_error() == Some(libc::ENXIO) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                NOT_A_PLAIN_FILE,
+            ));
+        }
         Err(error) => return Err(error),
     };
     if !file.metadata()?.file_type().is_file() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            NOT_A_PLAIN_FILE,
+        ));
     }
     return Ok(file);
 }
@@ -316,7 +361,10 @@ fn opened_for_writing(path: &Path) -> std::io::Result<std::fs::File> {
 /// ```ts
 /// writePlainFile(path, bytes); // throws when the name holds a link, a pipe, a device or a directory
 /// ```
-pub fn write_plain_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub fn write_plain_file(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     use std::io::Write as _;
     let mut file: std::fs::File = opened_for_writing(path)?;
     return file.write_all(bytes);
@@ -337,7 +385,9 @@ thread_local! {
 /// which the controls read.
 #[cfg(test)]
 fn note_a_read(path: &Path) {
-    READS.with(|reads| { reads.borrow_mut().push(path.to_path_buf()); });
+    READS.with(|reads| {
+        reads.borrow_mut().push(path.to_path_buf());
+    });
 }
 
 /// What:
@@ -353,7 +403,9 @@ fn note_a_read(path: &Path) {
 /// ```
 #[cfg(test)]
 pub(crate) fn take_reads() -> Vec<std::path::PathBuf> {
-    return READS.with(|reads| { return std::mem::take(&mut *reads.borrow_mut()); });
+    return READS.with(|reads| {
+        return std::mem::take(&mut *reads.borrow_mut());
+    });
 }
 
 /// Plain-file controls stay out of the release executable.

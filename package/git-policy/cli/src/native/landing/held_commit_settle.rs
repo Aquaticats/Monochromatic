@@ -30,11 +30,33 @@
 //! for (const [held, settled] of await settleHeldCommits(gitDir, clearing)) console.error(lineOf(held, settled));
 //! ```
 
-use crate::held_commit_record::{Held, forget, list};
-use crate::held_commit_replay::{Replay, onto, value_now};
-use crate::service_journal::{DONE_EXTENSION, Intent, OPEN_EXTENSION, batch_path, parse_intent, write_intent};
-use crate::transaction_git::{GitContext, GitRequest, run_git};
-use std::path::{Path, PathBuf};
+use crate::held_commit_record::{
+    Held,
+    forget,
+    list,
+};
+use crate::held_commit_replay::{
+    Replay,
+    onto,
+    value_now,
+};
+use crate::service_journal::{
+    DONE_EXTENSION,
+    Intent,
+    OPEN_EXTENSION,
+    batch_path,
+    parse_intent,
+    write_intent,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Instant;
 
 /// What became of one held commit,
@@ -103,11 +125,22 @@ fn standing_locks(candidates: &[crate::stale_ref_lock_walk::Candidate]) -> Vec<P
 /// ```ts
 /// const locks = standingLocks(candidates); if (locks.length === 0) return { ready: true }; ... { ready: false, locks }
 /// ```
-fn readiness(held: &Held, clearing: Clearing) -> Result<(), Vec<PathBuf>> {
+fn readiness(
+    held: &Held,
+    clearing: Clearing,
+) -> Result<(), Vec<PathBuf>> {
     let candidates: Vec<crate::stale_ref_lock_walk::Candidate> =
-        crate::stale_ref_lock_walk::locks_that_can_refuse_a_write(lock_roots(held).as_slice(), held.reference.bytes(), kept_reference(held.seq).as_bytes());
+        crate::stale_ref_lock_walk::locks_that_can_refuse_a_write(
+            lock_roots(held).as_slice(),
+            held.reference.bytes(),
+            kept_reference(held.seq).as_bytes(),
+        );
     if matches!(clearing, Clearing::Proved) {
-        let waiting = crate::service_land_reference_lock::wait_out_the_reference_locks_of(candidates.as_slice(), &crate::stale_ref_locks::Judge::here(), Instant::now());
+        let waiting = crate::service_land_reference_lock::wait_out_the_reference_locks_of(
+            candidates.as_slice(),
+            &crate::stale_ref_locks::Judge::here(),
+            Instant::now(),
+        );
         if matches!(waiting, crate::service_land_reference_lock::Waiting::Gone) {
             return Ok(());
         }
@@ -136,14 +169,25 @@ fn intent_of(held: &Held) -> Result<Option<Intent>, String> {
     };
     return match parse_intent(text.as_str()) {
         Some(intent) => Ok(Some(intent)),
-        None => Err(format!("the record of the batch at `{}` cannot be read", path.display())),
+        None => Err(format!(
+            "the record of the batch at `{}` cannot be read",
+            path.display()
+        )),
     };
 }
 
 /// Whether the commit the branch names is the batch's own or lies above it,
 /// so the batch landed and only its index update is owed.
-fn landed_below(git: &GitContext, held: &Held, intent: &Intent, current: &str) -> bool {
-    let request: GitRequest = GitRequest::new(held.repository.as_path(), &["merge-base", "--is-ancestor", intent.new.as_str(), current]);
+fn landed_below(
+    git: &GitContext,
+    held: &Held,
+    intent: &Intent,
+    current: &str,
+) -> bool {
+    let request: GitRequest = GitRequest::new(
+        held.repository.as_path(),
+        &["merge-base", "--is-ancestor", intent.new.as_str(), current],
+    );
     let Ok(output) = run_git(git, &request) else {
         return false;
     };
@@ -174,11 +218,17 @@ fn landed_below(git: &GitContext, held: &Held, intent: &Intent, current: &str) -
 /// ```ts
 /// const lock = tryAcquire(index, seq); if (lock) await writeStart(witnessOf(index)); return lock
 /// ```
-fn index_lock_of(held: &Held, intent: &Intent) -> Option<crate::service_index_lock::IndexLock> {
-    let lock: crate::service_index_lock::IndexLock = crate::service_index_lock::try_acquire(intent.index.as_path(), intent.seq)?;
+fn index_lock_of(
+    held: &Held,
+    intent: &Intent,
+) -> Option<crate::service_index_lock::IndexLock> {
+    let lock: crate::service_index_lock::IndexLock =
+        crate::service_index_lock::try_acquire(intent.index.as_path(), intent.seq)?;
     match crate::service_land_start::witness_of(intent.index.as_path()) {
         Ok(witness) => {
-            if let Err(error) = crate::service_journal::write_start(held.journal.as_path(), intent.seq, &witness) {
+            if let Err(error) =
+                crate::service_journal::write_start(held.journal.as_path(), intent.seq, &witness)
+            {
                 crate::service_warn!(
                     "batch {} {}: the index file the settlement saw could not be recorded ({error}); the entries are left to the owed record",
                     intent.seq,
@@ -215,14 +265,30 @@ fn index_lock_of(held: &Held, intent: &Intent) -> Option<crate::service_index_lo
 /// ```ts
 /// if (stillCheckedOut) await followUp(intent, lock) else { drop(lock); await cleanupDone(intent) }
 /// ```
-fn install_entries(git: &GitContext, held: &Held, intent: &Intent, lock: crate::service_index_lock::IndexLock) -> bool {
+fn install_entries(
+    git: &GitContext,
+    held: &Held,
+    intent: &Intent,
+    lock: crate::service_index_lock::IndexLock,
+) -> bool {
     let own_index: bool = intent.index == intent.git_dir.join("index");
     let ours: Result<bool, crate::service_protocol::FailureCode> =
-        crate::service_head::still_checked_out(git, intent.repository.as_path(), intent.git_dir.as_path(), intent.common_dir.as_path(), &intent.reference);
+        crate::service_head::still_checked_out(
+            git,
+            intent.repository.as_path(),
+            intent.git_dir.as_path(),
+            intent.common_dir.as_path(),
+            &intent.reference,
+        );
     let installed: bool = match ours {
         Ok(false) if own_index => {
             drop(lock);
-            crate::service_land_follow::cleanup_done(git, intent.repository.as_path(), intent, held.journal.as_path())
+            crate::service_land_follow::cleanup_done(
+                git,
+                intent.repository.as_path(),
+                intent,
+                held.journal.as_path(),
+            )
         }
         Err(code) => {
             drop(lock);
@@ -233,7 +299,13 @@ fn install_entries(git: &GitContext, held: &Held, intent: &Intent, lock: crate::
             );
             false
         }
-        Ok(_) => crate::service_land_finish::follow_up(git, intent.repository.as_path(), intent, lock, held.journal.as_path()),
+        Ok(_) => crate::service_land_finish::follow_up(
+            git,
+            intent.repository.as_path(),
+            intent,
+            lock,
+            held.journal.as_path(),
+        ),
     };
     if installed {
         crate::owed_index_update::settle(intent.git_dir.as_path(), intent.seq);
@@ -258,13 +330,20 @@ fn install_entries(git: &GitContext, held: &Held, intent: &Intent, lock: crate::
 /// ```ts
 /// await holdThePushes(intent); if (lock) return installEntries(intent, lock); if (await settle(intent) === 'done') await markDone(seq)
 /// ```
-fn finish(git: &GitContext, held: &Held, intent: &Intent, lock: Option<crate::service_index_lock::IndexLock>) -> bool {
+fn finish(
+    git: &GitContext,
+    held: &Held,
+    intent: &Intent,
+    lock: Option<crate::service_index_lock::IndexLock>,
+) -> bool {
     crate::service_server_land_group::hold_the_pushes_of(intent);
     crate::service_index_lock::remove_stale(intent.index.as_path(), intent.seq);
     let waits: bool = match lock {
         Some(held_lock) => install_entries(git, held, intent, held_lock),
         None => {
-            if crate::service_land_finish::settle(git, intent, held.journal.as_path()) == crate::service_land_finish::Settled::Done {
+            if crate::service_land_finish::settle(git, intent, held.journal.as_path())
+                == crate::service_land_finish::Settled::Done
+            {
                 let _marked = crate::service_journal::mark_done(held.journal.as_path(), intent.seq);
             }
             crate::owed_index_update::path_of(held.git_dir.as_path(), held.seq).exists()
@@ -287,12 +366,26 @@ fn finish(git: &GitContext, held: &Held, intent: &Intent, lock: Option<crate::se
 /// ```ts
 /// finish(held, { ...intent, new: current }, lock); rm(record)
 /// ```
-fn finish_a_moved_branch(git: &GitContext, held: &Held, intent: &Intent, current: &str, lock: Option<crate::service_index_lock::IndexLock>) -> Settled {
+fn finish_a_moved_branch(
+    git: &GitContext,
+    held: &Held,
+    intent: &Intent,
+    current: &str,
+    lock: Option<crate::service_index_lock::IndexLock>,
+) -> Settled {
     let mut moved: Intent = intent.clone();
     moved.new = current.to_string();
     let waits: bool = finish(git, held, &moved, lock);
     forget(held.git_dir.as_path(), held.seq);
-    return if waits { Settled::LandedTheIndexWaits { commit: current.to_string() } } else { Settled::Landed { commit: current.to_string() } };
+    return if waits {
+        Settled::LandedTheIndexWaits {
+            commit: current.to_string(),
+        }
+    } else {
+        Settled::Landed {
+            commit: current.to_string(),
+        }
+    };
 }
 
 /// What:
@@ -310,17 +403,29 @@ fn finish_a_moved_branch(git: &GitContext, held: &Held, intent: &Intent, current
 /// ```ts
 /// const replayed = await carryOnto(held, current); if (replayed.kind !== 'replayed') return replayed; await writeIntent({ ...intent, new: last, commits })
 /// ```
-fn carry(git: &GitContext, held: &Held, intent: &Intent, current: &str) -> Result<(Intent, String), Settled> {
+fn carry(
+    git: &GitContext,
+    held: &Held,
+    intent: &Intent,
+    current: &str,
+) -> Result<(Intent, String), Settled> {
     if crate::service_protocol::is_zero_object(intent.old.as_str()) {
         return Err(Settled::Cannot {
             commit: held.new.clone(),
-            because: String::from("the branch was created while the lock stood, and the commit was made for a branch that did not exist"),
+            because: String::from(
+                "the branch was created while the lock stood, and the commit was made for a branch that did not exist",
+            ),
         });
     }
     return match onto(git, held, current, held.common_dir.as_path()) {
-        Replay::Replayed { commits } => {
+        Replay::Replayed {
+            commits,
+        } => {
             let Some(last) = commits.last().cloned() else {
-                return Err(Settled::Cannot { commit: held.new.clone(), because: String::from("the batch names no commit") });
+                return Err(Settled::Cannot {
+                    commit: held.new.clone(),
+                    because: String::from("the batch names no commit"),
+                });
             };
             let mut written: Intent = intent.clone();
             written.new = last.clone();
@@ -337,8 +442,18 @@ fn carry(git: &GitContext, held: &Held, intent: &Intent, current: &str) -> Resul
                 }),
             }
         }
-        Replay::Conflict { paths } => Err(Settled::Conflicts { commit: held.new.clone(), paths }),
-        Replay::Cannot { because } => Err(Settled::Cannot { commit: held.new.clone(), because }),
+        Replay::Conflict {
+            paths,
+        } => Err(Settled::Conflicts {
+            commit: held.new.clone(),
+            paths,
+        }),
+        Replay::Cannot {
+            because,
+        } => Err(Settled::Cannot {
+            commit: held.new.clone(),
+            because,
+        }),
     };
 }
 
@@ -378,21 +493,34 @@ fn finished_of(held: &Held) -> Option<Intent> {
 /// ```ts
 /// current === held.new ? (rm(record), { alreadyThere: held.new }) : done && isAncestor(done.new, current) ? (rm(record), { alreadyThere: done.new }) : { cannot: 'the batch of this record ended without landing its commit' }
 /// ```
-fn after_a_settled_batch(git: &GitContext, held: &Held) -> Settled {
+fn after_a_settled_batch(
+    git: &GitContext,
+    held: &Held,
+) -> Settled {
     let Some(current) = value_now(git, held) else {
-        return Settled::Cannot { commit: held.new.clone(), because: String::from("Git gave no answer about the branch") };
+        return Settled::Cannot {
+            commit: held.new.clone(),
+            because: String::from("Git gave no answer about the branch"),
+        };
     };
     if current == held.new {
         forget(held.git_dir.as_path(), held.seq);
-        return Settled::AlreadyThere { commit: held.new.clone() };
+        return Settled::AlreadyThere {
+            commit: held.new.clone(),
+        };
     }
     if let Some(done) = finished_of(held)
         && landed_below(git, held, &done, current.as_str())
     {
         forget(held.git_dir.as_path(), held.seq);
-        return Settled::AlreadyThere { commit: done.new };
+        return Settled::AlreadyThere {
+            commit: done.new,
+        };
     }
-    return Settled::Cannot { commit: held.new.clone(), because: String::from("the batch of this record ended without landing its commit") };
+    return Settled::Cannot {
+        commit: held.new.clone(),
+        because: String::from("the batch of this record ended without landing its commit"),
+    };
 }
 
 /// What:
@@ -410,7 +538,11 @@ fn after_a_settled_batch(git: &GitContext, held: &Held) -> Settled {
 /// ```ts
 /// if (locksStand()) return { waitsFor: locks }; const current = revParse(); ...
 /// ```
-pub fn one(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
+pub fn one(
+    git: &GitContext,
+    held: &Held,
+    clearing: Clearing,
+) -> Settled {
     let acting: GitContext = context_of(git, held);
     return one_for(&acting, held, clearing);
 }
@@ -436,10 +568,19 @@ pub fn one(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
 /// ```ts
 /// const acting = { ...context, globalPrefix: [...context.globalPrefix, ...ofPaths(held.gitDir, held.repository)] };
 /// ```
-fn context_of(git: &GitContext, held: &Held) -> GitContext {
+fn context_of(
+    git: &GitContext,
+    held: &Held,
+) -> GitContext {
     let mut prefix: Vec<std::ffi::OsString> = git.global_prefix.clone();
-    prefix.extend(crate::repository_selection::of_paths(held.git_dir.as_path(), held.repository.as_path()));
-    return GitContext { global_prefix: prefix, ..git.clone() };
+    prefix.extend(crate::repository_selection::of_paths(
+        held.git_dir.as_path(),
+        held.repository.as_path(),
+    ));
+    return GitContext {
+        global_prefix: prefix,
+        ..git.clone()
+    };
 }
 
 /// What:
@@ -449,14 +590,23 @@ fn context_of(git: &GitContext, held: &Held) -> GitContext {
 /// ```ts
 /// oneFor(acting, held, clearing)
 /// ```
-fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
+fn one_for(
+    git: &GitContext,
+    held: &Held,
+    clearing: Clearing,
+) -> Settled {
     if let Err(locks) = readiness(held, clearing) {
         return Settled::WaitsForLocks(locks);
     }
     let mut intent: Intent = match intent_of(held) {
         Ok(Some(found)) => found,
         Ok(None) => return after_a_settled_batch(git, held),
-        Err(because) => return Settled::Cannot { commit: held.new.clone(), because },
+        Err(because) => {
+            return Settled::Cannot {
+                commit: held.new.clone(),
+                because,
+            };
+        }
     };
     // The entries are installed under Git's index lock, taken before the branch moves and before the index file is recorded, so
     //  nothing can stage between that look and the installation (`index_lock_of`).
@@ -466,7 +616,10 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
     crate::service_fault::reach("held-before-a-settlement-decides");
     for _attempt in 0..ATTEMPTS {
         let Some(current) = value_now(git, held) else {
-            return Settled::Cannot { commit: held.new.clone(), because: String::from("Git gave no answer about the branch") };
+            return Settled::Cannot {
+                commit: held.new.clone(),
+                because: String::from("Git gave no answer about the branch"),
+            };
         };
         // Another settlement of this same record can carry the change onto the branch and rewrite the batch's record while
         //  this one reads the branch, so the record on disk is the newer one: deciding from the value read before it would
@@ -474,12 +627,18 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
         intent = match intent_of(held) {
             Ok(Some(found)) => found,
             Ok(None) => return after_a_settled_batch(git, held),
-            Err(because) => return Settled::Cannot { commit: held.new.clone(), because },
+            Err(because) => {
+                return Settled::Cannot {
+                    commit: held.new.clone(),
+                    because,
+                };
+            }
         };
         if landed_below(git, held, &intent, current.as_str()) {
             return finish_a_moved_branch(git, held, &intent, current.as_str(), lock.take());
         }
-        let unborn: bool = current.is_empty() && crate::service_protocol::is_zero_object(intent.old.as_str());
+        let unborn: bool =
+            current.is_empty() && crate::service_protocol::is_zero_object(intent.old.as_str());
         let (written, commit): (Intent, String) = if current == intent.old || unborn {
             (intent.clone(), intent.new.clone())
         } else {
@@ -488,11 +647,25 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
                 Err(settled) => return settled,
             }
         };
-        match crate::held_commit_settle_move::move_the_branch(git, held, &written, commit.as_str(), current.as_str()) {
+        match crate::held_commit_settle_move::move_the_branch(
+            git,
+            held,
+            &written,
+            commit.as_str(),
+            current.as_str(),
+        ) {
             Ok(true) => {
                 let waits: bool = finish(git, held, &written, lock.take());
                 forget(held.git_dir.as_path(), held.seq);
-                return if waits { Settled::LandedTheIndexWaits { commit } } else { Settled::Landed { commit } };
+                return if waits {
+                    Settled::LandedTheIndexWaits {
+                        commit,
+                    }
+                } else {
+                    Settled::Landed {
+                        commit,
+                    }
+                };
             }
             // The branch moved between the read and the write: read it and decide again.
             //  The record this round wrote is read back by the next one, so the decision is made from the branch and the record
@@ -500,11 +673,19 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
             //  nothing was staged meanwhile because the lock is still held.
             Ok(false) => {}
             Err(said) => {
-                return Settled::Cannot { commit, because: format!("Git refused the branch write ({said}), and the settlement waits for the next command") };
+                return Settled::Cannot {
+                    commit,
+                    because: format!(
+                        "Git refused the branch write ({said}), and the settlement waits for the next command"
+                    ),
+                };
             }
         }
     }
-    return Settled::Cannot { commit: intent.new.clone(), because: String::from("the branch kept moving while its write was being made") };
+    return Settled::Cannot {
+        commit: intent.new.clone(),
+        because: String::from("the branch kept moving while its write was being made"),
+    };
 }
 
 /// What:
@@ -525,12 +706,20 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
 /// ```ts
 /// const held = recordOf(intent, journal); if (!held) return undefined; settleOne(held); return recordStillThere ? { handled: 'held' } : undefined
 /// ```
-pub fn settle_a_recorded_hold(git: &GitContext, journal: &Path, intent: &Intent) -> Option<crate::service_land_finish::RecoveryReport> {
+pub fn settle_a_recorded_hold(
+    git: &GitContext,
+    journal: &Path,
+    intent: &Intent,
+) -> Option<crate::service_land_finish::RecoveryReport> {
     let held: Held = record_of(intent, journal)?;
     let settled: Settled = one(git, &held, Clearing::Proved);
     let seq: u64 = intent.seq;
-    crate::service_log!("{}", crate::held_commit_settle_outcomes::settled_words(seq, &held, &settled));
-    let still_held: bool = crate::held_commit_record::path_of(intent.git_dir.as_path(), seq).exists();
+    crate::service_log!(
+        "{}",
+        crate::held_commit_settle_outcomes::settled_words(seq, &held, &settled)
+    );
+    let still_held: bool =
+        crate::held_commit_record::path_of(intent.git_dir.as_path(), seq).exists();
     if !still_held {
         return None;
     }
@@ -558,7 +747,10 @@ pub fn settle_a_recorded_hold(git: &GitContext, journal: &Path, intent: &Intent)
 /// ```ts
 /// function saySettledRecordUnreadable(intent, path) { error(`batch ${intent.seq} in the repository at ${intent.repository}: its open record ${path} cannot be read ...`) }
 /// ```
-pub fn say_settled_batch_record_cannot_be_read(intent: &Intent, path: &Path) {
+pub fn say_settled_batch_record_cannot_be_read(
+    intent: &Intent,
+    path: &Path,
+) {
     crate::service_error!(
         "batch {} {}: its open record {} cannot be read after the batch was settled, so it is kept and nothing of it is \
 settled; its owed index update is settled from the worktree's own record of it",
@@ -579,7 +771,10 @@ settled; its owed index update is settled from the worktree's own record of it",
 /// ```ts
 /// const held = await list(gitDir).find((record) => record.seq === intent.seq && record.journal === journal)
 /// ```
-pub fn record_of(intent: &Intent, journal: &Path) -> Option<Held> {
+pub fn record_of(
+    intent: &Intent,
+    journal: &Path,
+) -> Option<Held> {
     let (records, _damaged) = list(intent.git_dir.as_path());
     for held in records {
         if held.seq == intent.seq && held.journal == journal {
@@ -605,7 +800,11 @@ pub fn record_of(intent: &Intent, journal: &Path) -> Option<Held> {
 /// ```ts
 /// for (const held of await list(gitDir)) results.push([held, settleOne(held, clearing)]);
 /// ```
-pub fn all(git: &GitContext, git_dir: &Path, clearing: Clearing) -> (Vec<(Held, Settled)>, Vec<PathBuf>) {
+pub fn all(
+    git: &GitContext,
+    git_dir: &Path,
+    clearing: Clearing,
+) -> (Vec<(Held, Settled)>, Vec<PathBuf>) {
     let (held_records, damaged) = list(git_dir);
     let mut settled: Vec<(Held, Settled)> = Vec::new();
     for held in held_records {

@@ -43,14 +43,18 @@ fn end_of_file_wins_over_a_drain_that_is_ready_at_the_same_poll() {
         let mut answers: Vec<std::io::Result<Vec<u8>>> = Vec::new();
         for _read in 0..READS {
             let (reader, mut writer) = std::io::pipe().expect("a pipe");
-            writer.write_all(THE_ANSWER).expect("the answer goes into the pipe");
-            let pipe: Receiver = Receiver::from_owned_fd(OwnedFd::from(reader)).expect("the read end");
+            writer
+                .write_all(THE_ANSWER)
+                .expect("the answer goes into the pipe");
+            let pipe: Receiver =
+                Receiver::from_owned_fd(OwnedFd::from(reader)).expect("the read end");
             // The write end closes here, so every writer has closed and the pipe answers a read to its end.
             drop(writer);
             // The moment the step ended is a whole drain and a second in the past, so the drain's own timer is behind this
             //  instant rather than inside the tick it is polled in, and it answers ready at its first poll.
-            let ended_at: Instant =
-                Instant::now().checked_sub(OUTPUT_DRAIN_AFTER_EXIT + Duration::from_secs(1)).expect("this process started two seconds ago");
+            let ended_at: Instant = Instant::now()
+                .checked_sub(OUTPUT_DRAIN_AFTER_EXIT + Duration::from_secs(1))
+                .expect("this process started two seconds ago");
             let (_told, ends) = tokio::sync::watch::channel::<Option<Instant>>(Some(ended_at));
             answers.push(read_until_the_step_has_ended(pipe, ends, "a step", None).await);
         }
@@ -64,12 +68,22 @@ fn end_of_file_wins_over_a_drain_that_is_ready_at_the_same_poll() {
             Ok(bytes) => read.extend(bytes),
             Err(error) => {
                 failures = failures.saturating_add(1);
-                crate::diagnostic_log::warn("stepOutput", format!("a read whose end of file was ready failed: {error}").as_str());
+                crate::diagnostic_log::warn(
+                    "stepOutput",
+                    format!("a read whose end of file was ready failed: {error}").as_str(),
+                );
             }
         }
     }
-    assert_eq!(failures, 0, "a read whose end of file was ready reported the output as held open {failures} times");
-    assert_eq!(read.len(), THE_ANSWER.len() * READS, "every answer of every read came back whole");
+    assert_eq!(
+        failures, 0,
+        "a read whose end of file was ready reported the output as held open {failures} times"
+    );
+    assert_eq!(
+        read.len(),
+        THE_ANSWER.len() * READS,
+        "every answer of every read came back whole"
+    );
 }
 
 /// What:
@@ -89,32 +103,48 @@ fn end_of_file_wins_over_a_drain_that_is_ready_at_the_same_poll() {
 #[cfg(target_os = "linux")]
 #[test]
 fn the_ceiling_of_a_query_that_could_not_be_ended_says_it_was_left_running() {
-    let runtime: tokio::runtime::Runtime =
-        tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this control");
+    let runtime: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime of this control");
     let (failure, pid): (std::io::Error, u32) = runtime.block_on(async {
         let mut command: Command = Command::new("sleep");
         command.arg("600").stdin(Stdio::null());
-        let pipes: StepPipes = attach_pipes_awaiting(&mut command).await.expect("the pipes of the query");
-        let child: Child = crate::test_support::spawn_owned(&mut command).expect("the query starts");
+        let pipes: StepPipes = attach_pipes_awaiting(&mut command)
+            .await
+            .expect("the pipes of the query");
+        let child: Child =
+            crate::test_support::spawn_owned(&mut command).expect("the query starts");
         release_write_ends(&mut command);
         let pid: u32 = child.id();
         // The signal of the ceiling is refused, and the child ends by itself after this control has read the answer.
         crate::child_waited_for_within_a_ceiling::a_control_refuses_the_next_kill();
-        let carried: CarriedCeiling = carried_by(Duration::from_millis(100), CeilingWhy::TheQueryIsBounded);
-        let failure: std::io::Error = read_until_the_child_ends_awaiting(pipes, child, "a query", Some(carried))
-            .await
-            .expect_err("the ceiling ended the wait for the query");
+        let carried: CarriedCeiling =
+            carried_by(Duration::from_millis(100), CeilingWhy::TheQueryIsBounded);
+        let failure: std::io::Error =
+            read_until_the_child_ends_awaiting(pipes, child, "a query", Some(carried))
+                .await
+                .expect_err("the ceiling ended the wait for the query");
         return (failure, pid);
     });
     // The child could not be ended, so this control ends it; the thread that watches it collects its end.
-    if crate::child_waited_for_within_a_ceiling::left_running_when_the_ceiling_was_reached(&failure) {
+    if crate::child_waited_for_within_a_ceiling::left_running_when_the_ceiling_was_reached(&failure)
+    {
         // SAFETY: `kill` takes two integers and touches no memory; the number is the query this control started.
-        let _ended = unsafe { libc::kill(i32::try_from(pid).expect("a process number"), libc::SIGKILL) };
+        let _ended =
+            unsafe { libc::kill(i32::try_from(pid).expect("a process number"), libc::SIGKILL) };
     }
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
-    assert!(failure.to_string().contains("the longest the wrapper lets one step run"), "the ceiling is what ended the wait: {failure}");
     assert!(
-        crate::child_waited_for_within_a_ceiling::left_running_when_the_ceiling_was_reached(&failure),
+        failure
+            .to_string()
+            .contains("the longest the wrapper lets one step run"),
+        "the ceiling is what ended the wait: {failure}"
+    );
+    assert!(
+        crate::child_waited_for_within_a_ceiling::left_running_when_the_ceiling_was_reached(
+            &failure
+        ),
         "a query the kernel would not let end was reported as one that was ended: {failure}"
     );
 }
@@ -140,12 +170,25 @@ fn the_ceiling_of_a_query_that_could_not_be_ended_says_it_was_left_running() {
 #[test]
 fn only_a_watch_that_can_end_the_step_puts_the_backstop_behind_its_ceiling() {
     let ceiling: Duration = Duration::from_secs(7);
-    let proven: CarriedCeiling = carried_for(Some(ceiling), TheWatchOfAStep::WatchedAndProven).expect("a step with a ceiling is carried");
-    let unproven: CarriedCeiling = carried_for(Some(ceiling), TheWatchOfAStep::WatchedAndUnproven).expect("a step with a ceiling is carried");
-    let unwatched: CarriedCeiling = carried_for(Some(ceiling), TheWatchOfAStep::NotWatched).expect("a step with a ceiling is carried");
-    assert!(proven.backstop > proven.ceiling, "the wait then reaches its own watch's ceiling at {:?}", proven.backstop);
-    assert_eq!(proven.backstop, ceiling.saturating_add(crate::child_watch_running_task::THE_WATCH_HAS_ITS_ENDING));
-    assert_eq!(proven.why, None, "a watch that can end the step is what ends it");
+    let proven: CarriedCeiling = carried_for(Some(ceiling), TheWatchOfAStep::WatchedAndProven)
+        .expect("a step with a ceiling is carried");
+    let unproven: CarriedCeiling = carried_for(Some(ceiling), TheWatchOfAStep::WatchedAndUnproven)
+        .expect("a step with a ceiling is carried");
+    let unwatched: CarriedCeiling = carried_for(Some(ceiling), TheWatchOfAStep::NotWatched)
+        .expect("a step with a ceiling is carried");
+    assert!(
+        proven.backstop > proven.ceiling,
+        "the wait then reaches its own watch's ceiling at {:?}",
+        proven.backstop
+    );
+    assert_eq!(
+        proven.backstop,
+        ceiling.saturating_add(crate::child_watch_running_task::THE_WATCH_HAS_ITS_ENDING)
+    );
+    assert_eq!(
+        proven.why, None,
+        "a watch that can end the step is what ends it"
+    );
     assert_eq!(
         (unproven.backstop, unproven.why),
         (ceiling, Some(CeilingWhy::TheWatchCouldNotEndIt)),
@@ -156,7 +199,10 @@ fn only_a_watch_that_can_end_the_step_puts_the_backstop_behind_its_ceiling() {
         (ceiling, Some(CeilingWhy::NoWatcher)),
         "no watch leaves the ending to the wait, at the ceiling itself"
     );
-    assert!(carried_for(None, TheWatchOfAStep::WatchedAndProven).is_none(), "a step with no ceiling carries none");
+    assert!(
+        carried_for(None, TheWatchOfAStep::WatchedAndProven).is_none(),
+        "a step with no ceiling carries none"
+    );
 }
 
 /// How many times what one pipe holds the step of the control below writes.
@@ -189,10 +235,14 @@ const PIPE_CONTROL_CEILING: Duration = Duration::from_secs(30);
 fn one_pipe_s_holding() -> usize {
     let (reader, writer) = std::io::pipe().expect("a pipe");
     // SAFETY: `fcntl` takes a descriptor this process owns and an integer command, and writes no memory here.
-    let capacity: std::ffi::c_int = unsafe { libc::fcntl(std::os::fd::AsRawFd::as_raw_fd(&reader), libc::F_GETPIPE_SZ) };
+    let capacity: std::ffi::c_int =
+        unsafe { libc::fcntl(std::os::fd::AsRawFd::as_raw_fd(&reader), libc::F_GETPIPE_SZ) };
     drop(writer);
     drop(reader);
-    assert!(capacity > 0, "the kernel did not report what one pipe holds: {capacity}");
+    assert!(
+        capacity > 0,
+        "the kernel did not report what one pipe holds: {capacity}"
+    );
     return usize::try_from(capacity).expect("a positive capacity");
 }
 
@@ -214,22 +264,41 @@ fn one_pipe_s_holding() -> usize {
 #[test]
 fn a_step_that_writes_more_than_a_pipe_holds_is_read_while_it_writes() {
     let count: usize = one_pipe_s_holding().saturating_mul(PIPES_WORTH_THE_STEP_WRITES);
-    let runtime: tokio::runtime::Runtime =
-        tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this control");
+    let runtime: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime of this control");
     let output: Output = runtime.block_on(async {
         let mut command: Command = Command::new("sh");
-        command.arg("-c").arg(format!("head -c {count} /dev/zero | tr '\\0' 'x'; printf '\\nwhole\\n'"));
+        command.arg("-c").arg(format!(
+            "head -c {count} /dev/zero | tr '\\0' 'x'; printf '\\nwhole\\n'"
+        ));
         command.stdin(Stdio::null());
-        let pipes: StepPipes = attach_pipes_awaiting(&mut command).await.expect("the pipes of the step");
+        let pipes: StepPipes = attach_pipes_awaiting(&mut command)
+            .await
+            .expect("the pipes of the step");
         let child: Child = crate::test_support::spawn_owned(&mut command).expect("the step starts");
         release_write_ends(&mut command);
-        let carried: CarriedCeiling = carried_by(PIPE_CONTROL_CEILING, CeilingWhy::TheQueryIsBounded);
-        return read_until_the_child_ends_awaiting(pipes, child, "a step that writes more than a pipe holds", Some(carried))
-            .await
-            .expect("the step wrote its whole answer and ended");
+        let carried: CarriedCeiling =
+            carried_by(PIPE_CONTROL_CEILING, CeilingWhy::TheQueryIsBounded);
+        return read_until_the_child_ends_awaiting(
+            pipes,
+            child,
+            "a step that writes more than a pipe holds",
+            Some(carried),
+        )
+        .await
+        .expect("the step wrote its whole answer and ended");
     });
     assert!(output.status.success(), "{:?}", output.status);
     let text: String = String::from_utf8(output.stdout).expect("the step wrote text");
-    assert_eq!(text.len(), count + "\nwhole\n".len(), "every byte the step wrote was read: {count} bytes, then its last line");
-    assert!(text.ends_with("\nwhole\n"), "the step reached its last write, so it was never left standing at a full pipe");
+    assert_eq!(
+        text.len(),
+        count + "\nwhole\n".len(),
+        "every byte the step wrote was read: {count} bytes, then its last line"
+    );
+    assert!(
+        text.ends_with("\nwhole\n"),
+        "the step reached its last write, so it was never left standing at a full pipe"
+    );
 }

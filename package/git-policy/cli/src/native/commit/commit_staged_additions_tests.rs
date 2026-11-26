@@ -6,10 +6,22 @@
 //! and what the ignored-path refusal says.
 
 use super::*;
-use crate::private_index_request::CaptureIndexes;
-use crate::commit_index::{IndexSelection, initialize_commit_index, list_changed_index_paths, write_private_tree};
+use crate::commit_index::{
+    IndexSelection,
+    initialize_commit_index,
+    list_changed_index_paths,
+    write_private_tree,
+};
 use crate::commit_selection_staging::SelectionStagingFailure;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::private_index_request::CaptureIndexes;
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use crate::transaction_journal::TransactionMode;
 use std::path::PathBuf;
 
@@ -29,7 +41,10 @@ fn scenario(name: &str) -> (PathBuf, PathBuf, CaptureIndexes, String) {
     std::fs::write(repo.join("lib").join("_a.js"), "a1\n").expect("_a");
     std::fs::write(repo.join("lib").join("_b.js"), "b1\n").expect("_b");
     std::fs::write(repo.join("other.js"), "o1\n").expect("other");
-    git(repo.as_path(), &["add", "--force", "lib/_a.js", "lib/_b.js", "other.js"]);
+    git(
+        repo.as_path(),
+        &["add", "--force", "lib/_a.js", "lib/_b.js", "other.js"],
+    );
     let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let indexes: CaptureIndexes = CaptureIndexes {
         captured_index: repo.join(".git").join("captured.index"),
@@ -51,13 +66,24 @@ fn selected(
     let choice: IndexSelection = IndexSelection {
         mode: TransactionMode::ExplicitPath,
         pathspecs: specs.as_slice(),
-        pathspec_file: file.map(|(path, _)| { return path; }),
-        pathspec_file_nul: file.is_some_and(|(_, nul)| { return nul; }),
+        pathspec_file: file.map(|(path, _)| {
+            return path;
+        }),
+        pathspec_file_nul: file.is_some_and(|(_, nul)| {
+            return nul;
+        }),
         stage_into_index: false,
         stage_tracked_changes: false,
         base_revision: base,
     };
-    initialize_commit_index(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), indexes, &choice)?;
+    initialize_commit_index(
+        &git_context(),
+        repo,
+        repo,
+        repo.join(".git").join("index").as_path(),
+        indexes,
+        &choice,
+    )?;
     return Ok(list_changed_index_paths(
         &git_context(),
         repo,
@@ -67,14 +93,25 @@ fn selected(
     )
     .expect("changed")
     .iter()
-    .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
+    .map(|path| {
+        return String::from_utf8_lossy(path).into_owned();
+    })
     .collect());
 }
 
 /// The text of a pathspec list as the reader returns it.
-fn read(bytes: &[u8], nul: bool) -> Option<Vec<String>> {
-    return pathspecs_of_file(bytes, nul)
-        .map(|list| { return list.iter().map(|item| { return item.to_string_lossy().into_owned(); }).collect(); });
+fn read(
+    bytes: &[u8],
+    nul: bool,
+) -> Option<Vec<String>> {
+    return pathspecs_of_file(bytes, nul).map(|list| {
+        return list
+            .iter()
+            .map(|item| {
+                return item.to_string_lossy().into_owned();
+            })
+            .collect();
+    });
 }
 
 /// A directory pathspec carries the staged additions below it and leaves staged additions outside it.
@@ -103,7 +140,10 @@ fn file_pathspecs_commit_staged_additions_that_an_ignore_rule_matches() {
 #[test]
 fn a_staged_addition_outside_the_selection_stays_out() {
     let (root, repo, indexes, base) = scenario("staged-additions-outside");
-    assert_eq!(selected(&repo, &indexes, &base, &["lib/_a.js"], None).expect("selects"), vec!["lib/_a.js"]);
+    assert_eq!(
+        selected(&repo, &indexes, &base, &["lib/_a.js"], None).expect("selects"),
+        vec!["lib/_a.js"]
+    );
     remove(root.as_path());
 }
 
@@ -121,7 +161,13 @@ fn the_worktree_content_wins_over_the_staged_content() {
         indexes.object_directory.as_path(),
     )
     .expect("tree");
-    assert_eq!(git_text(repo.as_path(), &["show", format!("{tree}:lib/_a.js").as_str()]), "a2");
+    assert_eq!(
+        git_text(
+            repo.as_path(),
+            &["show", format!("{tree}:lib/_a.js").as_str()]
+        ),
+        "a2"
+    );
     remove(root.as_path());
 }
 
@@ -131,7 +177,10 @@ fn the_worktree_content_wins_over_the_staged_content() {
 fn a_staged_addition_removed_from_the_worktree_commits_nothing() {
     let (root, repo, indexes, base) = scenario("staged-additions-removed");
     std::fs::remove_file(repo.join("lib").join("_a.js")).expect("remove");
-    assert_eq!(selected(&repo, &indexes, &base, &["lib/_a.js"], None).expect("selects"), Vec::<String>::new());
+    assert_eq!(
+        selected(&repo, &indexes, &base, &["lib/_a.js"], None).expect("selects"),
+        Vec::<String>::new()
+    );
     remove(root.as_path());
 }
 
@@ -148,8 +197,14 @@ fn the_private_tree_equals_the_tree_native_git_commits() {
     )
     .expect("tree");
     let (native_root, native, _, _) = scenario("staged-additions-oracle-native");
-    git(native.as_path(), &["commit", "--quiet", "--message=native", "--", "lib"]);
-    assert_eq!(ours, git_text(native.as_path(), &["rev-parse", "HEAD^{tree}"]));
+    git(
+        native.as_path(),
+        &["commit", "--quiet", "--message=native", "--", "lib"],
+    );
+    assert_eq!(
+        ours,
+        git_text(native.as_path(), &["rev-parse", "HEAD^{tree}"])
+    );
     remove(root.as_path());
     remove(native_root.as_path());
 }
@@ -185,12 +240,17 @@ fn pathspec_files_select_staged_additions() {
 fn an_ignored_path_that_is_not_staged_is_refused_with_the_remedy() {
     let (root, repo, indexes, base) = scenario("staged-additions-refusal");
     std::fs::write(repo.join("lib").join("_c.js"), "c1\n").expect("_c");
-    let stop: SelectionStagingFailure =
-        selected(&repo, &indexes, &base, &["lib/_c.js"], None).expect_err("an unstaged ignored path is refused");
+    let stop: SelectionStagingFailure = selected(&repo, &indexes, &base, &["lib/_c.js"], None)
+        .expect_err("an unstaged ignored path is refused");
     let SelectionStagingFailure::Git(failure) = stop else {
         panic!("the ignored refusal is Git's failure: {stop:?}");
     };
-    assert!(failure.0.contains("ignored by one of your .gitignore files"), "{failure}");
+    assert!(
+        failure
+            .0
+            .contains("ignored by one of your .gitignore files"),
+        "{failure}"
+    );
     assert!(failure.0.contains("git add --force -- <path>"), "{failure}");
     remove(root.as_path());
 }
@@ -209,7 +269,11 @@ fn raw_records_are_read_and_malformed_ones_are_rejected() {
     let record: String = format!(":000000 100644 {} {oid} A\0lib/_a.js\0", "0".repeat(40));
     assert_eq!(
         parse_raw_additions(record.as_bytes()).expect("reads"),
-        vec![StagedAddition { mode: String::from("100644"), oid, path: b"lib/_a.js".to_vec() }]
+        vec![StagedAddition {
+            mode: String::from("100644"),
+            oid,
+            path: b"lib/_a.js".to_vec()
+        }]
     );
     assert!(parse_raw_additions(b":000000 100644 0 1 A\0").is_err());
     assert!(parse_raw_additions(b":000000 100644 0 1 M\0path\0").is_err());
@@ -237,11 +301,23 @@ fn no_pathspec_reads_no_additions() {
 /// and anything unreadable is declined.
 #[test]
 fn pathspec_files_read_as_git_reads_them() {
-    assert_eq!(read(b"a\nb\n", false), Some(vec![String::from("a"), String::from("b")]));
-    assert_eq!(read(b"a\r\nb", false), Some(vec![String::from("a"), String::from("b")]));
-    assert_eq!(read(b"a\0b\0", true), Some(vec![String::from("a"), String::from("b")]));
+    assert_eq!(
+        read(b"a\nb\n", false),
+        Some(vec![String::from("a"), String::from("b")])
+    );
+    assert_eq!(
+        read(b"a\r\nb", false),
+        Some(vec![String::from("a"), String::from("b")])
+    );
+    assert_eq!(
+        read(b"a\0b\0", true),
+        Some(vec![String::from("a"), String::from("b")])
+    );
     assert_eq!(read(b"a\nb\n", true), Some(vec![String::from("a\nb\n")]));
-    assert_eq!(read(b"\"q\\\"x\"\n", false), Some(vec![String::from("q\"x")]));
+    assert_eq!(
+        read(b"\"q\\\"x\"\n", false),
+        Some(vec![String::from("q\"x")])
+    );
     assert_eq!(read(b"\"\"x\n", true), Some(vec![String::from("\"\"x\n")]));
     assert_eq!(read(b"a\n\nb\n", false), None);
     assert_eq!(read(b"a\0\0b\0", true), None);
@@ -254,7 +330,10 @@ fn pathspec_files_read_as_git_reads_them() {
 /// and a malformed escape is declined.
 #[test]
 fn quoted_elements_decode_every_escape() {
-    assert_eq!(unquote_c_style(b"\"\\a\\b\\f\\n\\r\\t\\v\\\\\\\"\""), Some(vec![7, 8, 12, b'\n', b'\r', b'\t', 11, b'\\', b'"']));
+    assert_eq!(
+        unquote_c_style(b"\"\\a\\b\\f\\n\\r\\t\\v\\\\\\\"\""),
+        Some(vec![7, 8, 12, b'\n', b'\r', b'\t', 11, b'\\', b'"'])
+    );
     assert_eq!(unquote_c_style(b"\"\\303\\251\""), Some(vec![0xC3, 0xA9]));
     assert_eq!(unquote_c_style(b"\"\\400\""), None);
     assert_eq!(unquote_c_style(b"\"\\08x\""), None);
@@ -271,9 +350,18 @@ fn a_long_selection_is_carried_in_chunks() {
     let count: usize = ENTRIES_PER_START + 5;
     std::fs::create_dir(repo.join("many")).expect("many");
     for number in 0..count {
-        std::fs::write(repo.join("many").join(format!("f{number}.js")), format!("{number}\n")).expect("file");
+        std::fs::write(
+            repo.join("many").join(format!("f{number}.js")),
+            format!("{number}\n"),
+        )
+        .expect("file");
     }
     git(repo.as_path(), &["add", "--force", "many"]);
-    assert_eq!(selected(&repo, &indexes, &base, &["many"], None).expect("selects").len(), count);
+    assert_eq!(
+        selected(&repo, &indexes, &base, &["many"], None)
+            .expect("selects")
+            .len(),
+        count
+    );
     remove(root.as_path());
 }

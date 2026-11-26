@@ -58,13 +58,25 @@
 //! ```
 
 use crate::diagnostic_log::warn;
-use crate::service_instance::{service_unit_instance, socket_unit_instance};
+use crate::service_instance::{
+    service_unit_instance,
+    socket_unit_instance,
+};
+use crate::service_is_gone_after_a_stop::service_is_gone;
 use crate::service_provision_host_and_manager::Manager;
 use crate::service_route::non_empty_path_variable;
-use crate::service_is_gone_after_a_stop::service_is_gone;
-use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT, session_bus_path};
+use crate::systemd_dbus::{
+    Bus,
+    CallError,
+    EXCHANGE_WAIT,
+    NO_SUCH_UNIT,
+    session_bus_path,
+};
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 //region The pieces the survey and the sweep read from their own modules
 
@@ -84,9 +96,18 @@ use std::path::{Path, PathBuf};
 /// export { Survey, survey, hasUnits } from './service_instances_with_units_and_their_survey';
 /// ```
 pub use super::service_instances_with_units_and_their_survey::{
-    Survey, has_units, instances_with_units, instances_with_units_or_journals, survey,
+    Survey,
+    has_units,
+    instances_with_units,
+    instances_with_units_or_journals,
+    survey,
 };
-pub use super::service_unit_folders_and_the_worktree_of_an_instance::{UnitFolders, UnitWorktree, worktree_is_gone, worktree_of};
+pub use super::service_unit_folders_and_the_worktree_of_an_instance::{
+    UnitFolders,
+    UnitWorktree,
+    worktree_is_gone,
+    worktree_of,
+};
 
 //endregion
 
@@ -95,14 +116,27 @@ const TAG: &str = "serviceUnitsOfRemovedWorktrees";
 
 /// The journal folder of an instance and the state folder that holds it,
 /// which the unit's `--journal` names.
-pub use crate::service_journal_folder_of_an_instance::{JOURNAL_FOLDER, journal_of, state_dir_of_journal};
+pub use crate::service_journal_folder_of_an_instance::{
+    JOURNAL_FOLDER,
+    journal_of,
+    state_dir_of_journal,
+};
 
 /// What an instance keeps beside its socket and in its journal,
 /// read and written by the code here and by provisioning
 /// (`service_files_of_a_stopped_instance.rs`).
 pub use crate::service_files_of_a_stopped_instance::{
-    JournalAfterStop, KeptJournal, NOTE_ENDING, NOTES_FOLDER, forget_stopped_instance, journal_of_the_instance, note_path, note_worktree,
-    record_worktree, remove_journal_of_a_stopped_instance, work_a_person_may_want,
+    JournalAfterStop,
+    KeptJournal,
+    NOTE_ENDING,
+    NOTES_FOLDER,
+    forget_stopped_instance,
+    journal_of_the_instance,
+    note_path,
+    note_worktree,
+    record_worktree,
+    remove_journal_of_a_stopped_instance,
+    work_a_person_may_want,
 };
 
 /// The record of the unit texts the manager was told about for one instance,
@@ -144,8 +178,13 @@ pub struct SweepOutcome {
 /// ```ts
 /// ownWorktreeGone(folders, instance) // '/repo/.git/worktrees/topic' or undefined
 /// ```
-pub fn own_worktree_gone(folders: &UnitFolders<'_>, instance: &str) -> Option<PathBuf> {
-    let UnitWorktree::Known(git_dir) = worktree_of(folders, instance) else { return None };
+pub fn own_worktree_gone(
+    folders: &UnitFolders<'_>,
+    instance: &str,
+) -> Option<PathBuf> {
+    let UnitWorktree::Known(git_dir) = worktree_of(folders, instance) else {
+        return None;
+    };
     return worktree_is_gone(git_dir.as_path()).then_some(git_dir);
 }
 
@@ -181,31 +220,53 @@ pub enum OwnWorktree {
 /// ```ts
 /// ownWorktreeState(instance, journal) // { gone: gitDir } | { served: gitDir } | 'unmapped'
 /// ```
-pub fn own_worktree_state(instance: &str, journal: &Path) -> OwnWorktree {
-    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else { return OwnWorktree::Unmapped };
+pub fn own_worktree_state(
+    instance: &str,
+    journal: &Path,
+) -> OwnWorktree {
+    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else {
+        return OwnWorktree::Unmapped;
+    };
     let state: Option<PathBuf> = state_dir_of_journal(journal, instance);
-    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };
+    let folders: UnitFolders<'_> = UnitFolders {
+        runtime_dir: runtime_dir.as_path(),
+        state_dir: state.as_deref(),
+    };
     return match worktree_of(&folders, instance) {
         UnitWorktree::Unmapped => OwnWorktree::Unmapped,
-        UnitWorktree::Known(git_dir) if worktree_is_gone(git_dir.as_path()) => OwnWorktree::Gone(git_dir),
+        UnitWorktree::Known(git_dir) if worktree_is_gone(git_dir.as_path()) => {
+            OwnWorktree::Gone(git_dir)
+        }
         UnitWorktree::Known(git_dir) => OwnWorktree::Served(git_dir),
     };
 }
 
 /// One stop,
 /// where a unit the manager does not hold is stopped already.
-fn stop_one(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
+fn stop_one(
+    manager: &mut dyn Manager,
+    unit: &str,
+) -> Result<(), CallError> {
     return match manager.stop(unit) {
-        Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => Ok(()),
+        Err(CallError::Manager {
+            name,
+            ..
+        }) if name == NO_SUCH_UNIT => Ok(()),
         other => other,
     };
 }
 
 /// One stop of the named unit and of nothing that requires it,
 /// where a unit the manager does not hold is stopped already.
-fn stop_one_alone(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
+fn stop_one_alone(
+    manager: &mut dyn Manager,
+    unit: &str,
+) -> Result<(), CallError> {
     return match manager.stop_alone(unit) {
-        Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => Ok(()),
+        Err(CallError::Manager {
+            name,
+            ..
+        }) if name == NO_SUCH_UNIT => Ok(()),
         other => other,
     };
 }
@@ -223,14 +284,21 @@ fn stop_one_alone(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError
 /// ```ts
 /// await stopUnits(manager, instance) // throws the first refusal
 /// ```
-pub fn stop_units(manager: &mut dyn Manager, instance: &str) -> Result<(), CallError> {
+pub fn stop_units(
+    manager: &mut dyn Manager,
+    instance: &str,
+) -> Result<(), CallError> {
     let socket: Result<(), CallError> = stop_one(manager, socket_unit_instance(instance).as_str());
-    let service: Result<(), CallError> = stop_one(manager, service_unit_instance(instance).as_str());
+    let service: Result<(), CallError> =
+        stop_one(manager, service_unit_instance(instance).as_str());
     return socket.and(service);
 }
 
 /// One stop of an instance's socket through the manager.
-fn stop_own_socket(instance: &str, manager: &mut dyn Manager) -> Result<(), CallError> {
+fn stop_own_socket(
+    instance: &str,
+    manager: &mut dyn Manager,
+) -> Result<(), CallError> {
     manager.within(EXCHANGE_WAIT);
     return stop_one_alone(manager, socket_unit_instance(instance).as_str());
 }
@@ -266,8 +334,14 @@ fn stop_own_socket(instance: &str, manager: &mut dyn Manager) -> Result<(), Call
 /// ```ts
 /// await stopOwnSocketOfAGoneWorktree(folders, instance, manager) // the Git directory, or undefined
 /// ```
-pub fn stop_own_socket_of_a_gone_worktree(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn Manager) -> Result<Option<PathBuf>, CallError> {
-    let Some(gone) = own_worktree_gone(folders, instance) else { return Ok(None) };
+pub fn stop_own_socket_of_a_gone_worktree(
+    folders: &UnitFolders<'_>,
+    instance: &str,
+    manager: &mut dyn Manager,
+) -> Result<Option<PathBuf>, CallError> {
+    let Some(gone) = own_worktree_gone(folders, instance) else {
+        return Ok(None);
+    };
     stop_own_socket(instance, manager)?;
     // What: The pushes this service kept for the repository that is gone end here.
     // Why:  Nothing is left to deliver, and a plan that stayed would be read by a service of this instance started later, which
@@ -275,7 +349,10 @@ pub fn stop_own_socket_of_a_gone_worktree(folders: &UnitFolders<'_>, instance: &
     //       A plan of a repository that is still there, and every other record, stays and keeps the journal.
     if let Some(state) = folders.state_dir {
         let journal: PathBuf = journal_of(state.join(SERVICE_UNIT.current).as_path(), instance);
-        let ended: Vec<String> = crate::service_plans_of_a_gone_repository::end_plans_of_gone_repositories(journal.as_path());
+        let ended: Vec<String> =
+            crate::service_plans_of_a_gone_repository::end_plans_of_gone_repositories(
+                journal.as_path(),
+            );
         if !ended.is_empty() {
             crate::service_log!(
                 "the pushes this commit service kept for {} end without another try, because its repository is gone: {}; nothing is left there for a try to reach",
@@ -325,12 +402,19 @@ pub fn journals_folder_in_words(state_dir: Option<&Path>) -> String {
     let Some(state) = state_dir else {
         return String::from("a folder this process was given no state directory for");
     };
-    return state.join(SERVICE_UNIT.current).join(JOURNAL_FOLDER).display().to_string();
+    return state
+        .join(SERVICE_UNIT.current)
+        .join(JOURNAL_FOLDER)
+        .display()
+        .to_string();
 }
 
 /// The journal folder of an instance in words,
 /// for a line that names where the journal a service leaves is kept.
-fn journal_folder_in_words(state_dir: Option<&Path>, instance: &str) -> String {
+fn journal_folder_in_words(
+    state_dir: Option<&Path>,
+    instance: &str,
+) -> String {
     let Some(journal) = journal_of_the_instance(state_dir, instance) else {
         return String::from("a folder this process was given no state directory for");
     };
@@ -362,12 +446,22 @@ fn journal_folder_in_words(state_dir: Option<&Path>, instance: &str) -> String {
 /// ```ts
 /// stopOwnSocketWhenTheWorktreeIsGone(instance, journal) // true: gone, so serve nothing
 /// ```
-pub fn stop_own_socket_when_the_worktree_is_gone(instance: &str, journal: &Path) -> bool {
-    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else { return false };
+pub fn stop_own_socket_when_the_worktree_is_gone(
+    instance: &str,
+    journal: &Path,
+) -> bool {
+    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else {
+        return false;
+    };
     let state: Option<PathBuf> = state_dir_of_journal(journal, instance);
-    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };
+    let folders: UnitFolders<'_> = UnitFolders {
+        runtime_dir: runtime_dir.as_path(),
+        state_dir: state.as_deref(),
+    };
     // A worktree that is there, or one nothing names, costs no bus connection and no question to the manager: the files answer it.
-    let OwnWorktree::Gone(gone) = own_worktree_state(instance, journal) else { return false };
+    let OwnWorktree::Gone(gone) = own_worktree_state(instance, journal) else {
+        return false;
+    };
     let address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     let Some(socket) = session_bus_path(address.as_deref(), Some(runtime_dir.as_path())) else {
         crate::service_warn!(
@@ -388,7 +482,10 @@ pub fn stop_own_socket_when_the_worktree_is_gone(instance: &str, journal: &Path)
     };
     match stop_own_socket_of_a_gone_worktree(&folders, instance, &mut bus) {
         Ok(Some(stopped)) => {
-            crate::service_log!("the worktree of this commit service is gone ({}), so it served nothing and stopped its own socket", stopped.display());
+            crate::service_log!(
+                "the worktree of this commit service is gone ({}), so it served nothing and stopped its own socket",
+                stopped.display()
+            );
         }
         // The directory came back between the two looks, so this service is a live worktree's again.
         Ok(None) => {}
@@ -406,11 +503,21 @@ pub fn stop_own_socket_when_the_worktree_is_gone(instance: &str, journal: &Path)
 fn reason_of(error: &CallError) -> String {
     return match error {
         CallError::Connection(reason) => format!("the session bus could not be reached ({reason})"),
-        CallError::Authentication(reason) => format!("the session bus refused the connection ({reason})"),
+        CallError::Authentication(reason) => {
+            format!("the session bus refused the connection ({reason})")
+        }
         CallError::TimedOut => String::from("the session bus did not answer in time"),
-        CallError::Manager { text, name } if text.is_empty() => format!("the service manager refused the request ({name})"),
-        CallError::Manager { text, .. } => format!("the service manager refused the request ({text})"),
-        CallError::Malformed(reason) => format!("the service manager's answer could not be read ({reason})"),
+        CallError::Manager {
+            text,
+            name,
+        } if text.is_empty() => format!("the service manager refused the request ({name})"),
+        CallError::Manager {
+            text,
+            ..
+        } => format!("the service manager refused the request ({text})"),
+        CallError::Malformed(reason) => {
+            format!("the service manager's answer could not be read ({reason})")
+        }
     };
 }
 
@@ -430,7 +537,10 @@ fn reason_of(error: &CallError) -> String {
 /// ```ts
 /// forgetTheInstance(folders, instance); // note, socket file and record
 /// ```
-fn forget_the_instance(folders: &UnitFolders<'_>, instance: &str) {
+fn forget_the_instance(
+    folders: &UnitFolders<'_>,
+    instance: &str,
+) {
     forget_stopped_instance(folders.runtime_dir, instance);
     forget_loaded_unit_texts(folders.runtime_dir, instance);
 }
@@ -460,9 +570,15 @@ fn forget_the_instance(folders: &UnitFolders<'_>, instance: &str) {
 /// ```ts
 /// const { stopped, failed, survey } = await stopUnitsOfGoneWorktrees(manager, folders);
 /// ```
-pub fn stop_units_of_gone_worktrees(manager: &mut dyn Manager, folders: &UnitFolders<'_>) -> SweepOutcome {
+pub fn stop_units_of_gone_worktrees(
+    manager: &mut dyn Manager,
+    folders: &UnitFolders<'_>,
+) -> SweepOutcome {
     let surveyed: Survey = survey(folders);
-    let mut outcome: SweepOutcome = SweepOutcome { survey: surveyed.clone(), ..SweepOutcome::default() };
+    let mut outcome: SweepOutcome = SweepOutcome {
+        survey: surveyed.clone(),
+        ..SweepOutcome::default()
+    };
     manager.within(EXCHANGE_WAIT);
     for instance in &surveyed.gone {
         let had_units: bool = has_units(folders, instance.as_str());
@@ -470,7 +586,14 @@ pub fn stop_units_of_gone_worktrees(manager: &mut dyn Manager, folders: &UnitFol
             match stop_units(manager, instance.as_str()) {
                 Ok(()) => outcome.stopped.push(instance.clone()),
                 Err(error) => {
-                    warn(TAG, format!("the units of {instance} were not stopped: {}", reason_of(&error)).as_str());
+                    warn(
+                        TAG,
+                        format!(
+                            "the units of {instance} were not stopped: {}",
+                            reason_of(&error)
+                        )
+                        .as_str(),
+                    );
                     outcome.failed.push((instance.clone(), reason_of(&error)));
                     continue;
                 }
@@ -479,7 +602,11 @@ pub fn stop_units_of_gone_worktrees(manager: &mut dyn Manager, folders: &UnitFol
         // A stop answers when the manager queued the job, so one question more says the service's processes are gone,
         //  and only then may the journal it writes be removed. A journal with neither a socket file nor a note beside it
         //  belongs to no unit of this manager: the two files are what make one possible.
-        let quiet: bool = if had_units { service_is_gone(manager, instance.as_str()) } else { true };
+        let quiet: bool = if had_units {
+            service_is_gone(manager, instance.as_str())
+        } else {
+            true
+        };
         match remove_journal_of_a_stopped_instance(folders.state_dir, instance.as_str(), quiet) {
             Some(JournalAfterStop::HoldsWork(kept)) => {
                 forget_the_instance(folders, instance.as_str());
@@ -490,7 +617,8 @@ pub fn stop_units_of_gone_worktrees(manager: &mut dyn Manager, folders: &UnitFol
             Some(JournalAfterStop::StillRead(_)) => {}
             Some(JournalAfterStop::Removed) => {
                 // Named before the folder goes, so the line a person reads says where it was.
-                if let Some(journal) = journal_of_the_instance(folders.state_dir, instance.as_str()) {
+                if let Some(journal) = journal_of_the_instance(folders.state_dir, instance.as_str())
+                {
                     outcome.journals_removed.push((instance.clone(), journal));
                 }
                 forget_the_instance(folders, instance.as_str());

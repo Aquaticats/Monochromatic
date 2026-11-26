@@ -42,18 +42,41 @@
 //! const later = await settleRemovals(commonDir); // on the next command
 //! ```
 
-use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::diagnostic_log::debug;
-use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use crate::process_identity::current_birth_identity;
+use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
+use crate::plain_file::{
+    SMALL_FILE_LIMIT,
+    read_plain_file,
+};
+use crate::private_storage::{
+    create_private_directory_all,
+    write_private_file_unsynced,
+};
+use crate::process_identity::current_birth_identity;
 use crate::push_failure_notice::notice_directory;
 use crate::service_instance::instance_of;
-use crate::work_item::{CLAIMED, PENDING, RECOVERING, WORK_DIRECTORY, WorkKind, find_claim, id_of_entry};
-use crate::worktree_removal_snapshot_promotion::{NOTICES, WORK, files_of, name_of, promote_snapshot};
-use std::path::{Path, PathBuf};
+use crate::work_item::{
+    CLAIMED,
+    PENDING,
+    RECOVERING,
+    WORK_DIRECTORY,
+    WorkKind,
+    find_claim,
+    id_of_entry,
+};
+use crate::worktree_removal_snapshot_promotion::{
+    NOTICES,
+    WORK,
+    files_of,
+    name_of,
+    promote_snapshot,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemovalRescue";
@@ -84,12 +107,19 @@ const LOOK_ROUNDS: usize = 2;
 /// its taker and its checkout say about a removal.
 #[path = "worktree_removal_rescue_removal_state.rs"]
 mod removal_state;
-use removal_state::{Removal, named_git_dir, removal_of};
+use removal_state::{
+    Removal,
+    named_git_dir,
+    removal_of,
+};
 
 /// Writes a file into a snapshot unless a file of that name is already there,
 /// which an earlier snapshot of the same worktree
 ///  left and which holds the same record.
-fn save_once(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+fn save_once(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     return match write_private_file_unsynced(path, bytes) {
         Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => Err(error),
         Ok(()) | Err(_) => Ok(()),
@@ -100,7 +130,11 @@ fn save_once(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// `false` when the file is gone,
 /// because whoever shows or finishes it was
 ///  quicker than the copy and there is nothing left to keep.
-fn copy_into(directory: &Path, name: &str, source: &Path) -> std::io::Result<bool> {
+fn copy_into(
+    directory: &Path,
+    name: &str,
+    source: &Path,
+) -> std::io::Result<bool> {
     // Read as a plain file: a record's name sits in a worktree's own Git directory, and a named pipe planted there would
     // hold the command that copies it for ever. A record that is not a plain file is one that cannot be copied, which the
     // caller reports and which keeps the worktree it belongs to (`plain_file.rs`).
@@ -154,7 +188,10 @@ fn push_record_names(work_directory: &Path) -> Vec<String> {
 /// ```ts
 /// await locatePushRecord(workDirectory, name) // ['claimed', bytes] | undefined
 /// ```
-fn locate_push_record(work_directory: &Path, name: &str) -> std::io::Result<Option<(&'static str, Vec<u8>)>> {
+fn locate_push_record(
+    work_directory: &Path,
+    name: &str,
+) -> std::io::Result<Option<(&'static str, Vec<u8>)>> {
     for _ in 0..LOOK_ROUNDS {
         for state in [PENDING, CLAIMED] {
             let path: PathBuf = if state == PENDING {
@@ -220,7 +257,9 @@ fn register_attempt(snapshot: &Path) -> std::io::Result<()> {
 /// ```
 pub fn snapshot_linked_worktrees(common_dir: &Path) -> Vec<String> {
     let mut problems: Vec<String> = Vec::new();
-    let Ok(listing) = std::fs::read_dir(common_dir.join("worktrees")) else { return problems };
+    let Ok(listing) = std::fs::read_dir(common_dir.join("worktrees")) else {
+        return problems;
+    };
     for entry in listing.flatten() {
         let git_dir: PathBuf = entry.path();
         if !git_dir.is_dir() {
@@ -245,7 +284,10 @@ pub fn snapshot_linked_worktrees(common_dir: &Path) -> Vec<String> {
 /// ```ts
 /// const problems: string[] = snapshotOne(commonDir, gitDir)
 /// ```
-pub(crate) fn snapshot_one(common_dir: &Path, git_dir: &Path) -> Vec<String> {
+pub(crate) fn snapshot_one(
+    common_dir: &Path,
+    git_dir: &Path,
+) -> Vec<String> {
     let mut problems: Vec<String> = Vec::new();
     {
         let notices: Vec<PathBuf> = files_of(notice_directory(git_dir).as_path());
@@ -254,40 +296,66 @@ pub(crate) fn snapshot_one(common_dir: &Path, git_dir: &Path) -> Vec<String> {
         if notices.is_empty() && pushes.is_empty() {
             return problems;
         }
-        let snapshot: PathBuf = common_dir.join(SNAPSHOT_DIRECTORY).join(instance_of(git_dir));
+        let snapshot: PathBuf = common_dir
+            .join(SNAPSHOT_DIRECTORY)
+            .join(instance_of(git_dir));
         let mut failures: Vec<String> = Vec::new();
         match create_private_directory_all(snapshot.as_path()) {
             Ok(()) => {
                 if let Err(error) = register_attempt(snapshot.as_path()) {
-                    failures.push(format!("the command could not be recorded as the one removing it ({error})"));
+                    failures.push(format!(
+                        "the command could not be recorded as the one removing it ({error})"
+                    ));
                 }
             }
-            Err(error) => failures.push(format!("{} could not be created ({error})", snapshot.display())),
+            Err(error) => failures.push(format!(
+                "{} could not be created ({error})",
+                snapshot.display()
+            )),
         }
         if failures.is_empty() {
             for path in &notices {
-                if let Err(error) = copy_into(snapshot.join(NOTICES).as_path(), name_of(path.as_path()).as_str(), path.as_path()) {
-                    failures.push(format!("the notice {} could not be copied ({error})", name_of(path.as_path())));
+                if let Err(error) = copy_into(
+                    snapshot.join(NOTICES).as_path(),
+                    name_of(path.as_path()).as_str(),
+                    path.as_path(),
+                ) {
+                    failures.push(format!(
+                        "the notice {} could not be copied ({error})",
+                        name_of(path.as_path())
+                    ));
                 }
             }
             for name in &pushes {
                 match locate_push_record(work_directory.as_path(), name.as_str()) {
                     Ok(Some((state, bytes))) => {
-                        let copied: std::io::Result<()> = match create_private_directory_all(snapshot.join(WORK).as_path()) {
-                            Ok(()) => save_once(snapshot.join(WORK).join(format!("{state}-{name}")).as_path(), bytes.as_slice()),
-                            Err(error) => Err(error),
-                        };
+                        let copied: std::io::Result<()> =
+                            match create_private_directory_all(snapshot.join(WORK).as_path()) {
+                                Ok(()) => save_once(
+                                    snapshot
+                                        .join(WORK)
+                                        .join(format!("{state}-{name}"))
+                                        .as_path(),
+                                    bytes.as_slice(),
+                                ),
+                                Err(error) => Err(error),
+                            };
                         if let Err(error) = copied {
-                            failures.push(format!("the push record {name} could not be copied ({error})"));
+                            failures.push(format!(
+                                "the push record {name} could not be copied ({error})"
+                            ));
                         }
                     }
                     Ok(None) => {}
-                    Err(error) => failures.push(format!("the push record {name} could not be read ({error})")),
+                    Err(error) => failures.push(format!(
+                        "the push record {name} could not be read ({error})"
+                    )),
                 }
             }
             // Last, so that a snapshot that names its worktree is a whole one.
             // The snapshot names its worktree by the bytes of its Git directory, so a path that is not text is still found.
-            let named: String = format!("{GITDIR_HEX_PREFIX}{}\n", path_bytes::hex_of_path(git_dir));
+            let named: String =
+                format!("{GITDIR_HEX_PREFIX}{}\n", path_bytes::hex_of_path(git_dir));
             if let Err(error) = save_once(snapshot.join(GIT_DIR_FILE).as_path(), named.as_bytes()) {
                 failures.push(format!("the snapshot could not be completed ({error})"));
             }
@@ -328,17 +396,24 @@ pub(crate) fn snapshot_one(common_dir: &Path, git_dir: &Path) -> Vec<String> {
 /// ```
 pub fn settle_removals(common_dir: &Path) -> Vec<String> {
     let mut problems: Vec<String> = Vec::new();
-    let Ok(listing) = std::fs::read_dir(common_dir.join(SNAPSHOT_DIRECTORY)) else { return problems };
+    let Ok(listing) = std::fs::read_dir(common_dir.join(SNAPSHOT_DIRECTORY)) else {
+        return problems;
+    };
     for entry in listing.flatten() {
         let snapshot: PathBuf = entry.path();
         // A plain file, so a name that holds a named pipe is a snapshot left to the next settle rather than a wait with no end.
-        let Ok(recorded) = read_plain_file(snapshot.join(GIT_DIR_FILE).as_path(), SMALL_FILE_LIMIT) else {
+        let Ok(recorded) = read_plain_file(snapshot.join(GIT_DIR_FILE).as_path(), SMALL_FILE_LIMIT)
+        else {
             // A snapshot being written has no name yet; one that never got it is not worth keeping once it is old, but a
             //  concurrent writer may be at it, so it is left to the next settle.
             continue;
         };
-        let Ok(named) = String::from_utf8(recorded) else { continue };
-        let Some(git_dir) = named_git_dir(named.as_str()) else { continue };
+        let Ok(named) = String::from_utf8(recorded) else {
+            continue;
+        };
+        let Some(git_dir) = named_git_dir(named.as_str()) else {
+            continue;
+        };
         match removal_of(git_dir.as_path(), snapshot.as_path()) {
             Removal::Undecided => {}
             Removal::Refused => {

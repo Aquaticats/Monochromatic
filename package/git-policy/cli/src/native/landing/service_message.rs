@@ -31,14 +31,33 @@
 //! const { message, author } = await buildMessage(invocation, parsed, committer);
 //! ```
 
-use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
-use crate::commit_transaction::{CommitInvocation, TransactionStop, failed};
-use crate::service_commit_args::{FixupKind, ServiceCommitArgs, cleanup_message};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::blocking_jobs_within_the_budget::{
+    TheAnswerOfAJobAwaited,
+    run_a_job_awaited_no_longer_than,
+};
+use crate::commit_transaction::{
+    CommitInvocation,
+    TransactionStop,
+    failed,
+};
+use crate::service_commit_args::{
+    FixupKind,
+    ServiceCommitArgs,
+    cleanup_message,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use crate::wait_ceilings::PREPARATION_READ_CEILING;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// What a command line's message came to.
@@ -55,8 +74,16 @@ pub struct Built {
 /// with the given overrides;
 ///  nothing when Git cannot make one (a date it does not read),
 /// so native `git commit` gives its own message.
-pub fn identity(context: &GitContext, cwd: &Path, variable: &str, overrides: &[(&str, String)]) -> Result<Option<String>, TransactionStop> {
-    return identity_answered(run_git(context, &identity_request(cwd, variable, overrides)));
+pub fn identity(
+    context: &GitContext,
+    cwd: &Path,
+    variable: &str,
+    overrides: &[(&str, String)],
+) -> Result<Option<String>, TransactionStop> {
+    return identity_answered(run_git(
+        context,
+        &identity_request(cwd, variable, overrides),
+    ));
 }
 
 /// What:
@@ -74,8 +101,15 @@ pub fn identity(context: &GitContext, cwd: &Path, variable: &str, overrides: &[(
 /// ```ts
 /// await identityAwaiting(git, cwd, 'GIT_AUTHOR_IDENT', overrides)
 /// ```
-pub async fn identity_awaiting(context: &GitContext, cwd: &Path, variable: &str, overrides: &[(&str, String)]) -> Result<Option<String>, TransactionStop> {
-    return identity_answered(run_git_awaiting(context, &identity_request(cwd, variable, overrides)).await);
+pub async fn identity_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+    variable: &str,
+    overrides: &[(&str, String)],
+) -> Result<Option<String>, TransactionStop> {
+    return identity_answered(
+        run_git_awaiting(context, &identity_request(cwd, variable, overrides)).await,
+    );
 }
 
 /// What:
@@ -89,10 +123,16 @@ pub async fn identity_awaiting(context: &GitContext, cwd: &Path, variable: &str,
 /// ```ts
 /// const request = { cwd, args: ['var', variable], environment: overrides };
 /// ```
-fn identity_request(cwd: &Path, variable: &str, overrides: &[(&str, String)]) -> GitRequest {
+fn identity_request(
+    cwd: &Path,
+    variable: &str,
+    overrides: &[(&str, String)],
+) -> GitRequest {
     let mut request: GitRequest = GitRequest::new(cwd, &["var", variable]);
     for (name, value) in overrides {
-        request.environment.push((OsString::from(name), OsString::from(value)));
+        request
+            .environment
+            .push((OsString::from(name), OsString::from(value)));
     }
     return request;
 }
@@ -114,15 +154,25 @@ fn identity_request(cwd: &Path, variable: &str, overrides: &[(&str, String)]) ->
 /// # Errors
 ///
 /// `TransactionStop` naming the identity when Git cannot be started.
-fn identity_answered(answered: std::io::Result<GitOutput>) -> Result<Option<String>, TransactionStop> {
+fn identity_answered(
+    answered: std::io::Result<GitOutput>
+) -> Result<Option<String>, TransactionStop> {
     let output = match answered {
         Ok(finished) => finished,
-        Err(error) => return Err(failed(format!("reading the commit identity failed: {error:?}"))),
+        Err(error) => {
+            return Err(failed(format!(
+                "reading the commit identity failed: {error:?}"
+            )));
+        }
     };
     if output.code != Some(0) {
         return Ok(None);
     }
-    return Ok(Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string()));
+    return Ok(Some(
+        String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_string(),
+    ));
 }
 
 /// The author variables `--author` and `--date` stand for.
@@ -131,7 +181,10 @@ pub fn author_overrides(parsed: &ServiceCommitArgs) -> Vec<(&'static str, String
     if let Some(author) = parsed.author.as_deref() {
         let (name, rest): (&str, &str) = author.split_once('<').unwrap_or((author, ""));
         overrides.push(("GIT_AUTHOR_NAME", name.trim().to_string()));
-        overrides.push(("GIT_AUTHOR_EMAIL", rest.trim_end().trim_end_matches('>').to_string()));
+        overrides.push((
+            "GIT_AUTHOR_EMAIL",
+            rest.trim_end().trim_end_matches('>').to_string(),
+        ));
     }
     if let Some(date) = parsed.date.as_deref() {
         overrides.push(("GIT_AUTHOR_DATE", date.to_string()));
@@ -140,12 +193,20 @@ pub fn author_overrides(parsed: &ServiceCommitArgs) -> Vec<(&'static str, String
 }
 
 /// The text of a Git query that must succeed for the line to be covered.
-fn query(context: &GitContext, cwd: &Path, arguments: &[String]) -> Result<Option<Vec<u8>>, TransactionStop> {
+fn query(
+    context: &GitContext,
+    cwd: &Path,
+    arguments: &[String],
+) -> Result<Option<Vec<u8>>, TransactionStop> {
     return text_answered_by(run_git(context, &GitRequest::new(cwd, arguments)));
 }
 
 /// `query` with its Git child awaited on the runtime.
-async fn query_awaiting(context: &GitContext, cwd: &Path, arguments: &[String]) -> Result<Option<Vec<u8>>, TransactionStop> {
+async fn query_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+    arguments: &[String],
+) -> Result<Option<Vec<u8>>, TransactionStop> {
     return text_answered_by(run_git_awaiting(context, &GitRequest::new(cwd, arguments)).await);
 }
 
@@ -165,12 +226,18 @@ async fn query_awaiting(context: &GitContext, cwd: &Path, arguments: &[String]) 
 /// # Errors
 ///
 /// `TransactionStop` naming the repository when Git cannot be started.
-fn text_answered_by(answered: std::io::Result<GitOutput>) -> Result<Option<Vec<u8>>, TransactionStop> {
+fn text_answered_by(
+    answered: std::io::Result<GitOutput>
+) -> Result<Option<Vec<u8>>, TransactionStop> {
     let output = match answered {
         Ok(finished) => finished,
         Err(error) => return Err(failed(format!("reading the repository failed: {error:?}"))),
     };
-    return Ok(if output.code == Some(0) { Some(output.stdout) } else { None });
+    return Ok(if output.code == Some(0) {
+        Some(output.stdout)
+    } else {
+        None
+    });
 }
 
 /// What:
@@ -187,24 +254,42 @@ fn text_answered_by(answered: std::io::Result<GitOutput>) -> Result<Option<Vec<u
 /// ```ts
 /// const reused = await reusedCommit(git, cwd, '-C' value)
 /// ```
-fn reused_commit(context: &GitContext, cwd: &Path, revision: &str) -> Result<Option<(String, String)>, TransactionStop> {
+fn reused_commit(
+    context: &GitContext,
+    cwd: &Path,
+    revision: &str,
+) -> Result<Option<(String, String)>, TransactionStop> {
     if revision.starts_with('-') {
         return Ok(None);
     }
-    let Some(oid) = query(context, cwd, the_commit_named_by(revision).as_slice())? else { return Ok(None) };
+    let Some(oid) = query(context, cwd, the_commit_named_by(revision).as_slice())? else {
+        return Ok(None);
+    };
     let named: String = String::from_utf8_lossy(oid.as_slice()).trim().to_string();
-    let Some(raw) = query(context, cwd, the_raw_commit(named.as_str()).as_slice())? else { return Ok(None) };
+    let Some(raw) = query(context, cwd, the_raw_commit(named.as_str()).as_slice())? else {
+        return Ok(None);
+    };
     return Ok(reused_of(raw));
 }
 
 /// `reused_commit` with its Git children awaited on the runtime.
-async fn reused_commit_awaiting(context: &GitContext, cwd: &Path, revision: &str) -> Result<Option<(String, String)>, TransactionStop> {
+async fn reused_commit_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+    revision: &str,
+) -> Result<Option<(String, String)>, TransactionStop> {
     if revision.starts_with('-') {
         return Ok(None);
     }
-    let Some(oid) = query_awaiting(context, cwd, the_commit_named_by(revision).as_slice()).await? else { return Ok(None) };
+    let Some(oid) = query_awaiting(context, cwd, the_commit_named_by(revision).as_slice()).await?
+    else {
+        return Ok(None);
+    };
     let named: String = String::from_utf8_lossy(oid.as_slice()).trim().to_string();
-    let Some(raw) = query_awaiting(context, cwd, the_raw_commit(named.as_str()).as_slice()).await? else { return Ok(None) };
+    let Some(raw) = query_awaiting(context, cwd, the_raw_commit(named.as_str()).as_slice()).await?
+    else {
+        return Ok(None);
+    };
     return Ok(reused_of(raw));
 }
 
@@ -219,12 +304,21 @@ async fn reused_commit_awaiting(context: &GitContext, cwd: &Path, revision: &str
 /// ['rev-parse', '--verify', '--quiet', `${revision}^{commit}`]
 /// ```
 fn the_commit_named_by(revision: &str) -> Vec<String> {
-    return vec![String::from("rev-parse"), String::from("--verify"), String::from("--quiet"), format!("{revision}^{{commit}}")];
+    return vec![
+        String::from("rev-parse"),
+        String::from("--verify"),
+        String::from("--quiet"),
+        format!("{revision}^{{commit}}"),
+    ];
 }
 
 /// The `cat-file` question that reads the raw object `named`.
 fn the_raw_commit(named: &str) -> Vec<String> {
-    return vec![String::from("cat-file"), String::from("commit"), named.to_string()];
+    return vec![
+        String::from("cat-file"),
+        String::from("commit"),
+        named.to_string(),
+    ];
 }
 
 /// What:
@@ -241,7 +335,9 @@ fn the_raw_commit(named: &str) -> Vec<String> {
 /// function reusedOf(raw: Buffer): [author: string, message: string] | undefined;
 /// ```
 fn reused_of(raw: Vec<u8>) -> Option<(String, String)> {
-    let Ok(text) = String::from_utf8(raw) else { return None };
+    let Ok(text) = String::from_utf8(raw) else {
+        return None;
+    };
     let (header, message): (&str, &str) = text.split_once("\n\n")?;
     // A commit in another encoding, or with extra headers that change the message's meaning, is Git's to reuse.
     if header.lines().any(is_encoding_header) {
@@ -265,20 +361,33 @@ fn reused_of(raw: Vec<u8>) -> Option<(String, String)> {
 /// ```ts
 /// await subjectOf(git, cwd, '-C' value)
 /// ```
-fn subject_of(context: &GitContext, cwd: &Path, revision: &str) -> Result<Option<String>, TransactionStop> {
+fn subject_of(
+    context: &GitContext,
+    cwd: &Path,
+    revision: &str,
+) -> Result<Option<String>, TransactionStop> {
     if revision.starts_with('-') {
         return Ok(None);
     }
-    let Some(bytes) = query(context, cwd, the_subject_of(revision).as_slice())? else { return Ok(None) };
+    let Some(bytes) = query(context, cwd, the_subject_of(revision).as_slice())? else {
+        return Ok(None);
+    };
     return Ok(subject_answered_by(bytes));
 }
 
 /// `subject_of` with its Git child awaited on the runtime.
-async fn subject_of_awaiting(context: &GitContext, cwd: &Path, revision: &str) -> Result<Option<String>, TransactionStop> {
+async fn subject_of_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+    revision: &str,
+) -> Result<Option<String>, TransactionStop> {
     if revision.starts_with('-') {
         return Ok(None);
     }
-    let Some(bytes) = query_awaiting(context, cwd, the_subject_of(revision).as_slice()).await? else { return Ok(None) };
+    let Some(bytes) = query_awaiting(context, cwd, the_subject_of(revision).as_slice()).await?
+    else {
+        return Ok(None);
+    };
     return Ok(subject_answered_by(bytes));
 }
 
@@ -293,7 +402,13 @@ async fn subject_of_awaiting(context: &GitContext, cwd: &Path, revision: &str) -
 /// ['log', '-1', '--format=%s', revision, '--']
 /// ```
 fn the_subject_of(revision: &str) -> Vec<String> {
-    return vec![String::from("log"), String::from("-1"), String::from("--format=%s"), revision.to_string(), String::from("--")];
+    return vec![
+        String::from("log"),
+        String::from("-1"),
+        String::from("--format=%s"),
+        revision.to_string(),
+        String::from("--"),
+    ];
 }
 
 /// The subject of a `log` answer,
@@ -369,13 +484,21 @@ fn is_not_comment_line(line: &&str) -> bool {
 /// const withFinalLineBreak = (text: string) => text.endsWith('\n') ? text : text + '\n';
 /// ```
 fn with_final_line_break(text: &String) -> String {
-    return if text.ends_with('\n') { text.clone() } else { format!("{text}\n") };
+    return if text.ends_with('\n') {
+        text.clone()
+    } else {
+        format!("{text}\n")
+    };
 }
 
 /// The lines of a message without those that start with the comment character,
 /// as `--cleanup=strip` drops them.
 pub fn strip_comment_lines(text: &str) -> String {
-    return text.split('\n').filter(is_not_comment_line).collect::<Vec<&str>>().join("\n");
+    return text
+        .split('\n')
+        .filter(is_not_comment_line)
+        .collect::<Vec<&str>>()
+        .join("\n");
 }
 
 /// What:
@@ -412,31 +535,55 @@ pub fn build_message(
     let mut reused_author: Option<String> = None;
     let sources: Vec<String> = if let Some(file) = parsed.file.as_ref() {
         // A file that cannot be read, or is not text, gives no message.
-        let Some(bytes) = read_the_message_file(MessageFileQuestion { path: cwd.join(file) }) else { return Ok(None) };
-        let Ok(text) = String::from_utf8(bytes) else { return Ok(None) };
+        let Some(bytes) = read_the_message_file(MessageFileQuestion {
+            path: cwd.join(file),
+        }) else {
+            return Ok(None);
+        };
+        let Ok(text) = String::from_utf8(bytes) else {
+            return Ok(None);
+        };
         vec![text]
     } else if let Some(revision) = parsed.reuse.as_deref() {
-        let Some((author, message)) = reused_commit(context, cwd, revision)? else { return Ok(None) };
+        let Some((author, message)) = reused_commit(context, cwd, revision)? else {
+            return Ok(None);
+        };
         reused_author = Some(author);
         vec![message]
     } else if let Some((kind, revision)) = parsed.fixup.as_ref() {
-        let Some(subject) = subject_of(context, cwd, revision.as_str())? else { return Ok(None) };
+        let Some(subject) = subject_of(context, cwd, revision.as_str())? else {
+            return Ok(None);
+        };
         let prefix: &str = match kind {
             FixupKind::Fixup => "fixup!",
         };
         vec![format!("{prefix} {subject}")]
-    } else if parsed.messages.is_empty() && parsed.amend && let Some(previous) = previous_message {
+    } else if parsed.messages.is_empty()
+        && parsed.amend
+        && let Some(previous) = previous_message
+    {
         // An amend with no message option keeps the message of the commit it replaces.
         vec![previous.to_string()]
     } else {
         parsed.messages.clone()
     };
-    let Some(message): Option<String> = message_of_sources(sources, parsed) else { return Ok(None) };
+    let Some(message): Option<String> = message_of_sources(sources, parsed) else {
+        return Ok(None);
+    };
     let trailers: Vec<String> = trailer_lines(parsed, committer);
     if trailers.is_empty() {
-        return Ok(Some(Built { message, reused_author }));
+        return Ok(Some(Built {
+            message,
+            reused_author,
+        }));
     }
-    return trailed_answered_by(run_git(context, &trailers_request(cwd, trailers.as_slice(), message)), reused_author);
+    return trailed_answered_by(
+        run_git(
+            context,
+            &trailers_request(cwd, trailers.as_slice(), message),
+        ),
+        reused_author,
+    );
 }
 
 /// What:
@@ -472,31 +619,54 @@ pub async fn build_message_awaiting(
     let mut reused_author: Option<String> = None;
     let sources: Vec<String> = if let Some(file) = parsed.file.as_ref() {
         // A file that cannot be read, or is not text, gives no message.
-        let Some(bytes) = message_file_awaiting(cwd.join(file).as_path()).await else { return Ok(None) };
-        let Ok(text) = String::from_utf8(bytes) else { return Ok(None) };
+        let Some(bytes) = message_file_awaiting(cwd.join(file).as_path()).await else {
+            return Ok(None);
+        };
+        let Ok(text) = String::from_utf8(bytes) else {
+            return Ok(None);
+        };
         vec![text]
     } else if let Some(revision) = parsed.reuse.as_deref() {
-        let Some((author, message)) = reused_commit_awaiting(context, cwd, revision).await? else { return Ok(None) };
+        let Some((author, message)) = reused_commit_awaiting(context, cwd, revision).await? else {
+            return Ok(None);
+        };
         reused_author = Some(author);
         vec![message]
     } else if let Some((kind, revision)) = parsed.fixup.as_ref() {
-        let Some(subject) = subject_of_awaiting(context, cwd, revision.as_str()).await? else { return Ok(None) };
+        let Some(subject) = subject_of_awaiting(context, cwd, revision.as_str()).await? else {
+            return Ok(None);
+        };
         let prefix: &str = match kind {
             FixupKind::Fixup => "fixup!",
         };
         vec![format!("{prefix} {subject}")]
-    } else if parsed.messages.is_empty() && parsed.amend && let Some(previous) = previous_message {
+    } else if parsed.messages.is_empty()
+        && parsed.amend
+        && let Some(previous) = previous_message
+    {
         // An amend with no message option keeps the message of the commit it replaces.
         vec![previous.to_string()]
     } else {
         parsed.messages.clone()
     };
-    let Some(message): Option<String> = message_of_sources(sources, parsed) else { return Ok(None) };
+    let Some(message): Option<String> = message_of_sources(sources, parsed) else {
+        return Ok(None);
+    };
     let trailers: Vec<String> = trailer_lines(parsed, committer);
     if trailers.is_empty() {
-        return Ok(Some(Built { message, reused_author }));
+        return Ok(Some(Built {
+            message,
+            reused_author,
+        }));
     }
-    return trailed_answered_by(run_git_awaiting(context, &trailers_request(cwd, trailers.as_slice(), message)).await, reused_author);
+    return trailed_answered_by(
+        run_git_awaiting(
+            context,
+            &trailers_request(cwd, trailers.as_slice(), message),
+        )
+        .await,
+        reused_author,
+    );
 }
 
 /// What:
@@ -514,10 +684,27 @@ pub async fn build_message_awaiting(
 /// ```ts
 /// function messageOfSources(sources: string[], parsed: ServiceCommitArgs): string | undefined;
 /// ```
-fn message_of_sources(sources: Vec<String>, parsed: &ServiceCommitArgs) -> Option<String> {
-    let texts: Vec<String> = if parsed.strip { sources.iter().map(String::as_str).map(strip_comment_lines).collect() } else { sources };
+fn message_of_sources(
+    sources: Vec<String>,
+    parsed: &ServiceCommitArgs,
+) -> Option<String> {
+    let texts: Vec<String> = if parsed.strip {
+        sources
+            .iter()
+            .map(String::as_str)
+            .map(strip_comment_lines)
+            .collect()
+    } else {
+        sources
+    };
     let cleaned: Option<String> = if parsed.verbatim {
-        Some(texts.iter().map(with_final_line_break).collect::<Vec<String>>().join("\n"))
+        Some(
+            texts
+                .iter()
+                .map(with_final_line_break)
+                .collect::<Vec<String>>()
+                .join("\n"),
+        )
     } else {
         cleanup_message(texts.as_slice())
     };
@@ -540,7 +727,10 @@ fn message_of_sources(sources: Vec<String>, parsed: &ServiceCommitArgs) -> Optio
 /// ```ts
 /// function trailerLines(parsed: ServiceCommitArgs, committer: string): string[];
 /// ```
-fn trailer_lines(parsed: &ServiceCommitArgs, committer: &str) -> Vec<String> {
+fn trailer_lines(
+    parsed: &ServiceCommitArgs,
+    committer: &str,
+) -> Vec<String> {
     let mut trailers: Vec<String> = Vec::new();
     if parsed.signoff {
         // The name and email up to and including the `>`; the whole text when there is none.
@@ -565,7 +755,11 @@ fn trailer_lines(parsed: &ServiceCommitArgs, committer: &str) -> Vec<String> {
 /// ```ts
 /// const request = { cwd, args: ['interpret-trailers', ...trailers.flatMap((t) => ['--trailer', t])], input: message };
 /// ```
-fn trailers_request(cwd: &Path, trailers: &[String], message: String) -> GitRequest {
+fn trailers_request(
+    cwd: &Path,
+    trailers: &[String],
+    message: String,
+) -> GitRequest {
     let mut arguments: Vec<String> = vec![String::from("interpret-trailers")];
     for trailer in trailers {
         arguments.push(String::from("--trailer"));
@@ -594,16 +788,26 @@ fn trailers_request(cwd: &Path, trailers: &[String], message: String) -> GitRequ
 /// # Errors
 ///
 /// `TransactionStop` naming the message when Git cannot be started.
-fn trailed_answered_by(answered: std::io::Result<GitOutput>, reused_author: Option<String>) -> Result<Option<Built>, TransactionStop> {
+fn trailed_answered_by(
+    answered: std::io::Result<GitOutput>,
+    reused_author: Option<String>,
+) -> Result<Option<Built>, TransactionStop> {
     let output = match answered {
         Ok(finished) => finished,
-        Err(error) => return Err(failed(format!("preparing the commit message failed: {error:?}"))),
+        Err(error) => {
+            return Err(failed(format!(
+                "preparing the commit message failed: {error:?}"
+            )));
+        }
     };
     if output.code != Some(0) {
         return Ok(None);
     }
     return match String::from_utf8(output.stdout) {
-        Ok(message) => Ok(Some(Built { message, reused_author })),
+        Ok(message) => Ok(Some(Built {
+            message,
+            reused_author,
+        })),
         Err(_not_text) => Ok(None),
     };
 }
@@ -630,7 +834,9 @@ struct MessageFileQuestion {
 /// function readTheMessageFile(question: MessageFileQuestion): Buffer | undefined;
 /// ```
 fn read_the_message_file(question: MessageFileQuestion) -> Option<Vec<u8>> {
-    let Ok(bytes) = std::fs::read(question.path.as_path()) else { return None };
+    let Ok(bytes) = std::fs::read(question.path.as_path()) else {
+        return None;
+    };
     return Some(bytes);
 }
 
@@ -652,8 +858,13 @@ fn read_the_message_file(question: MessageFileQuestion) -> Option<Vec<u8>> {
 /// ```ts
 /// async function messageFileWithin(ceilingMs: number, path: string): Promise<Buffer | undefined>;
 /// ```
-async fn message_file_within(ceiling: Duration, path: &Path) -> Option<Vec<u8>> {
-    let question: MessageFileQuestion = MessageFileQuestion { path: path.to_path_buf() };
+async fn message_file_within(
+    ceiling: Duration,
+    path: &Path,
+) -> Option<Vec<u8>> {
+    let question: MessageFileQuestion = MessageFileQuestion {
+        path: path.to_path_buf(),
+    };
     return match run_a_job_awaited_no_longer_than(ceiling, question, read_the_message_file).await {
         TheAnswerOfAJobAwaited::Ran(read) => read,
         // No thread was given, or the job outlasted its ceiling: the file said nothing this task may wait for.

@@ -26,7 +26,11 @@
 //! fsconfigCreate(fsopen('tmpfs')); moveMount(fsmount(context), slot);
 //! ```
 
-use super::companion_calls::{CompanionCall, Failure, failed};
+use super::companion_calls::{
+    CompanionCall,
+    Failure,
+    failed,
+};
 use std::ffi::CStr;
 use std::os::fd::RawFd;
 
@@ -56,7 +60,8 @@ struct OpenHow {
 }
 
 /// The flags a directory is opened with.
-const DIRECTORY_FLAGS: libc::c_int = libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC | libc::O_NOFOLLOW;
+const DIRECTORY_FLAGS: libc::c_int =
+    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC | libc::O_NOFOLLOW;
 
 /// What:
 ///  Open one directory by path,
@@ -67,7 +72,11 @@ const DIRECTORY_FLAGS: libc::c_int = libc::O_RDONLY | libc::O_DIRECTORY | libc::
 pub fn open_directory(path: &CStr) -> Result<RawFd, Failure> {
     // SAFETY: the path outlives the call and the descriptor it answers is owned once.
     let opened: libc::c_int = unsafe { libc::open(path.as_ptr(), DIRECTORY_FLAGS) };
-    return if opened < 0 { Err(failed(CompanionCall::OpenDirectory)) } else { Ok(opened) };
+    return if opened < 0 {
+        Err(failed(CompanionCall::OpenDirectory))
+    } else {
+        Ok(opened)
+    };
 }
 
 /// What:
@@ -81,13 +90,30 @@ pub fn open_directory(path: &CStr) -> Result<RawFd, Failure> {
 /// # Errors
 /// The call refused,
 ///  with the kernel's answer.
-pub fn open_directory_beneath(held: RawFd, name: &CStr) -> Result<RawFd, Failure> {
-    let how: OpenHow = OpenHow { flags: (libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC) as u64, mode: 0, resolve: RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS | RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH };
+pub fn open_directory_beneath(
+    held: RawFd,
+    name: &CStr,
+) -> Result<RawFd, Failure> {
+    let how: OpenHow = OpenHow {
+        flags: (libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC) as u64,
+        mode: 0,
+        resolve: RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS | RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH,
+    };
     // SAFETY: the held descriptor is the caller's, the name and the structure outlive the call, and the answer is owned once.
     let opened: libc::c_int = unsafe {
-        libc::syscall(libc::SYS_openat2, held, name.as_ptr(), (&how as *const OpenHow).cast::<libc::c_void>(), std::mem::size_of::<OpenHow>()) as libc::c_int
+        libc::syscall(
+            libc::SYS_openat2,
+            held,
+            name.as_ptr(),
+            (&how as *const OpenHow).cast::<libc::c_void>(),
+            std::mem::size_of::<OpenHow>(),
+        ) as libc::c_int
     };
-    return if opened < 0 { Err(failed(CompanionCall::Openat2)) } else { Ok(opened) };
+    return if opened < 0 {
+        Err(failed(CompanionCall::Openat2))
+    } else {
+        Ok(opened)
+    };
 }
 
 /// What:
@@ -97,8 +123,14 @@ pub fn open_directory_beneath(held: RawFd, name: &CStr) -> Result<RawFd, Failure
 /// The call refused.
 pub fn fsopen_tmpfs(tmpfs: &CStr) -> Result<RawFd, Failure> {
     // SAFETY: the type string outlives the call and the descriptor it answers is owned once.
-    let context: libc::c_int = unsafe { libc::syscall(libc::SYS_fsopen, tmpfs.as_ptr(), libc::FSOPEN_CLOEXEC) as libc::c_int };
-    return if context < 0 { Err(failed(CompanionCall::FsOpen)) } else { Ok(context) };
+    let context: libc::c_int = unsafe {
+        libc::syscall(libc::SYS_fsopen, tmpfs.as_ptr(), libc::FSOPEN_CLOEXEC) as libc::c_int
+    };
+    return if context < 0 {
+        Err(failed(CompanionCall::FsOpen))
+    } else {
+        Ok(context)
+    };
 }
 
 /// What:
@@ -112,8 +144,21 @@ pub fn fsopen_tmpfs(tmpfs: &CStr) -> Result<RawFd, Failure> {
 /// The call refused.
 pub fn fsconfig_create(context: RawFd) -> Result<(), Failure> {
     // SAFETY: the context is the caller's and the call reads no pointer here.
-    let created: libc::c_int = unsafe { libc::syscall(libc::SYS_fsconfig, context, libc::FSCONFIG_CMD_CREATE, std::ptr::null::<libc::c_char>(), std::ptr::null::<libc::c_char>(), 0) as libc::c_int };
-    return if created == 0 { Ok(()) } else { Err(failed(CompanionCall::FsConfig)) };
+    let created: libc::c_int = unsafe {
+        libc::syscall(
+            libc::SYS_fsconfig,
+            context,
+            libc::FSCONFIG_CMD_CREATE,
+            std::ptr::null::<libc::c_char>(),
+            std::ptr::null::<libc::c_char>(),
+            0,
+        ) as libc::c_int
+    };
+    return if created == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::FsConfig))
+    };
 }
 
 /// What:
@@ -123,8 +168,19 @@ pub fn fsconfig_create(context: RawFd) -> Result<(), Failure> {
 /// The call refused.
 pub fn fsmount(context: RawFd) -> Result<RawFd, Failure> {
     // SAFETY: the context is the caller's and has been created; the descriptor it answers is owned once.
-    let mount: libc::c_int = unsafe { libc::syscall(libc::SYS_fsmount, context, libc::FSMOUNT_CLOEXEC, libc::MOUNT_ATTR_RDONLY | libc::MOUNT_ATTR_NOSUID | libc::MOUNT_ATTR_NODEV) as libc::c_int };
-    return if mount < 0 { Err(failed(CompanionCall::FsMount)) } else { Ok(mount) };
+    let mount: libc::c_int = unsafe {
+        libc::syscall(
+            libc::SYS_fsmount,
+            context,
+            libc::FSMOUNT_CLOEXEC,
+            libc::MOUNT_ATTR_RDONLY | libc::MOUNT_ATTR_NOSUID | libc::MOUNT_ATTR_NODEV,
+        ) as libc::c_int
+    };
+    return if mount < 0 {
+        Err(failed(CompanionCall::FsMount))
+    } else {
+        Ok(mount)
+    };
 }
 
 /// What:
@@ -135,12 +191,26 @@ pub fn fsmount(context: RawFd) -> Result<RawFd, Failure> {
 ///
 /// # Errors
 /// The call refused.
-pub fn move_mount_onto_descriptor(mount: RawFd, target: RawFd) -> Result<(), Failure> {
+pub fn move_mount_onto_descriptor(
+    mount: RawFd,
+    target: RawFd,
+) -> Result<(), Failure> {
     // SAFETY: both descriptors are the caller's, and the two empty paths are NUL-terminated strings the flags read.
     let moved: libc::c_int = unsafe {
-        libc::syscall(libc::SYS_move_mount, mount, c"".as_ptr(), target, c"".as_ptr(), libc::MOVE_MOUNT_F_EMPTY_PATH | libc::MOVE_MOUNT_T_EMPTY_PATH) as libc::c_int
+        libc::syscall(
+            libc::SYS_move_mount,
+            mount,
+            c"".as_ptr(),
+            target,
+            c"".as_ptr(),
+            libc::MOVE_MOUNT_F_EMPTY_PATH | libc::MOVE_MOUNT_T_EMPTY_PATH,
+        ) as libc::c_int
     };
-    return if moved == 0 { Ok(()) } else { Err(failed(CompanionCall::MoveMount)) };
+    return if moved == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::MoveMount))
+    };
 }
 
 /// What:
@@ -149,8 +219,24 @@ pub fn move_mount_onto_descriptor(mount: RawFd, target: RawFd) -> Result<(), Fai
 ///
 /// # Errors
 /// The call refused.
-pub fn move_mount_between_paths(from: &CStr, to: &CStr) -> Result<(), Failure> {
+pub fn move_mount_between_paths(
+    from: &CStr,
+    to: &CStr,
+) -> Result<(), Failure> {
     // SAFETY: both paths are the caller's and outlive the call, and it reads no other pointer.
-    let moved: libc::c_int = unsafe { libc::syscall(libc::SYS_move_mount, libc::AT_FDCWD, from.as_ptr(), libc::AT_FDCWD, to.as_ptr(), 0) as libc::c_int };
-    return if moved == 0 { Ok(()) } else { Err(failed(CompanionCall::MoveMount)) };
+    let moved: libc::c_int = unsafe {
+        libc::syscall(
+            libc::SYS_move_mount,
+            libc::AT_FDCWD,
+            from.as_ptr(),
+            libc::AT_FDCWD,
+            to.as_ptr(),
+            0,
+        ) as libc::c_int
+    };
+    return if moved == 0 {
+        Ok(())
+    } else {
+        Err(failed(CompanionCall::MoveMount))
+    };
 }

@@ -37,15 +37,42 @@
 //! const verdicts = await secondPass(runner, conflicts); // [{ merged: { path, mode, bytes, parts } } | { left: { path, why } }]
 //! ```
 
-use crate::merge_second_pass_conflicts::{is_nul_byte, split_once};
-pub use crate::merge_second_pass_conflicts::{Conflict, Stage, conflicts_of_merge_tree};
-pub use crate::merge_second_pass_git_runner::{ContextRunner, GitReply, GitRunner, config_options};
+use crate::merge::merge_second_pass_git_lines::merge_with_git_lines;
+pub use crate::merge_second_pass_conflicts::{
+    Conflict,
+    Stage,
+    conflicts_of_merge_tree,
+};
+use crate::merge_second_pass_conflicts::{
+    is_nul_byte,
+    split_once,
+};
+pub use crate::merge_second_pass_git_runner::{
+    ContextRunner,
+    GitReply,
+    GitRunner,
+    config_options,
+};
 /// The report words and the journal entry live in a file of their own;
 /// named here so every `merge_second_pass::name` path stays the same.
-pub use crate::merge_second_pass_report::{BLOBS_FIELD, EXCERPT_CHARACTERS, FILE_FIELD, INPUTS_HINT, OPERATION_FIELD, PARTS_FIELD, REPORT_MARK, journal_entry, journal_merged, part_text, report_lines};
+pub use crate::merge_second_pass_report::{
+    BLOBS_FIELD,
+    EXCERPT_CHARACTERS,
+    FILE_FIELD,
+    INPUTS_HINT,
+    OPERATION_FIELD,
+    PARTS_FIELD,
+    REPORT_MARK,
+    journal_entry,
+    journal_merged,
+    part_text,
+    report_lines,
+};
 use crate::path_bytes::path_message_text;
-use crate::merge::merge_second_pass_git_lines::merge_with_git_lines;
-use crate::word_merge::{MergedPart, WordMerge};
+use crate::word_merge::{
+    MergedPart,
+    WordMerge,
+};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -81,7 +108,11 @@ const PASS_COST_LIMIT_BYTES: usize = 8 * 1024 * 1024;
 
 /// The largest blob the second pass re-merges:
 /// the smaller of Git's own limit and the one measured above.
-const LARGEST_BLOB_BYTES: usize = if PASS_COST_LIMIT_BYTES < GIT_MAX_XDIFF_SIZE { PASS_COST_LIMIT_BYTES } else { GIT_MAX_XDIFF_SIZE };
+const LARGEST_BLOB_BYTES: usize = if PASS_COST_LIMIT_BYTES < GIT_MAX_XDIFF_SIZE {
+    PASS_COST_LIMIT_BYTES
+} else {
+    GIT_MAX_XDIFF_SIZE
+};
 
 /// The largest stage the pass reads,
 /// in the bytes a caller's answer ceiling counts.
@@ -250,7 +281,11 @@ pub fn is_attributes_path(path: &[u8]) -> bool {
 /// ```ts
 /// async function mergeAttributes(runner, paths: Uint8Array[], source: AttributeSource): Promise<Map<string, string>>;
 /// ```
-async fn merge_attributes(runner: &dyn GitRunner, paths: &[&[u8]], source: AttributeSource<'_>) -> Result<BTreeMap<Vec<u8>, String>, String> {
+async fn merge_attributes(
+    runner: &dyn GitRunner,
+    paths: &[&[u8]],
+    source: AttributeSource<'_>,
+) -> Result<BTreeMap<Vec<u8>, String>, String> {
     if paths.is_empty() {
         return Ok(BTreeMap::new());
     }
@@ -269,14 +304,22 @@ async fn merge_attributes(runner: &dyn GitRunner, paths: &[&[u8]], source: Attri
         arguments.push(tree.as_str());
     }
     arguments.extend(["--stdin", "merge"]);
-    let reply: GitReply = runner.run(arguments.as_slice(), Some(input.as_slice()), None).await?;
+    let reply: GitReply = runner
+        .run(arguments.as_slice(), Some(input.as_slice()), None)
+        .await?;
     if reply.code != Some(0) {
-        return Err(format!("git check-attr failed: {}", String::from_utf8_lossy(&reply.stderr).trim()));
+        return Err(format!(
+            "git check-attr failed: {}",
+            String::from_utf8_lossy(&reply.stderr).trim()
+        ));
     }
     let fields: Vec<&[u8]> = reply.stdout.split(is_nul_byte).collect();
     let mut values: BTreeMap<Vec<u8>, String> = BTreeMap::new();
     for triple in fields.as_chunks::<ATTRIBUTE_FIELDS>().0 {
-        values.insert(triple[0].to_vec(), String::from_utf8_lossy(triple[2]).into_owned());
+        values.insert(
+            triple[0].to_vec(),
+            String::from_utf8_lossy(triple[2]).into_owned(),
+        );
     }
     return Ok(values);
 }
@@ -292,27 +335,43 @@ async fn merge_attributes(runner: &dyn GitRunner, paths: &[&[u8]], source: Attri
 /// ```ts
 /// async function readBlobs(runner, oids: string[]): Promise<Map<string, Uint8Array>>;
 /// ```
-async fn read_blobs(runner: &dyn GitRunner, oids: &[&str]) -> Result<BTreeMap<String, Vec<u8>>, String> {
+async fn read_blobs(
+    runner: &dyn GitRunner,
+    oids: &[&str],
+) -> Result<BTreeMap<String, Vec<u8>>, String> {
     let mut input: Vec<u8> = Vec::new();
     for oid in oids {
         input.extend_from_slice(oid.as_bytes());
         input.push(b'\n');
     }
-    let reply: GitReply = runner.run(&["cat-file", "--batch"], Some(input.as_slice()), None).await?;
+    let reply: GitReply = runner
+        .run(&["cat-file", "--batch"], Some(input.as_slice()), None)
+        .await?;
     if reply.code != Some(0) {
-        return Err(format!("git cat-file failed: {}", String::from_utf8_lossy(&reply.stderr).trim()));
+        return Err(format!(
+            "git cat-file failed: {}",
+            String::from_utf8_lossy(&reply.stderr).trim()
+        ));
     }
     let mut blobs: BTreeMap<String, Vec<u8>> = BTreeMap::new();
     let mut rest: &[u8] = reply.stdout.as_slice();
     for oid in oids {
-        let Some((header_bytes, after)) = split_once(rest, b'\n') else { return Err(format!("git cat-file ended before {oid}")) };
+        let Some((header_bytes, after)) = split_once(rest, b'\n') else {
+            return Err(format!("git cat-file ended before {oid}"));
+        };
         let header: String = String::from_utf8_lossy(header_bytes).into_owned();
         let words: Vec<&str> = header.split(' ').collect();
-        let [name, _kind, size_text] = words.as_slice() else { return Err(format!("git cat-file could not read {oid}: {header}")) };
-        let Ok(size) = size_text.parse::<usize>() else {
-            return Err(format!("git cat-file printed an unreadable size for {oid}: {header}"));
+        let [name, _kind, size_text] = words.as_slice() else {
+            return Err(format!("git cat-file could not read {oid}: {header}"));
         };
-        let Some(content) = after.get(..size) else { return Err(format!("git cat-file ended inside {oid}")) };
+        let Ok(size) = size_text.parse::<usize>() else {
+            return Err(format!(
+                "git cat-file printed an unreadable size for {oid}: {header}"
+            ));
+        };
+        let Some(content) = after.get(..size) else {
+            return Err(format!("git cat-file ended inside {oid}"));
+        };
         blobs.insert((*name).to_owned(), content.to_vec());
         rest = after.get(size + 1..).unwrap_or_default();
     }
@@ -340,24 +399,48 @@ async fn read_blobs(runner: &dyn GitRunner, oids: &[&str]) -> Result<BTreeMap<St
 /// ```ts
 /// async function secondPass(runner: GitRunner, conflicts: Conflict[], source: AttributeSource): Promise<Verdict[]>;
 /// ```
-pub async fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict], source: AttributeSource<'_>) -> Result<Vec<Verdict>, String> {
+pub async fn second_pass(
+    runner: &dyn GitRunner,
+    conflicts: &[Conflict],
+    source: AttributeSource<'_>,
+) -> Result<Vec<Verdict>, String> {
     let mut verdicts: BTreeMap<usize, Verdict> = BTreeMap::new();
     let mut candidates: Vec<(usize, u32)> = Vec::new();
     for (index, conflict) in conflicts.iter().enumerate() {
-        let (Some(base), Some(ours), Some(theirs)) = (&conflict.base, &conflict.ours, &conflict.theirs) else {
-            verdicts.insert(index, Verdict::Left { path: conflict.path.clone(), why: Left::MissingStage });
+        let (Some(base), Some(ours), Some(theirs)) =
+            (&conflict.base, &conflict.ours, &conflict.theirs)
+        else {
+            verdicts.insert(
+                index,
+                Verdict::Left {
+                    path: conflict.path.clone(),
+                    why: Left::MissingStage,
+                },
+            );
             continue;
         };
         match shared_plain_mode([base, ours, theirs]) {
             Some(mode) => candidates.push((index, mode)),
             None => {
-                verdicts.insert(index, Verdict::Left { path: conflict.path.clone(), why: Left::NotAPlainFile });
+                verdicts.insert(
+                    index,
+                    Verdict::Left {
+                        path: conflict.path.clone(),
+                        why: Left::NotAPlainFile,
+                    },
+                );
             }
         }
     }
     if source == AttributeSource::Unknown {
         for (index, _) in &candidates {
-            verdicts.insert(*index, Verdict::Left { path: conflicts[*index].path.clone(), why: Left::UnknownAttributes });
+            verdicts.insert(
+                *index,
+                Verdict::Left {
+                    path: conflicts[*index].path.clone(),
+                    why: Left::UnknownAttributes,
+                },
+            );
         }
         return Ok(verdicts.into_values().collect());
     }
@@ -365,23 +448,37 @@ pub async fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict], source:
     for (index, _) in &candidates {
         candidate_paths.push(conflicts[*index].path.as_slice());
     }
-    let attributes: BTreeMap<Vec<u8>, String> = merge_attributes(runner, candidate_paths.as_slice(), source).await?;
+    let attributes: BTreeMap<Vec<u8>, String> =
+        merge_attributes(runner, candidate_paths.as_slice(), source).await?;
     let mut wanted: Vec<&str> = Vec::new();
     for (index, _) in &candidates {
         let conflict: &Conflict = &conflicts[*index];
-        for stage in [&conflict.base, &conflict.ours, &conflict.theirs].into_iter().flatten() {
+        for stage in [&conflict.base, &conflict.ours, &conflict.theirs]
+            .into_iter()
+            .flatten()
+        {
             if !wanted.contains(&stage.oid.as_str()) {
                 wanted.push(stage.oid.as_str());
             }
         }
     }
-    let blobs: BTreeMap<String, Vec<u8>> = if wanted.is_empty() { BTreeMap::new() } else { read_blobs(runner, wanted.as_slice()).await? };
+    let blobs: BTreeMap<String, Vec<u8>> = if wanted.is_empty() {
+        BTreeMap::new()
+    } else {
+        read_blobs(runner, wanted.as_slice()).await?
+    };
     for (index, mode) in candidates {
         let conflict: &Conflict = &conflicts[index];
         if let Some(value) = attributes.get(&conflict.path)
             && !TEXT_MERGE_VALUES.contains(&value.as_str())
         {
-            verdicts.insert(index, Verdict::Left { path: conflict.path.clone(), why: Left::Driver(value.clone()) });
+            verdicts.insert(
+                index,
+                Verdict::Left {
+                    path: conflict.path.clone(),
+                    why: Left::Driver(value.clone()),
+                },
+            );
             continue;
         }
         let mut sides: Vec<&Vec<u8>> = Vec::new();
@@ -392,7 +489,12 @@ pub async fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict], source:
                 sides.push(bytes);
             }
         }
-        let [base, ours, theirs] = sides.as_slice() else { return Err(format!("a stage of {} was not read", path_message_text(conflict.path.as_slice()))) };
+        let [base, ours, theirs] = sides.as_slice() else {
+            return Err(format!(
+                "a stage of {} was not read",
+                path_message_text(conflict.path.as_slice())
+            ));
+        };
         let mut reason: Option<Left> = None;
         for bytes in [base, ours, theirs] {
             reason = unfit(bytes);
@@ -401,10 +503,33 @@ pub async fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict], source:
             }
         }
         let verdict: Verdict = match reason {
-            Some(why) => Verdict::Left { path: conflict.path.clone(), why },
-            None => match merge_with_git_lines(runner, conflict, [base.as_slice(), ours.as_slice(), theirs.as_slice()]).await? {
-                WordMerge::Resolved { merged, parts } => Verdict::Merged(Box::new(Merged { path: conflict.path.clone(), mode, bytes: merged, parts, stages: conflict.clone() })),
-                WordMerge::Conflict { unresolved } => Verdict::Left { path: conflict.path.clone(), why: Left::Overlap(unresolved) },
+            Some(why) => Verdict::Left {
+                path: conflict.path.clone(),
+                why,
+            },
+            None => match merge_with_git_lines(
+                runner,
+                conflict,
+                [base.as_slice(), ours.as_slice(), theirs.as_slice()],
+            )
+            .await?
+            {
+                WordMerge::Resolved {
+                    merged,
+                    parts,
+                } => Verdict::Merged(Box::new(Merged {
+                    path: conflict.path.clone(),
+                    mode,
+                    bytes: merged,
+                    parts,
+                    stages: conflict.clone(),
+                })),
+                WordMerge::Conflict {
+                    unresolved,
+                } => Verdict::Left {
+                    path: conflict.path.clone(),
+                    why: Left::Overlap(unresolved),
+                },
             },
         };
         verdicts.insert(index, verdict);
@@ -423,16 +548,32 @@ pub async fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict], source:
 /// ```ts
 /// async function writeBlob(runner: GitRunner, bytes: Uint8Array): Promise<string>;
 /// ```
-pub async fn write_blob(runner: &dyn GitRunner, bytes: &[u8]) -> Result<String, String> {
-    let reply: GitReply = runner.run(&["hash-object", "-w", "--no-filters", "--stdin"], Some(bytes), None).await?;
+pub async fn write_blob(
+    runner: &dyn GitRunner,
+    bytes: &[u8],
+) -> Result<String, String> {
+    let reply: GitReply = runner
+        .run(
+            &["hash-object", "-w", "--no-filters", "--stdin"],
+            Some(bytes),
+            None,
+        )
+        .await?;
     if reply.code != Some(0) {
-        return Err(format!("git hash-object failed: {}", String::from_utf8_lossy(&reply.stderr).trim()));
+        return Err(format!(
+            "git hash-object failed: {}",
+            String::from_utf8_lossy(&reply.stderr).trim()
+        ));
     }
     return Ok(String::from_utf8_lossy(&reply.stdout).trim().to_owned());
 }
 
 /// The `update-index --index-info` record that puts a blob at a path as a resolved entry.
-pub fn resolved_record(mode: u32, oid: &str, path: &[u8]) -> Vec<u8> {
+pub fn resolved_record(
+    mode: u32,
+    oid: &str,
+    path: &[u8],
+) -> Vec<u8> {
     let mut record: Vec<u8> = format!("{mode:06o} {oid}\t").into_bytes();
     record.extend_from_slice(path);
     record.push(0);
@@ -452,22 +593,46 @@ pub fn resolved_record(mode: u32, oid: &str, path: &[u8]) -> Vec<u8> {
 /// ```ts
 /// async function treeWithFiles(runner, tree: string, files: { path, mode, oid }[], scratchIndex: string): Promise<string>;
 /// ```
-pub async fn tree_with_files(runner: &dyn GitRunner, tree: &str, files: &[(&[u8], u32, &str)], scratch_index: &Path) -> Result<String, String> {
-    let read: GitReply = runner.run(&["read-tree", tree], None, Some(scratch_index)).await?;
+pub async fn tree_with_files(
+    runner: &dyn GitRunner,
+    tree: &str,
+    files: &[(&[u8], u32, &str)],
+    scratch_index: &Path,
+) -> Result<String, String> {
+    let read: GitReply = runner
+        .run(&["read-tree", tree], None, Some(scratch_index))
+        .await?;
     if read.code != Some(0) {
-        return Err(format!("git read-tree failed: {}", String::from_utf8_lossy(&read.stderr).trim()));
+        return Err(format!(
+            "git read-tree failed: {}",
+            String::from_utf8_lossy(&read.stderr).trim()
+        ));
     }
     let mut records: Vec<u8> = Vec::new();
     for (path, mode, oid) in files {
         records.extend_from_slice(resolved_record(*mode, oid, path).as_slice());
     }
-    let updated: GitReply = runner.run(&["update-index", "-z", "--index-info"], Some(records.as_slice()), Some(scratch_index)).await?;
+    let updated: GitReply = runner
+        .run(
+            &["update-index", "-z", "--index-info"],
+            Some(records.as_slice()),
+            Some(scratch_index),
+        )
+        .await?;
     if updated.code != Some(0) {
-        return Err(format!("git update-index failed: {}", String::from_utf8_lossy(&updated.stderr).trim()));
+        return Err(format!(
+            "git update-index failed: {}",
+            String::from_utf8_lossy(&updated.stderr).trim()
+        ));
     }
-    let written: GitReply = runner.run(&["write-tree"], None, Some(scratch_index)).await?;
+    let written: GitReply = runner
+        .run(&["write-tree"], None, Some(scratch_index))
+        .await?;
     if written.code != Some(0) {
-        return Err(format!("git write-tree failed: {}", String::from_utf8_lossy(&written.stderr).trim()));
+        return Err(format!(
+            "git write-tree failed: {}",
+            String::from_utf8_lossy(&written.stderr).trim()
+        ));
     }
     return Ok(String::from_utf8_lossy(&written.stdout).trim().to_owned());
 }

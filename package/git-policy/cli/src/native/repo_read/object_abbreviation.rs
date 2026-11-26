@@ -32,11 +32,18 @@
 
 #![cfg(unix)]
 
+use crate::object_abbreviation_byte_and_prefix_checks::{
+    is_hex_digit,
+    is_nul,
+    shared_prefix_length,
+};
 use crate::repo_read_odb::alternates_of;
 use std::fs::File;
 use std::os::unix::fs::FileExt;
-use std::path::{Path, PathBuf};
-use crate::object_abbreviation_byte_and_prefix_checks::{is_hex_digit, is_nul, shared_prefix_length};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Git's `FALLBACK_DEFAULT_ABBREV`:
 /// the shortest automatic length.
@@ -86,8 +93,12 @@ pub enum Setting {
 /// settingOf(value) // Auto | { length }
 /// ```
 pub fn setting_of(value: Option<&[u8]>) -> Setting {
-    let Some(bytes) = value else { return Setting::Auto };
-    let Ok(text) = std::str::from_utf8(bytes) else { return Setting::Auto };
+    let Some(bytes) = value else {
+        return Setting::Auto;
+    };
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return Setting::Auto;
+    };
     let lowered: String = text.trim().to_ascii_lowercase();
     if lowered == "auto" {
         return Setting::Auto;
@@ -96,7 +107,9 @@ pub fn setting_of(value: Option<&[u8]>) -> Setting {
         return Setting::Length(LONGEST_NAME);
     }
     return match lowered.parse::<i64>() {
-        Ok(number) if number >= MINIMUM_ABBREVIATION => Setting::Length(usize::try_from(number).unwrap_or(LONGEST_NAME)),
+        Ok(number) if number >= MINIMUM_ABBREVIATION => {
+            Setting::Length(usize::try_from(number).unwrap_or(LONGEST_NAME))
+        }
         _ => Setting::Auto,
     };
 }
@@ -105,7 +118,11 @@ pub fn setting_of(value: Option<&[u8]>) -> Setting {
 /// as Git's `msb`:
 /// the index of the highest set bit.
 fn highest_bit(count: u64) -> usize {
-    return if count == 0 { 0 } else { 63 - count.leading_zeros() as usize };
+    return if count == 0 {
+        0
+    } else {
+        63 - count.leading_zeros() as usize
+    };
 }
 
 /// What:
@@ -121,12 +138,17 @@ fn highest_bit(count: u64) -> usize {
 /// Math.max(7, Math.ceil((msb(count) + 1) / 2))
 /// ```
 pub fn automatic_length(count: u64) -> usize {
-    return (highest_bit(count) + 1).div_ceil(2).max(FALLBACK_ABBREVIATION);
+    return (highest_bit(count) + 1)
+        .div_ceil(2)
+        .max(FALLBACK_ABBREVIATION);
 }
 
 /// The hexadecimal characters two names share from the start;
 /// equal names share all.
-fn shared_prefix(first: &[u8], second: &[u8]) -> usize {
+fn shared_prefix(
+    first: &[u8],
+    second: &[u8],
+) -> usize {
     let mut shared: usize = 0;
     for (left, right) in first.iter().zip(second) {
         if left == right {
@@ -142,14 +164,20 @@ fn shared_prefix(first: &[u8], second: &[u8]) -> usize {
 }
 
 /// A big-endian `u32` at `position`.
-fn be32(file: &File, position: u64) -> Option<u32> {
+fn be32(
+    file: &File,
+    position: u64,
+) -> Option<u32> {
     let mut bytes: [u8; 4] = [0; 4];
     file.read_exact_at(&mut bytes, position).ok()?;
     return Some(u32::from_be_bytes(bytes));
 }
 
 /// A big-endian `u64` at `position`.
-fn be64(file: &File, position: u64) -> Option<u64> {
+fn be64(
+    file: &File,
+    position: u64,
+) -> Option<u64> {
     let mut bytes: [u8; 8] = [0; 8];
     file.read_exact_at(&mut bytes, position).ok()?;
     return Some(u64::from_be_bytes(bytes));
@@ -166,9 +194,14 @@ struct SortedNames {
 
 impl SortedNames {
     /// The `position`th name.
-    fn name(&self, position: u64) -> Option<Vec<u8>> {
+    fn name(
+        &self,
+        position: u64,
+    ) -> Option<Vec<u8>> {
         let mut bytes: Vec<u8> = vec![0; self.length];
-        self.file.read_exact_at(bytes.as_mut_slice(), self.first + position * self.stride).ok()?;
+        self.file
+            .read_exact_at(bytes.as_mut_slice(), self.first + position * self.stride)
+            .ok()?;
         return Some(bytes);
     }
 
@@ -184,7 +217,10 @@ impl SortedNames {
     /// ```ts
     /// longestShared(names, target)
     /// ```
-    fn longest_shared(&self, target: &[u8]) -> Option<usize> {
+    fn longest_shared(
+        &self,
+        target: &[u8],
+    ) -> Option<usize> {
         let mut low: u64 = 0;
         let mut high: u64 = self.count;
         let mut found: bool = false;
@@ -214,17 +250,32 @@ impl SortedNames {
 
 /// One pack index opened for its count and its names;
 /// `None` when it is not a plain index.
-fn open_index(path: &Path, length: usize) -> Option<SortedNames> {
+fn open_index(
+    path: &Path,
+    length: usize,
+) -> Option<SortedNames> {
     let file: File = File::open(path).ok()?;
     let mut magic: [u8; 8] = [0; 8];
     file.read_exact_at(&mut magic, 0).ok()?;
     if magic == *b"\xfftOc\0\0\0\x02" {
         let count: u64 = u64::from(be32(&file, 8 + 255 * 4)?);
-        return Some(SortedNames { file, first: FANOUT_END, stride: length as u64, count, length });
+        return Some(SortedNames {
+            file,
+            first: FANOUT_END,
+            stride: length as u64,
+            count,
+            length,
+        });
     }
     // A version 1 index has no header: the fanout comes first, and each entry is a four-byte offset and then the name.
     let count: u64 = u64::from(be32(&file, 255 * 4)?);
-    return Some(SortedNames { file, first: FANOUT_END_V1 + 4, stride: 4 + length as u64, count, length });
+    return Some(SortedNames {
+        file,
+        first: FANOUT_END_V1 + 4,
+        stride: 4 + length as u64,
+        count,
+        length,
+    });
 }
 
 /// The chunk identifiers of a multi-pack-index that are read here.
@@ -253,12 +304,17 @@ struct Midx {
 /// ```ts
 /// readMidx(packDirectory, length) // undefined: none; null: not modelled
 /// ```
-fn read_midx(pack_directory: &Path, length: usize) -> Result<Option<Midx>, ()> {
+fn read_midx(
+    pack_directory: &Path,
+    length: usize,
+) -> Result<Option<Midx>, ()> {
     if pack_directory.join("multi-pack-index.d").exists() {
         return Err(());
     }
     let path: PathBuf = pack_directory.join("multi-pack-index");
-    let Ok(file) = File::open(&path) else { return Ok(None) };
+    let Ok(file) = File::open(&path) else {
+        return Ok(None);
+    };
     let mut header: [u8; 12] = [0; 12];
     if file.read_exact_at(&mut header, 0).is_err() {
         return Err(());
@@ -268,7 +324,9 @@ fn read_midx(pack_directory: &Path, length: usize) -> Result<Option<Midx>, ()> {
         return Err(());
     }
     let chunks: u64 = u64::from(header[6]);
-    let packs: u64 = u64::from(u32::from_be_bytes([header[8], header[9], header[10], header[11]]));
+    let packs: u64 = u64::from(u32::from_be_bytes([
+        header[8], header[9], header[10], header[11],
+    ]));
     let mut fanout_chunk: Option<u64> = None;
     let mut names_chunk: Option<u64> = None;
     let mut packs_chunk: Option<(u64, u64)> = None;
@@ -287,13 +345,20 @@ fn read_midx(pack_directory: &Path, length: usize) -> Result<Option<Midx>, ()> {
         }
         previous = Some((id, offset));
     }
-    let (fanout_at, names_at, (packs_start, packs_end)) = (fanout_chunk.ok_or(())?, names_chunk.ok_or(())?, packs_chunk.ok_or(())?);
+    let (fanout_at, names_at, (packs_start, packs_end)) = (
+        fanout_chunk.ok_or(())?,
+        names_chunk.ok_or(())?,
+        packs_chunk.ok_or(())?,
+    );
     let count: u64 = u64::from(be32(&file, fanout_at + 255 * 4).ok_or(())?);
     let Ok(listed_length) = usize::try_from(packs_end.saturating_sub(packs_start)) else {
         return Err(());
     };
     let mut listed: Vec<u8> = vec![0; listed_length];
-    if file.read_exact_at(listed.as_mut_slice(), packs_start).is_err() {
+    if file
+        .read_exact_at(listed.as_mut_slice(), packs_start)
+        .is_err()
+    {
         return Err(());
     }
     let Ok(pack_limit) = usize::try_from(packs) else {
@@ -308,7 +373,16 @@ fn read_midx(pack_directory: &Path, length: usize) -> Result<Option<Midx>, ()> {
             covered.push(String::from_utf8_lossy(name).into_owned());
         }
     }
-    return Ok(Some(Midx { names: SortedNames { file, first: names_at, stride: length as u64, count, length }, covered }));
+    return Ok(Some(Midx {
+        names: SortedNames {
+            file,
+            first: names_at,
+            stride: length as u64,
+            count,
+            length,
+        },
+        covered,
+    }));
 }
 
 /// The pack indexes and the multi-pack-index of one object directory.
@@ -319,11 +393,19 @@ struct Packed {
 
 /// Opens what a root's pack directory holds;
 /// `Err` when a shape is not modelled.
-fn open_packed(root: &Path, length: usize) -> Result<Packed, ()> {
+fn open_packed(
+    root: &Path,
+    length: usize,
+) -> Result<Packed, ()> {
     let directory: PathBuf = root.join("pack");
     let listing = match std::fs::read_dir(&directory) {
         Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Packed { midx: None, indexes: Vec::new() }),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(Packed {
+                midx: None,
+                indexes: Vec::new(),
+            });
+        }
         Err(_) => return Err(()),
     };
     let midx: Option<Midx> = read_midx(directory.as_path(), length)?;
@@ -333,17 +415,29 @@ fn open_packed(root: &Path, length: usize) -> Result<Packed, ()> {
             return Err(());
         };
         let path: PathBuf = found.path();
-        let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str).map(str::to_string) else { continue };
+        let Some(name) = path
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .map(str::to_string)
+        else {
+            continue;
+        };
         if !name.ends_with(".idx") || midx_covers(&midx, &name) {
             continue;
         }
         indexes.push(open_index(path.as_path(), length).ok_or(())?);
     }
-    return Ok(Packed { midx, indexes });
+    return Ok(Packed {
+        midx,
+        indexes,
+    });
 }
 
 /// The longest prefix `name` shares with a loose object of the root (the object itself excluded).
-fn loose_shared(root: &Path, hex: &str) -> Option<usize> {
+fn loose_shared(
+    root: &Path,
+    hex: &str,
+) -> Option<usize> {
     let (directory, rest): (&str, &str) = hex.split_at(2);
     let listing = match std::fs::read_dir(root.join(directory)) {
         Ok(listing) => listing,
@@ -353,7 +447,9 @@ fn loose_shared(root: &Path, hex: &str) -> Option<usize> {
     let mut longest: usize = 0;
     for entry in listing {
         let file_name = entry.ok()?.file_name();
-        let Some(other) = file_name.to_str() else { continue };
+        let Some(other) = file_name.to_str() else {
+            continue;
+        };
         if other.len() != rest.len() || !other.bytes().all(is_hex_digit) || other == rest {
             continue;
         }
@@ -378,7 +474,10 @@ fn bytes_of(hex: &str) -> Option<Vec<u8>> {
 /// Whether the multi-pack-index,
 /// when there is one,
 /// already lists the pack index `name`.
-fn midx_covers(midx: &Option<Midx>, name: &String) -> bool {
+fn midx_covers(
+    midx: &Option<Midx>,
+    name: &String,
+) -> bool {
     return match midx {
         Some(covering) => covering.covered.contains(name),
         None => false,
@@ -401,7 +500,11 @@ fn midx_covers(midx: &Option<Midx>, name: &String) -> bool {
 /// ```ts
 /// abbreviate({ objectDirectory, setting, name }) // 'main' commit 30b2211...
 /// ```
-pub fn abbreviate(object_directory: &Path, setting: Setting, hex: &str) -> Option<String> {
+pub fn abbreviate(
+    object_directory: &Path,
+    setting: Setting,
+    hex: &str,
+) -> Option<String> {
     let target: Vec<u8> = bytes_of(hex)?;
     if hex != hex.to_ascii_lowercase() {
         return None;

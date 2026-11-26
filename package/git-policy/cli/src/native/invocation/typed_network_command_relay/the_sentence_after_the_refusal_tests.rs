@@ -3,7 +3,11 @@
 //! the three texts byte for byte,
 //! and the record that one was printed.
 
-use super::{Refusal, printed_for_this_command, refusal_in};
+use super::{
+    Refusal,
+    printed_for_this_command,
+    refusal_in,
+};
 use crate::typed_network_command_relay::a_target_the_sentence_may_name::Target;
 
 /// What:
@@ -17,7 +21,10 @@ use crate::typed_network_command_relay::a_target_the_sentence_may_name::Target;
 /// const target = { host: 'target', connect: 'target' };
 /// ```
 fn the_fixture_s_host() -> Target {
-    return Target { host: String::from("target"), connect: String::from("target") };
+    return Target {
+        host: String::from("target"),
+        connect: String::from("target"),
+    };
 }
 
 /// A transcript that is OpenSSH's own reads as the refusal it printed.
@@ -33,7 +40,11 @@ fn each_refusal_is_read_from_the_words_it_prints() {
     // The last line alone is an unknown key's own words, which is the default `ask` refusal.
     assert_eq!(refusal_in(missing), Some(Refusal::HostKey));
     let changed: &str = "WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!\nHost key for [localhost]:2222 has changed and you have requested strict checking.\nHost key verification failed.\n";
-    assert_eq!(refusal_in(changed), None, "a changed key keeps OpenSSH's own words");
+    assert_eq!(
+        refusal_in(changed),
+        None,
+        "a changed key keeps OpenSSH's own words"
+    );
     let unreachable: &str = "ssh: connect to host 127.0.0.1 port 2299: Connection refused\nfatal: Could not read from remote repository.\n";
     assert_eq!(refusal_in(unreachable), None);
     assert_eq!(refusal_in(""), None);
@@ -55,7 +66,10 @@ fn a_remote_s_own_line_is_dropped_before_the_reading() {
 #[test]
 fn one_refusal_is_recorded_once() {
     assert!(!printed_for_this_command());
-    let target: Target = Target { host: String::from("target"), connect: String::from("target") };
+    let target: Target = Target {
+        host: String::from("target"),
+        connect: String::from("target"),
+    };
     // A command that ended well prints nothing, however its transcript reads.
     super::print_after_a_refusal(b"Host key verification failed.\n", 0, &target);
     assert!(!printed_for_this_command());

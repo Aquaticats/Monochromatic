@@ -59,7 +59,11 @@
 use crate::service_replay::capture_stamp;
 use std::path::Path;
 use std::sync::OnceLock;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// Separates the parts of a reading when it is written into a claim's file name.
 const FIELD_SEPARATOR: char = '~';
@@ -165,7 +169,11 @@ fn read_boot_id() -> String {
         return String::new();
     };
     let compact: String = text.trim().replace('-', "").to_ascii_lowercase();
-    return if is_boot_id(compact.as_str()) { compact } else { String::new() };
+    return if is_boot_id(compact.as_str()) {
+        compact
+    } else {
+        String::new()
+    };
 }
 
 /// What:
@@ -221,9 +229,7 @@ pub(crate) fn is_machine_id(text: &str) -> bool {
 /// or nothing when it cannot be read.
 pub(crate) fn current_boot_id() -> &'static str {
     static BOOT_ID: OnceLock<String> = OnceLock::new();
-    return BOOT_ID
-        .get_or_init(read_boot_id)
-        .as_str();
+    return BOOT_ID.get_or_init(read_boot_id).as_str();
 }
 
 /// What:
@@ -258,9 +264,7 @@ pub(crate) fn current_machine_id() -> &'static str {
         return injected;
     }
     static MACHINE_ID: OnceLock<String> = OnceLock::new();
-    return MACHINE_ID
-        .get_or_init(read_machine_id)
-        .as_str();
+    return MACHINE_ID.get_or_init(read_machine_id).as_str();
 }
 
 /// A machine ID a control gives this thread in place of the host's,
@@ -275,14 +279,27 @@ impl ClaimTime {
     pub fn read() -> ClaimTime {
         let monotonic_millis: u64 = capture_stamp() / 1_000_000;
         // Without a monotonic clock the boot ID would pair with a meaningless number, so the reading has none.
-        let boot_id: String = if monotonic_millis == 0 { String::new() } else { String::from(current_boot_id()) };
+        let boot_id: String = if monotonic_millis == 0 {
+            String::new()
+        } else {
+            String::from(current_boot_id())
+        };
         let wall_seconds: u64 = seconds_since_epoch(SystemTime::now());
-        return ClaimTime { machine_id: String::from(current_machine_id()), boot_id, monotonic_millis, wall_seconds };
+        return ClaimTime {
+            machine_id: String::from(current_machine_id()),
+            boot_id,
+            monotonic_millis,
+            wall_seconds,
+        };
     }
 
     /// A reading of the given parts on a machine with no ID,
     /// which is how a test says what the clocks showed.
-    pub fn from_parts(boot_id: &str, monotonic: Duration, wall: Duration) -> ClaimTime {
+    pub fn from_parts(
+        boot_id: &str,
+        monotonic: Duration,
+        wall: Duration,
+    ) -> ClaimTime {
         return ClaimTime {
             machine_id: String::new(),
             boot_id: boot_id.to_owned(),
@@ -293,48 +310,82 @@ impl ClaimTime {
 
     /// The reading `by` later on both clocks,
     /// which is time passing.
-    pub fn advanced(&self, by: Duration) -> ClaimTime {
+    pub fn advanced(
+        &self,
+        by: Duration,
+    ) -> ClaimTime {
         return ClaimTime {
             machine_id: self.machine_id.clone(),
             boot_id: self.boot_id.clone(),
-            monotonic_millis: self.monotonic_millis.saturating_add(u64::try_from(by.as_millis()).unwrap_or(u64::MAX)),
+            monotonic_millis: self
+                .monotonic_millis
+                .saturating_add(u64::try_from(by.as_millis()).unwrap_or(u64::MAX)),
             wall_seconds: self.wall_seconds.saturating_add(by.as_secs()),
         };
     }
 
     /// The reading `by` earlier on both clocks,
     /// which is how a test makes a claim whose holder last renewed that long ago.
-    pub fn rewound(&self, by: Duration) -> ClaimTime {
+    pub fn rewound(
+        &self,
+        by: Duration,
+    ) -> ClaimTime {
         return ClaimTime {
             machine_id: self.machine_id.clone(),
             boot_id: self.boot_id.clone(),
-            monotonic_millis: self.monotonic_millis.saturating_sub(u64::try_from(by.as_millis()).unwrap_or(u64::MAX)),
+            monotonic_millis: self
+                .monotonic_millis
+                .saturating_sub(u64::try_from(by.as_millis()).unwrap_or(u64::MAX)),
             wall_seconds: self.wall_seconds.saturating_sub(by.as_secs()),
         };
     }
 
     /// The reading with the wall clock set `by` forward and the monotonic clock untouched,
     /// which is a clock step.
-    pub fn wall_stepped_forward(&self, by: Duration) -> ClaimTime {
-        return ClaimTime { wall_seconds: self.wall_seconds.saturating_add(by.as_secs()), ..self.clone() };
+    pub fn wall_stepped_forward(
+        &self,
+        by: Duration,
+    ) -> ClaimTime {
+        return ClaimTime {
+            wall_seconds: self.wall_seconds.saturating_add(by.as_secs()),
+            ..self.clone()
+        };
     }
 
     /// The reading with the wall clock set `by` back and the monotonic clock untouched,
     /// which is a clock step.
-    pub fn wall_stepped_back(&self, by: Duration) -> ClaimTime {
-        return ClaimTime { wall_seconds: self.wall_seconds.saturating_sub(by.as_secs()), ..self.clone() };
+    pub fn wall_stepped_back(
+        &self,
+        by: Duration,
+    ) -> ClaimTime {
+        return ClaimTime {
+            wall_seconds: self.wall_seconds.saturating_sub(by.as_secs()),
+            ..self.clone()
+        };
     }
 
     /// The reading in another boot,
     /// which is a restart of the host.
-    pub fn in_boot(&self, boot_id: &str) -> ClaimTime {
-        return ClaimTime { boot_id: boot_id.to_owned(), ..self.clone() };
+    pub fn in_boot(
+        &self,
+        boot_id: &str,
+    ) -> ClaimTime {
+        return ClaimTime {
+            boot_id: boot_id.to_owned(),
+            ..self.clone()
+        };
     }
 
     /// The reading on the machine with the given ID,
     /// which is how a test puts two readings on one machine or on two.
-    pub fn on_machine(&self, machine_id: &str) -> ClaimTime {
-        return ClaimTime { machine_id: machine_id.to_owned(), ..self.clone() };
+    pub fn on_machine(
+        &self,
+        machine_id: &str,
+    ) -> ClaimTime {
+        return ClaimTime {
+            machine_id: machine_id.to_owned(),
+            ..self.clone()
+        };
     }
 
     /// The reading a wall-clock time stands for where there is nothing else,
@@ -358,9 +409,15 @@ impl ClaimTime {
     /// Readings of two different
     /// boots share no clock that says how long the earlier holder lived,
     /// so a judge asks `is_past_the_boot_of` first.
-    pub fn elapsed_since(&self, earlier: &ClaimTime) -> Duration {
+    pub fn elapsed_since(
+        &self,
+        earlier: &ClaimTime,
+    ) -> Duration {
         if !self.boot_id.is_empty() && self.boot_id == earlier.boot_id {
-            return Duration::from_millis(self.monotonic_millis.saturating_sub(earlier.monotonic_millis));
+            return Duration::from_millis(
+                self.monotonic_millis
+                    .saturating_sub(earlier.monotonic_millis),
+            );
         }
         return Duration::from_secs(self.wall_seconds.saturating_sub(earlier.wall_seconds));
     }
@@ -388,9 +445,16 @@ impl ClaimTime {
     /// now.machineId !== '' && now.machineId === then.machineId
     ///   && now.bootId !== '' && then.bootId !== '' && now.bootId !== then.bootId
     /// ```
-    pub fn is_past_the_boot_of(&self, earlier: &ClaimTime) -> bool {
-        let same_known_machine: bool = !self.machine_id.is_empty() && self.machine_id == earlier.machine_id;
-        return same_known_machine && !self.boot_id.is_empty() && !earlier.boot_id.is_empty() && self.boot_id != earlier.boot_id;
+    pub fn is_past_the_boot_of(
+        &self,
+        earlier: &ClaimTime,
+    ) -> bool {
+        let same_known_machine: bool =
+            !self.machine_id.is_empty() && self.machine_id == earlier.machine_id;
+        return same_known_machine
+            && !self.boot_id.is_empty()
+            && !earlier.boot_id.is_empty()
+            && self.boot_id != earlier.boot_id;
     }
 
     /// The reading as the file-name parts `boot~monotonic~wall~machine`;
@@ -398,7 +462,10 @@ impl ClaimTime {
     /// out,
     /// which is the form every release before machine IDs wrote and reads.
     pub fn encode(&self) -> String {
-        let without_machine: String = format!("{}{FIELD_SEPARATOR}{}{FIELD_SEPARATOR}{}", self.boot_id, self.monotonic_millis, self.wall_seconds);
+        let without_machine: String = format!(
+            "{}{FIELD_SEPARATOR}{}{FIELD_SEPARATOR}{}",
+            self.boot_id, self.monotonic_millis, self.wall_seconds
+        );
         if self.machine_id.is_empty() {
             return without_machine;
         }
@@ -422,11 +489,17 @@ impl ClaimTime {
         let machine_id: &str = parts.get(PARTS_WITH_MACHINE - 1).copied().unwrap_or("");
         let boot_id_fits: bool = boot_id.is_empty() || is_compact_hex_id(boot_id);
         // A stored stamp is read as it was written: an uppercase or all-zero machine ID that an earlier release accepted still decodes.
-        let machine_id_fits: bool = parts.len() == PARTS_WITHOUT_MACHINE || is_compact_hex_id(machine_id);
+        let machine_id_fits: bool =
+            parts.len() == PARTS_WITHOUT_MACHINE || is_compact_hex_id(machine_id);
         if !boot_id_fits || !machine_id_fits {
             return None;
         }
-        return Some(ClaimTime { machine_id: machine_id.to_owned(), boot_id: boot_id.to_owned(), monotonic_millis, wall_seconds });
+        return Some(ClaimTime {
+            machine_id: machine_id.to_owned(),
+            boot_id: boot_id.to_owned(),
+            monotonic_millis,
+            wall_seconds,
+        });
     }
 }
 

@@ -26,13 +26,19 @@ pub(crate) fn slot_name_refusal(name: &str) -> Option<String> {
         return Some(String::from("it is empty"));
     }
     if name == "." || name == ".." || name.contains('/') {
-        return Some(String::from("it holds a path separator or names a folder above"));
+        return Some(String::from(
+            "it holds a path separator or names a folder above",
+        ));
     }
     if name.starts_with('.') {
-        return Some(String::from("it starts with a dot, and no worktree Git adds is named that way"));
+        return Some(String::from(
+            "it starts with a dot, and no worktree Git adds is named that way",
+        ));
     }
     if name.chars().any(char::is_whitespace) || name.chars().any(char::is_control) {
-        return Some(String::from("it holds a space, a tab or another control character"));
+        return Some(String::from(
+            "it holds a space, a tab or another control character",
+        ));
     }
     return None;
 }

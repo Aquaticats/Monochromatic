@@ -20,10 +20,23 @@
 //! const server = createServer((req, res) => { seen = readBody(req); res.end(reply); }).listen(0, '127.0.0.1');
 //! ```
 
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, Mutex, PoisonError};
-use std::time::{Duration, Instant};
+use std::io::{
+    Read,
+    Write,
+};
+use std::net::{
+    TcpListener,
+    TcpStream,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+    PoisonError,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  The quiet window a control gives a call whose subject is not the window.
@@ -163,7 +176,10 @@ pub(crate) struct Mock {
 
 /// An HTTP/1.1 reply with a status line,
 /// a JSON content type and a content length.
-pub(crate) fn http_reply(status_line: &str, body: &str) -> Vec<u8> {
+pub(crate) fn http_reply(
+    status_line: &str,
+    body: &str,
+) -> Vec<u8> {
     return format!("HTTP/1.1 {status_line}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).into_bytes();
 }
 
@@ -173,7 +189,10 @@ pub(crate) fn http_reply(status_line: &str, body: &str) -> Vec<u8> {
 /// Why:
 ///   A call that never arrives must be an event,
 /// and this is the one wait that had no bound of its own.
-pub(crate) fn accept_within(listener: &TcpListener, deadline: Duration) -> Option<TcpStream> {
+pub(crate) fn accept_within(
+    listener: &TcpListener,
+    deadline: Duration,
+) -> Option<TcpStream> {
     let began: Instant = Instant::now();
     loop {
         match listener.accept() {
@@ -211,7 +230,11 @@ fn read_request(stream: &mut TcpStream) -> Vec<u8> {
             let length: usize = text[..split]
                 .to_ascii_lowercase()
                 .lines()
-                .find_map(|line| return line.strip_prefix("content-length:").and_then(|value| return value.trim().parse::<usize>().ok()))
+                .find_map(|line| {
+                    return line
+                        .strip_prefix("content-length:")
+                        .and_then(|value| return value.trim().parse::<usize>().ok());
+                })
                 .unwrap_or(0);
             if received.len() >= split + 4 + length {
                 break;
@@ -225,39 +248,71 @@ fn read_request(stream: &mut TcpStream) -> Vec<u8> {
 /// every byte written,
 /// the call leaving first,
 /// or the call closing the silence the server held.
-fn write_answer(stream: &mut TcpStream, answer: Answer) -> AnswerEnded {
+fn write_answer(
+    stream: &mut TcpStream,
+    answer: Answer,
+) -> AnswerEnded {
     return match answer {
         Answer::Bytes(bytes) => {
-            if stream.write_all(bytes.as_slice()).is_ok() { AnswerEnded::Whole } else { AnswerEnded::CallerLeft { unsent: bytes.len() } }
+            if stream.write_all(bytes.as_slice()).is_ok() {
+                AnswerEnded::Whole
+            } else {
+                AnswerEnded::CallerLeft {
+                    unsent: bytes.len(),
+                }
+            }
         }
-        Answer::Chunked { body, chunk } => {
-            let head: String = format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n");
+        Answer::Chunked {
+            body,
+            chunk,
+        } => {
+            let head: String = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n"
+            );
             if stream.write_all(head.as_bytes()).is_err() {
-                return AnswerEnded::CallerLeft { unsent: body.len() };
+                return AnswerEnded::CallerLeft {
+                    unsent: body.len(),
+                };
             }
             let mut offset: usize = 0;
             while offset < body.len() {
                 let end: usize = (offset + chunk.max(1)).min(body.len());
                 let piece: &[u8] = &body[offset..end];
                 let size: String = format!("{:x}\r\n", piece.len());
-                if stream.write_all(size.as_bytes()).is_err() || stream.write_all(piece).is_err() || stream.write_all(b"\r\n").is_err() {
-                    return AnswerEnded::CallerLeft { unsent: body.len() - offset };
+                if stream.write_all(size.as_bytes()).is_err()
+                    || stream.write_all(piece).is_err()
+                    || stream.write_all(b"\r\n").is_err()
+                {
+                    return AnswerEnded::CallerLeft {
+                        unsent: body.len() - offset,
+                    };
                 }
                 offset = end;
             }
             if stream.write_all(b"0\r\n\r\n").is_err() {
-                return AnswerEnded::CallerLeft { unsent: 0 };
+                return AnswerEnded::CallerLeft {
+                    unsent: 0,
+                };
             }
             AnswerEnded::Whole
         }
-        Answer::Trickle { bytes, pause } => {
-            let head: String = format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {bytes}\r\nconnection: close\r\n\r\n");
+        Answer::Trickle {
+            bytes,
+            pause,
+        } => {
+            let head: String = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {bytes}\r\nconnection: close\r\n\r\n"
+            );
             if stream.write_all(head.as_bytes()).is_err() {
-                return AnswerEnded::CallerLeft { unsent: bytes };
+                return AnswerEnded::CallerLeft {
+                    unsent: bytes,
+                };
             }
             for sent in 0..bytes {
                 if stream.write_all(b"x").is_err() {
-                    return AnswerEnded::CallerLeft { unsent: bytes - sent };
+                    return AnswerEnded::CallerLeft {
+                        unsent: bytes - sent,
+                    };
                 }
                 // The pause before the next byte and never one after the last: the answer is complete at its last byte.
                 if sent + 1 < bytes {
@@ -285,14 +340,22 @@ fn write_answer(stream: &mut TcpStream, answer: Answer) -> AnswerEnded {
 /// Why:
 ///   Both facts a control reads are written before the thread ends,
 /// so `finish` never has to wait for one after the other.
-fn serve(listener: &TcpListener, answer: Answer, recorded: &Arc<Mutex<Vec<u8>>>, ended: &Arc<Mutex<Option<AnswerEnded>>>) {
+fn serve(
+    listener: &TcpListener,
+    answer: Answer,
+    recorded: &Arc<Mutex<Vec<u8>>>,
+    ended: &Arc<Mutex<Option<AnswerEnded>>>,
+) {
     // A call that never connects leaves `ended` empty, which is the event `finish` reports.
     let Some(mut stream) = accept_within(listener, CONNECTION_DEADLINE) else {
         return;
     };
     let _request_bound = stream.set_read_timeout(Some(REQUEST_DEADLINE));
     let request: Vec<u8> = read_request(&mut stream);
-    recorded.lock().unwrap_or_else(PoisonError::into_inner).extend_from_slice(request.as_slice());
+    recorded
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .extend_from_slice(request.as_slice());
     let how: AnswerEnded = write_answer(&mut stream, answer);
     *ended.lock().unwrap_or_else(PoisonError::into_inner) = Some(how);
 }
@@ -303,12 +366,20 @@ impl Mock {
         let listener: TcpListener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
         let port: u16 = listener.local_addr().expect("address").port();
         // The mock polls for its call so that a call that never arrives ends the wait with a name.
-        listener.set_nonblocking(true).expect("a listener the mock polls");
+        listener
+            .set_nonblocking(true)
+            .expect("a listener the mock polls");
         let seen: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
         let ended: Arc<Mutex<Option<AnswerEnded>>> = Arc::new(Mutex::new(None));
         let (recorded, ending) = (Arc::clone(&seen), Arc::clone(&ended));
-        let handle: std::thread::JoinHandle<()> = std::thread::spawn(move || serve(&listener, answer, &recorded, &ending));
-        return Mock { url: format!("http://127.0.0.1:{port}/v1/decisions"), seen, handle, ended };
+        let handle: std::thread::JoinHandle<()> =
+            std::thread::spawn(move || serve(&listener, answer, &recorded, &ending));
+        return Mock {
+            url: format!("http://127.0.0.1:{port}/v1/decisions"),
+            seen,
+            handle,
+            ended,
+        };
     }
 
     /// What:
@@ -320,11 +391,21 @@ impl Mock {
     ///  the control it serves cannot pass having proved nothing and cannot wait at the runner's stop.
     pub(crate) fn finish(self) -> Served {
         let _joined = self.handle.join();
-        let bytes: Vec<u8> = self.seen.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        let bytes: Vec<u8> = self
+            .seen
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         let seen: String = String::from_utf8_lossy(bytes.as_slice()).into_owned();
         let Some(ended) = *self.ended.lock().unwrap_or_else(PoisonError::into_inner) else {
-            panic!("no call reached the mock server at {} within {CONNECTION_DEADLINE:?}, so the control it serves proved nothing", self.url);
+            panic!(
+                "no call reached the mock server at {} within {CONNECTION_DEADLINE:?}, so the control it serves proved nothing",
+                self.url
+            );
         };
-        return Served { seen, ended };
+        return Served {
+            seen,
+            ended,
+        };
     }
 }

@@ -11,13 +11,21 @@
 //! expect(listingArguments([], '--stage', ['new.txt'])).toContain(':(top,literal)new.txt');
 //! ```
 
-use super::{listing_arguments, staged_paths};
+use super::{
+    listing_arguments,
+    staged_paths,
+};
 use std::ffi::OsString;
 
 /// The words of an argument list,
 ///  for comparing queries as text.
 fn words(arguments: &[OsString]) -> Vec<String> {
-    return arguments.iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    return arguments
+        .iter()
+        .map(|argument| {
+            return argument.to_string_lossy().into_owned();
+        })
+        .collect();
 }
 
 /// Each listing names exactly the paths it was given,

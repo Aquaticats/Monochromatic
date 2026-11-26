@@ -51,7 +51,11 @@ pub const SELF_HINTED: &[(&str, &str)] = &[
 /// ```ts
 /// function findingHint(policy: string, code: string, fixAvailable: boolean): string | undefined;
 /// ```
-pub fn finding_hint(policy: &str, code: &str, fix_available: bool) -> Option<&'static str> {
+pub fn finding_hint(
+    policy: &str,
+    code: &str,
+    fix_available: bool,
+) -> Option<&'static str> {
     match (policy, code, fix_available) {
         ("add-explicit", "bulk-add-rejected", _) => {
             return Some(
@@ -307,7 +311,10 @@ pub const POST_COMMIT_BLOCKED_HINT: &str = "Hint: if you wanted this commit back
 /// ```ts
 /// if (hint !== undefined) event.hint = hint;
 /// ```
-pub fn push_hint_field(line: &mut String, hint: Option<&str>) {
+pub fn push_hint_field(
+    line: &mut String,
+    hint: Option<&str>,
+) {
     if let Some(text) = hint {
         line.push_str(",\"hint\":");
         line.push_str(quote(text).as_str());

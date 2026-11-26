@@ -38,21 +38,38 @@
 //! const resolved = await resolveTree(runner, { commonDir, tree, conflicts }); // { tree, merged } | undefined
 //! ```
 
-use crate::child_environment::environment_value;
-use crate::diagnostic_log::debug;
-use crate::merge_second_pass::{AttributeSource, Conflict, GitRunner, INPUTS_HINT, Left, Merged, Verdict, is_attributes_path, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
-use crate::path_bytes::path_message_text;
-use crate::repo_read_config_list::{canonical_key, list_config};
-use crate::repo_read_config_scan::ScopeEnvironment;
-use crate::repo_read_layout::read_layout_after_success_with;
-use crate::random_id::random_uuid;
-use crate::scratch_location::prepare_repository_scratch;
 /// The jobs of the blocking pool that make this step's file calls,
 /// so a disk that makes them wait holds no worker of the runtime
 /// (`doc/planning/git-policy-cli-full-tokio.md`,
 /// "Blocking files,
 /// fsync and the runtime's own shutdown").
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+use crate::child_environment::environment_value;
+use crate::diagnostic_log::debug;
+use crate::merge_second_pass::{
+    AttributeSource,
+    Conflict,
+    GitRunner,
+    INPUTS_HINT,
+    Left,
+    Merged,
+    Verdict,
+    is_attributes_path,
+    journal_merged,
+    report_lines,
+    second_pass,
+    tree_with_files,
+    write_blob,
+};
+use crate::path_bytes::path_message_text;
+use crate::random_id::random_uuid;
+use crate::repo_read_config_list::{
+    canonical_key,
+    list_config,
+};
+use crate::repo_read_config_scan::ScopeEnvironment;
+use crate::repo_read_layout::read_layout_after_success_with;
+use crate::scratch_location::prepare_repository_scratch;
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -98,7 +115,12 @@ pub struct AttributeProbe<'a> {
 async fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String>> {
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(probe.variables);
     let listed = match read_layout_after_success_with(probe.directory, probe.variables, &scope) {
-        Some(layout) => list_config(layout.common_dir.as_path(), layout.git_dir.as_path(), &scope, probe.variables),
+        Some(layout) => list_config(
+            layout.common_dir.as_path(),
+            layout.git_dir.as_path(),
+            &scope,
+            probe.variables,
+        ),
         None => None,
     };
     if let Some(entries) = listed {
@@ -117,8 +139,15 @@ async fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<
         }
         return Some(value);
     }
-    debug(TAG, "the in-process readers decline the repository, so Git is asked for attr.tree");
-    let reply = probe.runner.run(&["config", "--get", ATTRIBUTE_TREE_KEY], None, None).await.ok()?;
+    debug(
+        TAG,
+        "the in-process readers decline the repository, so Git is asked for attr.tree",
+    );
+    let reply = probe
+        .runner
+        .run(&["config", "--get", ATTRIBUTE_TREE_KEY], None, None)
+        .await
+        .ok()?;
     return match reply.code {
         Some(0) => {
             let text: String = String::from_utf8_lossy(&reply.stdout).trim().to_owned();
@@ -151,31 +180,45 @@ async fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<
 /// ```ts
 /// function commandLineAttributeTree(prefix: string[], variables: [string, string][]): 'not-set' | { value: string | null } | 'unknown';
 /// ```
-fn command_line_attribute_tree(prefix: &[OsString], variables: &[(OsString, OsString)]) -> CommandLineTree {
+fn command_line_attribute_tree(
+    prefix: &[OsString],
+    variables: &[(OsString, OsString)],
+) -> CommandLineTree {
     let mut named: CommandLineTree = CommandLineTree::NotSet;
     let mut tokens = prefix.iter();
     while let Some(token) = tokens.next() {
         let Some(text) = token.to_str() else { continue };
         // The entry an option carries: `-c` and a bare `--config-env` take the next token, and `--config-env=` carries it.
-        let (entry, from_environment): (&str, bool) = if let Some(carried) = text.strip_prefix("--config-env=") {
-            (carried, true)
-        } else if text == "-c" || text == "--config-env" {
-            let Some(next) = tokens.next() else { continue };
-            let Some(carried) = next.to_str() else { continue };
-            (carried, text == "--config-env")
-        } else {
-            continue;
-        };
+        let (entry, from_environment): (&str, bool) =
+            if let Some(carried) = text.strip_prefix("--config-env=") {
+                (carried, true)
+            } else if text == "-c" || text == "--config-env" {
+                let Some(next) = tokens.next() else { continue };
+                let Some(carried) = next.to_str() else {
+                    continue;
+                };
+                (carried, text == "--config-env")
+            } else {
+                continue;
+            };
         // `-c name=value` splits at the first `=` and `--config-env=name=variable` at the last (`config.c` lines 495 and 511):
         // the variable name may hold no `=` while the key may, and Git refuses a `--config-env` entry with none at all.
-        let split: Option<(&str, &str)> = if from_environment { entry.rsplit_once('=') } else { Some(entry.split_once('=').unwrap_or((entry, ""))) };
+        let split: Option<(&str, &str)> = if from_environment {
+            entry.rsplit_once('=')
+        } else {
+            Some(entry.split_once('=').unwrap_or((entry, "")))
+        };
         let Some((key, given)) = split else { continue };
         if canonical_key(key).as_deref() != Some(ATTRIBUTE_TREE_KEY) {
             continue;
         }
         if !from_environment {
             // `-c name` alone sets `true`, which no tree resolves to.
-            named = if given.is_empty() { CommandLineTree::Set(None) } else { CommandLineTree::Set(Some(given.to_owned())) };
+            named = if given.is_empty() {
+                CommandLineTree::Set(None)
+            } else {
+                CommandLineTree::Set(Some(given.to_owned()))
+            };
             continue;
         }
         let Some(value) = environment_value(variables, given) else {
@@ -184,7 +227,11 @@ fn command_line_attribute_tree(prefix: &[OsString], variables: &[(OsString, OsSt
         };
         let from_the_variable: String = value.to_string_lossy().into_owned();
         // An empty value is no value, which Git ignores as it ignores a configured one.
-        named = if from_the_variable.is_empty() { CommandLineTree::Set(None) } else { CommandLineTree::Set(Some(from_the_variable)) };
+        named = if from_the_variable.is_empty() {
+            CommandLineTree::Set(None)
+        } else {
+            CommandLineTree::Set(Some(from_the_variable))
+        };
     }
     return named;
 }
@@ -248,29 +295,52 @@ async fn attribute_choice(probe: &AttributeProbe<'_>) -> AttributeChoice {
             return AttributeChoice::ThePerson;
         }
     }
-    let read: Option<Option<String>> = match command_line_attribute_tree(probe.global_prefix, probe.variables) {
+    let read: Option<Option<String>> = match command_line_attribute_tree(
+        probe.global_prefix,
+        probe.variables,
+    ) {
         // The command line names the key and Git stops on the value it cannot find, so no tree is named over it.
         CommandLineTree::Unknown => {
-            debug(TAG, "an attr.tree of the command line takes its value from a variable the environment does not hold, and Git stops on it, so no attribute tree is named");
+            debug(
+                TAG,
+                "an attr.tree of the command line takes its value from a variable the environment does not hold, and Git stops on it, so no attribute tree is named",
+            );
             return AttributeChoice::ThePerson;
         }
         CommandLineTree::Set(from_the_command_line) => Some(from_the_command_line),
         CommandLineTree::NotSet => configured_attribute_tree(probe).await,
     };
     let Some(configured) = read else {
-        debug(TAG, "attr.tree cannot be read, so no attribute tree is named");
+        debug(
+            TAG,
+            "attr.tree cannot be read, so no attribute tree is named",
+        );
         return AttributeChoice::ThePerson;
     };
     if let Some(value) = configured {
         let spec: String = format!("{value}^{{tree}}");
-        let resolves: bool = match probe.runner.run(&["rev-parse", "--verify", "--quiet", spec.as_str()], None, None).await {
+        let resolves: bool = match probe
+            .runner
+            .run(
+                &["rev-parse", "--verify", "--quiet", spec.as_str()],
+                None,
+                None,
+            )
+            .await
+        {
             Ok(reply) => reply.code == Some(0),
             Err(_) => false,
         };
         if resolves {
             return AttributeChoice::ThePerson;
         }
-        debug(TAG, format!("attr.tree names {value}, which is no tree; Git ignores it, so the tree is named").as_str());
+        debug(
+            TAG,
+            format!(
+                "attr.tree names {value}, which is no tree; Git ignores it, so the tree is named"
+            )
+            .as_str(),
+        );
     }
     return AttributeChoice::Free;
 }
@@ -288,10 +358,16 @@ async fn attribute_choice(probe: &AttributeProbe<'_>) -> AttributeChoice {
 /// ```ts
 /// async function attributeTreeVariables(tip: string, probe: AttributeProbe): Promise<[string, string][]>;
 /// ```
-pub async fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(OsString, OsString)> {
+pub async fn attribute_tree_variables(
+    tip: &str,
+    probe: &AttributeProbe<'_>,
+) -> Vec<(OsString, OsString)> {
     return match attribute_choice(probe).await {
         AttributeChoice::ThePerson => Vec::new(),
-        AttributeChoice::Free => vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from(tip))],
+        AttributeChoice::Free => vec![(
+            OsString::from(ATTRIBUTE_SOURCE_VARIABLE),
+            OsString::from(tip),
+        )],
     };
 }
 
@@ -311,11 +387,18 @@ pub async fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> 
 /// ```ts
 /// runOnRuntime(() => attributeTreeVariables(tip, probe))
 /// ```
-pub fn attribute_tree_variables_on_the_runtime(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(OsString, OsString)> {
+pub fn attribute_tree_variables_on_the_runtime(
+    tip: &str,
+    probe: &AttributeProbe<'_>,
+) -> Vec<(OsString, OsString)> {
     return match crate::lazy_runtime::run_on_runtime(attribute_tree_variables(tip, probe)) {
         Ok(found) => found,
         Err(refusal) => {
-            crate::diagnostic_log::warn(TAG, format!("the attribute tree could not be read, so none is named: {refusal}").as_str());
+            crate::diagnostic_log::warn(
+                TAG,
+                format!("the attribute tree could not be read, so none is named: {refusal}")
+                    .as_str(),
+            );
             Vec::new()
         }
     };
@@ -359,7 +442,11 @@ fn any_attributes_conflict(conflicts: &[Conflict]) -> bool {
 /// ```ts
 /// function mergeAttributeSource(tree: string, conflicts: Conflict[], probe: AttributeProbe): AttributeSource;
 /// ```
-pub async fn merge_attribute_source<'a>(tree: &'a str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> AttributeSource<'a> {
+pub async fn merge_attribute_source<'a>(
+    tree: &'a str,
+    conflicts: &[Conflict],
+    probe: &AttributeProbe<'_>,
+) -> AttributeSource<'a> {
     return match attribute_choice(probe).await {
         AttributeChoice::ThePerson => AttributeSource::Invocation,
         AttributeChoice::Free if any_attributes_conflict(conflicts) => AttributeSource::Unknown,
@@ -388,7 +475,13 @@ pub struct Resolved {
 /// ```ts
 /// async function resolveTree(runner, commonDir, tree, conflicts): Promise<Resolved | undefined>;
 /// ```
-pub async fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> Option<Resolved> {
+pub async fn resolve_tree(
+    runner: &dyn GitRunner,
+    common_dir: &Path,
+    tree: &str,
+    conflicts: &[Conflict],
+    probe: &AttributeProbe<'_>,
+) -> Option<Resolved> {
     if conflicts.is_empty() {
         return None;
     }
@@ -396,7 +489,10 @@ pub async fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str,
     let verdicts: Vec<Verdict> = match second_pass(runner, conflicts, source).await {
         Ok(found) => found,
         Err(reason) => {
-            debug(TAG, format!("the second pass could not run, so the conflicts stay: {reason}").as_str());
+            debug(
+                TAG,
+                format!("the second pass could not run, so the conflicts stay: {reason}").as_str(),
+            );
             return None;
         }
     };
@@ -405,11 +501,25 @@ pub async fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str,
     for verdict in verdicts {
         match verdict {
             Verdict::Merged(file) => merged.push(*file),
-            Verdict::Left { path, why } => left.push(format!("{} ({})", path_message_text(path.as_slice()), left_words(&why))),
+            Verdict::Left {
+                path,
+                why,
+            } => left.push(format!(
+                "{} ({})",
+                path_message_text(path.as_slice()),
+                left_words(&why)
+            )),
         }
     }
     if !left.is_empty() {
-        debug(TAG, format!("the merge stays conflicted; left to the person: {}", left.join(", ")).as_str());
+        debug(
+            TAG,
+            format!(
+                "the merge stays conflicted; left to the person: {}",
+                left.join(", ")
+            )
+            .as_str(),
+        );
         return None;
     }
     let mut oids: Vec<String> = Vec::new();
@@ -417,7 +527,14 @@ pub async fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str,
         match write_blob(runner, file.bytes.as_slice()).await {
             Ok(oid) => oids.push(oid),
             Err(reason) => {
-                debug(TAG, format!("the merged blob of {} could not be written: {reason}", path_message_text(file.path.as_slice())).as_str());
+                debug(
+                    TAG,
+                    format!(
+                        "the merged blob of {} could not be written: {reason}",
+                        path_message_text(file.path.as_slice())
+                    )
+                    .as_str(),
+                );
                 return None;
             }
         }
@@ -425,22 +542,35 @@ pub async fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str,
     // Making the scratch directory, and the sweep of the repository scratch it makes, are file calls and a walk that can wait
     //  on a disk, so a job of the blocking pool makes them.
     let common_directory: std::path::PathBuf = common_dir.to_path_buf();
-    let scratch = match run_blocking_job_within_the_budget(move || return prepare_repository_scratch(common_directory.as_path())).await {
+    let scratch = match run_blocking_job_within_the_budget(move || {
+        return prepare_repository_scratch(common_directory.as_path());
+    })
+    .await
+    {
         Ok(Ok(found)) => found,
         Ok(Err(reason)) => {
-            debug(TAG, format!("no scratch directory for the second pass: {reason}").as_str());
+            debug(
+                TAG,
+                format!("no scratch directory for the second pass: {reason}").as_str(),
+            );
             return None;
         }
         // The system gave the pool no thread, so no scratch directory was made and the second pass has none.
         Err(refused) => {
-            debug(TAG, format!("no scratch directory for the second pass: {refused}").as_str());
+            debug(
+                TAG,
+                format!("no scratch directory for the second pass: {refused}").as_str(),
+            );
             return None;
         }
     };
     let name: String = match random_uuid() {
         Ok(found) => found,
         Err(reason) => {
-            debug(TAG, format!("no unique name for the scratch index: {}", reason.0).as_str());
+            debug(
+                TAG,
+                format!("no unique name for the scratch index: {}", reason.0).as_str(),
+            );
             return None;
         }
     };
@@ -449,7 +579,8 @@ pub async fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str,
     for (file, oid) in merged.iter().zip(oids.iter()) {
         files.push((file.path.as_slice(), file.mode, oid.as_str()));
     }
-    let rewritten: Result<String, String> = tree_with_files(runner, tree, files.as_slice(), index.as_path()).await;
+    let rewritten: Result<String, String> =
+        tree_with_files(runner, tree, files.as_slice(), index.as_path()).await;
     // The removal of the scratch index is a file call that can wait on a disk, so a job of the blocking pool makes it.
     let removing: std::path::PathBuf = index.clone();
     let removed = run_blocking_job_within_the_budget(move || {
@@ -468,9 +599,15 @@ pub async fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str,
         }
     }
     return match rewritten {
-        Ok(found) => Some(Resolved { tree: found, merged }),
+        Ok(found) => Some(Resolved {
+            tree: found,
+            merged,
+        }),
         Err(reason) => {
-            debug(TAG, format!("the merged tree could not be built: {reason}").as_str());
+            debug(
+                TAG,
+                format!("the merged tree could not be built: {reason}").as_str(),
+            );
             None
         }
     };
@@ -491,11 +628,23 @@ pub async fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str,
 /// ```ts
 /// runOnRuntime(() => resolveTree(runner, commonDir, tree, conflicts, probe))
 /// ```
-pub fn resolve_tree_on_the_runtime(runner: &dyn GitRunner, common_dir: &Path, tree: &str, conflicts: &[Conflict], probe: &AttributeProbe<'_>) -> Option<Resolved> {
-    return match crate::lazy_runtime::run_on_runtime(resolve_tree(runner, common_dir, tree, conflicts, probe)) {
+pub fn resolve_tree_on_the_runtime(
+    runner: &dyn GitRunner,
+    common_dir: &Path,
+    tree: &str,
+    conflicts: &[Conflict],
+    probe: &AttributeProbe<'_>,
+) -> Option<Resolved> {
+    return match crate::lazy_runtime::run_on_runtime(resolve_tree(
+        runner, common_dir, tree, conflicts, probe,
+    )) {
         Ok(found) => found,
         Err(refusal) => {
-            crate::diagnostic_log::warn(TAG, format!("the second pass could not be run, so the conflicts stay: {refusal}").as_str());
+            crate::diagnostic_log::warn(
+                TAG,
+                format!("the second pass could not be run, so the conflicts stay: {refusal}")
+                    .as_str(),
+            );
             None
         }
     };
@@ -513,7 +662,9 @@ fn left_words(why: &Left) -> String {
         Left::Overlap(count) => format!(
             "{count} regions hold two changes of the same words, or a word merge of one would write a doubled word or a line no side holds, or a region's split-shaped line is not the only one that could be Git's"
         ),
-        Left::UnknownAttributes => String::from("a .gitattributes of the merge is itself conflicted"),
+        Left::UnknownAttributes => {
+            String::from("a .gitattributes of the merge is itself conflicted")
+        }
     };
 }
 
@@ -525,7 +676,10 @@ fn left_words(why: &Left) -> String {
 /// ```ts
 /// const lines = [...merged.flatMap((file) => reportLines(prefix, file)), ...(merged.some((file) => file.parts.length > 0) ? [`${prefix}${INPUTS_HINT}`] : [])];
 /// ```
-pub fn report(prefix: &str, merged: &[Merged]) -> Vec<String> {
+pub fn report(
+    prefix: &str,
+    merged: &[Merged],
+) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let mut parts: usize = 0;
     for file in merged {
@@ -548,7 +702,11 @@ pub fn report(prefix: &str, merged: &[Merged]) -> Vec<String> {
 /// ```ts
 /// function announce(prefix: string, sender: [identifier: string, operation: string], merged: Merged[]): string[];
 /// ```
-pub fn announce(prefix: &str, sender: (&str, &str), merged: &[Merged]) -> Vec<String> {
+pub fn announce(
+    prefix: &str,
+    sender: (&str, &str),
+    merged: &[Merged],
+) -> Vec<String> {
     let (identifier, operation): (&str, &str) = sender;
     for file in merged {
         journal_merged(identifier, operation, file);

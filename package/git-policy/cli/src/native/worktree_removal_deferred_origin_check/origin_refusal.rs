@@ -20,7 +20,11 @@
 //! ```
 
 use super::origin_mark::UserHolds;
-use super::origin_refusals::{JudgedObject, PlanField, RefusalPoint};
+use super::origin_refusals::{
+    JudgedObject,
+    PlanField,
+    RefusalPoint,
+};
 use super::planned_origin::PlannedOrigin;
 use std::path::PathBuf;
 
@@ -182,7 +186,6 @@ pub enum OriginRefusal {
         said: String,
     },
 }
-
 
 #[cfg(test)]
 #[path = "origin_refusal_tests.rs"]

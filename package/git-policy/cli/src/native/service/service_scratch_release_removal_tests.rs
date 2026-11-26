@@ -15,9 +15,18 @@
 
 /// The removal under control.
 use super::start;
-use crate::command_test_support::{fixture, remove};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use crate::command_test_support::{
+    fixture,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The longest a control waits for the removal to end.
 const PATIENCE: Duration = Duration::from_secs(30);
@@ -45,7 +54,11 @@ fn a_released_scratch_directory_is_removed_beside_the_caller() {
     std::fs::write(tree.join("commit.index"), b"index").expect("a file in the tree");
     let began: Instant = Instant::now();
     start(tree.clone());
-    assert!(began.elapsed() < Duration::from_secs(1), "the caller returned after {:?}", began.elapsed());
+    assert!(
+        began.elapsed() < Duration::from_secs(1),
+        "the caller returned after {:?}",
+        began.elapsed()
+    );
     assert!(wait_until_gone(tree.as_path()), "the tree is still there");
     assert!(root.exists(), "only the tree goes");
     remove(root.as_path());

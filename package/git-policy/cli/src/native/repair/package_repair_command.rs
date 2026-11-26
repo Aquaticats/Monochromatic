@@ -34,19 +34,29 @@
 use crate::bounded_push::Patience;
 /// A child owned until it is reaped,
 /// and awaited on the runtime through its pidfd.
-use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
+use crate::child_awaited_through_a_pidfd::{
+    OwnedChild,
+    adopt,
+};
 /// The process's runtime:
 /// the synchronous face enters it,
 /// and the reaper of a late leader runs on it.
-use crate::lazy_runtime::{run_on_runtime, spawn_on_runtime};
-/// The clock that reads the signs of work of a process tree.
-use crate::push_progress::Clock;
-/// The bounded start of the tool,
-/// and the stop of the group it leads.
-use crate::package_repair_start::{ToolStart, start_within, stop_group};
+use crate::lazy_runtime::{
+    run_on_runtime,
+    spawn_on_runtime,
+};
 /// The longest quiet gap of each tool,
 /// kept for the timing records.
 use crate::output_capture::Capture;
+/// The bounded start of the tool,
+/// and the stop of the group it leads.
+use crate::package_repair_start::{
+    ToolStart,
+    start_within,
+    stop_group,
+};
+/// The clock that reads the signs of work of a process tree.
+use crate::push_progress::Clock;
 use crate::quiet_ledger;
 /// The process's own standard error,
 /// written without Rust's shared standard-error lock,
@@ -54,14 +64,30 @@ use crate::quiet_ledger;
 use crate::standard_error_descriptor::StandardErrorDescriptor;
 /// The bound of the notice's write,
 /// and the bound after which a tool is announced.
-use crate::wait_ceilings::{REPAIR_NOTICE_WRITE_CEILING, REPAIR_TOOL_NOTICE_AFTER};
+use crate::wait_ceilings::{
+    REPAIR_NOTICE_WRITE_CEILING,
+    REPAIR_TOOL_NOTICE_AFTER,
+};
 /// The write that gives up at a ceiling,
 /// because a stream whose reader stopped draining waits in the kernel until it resumes.
 use crate::work_awaited_within_a_ceiling::write_within;
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  One program start:
@@ -252,7 +278,10 @@ fn tail_of(bytes: &[u8]) -> String {
     // Lines that only say a tool waited for another process say nothing about why it failed.
     let mut informative_lines: Vec<&str> = Vec::new();
     for line in text.lines() {
-        if !line.trim_start().starts_with("Blocking waiting for file lock") {
+        if !line
+            .trim_start()
+            .starts_with("Blocking waiting for file lock")
+        {
             informative_lines.push(line);
         }
     }
@@ -268,7 +297,11 @@ fn tail_of(bytes: &[u8]) -> String {
         //  text, and the sentence beside it says how much was left out.
         None => {
             let sentence: &str = sentence_after_the_cut(trimmed);
-            if sentence.is_empty() { trimmed } else { sentence }
+            if sentence.is_empty() {
+                trimmed
+            } else {
+                sentence
+            }
         }
     };
     return whole_lines.trim().to_owned();
@@ -312,7 +345,10 @@ fn failure_text(bytes: &[u8]) -> String {
     if bytes.len() <= OUTPUT_TAIL_BYTES {
         return kept;
     }
-    return format!("{kept} The tool printed {} bytes and only its end is kept here.", bytes.len());
+    return format!(
+        "{kept} The tool printed {} bytes and only its end is kept here.",
+        bytes.len()
+    );
 }
 
 /// What:
@@ -374,9 +410,18 @@ fn describe_status(status: std::process::ExitStatus) -> String {
 /// ```ts
 /// async function runTool(program: string, command: ToolCommand, limits: { windowMs: number; ceilingMs: number }): Promise<ToolRun>;
 /// ```
-pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
+pub fn run_tool(
+    program: &Path,
+    command: &ToolCommand,
+    limits: ToolLimits,
+) -> ToolRun {
     let started: Instant = Instant::now();
-    return match run_on_runtime(run_tool_reaping(program, command, limits, &reap_within_stop_grace)) {
+    return match run_on_runtime(run_tool_reaping(
+        program,
+        command,
+        limits,
+        &reap_within_stop_grace,
+    )) {
         Ok(run) => run,
         Err(refusal) => run_refused(program, started, &refusal),
     };
@@ -395,8 +440,17 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> To
 /// ```ts
 /// const run: ToolRun = { end: { kind: 'failed', reason: `${program} could not be run: ${refusal}` }, millis, stdout: [], notes: [] };
 /// ```
-pub fn run_refused(program: &Path, started: Instant, refusal: &crate::lazy_runtime::RuntimeError) -> ToolRun {
-    return ToolRun { end: ToolEnd::Failed(format!("{} could not be run: {refusal}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
+pub fn run_refused(
+    program: &Path,
+    started: Instant,
+    refusal: &crate::lazy_runtime::RuntimeError,
+) -> ToolRun {
+    return ToolRun {
+        end: ToolEnd::Failed(format!("{} could not be run: {refusal}", program.display())),
+        millis: started.elapsed().as_millis(),
+        stdout: Vec::new(),
+        notes: Vec::new(),
+    };
 }
 
 /// What:
@@ -416,7 +470,11 @@ pub fn run_refused(program: &Path, started: Instant, refusal: &crate::lazy_runti
 /// ```ts
 /// const run = await runToolAwaiting(program, command, limits);
 /// ```
-pub async fn run_tool_awaiting(program: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
+pub async fn run_tool_awaiting(
+    program: &Path,
+    command: &ToolCommand,
+    limits: ToolLimits,
+) -> ToolRun {
     return run_tool_reaping(program, command, limits, &reap_within_stop_grace).await;
 }
 
@@ -432,13 +490,28 @@ pub async fn run_tool_awaiting(program: &Path, command: &ToolCommand, limits: To
 /// ```ts
 /// const reapWithinStopGrace = (leader: Child, _captured: Capture) => reapWithin(leader, STOP_GRACE);
 /// ```
-async fn reap_within_stop_grace(leader: Child, _captured: &Capture) -> bool {
+async fn reap_within_stop_grace(
+    leader: Child,
+    _captured: &Capture,
+) -> bool {
     return reap_within(leader, crate::bounded_push::STOP_GRACE).await;
 }
 
 /// The run of a tool that never started because the files for its output could not be made.
-fn no_place_for_output(program: &Path, started: Instant, error: &std::io::Error) -> ToolRun {
-    return ToolRun { end: ToolEnd::Failed(format!("{} could not be started: no place for its output ({error})", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
+fn no_place_for_output(
+    program: &Path,
+    started: Instant,
+    error: &std::io::Error,
+) -> ToolRun {
+    return ToolRun {
+        end: ToolEnd::Failed(format!(
+            "{} could not be started: no place for its output ({error})",
+            program.display()
+        )),
+        millis: started.elapsed().as_millis(),
+        stdout: Vec::new(),
+        notes: Vec::new(),
+    };
 }
 
 /// `run_tool` as a task of the runtime,
@@ -451,8 +524,20 @@ fn no_place_for_output(program: &Path, started: Instant, error: &std::io::Error)
 ///  The tool is held before its own `exec` until the run lets it go (`package_repair_start.rs`),
 /// so a start the bound ends has run nothing of the tool,
 /// and the one answer that cannot promise that says so in its own words.
-pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &Path, command: &ToolCommand, limits: ToolLimits, reap: &Reap) -> ToolRun {
-    return run_tool_reaping_started_within(program, command, limits, crate::wait_ceilings::REPAIR_TOOL_START_CEILING, reap).await;
+pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(
+    program: &Path,
+    command: &ToolCommand,
+    limits: ToolLimits,
+    reap: &Reap,
+) -> ToolRun {
+    return run_tool_reaping_started_within(
+        program,
+        command,
+        limits,
+        crate::wait_ceilings::REPAIR_TOOL_START_CEILING,
+        reap,
+    )
+    .await;
 }
 
 /// What:
@@ -467,7 +552,13 @@ pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &
 /// ```ts
 /// async function runToolReapingStartedWithin(program, command, limits, startMs, reap): Promise<ToolRun>;
 /// ```
-pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> bool>(program: &Path, command: &ToolCommand, limits: ToolLimits, start: Duration, reap: &Reap) -> ToolRun {
+pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> bool>(
+    program: &Path,
+    command: &ToolCommand,
+    limits: ToolLimits,
+    start: Duration,
+    reap: &Reap,
+) -> ToolRun {
     use std::os::unix::process::CommandExt;
     let started: Instant = Instant::now();
     let mut starting: Command = Command::new(program);
@@ -483,27 +574,60 @@ pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> b
         },
         Err(error) => return no_place_for_output(program, started, &error),
     };
-    starting.args(&command.arguments).current_dir(&command.directory).stdin(Stdio::null()).process_group(0);
+    starting
+        .args(&command.arguments)
+        .current_dir(&command.directory)
+        .stdin(Stdio::null())
+        .process_group(0);
     for (name, value) in &command.set {
         starting.env(name, value);
     }
     let mut child: OwnedChild = match start_within(start, starting).await {
         ToolStart::Running(not_yet_taken) => adopt(not_yet_taken.taken()),
-        ToolStart::Refused(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
+        ToolStart::Refused(error) => {
+            return ToolRun {
+                end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())),
+                millis: started.elapsed().as_millis(),
+                stdout: Vec::new(),
+                notes: Vec::new(),
+            };
+        }
         ToolStart::NoAnswer => {
             // Nothing reads what the tool writes: the run says it did not start here, and the gate kept the child from
             // ever running, so the worktree keeps exactly the files Git wrote.
             captured.discard();
-            return ToolRun { end: ToolEnd::Failed(format!("{} could not start: it gave no answer within {start:?}, so nothing of it ran", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
+            return ToolRun {
+                end: ToolEnd::Failed(format!(
+                    "{} could not start: it gave no answer within {start:?}, so nothing of it ran",
+                    program.display()
+                )),
+                millis: started.elapsed().as_millis(),
+                stdout: Vec::new(),
+                notes: Vec::new(),
+            };
         }
         ToolStart::LetGoWithoutAnAnswer => {
             // The child was let go and never came up, so it was stopped: nothing reads what it may have written before
             // that, and the finding says so instead of promising that nothing ran.
             captured.discard();
-            return ToolRun { end: ToolEnd::Failed(format!("{} could not start: it was let go and its own start gave no answer within {start:?}, so it was stopped, and what it wrote before that stands", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
+            return ToolRun {
+                end: ToolEnd::Failed(format!(
+                    "{} could not start: it was let go and its own start gave no answer within {start:?}, so it was stopped, and what it wrote before that stands",
+                    program.display()
+                )),
+                millis: started.elapsed().as_millis(),
+                stdout: Vec::new(),
+                notes: Vec::new(),
+            };
         }
     };
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
+    let mut clock: Clock = Clock::start(
+        child.id(),
+        Patience::Progress {
+            stall: limits.window,
+        },
+    )
+    .without_wall_fallback();
     let mut at_ceiling: bool = false;
     let mut wait_failure: Option<std::io::Error> = None;
     // Whether the person has been told what this tool waits for, which is said once per run and never for a tool that ends quickly.
@@ -535,7 +659,11 @@ pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> b
     };
     // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
     if clock.measures() {
-        quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none() && !at_ceiling && wait_failure.is_none());
+        quiet_ledger::note(
+            tool_step(program, command).as_str(),
+            clock.longest_quiet(),
+            status.is_none() && !at_ceiling && wait_failure.is_none(),
+        );
     }
     let Some(finished) = status else {
         stop_group(child.id());
@@ -548,25 +676,48 @@ pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> b
             let _reaped_in_time: bool = reap(leader, &captured).await;
         }
         let end: ToolEnd = match wait_failure {
-            Some(error) => ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())),
+            Some(error) => ToolEnd::Failed(format!(
+                "{} could not be waited for: {error}",
+                program.display()
+            )),
             None if at_ceiling => ToolEnd::CeilingReached(limits.ceiling),
             None => ToolEnd::TimedOut,
         };
-        return ToolRun { end, millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
+        return ToolRun {
+            end,
+            millis: started.elapsed().as_millis(),
+            stdout: Vec::new(),
+            notes: Vec::new(),
+        };
     };
-    let shown: crate::output_capture::Captured = captured.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
+    let shown: crate::output_capture::Captured =
+        captured.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
     // Nothing reads the files again, and a helper that still holds them would keep what they hold in memory.
     captured.discard();
     let (stdout, errors): (Vec<u8>, Vec<u8>) = (shown.stdout, shown.stderr);
     let millis: u128 = started.elapsed().as_millis();
     if finished.success() {
-        return ToolRun { end: ToolEnd::Succeeded, millis, stdout, notes: shown.notes };
+        return ToolRun {
+            end: ToolEnd::Succeeded,
+            millis,
+            stdout,
+            notes: shown.notes,
+        };
     }
     let combined: Vec<u8> = [stdout.as_slice(), errors.as_slice()].concat();
     let text: String = failure_text(combined.as_slice());
     // What was left out, or could not be read, is part of what the person is told: the text shows the tail only.
-    let disclosed: String = if shown.notes.is_empty() { String::new() } else { format!(" ({})", shown.notes.join("; ")) };
-    return ToolRun { end: ToolEnd::Failed(format!("{}: {text}{disclosed}", describe_status(finished))), millis, stdout: Vec::new(), notes: shown.notes };
+    let disclosed: String = if shown.notes.is_empty() {
+        String::new()
+    } else {
+        format!(" ({})", shown.notes.join("; "))
+    };
+    return ToolRun {
+        end: ToolEnd::Failed(format!("{}: {text}{disclosed}", describe_status(finished))),
+        millis,
+        stdout: Vec::new(),
+        notes: shown.notes,
+    };
 }
 
 /// What:
@@ -595,13 +746,21 @@ pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> b
 /// ```ts
 /// sayWhatItWaitsFor(pnpm, { arguments: ['install', '--offline'], directory: worktree }, { window: 600, ceiling: 1080 })
 /// ```
-fn say_what_it_waits_for(program: &Path, command: &ToolCommand, limits: ToolLimits) {
+fn say_what_it_waits_for(
+    program: &Path,
+    command: &ToolCommand,
+    limits: ToolLimits,
+) {
     let words: String = what_it_waits_for(program, command, limits);
     #[cfg(test)]
     NOTICES_SAID.lock().expect("notices").push(words.clone());
     // Terminal output: this line is the person's, not a log record, and there is nowhere to report a closed standard error.
     //  The descriptor is written directly, so a write this run abandons holds no lock the run's next line would wait for.
-    let _written: Option<std::io::Result<()>> = write_within(REPAIR_NOTICE_WRITE_CEILING, StandardErrorDescriptor, format!("{words}\n"));
+    let _written: Option<std::io::Result<()>> = write_within(
+        REPAIR_NOTICE_WRITE_CEILING,
+        StandardErrorDescriptor,
+        format!("{words}\n"),
+    );
 }
 
 /// What:
@@ -617,7 +776,11 @@ fn say_what_it_waits_for(program: &Path, command: &ToolCommand, limits: ToolLimi
 /// ```ts
 /// const words = whatItWaitsFor(pnpm, command, limits);
 /// ```
-fn what_it_waits_for(program: &Path, command: &ToolCommand, limits: ToolLimits) -> String {
+fn what_it_waits_for(
+    program: &Path,
+    command: &ToolCommand,
+    limits: ToolLimits,
+) -> String {
     let arguments: Vec<String> = command.arguments.iter().map(argument_text).collect();
     return format!(
         "monochromatic-git-policy-cli: {} {} is still running in {} for the repair of the new worktree; it is stopped when it shows no sign of work for {} seconds, or after {} minutes at the latest.",
@@ -670,7 +833,11 @@ static NOTICES_SAID: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::
 ///  names exists.
 async fn wait_status(child: &mut OwnedChild) -> std::io::Result<Option<std::process::ExitStatus>> {
     #[cfg(test)]
-    if WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| { return seam.borrow().as_ref().is_some_and(|path| { return path.exists(); }); }) {
+    if WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| {
+        return seam.borrow().as_ref().is_some_and(|path| {
+            return path.exists();
+        });
+    }) {
         return Err(std::io::Error::other("the wait failed"));
     }
     return match tokio::time::timeout(POLL_INTERVAL, child.wait()).await {
@@ -702,7 +869,10 @@ thread_local! {
 /// ```ts
 /// const ended = await reapWithin(child, budgetMs); // false: a background task reaps it later
 /// ```
-async fn reap_within(child: Child, budget: Duration) -> bool {
+async fn reap_within(
+    child: Child,
+    budget: Duration,
+) -> bool {
     let mut owned: OwnedChild = adopt(child);
     if let Ok(Ok(_status)) = tokio::time::timeout(budget, owned.wait()).await {
         return true;
@@ -731,7 +901,10 @@ async fn reap_within(child: Child, budget: Duration) -> bool {
 /// ```ts
 /// [basename(program), args[0]].filter(Boolean).join(' ')
 /// ```
-fn tool_step(program: &Path, command: &ToolCommand) -> String {
+fn tool_step(
+    program: &Path,
+    command: &ToolCommand,
+) -> String {
     let name: String = match program.file_name() {
         Some(file) => file.to_string_lossy().into_owned(),
         None => String::new(),

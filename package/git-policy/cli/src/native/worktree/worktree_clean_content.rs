@@ -34,19 +34,43 @@
 //! judge.agrees({ directory, parents, name, entry, id, indexSeconds }); // throws the reason the file cannot be proven equal
 //! ```
 
-use crate::fs_beneath::{entry_metadata_at, open_file_at, read_link_at};
+use crate::fs_beneath::{
+    entry_metadata_at,
+    open_file_at,
+    read_link_at,
+};
 use crate::repo_read_layout::ObjectFormat;
-use crate::subvolume_sha::{sha1, sha256};
-pub use crate::worktree_clean_content_attribute_sources::{ConversionEnvironment, SystemAttributes, system_attributes_from};
-use crate::worktree_clean_content_attribute_sources::{AttributeFile, FixedSources};
-use crate::worktree_clean_stat_verdicts::{StatEntry, StatVerdict, metadata_verdict};
+use crate::subvolume_sha::{
+    sha1,
+    sha256,
+};
+use crate::worktree_clean_content_attribute_sources::{
+    AttributeFile,
+    FixedSources,
+};
+pub use crate::worktree_clean_content_attribute_sources::{
+    ConversionEnvironment,
+    SystemAttributes,
+    system_attributes_from,
+};
+use crate::worktree_clean_stat_verdicts::{
+    StatEntry,
+    StatVerdict,
+    metadata_verdict,
+};
 use crate::worktree_path_failure_message::subject_failure;
 use std::collections::HashMap;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::io::Read;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The largest file read into memory to be hashed;
 /// a larger one is refused with that reason.
@@ -58,7 +82,10 @@ pub const CONTENT_LIMIT: u64 = 32 << 20;
 pub const ATTRIBUTES_LIMIT: u64 = 4 << 20;
 
 /// The object name of `data` stored as a blob.
-fn blob_name(data: &[u8], format: ObjectFormat) -> Vec<u8> {
+fn blob_name(
+    data: &[u8],
+    format: ObjectFormat,
+) -> Vec<u8> {
     let mut framed: Vec<u8> = format!("blob {}\0", data.len()).into_bytes();
     framed.extend_from_slice(data);
     return match format {
@@ -81,17 +108,27 @@ fn blob_name(data: &[u8], format: ObjectFormat) -> Vec<u8> {
 /// ```ts
 /// function readAtMost(reader: Reader, limit: number): Buffer | undefined;
 /// ```
-pub fn read_at_most(reader: impl Read, limit: u64) -> std::io::Result<Option<Vec<u8>>> {
+pub fn read_at_most(
+    reader: impl Read,
+    limit: u64,
+) -> std::io::Result<Option<Vec<u8>>> {
     let mut data: Vec<u8> = Vec::new();
     reader.take(limit + 1).read_to_end(&mut data)?;
-    return Ok(if data.len() as u64 > limit { None } else { Some(data) });
+    return Ok(if data.len() as u64 > limit {
+        None
+    } else {
+        Some(data)
+    });
 }
 
 /// Whether two metadata describe one unchanged file:
 /// same object,
 /// size,
 /// mode and times.
-pub(super) fn same_state(first: &std::fs::Metadata, second: &std::fs::Metadata) -> bool {
+pub(super) fn same_state(
+    first: &std::fs::Metadata,
+    second: &std::fs::Metadata,
+) -> bool {
     return first.dev() == second.dev()
         && first.ino() == second.ino()
         && first.size() == second.size()
@@ -112,7 +149,9 @@ pub(super) fn same_state(first: &std::fs::Metadata, second: &std::fs::Metadata) 
 /// `${shown} changed while it was examined, so it cannot be proven equal to the committed content`
 /// ```
 fn changed_while_examined(shown: &str) -> String {
-    return format!("{shown} changed while it was examined, so it cannot be proven equal to the committed content");
+    return format!(
+        "{shown} changed while it was examined, so it cannot be proven equal to the committed content"
+    );
 }
 
 /// What:
@@ -125,7 +164,9 @@ fn changed_while_examined(shown: &str) -> String {
 /// `${shown} is larger than ${CONTENT_LIMIT} bytes, ...`
 /// ```
 fn too_large_to_compare(shown: &str) -> String {
-    return format!("{shown} is larger than {CONTENT_LIMIT} bytes, which is more than is read to compare it by content");
+    return format!(
+        "{shown} is larger than {CONTENT_LIMIT} bytes, which is more than is read to compare it by content"
+    );
 }
 
 /// What:
@@ -139,7 +180,9 @@ fn too_large_to_compare(shown: &str) -> String {
 /// `${reason}, so Git takes its attributes from a tree ...`
 /// ```
 pub(super) fn unmodelled(reason: &str) -> String {
-    return format!("{reason}, so Git takes its attributes from a tree and not from the files read here, and what it sets cannot be ruled out");
+    return format!(
+        "{reason}, so Git takes its attributes from a tree and not from the files read here, and what it sets cannot be ruled out"
+    );
 }
 
 /// What:
@@ -193,7 +236,8 @@ pub struct ContentJudge<'a> {
     /// The read an attributes file is taken with,
     /// or nothing for the operating system's own;
     /// a control sets one that hands over the bytes of a file that grew under the read.
-    pub(super) attribute_read: Option<&'a dyn Fn(&std::fs::File, &mut [u8]) -> std::io::Result<usize>>,
+    pub(super) attribute_read:
+        Option<&'a dyn Fn(&std::fs::File, &mut [u8]) -> std::io::Result<usize>>,
 }
 
 /// The moments of a judgment at which a control changes the file under it.
@@ -221,8 +265,24 @@ pub struct Place<'a> {
 
 impl<'a> ContentJudge<'a> {
     /// A judge for the worktree held open as `root`.
-    pub fn new(root: &'a std::fs::File, git_dir: &'a Path, common_dir: &'a Path, environment: &'a ConversionEnvironment, format: ObjectFormat) -> ContentJudge<'a> {
-        return ContentJudge { root, git_dir, common_dir, environment, format, fixed: None, directories: HashMap::new(), budget: None, attribute_read: None };
+    pub fn new(
+        root: &'a std::fs::File,
+        git_dir: &'a Path,
+        common_dir: &'a Path,
+        environment: &'a ConversionEnvironment,
+        format: ObjectFormat,
+    ) -> ContentJudge<'a> {
+        return ContentJudge {
+            root,
+            git_dir,
+            common_dir,
+            environment,
+            format,
+            fixed: None,
+            directories: HashMap::new(),
+            budget: None,
+            attribute_read: None,
+        };
     }
 
     /// What:
@@ -237,7 +297,10 @@ impl<'a> ContentJudge<'a> {
     /// ```ts
     /// judge.chargeAttributesTo(spent);
     /// ```
-    pub fn charge_attributes_to(&mut self, spent: &'a std::cell::Cell<u64>) {
+    pub fn charge_attributes_to(
+        &mut self,
+        spent: &'a std::cell::Cell<u64>,
+    ) {
         self.budget = Some(spent);
     }
 
@@ -262,12 +325,20 @@ impl<'a> ContentJudge<'a> {
     ///
     /// The reason a conversion may change these bytes,
     /// or the files it would be read from could not be.
-    pub fn conversion_is_the_identity(&mut self, path: &[u8], parents: &[OsString]) -> Result<(), String> {
+    pub fn conversion_is_the_identity(
+        &mut self,
+        path: &[u8],
+        parents: &[OsString],
+    ) -> Result<(), String> {
         let shown: String = String::from_utf8_lossy(path).into_owned();
         return match self.converting_attribute(path, parents)? {
             None => Ok(()),
-            Some((token, label)) if token == "a quoted line" => Err(format!("{shown} cannot be proven unconverted: {label} has a quoted line, whose pattern and attributes are not modelled")),
-            Some((token, label)) => Err(format!("{shown} cannot be proven unconverted: the attribute {token} from {label} may change its bytes on the way into the index")),
+            Some((token, label)) if token == "a quoted line" => Err(format!(
+                "{shown} cannot be proven unconverted: {label} has a quoted line, whose pattern and attributes are not modelled"
+            )),
+            Some((token, label)) => Err(format!(
+                "{shown} cannot be proven unconverted: the attribute {token} from {label} may change its bytes on the way into the index"
+            )),
         };
     }
 
@@ -287,13 +358,27 @@ impl<'a> ContentJudge<'a> {
     /// ```ts
     /// function readStable(place: Place, entry: StatEntry, indexSeconds: number): Buffer; // throws the reason
     /// ```
-    fn read_stable(place: &Place<'_>, entry: &StatEntry, index_seconds: u32, shown: &str, seams: &mut ReadSeams<'_>) -> Result<Vec<u8>, String> {
-        let named: std::fs::Metadata = subject_failure(entry_metadata_at(place.directory, place.name), &shown, "cannot be examined")?;
+    fn read_stable(
+        place: &Place<'_>,
+        entry: &StatEntry,
+        index_seconds: u32,
+        shown: &str,
+        seams: &mut ReadSeams<'_>,
+    ) -> Result<Vec<u8>, String> {
+        let named: std::fs::Metadata = subject_failure(
+            entry_metadata_at(place.directory, place.name),
+            &shown,
+            "cannot be examined",
+        )?;
         if let StatVerdict::Differs(reason) = metadata_verdict(entry, &named, index_seconds) {
             return Err(reason);
         }
         if named.file_type().is_symlink() {
-            let target: PathBuf = subject_failure(read_link_at(place.directory, place.name), &shown, "cannot be read")?;
+            let target: PathBuf = subject_failure(
+                read_link_at(place.directory, place.name),
+                &shown,
+                "cannot be read",
+            )?;
             let Ok(again) = entry_metadata_at(place.directory, place.name) else {
                 return Err(changed_while_examined(shown));
             };
@@ -303,8 +388,13 @@ impl<'a> ContentJudge<'a> {
             return Ok(target.into_os_string().into_vec());
         }
         (seams.before_open)();
-        let file: std::fs::File = subject_failure(open_file_at(place.directory, place.name), &shown, "cannot be opened without following a link")?;
-        let held: std::fs::Metadata = subject_failure(file.metadata(), &shown, "cannot be examined")?;
+        let file: std::fs::File = subject_failure(
+            open_file_at(place.directory, place.name),
+            &shown,
+            "cannot be opened without following a link",
+        )?;
+        let held: std::fs::Metadata =
+            subject_failure(file.metadata(), &shown, "cannot be examined")?;
         if held.dev() != named.dev() || held.ino() != named.ino() {
             return Err(changed_while_examined(shown));
         }
@@ -315,7 +405,9 @@ impl<'a> ContentJudge<'a> {
             return Err(too_large_to_compare(shown));
         }
         (seams.before_read)();
-        let Some(data) = subject_failure(read_at_most(&file, CONTENT_LIMIT), &shown, "cannot be read")? else {
+        let Some(data) =
+            subject_failure(read_at_most(&file, CONTENT_LIMIT), &shown, "cannot be read")?
+        else {
             return Err(too_large_to_compare(shown));
         };
         (seams.after_read)();
@@ -345,26 +437,59 @@ impl<'a> ContentJudge<'a> {
     /// ```ts
     /// judge.agrees(place, entry, id, indexSeconds); // throws the reason
     /// ```
-    pub fn agrees(&mut self, place: &Place<'_>, entry: &StatEntry, id: &[u8], index_seconds: u32) -> Result<(), String> {
-        return self.agrees_seamed(place, entry, id, index_seconds, &mut ReadSeams { before_open: &mut do_nothing, before_read: &mut do_nothing, after_read: &mut do_nothing });
+    pub fn agrees(
+        &mut self,
+        place: &Place<'_>,
+        entry: &StatEntry,
+        id: &[u8],
+        index_seconds: u32,
+    ) -> Result<(), String> {
+        return self.agrees_seamed(
+            place,
+            entry,
+            id,
+            index_seconds,
+            &mut ReadSeams {
+                before_open: &mut do_nothing,
+                before_read: &mut do_nothing,
+                after_read: &mut do_nothing,
+            },
+        );
     }
 
     /// `agrees` with the moments at which a control may change the file.
-    pub fn agrees_seamed(&mut self, place: &Place<'_>, entry: &StatEntry, id: &[u8], index_seconds: u32, seams: &mut ReadSeams<'_>) -> Result<(), String> {
+    pub fn agrees_seamed(
+        &mut self,
+        place: &Place<'_>,
+        entry: &StatEntry,
+        id: &[u8],
+        index_seconds: u32,
+        seams: &mut ReadSeams<'_>,
+    ) -> Result<(), String> {
         let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
-        if let Some((token, label)) = self.converting_attribute(entry.path.as_slice(), place.parents)? {
+        if let Some((token, label)) =
+            self.converting_attribute(entry.path.as_slice(), place.parents)?
+        {
             return Err(if token == "a quoted line" {
-                format!("{shown} cannot be compared by content: {label} has a quoted line, whose pattern and attributes are not modelled, so what it sets cannot be ruled out")
+                format!(
+                    "{shown} cannot be compared by content: {label} has a quoted line, whose pattern and attributes are not modelled, so what it sets cannot be ruled out"
+                )
             } else {
-                format!("{shown} cannot be compared by content: the attribute {token} from {label} may change its bytes on the way into the index")
+                format!(
+                    "{shown} cannot be compared by content: the attribute {token} from {label} may change its bytes on the way into the index"
+                )
             });
         }
         let data: Vec<u8> = Self::read_stable(place, entry, index_seconds, shown.as_str(), seams)?;
         if blob_name(data.as_slice(), self.format) != id {
-            return Err(format!("{shown} differs from the committed content (its recorded size and times could not vouch for it, so its content was compared)"));
+            return Err(format!(
+                "{shown} differs from the committed content (its recorded size and times could not vouch for it, so its content was compared)"
+            ));
         }
         if data.contains(&b'\r') {
-            return Err(format!("{shown} cannot be compared by content: it contains a carriage return, so a line-ending conversion may change its bytes on the way into the index"));
+            return Err(format!(
+                "{shown} cannot be compared by content: it contains a carriage return, so a line-ending conversion may change its bytes on the way into the index"
+            ));
         }
         return Ok(());
     }

@@ -15,9 +15,18 @@
 use crate::candidate_object::CandidateMode;
 use crate::direct_fix_install::InstallChange;
 use crate::path_bytes::os_from_path_bytes;
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    run_git_checked,
+};
 use crate::transaction_journal::AddedPath;
-use crate::worktree_completion::{WorktreeFileState, inspect_worktree_file};
+use crate::worktree_completion::{
+    WorktreeFileState,
+    inspect_worktree_file,
+};
 use std::path::Path;
 
 /// What:
@@ -49,13 +58,20 @@ fn ordinary_git_mode(mode: CandidateMode) -> Option<&'static str> {
 /// ```ts
 /// gitBlobId(bytes)
 /// ```
-fn blob_id(context: &GitContext, cwd: &Path, bytes: &[u8]) -> Result<String, GitFailure> {
+fn blob_id(
+    context: &GitContext,
+    cwd: &Path,
+    bytes: &[u8],
+) -> Result<String, GitFailure> {
     let mut request: GitRequest = GitRequest::new(cwd, &["hash-object", "--stdin"]);
     request.without_prefix = true;
-    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+    request.repository_selection =
+        crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     request.input = Some(bytes.to_vec());
     let output: GitOutput = run_git_checked(context, &request)?;
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+    return Ok(String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_string());
 }
 
 /// What:
@@ -112,11 +128,15 @@ pub fn settled_entry(
     // and fail the commit.
     // `--full-name` answers with repository-relative names, which is how `path` is written: from a
     // nested working directory `ls-files` would otherwise report `a.txt` for the `sub/a.txt` asked about.
-    let mut request: GitRequest = GitRequest::new(cwd, &["ls-files", "--stage", "-z", "--full-name", "--"]).own_pathspecs();
-    request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
+    let mut request: GitRequest =
+        GitRequest::new(cwd, &["ls-files", "--stage", "-z", "--full-name", "--"]).own_pathspecs();
+    request
+        .arguments
+        .push(os_from_path_bytes(pathspec.as_slice()));
     request.without_prefix = true;
     // The listing runs in the caller's repository, which a Git directory beside its work tree only names.
-    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+    request.repository_selection =
+        crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     request.index = Some(index.to_path_buf());
     let output: GitOutput = run_git_checked(context, &request)?;
     for record in output.stdout.split(is_nul_byte) {
@@ -163,14 +183,21 @@ pub fn selected_worktree_records(
             continue;
         };
         let original_oid: String = blob_id(context, cwd, &change.original)?;
-        let Some((entry_mode, entry_oid)) = settled_entry(context, cwd, index, change.path.as_slice())? else {
+        let Some((entry_mode, entry_oid)) =
+            settled_entry(context, cwd, index, change.path.as_slice())?
+        else {
             continue;
         };
         if entry_mode != git_mode || entry_oid == original_oid {
             continue;
         }
         let destination = repository_root.join(path_from_bytes(change.path.as_slice()));
-        match inspect_worktree_file(destination.as_path(), git_mode, &change.original, &change.replacement) {
+        match inspect_worktree_file(
+            destination.as_path(),
+            git_mode,
+            &change.original,
+            &change.replacement,
+        ) {
             Ok(WorktreeFileState::Original(_)) => {}
             // A missing copy is reported as a conflict by the inspection, so it is skipped here with the other conflicts.
             Ok(_) => continue,

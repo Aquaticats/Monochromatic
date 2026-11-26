@@ -6,14 +6,34 @@
 //!  and an answer naming a tree that is not this worktree's drawn one is refused.
 
 use super::*;
-use crate::capture_invocation::{InvocationCapture, capture_invocation_base, capture_invocation_layout};
-use crate::service_protocol::{ServiceMessage, encode_service};
+use crate::capture_invocation::{
+    InvocationCapture,
+    capture_invocation_base,
+    capture_invocation_layout,
+};
+use crate::service_protocol::{
+    ServiceMessage,
+    encode_service,
+};
 use crate::shadow_drawn::drawn_root;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::transaction_git::GitContext;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{
+    BufRead,
+    BufReader,
+    Write,
+};
 use std::os::unix::net::UnixListener;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Instant;
 
 /// What a stand-in service answers.
@@ -43,7 +63,10 @@ enum Behaviour {
 /// ```ts
 /// const socket = aStandIn('a-control', Behaviour.HoldsNone);
 /// ```
-fn a_stand_in(name: &str, behaviour: Behaviour) -> PathBuf {
+fn a_stand_in(
+    name: &str,
+    behaviour: Behaviour,
+) -> PathBuf {
     let folder: PathBuf = std::env::var_os("HOME")
         .map(PathBuf::from)
         .expect("a home directory")
@@ -51,16 +74,32 @@ fn a_stand_in(name: &str, behaviour: Behaviour) -> PathBuf {
         .join(format!("ask{}", std::process::id()))
         .join(name);
     std::fs::create_dir_all(folder.as_path()).expect("the short folder");
-    crate::test_support::track_for_this_thread(folder.parent().expect("the folder's parent").to_path_buf().as_path());
+    crate::test_support::track_for_this_thread(
+        folder
+            .parent()
+            .expect("the folder's parent")
+            .to_path_buf()
+            .as_path(),
+    );
     let socket: PathBuf = folder.join("service.sock");
     let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("a stand-in socket");
     std::thread::spawn(move || {
-        let Ok((stream, _address)) = listener.accept() else { return };
-        let mut writer = stream.try_clone().expect("the second half of the connection");
+        let Ok((stream, _address)) = listener.accept() else {
+            return;
+        };
+        let mut writer = stream
+            .try_clone()
+            .expect("the second half of the connection");
         if behaviour == Behaviour::ClosesAtOnce {
             return;
         }
-        let welcome: String = format!("{}\n", encode_service(&ServiceMessage::Welcome { version: crate::service_protocol::PROTOCOL_VERSION, release: Some(String::from("test")) }));
+        let welcome: String = format!(
+            "{}\n",
+            encode_service(&ServiceMessage::Welcome {
+                version: crate::service_protocol::PROTOCOL_VERSION,
+                release: Some(String::from("test"))
+            })
+        );
         if writer.write_all(welcome.as_bytes()).is_err() {
             return;
         }
@@ -70,7 +109,9 @@ fn a_stand_in(name: &str, behaviour: Behaviour) -> PathBuf {
             return;
         }
         let answer: Option<String> = match behaviour {
-            Behaviour::Hands(tree) => Some(encode_service(&ServiceMessage::Drawn { tree })),
+            Behaviour::Hands(tree) => Some(encode_service(&ServiceMessage::Drawn {
+                tree,
+            })),
             Behaviour::HoldsNone => Some(encode_service(&ServiceMessage::NoShadow)),
             Behaviour::SaysNothing | Behaviour::ClosesAtOnce => None,
         };
@@ -89,7 +130,8 @@ fn a_stand_in(name: &str, behaviour: Behaviour) -> PathBuf {
 fn template_of(repo: &Path) -> crate::shadow_create::ShadowTemplate {
     let context: GitContext = git_context();
     let layout = capture_invocation_layout(&context, repo, false).expect("layout");
-    let capture: InvocationCapture = capture_invocation_base(&context, repo, layout).expect("capture");
+    let capture: InvocationCapture =
+        capture_invocation_base(&context, repo, layout).expect("capture");
     return crate::shadow_create::ShadowTemplate::of(&context, &capture.layout).expect("template");
 }
 
@@ -100,7 +142,10 @@ fn repository_with_a_scratch(root: &Path) -> (PathBuf, PathBuf) {
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");
     git(repo.as_path(), &["add", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
-    let scratch: PathBuf = repo.join(".git").join("monochromatic-git-policy-cli-scratch").join("monochromatic-git-policy-cli-service-one-0");
+    let scratch: PathBuf = repo
+        .join(".git")
+        .join("monochromatic-git-policy-cli-scratch")
+        .join("monochromatic-git-policy-cli-service-one-0");
     std::fs::create_dir_all(scratch.as_path()).expect("the commit's scratch tree");
     return (repo, scratch);
 }
@@ -116,7 +161,10 @@ fn a_drawn_tree_is_handed_over() {
     let drawn: PathBuf = drawn_root(&template).join("drawn-00000000000000000000000000000001");
     std::fs::create_dir_all(drawn.as_path()).expect("a drawn tree");
     let socket: PathBuf = a_stand_in("drawn", Behaviour::Hands(drawn.clone()));
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()), Some(drawn));
+    assert_eq!(
+        ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()),
+        Some(drawn)
+    );
     remove(root.as_path());
 }
 
@@ -129,7 +177,10 @@ fn a_service_that_holds_none_leaves_the_commit_to_the_pool() {
     let (repo, scratch) = repository_with_a_scratch(root.as_path());
     let template: crate::shadow_create::ShadowTemplate = template_of(repo.as_path());
     let socket: PathBuf = a_stand_in("none", Behaviour::HoldsNone);
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()), None);
+    assert_eq!(
+        ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()),
+        None
+    );
     remove(root.as_path());
 }
 
@@ -146,10 +197,19 @@ fn a_service_that_says_nothing_costs_the_deadline_and_no_more() {
     let template: crate::shadow_create::ShadowTemplate = template_of(repo.as_path());
     let socket: PathBuf = a_stand_in("silent", Behaviour::SaysNothing);
     let began: Instant = Instant::now();
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()), None);
+    assert_eq!(
+        ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()),
+        None
+    );
     let waited: Duration = began.elapsed();
-    assert!(waited >= DRAWN_ANSWER_DEADLINE, "the deadline is what ended the wait, and it took {waited:?}");
-    assert!(waited < DRAWN_ANSWER_DEADLINE * 10, "the wait is the deadline and not a wait of its own: {waited:?}");
+    assert!(
+        waited >= DRAWN_ANSWER_DEADLINE,
+        "the deadline is what ended the wait, and it took {waited:?}"
+    );
+    assert!(
+        waited < DRAWN_ANSWER_DEADLINE * 10,
+        "the wait is the deadline and not a wait of its own: {waited:?}"
+    );
     remove(root.as_path());
 }
 
@@ -162,9 +222,15 @@ fn a_socket_nobody_listens_on_or_one_that_closes_is_answered_without_a_tree() {
     let (repo, scratch) = repository_with_a_scratch(root.as_path());
     let template: crate::shadow_create::ShadowTemplate = template_of(repo.as_path());
     let missing: PathBuf = root.join("nothing-here.sock");
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(missing), &template, scratch.as_path()), None);
+    assert_eq!(
+        ask_for_a_drawn_shadow(&Bind::Path(missing), &template, scratch.as_path()),
+        None
+    );
     let socket: PathBuf = a_stand_in("closes", Behaviour::ClosesAtOnce);
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()), None);
+    assert_eq!(
+        ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()),
+        None
+    );
     remove(root.as_path());
 }
 
@@ -183,6 +249,9 @@ fn an_answer_naming_another_tree_is_refused() {
     let elsewhere: PathBuf = root.join("drawn-00000000000000000000000000000002");
     std::fs::create_dir_all(elsewhere.as_path()).expect("a tree of another place");
     let socket: PathBuf = a_stand_in("elsewhere", Behaviour::Hands(elsewhere));
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()), None);
+    assert_eq!(
+        ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()),
+        None
+    );
     remove(root.as_path());
 }

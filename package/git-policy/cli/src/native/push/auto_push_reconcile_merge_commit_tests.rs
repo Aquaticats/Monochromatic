@@ -40,7 +40,10 @@ fn the_line_merges_answer_ceiling_covers_a_measured_many_region_answer() {
     );
     // The content of the answer is under four stages, so its markers are the bytes the ceiling has to add.
     let four_stages: u64 = 4 * LARGEST_STAGE_BYTES;
-    assert!(MEASURED_MANY_REGION_ANSWER_BYTES > four_stages, "the answer is past four stages of content");
+    assert!(
+        MEASURED_MANY_REGION_ANSWER_BYTES > four_stages,
+        "the answer is past four stages of content"
+    );
 }
 
 /// Every command of the pass has a ceiling,
@@ -48,7 +51,10 @@ fn the_line_merges_answer_ceiling_covers_a_measured_many_region_answer() {
 #[test]
 fn every_command_of_the_pass_has_an_answer_ceiling() {
     let line_merge: u64 = answer_cap(&["merge-file", "--stdout"], None);
-    assert_eq!(line_merge, MERGE_FILE_ANSWER_BYTES, "the line merge's ceiling is the one the module names");
+    assert_eq!(
+        line_merge, MERGE_FILE_ANSWER_BYTES,
+        "the line merge's ceiling is the one the module names"
+    );
     // `cat-file` is given one name per line of its request, and its ceiling grows with them.
     let names: usize = 3;
     let mut request: Vec<u8> = Vec::new();
@@ -56,10 +62,29 @@ fn every_command_of_the_pass_has_an_answer_ceiling() {
         request.extend_from_slice(b"aa\n");
     }
     let cat_file: u64 = answer_cap(&["cat-file", "--batch"], Some(request.as_slice()));
-    assert_eq!(cat_file, u64::try_from(names).expect("a count") * (LARGEST_STAGE_BYTES + CAT_FILE_HEADER_BYTES), "one stage and a header per name asked for");
-    assert!(line_merge > cat_file, "the line merge's answer holds three stages and the settled text, so its ceiling is the larger");
+    assert_eq!(
+        cat_file,
+        u64::try_from(names).expect("a count") * (LARGEST_STAGE_BYTES + CAT_FILE_HEADER_BYTES),
+        "one stage and a header per name asked for"
+    );
+    assert!(
+        line_merge > cat_file,
+        "the line merge's answer holds three stages and the settled text, so its ceiling is the larger"
+    );
     // Every other command prints a line or nothing.
-    for command in ["check-attr", "hash-object", "read-tree", "update-index", "write-tree", "merge-tree", "rev-parse"] {
-        assert_eq!(answer_cap(&[command], None), MAX_PUSH_OUTPUT, "{command} keeps the push report's cap");
+    for command in [
+        "check-attr",
+        "hash-object",
+        "read-tree",
+        "update-index",
+        "write-tree",
+        "merge-tree",
+        "rev-parse",
+    ] {
+        assert_eq!(
+            answer_cap(&[command], None),
+            MAX_PUSH_OUTPUT,
+            "{command} keeps the push report's cap"
+        );
     }
 }

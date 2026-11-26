@@ -46,14 +46,20 @@ use crate::diagnostics::EngineFailureCode;
 use crate::policy_events::PolicyEvent;
 use crate::repository_facts::RepositoryFacts;
 use crate::rule_argument_rewrite::ArgumentRewrite;
-use crate::rule_keep_ignored_files::keep_ignored_files;
-use crate::rule_clean_interactive_nested_repositories::{CapDecision, keep_nested_repositories_out_of_an_interactive_menu};
-use crate::rule_linked_worktree_nested_repository_messages::kept_out_of_an_interactive_menu_notice;
 use crate::rule_atomic_push::atomic_push;
+use crate::rule_clean_interactive_nested_repositories::{
+    CapDecision,
+    keep_nested_repositories_out_of_an_interactive_menu,
+};
 use crate::rule_commit_only::{
-    CommitOnlyDecision, decide_commit_only, resolve_index_state, resolve_sequencer_state,
+    CommitOnlyDecision,
+    decide_commit_only,
+    resolve_index_state,
+    resolve_sequencer_state,
     violation_code_text,
 };
+use crate::rule_keep_ignored_files::keep_ignored_files;
+use crate::rule_linked_worktree_nested_repository_messages::kept_out_of_an_interactive_menu_notice;
 use crate::rule_status_hints::status_hints_off;
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
@@ -126,7 +132,10 @@ pub struct TransformResult {
 /// ```ts
 /// return { args, events: [createEngineFailureEvent({ code: 'core-incomplete', message })], complete: false };
 /// ```
-fn incomplete(arguments: &[OsString], message: String) -> TransformResult {
+fn incomplete(
+    arguments: &[OsString],
+    message: String,
+) -> TransformResult {
     return TransformResult {
         // `.to_vec()` copies the borrowed list into an owned one.
         arguments: arguments.to_vec(),
@@ -316,18 +325,33 @@ pub fn apply_fixed_transforms(
             notices,
         };
     }
-    return match keep_nested_repositories_out_of_an_interactive_menu(after_ignored.as_slice(), facts) {
+    return match keep_nested_repositories_out_of_an_interactive_menu(
+        after_ignored.as_slice(),
+        facts,
+    ) {
         CapDecision::Unchanged => TransformResult {
             arguments: after_ignored,
             events: Vec::<PolicyEvent>::new(),
             complete: true,
             notices,
         },
-        CapDecision::Capped { arguments: capped, repositories } => {
-            notices.push(kept_out_of_an_interactive_menu_notice(repositories.as_slice()));
-            TransformResult { arguments: capped, events: Vec::<PolicyEvent>::new(), complete: true, notices }
+        CapDecision::Capped {
+            arguments: capped,
+            repositories,
+        } => {
+            notices.push(kept_out_of_an_interactive_menu_notice(
+                repositories.as_slice(),
+            ));
+            TransformResult {
+                arguments: capped,
+                events: Vec::<PolicyEvent>::new(),
+                complete: true,
+                notices,
+            }
         }
-        CapDecision::Stopped { message } => incomplete(after_ignored.as_slice(), message),
+        CapDecision::Stopped {
+            message,
+        } => incomplete(after_ignored.as_slice(), message),
     };
 }
 

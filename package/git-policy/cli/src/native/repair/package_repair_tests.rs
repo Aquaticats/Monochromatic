@@ -6,11 +6,22 @@
 //! and `--quiet` silences only success.
 
 use super::*;
-use crate::test_support::executable;
-use crate::package_repair_report::{Outcome, Tool};
+use crate::package_repair_report::{
+    Outcome,
+    Tool,
+};
 use crate::service_work::work_directory;
-use crate::test_support::{SharedSink, fixture, git_context, remove};
-use crate::work_item::{PENDING, state_directory};
+use crate::test_support::executable;
+use crate::test_support::{
+    SharedSink,
+    fixture,
+    git_context,
+    remove,
+};
+use crate::work_item::{
+    PENDING,
+    state_directory,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -25,7 +36,8 @@ fn words(values: &[&str]) -> Vec<OsString> {
 #[test]
 fn reads_quiet_in_each_spelling() {
     for spelling in ["--quiet", "-q", "-dq"] {
-        let found: RepairSwitch = RepairSwitch::from_arguments(&words(&["worktree", "add", spelling, "../topic"]));
+        let found: RepairSwitch =
+            RepairSwitch::from_arguments(&words(&["worktree", "add", spelling, "../topic"]));
         assert!(found.quiet, "{spelling}");
         assert!(!found.no_checkout, "{spelling}");
     }
@@ -35,7 +47,16 @@ fn reads_quiet_in_each_spelling() {
 /// and global options before the subcommand do not hide it.
 #[test]
 fn reads_no_checkout_behind_global_options() {
-    let found: RepairSwitch = RepairSwitch::from_arguments(&words(&["-C", "repo", "-c", "a.b=c", "worktree", "add", "--no-checkout", "../topic"]));
+    let found: RepairSwitch = RepairSwitch::from_arguments(&words(&[
+        "-C",
+        "repo",
+        "-c",
+        "a.b=c",
+        "worktree",
+        "add",
+        "--no-checkout",
+        "../topic",
+    ]));
     assert!(found.no_checkout);
     assert!(!found.quiet);
 }
@@ -45,9 +66,18 @@ fn reads_no_checkout_behind_global_options() {
 /// or another command.
 #[test]
 fn ignores_look_alikes() {
-    assert_eq!(RepairSwitch::from_arguments(&words(&["worktree", "add", "-b", "--quiet", "../topic"])), RepairSwitch::default());
-    assert_eq!(RepairSwitch::from_arguments(&words(&["worktree", "add", "--", "--no-checkout"])), RepairSwitch::default());
-    assert_eq!(RepairSwitch::from_arguments(&words(&["status", "--quiet", "--no-checkout"])), RepairSwitch::default());
+    assert_eq!(
+        RepairSwitch::from_arguments(&words(&["worktree", "add", "-b", "--quiet", "../topic"])),
+        RepairSwitch::default()
+    );
+    assert_eq!(
+        RepairSwitch::from_arguments(&words(&["worktree", "add", "--", "--no-checkout"])),
+        RepairSwitch::default()
+    );
+    assert_eq!(
+        RepairSwitch::from_arguments(&words(&["status", "--quiet", "--no-checkout"])),
+        RepairSwitch::default()
+    );
     assert_eq!(RepairSwitch::from_arguments(&[]), RepairSwitch::default());
 }
 
@@ -56,11 +86,31 @@ fn ignores_look_alikes() {
 /// so a destination literally named `--no-checkout` is an operand and the worktree Git checked out is repaired.
 #[test]
 fn reads_no_switch_after_end_of_options() {
-    let quiet_before: RepairSwitch = RepairSwitch::from_arguments(&words(&["worktree", "add", "--quiet", "--end-of-options", "--no-checkout"]));
-    assert!(quiet_before.quiet, "a switch before the terminator is still read");
-    assert!(!quiet_before.no_checkout, "the destination after --end-of-options is not the --no-checkout switch");
+    let quiet_before: RepairSwitch = RepairSwitch::from_arguments(&words(&[
+        "worktree",
+        "add",
+        "--quiet",
+        "--end-of-options",
+        "--no-checkout",
+    ]));
+    assert!(
+        quiet_before.quiet,
+        "a switch before the terminator is still read"
+    );
+    assert!(
+        !quiet_before.no_checkout,
+        "the destination after --end-of-options is not the --no-checkout switch"
+    );
     assert_eq!(
-        RepairSwitch::from_arguments(&words(&["worktree", "add", "--end-of-options", "--no-checkout", "--quiet", "-b", "literal"])),
+        RepairSwitch::from_arguments(&words(&[
+            "worktree",
+            "add",
+            "--end-of-options",
+            "--no-checkout",
+            "--quiet",
+            "-b",
+            "literal"
+        ])),
         RepairSwitch::default(),
         "nothing after --end-of-options is a switch"
     );
@@ -95,7 +145,11 @@ fn scene(name: &str) -> Scene {
     for directory in [&source, &destination.join("node_modules"), &bin] {
         std::fs::create_dir_all(directory).expect("directory");
     }
-    std::fs::write(destination.join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'\n").expect("lockfile");
+    std::fs::write(
+        destination.join("pnpm-lock.yaml"),
+        b"lockfileVersion: '9.0'\n",
+    )
+    .expect("lockfile");
     let record: PathBuf = root.join("record");
     let environment: RepairEnvironment = RepairEnvironment {
         search_path: Some(bin.clone().into_os_string()),
@@ -104,21 +158,44 @@ fn scene(name: &str) -> Scene {
         workers: 2,
         start_directory: crate::start_directory::StartDirectory::at(root.as_path()),
     };
-    return Scene { root, source, destination, bin, record, environment };
+    return Scene {
+        root,
+        source,
+        destination,
+        bin,
+        record,
+        environment,
+    };
 }
 
 /// A fixture `pnpm` that records its start and exits with `status`.
-fn fake_pnpm(scene: &Scene, status: i32) {
+fn fake_pnpm(
+    scene: &Scene,
+    status: i32,
+) {
     executable(
         scene.bin.join("pnpm").as_path(),
-        format!("#!/bin/sh\necho \"pnpm $* in $(pwd -P)\" >> '{}'\nexit {status}\n", scene.record.display()).as_bytes(),
+        format!(
+            "#!/bin/sh\necho \"pnpm $* in $(pwd -P)\" >> '{}'\nexit {status}\n",
+            scene.record.display()
+        )
+        .as_bytes(),
     );
 }
 
 /// Run a repair of the scene with the switches and collect what it printed.
-fn repair(scene: &Scene, switch: RepairSwitch) -> (Vec<Finding>, String) {
+fn repair(
+    scene: &Scene,
+    switch: RepairSwitch,
+) -> (Vec<Finding>, String) {
     let context = git_context();
-    let request: RepairRequest<'_> = RepairRequest { git: &context, source: scene.source.as_path(), destination: scene.destination.as_path(), switch, environment: &scene.environment };
+    let request: RepairRequest<'_> = RepairRequest {
+        git: &context,
+        source: scene.source.as_path(),
+        destination: scene.destination.as_path(),
+        switch,
+        environment: &scene.environment,
+    };
     let mut sink: SharedSink = SharedSink::default();
     let findings: Vec<Finding> = repair_worktree(&request, &mut sink);
     return (findings, sink.text());
@@ -130,10 +207,19 @@ fn repair(scene: &Scene, switch: RepairSwitch) -> (Vec<Finding>, String) {
 fn no_checkout_starts_nothing() {
     let scene: Scene = scene("repair-no-checkout");
     fake_pnpm(&scene, 0);
-    let (findings, printed) = repair(&scene, RepairSwitch { quiet: false, no_checkout: true });
+    let (findings, printed) = repair(
+        &scene,
+        RepairSwitch {
+            quiet: false,
+            no_checkout: true,
+        },
+    );
     assert!(findings.is_empty());
     assert_eq!(printed, "");
-    assert!(!scene.record.exists(), "a tool was started for a worktree with no files");
+    assert!(
+        !scene.record.exists(),
+        "a tool was started for a worktree with no files"
+    );
     remove(&scene.root);
 }
 
@@ -148,7 +234,13 @@ fn a_working_repair_reports_one_line_unless_quiet() {
     assert_eq!(findings[0].tool, Tool::Pnpm);
     assert!(matches!(findings[0].outcome, Outcome::Repaired { .. }));
     assert_eq!(printed.lines().count(), 1, "{printed}");
-    let (_, quiet_printed) = repair(&scene, RepairSwitch { quiet: true, no_checkout: false });
+    let (_, quiet_printed) = repair(
+        &scene,
+        RepairSwitch {
+            quiet: true,
+            no_checkout: false,
+        },
+    );
     assert_eq!(quiet_printed, "");
     remove(&scene.root);
 }
@@ -160,9 +252,21 @@ fn a_working_repair_reports_one_line_unless_quiet() {
 fn a_failing_repair_names_its_command_even_when_quiet() {
     let scene: Scene = scene("repair-fails");
     fake_pnpm(&scene, 1);
-    let (findings, printed) = repair(&scene, RepairSwitch { quiet: true, no_checkout: false });
-    assert!(matches!(findings[0].outcome, Outcome::Failed { .. }), "{findings:?}");
-    assert!(printed.contains("pnpm") && printed.contains(scene.destination.to_str().expect("utf8")), "{printed}");
+    let (findings, printed) = repair(
+        &scene,
+        RepairSwitch {
+            quiet: true,
+            no_checkout: false,
+        },
+    );
+    assert!(
+        matches!(findings[0].outcome, Outcome::Failed { .. }),
+        "{findings:?}"
+    );
+    assert!(
+        printed.contains("pnpm") && printed.contains(scene.destination.to_str().expect("utf8")),
+        "{printed}"
+    );
     remove(&scene.root);
 }
 
@@ -172,7 +276,13 @@ fn a_failing_repair_names_its_command_even_when_quiet() {
 fn a_missing_tool_names_the_command_to_run() {
     let scene: Scene = scene("repair-missing");
     let (findings, printed) = repair(&scene, RepairSwitch::default());
-    let Outcome::Failed { reason, run_instead } = &findings[0].outcome else { panic!("expected a failure: {findings:?}") };
+    let Outcome::Failed {
+        reason,
+        run_instead,
+    } = &findings[0].outcome
+    else {
+        panic!("expected a failure: {findings:?}")
+    };
     assert!(reason.contains("pnpm"), "{reason}");
     assert!(printed.contains(run_instead.as_str()), "{printed}");
     remove(&scene.root);
@@ -198,12 +308,22 @@ fn a_relative_search_entry_starts_the_program_the_add_resolved_here() {
     a_repository_at(&scene);
     fake_pnpm(&scene, 0);
     // The add's search path is its own `bin`, which is a relative entry of the directory it runs in.
-    scene.environment = RepairEnvironment { search_path: Some(OsString::from("bin")), ..scene.environment.clone() };
+    scene.environment = RepairEnvironment {
+        search_path: Some(OsString::from("bin")),
+        ..scene.environment.clone()
+    };
     let (findings, printed) = repair(&scene, RepairSwitch::default());
     assert_eq!(findings.len(), 1, "{findings:?} {printed}");
-    assert!(matches!(findings[0].outcome, Outcome::Repaired { .. }), "{findings:?} {printed}");
-    let ran: String = std::fs::read_to_string(scene.record.as_path()).expect("the tool the add started");
-    assert!(ran.contains(scene.destination.to_str().expect("utf8")), "the tool ran outside the worktree: {ran}");
+    assert!(
+        matches!(findings[0].outcome, Outcome::Repaired { .. }),
+        "{findings:?} {printed}"
+    );
+    let ran: String =
+        std::fs::read_to_string(scene.record.as_path()).expect("the tool the add started");
+    assert!(
+        ran.contains(scene.destination.to_str().expect("utf8")),
+        "the tool ran outside the worktree: {ran}"
+    );
     remove(&scene.root);
 }
 
@@ -228,7 +348,11 @@ fn the_workers_are_what_the_host_offers() {
     let large_host: usize = 64;
     assert_eq!(workers_for(large_host), large_host);
     assert_eq!(workers_for(1), 1);
-    assert_eq!(workers_for(0), 1, "a host that reports nothing still runs one worker");
+    assert_eq!(
+        workers_for(0),
+        1,
+        "a host that reports nothing still runs one worker"
+    );
 }
 
 /// The pnpm and the toolchain repairs a session no service answers are the add's own,
@@ -248,10 +372,17 @@ fn a_repair_no_service_took_runs_here_and_leaves_no_record() {
     let (findings, printed) = repair(&scene, RepairSwitch::default());
     assert_eq!(findings.len(), 2, "{findings:?} {printed}");
     for finding in &findings {
-        assert!(matches!(finding.outcome, Outcome::Repaired { .. }), "{finding:?} {printed}");
+        assert!(
+            matches!(finding.outcome, Outcome::Repaired { .. }),
+            "{finding:?} {printed}"
+        );
     }
-    let started: String = std::fs::read_to_string(scene.record.as_path()).expect("the tools the add started");
-    assert!(started.contains("pnpm") && started.contains("mpm-shadow"), "{started}");
+    let started: String =
+        std::fs::read_to_string(scene.record.as_path()).expect("the tools the add started");
+    assert!(
+        started.contains("pnpm") && started.contains("mpm-shadow"),
+        "{started}"
+    );
     let common: PathBuf = scene.destination.join(".git");
     let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
     let mut queued: Vec<String> = std::fs::read_dir(pending.as_path())
@@ -260,7 +391,11 @@ fn a_repair_no_service_took_runs_here_and_leaves_no_record() {
         .map(|item| return item.file_name().to_string_lossy().into_owned())
         .collect();
     queued.sort();
-    assert_eq!(queued, Vec::<String>::new(), "the record the add did the work for is still queued: {findings:?} {printed}");
+    assert_eq!(
+        queued,
+        Vec::<String>::new(),
+        "the record the add did the work for is still queued: {findings:?} {printed}"
+    );
     remove(&scene.root);
 }
 
@@ -272,7 +407,11 @@ fn a_repository_at(scene: &Scene) {
         .current_dir(scene.destination.as_path())
         .output()
         .expect("git runs");
-    assert!(made.status.success(), "{}", String::from_utf8_lossy(made.stderr.as_slice()));
+    assert!(
+        made.status.success(),
+        "{}",
+        String::from_utf8_lossy(made.stderr.as_slice())
+    );
 }
 
 /// Give the scene's destination a launcher record that names another checkout's lock,
@@ -281,7 +420,11 @@ fn a_repository_at(scene: &Scene) {
 fn with_a_recording_stale_launcher(scene: &Scene) {
     let launchers: PathBuf = scene.destination.join(".cache/toolchain-launchers");
     std::fs::create_dir_all(&launchers).expect("launchers");
-    std::fs::write(launchers.join("mpm.launch"), b"{\"lockFile\":\"/elsewhere/toolchain.lock.json\"}\n").expect("record");
+    std::fs::write(
+        launchers.join("mpm.launch"),
+        b"{\"lockFile\":\"/elsewhere/toolchain.lock.json\"}\n",
+    )
+    .expect("record");
     let record: PathBuf = launchers.join("mpm.launch");
     let own: PathBuf = scene.destination.join("toolchain.lock.json");
     executable(
@@ -303,22 +446,36 @@ fn with_a_recording_stale_launcher(scene: &Scene) {
 /// The body runs in a child that is refused every thread.
 #[test]
 fn a_refused_system_is_reported_in_plain_words_and_changes_nothing() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_refused_system_is_reported_in_plain_words_and_changes_nothing") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "a_refused_system_is_reported_in_plain_words_and_changes_nothing",
+    ) {
         return;
     }
     // The fixture tools are started as processes of their own, so the limit is lifted while the scene is made and put
     //  back for the part this control measures.
-    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises");
+    crate::no_threads_child_test_support::let_threads_start_again()
+        .expect("the process limit rises");
     let scene: Scene = scene("repair-refused");
     fake_pnpm(&scene, 0);
     let lockfile: PathBuf = scene.destination.join("pnpm-lock.yaml");
     let before: Vec<u8> = std::fs::read(lockfile.as_path()).expect("the lockfile");
     crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
     let (findings, printed) = repair(&scene, RepairSwitch::default());
-    let Outcome::Failed { reason, run_instead } = &findings[0].outcome else { panic!("expected a failure: {findings:?} {printed}") };
+    let Outcome::Failed {
+        reason,
+        run_instead,
+    } = &findings[0].outcome
+    else {
+        panic!("expected a failure: {findings:?} {printed}")
+    };
     assert_eq!(findings[0].tool, Tool::Pnpm, "{findings:?}");
     assert!(reason.contains("pnpm"), "{reason}");
     assert!(printed.contains(run_instead.as_str()), "{printed}");
-    assert_eq!(std::fs::read(lockfile.as_path()).expect("the lockfile"), before, "the repair changed the worktree");
+    assert_eq!(
+        std::fs::read(lockfile.as_path()).expect("the lockfile"),
+        before,
+        "the repair changed the worktree"
+    );
     remove(&scene.root);
 }

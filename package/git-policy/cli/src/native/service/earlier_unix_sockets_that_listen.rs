@@ -87,7 +87,10 @@ enum PathColumnMatch<'a> {
 /// ```ts
 /// holdsThePathColumn({ exactly: [name] }, path)
 /// ```
-fn holds_the_path_column(wanted: PathColumnMatch<'_>, path: &[u8]) -> bool {
+fn holds_the_path_column(
+    wanted: PathColumnMatch<'_>,
+    path: &[u8],
+) -> bool {
     match wanted {
         PathColumnMatch::EndsWith(endings) => {
             for ending in endings {
@@ -156,8 +159,13 @@ fn path_and_listening(line: &[u8]) -> Option<(&[u8], bool)> {
 /// ```ts
 /// listensAt(line, wanted)
 /// ```
-fn is_listening_socket_matching(line: &[u8], wanted: PathColumnMatch<'_>) -> bool {
-    let Some((path, listens)) = path_and_listening(line) else { return false };
+fn is_listening_socket_matching(
+    line: &[u8],
+    wanted: PathColumnMatch<'_>,
+) -> bool {
+    let Some((path, listens)) = path_and_listening(line) else {
+        return false;
+    };
     if !listens {
         return false;
     }
@@ -180,7 +188,10 @@ fn is_listening_socket_matching(line: &[u8], wanted: PathColumnMatch<'_>) -> boo
 /// ```ts
 /// listeningSocketsWhere(procRoot, (path) => endings.some((ending) => path.endsWith(ending)))
 /// ```
-fn listening_sockets_where(proc_root: &Path, wanted: PathColumnMatch<'_>) -> ListeningSockets {
+fn listening_sockets_where(
+    proc_root: &Path,
+    wanted: PathColumnMatch<'_>,
+) -> ListeningSockets {
     let Ok(table) = std::fs::read(proc_root.join("net").join("unix")) else {
         return ListeningSockets::Unreadable;
     };
@@ -208,7 +219,10 @@ fn listening_sockets_where(proc_root: &Path, wanted: PathColumnMatch<'_>) -> Lis
 /// ```ts
 /// listeningSocketsEndingWith(procRoot, ['/cli-git/abc.sock'])
 /// ```
-pub fn listening_sockets_ending_with(proc_root: &Path, endings: &[Vec<u8>]) -> ListeningSockets {
+pub fn listening_sockets_ending_with(
+    proc_root: &Path,
+    endings: &[Vec<u8>],
+) -> ListeningSockets {
     return listening_sockets_where(proc_root, PathColumnMatch::EndsWith(endings));
 }
 
@@ -224,7 +238,10 @@ pub fn listening_sockets_ending_with(proc_root: &Path, endings: &[Vec<u8>]) -> L
 /// ```ts
 /// listeningSocketsExactly(procRoot, ['@monochromatic-git-policy-cli/1000/0123456789abcdef/abc'])
 /// ```
-pub fn listening_sockets_exactly(proc_root: &Path, names: &[Vec<u8>]) -> ListeningSockets {
+pub fn listening_sockets_exactly(
+    proc_root: &Path,
+    names: &[Vec<u8>],
+) -> ListeningSockets {
     return listening_sockets_where(proc_root, PathColumnMatch::Exactly(names));
 }
 
@@ -236,8 +253,12 @@ pub fn earlier_socket_ending(instance: &str) -> Vec<u8> {
 
 /// Whether the earlier release's socket of an instance listens;
 /// a table that cannot be read counts as "yes".
-pub fn earlier_socket_of_instance_listens(proc_root: &Path, instance: &str) -> bool {
-    return listening_sockets_ending_with(proc_root, &[earlier_socket_ending(instance)]) != ListeningSockets::None;
+pub fn earlier_socket_of_instance_listens(
+    proc_root: &Path,
+    instance: &str,
+) -> bool {
+    return listening_sockets_ending_with(proc_root, &[earlier_socket_ending(instance)])
+        != ListeningSockets::None;
 }
 
 /// What:
@@ -259,7 +280,10 @@ pub fn earlier_socket_of_instance_listens(proc_root: &Path, instance: &str) -> b
 /// listeningNamesStartingWith('/proc', '@monochromatic-git-policy-cli/1000/0123456789abcdef/')
 ///   // ['@monochromatic-git-policy-cli/1000/0123456789abcdef/3f9a…']
 /// ```
-pub fn listening_names_starting_with(proc_root: &Path, prefix: &[u8]) -> Vec<String> {
+pub fn listening_names_starting_with(
+    proc_root: &Path,
+    prefix: &[u8],
+) -> Vec<String> {
     let Ok(table) = std::fs::read(proc_root.join("net").join("unix")) else {
         return Vec::new();
     };

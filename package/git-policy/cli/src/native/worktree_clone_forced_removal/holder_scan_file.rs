@@ -30,17 +30,30 @@
 //! ```
 
 use crate::clone_holder_scan::holder_scan::HolderScan;
-use crate::clone_holder_scan::holder_scan_acceptance::{ScanExpectation, StaleResult};
+use crate::clone_holder_scan::holder_scan_acceptance::{
+    ScanExpectation,
+    StaleResult,
+};
 use crate::clone_holder_scan::holder_scan_parse::parse_holder_scan;
 use crate::clone_holder_scan::holder_scan_refusals::HolderScanRefusal;
 use crate::clone_holder_scan::holder_scan_text::MAXIMUM_RESULT_BYTES;
 use crate::worktree_clone_forced_removal::forced_removal_words::SCAN_FILE_SUFFIX;
-use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::{DIRECTORY_MODE, RECEIPT_MODE, RESULTS_DIRECTORY};
+use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::{
+    DIRECTORY_MODE,
+    RECEIPT_MODE,
+    RESULTS_DIRECTORY,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use std::io::Read;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::{
+    MetadataExt,
+    OpenOptionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Why the scan file did not answer the request at hand.
@@ -150,13 +163,22 @@ impl ScanFile {
     /// The folder root publishes the scan's answer in,
     /// beside the receipt.
     pub fn live() -> ScanFile {
-        return ScanFile { folder: PathBuf::from(RESULTS_DIRECTORY), owner: 0 };
+        return ScanFile {
+            folder: PathBuf::from(RESULTS_DIRECTORY),
+            owner: 0,
+        };
     }
 
     /// A folder at a fixture directory,
     /// owned by the account a control expects.
-    pub fn at(folder: PathBuf, owner: u32) -> ScanFile {
-        return ScanFile { folder, owner };
+    pub fn at(
+        folder: PathBuf,
+        owner: u32,
+    ) -> ScanFile {
+        return ScanFile {
+            folder,
+            owner,
+        };
     }
 
     /// The folder.
@@ -170,7 +192,10 @@ impl ScanFile {
     ///  The GUID is written in the file and never in its name alone,
     ///  and the suffix keeps the scan apart from the receipt of the same GUID,
     ///  so one result never overwrites the other.
-    pub fn entry_name(&self, dataset: DatasetGuid) -> String {
+    pub fn entry_name(
+        &self,
+        dataset: DatasetGuid,
+    ) -> String {
         return format!("{}{SCAN_FILE_SUFFIX}", dataset.file_name());
     }
 
@@ -204,31 +229,58 @@ impl ScanFile {
         let mut file: std::fs::File = match opened {
             Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Err(ScanFileRefusal::Absent { path });
+                return Err(ScanFileRefusal::Absent {
+                    path,
+                });
             }
             Err(error) => {
-                return Err(ScanFileRefusal::Unreadable { path, reason: error.to_string() });
+                return Err(ScanFileRefusal::Unreadable {
+                    path,
+                    reason: error.to_string(),
+                });
             }
         };
         drop(directory);
-        let facts: std::fs::Metadata = file
-            .metadata()
-            .map_err(|error| return ScanFileRefusal::Unreadable { path: path.clone(), reason: error.to_string() })?;
+        let facts: std::fs::Metadata = file.metadata().map_err(|error| {
+            return ScanFileRefusal::Unreadable {
+                path: path.clone(),
+                reason: error.to_string(),
+            };
+        })?;
         if !facts.is_file() {
-            return Err(ScanFileRefusal::NotRegular { path });
+            return Err(ScanFileRefusal::NotRegular {
+                path,
+            });
         }
         if facts.uid() != self.owner {
-            return Err(ScanFileRefusal::Owner { path, found: facts.uid(), wanted: self.owner });
+            return Err(ScanFileRefusal::Owner {
+                path,
+                found: facts.uid(),
+                wanted: self.owner,
+            });
         }
         if facts.mode() & 0o7777 != RECEIPT_MODE {
-            return Err(ScanFileRefusal::Mode { path, found: facts.mode() & 0o7777, wanted: RECEIPT_MODE });
+            return Err(ScanFileRefusal::Mode {
+                path,
+                found: facts.mode() & 0o7777,
+                wanted: RECEIPT_MODE,
+            });
         }
         let mut bytes: Vec<u8> = Vec::with_capacity(MAXIMUM_RESULT_BYTES.min(facts.len() as usize));
-        let bound: u64 = u64::try_from(MAXIMUM_RESULT_BYTES).unwrap_or(u64::MAX).saturating_add(1);
+        let bound: u64 = u64::try_from(MAXIMUM_RESULT_BYTES)
+            .unwrap_or(u64::MAX)
+            .saturating_add(1);
         let read: std::io::Result<usize> = (&mut file).take(bound).read_to_end(&mut bytes);
-        read.map_err(|error| return ScanFileRefusal::Unreadable { path: path.clone(), reason: error.to_string() })?;
+        read.map_err(|error| {
+            return ScanFileRefusal::Unreadable {
+                path: path.clone(),
+                reason: error.to_string(),
+            };
+        })?;
         if bytes.len() > MAXIMUM_RESULT_BYTES {
-            return Err(ScanFileRefusal::TooLong { path });
+            return Err(ScanFileRefusal::TooLong {
+                path,
+            });
         }
         let text: String = match String::from_utf8(bytes) {
             Ok(text) => text,
@@ -239,10 +291,22 @@ impl ScanFile {
                 });
             }
         };
-        let scan: HolderScan = parse_holder_scan(text.as_str())
-            .map_err(|refusal| return ScanFileRefusal::NotAResult { path: path.clone(), refusal })?;
-        scan.accept(&ScanExpectation { dataset, nonce })
-            .map_err(|stale| return ScanFileRefusal::Stale { path: path.clone(), stale })?;
+        let scan: HolderScan = parse_holder_scan(text.as_str()).map_err(|refusal| {
+            return ScanFileRefusal::NotAResult {
+                path: path.clone(),
+                refusal,
+            };
+        })?;
+        scan.accept(&ScanExpectation {
+            dataset,
+            nonce,
+        })
+        .map_err(|stale| {
+            return ScanFileRefusal::Stale {
+                path: path.clone(),
+                stale,
+            };
+        })?;
         return Ok(scan);
     }
 
@@ -254,13 +318,17 @@ impl ScanFile {
             .read(true)
             .custom_flags(libc::O_NOFOLLOW | libc::O_DIRECTORY | libc::O_CLOEXEC)
             .open(path);
-        let folder: std::fs::File = opened.map_err(|error| return ScanFileRefusal::Folder {
-            path: path.to_path_buf(),
-            reason: error.to_string(),
+        let folder: std::fs::File = opened.map_err(|error| {
+            return ScanFileRefusal::Folder {
+                path: path.to_path_buf(),
+                reason: error.to_string(),
+            };
         })?;
-        let facts: std::fs::Metadata = folder.metadata().map_err(|error| return ScanFileRefusal::Folder {
-            path: path.to_path_buf(),
-            reason: error.to_string(),
+        let facts: std::fs::Metadata = folder.metadata().map_err(|error| {
+            return ScanFileRefusal::Folder {
+                path: path.to_path_buf(),
+                reason: error.to_string(),
+            };
         })?;
         if !facts.is_dir() {
             return Err(ScanFileRefusal::Folder {
@@ -271,7 +339,11 @@ impl ScanFile {
         if facts.uid() != self.owner {
             return Err(ScanFileRefusal::Folder {
                 path: path.to_path_buf(),
-                reason: format!("it is owned by account {} and the route requires {}", facts.uid(), self.owner),
+                reason: format!(
+                    "it is owned by account {} and the route requires {}",
+                    facts.uid(),
+                    self.owner
+                ),
             });
         }
         if facts.mode() & 0o7777 != DIRECTORY_MODE {
@@ -298,8 +370,14 @@ impl ScanFile {
 /// ```ts
 /// const file = openAt(folderFd, name, O_RDONLY | O_NOFOLLOW);
 /// ```
-fn open_at(directory: &std::fs::File, name: &str) -> Result<std::fs::File, std::io::Error> {
-    use std::os::fd::{AsRawFd, FromRawFd};
+fn open_at(
+    directory: &std::fs::File,
+    name: &str,
+) -> Result<std::fs::File, std::io::Error> {
+    use std::os::fd::{
+        AsRawFd,
+        FromRawFd,
+    };
     let named: std::ffi::CString = std::ffi::CString::new(name)?;
     // SAFETY: `named` is one NUL-terminated name, `directory` holds a live descriptor, and the returned descriptor is
     // owned by the `File` this makes from it.

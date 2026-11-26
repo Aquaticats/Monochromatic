@@ -31,10 +31,20 @@
 //! endings.killed; endings.callerGone;
 //! ```
 
-use crate::process::member_signalled_through_its_pidfd::{Delivered, Pinned, PinnedMember};
-use crate::process::process_tree::{TreeMember, member_of};
-use crate::worktree_clone_forced_removal::process_session_record::{ReadOutcome, read_process_record};
+use crate::process::member_signalled_through_its_pidfd::{
+    Delivered,
+    Pinned,
+    PinnedMember,
+};
+use crate::process::process_tree::{
+    TreeMember,
+    member_of,
+};
 use crate::worktree_clone_forced_removal::forced_arm_numbers::TimeoutWindow;
+use crate::worktree_clone_forced_removal::process_session_record::{
+    ReadOutcome,
+    read_process_record,
+};
 
 /// How many blockers one signal stage handles.
 /// Why:
@@ -75,7 +85,10 @@ pub struct Blocker {
 impl Blocker {
     /// A blocker from one member the crate's own tree read answered.
     pub fn from_member(member: &TreeMember) -> Blocker {
-        return Blocker { pid: member.pid, started: member.started };
+        return Blocker {
+            pid: member.pid,
+            started: member.started,
+        };
     }
 
     /// What:
@@ -91,7 +104,10 @@ impl Blocker {
     /// ```
     pub fn read(pid: i32) -> Option<Blocker> {
         let member: TreeMember = member_of(pid)?;
-        return Some(Blocker { pid: member.pid, started: member.started });
+        return Some(Blocker {
+            pid: member.pid,
+            started: member.started,
+        });
     }
 }
 
@@ -172,13 +188,21 @@ pub struct SignalStage {
 impl SignalStage {
     /// How many blockers were killed rather than asked out.
     pub fn killed(&self) -> usize {
-        return self.endings.iter().filter(|(_blocker, result)| return *result == EndResult::Killed).count();
+        return self
+            .endings
+            .iter()
+            .filter(|(_blocker, result)| return *result == EndResult::Killed)
+            .count();
     }
 
     /// How many could not be proven,
     /// which every caller reads as a blocker still there.
     pub fn unproven(&self) -> usize {
-        return self.endings.iter().filter(|(_blocker, result)| return *result == EndResult::Unproven).count();
+        return self
+            .endings
+            .iter()
+            .filter(|(_blocker, result)| return *result == EndResult::Unproven)
+            .count();
     }
 }
 
@@ -226,7 +250,10 @@ where
             stage.caller_gone = true;
             return stage;
         }
-        let member: TreeMember = TreeMember { pid: blocker.pid, started: blocker.started };
+        let member: TreeMember = TreeMember {
+            pid: blocker.pid,
+            started: blocker.started,
+        };
         match PinnedMember::open(&member) {
             Pinned::Held(pin) => match pin.signal(ASK) {
                 Delivered::Sent => pins.push((*blocker, pin)),
@@ -348,17 +375,28 @@ pub enum Endability {
 /// ```ts
 /// const read = endabilityOf(procRoot, pid);
 /// ```
-pub fn endability_of(proc_root: &std::path::Path, pid: i32) -> Endability {
+pub fn endability_of(
+    proc_root: &std::path::Path,
+    pid: i32,
+) -> Endability {
     return match read_process_record(proc_root, pid) {
-        ReadOutcome::Found(record) if !endable_from(record.state) => Endability::Unendable(format!(
-            "task {pid} is in state `{}`, which this act does not end",
-            record.state
-        )),
-        ReadOutcome::Found(record) => Endability::Endable(Blocker { pid: record.pid, started: record.started }),
-        ReadOutcome::Gone => Endability::Gone,
-        ReadOutcome::Blind { errno, .. } => {
-            Endability::Unendable(format!("the record of task {pid} was refused with errno {errno}"))
+        ReadOutcome::Found(record) if !endable_from(record.state) => {
+            Endability::Unendable(format!(
+                "task {pid} is in state `{}`, which this act does not end",
+                record.state
+            ))
         }
+        ReadOutcome::Found(record) => Endability::Endable(Blocker {
+            pid: record.pid,
+            started: record.started,
+        }),
+        ReadOutcome::Gone => Endability::Gone,
+        ReadOutcome::Blind {
+            errno,
+            ..
+        } => Endability::Unendable(format!(
+            "the record of task {pid} was refused with errno {errno}"
+        )),
     };
 }
 

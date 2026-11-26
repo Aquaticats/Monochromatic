@@ -18,7 +18,12 @@
 use crate::commit_timing::SubmitTrace;
 use crate::notice_stream_that_does_not_hold_its_writer::NoticeStreamThatDoesNotHoldItsWriter;
 use crate::scratch_location::SCRATCH_REFRESH_EVERY;
-use crate::service_client::{ClientConfig, FreshScratch, Submitted, submit_traced};
+use crate::service_client::{
+    ClientConfig,
+    FreshScratch,
+    Submitted,
+    submit_traced,
+};
 use crate::service_messages::ClientFailure;
 use crate::service_protocol::CommitRequest;
 use std::path::Path;
@@ -38,14 +43,29 @@ use std::path::Path;
 /// ```ts
 /// const notices = new NoticeStreamThatDoesNotHoldItsWriter(stderr); try { return submitTraced({...config, keepFresh: scratch}, request, notices, trace) } finally { notices.finish() }
 /// ```
-pub(crate) fn submit_saying_where_it_stands(config: &ClientConfig, scratch: &Path, request: &CommitRequest, trace: &mut SubmitTrace) -> Result<Submitted, ClientFailure> {
-    let waiting_config: ClientConfig = ClientConfig { keep_fresh: Some(FreshScratch { path: scratch.to_path_buf(), every: SCRATCH_REFRESH_EVERY }), ..config.clone() };
+pub(crate) fn submit_saying_where_it_stands(
+    config: &ClientConfig,
+    scratch: &Path,
+    request: &CommitRequest,
+    trace: &mut SubmitTrace,
+) -> Result<Submitted, ClientFailure> {
+    let waiting_config: ClientConfig = ClientConfig {
+        keep_fresh: Some(FreshScratch {
+            path: scratch.to_path_buf(),
+            every: SCRATCH_REFRESH_EVERY,
+        }),
+        ..config.clone()
+    };
     // What: The waiting lines go to this process's standard error descriptor itself.
     // Why:  A reader that stopped draining holds the writer thread inside its write, and the shared
     //       handle's lock is one for the whole process: a line waiting there would make every later
     //       write of this command wait behind it with no end (`standard_error_descriptor.rs`).
-    let mut notices: NoticeStreamThatDoesNotHoldItsWriter = NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(crate::standard_error_descriptor::StandardErrorDescriptor));
-    let answered: Result<Submitted, ClientFailure> = submit_traced(&waiting_config, request, &mut notices, trace);
+    let mut notices: NoticeStreamThatDoesNotHoldItsWriter =
+        NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(
+            crate::standard_error_descriptor::StandardErrorDescriptor,
+        ));
+    let answered: Result<Submitted, ClientFailure> =
+        submit_traced(&waiting_config, request, &mut notices, trace);
     notices.finish();
     return answered;
 }

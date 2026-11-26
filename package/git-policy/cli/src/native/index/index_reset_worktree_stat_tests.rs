@@ -7,37 +7,82 @@
 //! one that changed while it was read,
 //! and one of another kind record nothing.
 
-use super::{ProofSeams, WorktreeStatRequest, read_some, recorded_stat, recorded_stat_seamed, stamp_proves_one_version};
-use crate::index_stat::{IndexStamp, StatData};
-use crate::worktree_clean_content_attribute_sources::ConversionEnvironment;
-use crate::worktree_copy_stage_leaf_copying::{ClockPin, RECENT_CHANGE_NANOS, clock_reads, stamp_nanos};
-use std::os::unix::ffi::OsStrExt as _;
+use super::{
+    ProofSeams,
+    WorktreeStatRequest,
+    read_some,
+    recorded_stat,
+    recorded_stat_seamed,
+    stamp_proves_one_version,
+};
+use crate::index_stat::{
+    IndexStamp,
+    StatData,
+};
 use crate::repo_read_layout::ObjectFormat;
-use crate::test_support::{age, fixture, git, remove};
+use crate::test_support::{
+    age,
+    fixture,
+    git,
+    remove,
+};
+use crate::worktree_clean_content_attribute_sources::ConversionEnvironment;
+use crate::worktree_copy_stage_leaf_copying::{
+    ClockPin,
+    RECENT_CHANGE_NANOS,
+    clock_reads,
+    stamp_nanos,
+};
 use std::cell::Cell as StdCell;
+use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The date an index written now is dated with,
 /// to the nanosecond.
 fn now_stamp() -> IndexStamp {
-    let age: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("after the epoch");
-    return IndexStamp { seconds: age.as_secs() as u32, nanoseconds: age.subsec_nanos() };
+    let age: std::time::Duration = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("after the epoch");
+    return IndexStamp {
+        seconds: age.as_secs() as u32,
+        nanoseconds: age.subsec_nanos(),
+    };
 }
 
 /// The object name real Git gives `content` as a blob in `repo`,
 /// so the comparison is against Git's own,
 /// not this crate's idea of it.
-fn blob_in(repo: &Path, content: &[u8]) -> Vec<u8> {
-    let output: std::process::Output = crate::index_reset_file::support::git_with(repo, &[], &["hash-object", "-w", "--stdin"], Some(content));
-    assert!(output.status.success(), "git hash-object: {}", String::from_utf8_lossy(&output.stderr));
+fn blob_in(
+    repo: &Path,
+    content: &[u8],
+) -> Vec<u8> {
+    let output: std::process::Output = crate::index_reset_file::support::git_with(
+        repo,
+        &[],
+        &["hash-object", "-w", "--stdin"],
+        Some(content),
+    );
+    assert!(
+        output.status.success(),
+        "git hash-object: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let text: String = String::from_utf8(output.stdout).expect("hex");
     return hex_bytes(text.trim_end());
 }
 
 /// The bytes a hexadecimal object name spells.
 fn hex_bytes(text: &str) -> Vec<u8> {
-    let digits: Vec<u8> = text.bytes().map(|byte| { return (byte as char).to_digit(16).expect("a hexadecimal digit") as u8; }).collect();
+    let digits: Vec<u8> = text
+        .bytes()
+        .map(|byte| {
+            return (byte as char).to_digit(16).expect("a hexadecimal digit") as u8;
+        })
+        .collect();
     let mut bytes: Vec<u8> = Vec::with_capacity(digits.len() / 2);
     for pair in digits.chunks(2) {
         bytes.push((pair[0] << 4) | pair[1]);
@@ -48,7 +93,12 @@ fn hex_bytes(text: &str) -> Vec<u8> {
 /// The answer for `path` in `root`,
 /// whose entry records `blob`,
 /// for an index written now with nothing hashed for this landing yet.
-fn recorded(root: &Path, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData> {
+fn recorded(
+    root: &Path,
+    path: &[u8],
+    blob: &[u8],
+    mode: u32,
+) -> Option<StatData> {
     return recorded_at(now_stamp(), root, path, blob, mode);
 }
 
@@ -66,26 +116,69 @@ fn recorded(root: &Path, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData
 /// ```ts
 /// const request = (stamp, root, path, blob, mode, hashed) => ({ worktreeRoot: root, gitDir: `${root}/.git`, commonDir: `${root}/.git`, environment: fixtureEnvironment, path, blob, mode, format: 'sha1', stamp, hashed });
 /// ```
-fn request_at_stamp<'a>(stamp: IndexStamp, root: &'a Path, path: &'a [u8], blob: &'a [u8], mode: u32, hashed: &'a StdCell<u64>) -> WorktreeStatRequest<'a> {
+fn request_at_stamp<'a>(
+    stamp: IndexStamp,
+    root: &'a Path,
+    path: &'a [u8],
+    blob: &'a [u8],
+    mode: u32,
+    hashed: &'a StdCell<u64>,
+) -> WorktreeStatRequest<'a> {
     let fixture: ConversionEnvironment = crate::fixture_content_decision::content_environment();
     let git_dir: &'a Path = Box::leak(root.join(".git").into_boxed_path());
     let environment: &'a ConversionEnvironment = Box::leak(Box::new(fixture));
-    let request: WorktreeStatRequest<'a> = WorktreeStatRequest { worktree_root: root, git_dir, common_dir: git_dir, environment, path, blob, mode, format: ObjectFormat::Sha1, stamp, hashed, indexed_attributes: &[] };
+    let request: WorktreeStatRequest<'a> = WorktreeStatRequest {
+        worktree_root: root,
+        git_dir,
+        common_dir: git_dir,
+        environment,
+        path,
+        blob,
+        mode,
+        format: ObjectFormat::Sha1,
+        stamp,
+        hashed,
+        indexed_attributes: &[],
+    };
     return request;
 }
 
 /// `recorded` for a landing whose index holds a `.gitattributes` in the directories `indexed`.
-fn recorded_with_indexed(indexed: &[Vec<u8>], root: &Path, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData> {
+fn recorded_with_indexed(
+    indexed: &[Vec<u8>],
+    root: &Path,
+    path: &[u8],
+    blob: &[u8],
+    mode: u32,
+) -> Option<StatData> {
     let hashed: StdCell<u64> = StdCell::new(0);
     let fixture: ConversionEnvironment = crate::fixture_content_decision::content_environment();
     let git_dir: &Path = Box::leak(root.join(".git").into_boxed_path());
     let environment: &ConversionEnvironment = Box::leak(Box::new(fixture));
-    let request: WorktreeStatRequest<'_> = WorktreeStatRequest { worktree_root: root, git_dir, common_dir: git_dir, environment, path, blob, mode, format: ObjectFormat::Sha1, stamp: now_stamp(), hashed: &hashed, indexed_attributes: indexed };
+    let request: WorktreeStatRequest<'_> = WorktreeStatRequest {
+        worktree_root: root,
+        git_dir,
+        common_dir: git_dir,
+        environment,
+        path,
+        blob,
+        mode,
+        format: ObjectFormat::Sha1,
+        stamp: now_stamp(),
+        hashed: &hashed,
+        indexed_attributes: indexed,
+    };
     return recorded_stat(&request);
 }
 
 /// `recorded` for an index file dated `stamp`.
-fn recorded_at(stamp: IndexStamp, root: &Path, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData> {
+fn recorded_at(
+    stamp: IndexStamp,
+    root: &Path,
+    path: &[u8],
+    blob: &[u8],
+    mode: u32,
+) -> Option<StatData> {
     let hashed: StdCell<u64> = StdCell::new(0);
     return recorded_stat(&request_at_stamp(stamp, root, path, blob, mode, &hashed));
 }
@@ -105,14 +198,19 @@ fn recorded_at(stamp: IndexStamp, root: &Path, path: &[u8], blob: &[u8], mode: u
 /// ```
 fn settled_clock(path: &Path) -> ClockPin {
     let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).expect("the attributes file");
-    return clock_reads(stamp_nanos((metadata.ctime(), metadata.ctime_nsec())) + RECENT_CHANGE_NANOS);
+    return clock_reads(
+        stamp_nanos((metadata.ctime(), metadata.ctime_nsec())) + RECENT_CHANGE_NANOS,
+    );
 }
 
 /// A repository fixture with no commit,
 /// enough for Git's own object names.
 fn fixture_root(name: &str) -> PathBuf {
     let root: PathBuf = fixture(name);
-    git(root.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        root.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     return root;
 }
 
@@ -142,7 +240,10 @@ fn a_file_that_holds_the_entrys_bytes_records_the_files_stat_data() {
     // Aged, so the entry is not racily clean: the index this entry goes into is newer than the file.
     age(file.as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
-    assert_eq!(recorded(root.as_path(), b"a", blob.as_slice(), 0o100_644), Some(stat_of_file(file.as_path())));
+    assert_eq!(
+        recorded(root.as_path(), b"a", blob.as_slice(), 0o100_644),
+        Some(stat_of_file(file.as_path()))
+    );
     remove(root.as_path());
 }
 
@@ -154,7 +255,11 @@ fn a_file_that_holds_other_bytes_records_nothing() {
     std::fs::write(root.join("a"), b"a TWO\n").expect("write");
     age(root.join("a").as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a two\n");
-    assert_eq!(recorded(root.as_path(), b"a", blob.as_slice(), 0o100_644), None, "the bytes differ though the size does not");
+    assert_eq!(
+        recorded(root.as_path(), b"a", blob.as_slice(), 0o100_644),
+        None,
+        "the bytes differ though the size does not"
+    );
     remove(root.as_path());
 }
 
@@ -170,11 +275,41 @@ fn a_file_as_new_as_the_index_records_nothing() {
     std::fs::write(&file, b"a one\n").expect("write");
     let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
     let written: StatData = stat_of_file(file.as_path());
-    let at = |stamp: IndexStamp| { return recorded_at(stamp, root.as_path(), b"a", blob.as_slice(), 0o100_644); };
-    assert_eq!(at(IndexStamp { seconds: written.mtime_sec, nanoseconds: written.mtime_nsec }), None, "an entry the index is as new as is racily clean");
-    assert_eq!(at(IndexStamp { seconds: written.mtime_sec, nanoseconds: written.mtime_nsec.saturating_sub(1) }), None, "an index older than the file trusts nothing");
-    assert!(at(IndexStamp { seconds: written.mtime_sec, nanoseconds: written.mtime_nsec.saturating_add(1) }).is_some(), "the same second, a nanosecond later, is an index the file is older than");
-    assert!(at(IndexStamp { seconds: written.mtime_sec + 1, nanoseconds: 0 }).is_some(), "one second later the file is older than the index");
+    let at = |stamp: IndexStamp| {
+        return recorded_at(stamp, root.as_path(), b"a", blob.as_slice(), 0o100_644);
+    };
+    assert_eq!(
+        at(IndexStamp {
+            seconds: written.mtime_sec,
+            nanoseconds: written.mtime_nsec
+        }),
+        None,
+        "an entry the index is as new as is racily clean"
+    );
+    assert_eq!(
+        at(IndexStamp {
+            seconds: written.mtime_sec,
+            nanoseconds: written.mtime_nsec.saturating_sub(1)
+        }),
+        None,
+        "an index older than the file trusts nothing"
+    );
+    assert!(
+        at(IndexStamp {
+            seconds: written.mtime_sec,
+            nanoseconds: written.mtime_nsec.saturating_add(1)
+        })
+        .is_some(),
+        "the same second, a nanosecond later, is an index the file is older than"
+    );
+    assert!(
+        at(IndexStamp {
+            seconds: written.mtime_sec + 1,
+            nanoseconds: 0
+        })
+        .is_some(),
+        "one second later the file is older than the index"
+    );
     remove(root.as_path());
 }
 
@@ -188,7 +323,11 @@ fn a_symbolic_link_records_nothing() {
     std::os::unix::fs::symlink("target", root.join("l")).expect("symlink");
     age(root.join("l").as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"target");
-    assert_eq!(recorded(root.as_path(), b"l", blob.as_slice(), 0o120_000), None, "a link keeps the zero stat data, so the next commit refreshes it");
+    assert_eq!(
+        recorded(root.as_path(), b"l", blob.as_slice(), 0o120_000),
+        None,
+        "a link keeps the zero stat data, so the next commit refreshes it"
+    );
     remove(root.as_path());
 }
 
@@ -209,9 +348,26 @@ fn a_file_that_changed_while_it_was_read_records_nothing() {
         writes += 1;
         std::fs::write(&written, b"a TWO\n").expect("rewrite");
     };
-    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
+    let request: WorktreeStatRequest<'_> = request_at_stamp(
+        now_stamp(),
+        root.as_path(),
+        b"a",
+        blob.as_slice(),
+        0o100_644,
+        &hashed,
+    );
     let mut before_open = || {};
-    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut seam, read: &mut read_some }), None);
+    assert_eq!(
+        recorded_stat_seamed(
+            &request,
+            &mut ProofSeams {
+                before_open: &mut before_open,
+                after_read: &mut seam,
+                read: &mut read_some
+            }
+        ),
+        None
+    );
     assert_eq!(writes, 1, "the control wrote during the read");
     remove(root.as_path());
 }
@@ -222,10 +378,15 @@ fn a_file_larger_than_the_content_bound_records_nothing() {
     let root: PathBuf = fixture_root("index-worktree-stat-large");
     let file: PathBuf = root.join("a");
     let large: std::fs::File = std::fs::File::create(&file).expect("create");
-    large.set_len(crate::worktree_clean_content::CONTENT_LIMIT + 1).expect("sparse growth");
+    large
+        .set_len(crate::worktree_clean_content::CONTENT_LIMIT + 1)
+        .expect("sparse growth");
     age(file.as_path());
     let blob: Vec<u8> = vec![7; 20];
-    assert_eq!(recorded(root.as_path(), b"a", blob.as_slice(), 0o100_644), None);
+    assert_eq!(
+        recorded(root.as_path(), b"a", blob.as_slice(), 0o100_644),
+        None
+    );
     remove(root.as_path());
 }
 
@@ -240,9 +401,24 @@ fn the_bytes_one_landing_hashes_are_bounded() {
     age(file.as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
     let spent: StdCell<u64> = StdCell::new(crate::worktree_clean_content::CONTENT_LIMIT);
-    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &spent);
-    assert_eq!(recorded_stat(&request), None, "a landing that has spent the bound records nothing more");
-    assert_eq!(spent.get(), crate::worktree_clean_content::CONTENT_LIMIT, "and spends nothing");
+    let request: WorktreeStatRequest<'_> = request_at_stamp(
+        now_stamp(),
+        root.as_path(),
+        b"a",
+        blob.as_slice(),
+        0o100_644,
+        &spent,
+    );
+    assert_eq!(
+        recorded_stat(&request),
+        None,
+        "a landing that has spent the bound records nothing more"
+    );
+    assert_eq!(
+        spent.get(),
+        crate::worktree_clean_content::CONTENT_LIMIT,
+        "and spends nothing"
+    );
     remove(root.as_path());
 }
 
@@ -256,12 +432,32 @@ fn a_file_of_another_kind_than_the_entrys_records_nothing() {
     age(root.join("a").as_path());
     age(root.join("l").as_path());
     let content: Vec<u8> = blob_in(root.as_path(), b"a one\n");
-    assert_eq!(recorded(root.as_path(), b"a", content.as_slice(), 0o100_755), None, "the file is not executable");
-    assert_eq!(recorded(root.as_path(), b"a", content.as_slice(), 0o120_000), None, "the path is a file, not a link");
+    assert_eq!(
+        recorded(root.as_path(), b"a", content.as_slice(), 0o100_755),
+        None,
+        "the file is not executable"
+    );
+    assert_eq!(
+        recorded(root.as_path(), b"a", content.as_slice(), 0o120_000),
+        None,
+        "the path is a file, not a link"
+    );
     let target: Vec<u8> = blob_in(root.as_path(), b"a");
-    assert_eq!(recorded(root.as_path(), b"l", target.as_slice(), 0o100_644), None, "the path is a link, not a file");
-    assert_eq!(recorded(root.as_path(), b"l", target.as_slice(), 0o160_000), None, "a gitlink holds no file");
-    assert_eq!(recorded(root.as_path(), b"absent", content.as_slice(), 0o100_644), None, "no file, no stat data");
+    assert_eq!(
+        recorded(root.as_path(), b"l", target.as_slice(), 0o100_644),
+        None,
+        "the path is a link, not a file"
+    );
+    assert_eq!(
+        recorded(root.as_path(), b"l", target.as_slice(), 0o160_000),
+        None,
+        "a gitlink holds no file"
+    );
+    assert_eq!(
+        recorded(root.as_path(), b"absent", content.as_slice(), 0o100_644),
+        None,
+        "no file, no stat data"
+    );
     remove(root.as_path());
 }
 
@@ -277,12 +473,24 @@ fn a_file_of_another_kind_than_the_entrys_records_nothing() {
 /// ```ts
 /// const attributes = (root: string, attribute: string) => { writeFile(`${root}/.gitattributes`, `f.txt ${attribute}\n`); writeFile(`${root}/weird.sh`, '#!/bin/sh\nprintf P\ncat\n', { mode: 0o755 }); git(['config', 'filter.weird.clean', `${root}/weird.sh`]); };
 /// ```
-fn attributes_naming(root: &Path, attribute: &str) {
-    std::fs::write(root.join(".gitattributes"), format!("f.txt {attribute}\n")).expect("attributes");
+fn attributes_naming(
+    root: &Path,
+    attribute: &str,
+) {
+    std::fs::write(root.join(".gitattributes"), format!("f.txt {attribute}\n"))
+        .expect("attributes");
     let filter: PathBuf = root.join("weird.sh");
     std::fs::write(&filter, b"#!/bin/sh\nprintf P\ncat\n").expect("filter");
-    std::fs::set_permissions(&filter, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("the filter runs");
-    git(root, &["config", "filter.weird.clean", filter.to_str().expect("a path")]);
+    std::fs::set_permissions(&filter, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+        .expect("the filter runs");
+    git(
+        root,
+        &[
+            "config",
+            "filter.weird.clean",
+            filter.to_str().expect("a path"),
+        ],
+    );
 }
 
 /// A path a converting attribute names records nothing,
@@ -292,7 +500,13 @@ fn attributes_naming(root: &Path, attribute: &str) {
 #[test]
 fn a_path_a_converting_attribute_names_records_nothing() {
     for attribute in ["filter=weird", "working-tree-encoding=UTF-16LE", "ident"] {
-        let root: PathBuf = fixture_root(format!("index-worktree-stat-{}", attribute.split('=').next().expect("a name")).as_str());
+        let root: PathBuf = fixture_root(
+            format!(
+                "index-worktree-stat-{}",
+                attribute.split('=').next().expect("a name")
+            )
+            .as_str(),
+        );
         attributes_naming(root.as_path(), attribute);
         let _settled: ClockPin = settled_clock(root.join(".gitattributes").as_path());
         for name in ["f.txt", "g.txt"] {
@@ -301,8 +515,15 @@ fn a_path_a_converting_attribute_names_records_nothing() {
             age(file.as_path());
         }
         let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
-        assert_eq!(recorded(root.as_path(), b"f.txt", blob.as_slice(), 0o100_644), None, "{attribute}: the attribute may change these bytes");
-        assert!(recorded(root.as_path(), b"g.txt", blob.as_slice(), 0o100_644).is_some(), "{attribute}: the bytes of a path the attribute does not name record");
+        assert_eq!(
+            recorded(root.as_path(), b"f.txt", blob.as_slice(), 0o100_644),
+            None,
+            "{attribute}: the attribute may change these bytes"
+        );
+        assert!(
+            recorded(root.as_path(), b"g.txt", blob.as_slice(), 0o100_644).is_some(),
+            "{attribute}: the bytes of a path the attribute does not name record"
+        );
         remove(root.as_path());
     }
 }
@@ -319,8 +540,15 @@ fn a_file_with_a_carriage_return_records_nothing() {
     age(root.join("b").as_path());
     let carried: Vec<u8> = blob_in(root.as_path(), b"a\r\nb\n");
     let plain: Vec<u8> = blob_in(root.as_path(), b"a\nb\n");
-    assert_eq!(recorded(root.as_path(), b"a", carried.as_slice(), 0o100_644), None, "a carriage return may be converted away on the way into the index");
-    assert!(recorded(root.as_path(), b"b", plain.as_slice(), 0o100_644).is_some(), "the same bytes without one record");
+    assert_eq!(
+        recorded(root.as_path(), b"a", carried.as_slice(), 0o100_644),
+        None,
+        "a carriage return may be converted away on the way into the index"
+    );
+    assert!(
+        recorded(root.as_path(), b"b", plain.as_slice(), 0o100_644).is_some(),
+        "the same bytes without one record"
+    );
     remove(root.as_path());
 }
 
@@ -335,14 +563,36 @@ fn a_read_that_is_rejected_is_still_charged() {
     age(file.as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
     let hashed: StdCell<u64> = StdCell::new(0);
-    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
+    let request: WorktreeStatRequest<'_> = request_at_stamp(
+        now_stamp(),
+        root.as_path(),
+        b"a",
+        blob.as_slice(),
+        0o100_644,
+        &hashed,
+    );
     let written: PathBuf = file.clone();
     let mut before_open = || {};
     let mut after_read = move || {
         std::fs::write(&written, b"a TWO\n").expect("rewrite");
     };
-    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read_some }), None, "the file changed under the read");
-    assert!(hashed.get() >= 6, "the six bytes that were read are charged, and the landing has {}", hashed.get());
+    assert_eq!(
+        recorded_stat_seamed(
+            &request,
+            &mut ProofSeams {
+                before_open: &mut before_open,
+                after_read: &mut after_read,
+                read: &mut read_some
+            }
+        ),
+        None,
+        "the file changed under the read"
+    );
+    assert!(
+        hashed.get() >= 6,
+        "the six bytes that were read are charged, and the landing has {}",
+        hashed.get()
+    );
     remove(root.as_path());
 }
 
@@ -358,7 +608,14 @@ fn one_read_takes_at_most_what_is_left_of_the_bound() {
     let blob: Vec<u8> = blob_in(root.as_path(), b"abcd");
     let spent: u64 = crate::worktree_clean_content::CONTENT_LIMIT - 4;
     let hashed: StdCell<u64> = StdCell::new(spent);
-    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
+    let request: WorktreeStatRequest<'_> = request_at_stamp(
+        now_stamp(),
+        root.as_path(),
+        b"a",
+        blob.as_slice(),
+        0o100_644,
+        &hashed,
+    );
     let grown: PathBuf = file.clone();
     let mut before_open = move || {
         std::fs::write(&grown, b"abcdefghijklmnop").expect("grow");
@@ -371,8 +628,23 @@ fn one_read_takes_at_most_what_is_left_of_the_bound() {
         counted.set(counted.get() + taken as u64);
         return Ok(taken);
     };
-    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read }), None, "a file grown past the room is not recorded");
-    assert_eq!(handed.get(), 0, "a file whose size is past the room is not read at all");
+    assert_eq!(
+        recorded_stat_seamed(
+            &request,
+            &mut ProofSeams {
+                before_open: &mut before_open,
+                after_read: &mut after_read,
+                read: &mut read
+            }
+        ),
+        None,
+        "a file grown past the room is not recorded"
+    );
+    assert_eq!(
+        handed.get(),
+        0,
+        "a file whose size is past the room is not read at all"
+    );
     assert_eq!(hashed.get(), spent, "and nothing is charged for it");
     remove(root.as_path());
 }
@@ -389,7 +661,14 @@ fn every_byte_the_file_hands_over_is_charged() {
     age(file.as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
     let hashed: StdCell<u64> = StdCell::new(0);
-    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
+    let request: WorktreeStatRequest<'_> = request_at_stamp(
+        now_stamp(),
+        root.as_path(),
+        b"a",
+        blob.as_slice(),
+        0o100_644,
+        &hashed,
+    );
     let handed: StdCell<u64> = StdCell::new(0);
     let counted: &StdCell<u64> = &handed;
     let mut read = move |opened: &std::fs::File, buffer: &mut [u8]| -> std::io::Result<usize> {
@@ -402,13 +681,35 @@ fn every_byte_the_file_hands_over_is_charged() {
     let mut after_read = move || {
         std::fs::write(&written, b"a TWO\n").expect("rewrite");
     };
-    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read }), None, "the file changed under the read");
-    assert_eq!(handed.get(), 6, "the six bytes the file handed over are counted");
+    assert_eq!(
+        recorded_stat_seamed(
+            &request,
+            &mut ProofSeams {
+                before_open: &mut before_open,
+                after_read: &mut after_read,
+                read: &mut read
+            }
+        ),
+        None,
+        "the file changed under the read"
+    );
+    assert_eq!(
+        handed.get(),
+        6,
+        "the six bytes the file handed over are counted"
+    );
     assert_eq!(hashed.get(), handed.get(), "and exactly those are charged");
 
     // A read that fails after some bytes took those bytes, and they are charged too.
     let partly: StdCell<u64> = StdCell::new(0);
-    let failing: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &partly);
+    let failing: WorktreeStatRequest<'_> = request_at_stamp(
+        now_stamp(),
+        root.as_path(),
+        b"a",
+        blob.as_slice(),
+        0o100_644,
+        &partly,
+    );
     let mut still_open = || {};
     let mut still_read = || {};
     let fails: StdCell<u64> = StdCell::new(0);
@@ -421,8 +722,23 @@ fn every_byte_the_file_hands_over_is_charged() {
             Err(std::io::Error::from(std::io::ErrorKind::Other))
         };
     };
-    assert_eq!(recorded_stat_seamed(&failing, &mut ProofSeams { before_open: &mut still_open, after_read: &mut still_read, read: &mut breaks }), None, "a read that fails proves nothing");
-    assert_eq!(partly.get(), 3, "the three bytes taken before the failure are charged");
+    assert_eq!(
+        recorded_stat_seamed(
+            &failing,
+            &mut ProofSeams {
+                before_open: &mut still_open,
+                after_read: &mut still_read,
+                read: &mut breaks
+            }
+        ),
+        None,
+        "a read that fails proves nothing"
+    );
+    assert_eq!(
+        partly.get(),
+        3,
+        "the three bytes taken before the failure are charged"
+    );
     remove(root.as_path());
 }
 
@@ -440,7 +756,14 @@ fn repeatedly_interrupted_reads_end_in_a_refusal() {
     age(file.as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
     let hashed: StdCell<u64> = StdCell::new(0);
-    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
+    let request: WorktreeStatRequest<'_> = request_at_stamp(
+        now_stamp(),
+        root.as_path(),
+        b"a",
+        blob.as_slice(),
+        0o100_644,
+        &hashed,
+    );
     let attempts: &StdCell<usize> = Box::leak(Box::new(StdCell::new(0)));
     let mut read = move |_opened: &std::fs::File, _buffer: &mut [u8]| -> std::io::Result<usize> {
         attempts.set(attempts.get() + 1);
@@ -452,11 +775,22 @@ fn repeatedly_interrupted_reads_end_in_a_refusal() {
     let mut before_open = || {};
     let mut after_read = || {};
     assert_eq!(
-        recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read }),
+        recorded_stat_seamed(
+            &request,
+            &mut ProofSeams {
+                before_open: &mut before_open,
+                after_read: &mut after_read,
+                read: &mut read
+            }
+        ),
         None,
         "an interrupted read proves nothing, so the entry keeps the zero stat data"
     );
-    assert!(attempts.get() < CONTROL_STOPS_AFTER, "the reader stopped on its own after {} of {CONTROL_STOPS_AFTER} interruptions", attempts.get());
+    assert!(
+        attempts.get() < CONTROL_STOPS_AFTER,
+        "the reader stopped on its own after {} of {CONTROL_STOPS_AFTER} interruptions",
+        attempts.get()
+    );
     remove(root.as_path());
 }
 
@@ -478,11 +812,28 @@ fn one_interrupted_read_is_tried_again() {
         return read_some(opened, buffer);
     };
     let hashed: StdCell<u64> = StdCell::new(0);
-    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
+    let request: WorktreeStatRequest<'_> = request_at_stamp(
+        now_stamp(),
+        root.as_path(),
+        b"a",
+        blob.as_slice(),
+        0o100_644,
+        &hashed,
+    );
     let mut before_open = || {};
     let mut after_read = || {};
-    let recorded: Option<StatData> = recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read });
-    assert!(recorded.is_some(), "an interruption costs nothing, and the file records its stat data");
+    let recorded: Option<StatData> = recorded_stat_seamed(
+        &request,
+        &mut ProofSeams {
+            before_open: &mut before_open,
+            after_read: &mut after_read,
+            read: &mut read,
+        },
+    );
+    assert!(
+        recorded.is_some(),
+        "an interruption costs nothing, and the file records its stat data"
+    );
     // The interruption, the read that takes the file's bytes, and the read that reports the end of the file.
     assert_eq!(attempts.get(), 3, "the interruption is retried once");
     remove(root.as_path());
@@ -504,7 +855,8 @@ fn a_fifo_swapped_over_the_path_is_not_opened() {
     let swapped: &'static std::path::Path = Box::leak(file.clone().into_boxed_path());
     let mut before_open = move || {
         let _removed = std::fs::remove_file(swapped);
-        let name: std::ffi::CString = std::ffi::CString::new(swapped.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+        let name: std::ffi::CString = std::ffi::CString::new(swapped.as_os_str().as_bytes())
+            .expect("no NUL in a fixture path");
         // SAFETY: `name` is a NUL-terminated string that outlives the call.
         let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
         assert_eq!(made, 0, "the control made a fifo at {}", swapped.display());
@@ -513,11 +865,27 @@ fn a_fifo_swapped_over_the_path_is_not_opened() {
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let hashed: &'static StdCell<u64> = Box::leak(Box::new(StdCell::new(0)));
-        let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), held_root, held_path, held_blob, 0o100_644, hashed);
-        let answer: Option<StatData> = recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read, read: &mut read_some });
+        let request: WorktreeStatRequest<'_> = request_at_stamp(
+            now_stamp(),
+            held_root,
+            held_path,
+            held_blob,
+            0o100_644,
+            hashed,
+        );
+        let answer: Option<StatData> = recorded_stat_seamed(
+            &request,
+            &mut ProofSeams {
+                before_open: &mut before_open,
+                after_read: &mut after_read,
+                read: &mut read_some,
+            },
+        );
         let _sent = sender.send(answer);
     });
-    let answer: Option<StatData> = receiver.recv_timeout(std::time::Duration::from_secs(5)).expect("the proof must not wait on a fifo for a writer");
+    let answer: Option<StatData> = receiver
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("the proof must not wait on a fifo for a writer");
     assert_eq!(answer, None, "a fifo is not a file the proof records");
     remove(root.as_path());
 }
@@ -534,8 +902,22 @@ fn an_attributes_file_only_the_index_holds_refuses_the_record() {
     age(file.as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
     std::fs::remove_file(root.join(".gitattributes")).expect("the worktree copy is gone");
-    assert_eq!(recorded(root.as_path(), b"a", blob.as_slice(), 0o100_644).unwrap_or_default(), stat_of_file(file.as_path()), "without the index's copy the proof sees no attributes");
-    assert_eq!(recorded_with_indexed(&[Vec::new()], root.as_path(), b"a", blob.as_slice(), 0o100_644), None, "the index's copy applies where the worktree's is gone");
+    assert_eq!(
+        recorded(root.as_path(), b"a", blob.as_slice(), 0o100_644).unwrap_or_default(),
+        stat_of_file(file.as_path()),
+        "without the index's copy the proof sees no attributes"
+    );
+    assert_eq!(
+        recorded_with_indexed(
+            &[Vec::new()],
+            root.as_path(),
+            b"a",
+            blob.as_slice(),
+            0o100_644
+        ),
+        None,
+        "the index's copy applies where the worktree's is gone"
+    );
     remove(root.as_path());
 }
 
@@ -549,9 +931,15 @@ fn an_attributes_file_only_the_index_holds_refuses_the_record() {
 /// ```ts
 /// const attributesOf = (root, bytes) => writeFile(`${root}/.gitattributes`, 'a -text\n' + '#'.repeat(bytes - 7) + '\n');
 /// ```
-fn attributes_of(root: &Path, bytes: usize) {
+fn attributes_of(
+    root: &Path,
+    bytes: usize,
+) {
     let mut text: Vec<u8> = b"a -text\n".to_vec();
-    text.extend(std::iter::repeat_n(b'#', bytes.saturating_sub(text.len() + 1)));
+    text.extend(std::iter::repeat_n(
+        b'#',
+        bytes.saturating_sub(text.len() + 1),
+    ));
     text.push(b'\n');
     std::fs::write(root.join(".gitattributes"), text).expect("attributes");
 }
@@ -568,12 +956,37 @@ fn an_attribute_read_that_does_not_fit_the_room_refuses_the_record() {
     age(file.as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
     let spent: StdCell<u64> = StdCell::new(crate::worktree_clean_content::CONTENT_LIMIT - 16);
-    let tight: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &spent);
-    assert_eq!(recorded_stat(&tight), None, "an attribute file of four kibibytes does not fit in sixteen bytes of room");
-    assert_eq!(spent.get(), crate::worktree_clean_content::CONTENT_LIMIT - 16, "and nothing is charged for it");
+    let tight: WorktreeStatRequest<'_> = request_at_stamp(
+        now_stamp(),
+        root.as_path(),
+        b"a",
+        blob.as_slice(),
+        0o100_644,
+        &spent,
+    );
+    assert_eq!(
+        recorded_stat(&tight),
+        None,
+        "an attribute file of four kibibytes does not fit in sixteen bytes of room"
+    );
+    assert_eq!(
+        spent.get(),
+        crate::worktree_clean_content::CONTENT_LIMIT - 16,
+        "and nothing is charged for it"
+    );
     let whole: StdCell<u64> = StdCell::new(0);
-    let roomy: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &whole);
-    assert!(recorded_stat(&roomy).is_some(), "with the whole bound the same file records");
+    let roomy: WorktreeStatRequest<'_> = request_at_stamp(
+        now_stamp(),
+        root.as_path(),
+        b"a",
+        blob.as_slice(),
+        0o100_644,
+        &whole,
+    );
+    assert!(
+        recorded_stat(&roomy).is_some(),
+        "with the whole bound the same file records"
+    );
     remove(root.as_path());
 }
 
@@ -589,9 +1002,20 @@ fn the_attribute_files_a_landing_reads_are_charged() {
     age(file.as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
     let hashed: StdCell<u64> = StdCell::new(0);
-    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
+    let request: WorktreeStatRequest<'_> = request_at_stamp(
+        now_stamp(),
+        root.as_path(),
+        b"a",
+        blob.as_slice(),
+        0o100_644,
+        &hashed,
+    );
     assert!(recorded_stat(&request).is_some(), "the file records");
-    assert!(hashed.get() >= 4096 + 2, "the attribute file and the file itself are charged, and the landing has {}", hashed.get());
+    assert!(
+        hashed.get() >= 4096 + 2,
+        "the attribute file and the file itself are charged, and the landing has {}",
+        hashed.get()
+    );
     remove(root.as_path());
 }
 
@@ -612,7 +1036,14 @@ fn a_nested_path_with_an_indexed_root_attributes_file_records_rather_than_panick
     let _settled: ClockPin = settled_clock(root.join(".gitattributes").as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
     assert_eq!(
-        recorded_with_indexed(&[Vec::new()], root.as_path(), b"d/a", blob.as_slice(), 0o100_644).unwrap_or_default(),
+        recorded_with_indexed(
+            &[Vec::new()],
+            root.as_path(),
+            b"d/a",
+            blob.as_slice(),
+            0o100_644
+        )
+        .unwrap_or_default(),
         stat_of_file(file.as_path()),
         "the worktree's copy is the one Git applies, so the nested file records"
     );
@@ -632,7 +1063,14 @@ fn a_nested_path_with_an_indexed_ancestor_attributes_file_records_rather_than_pa
     age(file.as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
     assert_eq!(
-        recorded_with_indexed(&[b"d".to_vec()], root.as_path(), b"d/e/a", blob.as_slice(), 0o100_644).unwrap_or_default(),
+        recorded_with_indexed(
+            &[b"d".to_vec()],
+            root.as_path(),
+            b"d/e/a",
+            blob.as_slice(),
+            0o100_644
+        )
+        .unwrap_or_default(),
         stat_of_file(file.as_path()),
         "the ancestor's worktree copy is the one Git applies, so the nested file records"
     );
@@ -662,5 +1100,8 @@ fn a_change_time_without_nanoseconds_proves_nothing() {
         !stamp_proves_one_version((1_700_000_000, 0)),
         "a whole-second change time cannot tell two rewrites in one second apart"
     );
-    assert!(stamp_proves_one_version((1_700_000_000, 1)), "one nanosecond is enough to tell them apart");
+    assert!(
+        stamp_proves_one_version((1_700_000_000, 1)),
+        "one nanosecond is enough to tell them apart"
+    );
 }

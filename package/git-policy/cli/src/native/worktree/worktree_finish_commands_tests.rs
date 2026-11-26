@@ -15,7 +15,10 @@
 //! // expect(finishAndRemove('/tmp/half')).toEqual(['git -C /tmp/half reset --no-enforce-worktree --hard --no-recurse-submodules', ...]);
 //! ```
 
-use super::{finish_and_remove, finish_or_remove_sentence};
+use super::{
+    finish_and_remove,
+    finish_or_remove_sentence,
+};
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use std::path::Path;
 
@@ -27,13 +30,19 @@ use std::path::Path;
 /// because a person's `submodule.recurse` setting fails the checkout without it.
 #[test]
 fn a_plain_path_is_printed_bare_with_the_hatch_after_the_subcommand() {
-    let (finish, remove): (String, String) = finish_and_remove(Path::new("/home/person/half-added"));
+    let (finish, remove): (String, String) =
+        finish_and_remove(Path::new("/home/person/half-added"));
     assert_eq!(
         finish,
-        format!("git -C /home/person/half-added reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard --no-recurse-submodules"),
+        format!(
+            "git -C /home/person/half-added reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard --no-recurse-submodules"
+        ),
         "the hatch is where the wrapper reads it, the submodule recursion is the ladder's own, and the path is bare"
     );
-    assert_eq!(remove, "git worktree remove --force /home/person/half-added");
+    assert_eq!(
+        remove,
+        "git worktree remove --force /home/person/half-added"
+    );
 }
 
 /// A path holding a space and a quote is quoted,
@@ -43,7 +52,9 @@ fn a_path_that_needs_quoting_is_quoted() {
     let (finish, _remove): (String, String) = finish_and_remove(Path::new("/home/person/a b'c"));
     assert_eq!(
         finish,
-        format!("git -C '/home/person/a b'\\''c' reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard --no-recurse-submodules"),
+        format!(
+            "git -C '/home/person/a b'\\''c' reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard --no-recurse-submodules"
+        ),
         "a space and a quote are read back as one word"
     );
 }

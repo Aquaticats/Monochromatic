@@ -28,10 +28,22 @@
 //! ```
 
 use crate::worktree_clone_snapshot_batch::request_refusal::BatchRefusal;
-use crate::worktree_clone_snapshot_batch::snapshot_destroy_request::{DEFER_KEY, carries_no_defer, destroy_request, encoded_request_bytes};
-use monochromatic_zfs_request_to_openzfs_kernel_device::requests::{checked_name, flag_list};
+use crate::worktree_clone_snapshot_batch::snapshot_destroy_request::{
+    DEFER_KEY,
+    carries_no_defer,
+    destroy_request,
+    encoded_request_bytes,
+};
+use monochromatic_zfs_request_to_openzfs_kernel_device::requests::{
+    checked_name,
+    flag_list,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::{
-    NvData, NvList, NameField, Operation, Request,
+    NameField,
+    NvData,
+    NvList,
+    Operation,
+    Request,
 };
 
 /// The pool the controls' requests name.
@@ -56,7 +68,9 @@ fn the_request_is_one_destroy_snaps_request_over_the_pool() {
     assert_eq!(request.operation(), Operation::DestroySnaps);
     assert_eq!(request.command().name(), POOL);
     let input: NvList = NvList::unpack(request.input_bytes()).expect("the input decodes");
-    let snaps: &NvList = input.get_list("snaps").expect("the request carries a snaps list");
+    let snaps: &NvList = input
+        .get_list("snaps")
+        .expect("the request carries a snaps list");
     let submitted: Vec<String> = snaps
         .iter()
         .map(|pair| {
@@ -98,13 +112,8 @@ fn the_encoded_request_carries_no_defer_key() {
 ///  answered `true` would pass the control above.
 #[test]
 fn the_defer_detector_sees_a_key_when_one_is_present() {
-    let name = checked_name(
-        Operation::DestroySnaps,
-        POOL,
-        NameField::CommandName,
-        POOL,
-    )
-    .expect("the pool fits");
+    let name = checked_name(Operation::DestroySnaps, POOL, NameField::CommandName, POOL)
+        .expect("the pool fits");
     let mut input: NvList = NvList::new();
     input.add_nvlist("snaps", flag_list(&["zfsstep16/clones/removal@one"]));
     input.push(DEFER_KEY, NvData::BooleanFlag);
@@ -119,8 +128,9 @@ fn the_defer_detector_sees_a_key_when_one_is_present() {
 /// A snapshot name carrying a NUL is refused before a request exists.
 #[test]
 fn a_snapshot_name_with_an_embedded_nul_is_refused() {
-    let refusal: BatchRefusal = destroy_request(POOL, &[String::from("zfsstep16/clones/removal@on\0e")])
-        .expect_err("a NUL would shorten the name the kernel reads");
+    let refusal: BatchRefusal =
+        destroy_request(POOL, &[String::from("zfsstep16/clones/removal@on\0e")])
+            .expect_err("a NUL would shorten the name the kernel reads");
     assert!(matches!(refusal, BatchRefusal::Unbuildable { .. }));
 }
 

@@ -24,7 +24,10 @@
 
 use crate::worktree_operands::operands_after_options;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The worktree a `git worktree move` renames and the operand that named it.
@@ -60,8 +63,15 @@ pub struct MoveSource {
 /// ```ts
 /// function parseMoveSource(args: string[], subcommandIndex: number, start: string, commonDir?: string): MoveSource | undefined;
 /// ```
-pub fn parse_move_source(arguments: &[OsString], subcommand_index: usize, start: &Path, common_dir: Option<&Path>) -> Option<MoveSource> {
-    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree" || arguments.get(subcommand_index + 1)?.as_encoded_bytes() != b"move" {
+pub fn parse_move_source(
+    arguments: &[OsString],
+    subcommand_index: usize,
+    start: &Path,
+    common_dir: Option<&Path>,
+) -> Option<MoveSource> {
+    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree"
+        || arguments.get(subcommand_index + 1)?.as_encoded_bytes() != b"move"
+    {
         return None;
     }
     let rest: &[OsString] = &arguments[subcommand_index + 2..];
@@ -74,12 +84,19 @@ pub fn parse_move_source(arguments: &[OsString], subcommand_index: usize, start:
     }
     // Git matches the typed name against the registered paths first, and a name that matches one of them names that worktree.
     if let Some(common) = common_dir
-        && let Some(source) = crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())
+        && let Some(source) =
+            crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())
     {
-        return Some(MoveSource { source, operand: (*operand).clone() });
+        return Some(MoveSource {
+            source,
+            operand: (*operand).clone(),
+        });
     }
     let source: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
-    return source.is_dir().then_some(MoveSource { source, operand: (*operand).clone() });
+    return source.is_dir().then_some(MoveSource {
+        source,
+        operand: (*operand).clone(),
+    });
 }
 
 /// The move source's controls stay out of the release executable.

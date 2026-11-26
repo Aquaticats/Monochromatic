@@ -28,12 +28,22 @@
 //! ```
 
 use crate::lazy_runtime::run_on_runtime;
-use crate::worktree_clone_mount_protocol::clone_mount_intent::{MountIntent, MountOperation};
+use crate::worktree_clone_mount_protocol::clone_mount_intent::{
+    MountIntent,
+    MountOperation,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_intent_write::CloneIntentWriter;
-use crate::worktree_clone_mount_protocol::clone_mount_receipt::{CloneMountReceipt, ReceiptOutcome};
+use crate::worktree_clone_mount_protocol::clone_mount_receipt::{
+    CloneMountReceipt,
+    ReceiptOutcome,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder::ReceiptsFolder;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_mount_protocol::mount_request_wait::{MountRequest, PROVISIONAL_MOUNT_REQUEST_DEADLINE, wait_for_answer};
+use crate::worktree_clone_mount_protocol::mount_request_wait::{
+    MountRequest,
+    PROVISIONAL_MOUNT_REQUEST_DEADLINE,
+    wait_for_answer,
+};
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_unmount::staging_calls::BOOT_ID_PATH;
@@ -68,15 +78,23 @@ impl RemovalIntent {
     /// so no request can be told from another.
     pub fn fresh() -> Result<RemovalIntent, RemovalStop> {
         let nonce: RequestNonce = RequestNonce::fresh().map_err(|refusal| {
-            return RemovalStop::UnmountFailed { step: String::from("nonce"), said: refusal.message() };
+            return RemovalStop::UnmountFailed {
+                step: String::from("nonce"),
+                said: refusal.message(),
+            };
         })?;
-        return Ok(RemovalIntent { nonce });
+        return Ok(RemovalIntent {
+            nonce,
+        });
     }
 
     /// The property value's own value:
     /// the operation and the nonce.
     pub fn mount_intent(&self) -> MountIntent {
-        return MountIntent { operation: MountOperation::Unmount, nonce: self.nonce.clone() };
+        return MountIntent {
+            operation: MountOperation::Unmount,
+            nonce: self.nonce.clone(),
+        };
     }
 }
 
@@ -186,7 +204,10 @@ pub trait RemovalUnmount {
     /// The property write that was refused,
     /// the wait that ended without an answer,
     /// or the deadline that passed.
-    fn request_the_unmount(&self, intent: &MountIntent) -> Result<UnmountAnswer, RemovalStop>;
+    fn request_the_unmount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<UnmountAnswer, RemovalStop>;
 }
 
 /// What:
@@ -221,36 +242,80 @@ impl LiveRemovalUnmount {
     /// # Throws
     /// The boot identifier cannot be read,
     /// so no receipt could be matched.
-    pub fn open(clone: &str, clone_guid: DatasetGuid) -> Result<LiveRemovalUnmount, RemovalStop> {
+    pub fn open(
+        clone: &str,
+        clone_guid: DatasetGuid,
+    ) -> Result<LiveRemovalUnmount, RemovalStop> {
         let boot: String = std::fs::read_to_string(BOOT_ID_PATH)
             .map(|text| return text.trim().to_string())
-            .map_err(|error| return RemovalStop::UnmountFailed { step: String::from("boot-id"), said: format!("{BOOT_ID_PATH} could not be read ({error})") })?;
-        return Ok(LiveRemovalUnmount { clone: String::from(clone), clone_guid, boot, deadline: PROVISIONAL_MOUNT_REQUEST_DEADLINE });
+            .map_err(|error| {
+                return RemovalStop::UnmountFailed {
+                    step: String::from("boot-id"),
+                    said: format!("{BOOT_ID_PATH} could not be read ({error})"),
+                };
+            })?;
+        return Ok(LiveRemovalUnmount {
+            clone: String::from(clone),
+            clone_guid,
+            boot,
+            deadline: PROVISIONAL_MOUNT_REQUEST_DEADLINE,
+        });
     }
 
     /// The deadline one wait takes,
     /// which the caller may narrow for a control.
-    pub fn with_the_deadline(mut self, deadline: Duration) -> LiveRemovalUnmount {
+    pub fn with_the_deadline(
+        mut self,
+        deadline: Duration,
+    ) -> LiveRemovalUnmount {
         self.deadline = deadline;
         return self;
     }
 }
 
 impl RemovalUnmount for LiveRemovalUnmount {
-    fn request_the_unmount(&self, intent: &MountIntent) -> Result<UnmountAnswer, RemovalStop> {
-        let writer: CloneIntentWriter = CloneIntentWriter::open(&LiveGate, self.clone.as_str()).map_err(|refusal| {
-            return RemovalStop::UnmountFailed { step: String::from("intent"), said: refusal.message() };
+    fn request_the_unmount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<UnmountAnswer, RemovalStop> {
+        let writer: CloneIntentWriter = CloneIntentWriter::open(&LiveGate, self.clone.as_str())
+            .map_err(|refusal| {
+                return RemovalStop::UnmountFailed {
+                    step: String::from("intent"),
+                    said: refusal.message(),
+                };
+            })?;
+        writer.request(intent).map_err(|refusal| {
+            return RemovalStop::UnmountFailed {
+                step: String::from("intent"),
+                said: refusal.message(),
+            };
         })?;
-        writer.request(intent).map_err(|refusal| return RemovalStop::UnmountFailed { step: String::from("intent"), said: refusal.message() })?;
         let folder: ReceiptsFolder = ReceiptsFolder::live();
-        let request: MountRequest = MountRequest { dataset: self.clone_guid, operation: intent.operation, nonce: intent.nonce.clone(), boot: self.boot.clone() };
+        let request: MountRequest = MountRequest {
+            dataset: self.clone_guid,
+            operation: intent.operation,
+            nonce: intent.nonce.clone(),
+            boot: self.boot.clone(),
+        };
         // The wait is the route's own bounded poll, so it runs on the process's runtime and not on a worker a command
         // holds.
-        let receipt: CloneMountReceipt = match run_on_runtime(wait_for_answer(&folder, &request, self.deadline)) {
-            Ok(Ok(found)) => found,
-            Ok(Err(refusal)) => return Err(RemovalStop::UnmountFailed { step: String::from("receipt"), said: refusal.message() }),
-            Err(refusal) => return Err(RemovalStop::UnmountFailed { step: String::from("receipt"), said: format!("the wait could not run ({refusal})") }),
-        };
+        let receipt: CloneMountReceipt =
+            match run_on_runtime(wait_for_answer(&folder, &request, self.deadline)) {
+                Ok(Ok(found)) => found,
+                Ok(Err(refusal)) => {
+                    return Err(RemovalStop::UnmountFailed {
+                        step: String::from("receipt"),
+                        said: refusal.message(),
+                    });
+                }
+                Err(refusal) => {
+                    return Err(RemovalStop::UnmountFailed {
+                        step: String::from("receipt"),
+                        said: format!("the wait could not run ({refusal})"),
+                    });
+                }
+            };
         return Ok(UnmountAnswer::of_receipt(&receipt));
     }
 }
@@ -272,31 +337,57 @@ impl RemovalUnmount for LiveRemovalUnmount {
 /// ```ts
 /// const proof = verifyTheAnswer(answer, expected);
 /// ```
-pub fn verify_the_answer(answer: &UnmountAnswer, expected: &ExpectedUnmount) -> Result<UnmountProof, RemovalStop> {
+pub fn verify_the_answer(
+    answer: &UnmountAnswer,
+    expected: &ExpectedUnmount,
+) -> Result<UnmountProof, RemovalStop> {
     if answer.dataset != expected.clone_guid {
         return Err(RemovalStop::UnmountFailed {
             step: String::from("answer-dataset"),
-            said: format!("the receipt is filed for GUID {} and this removal asked for {}", answer.dataset.file_name(), expected.clone_guid.file_name()),
+            said: format!(
+                "the receipt is filed for GUID {} and this removal asked for {}",
+                answer.dataset.file_name(),
+                expected.clone_guid.file_name()
+            ),
         });
     }
     if answer.operation != MountOperation::Unmount {
-        return Err(RemovalStop::UnmountFailed { step: String::from("answer-operation"), said: format!("the receipt answers `{}`", answer.operation.word()) });
+        return Err(RemovalStop::UnmountFailed {
+            step: String::from("answer-operation"),
+            said: format!("the receipt answers `{}`", answer.operation.word()),
+        });
     }
     if answer.nonce != expected.nonce {
         return Err(RemovalStop::UnmountFailed {
             step: String::from("answer-nonce"),
-            said: format!("the receipt carries nonce {} and this removal asked under {}", answer.nonce.as_str(), expected.nonce.as_str()),
+            said: format!(
+                "the receipt carries nonce {} and this removal asked under {}",
+                answer.nonce.as_str(),
+                expected.nonce.as_str()
+            ),
         });
     }
     if answer.outcome != ReceiptOutcome::Done {
-        let step: String = answer.failed_step.clone().unwrap_or_else(|| return String::from("answer-outcome"));
-        let errno: String = answer.errno.clone().unwrap_or_else(|| return String::from("none"));
+        let step: String = answer
+            .failed_step
+            .clone()
+            .unwrap_or_else(|| return String::from("answer-outcome"));
+        let errno: String = answer
+            .errno
+            .clone()
+            .unwrap_or_else(|| return String::from("none"));
         return Err(RemovalStop::UnmountFailed {
             step,
-            said: format!("the handler answered `{}` with errno {errno}", answer.outcome.word()),
+            said: format!(
+                "the handler answered `{}` with errno {errno}",
+                answer.outcome.word()
+            ),
         });
     }
-    return Ok(UnmountProof { nonce: answer.nonce.clone(), mount_id: answer.mount_id });
+    return Ok(UnmountProof {
+        nonce: answer.nonce.clone(),
+        mount_id: answer.mount_id,
+    });
 }
 
 /// Controls stay out of the release executable.

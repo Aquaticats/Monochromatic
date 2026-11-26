@@ -250,13 +250,22 @@ impl ReadinessRecord {
     /// The file's whole text,
     /// its final newline included.
     pub fn text(&self) -> String {
-        let nonce: String = self.sweep_nonce.as_ref().map_or(String::from("none"), |value| return String::from(value.as_str()));
+        let nonce: String = self
+            .sweep_nonce
+            .as_ref()
+            .map_or(String::from("none"), |value| {
+                return String::from(value.as_str());
+            });
         let lines: [String; 7] = [
             String::from(READINESS_VERSION),
             format!("kind {READINESS_KIND}"),
             format!("boot {}", self.boot),
             format!("pool {} {}", self.pool_state.word(), self.pool_name),
-            format!("checkout {} {}", self.checkout_state.word(), self.checkout_path),
+            format!(
+                "checkout {} {}",
+                self.checkout_state.word(),
+                self.checkout_path
+            ),
             format!("sweep {} {nonce}", self.sweep_state.word()),
             format!("time {}", self.time),
         ];

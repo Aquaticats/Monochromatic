@@ -5,7 +5,14 @@
 //!  and a Git that cannot run is refused in the same words.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -33,12 +40,18 @@ fn a_history_of_every_shape(name: &str) -> (PathBuf, PathBuf, String, String, St
     git(repo.as_path(), &["add", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=second"]);
     let second: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    git(repo.as_path(), &["checkout", "--quiet", "-b", "side", root_commit.as_str()]);
+    git(
+        repo.as_path(),
+        &["checkout", "--quiet", "-b", "side", root_commit.as_str()],
+    );
     std::fs::write(repo.join("b.txt"), "two\n").expect("a file");
     git(repo.as_path(), &["add", "b.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=side"]);
     git(repo.as_path(), &["checkout", "--quiet", "main"]);
-    git(repo.as_path(), &["merge", "--quiet", "--no-ff", "--no-edit", "side"]);
+    git(
+        repo.as_path(),
+        &["merge", "--quiet", "--no-ff", "--no-edit", "side"],
+    );
     let merge: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     return (root, repo, root_commit, second, merge);
 }
@@ -58,10 +71,18 @@ fn a_history_of_every_shape(name: &str) -> (PathBuf, PathBuf, String, String, St
 /// ```ts
 /// const [sync, awaited] = bothReadings(context, repo);
 /// ```
-fn both_readings(context: &GitContext, repo: &Path) -> (Result<Option<AmendSource>, TransactionStop>, Result<Option<AmendSource>, TransactionStop>) {
-    let synchronous: Result<Option<AmendSource>, TransactionStop> = read_amend_source(context, repo);
+fn both_readings(
+    context: &GitContext,
+    repo: &Path,
+) -> (
+    Result<Option<AmendSource>, TransactionStop>,
+    Result<Option<AmendSource>, TransactionStop>,
+) {
+    let synchronous: Result<Option<AmendSource>, TransactionStop> =
+        read_amend_source(context, repo);
     let awaited: Result<Option<AmendSource>, TransactionStop> =
-        crate::lazy_runtime::run_on_runtime(read_amend_source_awaiting(context, repo)).expect("the runtime");
+        crate::lazy_runtime::run_on_runtime(read_amend_source_awaiting(context, repo))
+            .expect("the runtime");
     return (synchronous, awaited);
 }
 
@@ -84,13 +105,26 @@ fn both_readings(context: &GitContext, repo: &Path) -> (Result<Option<AmendSourc
 /// ```
 #[test]
 fn the_awaited_amend_source_is_what_the_synchronous_one_reads() {
-    let (root, repo, root_commit, second, merge) = a_history_of_every_shape("amend-awaiting-agrees");
+    let (root, repo, root_commit, second, merge) =
+        a_history_of_every_shape("amend-awaiting-agrees");
     let context: GitContext = git_context();
-    for (label, commit, parents) in [("a merge", merge.as_str(), 2usize), ("a commit with a parent", second.as_str(), 1), ("a root commit", root_commit.as_str(), 0)] {
+    for (label, commit, parents) in [
+        ("a merge", merge.as_str(), 2usize),
+        ("a commit with a parent", second.as_str(), 1),
+        ("a root commit", root_commit.as_str(), 0),
+    ] {
         git(repo.as_path(), &["checkout", "--quiet", "--detach", commit]);
         let (synchronous, awaited) = both_readings(&context, repo.as_path());
-        let read: &AmendSource = synchronous.as_ref().expect("the reading succeeds").as_ref().expect("the commit is covered");
-        assert_eq!(read.parents.len(), parents, "{label}: the synchronous reading is what the two faces are compared on");
+        let read: &AmendSource = synchronous
+            .as_ref()
+            .expect("the reading succeeds")
+            .as_ref()
+            .expect("the commit is covered");
+        assert_eq!(
+            read.parents.len(),
+            parents,
+            "{label}: the synchronous reading is what the two faces are compared on"
+        );
         assert_eq!(
             awaited.as_ref().ok().cloned(),
             synchronous.as_ref().ok().cloned(),
@@ -114,13 +148,19 @@ fn the_awaited_amend_source_is_what_the_synchronous_one_reads() {
 /// ```
 #[test]
 fn a_git_that_cannot_run_is_refused_in_the_words_of_the_synchronous_face() {
-    let (root, repo, _root_commit, _second, _merge) = a_history_of_every_shape("amend-awaiting-refused");
+    let (root, repo, _root_commit, _second, _merge) =
+        a_history_of_every_shape("amend-awaiting-refused");
     let mut context: GitContext = git_context();
     context.real_git = PathBuf::from("/nonexistent-git-for-a-control");
-    let synchronous: Result<Option<AmendSource>, TransactionStop> = read_amend_source(&context, repo.as_path());
+    let synchronous: Result<Option<AmendSource>, TransactionStop> =
+        read_amend_source(&context, repo.as_path());
     let awaited: Result<Option<AmendSource>, TransactionStop> =
-        crate::lazy_runtime::run_on_runtime(read_amend_source_awaiting(&context, repo.as_path())).expect("the runtime");
-    assert!(synchronous.is_err(), "a Git that cannot be run covers no commit: {synchronous:?}");
+        crate::lazy_runtime::run_on_runtime(read_amend_source_awaiting(&context, repo.as_path()))
+            .expect("the runtime");
+    assert!(
+        synchronous.is_err(),
+        "a Git that cannot be run covers no commit: {synchronous:?}"
+    );
     assert_eq!(
         format!("{:?}", awaited),
         format!("{:?}", synchronous),

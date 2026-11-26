@@ -5,14 +5,37 @@
 //! and the cost an add states for a read it never used.
 
 use super::*;
-use crate::add_timing::{ADD_TIMING_FILE, begin as begin_timing, finish as finish_timing};
-use crate::test_support::{git, git_context, git_output, remove, repository};
+use crate::add_timing::{
+    ADD_TIMING_FILE,
+    begin as begin_timing,
+    finish as finish_timing,
+};
+use crate::test_support::{
+    git,
+    git_context,
+    git_output,
+    remove,
+    repository,
+};
 use crate::worktree_clone_conversion_fence::fence_the_clone;
-use crate::worktree_copy::{GitStatus, GitStep};
-use crate::worktree_ladder_run::{Ladder, Rung};
-use crate::worktree_ladder_test_support::{commit_all, main_identity, tracked};
+use crate::worktree_copy::{
+    GitStatus,
+    GitStep,
+};
+use crate::worktree_ladder_run::{
+    Ladder,
+    Rung,
+};
+use crate::worktree_ladder_test_support::{
+    commit_all,
+    main_identity,
+    tracked,
+};
 use crate::worktree_snapshot_source::source_refusal;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The fixture root of one control,
 /// under the package's own test directory.
@@ -40,7 +63,10 @@ fn fixture(name: &str) -> PathBuf {
 /// ```ts
 /// const repo = repository(root, name); tracked(repo, 'one.txt', 'one\n'); commitAll(repo, 'a tree');
 /// ```
-fn a_clean_source(root: &Path, name: &str) -> PathBuf {
+fn a_clean_source(
+    root: &Path,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(root, name);
     tracked(repo.as_path(), "one.txt", b"one\n");
     tracked(repo.as_path(), "dir/two.txt", b"two, two\n");
@@ -55,8 +81,11 @@ fn a_clean_source(root: &Path, name: &str) -> PathBuf {
 /// ```ts
 /// const noRunner = () => { throw new Error('no Git run is expected'); };
 /// ```
-fn no_runner() -> impl FnMut(&GitStep<'_>) -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> {
-    return |_step: &GitStep<'_>| { panic!("this add never runs Git here"); };
+fn no_runner()
+-> impl FnMut(&GitStep<'_>) -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> {
+    return |_step: &GitStep<'_>| {
+        panic!("this add never runs Git here");
+    };
 }
 
 /// The record the last add appended,
@@ -67,7 +96,8 @@ fn no_runner() -> impl FnMut(&GitStep<'_>) -> Result<GitStatus, crate::worktree_
 /// const record = readFileSync(join(common, ADD_TIMING_FILE), 'utf8');
 /// ```
 fn the_record(repo: &Path) -> String {
-    return std::fs::read_to_string(repo.join(".git").join(ADD_TIMING_FILE)).expect("the add's record");
+    return std::fs::read_to_string(repo.join(".git").join(ADD_TIMING_FILE))
+        .expect("the add's record");
 }
 
 /// What:
@@ -82,7 +112,10 @@ fn the_record(repo: &Path) -> String {
 /// ```ts
 /// const states = (record, name) => record.includes(`"${name}":{"ms":`);
 /// ```
-fn the_record_states(record: &str, name: &str) -> bool {
+fn the_record_states(
+    record: &str,
+    name: &str,
+) -> bool {
     return record.contains(format!("\"{name}\":{{\"ms\":").as_str());
 }
 
@@ -93,7 +126,11 @@ fn the_record_states(record: &str, name: &str) -> bool {
 /// ```ts
 /// const fence = fenceTheCloneWithTheReadBesideTheCheck(source, context, started);
 /// ```
-fn the_fence(repo: &Path, context: &GitContext, started: &mut Option<SizeReadBesideTheCheck>) -> Result<Fence, String> {
+fn the_fence(
+    repo: &Path,
+    context: &GitContext,
+    started: &mut Option<SizeReadBesideTheCheck>,
+) -> Result<Fence, String> {
     let identity: WorktreeIdentity = main_identity(repo);
     let source: SnapshotSource = source_refusal(context, &identity).expect("the source is clean");
     return fence_the_clone_with_the_read_beside_the_check(&source, context, started);
@@ -108,19 +145,34 @@ fn a_settled_head_uses_the_read_beside_the_check() {
     let root: PathBuf = fixture("settled");
     let repo: PathBuf = a_clean_source(root.as_path(), "settled");
     let context: GitContext = git_context();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
+    let started: SizeReadBesideTheCheck =
+        start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
     begin_timing(repo.join(".git"), true);
     let mut held: Option<SizeReadBesideTheCheck> = Some(started);
     let fence: Fence = the_fence(repo.as_path(), &context, &mut held).expect("the fence decides");
     finish_timing(0);
     assert!(held.is_none(), "the fence took the read the check proved");
     let record: String = the_record(repo.as_path());
-    assert!(!the_record_states(record.as_str(), "git ls-tree"), "the fence paid no second read: {record}");
-    assert!(the_record_states(record.as_str(), "fenceSizesBesideTheCheck"), "the read's own cost is the record's work: {record}");
-    assert!(the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"), "the join's wait is a step: {record}");
-    let source: SnapshotSource = source_refusal(&context, &main_identity(repo.as_path())).expect("the source is clean");
+    assert!(
+        !the_record_states(record.as_str(), "git ls-tree"),
+        "the fence paid no second read: {record}"
+    );
+    assert!(
+        the_record_states(record.as_str(), "fenceSizesBesideTheCheck"),
+        "the read's own cost is the record's work: {record}"
+    );
+    assert!(
+        the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
+        "the join's wait is a step: {record}"
+    );
+    let source: SnapshotSource =
+        source_refusal(&context, &main_identity(repo.as_path())).expect("the source is clean");
     let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
-    assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried), "the same map decides the same paths");
+    assert_eq!(
+        (fence.git_writes, fence.carried),
+        (serial.git_writes, serial.carried),
+        "the same map decides the same paths"
+    );
     remove(root.as_path());
 }
 
@@ -151,7 +203,10 @@ fn commit_of_another_tree(repo: &Path) {
 /// git(repo, ['commit', '--allow-empty', '--quiet', '--message=same tree']);
 /// ```
 fn commit_of_the_same_tree(repo: &Path) {
-    git(repo, &["commit", "--allow-empty", "--quiet", "--message=same tree"]);
+    git(
+        repo,
+        &["commit", "--allow-empty", "--quiet", "--message=same tree"],
+    );
 }
 
 /// The symbolic ref moves to a commit of the same tree.
@@ -191,23 +246,40 @@ fn the_head_moves_to_another_tree(repo: &Path) {
 /// const started = startBesideTheCheck(context, identity); moveHead(repo); const fence = theFence(repo, context, started);
 /// expect(fence.gitWrites).toEqual(serial.gitWrites);
 /// ```
-fn the_stale_read_is_dropped(repo: &Path, prepare: Option<MoveHead>, move_head: MoveHead) {
+fn the_stale_read_is_dropped(
+    repo: &Path,
+    prepare: Option<MoveHead>,
+    move_head: MoveHead,
+) {
     if let Some(before) = prepare {
         before(repo);
     }
     let context: GitContext = git_context();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &main_identity(repo)).expect("a read starts");
+    let started: SizeReadBesideTheCheck =
+        start_beside_the_check(&context, &main_identity(repo)).expect("a read starts");
     move_head(repo);
     begin_timing(repo.join(".git"), true);
     let mut held: Option<SizeReadBesideTheCheck> = Some(started);
-    let fence: Fence = the_fence(repo, &context, &mut held).expect("the fence decides the proved commit");
+    let fence: Fence =
+        the_fence(repo, &context, &mut held).expect("the fence decides the proved commit");
     finish_timing(0);
-    assert!(held.is_none(), "the fence ended the read of the earlier commit where it decided not to use it");
+    assert!(
+        held.is_none(),
+        "the fence ended the read of the earlier commit where it decided not to use it"
+    );
     let record: String = the_record(repo);
-    assert!(the_record_states(record.as_str(), "git ls-tree"), "the fence read the proved commit itself: {record}");
-    let source: SnapshotSource = source_refusal(&context, &main_identity(repo)).expect("the source is clean");
+    assert!(
+        the_record_states(record.as_str(), "git ls-tree"),
+        "the fence read the proved commit itself: {record}"
+    );
+    let source: SnapshotSource =
+        source_refusal(&context, &main_identity(repo)).expect("the source is clean");
     let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
-    assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried), "the proved commit's own map decides the paths");
+    assert_eq!(
+        (fence.git_writes, fence.carried),
+        (serial.git_writes, serial.carried),
+        "the proved commit's own map decides the paths"
+    );
 }
 
 /// The symbolic ref moving to another commit of the same tree drops the read.
@@ -224,7 +296,11 @@ fn a_moved_symbolic_ref_drops_the_read_beside_the_check() {
 fn a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check() {
     let root: PathBuf = fixture("moved-packed");
     let repo: PathBuf = a_clean_source(root.as_path(), "moved");
-    the_stale_read_is_dropped(repo.as_path(), Some(the_branch_lives_only_in_packed_refs), commit_of_the_same_tree);
+    the_stale_read_is_dropped(
+        repo.as_path(),
+        Some(the_branch_lives_only_in_packed_refs),
+        commit_of_the_same_tree,
+    );
     remove(root.as_path());
 }
 
@@ -233,7 +309,11 @@ fn a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check() {
 fn a_detached_head_moving_drops_the_read_beside_the_check() {
     let root: PathBuf = fixture("moved-detached");
     let repo: PathBuf = a_clean_source(root.as_path(), "moved");
-    the_stale_read_is_dropped(repo.as_path(), Some(the_head_is_detached), commit_of_the_same_tree);
+    the_stale_read_is_dropped(
+        repo.as_path(),
+        Some(the_head_is_detached),
+        commit_of_the_same_tree,
+    );
     remove(root.as_path());
 }
 
@@ -253,21 +333,44 @@ fn a_linked_worktrees_head_moving_drops_the_read_beside_the_check() {
     let root: PathBuf = fixture("moved-linked");
     let repo: PathBuf = a_clean_source(root.as_path(), "linked-main");
     let made: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", made.to_str().expect("utf8")]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "side",
+            made.to_str().expect("utf8"),
+        ],
+    );
     let linked: PathBuf = std::fs::canonicalize(made).expect("canonical");
     // A checkout made a moment ago is racy against its own index, and the clean check refuses that until the files are older.
     age_every_file(linked.as_path());
     let common: PathBuf = repo.join(".git");
-    let identity = WorktreeIdentity::LinkedWorktree { worktree_root: linked.clone(), git_dir: common.join("worktrees").join("linked"), common_dir: common };
+    let identity = WorktreeIdentity::LinkedWorktree {
+        worktree_root: linked.clone(),
+        git_dir: common.join("worktrees").join("linked"),
+        common_dir: common,
+    };
     let context: GitContext = git_context();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &identity).expect("a read starts");
+    let started: SizeReadBesideTheCheck =
+        start_beside_the_check(&context, &identity).expect("a read starts");
     commit_of_the_same_tree(linked.as_path());
-    let source: SnapshotSource = source_refusal(&context, &identity).expect("the linked source is clean");
+    let source: SnapshotSource =
+        source_refusal(&context, &identity).expect("the linked source is clean");
     let mut held: Option<SizeReadBesideTheCheck> = Some(started);
-    let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held).expect("the fence decides");
-    assert!(held.is_none(), "the fence ended the read of the commit before the move");
+    let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held)
+        .expect("the fence decides");
+    assert!(
+        held.is_none(),
+        "the fence ended the read of the commit before the move"
+    );
     let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
-    assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried));
+    assert_eq!(
+        (fence.git_writes, fence.carried),
+        (serial.git_writes, serial.carried)
+    );
     remove(root.as_path());
 }
 
@@ -282,26 +385,53 @@ fn a_linked_worktrees_settled_head_uses_the_read_beside_the_check() {
     // The main checkout moves on, so its `HEAD` names a commit the linked worktree's does not.
     commit_of_another_tree(repo.as_path());
     let made: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", made.to_str().expect("utf8"), first.as_str()]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "side",
+            made.to_str().expect("utf8"),
+            first.as_str(),
+        ],
+    );
     let linked: PathBuf = std::fs::canonicalize(made).expect("canonical");
     age_every_file(linked.as_path());
     // The checkout's index records the times the files had when it was written; refreshing them records the aged ones,
     // so every entry is older than the index that holds it.
     git(linked.as_path(), &["update-index", "--really-refresh"]);
     let common: PathBuf = repo.join(".git");
-    let identity = WorktreeIdentity::LinkedWorktree { worktree_root: linked.clone(), git_dir: common.join("worktrees").join("linked"), common_dir: common };
+    let identity = WorktreeIdentity::LinkedWorktree {
+        worktree_root: linked.clone(),
+        git_dir: common.join("worktrees").join("linked"),
+        common_dir: common,
+    };
     let context: GitContext = git_context();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &identity).expect("a read starts");
-    let source: SnapshotSource = source_refusal(&context, &identity).expect("the linked source is clean");
+    let started: SizeReadBesideTheCheck =
+        start_beside_the_check(&context, &identity).expect("a read starts");
+    let source: SnapshotSource =
+        source_refusal(&context, &identity).expect("the linked source is clean");
     begin_timing(repo.join(".git"), true);
     let mut held: Option<SizeReadBesideTheCheck> = Some(started);
-    let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held).expect("the fence decides");
+    let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held)
+        .expect("the fence decides");
     finish_timing(0);
-    assert!(held.is_none(), "the read listed the linked worktree's own HEAD, which is the commit the check proved");
+    assert!(
+        held.is_none(),
+        "the read listed the linked worktree's own HEAD, which is the commit the check proved"
+    );
     let record: String = the_record(repo.as_path());
-    assert!(!the_record_states(record.as_str(), "git ls-tree"), "a read of the main checkout's HEAD would have been dropped and read here: {record}");
+    assert!(
+        !the_record_states(record.as_str(), "git ls-tree"),
+        "a read of the main checkout's HEAD would have been dropped and read here: {record}"
+    );
     let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
-    assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried));
+    assert_eq!(
+        (fence.git_writes, fence.carried),
+        (serial.git_writes, serial.carried)
+    );
     remove(root.as_path());
 }
 
@@ -311,13 +441,19 @@ fn a_read_that_outlives_its_deadline_refuses_the_rung() {
     let root: PathBuf = fixture("deadline");
     let repo: PathBuf = a_clean_source(root.as_path(), "deadline");
     let context: GitContext = git_context();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
+    let started: SizeReadBesideTheCheck =
+        start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
     let hold = a_control_holds_the_read();
     let shortened = a_control_shortens_the_deadline_to(Duration::from_millis(50));
     let mut held: Option<SizeReadBesideTheCheck> = Some(started);
     let outcome: Result<Fence, String> = the_fence(repo.as_path(), &context, &mut held);
-    let Err(reason) = outcome else { panic!("the rung is refused rather than held") };
-    assert!(reason.starts_with("a Git run of the fence could not start ("), "{reason}");
+    let Err(reason) = outcome else {
+        panic!("the rung is refused rather than held")
+    };
+    assert!(
+        reason.starts_with("a Git run of the fence could not start ("),
+        "{reason}"
+    );
     assert!(reason.contains("did not answer within 50ms"), "{reason}");
     drop(hold);
     drop(shortened);
@@ -331,11 +467,17 @@ fn a_read_whose_task_dies_refuses_the_rung() {
     let repo: PathBuf = a_clean_source(root.as_path(), "dies");
     let dies = a_control_makes_the_read_die();
     let context: GitContext = git_context();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
+    let started: SizeReadBesideTheCheck =
+        start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
     let mut held: Option<SizeReadBesideTheCheck> = Some(started);
     let outcome: Result<Fence, String> = the_fence(repo.as_path(), &context, &mut held);
-    let Err(reason) = outcome else { panic!("the rung is refused rather than held") };
-    assert!(reason.starts_with("a Git run of the fence could not start ("), "{reason}");
+    let Err(reason) = outcome else {
+        panic!("the rung is refused rather than held")
+    };
+    assert!(
+        reason.starts_with("a Git run of the fence could not start ("),
+        "{reason}"
+    );
     drop(dies);
     remove(root.as_path());
 }
@@ -348,9 +490,16 @@ fn a_read_that_cannot_start_gives_the_serial_reads_sentence() {
     let mut broken: GitContext = git_context();
     broken.real_git = root.join("no-git-here");
     let identity: WorktreeIdentity = main_identity(repo.as_path());
-    let early: String = start_beside_the_check(&broken, &identity).expect("a read starts").join().expect_err("the read cannot start");
-    let commit: String = String::from_utf8(git(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("utf8").trim().to_string();
-    let serial: String = blob_sizes(&broken, repo.as_path(), commit.as_str()).expect_err("the serial read cannot start");
+    let early: String = start_beside_the_check(&broken, &identity)
+        .expect("a read starts")
+        .join()
+        .expect_err("the read cannot start");
+    let commit: String = String::from_utf8(git(repo.as_path(), &["rev-parse", "HEAD"]).stdout)
+        .expect("utf8")
+        .trim()
+        .to_string();
+    let serial: String = blob_sizes(&broken, repo.as_path(), commit.as_str())
+        .expect_err("the serial read cannot start");
     assert_eq!(early, serial, "one sentence names both runs");
     remove(root.as_path());
 }
@@ -383,7 +532,10 @@ fn age_every_file(root: &Path) {
 /// const head = execFileSync(git, ['rev-parse', 'HEAD'], { cwd: repo }).toString().trim();
 /// ```
 fn the_head_commit(repo: &Path) -> String {
-    return String::from_utf8(git(repo, &["rev-parse", "HEAD"]).stdout).expect("utf8").trim().to_string();
+    return String::from_utf8(git(repo, &["rev-parse", "HEAD"]).stdout)
+        .expect("utf8")
+        .trim()
+        .to_string();
 }
 
 /// The read leaves another step's failure note alone,
@@ -393,9 +545,19 @@ fn the_read_beside_the_check_leaves_another_steps_note_alone() {
     let root: PathBuf = fixture("note");
     let repo: PathBuf = a_clean_source(root.as_path(), "note");
     crate::git_step_failure::note_failed_step("git add", Some(1));
-    let sizes: BlobSizes = start_beside_the_check(&git_context(), &main_identity(repo.as_path())).expect("a read starts").join().expect("the sizes");
+    let sizes: BlobSizes = start_beside_the_check(&git_context(), &main_identity(repo.as_path()))
+        .expect("a read starts")
+        .join()
+        .expect("the sizes");
     assert_eq!(sizes.len(), 2, "both tracked paths have a size");
-    assert_eq!(crate::git_step_failure::drain_failed_step(), Some(crate::git_step_failure::FailedStep { name: String::from("git add"), status: Some(1) }), "the read took no note of its own");
+    assert_eq!(
+        crate::git_step_failure::drain_failed_step(),
+        Some(crate::git_step_failure::FailedStep {
+            name: String::from("git add"),
+            status: Some(1)
+        }),
+        "the read took no note of its own"
+    );
     remove(root.as_path());
 }
 
@@ -404,8 +566,14 @@ fn the_read_beside_the_check_leaves_another_steps_note_alone() {
 #[test]
 fn the_early_read_runs_without_lazy_fetch_and_outside_the_note() {
     let read: GitRequest = the_early_read_request(Path::new("/nowhere"), "HEAD");
-    assert!(read.beside_another_step, "the read leaves the failed-step note alone");
-    assert!(read.end_with_the_starting_thread, "the read's child ends with the thread that starts it");
+    assert!(
+        read.beside_another_step,
+        "the read leaves the failed-step note alone"
+    );
+    assert!(
+        read.end_with_the_starting_thread,
+        "the read's child ends with the thread that starts it"
+    );
     assert_eq!(
         read.environment,
         vec![(OsString::from("GIT_NO_LAZY_FETCH"), OsString::from("1"))],
@@ -413,7 +581,13 @@ fn the_early_read_runs_without_lazy_fetch_and_outside_the_note() {
     );
     assert_eq!(
         read.arguments,
-        vec![OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from("HEAD")],
+        vec![
+            OsString::from("ls-tree"),
+            OsString::from("-r"),
+            OsString::from("-l"),
+            OsString::from("-z"),
+            OsString::from("HEAD")
+        ],
         "the option is not used: an older Git refuses it and a plain source would fall to Git's checkout"
     );
 }
@@ -424,8 +598,16 @@ fn the_early_read_answers_the_map_the_serial_read_answers() {
     let root: PathBuf = fixture("same-map");
     let repo: PathBuf = a_clean_source(root.as_path(), "same-map");
     let context: GitContext = git_context();
-    let early: BlobSizes = start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts").join().expect("the sizes");
-    let serial: BlobSizes = blob_sizes(&context, repo.as_path(), the_head_commit(repo.as_path()).as_str()).expect("the serial sizes");
+    let early: BlobSizes = start_beside_the_check(&context, &main_identity(repo.as_path()))
+        .expect("a read starts")
+        .join()
+        .expect("the sizes");
+    let serial: BlobSizes = blob_sizes(
+        &context,
+        repo.as_path(),
+        the_head_commit(repo.as_path()).as_str(),
+    )
+    .expect("the serial sizes");
     assert_eq!(early, serial);
     remove(root.as_path());
 }
@@ -435,14 +617,41 @@ fn the_early_read_answers_the_map_the_serial_read_answers() {
 ///  and the ladder carries it from the start to its own end.
 #[test]
 fn no_process_wide_slot_holds_the_read_beside_the_check() {
-    let here: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/native/worktree/worktree_clone_conversion_size_read.rs")).expect("this module's source");
-    for line in here.lines() {
-        if line.trim_start().starts_with("static ") {
-            assert!(!line.contains("SizeReadBesideTheCheck"), "a process-wide slot would carry one command's read into another: {line}");
-        }
+    let here: String = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/native/worktree/worktree_clone_conversion_size_read.rs"
+    ))
+    .expect("this module's source");
+    // Each `static` declaration is read whole, up to its semicolon, whatever lines rustfmt breaks it over,
+    //  so a type written on the line after the name is read with it; comment lines are not code.
+    let code: String = here
+        .lines()
+        .filter(|line| {
+            return !line.trim_start().starts_with("//");
+        })
+        .collect::<Vec<&str>>()
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<&str>>()
+        .join(" ");
+    for declaration in code.split("static ").skip(1) {
+        let item: &str = declaration.split(';').next().unwrap_or(declaration);
+        assert!(
+            !item.contains("SizeReadBesideTheCheck"),
+            "a process-wide slot would carry one command's read into another: static {item}"
+        );
     }
-    let ladder: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/native/worktree/worktree_ladder_run.rs")).expect("the ladder's source");
-    assert!(ladder.contains("pub(crate) sizes_beside: Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>"), "the add owns its read");
+    let ladder: String = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/native/worktree/worktree_ladder_run.rs"
+    ))
+    .expect("the ladder's source");
+    // The field is read without its blanks, so the type rustfmt puts on the next line reads as the same field.
+    let ladder_code: String = ladder.split_whitespace().collect();
+    assert!(
+        ladder_code.contains("pub(crate)sizes_beside:Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>"),
+        "the add owns its read"
+    );
 }
 
 /// What:
@@ -456,13 +665,21 @@ fn no_process_wide_slot_holds_the_read_beside_the_check() {
 /// const settledRecord = (answer?: [number, Result]) => { const started = makeRead(answer); beginTiming(); started.settle(); finishTiming(0); return record(); };
 /// ```
 fn settle_with(answer: Option<ReadAnswer>) -> String {
-    let root: PathBuf = fixture(if answer.is_some() { "settle-answered" } else { "settle-running" });
+    let root: PathBuf = fixture(if answer.is_some() {
+        "settle-answered"
+    } else {
+        "settle-running"
+    });
     let repo: PathBuf = a_clean_source(root.as_path(), "settle");
     let (sender, receiver) = std::sync::mpsc::channel();
     if let Some((spent, outcome)) = answer {
         sender.send((spent, outcome)).expect("the receiver is held");
     }
-    let read: SizeReadBesideTheCheck = SizeReadBesideTheCheck { commit: String::from("the commit"), answer: receiver, child: std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0)) };
+    let read: SizeReadBesideTheCheck = SizeReadBesideTheCheck {
+        commit: String::from("the commit"),
+        answer: receiver,
+        child: std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0)),
+    };
     begin_timing(repo.join(".git"), true);
     read.settle();
     finish_timing(0);
@@ -477,9 +694,18 @@ fn settle_with(answer: Option<ReadAnswer>) -> String {
 #[test]
 fn a_read_that_already_answered_is_stated_as_work() {
     let record: String = settle_with(Some((Duration::from_millis(7), Ok(BlobSizes::default()))));
-    assert!(the_record_states(record.as_str(), WORK), "the read's own cost is the record's work: {record}");
-    assert!(record.contains("\"calls\":1"), "the work is one entry: {record}");
-    assert!(!the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"), "the settle entered no wait: {record}");
+    assert!(
+        the_record_states(record.as_str(), WORK),
+        "the read's own cost is the record's work: {record}"
+    );
+    assert!(
+        record.contains("\"calls\":1"),
+        "the work is one entry: {record}"
+    );
+    assert!(
+        !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
+        "the settle entered no wait: {record}"
+    );
 }
 
 /// A read that has not answered is stated as started and not joined,
@@ -489,10 +715,22 @@ fn a_read_that_has_not_answered_is_started_and_not_joined() {
     let began = std::time::Instant::now();
     let record: String = settle_with(None);
     let elapsed: Duration = began.elapsed();
-    assert!(elapsed < Duration::from_secs(2), "the settle never waits for the read: {elapsed:?}");
-    assert!(record.contains("\"fenceSizesBesideTheCheck\":\"started and not joined\""), "the record states the read was started and not joined: {record}");
-    assert!(!the_record_states(record.as_str(), WORK), "a read still running has no cost to state: {record}");
-    assert!(!the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"), "the settle entered no wait: {record}");
+    assert!(
+        elapsed < Duration::from_secs(2),
+        "the settle never waits for the read: {elapsed:?}"
+    );
+    assert!(
+        record.contains("\"fenceSizesBesideTheCheck\":\"started and not joined\""),
+        "the record states the read was started and not joined: {record}"
+    );
+    assert!(
+        !the_record_states(record.as_str(), WORK),
+        "a read still running has no cost to state: {record}"
+    );
+    assert!(
+        !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
+        "the settle entered no wait: {record}"
+    );
 }
 
 /// An add that never reaches the fence states the read it holds as started and not joined,
@@ -502,22 +740,54 @@ fn an_add_that_never_reaches_the_fence_does_not_wait_for_the_read() {
     let root: PathBuf = fixture("settled-only");
     let repo: PathBuf = a_clean_source(root.as_path(), "settled-only");
     let destination: PathBuf = root.join("topic");
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&git_context(), &main_identity(repo.as_path())).expect("a read starts");
+    let started: SizeReadBesideTheCheck =
+        start_beside_the_check(&git_context(), &main_identity(repo.as_path()))
+            .expect("a read starts");
     let hold = a_control_holds_the_read();
     begin_timing(repo.join(".git"), true);
-    let ladder: Ladder = Ladder { plan: None, rung: Rung::Git(None), slow: None, sizes_beside: Some(started) };
+    let ladder: Ladder = Ladder {
+        plan: None,
+        rung: Rung::Git(None),
+        slow: None,
+        sizes_beside: Some(started),
+    };
     let mut runner = no_runner();
     let began = std::time::Instant::now();
-    let result = ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
+    let result = ladder.finish(
+        GitStatus {
+            code: Some(0),
+        },
+        &mut runner,
+        &git_context(),
+        &mut std::io::sink(),
+        &mut std::io::sink(),
+    );
     let elapsed: Duration = began.elapsed();
     finish_timing(0);
     drop(hold);
-    assert_eq!(result.git, GitStatus { code: Some(0) });
-    assert!(elapsed < Duration::from_secs(2), "a held read does not hold the add: {elapsed:?}");
+    assert_eq!(
+        result.git,
+        GitStatus {
+            code: Some(0)
+        }
+    );
+    assert!(
+        elapsed < Duration::from_secs(2),
+        "a held read does not hold the add: {elapsed:?}"
+    );
     let record: String = the_record(repo.as_path());
-    assert!(record.contains("\"fenceSizesBesideTheCheck\":\"started and not joined\""), "the add states the read it did not join: {record}");
-    assert!(!the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"), "the add entered no wait: {record}");
-    assert!(!destination.exists(), "the read writes nothing where the worktree goes");
+    assert!(
+        record.contains("\"fenceSizesBesideTheCheck\":\"started and not joined\""),
+        "the add states the read it did not join: {record}"
+    );
+    assert!(
+        !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
+        "the add entered no wait: {record}"
+    );
+    assert!(
+        !destination.exists(),
+        "the read writes nothing where the worktree goes"
+    );
     remove(root.as_path());
 }
 
@@ -528,10 +798,24 @@ fn an_add_that_never_reaches_the_fence_does_not_wait_for_the_read() {
 /// ```ts
 /// git(root, ['clone', '--sparse', '--filter=blob:none', `file://${origin}`, clone]); git(clone, ['sparse-checkout', 'set', 'dir0']);
 /// ```
-fn a_sparse_partial_clone(origin: &Path, root: &Path, name: &str) -> PathBuf {
+fn a_sparse_partial_clone(
+    origin: &Path,
+    root: &Path,
+    name: &str,
+) -> PathBuf {
     let clone: PathBuf = root.join(name);
     let url: String = format!("file://{}", origin.display());
-    git(root, &["clone", "--quiet", "--sparse", "--filter=blob:none", url.as_str(), clone.to_str().expect("utf8")]);
+    git(
+        root,
+        &[
+            "clone",
+            "--quiet",
+            "--sparse",
+            "--filter=blob:none",
+            url.as_str(),
+            clone.to_str().expect("utf8"),
+        ],
+    );
     git(clone.as_path(), &["sparse-checkout", "set", "dir0"]);
     return std::fs::canonicalize(clone).expect("canonical");
 }
@@ -552,13 +836,23 @@ fn a_partial_clone_origin(root: &Path) -> PathBuf {
     for directory in ["dir0", "dir1"] {
         std::fs::create_dir_all(origin.join(directory)).expect("a directory");
         for index in 0..3 {
-            std::fs::write(origin.join(directory).join(format!("f{index}.txt")), format!("{directory}-{index}\n")).expect("a blob");
+            std::fs::write(
+                origin.join(directory).join(format!("f{index}.txt")),
+                format!("{directory}-{index}\n"),
+            )
+            .expect("a blob");
         }
     }
-    git(origin.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        origin.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     git(origin.as_path(), &["add", "--all"]);
     git(origin.as_path(), &["commit", "--quiet", "--message=blobs"]);
-    git(origin.as_path(), &["config", "uploadpack.allowfilter", "true"]);
+    git(
+        origin.as_path(),
+        &["config", "uploadpack.allowfilter", "true"],
+    );
     return std::fs::canonicalize(origin).expect("canonical");
 }
 
@@ -575,10 +869,24 @@ fn a_partial_clone_origin(root: &Path) -> PathBuf {
 /// const packs = readdirSync(join(clone, '.git/objects/pack')).filter((name) => name.endsWith('.pack')).length;
 /// ```
 fn missing_and_packs(clone: &Path) -> (usize, usize) {
-    let listed: std::process::Output = git_output(clone, &["rev-list", "--objects", "--all", "--missing=print"]);
-    let missing: usize = listed.stdout.split(|byte| return *byte == b'\n').filter(|line| return line.first() == Some(&b'?')).count();
+    let listed: std::process::Output = git_output(
+        clone,
+        &["rev-list", "--objects", "--all", "--missing=print"],
+    );
+    let missing: usize = listed
+        .stdout
+        .split(|byte| return *byte == b'\n')
+        .filter(|line| return line.first() == Some(&b'?'))
+        .count();
     let packs: usize = std::fs::read_dir(clone.join(".git/objects/pack"))
-        .map(|entries| { return entries.flatten().filter(|entry| return entry.path().extension() == Some(std::ffi::OsStr::new("pack"))).count(); })
+        .map(|entries| {
+            return entries
+                .flatten()
+                .filter(|entry| {
+                    return entry.path().extension() == Some(std::ffi::OsStr::new("pack"));
+                })
+                .count();
+        })
         .unwrap_or(0);
     return (missing, packs);
 }
@@ -596,7 +904,10 @@ fn missing_and_packs(clone: &Path) -> (usize, usize) {
 /// ```
 fn remove_every_promisor_marker(clone: &Path) {
     let packs: PathBuf = clone.join(".git/objects/pack");
-    for entry in std::fs::read_dir(packs).expect("the pack directory").flatten() {
+    for entry in std::fs::read_dir(packs)
+        .expect("the pack directory")
+        .flatten()
+    {
         if entry.path().extension() == Some(std::ffi::OsStr::new("promisor")) {
             std::fs::remove_file(entry.path()).expect("the marker goes");
         }
@@ -617,12 +928,34 @@ fn remove_every_promisor_marker(clone: &Path) {
 /// git(clone, ['config', '--unset', 'remote.origin.promisor']); git(clone, ['config', '--unset', 'remote.origin.partialclonefilter']); git(clone, ['config', 'include.path', 'remote-flags.cfg']); git(clone, ['config', '--file', '.git/remote-flags.cfg', 'remote.origin.promisor', 'true']); git(clone, ['config', '--file', '.git/remote-flags.cfg', 'remote.origin.partialclonefilter', 'blob:none']); removeEveryPromisorMarker(clone);
 /// ```
 fn the_promisor_flags_in_an_included_file(clone: &Path) {
-    let _unset_promisor: std::process::Output = git_output(clone, &["config", "--unset", "remote.origin.promisor"]);
-    let _unset_filter: std::process::Output = git_output(clone, &["config", "--unset", "remote.origin.partialclonefilter"]);
+    let _unset_promisor: std::process::Output =
+        git_output(clone, &["config", "--unset", "remote.origin.promisor"]);
+    let _unset_filter: std::process::Output = git_output(
+        clone,
+        &["config", "--unset", "remote.origin.partialclonefilter"],
+    );
     git(clone, &["config", "include.path", "remote-flags.cfg"]);
     let flags: PathBuf = clone.join(".git/remote-flags.cfg");
-    git(clone, &["config", "--file", flags.to_str().expect("utf8"), "remote.origin.promisor", "true"]);
-    git(clone, &["config", "--file", flags.to_str().expect("utf8"), "remote.origin.partialclonefilter", "blob:none"]);
+    git(
+        clone,
+        &[
+            "config",
+            "--file",
+            flags.to_str().expect("utf8"),
+            "remote.origin.promisor",
+            "true",
+        ],
+    );
+    git(
+        clone,
+        &[
+            "config",
+            "--file",
+            flags.to_str().expect("utf8"),
+            "remote.origin.partialclonefilter",
+            "blob:none",
+        ],
+    );
     remove_every_promisor_marker(clone);
 }
 
@@ -641,9 +974,14 @@ fn the_promisor_flags_in_an_included_file(clone: &Path) {
 /// ```ts
 /// const before = missingAndPacks(clone); startBesideTheCheck(context, identity).join(); return [before, missingAndPacks(clone)];
 /// ```
-fn an_early_read_joined_leaves_the_clone_alone(clone: &Path, context: &GitContext) -> ((usize, usize), (usize, usize)) {
+fn an_early_read_joined_leaves_the_clone_alone(
+    clone: &Path,
+    context: &GitContext,
+) -> ((usize, usize), (usize, usize)) {
     let before: (usize, usize) = missing_and_packs(clone);
-    let _answer: Result<BlobSizes, String> = start_beside_the_check(context, &main_identity(clone)).expect("a read starts before the check").join();
+    let _answer: Result<BlobSizes, String> = start_beside_the_check(context, &main_identity(clone))
+        .expect("a read starts before the check")
+        .join();
     return (before, missing_and_packs(clone));
 }
 
@@ -656,19 +994,41 @@ fn a_read_beside_the_check_writes_nothing_into_a_sparse_partial_clone_the_check_
     let context: GitContext = git_context();
     let refused: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "refused");
     let before: (usize, usize) = missing_and_packs(refused.as_path());
-    assert!(before.0 > 0, "the clone is missing the blobs the cone leaves out: {before:?}");
+    assert!(
+        before.0 > 0,
+        "the clone is missing the blobs the cone leaves out: {before:?}"
+    );
     let identity: WorktreeIdentity = main_identity(refused.as_path());
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &identity).expect("a read starts before the check");
-    let refusal = source_refusal(&context, &identity).expect_err("the check refuses the sparse checkout");
-    assert!(refusal.reason.contains("sparse checkout"), "{}", refusal.reason);
+    let started: SizeReadBesideTheCheck =
+        start_beside_the_check(&context, &identity).expect("a read starts before the check");
+    let refusal =
+        source_refusal(&context, &identity).expect_err("the check refuses the sparse checkout");
+    assert!(
+        refusal.reason.contains("sparse checkout"),
+        "{}",
+        refusal.reason
+    );
     // The read is joined, not settled: a fetch that lands late must still be seen by the count.
     let _answer: Result<BlobSizes, String> = started.join();
-    assert_eq!(missing_and_packs(refused.as_path()), before, "the read fetched nothing into the source the check refused");
+    assert_eq!(
+        missing_and_packs(refused.as_path()),
+        before,
+        "the read fetched nothing into the source the check refused"
+    );
     // The positive control: the same read without GIT_NO_LAZY_FETCH fetches, so the count above is one that can move.
     let fetched: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "fetched");
     let before_the_serial_read: (usize, usize) = missing_and_packs(fetched.as_path());
-    let _serial: BlobSizes = blob_sizes(&context, fetched.as_path(), the_head_commit(fetched.as_path()).as_str()).expect("the serial read");
-    assert_ne!(missing_and_packs(fetched.as_path()), before_the_serial_read, "the serial read fetches, so the pair can move");
+    let _serial: BlobSizes = blob_sizes(
+        &context,
+        fetched.as_path(),
+        the_head_commit(fetched.as_path()).as_str(),
+    )
+    .expect("the serial read");
+    assert_ne!(
+        missing_and_packs(fetched.as_path()),
+        before_the_serial_read,
+        "the serial read fetches, so the pair can move"
+    );
     remove(root.as_path());
 }
 
@@ -679,9 +1039,16 @@ fn a_read_with_the_promisor_flags_in_an_included_file_fetches_nothing() {
     let origin: PathBuf = a_partial_clone_origin(root.as_path());
     let clone: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "included");
     the_promisor_flags_in_an_included_file(clone.as_path());
-    let (before, after) = an_early_read_joined_leaves_the_clone_alone(clone.as_path(), &git_context());
-    assert!(before.0 > 0, "the clone is missing the blobs the cone leaves out: {before:?}");
-    assert_eq!(after, before, "the flags arriving through an include fetch nothing");
+    let (before, after) =
+        an_early_read_joined_leaves_the_clone_alone(clone.as_path(), &git_context());
+    assert!(
+        before.0 > 0,
+        "the clone is missing the blobs the cone leaves out: {before:?}"
+    );
+    assert_eq!(
+        after, before,
+        "the flags arriving through an include fetch nothing"
+    );
     remove(root.as_path());
 }
 
@@ -691,9 +1058,18 @@ fn a_read_with_the_promisor_remote_from_the_environment_fetches_nothing() {
     let root: PathBuf = fixture("promisor-environment");
     let origin: PathBuf = a_partial_clone_origin(root.as_path());
     let clone: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "environment");
-    let _unset_promisor: std::process::Output = git_output(clone.as_path(), &["config", "--unset", "remote.origin.promisor"]);
-    let _unset_filter: std::process::Output = git_output(clone.as_path(), &["config", "--unset", "remote.origin.partialclonefilter"]);
-    let _unset_default: std::process::Output = git_output(clone.as_path(), &["config", "--unset", "extensions.partialclone"]);
+    let _unset_promisor: std::process::Output = git_output(
+        clone.as_path(),
+        &["config", "--unset", "remote.origin.promisor"],
+    );
+    let _unset_filter: std::process::Output = git_output(
+        clone.as_path(),
+        &["config", "--unset", "remote.origin.partialclonefilter"],
+    );
+    let _unset_default: std::process::Output = git_output(
+        clone.as_path(),
+        &["config", "--unset", "extensions.partialclone"],
+    );
     remove_every_promisor_marker(clone.as_path());
     // SAFETY: nextest gives this control its own process, and no thread reads the environment before these are set.
     unsafe {
@@ -703,7 +1079,8 @@ fn a_read_with_the_promisor_remote_from_the_environment_fetches_nothing() {
         std::env::set_var("GIT_CONFIG_KEY_1", "remote.origin.partialclonefilter");
         std::env::set_var("GIT_CONFIG_VALUE_1", "blob:none");
     }
-    let (before, after) = an_early_read_joined_leaves_the_clone_alone(clone.as_path(), &git_context());
+    let (before, after) =
+        an_early_read_joined_leaves_the_clone_alone(clone.as_path(), &git_context());
     // SAFETY: this control's own process, and the read has ended.
     unsafe {
         std::env::remove_var("GIT_CONFIG_COUNT");
@@ -712,8 +1089,14 @@ fn a_read_with_the_promisor_remote_from_the_environment_fetches_nothing() {
         std::env::remove_var("GIT_CONFIG_KEY_1");
         std::env::remove_var("GIT_CONFIG_VALUE_1");
     }
-    assert!(before.0 > 0, "the clone is missing the blobs the cone leaves out: {before:?}");
-    assert_eq!(after, before, "a remote from the environment fetches nothing");
+    assert!(
+        before.0 > 0,
+        "the clone is missing the blobs the cone leaves out: {before:?}"
+    );
+    assert_eq!(
+        after, before,
+        "a remote from the environment fetches nothing"
+    );
     remove(root.as_path());
 }
 
@@ -724,16 +1107,36 @@ fn a_read_with_the_promisor_remote_from_the_environment_fetches_nothing() {
 fn a_read_beside_a_reference_clone_of_a_partial_clone_fetches_nothing() {
     let root: PathBuf = fixture("promisor-reference");
     let origin: PathBuf = a_partial_clone_origin(root.as_path());
-    let partial: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "reference-source");
+    let partial: PathBuf =
+        a_sparse_partial_clone(origin.as_path(), root.as_path(), "reference-source");
     let reference: PathBuf = root.join("reference");
     let url: String = format!("file://{}", origin.display());
-    git(root.as_path(), &["clone", "--quiet", "--sparse", "--reference", partial.to_str().expect("utf8"), "--filter=blob:none", url.as_str(), reference.to_str().expect("utf8")]);
+    git(
+        root.as_path(),
+        &[
+            "clone",
+            "--quiet",
+            "--sparse",
+            "--reference",
+            partial.to_str().expect("utf8"),
+            "--filter=blob:none",
+            url.as_str(),
+            reference.to_str().expect("utf8"),
+        ],
+    );
     git(reference.as_path(), &["sparse-checkout", "set", "dir0"]);
     let canonical_reference: PathBuf = std::fs::canonicalize(reference).expect("canonical");
     the_promisor_flags_in_an_included_file(canonical_reference.as_path());
-    let (before, after) = an_early_read_joined_leaves_the_clone_alone(canonical_reference.as_path(), &git_context());
-    assert!(before.0 > 0, "the reference clone is missing the blobs its alternate lacks: {before:?}");
-    assert_eq!(after, before, "the flags arriving through an include on a reference clone fetch nothing");
+    let (before, after) =
+        an_early_read_joined_leaves_the_clone_alone(canonical_reference.as_path(), &git_context());
+    assert!(
+        before.0 > 0,
+        "the reference clone is missing the blobs its alternate lacks: {before:?}"
+    );
+    assert_eq!(
+        after, before,
+        "the flags arriving through an include on a reference clone fetch nothing"
+    );
     remove(root.as_path());
 }
 
@@ -766,7 +1169,6 @@ fn a_git_whose_size_read_holds(wrote: &Path) -> String {
         wrote = wrote.display()
     );
 }
-
 
 /// Wait,
 /// bounded,
@@ -814,7 +1216,10 @@ fn a_process_id_in(path: &Path) -> Option<i32> {
 /// ```ts
 /// const goneWithin = async (pid, ms) => { const deadline = Date.now() + ms; while (alive(pid) && Date.now() < deadline) await sleep(10); return !alive(pid); };
 /// ```
-fn gone_within(pid: i32, within: Duration) -> bool {
+fn gone_within(
+    pid: i32,
+    within: Duration,
+) -> bool {
     let deadline = std::time::Instant::now() + within;
     while alive(pid) && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(10));
@@ -848,26 +1253,50 @@ fn an_abandoned_read_ends_its_child_and_its_record_is_swept() {
     crate::lock_holder_records::remember_repository(repo.join(".git").as_path());
     let fake: PathBuf = root.join("git-that-holds-the-size-read");
     let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path())).expect("the fake Git");
-    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
+        .expect("the fake Git");
+    std::fs::set_permissions(
+        fake.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("an executable");
     // The positive control: this test starts the fake itself, and the probe finds it alive.
-    let mut held = std::process::Command::new(fake.as_path()).args(["ls-tree", "HEAD"]).spawn().expect("the fake starts");
+    let mut held = std::process::Command::new(fake.as_path())
+        .args(["ls-tree", "HEAD"])
+        .spawn()
+        .expect("the fake starts");
     let positive: i32 = a_process_id_written_within(wrote.as_path());
-    assert!(alive(positive), "the probe finds a running fake Git, so the search can see one");
+    assert!(
+        alive(positive),
+        "the probe finds a running fake Git, so the search can see one"
+    );
     let _killed = held.kill();
     let _reaped = held.wait();
     std::fs::remove_file(wrote.as_path()).expect("the positive control's marker is gone");
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&a_context_whose_git_holds_the_read(fake.as_path()), &main_identity(repo.as_path())).expect("a read starts");
+    let started: SizeReadBesideTheCheck = start_beside_the_check(
+        &a_context_whose_git_holds_the_read(fake.as_path()),
+        &main_identity(repo.as_path()),
+    )
+    .expect("a read starts");
     let child: i32 = a_process_id_written_within(wrote.as_path());
     assert!(alive(child), "the read's child runs before the abandon");
     started.abandon();
-    assert!(gone_within(child, Duration::from_secs(5)), "the abandon ended the read's child while the adding process still lives");
+    assert!(
+        gone_within(child, Duration::from_secs(5)),
+        "the abandon ended the read's child while the adding process still lives"
+    );
     let common: PathBuf = repo.join(".git");
     let record: String = the_records(&common);
-    assert!(record.contains(format!("child {child} ").as_str()), "the child start is named in the repository's record: {record}");
+    assert!(
+        record.contains(format!("child {child} ").as_str()),
+        "the child start is named in the repository's record: {record}"
+    );
     // The sweep is the pass every command that may meet a lock runs; a record it can no longer explain goes.
     crate::lock_holder_record_reads::sweep(common.as_path(), &[]);
-    assert!(!the_record_folder_exists(&common), "the line a killed read's child left is swept once every holder it names is gone");
+    assert!(
+        !the_record_folder_exists(&common),
+        "the line a killed read's child left is swept once every holder it names is gone"
+    );
     remove(root.as_path());
 }
 
@@ -887,7 +1316,11 @@ fn the_records(common: &Path) -> String {
     let entries = std::fs::read_dir(folder.as_path()).expect("the holder folder");
     let mut text: String = String::new();
     for entry in entries.flatten() {
-        text.push_str(std::fs::read_to_string(entry.path()).expect("a record").as_str());
+        text.push_str(
+            std::fs::read_to_string(entry.path())
+                .expect("a record")
+                .as_str(),
+        );
     }
     return text;
 }
@@ -900,7 +1333,8 @@ fn the_records(common: &Path) -> String {
 /// ```
 fn the_record_folder_exists(common: &Path) -> bool {
     let folder: PathBuf = crate::lock_holder_records::folder_of(common);
-    return std::fs::read_dir(folder.as_path()).is_ok_and(|entries| return entries.flatten().next().is_some());
+    return std::fs::read_dir(folder.as_path())
+        .is_ok_and(|entries| return entries.flatten().next().is_some());
 }
 
 /// What:
@@ -930,7 +1364,11 @@ fn the_record_folder_exists(common: &Path) -> bool {
 /// ```ts
 /// const pid = fork(); if (pid === 0) { const read = startRead(); waitMarker(); drop(read); waitpid(-1); _exit(0); }
 /// ```
-fn fork_a_process_that_ends_with_the_read(fake: &Path, repo: &Path, marker: &Path) -> std::process::ExitStatus {
+fn fork_a_process_that_ends_with_the_read(
+    fake: &Path,
+    repo: &Path,
+    marker: &Path,
+) -> std::process::ExitStatus {
     // SAFETY: the parent has one thread here (nextest runs one test per process, and no thread is started
     // before this call), so the child's inherited state is consistent; it starts a read, drops it the way the add's
     // end does, reaps the child that end signalled, and exits with `_exit`.
@@ -953,7 +1391,8 @@ fn fork_a_process_that_ends_with_the_read(fake: &Path, repo: &Path, marker: &Pat
                 while std::time::Instant::now() < reap_deadline {
                     // SAFETY: the read's Git child is this process's only child, `-1` names any child, and `WNOHANG`
                     // returns at once; `reaped` is one `c_int` the call writes.
-                    let answered: libc::pid_t = unsafe { libc::waitpid(-1, &mut reaped, libc::WNOHANG) };
+                    let answered: libc::pid_t =
+                        unsafe { libc::waitpid(-1, &mut reaped, libc::WNOHANG) };
                     if answered != 0 {
                         break;
                     }
@@ -976,7 +1415,10 @@ fn fork_a_process_that_ends_with_the_read(fake: &Path, repo: &Path, marker: &Pat
         if answered != 0 {
             break answered;
         }
-        assert!(std::time::Instant::now() < wait_deadline, "the add's own process ended after its read started");
+        assert!(
+            std::time::Instant::now() < wait_deadline,
+            "the add's own process ended after its read started"
+        );
         std::thread::sleep(Duration::from_millis(5));
     };
     assert_eq!(waited, pid, "the child is the one just forked");
@@ -994,15 +1436,30 @@ fn a_process_that_ends_with_a_running_read_leaves_no_child_behind() {
     let repo: PathBuf = a_clean_source(root.as_path(), "process-exit");
     let fake: PathBuf = root.join("git-that-holds-the-size-read");
     let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path())).expect("the fake Git");
-    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
+        .expect("the fake Git");
+    std::fs::set_permissions(
+        fake.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("an executable");
     let began = std::time::Instant::now();
-    let status = fork_a_process_that_ends_with_the_read(fake.as_path(), repo.as_path(), wrote.as_path());
+    let status =
+        fork_a_process_that_ends_with_the_read(fake.as_path(), repo.as_path(), wrote.as_path());
     let elapsed: Duration = began.elapsed();
-    assert!(status.success(), "the add's own process ended after its read started");
-    assert!(elapsed < Duration::from_secs(20), "the process does not wait for a read that sleeps for 30 s: {elapsed:?}");
+    assert!(
+        status.success(),
+        "the add's own process ended after its read started"
+    );
+    assert!(
+        elapsed < Duration::from_secs(20),
+        "the process does not wait for a read that sleeps for 30 s: {elapsed:?}"
+    );
     let child: i32 = a_process_id_written_within(wrote.as_path());
-    assert!(gone_within(child, Duration::from_secs(5)), "the read's child ended with the process that started it, not after its 30 s sleep");
+    assert!(
+        gone_within(child, Duration::from_secs(5)),
+        "the read's child ended with the process that started it, not after its 30 s sleep"
+    );
     remove(root.as_path());
 }
 
@@ -1028,10 +1485,19 @@ fn an_abandon_before_the_child_is_published_leaves_no_child_running() {
     let repo: PathBuf = a_clean_source(root.as_path(), "abandon-before-child");
     let fake: PathBuf = root.join("git-that-holds-the-size-read");
     let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path())).expect("the fake Git");
-    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
+        .expect("the fake Git");
+    std::fs::set_permissions(
+        fake.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("an executable");
     let hold = a_control_holds_the_read();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&a_context_whose_git_holds_the_read(fake.as_path()), &main_identity(repo.as_path())).expect("a read starts");
+    let started: SizeReadBesideTheCheck = start_beside_the_check(
+        &a_context_whose_git_holds_the_read(fake.as_path()),
+        &main_identity(repo.as_path()),
+    )
+    .expect("a read starts");
     // The read is held before its Git run, so no child exists yet: this is exactly the abandon a check that refuses at once makes.
     started.abandon();
     drop(hold);
@@ -1047,12 +1513,18 @@ fn an_abandon_before_the_child_is_published_leaves_no_child_running() {
         }
     }
     if let Some(published) = child {
-        assert!(gone_within(published, Duration::from_secs(5)), "the child the abandon came before is ended at publication, not left for its 30 s sleep");
+        assert!(
+            gone_within(published, Duration::from_secs(5)),
+            "the child the abandon came before is ended at publication, not left for its 30 s sleep"
+        );
     }
     // Nothing of the fake may still run, whether its marker was seen or the kill landed before it wrote one.
     let remaining = a_process_id_in(wrote.as_path());
     if let Some(remaining_id) = remaining {
-        assert!(gone_within(remaining_id, Duration::from_secs(1)), "nothing of the abandoned read is alive afterwards");
+        assert!(
+            gone_within(remaining_id, Duration::from_secs(1)),
+            "nothing of the abandoned read is alive afterwards"
+        );
     }
     remove(root.as_path());
 }
@@ -1065,18 +1537,40 @@ fn an_abandon_after_the_child_ended_names_no_child() {
     let repo: PathBuf = a_clean_source(root.as_path(), "no-reused-id");
     let fake: PathBuf = root.join("git-whose-size-read-ends");
     let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(fake.as_path(), a_git_whose_size_read_ends_at_once(wrote.as_path())).expect("the fake Git");
-    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    std::fs::write(
+        fake.as_path(),
+        a_git_whose_size_read_ends_at_once(wrote.as_path()),
+    )
+    .expect("the fake Git");
+    std::fs::set_permissions(
+        fake.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("an executable");
     let hold = a_control_holds_the_sizes_after_the_wait();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&a_context_whose_git_holds_the_read(fake.as_path()), &main_identity(repo.as_path())).expect("a read starts");
+    let started: SizeReadBesideTheCheck = start_beside_the_check(
+        &a_context_whose_git_holds_the_read(fake.as_path()),
+        &main_identity(repo.as_path()),
+    )
+    .expect("a read starts");
     let child: i32 = a_process_id_written_within(wrote.as_path());
-    assert!(gone_within(child, Duration::from_secs(5)), "the fake Git ends by itself");
+    assert!(
+        gone_within(child, Duration::from_secs(5)),
+        "the fake Git ends by itself"
+    );
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     while !the_sizes_hold_was_reached() && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(5));
     }
-    assert!(the_sizes_hold_was_reached(), "the read reached the seam after its wait");
-    assert_eq!(started.published_child_for_a_control(), 0, "the cell names no reaped child, so an abandon here signals nothing");
+    assert!(
+        the_sizes_hold_was_reached(),
+        "the read reached the seam after its wait"
+    );
+    assert_eq!(
+        started.published_child_for_a_control(),
+        0,
+        "the cell names no reaped child, so an abandon here signals nothing"
+    );
     drop(hold);
     drop(started);
     remove(root.as_path());
@@ -1090,15 +1584,30 @@ fn the_abandon_frees_the_answered_map_off_the_adding_thread() {
     let repo: PathBuf = a_clean_source(root.as_path(), "freed-beside-the-add");
     let fake: PathBuf = root.join("git-whose-size-read-ends");
     let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(fake.as_path(), a_git_whose_size_read_ends_at_once(wrote.as_path())).expect("the fake Git");
-    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&a_context_whose_git_holds_the_read(fake.as_path()), &main_identity(repo.as_path())).expect("a read starts");
+    std::fs::write(
+        fake.as_path(),
+        a_git_whose_size_read_ends_at_once(wrote.as_path()),
+    )
+    .expect("the fake Git");
+    std::fs::set_permissions(
+        fake.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("an executable");
+    let started: SizeReadBesideTheCheck = start_beside_the_check(
+        &a_context_whose_git_holds_the_read(fake.as_path()),
+        &main_identity(repo.as_path()),
+    )
+    .expect("a read starts");
     // The control abandons a read that has answered, so the abandon takes the map rather than stating a read still running.
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     while !the_answer_was_sent_for_a_control() && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(5));
     }
-    assert!(the_answer_was_sent_for_a_control(), "the read answered before the abandon");
+    assert!(
+        the_answer_was_sent_for_a_control(),
+        "the read answered before the abandon"
+    );
     let before: (usize, usize) = answered_maps_freed_for_a_control();
     started.abandon();
     // The free runs on a thread of its own, so the control waits for it rather than reading the counters at once.
@@ -1108,8 +1617,15 @@ fn the_abandon_frees_the_answered_map_off_the_adding_thread() {
         std::thread::sleep(Duration::from_millis(5));
         after = answered_maps_freed_for_a_control();
     }
-    assert_eq!(after.0, before.0 + 1, "the abandoned answer was freed, not leaked");
-    assert_eq!(after.1, before.1, "the adding thread freed no answered map of its own");
+    assert_eq!(
+        after.0,
+        before.0 + 1,
+        "the abandoned answer was freed, not leaked"
+    );
+    assert_eq!(
+        after.1, before.1,
+        "the adding thread freed no answered map of its own"
+    );
     remove(root.as_path());
 }
 
@@ -1120,24 +1636,52 @@ fn the_clear_keeps_an_abandon_that_comes_before_it() {
     let repo: PathBuf = a_clean_source(root.as_path(), "clear-keeps-the-abandon");
     let fake: PathBuf = root.join("git-whose-size-read-ends");
     let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(fake.as_path(), a_git_whose_size_read_ends_at_once(wrote.as_path())).expect("the fake Git");
-    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    std::fs::write(
+        fake.as_path(),
+        a_git_whose_size_read_ends_at_once(wrote.as_path()),
+    )
+    .expect("the fake Git");
+    std::fs::set_permissions(
+        fake.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("an executable");
     let hold = crate::child_watch_one_shot_run::a_control_holds_the_clear();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&a_context_whose_git_holds_the_read(fake.as_path()), &main_identity(repo.as_path())).expect("a read starts");
+    let started: SizeReadBesideTheCheck = start_beside_the_check(
+        &a_context_whose_git_holds_the_read(fake.as_path()),
+        &main_identity(repo.as_path()),
+    )
+    .expect("a read starts");
     let cell: std::sync::Arc<std::sync::atomic::AtomicI32> = started.child_cell_for_a_control();
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    while !crate::child_watch_one_shot_run::the_clear_hold_was_reached() && std::time::Instant::now() < deadline {
+    while !crate::child_watch_one_shot_run::the_clear_hold_was_reached()
+        && std::time::Instant::now() < deadline
+    {
         std::thread::sleep(Duration::from_millis(5));
     }
-    assert!(crate::child_watch_one_shot_run::the_clear_hold_was_reached(), "the runner reached the seam before its clear");
+    assert!(
+        crate::child_watch_one_shot_run::the_clear_hold_was_reached(),
+        "the runner reached the seam before its clear"
+    );
     let published: i32 = cell.load(std::sync::atomic::Ordering::SeqCst);
-    assert!(published > 0, "the cell names the child the runner published: {published}");
+    assert!(
+        published > 0,
+        "the cell names the child the runner published: {published}"
+    );
     // The abandon comes in the window the clear leaves, and must survive that clear.
     started.abandon();
-    assert_eq!(cell.load(std::sync::atomic::Ordering::SeqCst), crate::transaction_git_request_and_reply_types::ABANDONED_CHILD, "the abandon wrote its marker while the runner was held");
+    assert_eq!(
+        cell.load(std::sync::atomic::Ordering::SeqCst),
+        crate::transaction_git_request_and_reply_types::ABANDONED_CHILD,
+        "the abandon wrote its marker while the runner was held"
+    );
     drop(hold);
     std::thread::sleep(Duration::from_millis(200));
-    assert_eq!(cell.load(std::sync::atomic::Ordering::SeqCst), crate::transaction_git_request_and_reply_types::ABANDONED_CHILD, "the runner's clear left the abandon marker alone");
+    assert_eq!(
+        cell.load(std::sync::atomic::Ordering::SeqCst),
+        crate::transaction_git_request_and_reply_types::ABANDONED_CHILD,
+        "the runner's clear left the abandon marker alone"
+    );
     remove(root.as_path());
 }
 
@@ -1150,22 +1694,38 @@ fn the_fence_ends_a_read_no_path_needs() {
     git(repo.as_path(), &["config", "core.autocrlf", "true"]);
     let fake: PathBuf = root.join("git-that-holds-the-size-read");
     let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path())).expect("the fake Git");
-    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
+        .expect("the fake Git");
+    std::fs::set_permissions(
+        fake.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("an executable");
     let context: GitContext = a_context_whose_git_holds_the_read(fake.as_path());
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
+    let started: SizeReadBesideTheCheck =
+        start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
     let child: i32 = a_process_id_written_within(wrote.as_path());
     assert!(alive(child), "the read's child runs before the fence");
     let mut held: Option<SizeReadBesideTheCheck> = Some(started);
     begin_timing(repo.join(".git"), true);
-    let fence: Fence = the_fence(repo.as_path(), &context, &mut held).expect("the fence decides without sizes");
+    let fence: Fence =
+        the_fence(repo.as_path(), &context, &mut held).expect("the fence decides without sizes");
     finish_timing(0);
     assert!(held.is_none(), "the fence ended the read no path needs");
-    assert!(gone_within(child, Duration::from_secs(5)), "the child is ended where the fence decides it has no use for it");
+    assert!(
+        gone_within(child, Duration::from_secs(5)),
+        "the child is ended where the fence decides it has no use for it"
+    );
     let record: String = the_record(repo.as_path());
-    assert!(!the_record_states(record.as_str(), "git ls-tree"), "the fence read no sizes: {record}");
+    assert!(
+        !the_record_states(record.as_str(), "git ls-tree"),
+        "the fence read no sizes: {record}"
+    );
     // Nothing needed a size: every path converts to CRLF, so the fence hands each one to Git's writing.
-    assert!(!fence.git_writes.is_empty(), "a path that converts to CRLF is written by Git");
+    assert!(
+        !fence.git_writes.is_empty(),
+        "a path that converts to CRLF is written by Git"
+    );
     remove(root.as_path());
 }
 
@@ -1179,19 +1739,34 @@ fn a_refused_thread_start_reads_where_it_stands() {
     let identity: WorktreeIdentity = main_identity(repo.as_path());
     let refused = crate::scoped_start::RefusedStarts::here();
     let started: Option<SizeReadBesideTheCheck> = start_beside_the_check(&context, &identity);
-    assert!(started.is_none(), "a start the system refuses answers no read");
+    assert!(
+        started.is_none(),
+        "a start the system refuses answers no read"
+    );
     let mut held: Option<SizeReadBesideTheCheck> = started;
     begin_timing(repo.join(".git"), true);
-    let fence: Fence = the_fence(repo.as_path(), &context, &mut held).expect("the fence reads where it stands");
+    let fence: Fence =
+        the_fence(repo.as_path(), &context, &mut held).expect("the fence reads where it stands");
     finish_timing(0);
     drop(refused);
     assert!(held.is_none(), "no read is left for the add to settle");
     let record: String = the_record(repo.as_path());
-    assert!(the_record_states(record.as_str(), "git ls-tree"), "the fence read the sizes itself: {record}");
-    assert!(!the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"), "no join was entered: {record}");
-    let source: SnapshotSource = source_refusal(&context, &main_identity(repo.as_path())).expect("the source is clean");
+    assert!(
+        the_record_states(record.as_str(), "git ls-tree"),
+        "the fence read the sizes itself: {record}"
+    );
+    assert!(
+        !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
+        "no join was entered: {record}"
+    );
+    let source: SnapshotSource =
+        source_refusal(&context, &main_identity(repo.as_path())).expect("the source is clean");
     let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
-    assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried), "the refused start decides the same paths");
+    assert_eq!(
+        (fence.git_writes, fence.carried),
+        (serial.git_writes, serial.carried),
+        "the refused start decides the same paths"
+    );
     remove(root.as_path());
 }
 
@@ -1217,16 +1792,29 @@ fn a_read_and_the_fence_complete_on_the_current_thread_stand_in() {
     unsafe { std::env::set_var(THE_SLOW_RUNTIME_BUILD_OF_THE_CONTROL, "1500") };
     let context: GitContext = git_context();
     let identity: WorktreeIdentity = main_identity(repo.as_path());
-    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &identity).expect("a read starts");
+    let started: SizeReadBesideTheCheck =
+        start_beside_the_check(&context, &identity).expect("a read starts");
     let source: SnapshotSource = source_refusal(&context, &identity).expect("the source is clean");
     // The read is handed to the fence, which joins it here: the read's Git run and the fence's own run are then
     //  concurrent on the stand-in, which is the shape the earlier control never reached by joining first.
     let mut held: Option<SizeReadBesideTheCheck> = Some(started);
-    let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held).expect("the fence decides under the stand-in");
-    assert!(held.is_none(), "the fence took the read and joined it under the stand-in");
+    let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held)
+        .expect("the fence decides under the stand-in");
+    assert!(
+        held.is_none(),
+        "the fence took the read and joined it under the stand-in"
+    );
     let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
-    assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried), "the stand-in decides the same paths");
-    assert_eq!(crate::lazy_runtime::built_flavor(), Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline), "the process ran on the stand-in");
+    assert_eq!(
+        (fence.git_writes, fence.carried),
+        (serial.git_writes, serial.carried),
+        "the stand-in decides the same paths"
+    );
+    assert_eq!(
+        crate::lazy_runtime::built_flavor(),
+        Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline),
+        "the process ran on the stand-in"
+    );
     remove(root.as_path());
 }
 
@@ -1236,9 +1824,14 @@ fn a_read_and_the_fence_complete_on_the_current_thread_stand_in() {
 /// and the pack markers with them,
 /// so only the shape under test can name a promisor remote.
 fn the_clone_without_promisor_flags_of_its_own(clone: &Path) {
-    let _unset_promisor: std::process::Output = git_output(clone, &["config", "--unset", "remote.origin.promisor"]);
-    let _unset_filter: std::process::Output = git_output(clone, &["config", "--unset", "remote.origin.partialclonefilter"]);
-    let _unset_extension: std::process::Output = git_output(clone, &["config", "--unset", "extensions.partialclone"]);
+    let _unset_promisor: std::process::Output =
+        git_output(clone, &["config", "--unset", "remote.origin.promisor"]);
+    let _unset_filter: std::process::Output = git_output(
+        clone,
+        &["config", "--unset", "remote.origin.partialclonefilter"],
+    );
+    let _unset_extension: std::process::Output =
+        git_output(clone, &["config", "--unset", "extensions.partialclone"]);
     remove_every_promisor_marker(clone);
 }
 
@@ -1252,8 +1845,12 @@ fn without_background_maintenance(clone: &Path) {
 fn a_context_with(pairs: &[(&str, &str)]) -> GitContext {
     let mut context: GitContext = git_context();
     for (name, value) in pairs {
-        context.overlay.retain(|(held, _)| return held != &OsString::from(*name));
-        context.overlay.push((OsString::from(*name), OsString::from(*value)));
+        context
+            .overlay
+            .retain(|(held, _)| return held != &OsString::from(*name));
+        context
+            .overlay
+            .push((OsString::from(*name), OsString::from(*value)));
     }
     return context;
 }
@@ -1266,41 +1863,81 @@ fn a_context_with(pairs: &[(&str, &str)]) -> GitContext {
 /// which carries none)
 /// must move the count on an identical twin,
 /// so the count can move.
-fn the_early_read_fetches_nothing_where_the_serial_read_does(shape: &str, build: fn(&Path, &Path, &str) -> (PathBuf, GitContext)) {
+fn the_early_read_fetches_nothing_where_the_serial_read_does(
+    shape: &str,
+    build: fn(&Path, &Path, &str) -> (PathBuf, GitContext),
+) {
     let root: PathBuf = fixture(shape);
     let origin: PathBuf = a_partial_clone_origin(root.as_path());
     let (clone, context): (PathBuf, GitContext) = build(origin.as_path(), root.as_path(), "early");
-    let (before, after): ((usize, usize), (usize, usize)) = an_early_read_joined_leaves_the_clone_alone(clone.as_path(), &context);
-    assert!(before.0 > 0, "{shape}: the clone is missing blobs the read could fetch: {before:?}");
-    assert_eq!(after, before, "{shape}: the early read fetched into the clone");
-    let (twin, twin_context): (PathBuf, GitContext) = build(origin.as_path(), root.as_path(), "twin");
+    let (before, after): ((usize, usize), (usize, usize)) =
+        an_early_read_joined_leaves_the_clone_alone(clone.as_path(), &context);
+    assert!(
+        before.0 > 0,
+        "{shape}: the clone is missing blobs the read could fetch: {before:?}"
+    );
+    assert_eq!(
+        after, before,
+        "{shape}: the early read fetched into the clone"
+    );
+    let (twin, twin_context): (PathBuf, GitContext) =
+        build(origin.as_path(), root.as_path(), "twin");
     let before_twin: (usize, usize) = missing_and_packs(twin.as_path());
-    let _serial: Result<BlobSizes, String> = blob_sizes(&twin_context, twin.as_path(), the_head_commit(twin.as_path()).as_str());
-    assert_ne!(missing_and_packs(twin.as_path()), before_twin, "{shape}: the serial read, which has no variable, must fetch here, or this shape cannot show the early read's variable");
+    let _serial: Result<BlobSizes, String> = blob_sizes(
+        &twin_context,
+        twin.as_path(),
+        the_head_commit(twin.as_path()).as_str(),
+    );
+    assert_ne!(
+        missing_and_packs(twin.as_path()),
+        before_twin,
+        "{shape}: the serial read, which has no variable, must fetch here, or this shape cannot show the early read's variable"
+    );
     remove(root.as_path());
 }
 
-fn build_global_config(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+fn build_global_config(
+    origin: &Path,
+    root: &Path,
+    name: &str,
+) -> (PathBuf, GitContext) {
     let clone: PathBuf = a_sparse_partial_clone(origin, root, name);
     without_background_maintenance(clone.as_path());
     the_clone_without_promisor_flags_of_its_own(clone.as_path());
     let global: PathBuf = root.join(format!("global-{name}.cfg"));
-    std::fs::write(global.as_path(), "[remote \"origin\"]\n\tpromisor = true\n\tpartialclonefilter = blob:none\n").expect("the global config");
-    return (clone, a_context_with(&[("GIT_CONFIG_GLOBAL", global.to_str().expect("utf8"))]));
+    std::fs::write(
+        global.as_path(),
+        "[remote \"origin\"]\n\tpromisor = true\n\tpartialclonefilter = blob:none\n",
+    )
+    .expect("the global config");
+    return (
+        clone,
+        a_context_with(&[("GIT_CONFIG_GLOBAL", global.to_str().expect("utf8"))]),
+    );
 }
 
 /// A promisor remote that only the user's global configuration names fetches nothing.
 #[test]
 fn a_read_with_the_promisor_remote_in_the_global_config_fetches_nothing() {
-    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-global", build_global_config);
+    the_early_read_fetches_nothing_where_the_serial_read_does(
+        "promisor-global",
+        build_global_config,
+    );
 }
 
-fn build_object_directory(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+fn build_object_directory(
+    origin: &Path,
+    root: &Path,
+    name: &str,
+) -> (PathBuf, GitContext) {
     let clone: PathBuf = a_sparse_partial_clone(origin, root, name);
     without_background_maintenance(clone.as_path());
     the_promisor_flags_in_an_included_file(clone.as_path());
     let objects: PathBuf = clone.join(".git/objects");
-    return (clone, a_context_with(&[("GIT_OBJECT_DIRECTORY", objects.to_str().expect("utf8"))]));
+    return (
+        clone,
+        a_context_with(&[("GIT_OBJECT_DIRECTORY", objects.to_str().expect("utf8"))]),
+    );
 }
 
 /// A source whose environment sets `GIT_OBJECT_DIRECTORY`
@@ -1309,47 +1946,101 @@ fn build_object_directory(origin: &Path, root: &Path, name: &str) -> (PathBuf, G
 /// fetches nothing.
 #[test]
 fn a_read_with_git_object_directory_set_fetches_nothing() {
-    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-object-directory", build_object_directory);
+    the_early_read_fetches_nothing_where_the_serial_read_does(
+        "promisor-object-directory",
+        build_object_directory,
+    );
 }
 
-fn build_extension_only(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+fn build_extension_only(
+    origin: &Path,
+    root: &Path,
+    name: &str,
+) -> (PathBuf, GitContext) {
     let clone: PathBuf = a_sparse_partial_clone(origin, root, name);
     without_background_maintenance(clone.as_path());
-    let _unset_promisor: std::process::Output = git_output(clone.as_path(), &["config", "--unset", "remote.origin.promisor"]);
-    let _unset_filter: std::process::Output = git_output(clone.as_path(), &["config", "--unset", "remote.origin.partialclonefilter"]);
+    let _unset_promisor: std::process::Output = git_output(
+        clone.as_path(),
+        &["config", "--unset", "remote.origin.promisor"],
+    );
+    let _unset_filter: std::process::Output = git_output(
+        clone.as_path(),
+        &["config", "--unset", "remote.origin.partialclonefilter"],
+    );
     remove_every_promisor_marker(clone.as_path());
     // Git 2.56 writes the remote's own two keys and no extension, so the extension is set here:
     //  it is then the one key that names the promisor remote, and it holds no word `promisor`.
-    git(clone.as_path(), &["config", "core.repositoryformatversion", "1"]);
-    git(clone.as_path(), &["config", "extensions.partialclone", "origin"]);
-    let kept: std::process::Output = git_output(clone.as_path(), &["config", "--get", "extensions.partialclone"]);
-    assert_eq!(String::from_utf8_lossy(kept.stdout.as_slice()).trim(), "origin", "the extension is the one thing left naming the remote");
+    git(
+        clone.as_path(),
+        &["config", "core.repositoryformatversion", "1"],
+    );
+    git(
+        clone.as_path(),
+        &["config", "extensions.partialclone", "origin"],
+    );
+    let kept: std::process::Output = git_output(
+        clone.as_path(),
+        &["config", "--get", "extensions.partialclone"],
+    );
+    assert_eq!(
+        String::from_utf8_lossy(kept.stdout.as_slice()).trim(),
+        "origin",
+        "the extension is the one thing left naming the remote"
+    );
     return (clone, git_context());
 }
 
 /// A promisor remote named only by `extensions.partialclone` fetches nothing.
 #[test]
 fn a_read_with_only_the_partial_clone_extension_fetches_nothing() {
-    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-extension-only", build_extension_only);
+    the_early_read_fetches_nothing_where_the_serial_read_does(
+        "promisor-extension-only",
+        build_extension_only,
+    );
 }
 
-fn build_worktree_config(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+fn build_worktree_config(
+    origin: &Path,
+    root: &Path,
+    name: &str,
+) -> (PathBuf, GitContext) {
     let clone: PathBuf = a_sparse_partial_clone(origin, root, name);
     without_background_maintenance(clone.as_path());
     the_clone_without_promisor_flags_of_its_own(clone.as_path());
-    git(clone.as_path(), &["config", "extensions.worktreeConfig", "true"]);
-    git(clone.as_path(), &["config", "--worktree", "remote.origin.promisor", "true"]);
-    git(clone.as_path(), &["config", "--worktree", "remote.origin.partialclonefilter", "blob:none"]);
+    git(
+        clone.as_path(),
+        &["config", "extensions.worktreeConfig", "true"],
+    );
+    git(
+        clone.as_path(),
+        &["config", "--worktree", "remote.origin.promisor", "true"],
+    );
+    git(
+        clone.as_path(),
+        &[
+            "config",
+            "--worktree",
+            "remote.origin.partialclonefilter",
+            "blob:none",
+        ],
+    );
     return (clone, git_context());
 }
 
 /// A promisor remote that only `config.worktree` names fetches nothing.
 #[test]
 fn a_read_with_the_promisor_flags_in_the_worktree_config_fetches_nothing() {
-    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-worktree-config", build_worktree_config);
+    the_early_read_fetches_nothing_where_the_serial_read_does(
+        "promisor-worktree-config",
+        build_worktree_config,
+    );
 }
 
-fn build_inherited_zero(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+fn build_inherited_zero(
+    origin: &Path,
+    root: &Path,
+    name: &str,
+) -> (PathBuf, GitContext) {
     let clone: PathBuf = a_sparse_partial_clone(origin, root, name);
     without_background_maintenance(clone.as_path());
     the_promisor_flags_in_an_included_file(clone.as_path());
@@ -1362,28 +2053,82 @@ fn build_inherited_zero(origin: &Path, root: &Path, name: &str) -> (PathBuf, Git
 /// which is the positive control.
 #[test]
 fn a_read_inheriting_git_no_lazy_fetch_zero_still_fetches_nothing() {
-    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-inherited-zero", build_inherited_zero);
+    the_early_read_fetches_nothing_where_the_serial_read_does(
+        "promisor-inherited-zero",
+        build_inherited_zero,
+    );
 }
 
-fn build_alternate(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+fn build_alternate(
+    origin: &Path,
+    root: &Path,
+    name: &str,
+) -> (PathBuf, GitContext) {
     // `holder` is a sparse partial clone whose object store is the alternate;
     // the source itself holds no objects of its own and names the promisor remote only through an include.
     let holder: PathBuf = a_sparse_partial_clone(origin, root, format!("holder-{name}").as_str());
     let source: PathBuf = root.join(name);
-    git(root, &["init", "--quiet", "--initial-branch=main", source.to_str().expect("utf8")]);
+    git(
+        root,
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            source.to_str().expect("utf8"),
+        ],
+    );
     let alternates: PathBuf = source.join(".git/objects/info/alternates");
     std::fs::create_dir_all(alternates.parent().expect("a parent")).expect("info directory");
-    std::fs::write(alternates.as_path(), format!("{}\n", holder.join(".git/objects").display())).expect("the alternates file");
+    std::fs::write(
+        alternates.as_path(),
+        format!("{}\n", holder.join(".git/objects").display()),
+    )
+    .expect("the alternates file");
     let head: String = the_head_commit(holder.as_path());
-    git(source.as_path(), &["update-ref", "refs/heads/main", head.as_str()]);
+    git(
+        source.as_path(),
+        &["update-ref", "refs/heads/main", head.as_str()],
+    );
     git(source.as_path(), &["config", "maintenance.auto", "false"]);
     git(source.as_path(), &["config", "gc.auto", "0"]);
-    git(source.as_path(), &["remote", "add", "origin", format!("file://{}", origin.display()).as_str()]);
-    git(source.as_path(), &["config", "include.path", "remote-flags.cfg"]);
+    git(
+        source.as_path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            format!("file://{}", origin.display()).as_str(),
+        ],
+    );
+    git(
+        source.as_path(),
+        &["config", "include.path", "remote-flags.cfg"],
+    );
     let flags: PathBuf = source.join(".git/remote-flags.cfg");
-    git(source.as_path(), &["config", "--file", flags.to_str().expect("utf8"), "remote.origin.promisor", "true"]);
-    git(source.as_path(), &["config", "--file", flags.to_str().expect("utf8"), "remote.origin.partialclonefilter", "blob:none"]);
-    return (std::fs::canonicalize(source).expect("canonical"), git_context());
+    git(
+        source.as_path(),
+        &[
+            "config",
+            "--file",
+            flags.to_str().expect("utf8"),
+            "remote.origin.promisor",
+            "true",
+        ],
+    );
+    git(
+        source.as_path(),
+        &[
+            "config",
+            "--file",
+            flags.to_str().expect("utf8"),
+            "remote.origin.partialclonefilter",
+            "blob:none",
+        ],
+    );
+    return (
+        std::fs::canonicalize(source).expect("canonical"),
+        git_context(),
+    );
 }
 
 /// A source whose objects live in an alternate that is a partial clone,
@@ -1391,5 +2136,8 @@ fn build_alternate(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitConte
 /// fetches nothing.
 #[test]
 fn a_read_beside_a_source_whose_alternate_is_a_partial_clone_fetches_nothing() {
-    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-alternate", build_alternate);
+    the_early_read_fetches_nothing_where_the_serial_read_does(
+        "promisor-alternate",
+        build_alternate,
+    );
 }

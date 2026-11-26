@@ -32,14 +32,24 @@
 /// import { parseCommitRegion } from '../parser/commit.ts';
 /// import { parseGlobalOptions } from '../parse-global-options.ts';
 /// ```
-use crate::command_commit::{CommitRegion, FixupKind, parse_commit_region};
+use crate::command_commit::{
+    CommitRegion,
+    FixupKind,
+    parse_commit_region,
+};
 use crate::command_options::OptionError;
 use crate::command_options_query::without_tokens;
-use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+    global_layout,
+};
 use crate::rule_argument_rewrite::insert_tokens;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_only_message::{
-    ALL_FLAG_MESSAGE, NO_PATHSPEC_MESSAGE, ignored_index_message,
+    ALL_FLAG_MESSAGE,
+    NO_PATHSPEC_MESSAGE,
+    ignored_index_message,
 };
 use crate::rule_commit_sequencer::SequencerState;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
@@ -164,7 +174,10 @@ pub enum CommitOnlyDecision {
 /// ```ts
 /// new CommitOnlyViolationError(code, message)
 /// ```
-fn rejected(code: CommitOnlyViolationCode, message: &str) -> CommitOnlyDecision {
+fn rejected(
+    code: CommitOnlyViolationCode,
+    message: &str,
+) -> CommitOnlyDecision {
     return CommitOnlyDecision::Rejected(CommitOnlyViolation {
         code,
         message: String::from(message),

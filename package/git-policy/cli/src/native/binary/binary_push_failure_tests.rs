@@ -19,22 +19,59 @@
 //! await commitThroughService(); await untilRecorded(); expect(stderrOf(await run('git status'))).toContain('backup push');
 //! ```
 
-use super::commit::{remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, fixture, git, repository, run_direct, run_wrapped, start_fixture_service, FixtureService};
+use super::commit::{
+    remove_settled,
+    wrapped_commit,
+};
+use super::support::{
+    Fixture,
+    FixtureService,
+    Observed,
+    fixture,
+    git,
+    repository,
+    run_direct,
+    run_wrapped,
+    start_fixture_service,
+};
 use git_policy_cli::claim_time::ClaimTime;
 use git_policy_cli::iso_time::now_iso;
-use git_policy_cli::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, notice_directory};
-use git_policy_cli::service_client::{Activation, ClientConfig, wake};
+use git_policy_cli::push_failure_notice::{
+    ORPHAN_NOTICE_DIRECTORY,
+    notice_directory,
+};
+use git_policy_cli::service_client::{
+    Activation,
+    ClientConfig,
+    wake,
+};
 use git_policy_cli::service_instance::socket_for;
 use git_policy_cli::service_server::Bind;
-use git_policy_cli::service_work::{CLAIM_LEASE, work_directory};
-use git_policy_cli::work_item::{WorkItem, WorkKind, claim_file_name, enqueue};
+use git_policy_cli::service_work::{
+    CLAIM_LEASE,
+    work_directory,
+};
+use git_policy_cli::work_item::{
+    WorkItem,
+    WorkKind,
+    claim_file_name,
+    enqueue,
+};
 use git_policy_cli::worktree_removal_rescue::SNAPSHOT_DIRECTORY;
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What the remote's hook says when it refuses a push;
 /// the test looks for it in what the person is shown.
@@ -61,24 +98,61 @@ fn setup(name: &str) -> Setup {
 /// The same,
 /// with variables the service starts with,
 /// as the user manager's environment would give it.
-fn setup_with(name: &str, service_environment: &[(&str, &str)]) -> Setup {
+fn setup_with(
+    name: &str,
+    service_environment: &[(&str, &str)],
+) -> Setup {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let remote: PathBuf = fixture.root.join("remote.git");
-    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", remote.to_str().expect("UTF-8")]);
+    git(
+        &fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            remote.to_str().expect("UTF-8"),
+        ],
+    );
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
     git(&fixture, &repo, &["add", "a.txt"]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
-    git(&fixture, &repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
-    git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(
+        &fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("UTF-8")],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "main"],
+    );
     // Given directly: this control always starts its own service, whether or not the run gives every fixture one.
     for (variable, value) in service_environment {
-        fixture.service_environment.lock().expect("the service environment").push((std::ffi::OsString::from(variable), std::ffi::OsString::from(value)));
+        fixture
+            .service_environment
+            .lock()
+            .expect("the service environment")
+            .push((
+                std::ffi::OsString::from(variable),
+                std::ffi::OsString::from(value),
+            ));
     }
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    return Setup { fixture, repo, remote, service };
+    return Setup {
+        fixture,
+        repo,
+        remote,
+        service,
+    };
 }
 
 /// The remote refuses every push from now on.
@@ -95,24 +169,42 @@ fn accept_pushes(remote: &Path) {
 }
 
 /// Commits `content` to `a.txt` through the service and returns the new commit's name.
-fn commit_through_service(setup: &Setup, content: &str) -> String {
+fn commit_through_service(
+    setup: &Setup,
+    content: &str,
+) -> String {
     return commit_through_service_in(setup, setup.repo.as_path(), content);
 }
 
 /// The same in the worktree `directory` of the repository.
-fn commit_through_service_in(setup: &Setup, directory: &Path, content: &str) -> String {
+fn commit_through_service_in(
+    setup: &Setup,
+    directory: &Path,
+    content: &str,
+) -> String {
     std::fs::write(directory.join("a.txt"), content).expect("edit");
-    let mut command: Command = wrapped_commit(&setup.fixture, directory, &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"]);
+    let mut command: Command = wrapped_commit(
+        &setup.fixture,
+        directory,
+        &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
     let output: Output = command.output().expect("the wrapped commit runs");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let named = git(&setup.fixture, directory, &["rev-parse", "HEAD"]);
     return String::from_utf8_lossy(&named.stdout).trim().to_string();
 }
 
 /// Waits until the condition holds;
 /// the service's push has no signal a control could block on.
-fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
+fn wait_until(
+    what: &str,
+    condition: &dyn Fn() -> bool,
+) {
     let began: Instant = Instant::now();
     while !condition() {
         assert!(began.elapsed() < PATIENCE, "never happened: {what}");
@@ -131,16 +223,25 @@ fn waiting_records(setup: &Setup) -> usize {
 
 /// How many failure records wait under the Git directory of one worktree.
 fn waiting_records_in(git_dir: &Path) -> usize {
-    return std::fs::read_dir(notice_directory(git_dir)).map_or(0, |listing| { return listing.flatten().count(); });
+    return std::fs::read_dir(notice_directory(git_dir)).map_or(0, |listing| {
+        return listing.flatten().count();
+    });
 }
 
 /// Waits until the service has pushed `commit` and the item is settled.
-fn wait_until_settled(setup: &Setup, commit: &str) {
+fn wait_until_settled(
+    setup: &Setup,
+    commit: &str,
+) {
     wait_until_settled_in(common_dir(setup).as_path(), "refs/heads/main", commit);
 }
 
 /// The same for the work records of `branch` under the Git directory of one worktree.
-fn wait_until_settled_in(git_dir: &Path, branch: &str, commit: &str) {
+fn wait_until_settled_in(
+    git_dir: &Path,
+    branch: &str,
+    commit: &str,
+) {
     let work: PathBuf = git_dir.join("monochromatic-git-policy-cli/work");
     wait_until("the service settled the push", &|| {
         // The record's own id, which carries the branch as well as the commit.
@@ -155,7 +256,9 @@ fn wait_until_settled_in(git_dir: &Path, branch: &str, commit: &str) {
             tries: 0,
             transport: false,
         };
-        return ["done", "failed"].iter().any(|state| { return work.join(state).join(record.id()).exists(); });
+        return ["done", "failed"].iter().any(|state| {
+            return work.join(state).join(record.id()).exists();
+        });
     });
 }
 
@@ -178,8 +281,23 @@ fn a_rejected_service_push_is_shown_on_the_next_command() {
     let shown: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
     let text: String = stderr_text(&shown);
     assert_eq!(shown.code, Some(0), "{text}");
-    let short: String = String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", "--short", "HEAD"]).stdout).trim().to_string();
-    for expected in ["branch main", short.as_str(), REFUSAL, "saved in this repository", "`git push`"] {
+    let short: String = String::from_utf8_lossy(
+        &git(
+            &setup.fixture,
+            &setup.repo,
+            &["rev-parse", "--short", "HEAD"],
+        )
+        .stdout,
+    )
+    .trim()
+    .to_string();
+    for expected in [
+        "branch main",
+        short.as_str(),
+        REFUSAL,
+        "saved in this repository",
+        "`git push`",
+    ] {
         assert!(text.contains(expected), "missing {expected:?} in: {text}");
     }
     remove_settled(&setup.fixture);
@@ -193,12 +311,20 @@ fn a_shown_failure_is_not_shown_again() {
     refuse_pushes(setup.remote.as_path());
     let commit: String = commit_through_service(&setup, "second\n");
     wait_until_settled(&setup, commit.as_str());
-    let first: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    let first: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
     assert!(first.contains(REFUSAL), "{first}");
     let second: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
     assert_eq!(stderr_text(&second), "", "the same failure again");
     let third: Observed = run_wrapped(&setup.fixture, &setup.repo, &["log", "--oneline"]);
-    assert_eq!(stderr_text(&third), "", "the same failure again, in another command");
+    assert_eq!(
+        stderr_text(&third),
+        "",
+        "the same failure again, in another command"
+    );
     assert_eq!(waiting_records(&setup), 0);
     remove_settled(&setup.fixture);
 }
@@ -217,18 +343,45 @@ const SKIP_REASON: &str = "`push.default` is `nothing`";
 #[test]
 fn a_skipped_service_push_is_shown_on_the_next_command() {
     let setup: Setup = setup("push-skip-shown");
-    git(&setup.fixture, &setup.repo, &["config", "push.default", "nothing"]);
+    git(
+        &setup.fixture,
+        &setup.repo,
+        &["config", "push.default", "nothing"],
+    );
     let commit: String = commit_through_service(&setup, "second\n");
     wait_until_settled(&setup, commit.as_str());
     let shown: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
     let text: String = stderr_text(&shown);
     assert_eq!(shown.code, Some(0), "{text}");
-    let short: String = String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", "--short", "HEAD"]).stdout).trim().to_string();
-    for expected in ["branch main", short.as_str(), SKIP_REASON, "saved in this repository", "`git push <remote> main`"] {
+    let short: String = String::from_utf8_lossy(
+        &git(
+            &setup.fixture,
+            &setup.repo,
+            &["rev-parse", "--short", "HEAD"],
+        )
+        .stdout,
+    )
+    .trim()
+    .to_string();
+    for expected in [
+        "branch main",
+        short.as_str(),
+        SKIP_REASON,
+        "saved in this repository",
+        "`git push <remote> main`",
+    ] {
         assert!(text.contains(expected), "missing {expected:?} in: {text}");
     }
-    let remote_tip = git(&setup.fixture, setup.remote.as_path(), &["rev-parse", "refs/heads/main"]);
-    assert_ne!(String::from_utf8_lossy(&remote_tip.stdout).trim(), commit, "nothing was pushed");
+    let remote_tip = git(
+        &setup.fixture,
+        setup.remote.as_path(),
+        &["rev-parse", "refs/heads/main"],
+    );
+    assert_ne!(
+        String::from_utf8_lossy(&remote_tip.stdout).trim(),
+        commit,
+        "nothing was pushed"
+    );
     let again: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
     assert_eq!(stderr_text(&again), "", "a skip is shown once");
     remove_settled(&setup.fixture);
@@ -244,15 +397,31 @@ fn a_skipped_service_push_keeps_an_earlier_failure() {
     let failed: String = commit_through_service(&setup, "second\n");
     wait_until_settled(&setup, failed.as_str());
     assert_eq!(waiting_records(&setup), 1, "the refusal was recorded");
-    git(&setup.fixture, &setup.repo, &["config", "push.default", "nothing"]);
+    git(
+        &setup.fixture,
+        &setup.repo,
+        &["config", "push.default", "nothing"],
+    );
     // Real Git commits directly: a wrapper command would show the waiting record before the second push could run.
     std::fs::write(setup.repo.join("a.txt"), "third\n").expect("edit");
-    git(&setup.fixture, &setup.repo, &["commit", "--quiet", "--all", "--message=third"]);
+    git(
+        &setup.fixture,
+        &setup.repo,
+        &["commit", "--quiet", "--all", "--message=third"],
+    );
     let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
     let skipped: String = String::from_utf8_lossy(&named.stdout).trim().to_string();
     push_through_service(&setup, skipped.as_str());
-    assert_eq!(waiting_records(&setup), 2, "the refusal stays, and the skip is recorded beside it");
-    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    assert_eq!(
+        waiting_records(&setup),
+        2,
+        "the refusal stays, and the skip is recorded beside it"
+    );
+    let shown: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
     for expected in [REFUSAL, SKIP_REASON] {
         assert!(shown.contains(expected), "missing {expected:?} in: {shown}");
     }
@@ -260,7 +429,10 @@ fn a_skipped_service_push_keeps_an_earlier_failure() {
 }
 
 /// The push record the wrapper's commit leaves for `commit`.
-fn push_item(setup: &Setup, commit: &str) -> WorkItem {
+fn push_item(
+    setup: &Setup,
+    commit: &str,
+) -> WorkItem {
     return WorkItem {
         kind: WorkKind::Push,
         repository: setup.repo.to_path_buf(),
@@ -278,20 +450,44 @@ fn push_item(setup: &Setup, commit: &str) -> WorkItem {
 /// as the wrapper's commit does.
 fn wake_service(setup: &Setup) {
     let config: ClientConfig = ClientConfig {
-        address: Bind::Path(socket_for(setup.service.runtime.as_path(), setup.repo.join(".git").as_path())),
+        address: Bind::Path(socket_for(
+            setup.service.runtime.as_path(),
+            setup.repo.join(".git").as_path(),
+        )),
         activation: Activation::Managed,
         start_wait: PATIENCE,
-        heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: PATIENCE,
-};
-    wake(&config, common_dir(setup).as_path(), None, &[], &mut std::io::sink()).expect("the service takes the wake");
+        heartbeat_silence: PATIENCE,
+        start_watch: None,
+        keep_fresh: None,
+        answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING,
+        withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING,
+        extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT,
+        start_ceiling: git_policy_cli::wait_ceilings::START_CEILING,
+        waiting_notice_after: PATIENCE,
+    };
+    wake(
+        &config,
+        common_dir(setup).as_path(),
+        None,
+        &[],
+        &mut std::io::sink(),
+    )
+    .expect("the service takes the wake");
 }
 
 /// Hands the service a push of `commit` as the wrapper's commit does,
 /// without running a wrapper command,
 /// and returns once
 ///  the service has settled it.
-fn push_through_service(setup: &Setup, commit: &str) {
-    enqueue(work_directory(common_dir(setup).as_path()).as_path(), &push_item(setup, commit)).expect("the push is recorded for the service");
+fn push_through_service(
+    setup: &Setup,
+    commit: &str,
+) {
+    enqueue(
+        work_directory(common_dir(setup).as_path()).as_path(),
+        &push_item(setup, commit),
+    )
+    .expect("the push is recorded for the service");
     wake_service(setup);
     wait_until_settled(setup, commit);
 }
@@ -309,7 +505,11 @@ fn push_through_service(setup: &Setup, commit: &str) {
 fn a_claim_left_by_a_killed_service_is_pushed_once_its_lease_is_over() {
     let setup: Setup = setup("push-claim-left");
     std::fs::write(setup.repo.join("a.txt"), "second\n").expect("edit");
-    git(&setup.fixture, &setup.repo, &["commit", "--quiet", "--all", "--message=second"]);
+    git(
+        &setup.fixture,
+        &setup.repo,
+        &["commit", "--quiet", "--all", "--message=second"],
+    );
     let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
     let commit: String = String::from_utf8_lossy(&named.stdout).trim().to_string();
     let item: WorkItem = push_item(&setup, commit.as_str());
@@ -317,13 +517,29 @@ fn a_claim_left_by_a_killed_service_is_pushed_once_its_lease_is_over() {
     enqueue(work.as_path(), &item).expect("the push is recorded for the service");
     // The killed service had claimed it, and last renewed its claim a lease minus a few seconds ago.
     let last_renewal: ClaimTime = ClaimTime::read().rewound(CLAIM_LEASE - Duration::from_secs(4));
-    let claimed: PathBuf = work.join("claimed").join(claim_file_name(item.id().as_str(), "0123456789abcdef0123456789abcdef", &last_renewal));
-    std::fs::rename(work.join("pending").join(item.id()), claimed.as_path()).expect("claimed by the dead service");
+    let claimed: PathBuf = work.join("claimed").join(claim_file_name(
+        item.id().as_str(),
+        "0123456789abcdef0123456789abcdef",
+        &last_renewal,
+    ));
+    std::fs::rename(work.join("pending").join(item.id()), claimed.as_path())
+        .expect("claimed by the dead service");
     wake_service(&setup);
     wait_until_settled(&setup, commit.as_str());
-    assert!(work.join("done").join(item.id()).exists(), "the push was made and settled as done");
-    let remote_tip = git(&setup.fixture, setup.remote.as_path(), &["rev-parse", "refs/heads/main"]);
-    assert_eq!(String::from_utf8_lossy(&remote_tip.stdout).trim(), commit, "the remote has the commit");
+    assert!(
+        work.join("done").join(item.id()).exists(),
+        "the push was made and settled as done"
+    );
+    let remote_tip = git(
+        &setup.fixture,
+        setup.remote.as_path(),
+        &["rev-parse", "refs/heads/main"],
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&remote_tip.stdout).trim(),
+        commit,
+        "the remote has the commit"
+    );
     assert_eq!(waiting_records(&setup), 0, "nothing failed");
     remove_settled(&setup.fixture);
 }
@@ -341,11 +557,19 @@ fn a_later_successful_push_clears_the_unshown_failure() {
     accept_pushes(setup.remote.as_path());
     // Real Git commits directly: a wrapper command would show the waiting record before the push could clear it.
     std::fs::write(setup.repo.join("a.txt"), "third\n").expect("edit");
-    git(&setup.fixture, &setup.repo, &["commit", "--quiet", "--all", "--message=third"]);
+    git(
+        &setup.fixture,
+        &setup.repo,
+        &["commit", "--quiet", "--all", "--message=third"],
+    );
     let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
     let pushed: String = String::from_utf8_lossy(&named.stdout).trim().to_string();
     push_through_service(&setup, pushed.as_str());
-    assert_eq!(waiting_records(&setup), 0, "the push that went through cleared the record");
+    assert_eq!(
+        waiting_records(&setup),
+        0,
+        "the push that went through cleared the record"
+    );
     let after: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
     assert_eq!(stderr_text(&after), "");
     remove_settled(&setup.fixture);
@@ -362,14 +586,27 @@ fn machine_read_output_is_untouched_and_keeps_the_failure_for_a_person() {
     let commit: String = commit_through_service(&setup, "second\n");
     wait_until_settled(&setup, commit.as_str());
     std::fs::write(setup.repo.join("untracked.txt"), "new\n").expect("untracked");
-    for arguments in [&["status", "--porcelain=v2", "--branch"][..], &["status", "-z"], &["rev-parse", "HEAD"], &["log", "-1", "--format=%H"]] {
+    for arguments in [
+        &["status", "--porcelain=v2", "--branch"][..],
+        &["status", "-z"],
+        &["rev-parse", "HEAD"],
+        &["log", "-1", "--format=%H"],
+    ] {
         let wrapped: Observed = run_wrapped(&setup.fixture, &setup.repo, arguments);
         let direct: Observed = run_direct(&setup.fixture, &setup.repo, arguments);
         assert_eq!(wrapped.stdout, direct.stdout, "{arguments:?}");
         assert_eq!(stderr_text(&wrapped), stderr_text(&direct), "{arguments:?}");
-        assert_eq!(waiting_records(&setup), 1, "{arguments:?} took the record meant for a person");
+        assert_eq!(
+            waiting_records(&setup),
+            1,
+            "{arguments:?} took the record meant for a person"
+        );
     }
-    let human: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    let human: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
     assert!(human.contains(REFUSAL), "{human}");
     remove_settled(&setup.fixture);
 }
@@ -382,27 +619,59 @@ fn machine_read_output_is_untouched_and_keeps_the_failure_for_a_person() {
 #[test]
 fn the_notice_names_the_commit_as_git_abbreviates_it() {
     let setup: Setup = setup("push-failure-abbrev");
-    git(&setup.fixture, &setup.repo, &["config", "core.abbrev", "12"]);
+    git(
+        &setup.fixture,
+        &setup.repo,
+        &["config", "core.abbrev", "12"],
+    );
     refuse_pushes(setup.remote.as_path());
     let commit: String = commit_through_service(&setup, "second\n");
     wait_until_settled(&setup, commit.as_str());
-    let text: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
-    assert!(text.contains(&format!("commit {}, so", &commit[..12])), "twelve characters, as core.abbrev asks: {text}");
+    let text: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
+    assert!(
+        text.contains(&format!("commit {}, so", &commit[..12])),
+        "twelve characters, as core.abbrev asks: {text}"
+    );
     assert!(!text.contains("your commit"), "{text}");
     remove_settled(&setup.fixture);
 }
 
 /// A linked worktree on a branch of its own.
-fn linked_worktree(setup: &Setup, branch: &str) -> PathBuf {
+fn linked_worktree(
+    setup: &Setup,
+    branch: &str,
+) -> PathBuf {
     let path: PathBuf = setup.fixture.root.join(format!("linked-{branch}"));
-    git(&setup.fixture, &setup.repo, &["worktree", "add", "--quiet", "-b", branch, path.to_str().expect("UTF-8")]);
-    git(&setup.fixture, &path, &["config", "maintenance.autoDetach", "false"]);
+    git(
+        &setup.fixture,
+        &setup.repo,
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            branch,
+            path.to_str().expect("UTF-8"),
+        ],
+    );
+    git(
+        &setup.fixture,
+        &path,
+        &["config", "maintenance.autoDetach", "false"],
+    );
     return path;
 }
 
 /// The Git directory of a linked worktree,
 /// which holds its own work records and notices.
-fn linked_git_dir(setup: &Setup, linked: &Path) -> PathBuf {
+fn linked_git_dir(
+    setup: &Setup,
+    linked: &Path,
+) -> PathBuf {
     let named = git(&setup.fixture, linked, &["rev-parse", "--absolute-git-dir"]);
     return PathBuf::from(String::from_utf8_lossy(&named.stdout).trim());
 }
@@ -423,13 +692,36 @@ fn a_failed_push_is_shown_in_the_worktree_that_made_the_commit() {
     refuse_pushes(setup.remote.as_path());
     let commit: String = commit_through_service_in(&setup, linked.as_path(), "second\n");
     wait_until_settled_in(own.as_path(), "refs/heads/feature", commit.as_str());
-    assert_eq!(waiting_records_in(own.as_path()), 1, "the refusal was recorded in the worktree's own Git directory");
-    assert_eq!(waiting_records(&setup), 0, "nothing was recorded in the main worktree");
+    assert_eq!(
+        waiting_records_in(own.as_path()),
+        1,
+        "the refusal was recorded in the worktree's own Git directory"
+    );
+    assert_eq!(
+        waiting_records(&setup),
+        0,
+        "nothing was recorded in the main worktree"
+    );
     let elsewhere: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
-    assert_eq!(stderr_text(&elsewhere), "", "another worktree is not shown a commit it did not make");
-    assert_eq!(waiting_records_in(own.as_path()), 1, "the other worktree left the record for its owner");
-    let owner: String = stderr_text(&run_wrapped(&setup.fixture, &linked, &["status", "--short"]));
-    assert!(owner.contains("branch feature") && owner.contains(REFUSAL), "{owner}");
+    assert_eq!(
+        stderr_text(&elsewhere),
+        "",
+        "another worktree is not shown a commit it did not make"
+    );
+    assert_eq!(
+        waiting_records_in(own.as_path()),
+        1,
+        "the other worktree left the record for its owner"
+    );
+    let owner: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &linked,
+        &["status", "--short"],
+    ));
+    assert!(
+        owner.contains("branch feature") && owner.contains(REFUSAL),
+        "{owner}"
+    );
     assert_eq!(waiting_records_in(own.as_path()), 0, "shown once");
     remove_settled(&setup.fixture);
 }
@@ -441,23 +733,58 @@ fn a_failed_push_is_shown_in_the_worktree_that_made_the_commit() {
 /// and does not tell the person to set a variable.
 #[test]
 fn a_deadline_notice_names_a_remedy_that_reaches_the_service() {
-    let setup: Setup = setup_with("push-failure-deadline", &[("CLI_GIT_PUSH_DEADLINE_SECONDS", "1")]);
+    let setup: Setup = setup_with(
+        "push-failure-deadline",
+        &[("CLI_GIT_PUSH_DEADLINE_SECONDS", "1")],
+    );
     let slow: PathBuf = setup.fixture.root.join("slow-receive-pack");
-    super::support::executable(slow.as_path(), b"#!/bin/sh\nsleep 30\nexec git-receive-pack \"$@\"\n");
-    git(&setup.fixture, &setup.repo, &["config", "remote.origin.receivepack", slow.to_str().expect("UTF-8")]);
+    super::support::executable(
+        slow.as_path(),
+        b"#!/bin/sh\nsleep 30\nexec git-receive-pack \"$@\"\n",
+    );
+    git(
+        &setup.fixture,
+        &setup.repo,
+        &[
+            "config",
+            "remote.origin.receivepack",
+            slow.to_str().expect("UTF-8"),
+        ],
+    );
     let commit: String = commit_through_service(&setup, "second\n");
     wait_until_settled(&setup, commit.as_str());
-    let text: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
-    assert!(text.contains("made no progress for 1 seconds and was stopped"), "{text}");
-    assert!(text.contains("systemctl --user set-environment CLI_GIT_PUSH_DEADLINE_SECONDS="), "{text}");
-    assert!(text.contains(git_policy_cli::service_messages::RESTART_COMMAND), "{text}");
-    assert!(!text.contains("set CLI_GIT_PUSH_DEADLINE_SECONDS to allow longer"), "a variable of the terminal never reaches the service: {text}");
+    let text: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
+    assert!(
+        text.contains("made no progress for 1 seconds and was stopped"),
+        "{text}"
+    );
+    assert!(
+        text.contains("systemctl --user set-environment CLI_GIT_PUSH_DEADLINE_SECONDS="),
+        "{text}"
+    );
+    assert!(
+        text.contains(git_policy_cli::service_messages::RESTART_COMMAND),
+        "{text}"
+    );
+    assert!(
+        !text.contains("set CLI_GIT_PUSH_DEADLINE_SECONDS to allow longer"),
+        "a variable of the terminal never reaches the service: {text}"
+    );
     remove_settled(&setup.fixture);
 }
 
 /// A push work record for the branch of a linked worktree,
 /// left pending under that worktree's own Git directory.
-fn leave_pending_push(setup: &Setup, linked: &Path, own: &Path, branch: &str) -> String {
+fn leave_pending_push(
+    setup: &Setup,
+    linked: &Path,
+    own: &Path,
+    branch: &str,
+) -> String {
     let named = git(&setup.fixture, linked, &["rev-parse", "HEAD"]);
     let commit: String = String::from_utf8_lossy(&named.stdout).trim().to_string();
     let item: WorkItem = WorkItem {
@@ -488,11 +815,31 @@ fn a_failed_push_of_a_branch_no_worktree_holds_is_shown_anywhere() {
     refuse_pushes(setup.remote.as_path());
     let commit: String = commit_through_service_in(&setup, linked.as_path(), "second\n");
     wait_until_settled_in(own.as_path(), "refs/heads/feature", commit.as_str());
-    let removed: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", "--force", linked.to_str().expect("UTF-8")]);
+    let removed: Observed = run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            linked.to_str().expect("UTF-8"),
+        ],
+    );
     assert_eq!(removed.code, Some(0), "{}", stderr_text(&removed));
-    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
-    assert!(shown.contains("branch feature") && shown.contains(REFUSAL), "{shown}");
-    let again: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    let shown: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
+    assert!(
+        shown.contains("branch feature") && shown.contains(REFUSAL),
+        "{shown}"
+    );
+    let again: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
     assert_eq!(again, "", "shown once");
     remove_settled(&setup.fixture);
 }
@@ -506,11 +853,24 @@ fn a_push_pending_when_its_worktree_is_removed_is_reported() {
     let linked: PathBuf = linked_worktree(&setup, "feature");
     let own: PathBuf = linked_git_dir(&setup, linked.as_path());
     let commit: String = leave_pending_push(&setup, linked.as_path(), own.as_path(), "feature");
-    let removed: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", linked.to_str().expect("UTF-8")]);
+    let removed: Observed = run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["worktree", "remove", linked.to_str().expect("UTF-8")],
+    );
     assert_eq!(removed.code, Some(0), "{}", stderr_text(&removed));
     assert!(!own.exists(), "the worktree is gone");
-    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
-    assert!(shown.contains("branch feature") && shown.contains(&commit[..7]) && shown.contains("removed"), "{shown}");
+    let shown: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
+    assert!(
+        shown.contains("branch feature")
+            && shown.contains(&commit[..7])
+            && shown.contains("removed"),
+        "{shown}"
+    );
     remove_settled(&setup.fixture);
 }
 
@@ -525,8 +885,17 @@ fn a_push_pending_when_its_worktree_is_pruned_is_reported() {
     let pruned: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "prune"]);
     assert_eq!(pruned.code, Some(0), "{}", stderr_text(&pruned));
     assert!(!own.exists(), "the registration is gone");
-    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
-    assert!(shown.contains("branch feature") && shown.contains(&commit[..7]) && shown.contains("removed"), "{shown}");
+    let shown: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
+    assert!(
+        shown.contains("branch feature")
+            && shown.contains(&commit[..7])
+            && shown.contains("removed"),
+        "{shown}"
+    );
     remove_settled(&setup.fixture);
 }
 
@@ -539,12 +908,29 @@ fn a_record_that_cannot_be_saved_before_a_removal_is_told_to_the_person() {
     let own: PathBuf = linked_git_dir(&setup, linked.as_path());
     leave_pending_push(&setup, linked.as_path(), own.as_path(), "feature");
     let common: PathBuf = setup.repo.join(".git");
-    std::fs::create_dir_all(common.join("monochromatic-git-policy-cli")).expect("the wrapper's directory");
-    std::fs::write(common.join(SNAPSHOT_DIRECTORY), "a file where the directory belongs").expect("blocker");
-    let removed: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", linked.to_str().expect("UTF-8")]);
-    assert_eq!(removed.code, Some(0), "the removal the person asked for still happens: {}", stderr_text(&removed));
+    std::fs::create_dir_all(common.join("monochromatic-git-policy-cli"))
+        .expect("the wrapper's directory");
+    std::fs::write(
+        common.join(SNAPSHOT_DIRECTORY),
+        "a file where the directory belongs",
+    )
+    .expect("blocker");
+    let removed: Observed = run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["worktree", "remove", linked.to_str().expect("UTF-8")],
+    );
+    assert_eq!(
+        removed.code,
+        Some(0),
+        "the removal the person asked for still happens: {}",
+        stderr_text(&removed)
+    );
     let said: String = stderr_text(&removed);
-    assert!(said.contains("could not all be saved") && said.contains(own.to_string_lossy().as_ref()), "{said}");
+    assert!(
+        said.contains("could not all be saved") && said.contains(own.to_string_lossy().as_ref()),
+        "{said}"
+    );
     remove_settled(&setup.fixture);
 }
 
@@ -557,16 +943,36 @@ fn a_record_of_a_removed_worktree_that_cannot_be_kept_is_told_and_shown_later() 
     let linked: PathBuf = linked_worktree(&setup, "feature");
     let own: PathBuf = linked_git_dir(&setup, linked.as_path());
     let commit: String = leave_pending_push(&setup, linked.as_path(), own.as_path(), "feature");
-    let removed: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", linked.to_str().expect("UTF-8")]);
+    let removed: Observed = run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["worktree", "remove", linked.to_str().expect("UTF-8")],
+    );
     assert_eq!(removed.code, Some(0), "{}", stderr_text(&removed));
     let blocker: PathBuf = setup.repo.join(".git").join(ORPHAN_NOTICE_DIRECTORY);
     std::fs::create_dir_all(blocker.parent().expect("parent")).expect("the wrapper's directory");
     std::fs::write(&blocker, "a file where the directory belongs").expect("blocker");
-    let told: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
-    assert!(told.contains("had not finished when its worktree was removed, and noting that failed"), "{told}");
+    let told: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
+    assert!(
+        told.contains("had not finished when its worktree was removed, and noting that failed"),
+        "{told}"
+    );
     std::fs::remove_file(&blocker).expect("the cause is fixed");
-    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
-    assert!(shown.contains("branch feature") && shown.contains(&commit[..7]) && shown.contains("removed"), "{shown}");
+    let shown: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
+    assert!(
+        shown.contains("branch feature")
+            && shown.contains(&commit[..7])
+            && shown.contains("removed"),
+        "{shown}"
+    );
     remove_settled(&setup.fixture);
 }
 
@@ -578,11 +984,31 @@ fn a_refused_removal_reports_nothing_and_keeps_the_pending_push() {
     let linked: PathBuf = linked_worktree(&setup, "feature");
     let own: PathBuf = linked_git_dir(&setup, linked.as_path());
     leave_pending_push(&setup, linked.as_path(), own.as_path(), "feature");
-    std::fs::write(linked.join("untracked.txt"), "not committed\n").expect("an untracked file makes the removal refuse");
-    let refused: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", linked.to_str().expect("UTF-8")]);
-    assert_ne!(refused.code, Some(0), "Git refuses to remove a worktree with untracked files");
-    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    std::fs::write(linked.join("untracked.txt"), "not committed\n")
+        .expect("an untracked file makes the removal refuse");
+    let refused: Observed = run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["worktree", "remove", linked.to_str().expect("UTF-8")],
+    );
+    assert_ne!(
+        refused.code,
+        Some(0),
+        "Git refuses to remove a worktree with untracked files"
+    );
+    let shown: String = stderr_text(&run_wrapped(
+        &setup.fixture,
+        &setup.repo,
+        &["status", "--short"],
+    ));
     assert_eq!(shown, "", "the worktree still exists, so nothing was lost");
-    assert!(own.join("monochromatic-git-policy-cli/work/pending").read_dir().expect("the work directory").count() >= 1, "the pending push is still queued");
+    assert!(
+        own.join("monochromatic-git-policy-cli/work/pending")
+            .read_dir()
+            .expect("the work directory")
+            .count()
+            >= 1,
+        "the pending push is still queued"
+    );
     remove_settled(&setup.fixture);
 }

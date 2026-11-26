@@ -15,39 +15,110 @@
 //! expect(() => PlannedOrigin.require('fix-flaky-test', fields)).toThrow('the clone's dataset GUID');
 //! ```
 
-use super::super::fixtures::{CLONE, PLAN_HOME, SLOT, fields};
+use super::super::fixtures::{
+    CLONE,
+    PLAN_HOME,
+    SLOT,
+    fields,
+};
 use super::super::origin_refusal::OriginRefusal;
-use super::super::origin_refusals::{PlanField, RefusalForm, WhatARefusalLeaves};
+use super::super::origin_refusals::{
+    PlanField,
+    RefusalForm,
+    WhatARefusalLeaves,
+};
 use super::PlannedOrigin;
 use std::path::PathBuf;
 
 #[test]
 fn a_whole_plan_gives_every_identity_the_check_compares() {
-    let planned: PlannedOrigin = PlannedOrigin::require(SLOT, fields()).expect("a whole plan gives the tuple");
+    let planned: PlannedOrigin =
+        PlannedOrigin::require(SLOT, fields()).expect("a whole plan gives the tuple");
     assert_eq!(planned.slot, SLOT);
     assert_eq!(planned.clone_name, CLONE);
-    assert_eq!(planned.origin_snapshot_name, super::super::fixtures::ORIGIN_SNAPSHOT);
+    assert_eq!(
+        planned.origin_snapshot_name,
+        super::super::fixtures::ORIGIN_SNAPSHOT
+    );
 }
 
 #[test]
 fn each_missing_field_names_itself_and_the_plans_own_file() {
     let cases: Vec<(PlanField, super::super::planned_origin::PlannedOriginFields)> = vec![
-        (PlanField::CloneName, super::super::planned_origin::PlannedOriginFields { clone_name: None, ..fields() }),
-        (PlanField::CloneGuid, super::super::planned_origin::PlannedOriginFields { clone_guid: None, ..fields() }),
-        (PlanField::OriginDatasetName, super::super::planned_origin::PlannedOriginFields { origin_dataset_name: None, ..fields() }),
-        (PlanField::OriginDatasetGuid, super::super::planned_origin::PlannedOriginFields { origin_dataset_guid: None, ..fields() }),
-        (PlanField::OriginSnapshotName, super::super::planned_origin::PlannedOriginFields { origin_snapshot_name: None, ..fields() }),
-        (PlanField::OriginSnapshotGuid, super::super::planned_origin::PlannedOriginFields { origin_snapshot_guid: None, ..fields() }),
-        (PlanField::OriginSnapshotCreatetxg, super::super::planned_origin::PlannedOriginFields { origin_snapshot_createtxg: None, ..fields() }),
+        (
+            PlanField::CloneName,
+            super::super::planned_origin::PlannedOriginFields {
+                clone_name: None,
+                ..fields()
+            },
+        ),
+        (
+            PlanField::CloneGuid,
+            super::super::planned_origin::PlannedOriginFields {
+                clone_guid: None,
+                ..fields()
+            },
+        ),
+        (
+            PlanField::OriginDatasetName,
+            super::super::planned_origin::PlannedOriginFields {
+                origin_dataset_name: None,
+                ..fields()
+            },
+        ),
+        (
+            PlanField::OriginDatasetGuid,
+            super::super::planned_origin::PlannedOriginFields {
+                origin_dataset_guid: None,
+                ..fields()
+            },
+        ),
+        (
+            PlanField::OriginSnapshotName,
+            super::super::planned_origin::PlannedOriginFields {
+                origin_snapshot_name: None,
+                ..fields()
+            },
+        ),
+        (
+            PlanField::OriginSnapshotGuid,
+            super::super::planned_origin::PlannedOriginFields {
+                origin_snapshot_guid: None,
+                ..fields()
+            },
+        ),
+        (
+            PlanField::OriginSnapshotCreatetxg,
+            super::super::planned_origin::PlannedOriginFields {
+                origin_snapshot_createtxg: None,
+                ..fields()
+            },
+        ),
     ];
     for (field, incomplete) in cases {
-        let missing: super::super::planned_origin::MissingField = PlannedOrigin::require(SLOT, incomplete).expect_err("the plan lacks the field the control removed");
-        assert_eq!(missing.field, field, "the answer names the field the control removed");
+        let missing: super::super::planned_origin::MissingField =
+            PlannedOrigin::require(SLOT, incomplete)
+                .expect_err("the plan lacks the field the control removed");
+        assert_eq!(
+            missing.field, field,
+            "the answer names the field the control removed"
+        );
         match OriginRefusal::from(missing) {
-            OriginRefusal::PlanIncomplete { slot, field: named, plan_home } => {
-                assert_eq!(named, field, "the refusal names the field the control removed");
+            OriginRefusal::PlanIncomplete {
+                slot,
+                field: named,
+                plan_home,
+            } => {
+                assert_eq!(
+                    named, field,
+                    "the refusal names the field the control removed"
+                );
                 assert_eq!(slot, SLOT);
-                assert_eq!(plan_home, PathBuf::from(PLAN_HOME), "the refusal names the plan it read");
+                assert_eq!(
+                    plan_home,
+                    PathBuf::from(PLAN_HOME),
+                    "the refusal names the plan it read"
+                );
             }
             other => panic!("a missing {} must refuse, not {other:?}", field.words()),
         }
@@ -56,11 +127,24 @@ fn each_missing_field_names_itself_and_the_plans_own_file() {
 
 #[test]
 fn an_incomplete_plan_is_a_refusal_of_the_form_that_compared_nothing() {
-    let incomplete: super::super::planned_origin::PlannedOriginFields = super::super::planned_origin::PlannedOriginFields { clone_name: None, ..fields() };
-    let refusal: OriginRefusal = OriginRefusal::from(PlannedOrigin::require(SLOT, incomplete).expect_err("the plan is incomplete"));
+    let incomplete: super::super::planned_origin::PlannedOriginFields =
+        super::super::planned_origin::PlannedOriginFields {
+            clone_name: None,
+            ..fields()
+        };
+    let refusal: OriginRefusal = OriginRefusal::from(
+        PlannedOrigin::require(SLOT, incomplete).expect_err("the plan is incomplete"),
+    );
     assert_eq!(refusal.form(), RefusalForm::NothingCompared);
-    assert_eq!(refusal.what_it_leaves(), WhatARefusalLeaves::PendingWithItsRecord);
+    assert_eq!(
+        refusal.what_it_leaves(),
+        WhatARefusalLeaves::PendingWithItsRecord
+    );
     assert_eq!(refusal.step(), "plan");
-    assert_eq!(refusal.clone_name(), None, "no plan field means no clone the refusal can name");
+    assert_eq!(
+        refusal.clone_name(),
+        None,
+        "no plan field means no clone the refusal can name"
+    );
     assert_eq!(refusal.slot(), SLOT);
 }

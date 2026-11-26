@@ -38,5 +38,8 @@ pub trait DatasetGuidReads {
     /// # Errors
     /// The dataset does not answer,
     /// or the pool reported no GUID this route can name.
-    fn guid_of(&self, dataset: &str) -> Result<DatasetGuid, String>;
+    fn guid_of(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetGuid, String>;
 }

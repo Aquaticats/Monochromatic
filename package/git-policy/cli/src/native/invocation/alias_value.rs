@@ -207,7 +207,10 @@ fn is_subsection_dot(byte: &u8) -> bool {
 /// ```ts
 /// function aliasVariableMatches(name: string, variable: string): boolean
 /// ```
-pub fn alias_variable_matches(name: &[u8], variable: &[u8]) -> bool {
+pub fn alias_variable_matches(
+    name: &[u8],
+    variable: &[u8],
+) -> bool {
     // `let Some(x) = ... else { ... }` is "not an alias variable at all".
     let Some(rest) = variable.strip_prefix(b"alias.") else {
         return false;
@@ -241,7 +244,10 @@ pub fn alias_variable_matches(name: &[u8], variable: &[u8]) -> bool {
 /// ```ts
 /// function aliasSelection(variables: ConfigVariable[], name: string): string | undefined
 /// ```
-pub fn alias_selection(variables: &[ConfigVariable<'_>], name: &[u8]) -> Option<Vec<u8>> {
+pub fn alias_selection(
+    variables: &[ConfigVariable<'_>],
+    name: &[u8],
+) -> Option<Vec<u8>> {
     let mut selected: Option<Vec<u8>> = None;
     for variable in variables {
         if !alias_variable_matches(name, variable.name) {

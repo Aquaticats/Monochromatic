@@ -25,17 +25,29 @@
 //! const { path, notice } = placeKeptName(gitDir, DATA_FOLDER); // renames cli-git to monochromatic-git-policy-cli if only cli-git exists
 //! ```
 
-/// The pair of names the move works on.
-use crate::wrapper_names_old_and_new::{MESSAGE_PREFIX, RenamedName};
 /// The rename that fails when the target exists,
 ///  and the test for a filesystem that cannot do it.
-use crate::rename_that_never_replaces::{rename_noreplace, rename_unsupported};
+use crate::rename_that_never_replaces::{
+    rename_noreplace,
+    rename_unsupported,
+};
+/// The pair of names the move works on.
+use crate::wrapper_names_old_and_new::{
+    MESSAGE_PREFIX,
+    RenamedName,
+};
 /// `Write` gives standard error its `write_all` method.
 use std::io::Write;
 /// `Path` is a borrowed path and `PathBuf` an owned one.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// An atomic whole number that processes of one executable share without a lock.
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// What:
 ///  What a look at the two names found.
@@ -100,7 +112,10 @@ fn exists(path: &Path) -> bool {
 /// ```ts
 /// function look(parent: string, name: RenamedName): Look;
 /// ```
-pub fn look(parent: &Path, name: RenamedName) -> Look {
+pub fn look(
+    parent: &Path,
+    name: RenamedName,
+) -> Look {
     let current_there: bool = exists(parent.join(name.current).as_path());
     let earlier_there: bool = exists(parent.join(name.earlier).as_path());
     if current_there && earlier_there {
@@ -114,7 +129,11 @@ pub fn look(parent: &Path, name: RenamedName) -> Look {
 
 /// The line that reports an earlier name that could not be moved,
 ///  and is used as it is for this run.
-fn unmovable_notice(parent: &Path, name: RenamedName, error: &std::io::Error) -> String {
+fn unmovable_notice(
+    parent: &Path,
+    name: RenamedName,
+    error: &std::io::Error,
+) -> String {
     return format!(
         "{}: {} in {} could not be renamed to {} ({error}), so it is used under its earlier name this time and the rename is \
          tried again by the next command.\n",
@@ -143,34 +162,66 @@ fn unmovable_notice(parent: &Path, name: RenamedName, error: &std::io::Error) ->
 /// ```ts
 /// function carryOut(looked: Look, parent: string, name: RenamedName, rename: (from: string, to: string) => void): Placement;
 /// ```
-pub fn carry_out(looked: Look, parent: &Path, name: RenamedName, rename: fn(&Path, &Path) -> std::io::Result<()>) -> Placement {
+pub fn carry_out(
+    looked: Look,
+    parent: &Path,
+    name: RenamedName,
+    rename: fn(&Path, &Path) -> std::io::Result<()>,
+) -> Placement {
     let current: PathBuf = parent.join(name.current);
     let earlier: PathBuf = parent.join(name.earlier);
     match looked {
-        Look::Settled => return Placement { path: current, notice: None },
+        Look::Settled => {
+            return Placement {
+                path: current,
+                notice: None,
+            };
+        }
         // The fold of the earlier name into the current one (`earlier_names_folded_into_current.rs`) speaks when it waits or fails.
-        Look::Both => return Placement { path: current, notice: None },
+        Look::Both => {
+            return Placement {
+                path: current,
+                notice: None,
+            };
+        }
         Look::OnlyEarlier => {}
     }
     // `match` on the rename's `Result`: success, a lost race, or a failure to report.
     match rename(earlier.as_path(), current.as_path()) {
-        Ok(()) => return Placement { path: current, notice: None },
+        Ok(()) => {
+            return Placement {
+                path: current,
+                notice: None,
+            };
+        }
         Err(error) => {
             // The earlier name vanished: another process moved it, so the current name is the winner's.
             if error.kind() == std::io::ErrorKind::NotFound && exists(current.as_path()) {
-                return Placement { path: current, notice: None };
+                return Placement {
+                    path: current,
+                    notice: None,
+                };
             }
             // The current name appeared: another process was ahead and the earlier name came back or never left; the fold takes it from here.
             if error.kind() == std::io::ErrorKind::AlreadyExists {
-                return Placement { path: current, notice: None };
+                return Placement {
+                    path: current,
+                    notice: None,
+                };
             }
             // A filesystem without the call, a read-only folder or anything else: keep working with what is there.
             let reported: std::io::Error = if rename_unsupported(&error) {
-                std::io::Error::new(error.kind(), "this filesystem cannot rename without replacing")
+                std::io::Error::new(
+                    error.kind(),
+                    "this filesystem cannot rename without replacing",
+                )
             } else {
                 error
             };
-            return Placement { path: earlier, notice: Some(unmovable_notice(parent, name, &reported)) };
+            return Placement {
+                path: earlier,
+                notice: Some(unmovable_notice(parent, name, &reported)),
+            };
         }
     }
 }
@@ -185,7 +236,10 @@ pub fn carry_out(looked: Look, parent: &Path, name: RenamedName, rename: fn(&Pat
 /// ```ts
 /// function placeKeptName(parent: string, name: RenamedName): Placement;
 /// ```
-pub fn place_kept_name(parent: &Path, name: RenamedName) -> Placement {
+pub fn place_kept_name(
+    parent: &Path,
+    name: RenamedName,
+) -> Placement {
     return carry_out(look(parent, name), parent, name, rename_noreplace);
 }
 
@@ -203,7 +257,10 @@ pub fn place_kept_name(parent: &Path, name: RenamedName) -> Placement {
 /// ```ts
 /// function existingKeptName(parent: string, name: RenamedName): string;
 /// ```
-pub fn existing_kept_name(parent: &Path, name: RenamedName) -> PathBuf {
+pub fn existing_kept_name(
+    parent: &Path,
+    name: RenamedName,
+) -> PathBuf {
     if look(parent, name) == Look::OnlyEarlier {
         return parent.join(name.earlier);
     }
@@ -242,7 +299,10 @@ fn report_bit(name: RenamedName) -> u64 {
 /// ```ts
 /// function keptNameForUse(parent: string, name: RenamedName): string;
 /// ```
-pub fn kept_name_for_use(parent: &Path, name: RenamedName) -> PathBuf {
+pub fn kept_name_for_use(
+    parent: &Path,
+    name: RenamedName,
+) -> PathBuf {
     let placed: Placement = place_kept_name(parent, name);
     if let Some(text) = placed.notice {
         let bit: u64 = report_bit(name);

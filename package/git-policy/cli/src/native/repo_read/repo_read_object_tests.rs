@@ -4,9 +4,18 @@
 //! a stream cut at every length) panics the reader.
 
 use super::*;
-use crate::test_support::{fixture, git, git_output, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_output,
+    remove,
+    repository,
+};
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The loose object files of a repository with a commit,
 /// a tree and several blobs,
@@ -16,16 +25,27 @@ fn loose_files(root: &Path) -> (PathBuf, Vec<PathBuf>) {
     let repo = repository(root, "objects");
     let mut text = String::new();
     for line in 0..400 {
-        text.push_str(format!("line {line} of the blob with some repeated words and some words only once {}\n", line * 7919 % 101).as_str());
+        text.push_str(
+            format!(
+                "line {line} of the blob with some repeated words and some words only once {}\n",
+                line * 7919 % 101
+            )
+            .as_str(),
+        );
     }
     std::fs::write(repo.join("big.txt"), text).expect("big");
     std::fs::write(repo.join("small.txt"), "one\n").expect("small");
     git(repo.as_path(), &["add", "--all"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=with files"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=with files"],
+    );
     let mut files: Vec<PathBuf> = Vec::new();
     for entry in std::fs::read_dir(repo.join(".git/objects")).expect("objects") {
         let directory = entry.expect("entry").path();
-        if directory.file_name().is_some_and(|name| { return name.len() == 2; }) {
+        if directory.file_name().is_some_and(|name| {
+            return name.len() == 2;
+        }) {
             for file in std::fs::read_dir(&directory).expect("fan-out") {
                 files.push(file.expect("file").path());
             }
@@ -42,16 +62,32 @@ fn bytes_after_a_loose_stream_are_left_to_git() {
     let root = fixture("repo-read-object-garbage");
     let (repo, files) = loose_files(root.as_path());
     for file in &files {
-        let name = format!("{}{}", file.parent().and_then(|parent| { return parent.file_name(); }).expect("fan-out").to_string_lossy(), file.file_name().expect("name").to_string_lossy());
+        let name = format!(
+            "{}{}",
+            file.parent()
+                .and_then(|parent| {
+                    return parent.file_name();
+                })
+                .expect("fan-out")
+                .to_string_lossy(),
+            file.file_name().expect("name").to_string_lossy()
+        );
         let original = std::fs::read(file).expect("read");
-        assert!(parse_loose(original.as_slice()).is_some(), "{name}: the intact object is read");
+        assert!(
+            parse_loose(original.as_slice()).is_some(),
+            "{name}: the intact object is read"
+        );
         let mut extended = original.clone();
         extended.extend_from_slice(b"trailing bytes");
         std::fs::set_permissions(file, std::fs::Permissions::from_mode(0o644)).expect("writable");
         std::fs::write(file, &extended).expect("rewrite");
         let verdict = git_output(repo.as_path(), &["cat-file", "-p", name.as_str()]);
         if !verdict.status.success() {
-            assert!(parse_loose(extended.as_slice()).is_none(), "{name}: Git refuses the object ({}) but the reader answered", String::from_utf8_lossy(&verdict.stderr).trim());
+            assert!(
+                parse_loose(extended.as_slice()).is_none(),
+                "{name}: Git refuses the object ({}) but the reader answered",
+                String::from_utf8_lossy(&verdict.stderr).trim()
+            );
         }
         std::fs::write(file, &original).expect("restore");
     }
@@ -71,14 +107,26 @@ fn damaged_streams_never_panic() {
         let original = std::fs::read(file).expect("read");
         for cut in 0..=original.len() {
             tried += 1;
-            let _ = std::panic::catch_unwind(|| { return (parse_loose(&original[..cut]), inflate_exact(&original[..cut], original.len())); }).expect("a cut stream must not panic");
+            let _ = std::panic::catch_unwind(|| {
+                return (
+                    parse_loose(&original[..cut]),
+                    inflate_exact(&original[..cut], original.len()),
+                );
+            })
+            .expect("a cut stream must not panic");
         }
         for position in 0..original.len() {
             for pattern in [0xffu8, 0x01, 0x80, 0x5a] {
                 let mut damaged = original.clone();
                 damaged[position] ^= pattern;
                 tried += 1;
-                let _ = std::panic::catch_unwind(|| { return (parse_loose(damaged.as_slice()), inflate_exact(damaged.as_slice(), original.len())); }).expect("a damaged stream must not panic");
+                let _ = std::panic::catch_unwind(|| {
+                    return (
+                        parse_loose(damaged.as_slice()),
+                        inflate_exact(damaged.as_slice(), original.len()),
+                    );
+                })
+                .expect("a damaged stream must not panic");
             }
         }
     }
@@ -117,11 +165,23 @@ fn stored_stream(content: &[u8]) -> Vec<u8> {
 /// is read.
 #[test]
 fn a_stream_longer_than_the_bound_is_left_to_git() {
-    let under: Vec<u8> = (0..INFLATE_INPUT_LIMIT / 2).map(|index| { return (index % 251) as u8; }).collect();
-    let over: Vec<u8> = (0..INFLATE_INPUT_LIMIT + 4096).map(|index| { return (index % 251) as u8; }).collect();
+    let under: Vec<u8> = (0..INFLATE_INPUT_LIMIT / 2)
+        .map(|index| {
+            return (index % 251) as u8;
+        })
+        .collect();
+    let over: Vec<u8> = (0..INFLATE_INPUT_LIMIT + 4096)
+        .map(|index| {
+            return (index % 251) as u8;
+        })
+        .collect();
     let short = stored_stream(under.as_slice());
     assert!(short.len() < INFLATE_INPUT_LIMIT);
-    assert_eq!(inflate_exact(short.as_slice(), under.len()), Some(under), "the control must be readable");
+    assert_eq!(
+        inflate_exact(short.as_slice(), under.len()),
+        Some(under),
+        "the control must be readable"
+    );
     let long = stored_stream(over.as_slice());
     assert!(long.len() > INFLATE_INPUT_LIMIT);
     assert_eq!(inflate_exact(long.as_slice(), over.len()), None);

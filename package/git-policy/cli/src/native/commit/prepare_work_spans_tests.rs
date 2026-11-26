@@ -41,12 +41,26 @@ fn runs_under_one_name_are_added_to_one_entry_in_the_order_first_noted() {
     assert_eq!(
         taken.0,
         vec![
-            PrepareSpan { name: String::from("index copy"), calls: 3, total: Duration::from_millis(46), longest: Duration::from_millis(30) },
-            PrepareSpan { name: String::from("index stat check"), calls: 1, total: Duration::from_millis(31), longest: Duration::from_millis(31) },
+            PrepareSpan {
+                name: String::from("index copy"),
+                calls: 3,
+                total: Duration::from_millis(46),
+                longest: Duration::from_millis(30)
+            },
+            PrepareSpan {
+                name: String::from("index stat check"),
+                calls: 1,
+                total: Duration::from_millis(31),
+                longest: Duration::from_millis(31)
+            },
         ]
     );
     assert_eq!(taken.1, 0);
-    assert_eq!(noted(), (Vec::new(), 0), "the record takes the steps of its own preparation");
+    assert_eq!(
+        noted(),
+        (Vec::new(), 0),
+        "the record takes the steps of its own preparation"
+    );
 }
 
 /// A step that took no measurable time is still a step that ran,
@@ -57,7 +71,12 @@ fn a_step_of_no_measurable_time_is_stated_as_one_call() {
     let taken: (Vec<PrepareSpan>, usize) = noted();
     assert_eq!(
         taken.0,
-        vec![PrepareSpan { name: String::from("index read"), calls: 1, total: Duration::ZERO, longest: Duration::ZERO }]
+        vec![PrepareSpan {
+            name: String::from("index read"),
+            calls: 1,
+            total: Duration::ZERO,
+            longest: Duration::ZERO
+        }]
     );
 }
 
@@ -78,8 +97,15 @@ fn names_after_the_bound_are_counted_and_not_kept() {
     let taken: (Vec<PrepareSpan>, usize) = noted();
     assert_eq!(taken.0.len(), MAX_SPAN_NAMES);
     assert_eq!(taken.1, 2);
-    assert_eq!(taken.0.first().map(|span| { return (span.calls, span.total); }), Some((2, Duration::from_millis(3))));
-    assert!(!taken.0.iter().any(|span| { return span.name == "step past the bound"; }));
+    assert_eq!(
+        taken.0.first().map(|span| {
+            return (span.calls, span.total);
+        }),
+        Some((2, Duration::from_millis(3)))
+    );
+    assert!(!taken.0.iter().any(|span| {
+        return span.name == "step past the bound";
+    }));
 }
 
 /// The record states an empty list for a preparation that noted nothing,
@@ -93,8 +119,12 @@ fn the_record_states_the_list_and_escapes_a_name() {
         total: Duration::from_millis(42),
         longest: Duration::from_millis(30),
     }];
-    assert_eq!(spans_json(spans.as_slice()), "[{\"name\":\"policy a\\\"b\\\\c\",\"calls\":2,\"totalMs\":42,\"longestMs\":30}]");
-    let parsed: serde_json::Value = serde_json::from_str(spans_json(spans.as_slice()).as_str()).expect("JSON");
+    assert_eq!(
+        spans_json(spans.as_slice()),
+        "[{\"name\":\"policy a\\\"b\\\\c\",\"calls\":2,\"totalMs\":42,\"longestMs\":30}]"
+    );
+    let parsed: serde_json::Value =
+        serde_json::from_str(spans_json(spans.as_slice()).as_str()).expect("JSON");
     assert_eq!(parsed[0]["name"], "policy a\"b\\c");
 }
 
@@ -104,6 +134,12 @@ fn the_record_states_the_list_and_escapes_a_name() {
 #[test]
 fn a_policy_span_names_the_policy_and_the_lifecycle_point() {
     use crate::policy_trigger::Trigger;
-    assert_eq!(policy_span_name("security/forbidden-strings", Trigger::PreForward), "policy security/forbidden-strings at pre-forward");
-    assert_eq!(policy_span_name("final-newline", Trigger::PostCommit), "policy final-newline at post-commit");
+    assert_eq!(
+        policy_span_name("security/forbidden-strings", Trigger::PreForward),
+        "policy security/forbidden-strings at pre-forward"
+    );
+    assert_eq!(
+        policy_span_name("final-newline", Trigger::PostCommit),
+        "policy final-newline at post-commit"
+    );
 }

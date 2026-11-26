@@ -27,5 +27,8 @@ fn an_inventory_entry_line_is_at_most_313_bytes() {
     assert_eq!(INVENTORY_ENTRY_LINE_MAXIMUM_BYTES, 313);
     // The header plus the eight fields of the grammar, each at its widest:
     // kind, poolGuid, dataset, datasetGuid, bounds, boundsGuid, boundsCreatetxg and entries.
-    assert_eq!(INVENTORY_FIXED_BYTES, 71 + 12 + 30 + 264 + 33 + 263 + 32 + 37 + 29);
+    assert_eq!(
+        INVENTORY_FIXED_BYTES,
+        71 + 12 + 30 + 264 + 33 + 263 + 32 + 37 + 29
+    );
 }

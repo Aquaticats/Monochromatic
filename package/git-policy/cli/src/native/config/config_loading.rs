@@ -11,7 +11,10 @@
 //! ```
 
 /// Import the exact current-Git global boundary and native arguments.
-use crate::global_arguments::{GlobalOutcome, global_layout};
+use crate::global_arguments::{
+    GlobalOutcome,
+    global_layout,
+};
 use std::ffi::OsString;
 
 /// Whether this invocation needs the shipped policy configuration.
@@ -55,7 +58,10 @@ const INSPECTION_COMMANDS: &[&[u8]] = &[
 ];
 
 /// Mutation-bearing long forms from the selected native branch/tag implementations.
-fn mutating_long(name: &[u8], branch: bool) -> bool {
+fn mutating_long(
+    name: &[u8],
+    branch: bool,
+) -> bool {
     if branch {
         return [
             b"--copy".as_slice(),
@@ -87,7 +93,10 @@ fn mutating_long(name: &[u8], branch: bool) -> bool {
 }
 
 /// Classify branch/tag forms conservatively while distinguishing inline-optional and separated values.
-fn mixed_command(arguments: &[OsString], branch: bool) -> ConfigLoading {
+fn mixed_command(
+    arguments: &[OsString],
+    branch: bool,
+) -> ConfigLoading {
     let mut listing: bool = false;
     let mut positional: bool = false;
     let mut after_separator: bool = false;

@@ -48,9 +48,18 @@ use crate::git_metadata::path_from_git_bytes;
 /// ```ts
 /// import { type CacheWarning, type CandidateScan, Scanner } from 'forbidden-strings';
 /// ```
-use forbidden_strings::{CacheAccess, CacheWarning, CandidateScan, RulesEntry, Scanner};
+use forbidden_strings::{
+    CacheAccess,
+    CacheWarning,
+    CandidateScan,
+    RulesEntry,
+    Scanner,
+};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 // What: `const _: () = assert!(...)` is a check the compiler evaluates while building;
 //       `cfg!(panic = "unwind")` is true only when panics unwind the stack.
@@ -123,7 +132,10 @@ pub struct ScannerError {
 impl std::fmt::Display for ScannerError {
     /// `&self` borrows this error read-only;
     ///  `&mut` lends the formatter for writing.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         // `.as_str()` lends the owned message as a borrowed view for the writer.
         return formatter.write_str(self.message.as_str());
     }
@@ -214,7 +226,7 @@ impl CandidateScanner {
         rules: &RulesSource,
         builtin_rules: bool,
     ) -> Result<CandidateScanner, ScannerError> {
-        return CandidateScanner::load_writing_cache(rules, builtin_rules, CacheAccess::ReadWrite)
+        return CandidateScanner::load_writing_cache(rules, builtin_rules, CacheAccess::ReadWrite);
     }
 
     /// What:
@@ -248,12 +260,18 @@ impl CandidateScanner {
         // ```
         let loaded = match (rules.explicit, rules.entries.as_slice()) {
             // The default location keeps the scanner's one-path contract: absent only under the baseline.
-            (false, [only]) => Scanner::load_writing_cache(only.path.as_path(), builtin_rules, false, access),
+            (false, [only]) => {
+                Scanner::load_writing_cache(only.path.as_path(), builtin_rules, false, access)
+            }
             (_, entries) => Scanner::load_entries_writing_cache(entries, builtin_rules, access),
         };
         match loaded {
             // `Ok(...)` is the success variant.
-            Ok(scanner) => return Ok(CandidateScanner { scanner }),
+            Ok(scanner) => {
+                return Ok(CandidateScanner {
+                    scanner,
+                });
+            }
             // `Err(...)` is the failure variant.
             Err(error) => {
                 return Err(ScannerError {
@@ -316,7 +334,11 @@ impl CandidateScanner {
     /// ```ts
     /// scan(candidate: Candidate, bytes: Uint8Array): CandidateScan
     /// ```
-    pub fn scan(&self, candidate: &Candidate, bytes: &[u8]) -> Result<CandidateScan, ScannerError> {
+    pub fn scan(
+        &self,
+        candidate: &Candidate,
+        bytes: &[u8],
+    ) -> Result<CandidateScan, ScannerError> {
         // `let Some(..) = .. else { .. }` unwraps the native path or leaves with a failure.
         let Some(path) = path_from_git_bytes(candidate.path.as_slice()) else {
             return Err(ScannerError {
@@ -347,7 +369,7 @@ impl CandidateScanner {
 /// hasCompiledRules(rules: RulesSource): boolean
 /// ```
 pub fn compiled_rules_artifact_exists(rules: &RulesSource) -> bool {
-    return forbidden_strings::compiled_rules_artifact_exists(rules.entries.as_slice())
+    return forbidden_strings::compiled_rules_artifact_exists(rules.entries.as_slice());
 }
 
 /// Scanner controls stay out of the release executable.

@@ -1,9 +1,15 @@
 //! Controls for the unit templates the wrapper provisions.
 
 use super::arguments_after_subcommand;
-use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
 use crate::service_address_of_a_worktree::listen_stream_of;
-use crate::service_provision::{OWN_MARKERS, ProvisionHost, SERVICE_UNIT, SOCKET_UNIT, unit_texts};
+use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
+use crate::service_provision::{
+    OWN_MARKERS,
+    ProvisionHost,
+    SERVICE_UNIT,
+    SOCKET_UNIT,
+    unit_texts,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -14,7 +20,9 @@ fn a_host(runtime_dir: &str) -> ProvisionHost {
         runtime_dir: PathBuf::from(runtime_dir),
         user_unit_dir: None,
         bus: PathBuf::from("/run/user/1000/bus"),
-        service_binary: PathBuf::from("/opt/monochromatic-git-policy-cli/monochromatic-git-policy-cli"),
+        service_binary: PathBuf::from(
+            "/opt/monochromatic-git-policy-cli/monochromatic-git-policy-cli",
+        ),
         git: PathBuf::from("/usr/bin/git"),
         instance: String::from("0123456789abcdef0123456789abcdef"),
         git_dir: PathBuf::from("/work/repo/.git"),
@@ -34,15 +42,51 @@ fn a_host(runtime_dir: &str) -> ProvisionHost {
 #[test]
 fn the_activation_units_match_the_wrapper() {
     let host: ProvisionHost = a_host("/run/user/1000");
-    let socket: String = unit_texts(&host).into_iter().find(|(name, _text)| { return *name == crate::service_provision::SOCKET_UNIT_NAME; }).map(|(_name, text)| { return text; }).expect("the socket unit");
-    assert!(socket.lines().any(|line| { return line == format!("ListenStream={}", listen_stream_of(host.runtime_dir.as_path(), host.instance.as_str())); }), "{socket}");
-    assert_eq!(listen_stream_of(host.runtime_dir.as_path(), host.instance.as_str()), format!("%t/{}/%i.sock", crate::service_instance::SOCKET_DIRECTORY), "a short runtime directory keeps the file form");
+    let socket: String = unit_texts(&host)
+        .into_iter()
+        .find(|(name, _text)| {
+            return *name == crate::service_provision::SOCKET_UNIT_NAME;
+        })
+        .map(|(_name, text)| {
+            return text;
+        })
+        .expect("the socket unit");
+    assert!(
+        socket.lines().any(|line| {
+            return line
+                == format!(
+                    "ListenStream={}",
+                    listen_stream_of(host.runtime_dir.as_path(), host.instance.as_str())
+                );
+        }),
+        "{socket}"
+    );
+    assert_eq!(
+        listen_stream_of(host.runtime_dir.as_path(), host.instance.as_str()),
+        format!("%t/{}/%i.sock", crate::service_instance::SOCKET_DIRECTORY),
+        "a short runtime directory keeps the file form"
+    );
     assert!(socket.contains("SocketMode=0600") && socket.contains("DirectoryMode=0700"));
-    assert!(SERVICE_UNIT.contains("Requires=monochromatic-git-policy-cli@%i.socket") && SERVICE_UNIT.contains("After=monochromatic-git-policy-cli@%i.socket"));
-    assert!(SERVICE_UNIT.contains("--instance %i"), "the service learns which worktree it is for");
-    assert!(SERVICE_UNIT.contains("--journal %S/monochromatic-git-policy-cli/service/%i"), "each instance keeps its own journal");
-    assert!(SERVICE_UNIT.contains("@SERVICE_BINARY@") && SERVICE_UNIT.contains("@GIT@"), "the installer fills these in");
-    assert!(!socket.contains("@LISTEN_STREAM@"), "nothing a manager reads carries the placeholder");
+    assert!(
+        SERVICE_UNIT.contains("Requires=monochromatic-git-policy-cli@%i.socket")
+            && SERVICE_UNIT.contains("After=monochromatic-git-policy-cli@%i.socket")
+    );
+    assert!(
+        SERVICE_UNIT.contains("--instance %i"),
+        "the service learns which worktree it is for"
+    );
+    assert!(
+        SERVICE_UNIT.contains("--journal %S/monochromatic-git-policy-cli/service/%i"),
+        "each instance keeps its own journal"
+    );
+    assert!(
+        SERVICE_UNIT.contains("@SERVICE_BINARY@") && SERVICE_UNIT.contains("@GIT@"),
+        "the installer fills these in"
+    );
+    assert!(
+        !socket.contains("@LISTEN_STREAM@"),
+        "nothing a manager reads carries the placeholder"
+    );
 }
 
 /// What:
@@ -118,7 +162,12 @@ fn the_service_unit_sets_no_resource_limits_of_its_own() {
         // ```ts
         // assert(!SERVICE_UNIT.split('\n').some((line) => line.startsWith(setting)), `${setting} in ${SERVICE_UNIT}`);
         // ```
-        assert!(!SERVICE_UNIT.lines().any(|line| { return line.starts_with(*setting); }), "{setting} in {SERVICE_UNIT}");
+        assert!(
+            !SERVICE_UNIT.lines().any(|line| {
+                return line.starts_with(*setting);
+            }),
+            "{setting} in {SERVICE_UNIT}"
+        );
     }
 }
 
@@ -128,7 +177,10 @@ fn the_service_unit_sets_no_resource_limits_of_its_own() {
 fn the_templates_carry_the_marker_on_the_first_line() {
     for text in [SOCKET_UNIT, SERVICE_UNIT] {
         let first: &str = text.lines().next().expect("a first line");
-        assert!(first.starts_with('#') && first.contains(OWN_MARKERS[0]), "{first}");
+        assert!(
+            first.starts_with('#') && first.contains(OWN_MARKERS[0]),
+            "{first}"
+        );
     }
 }
 
@@ -140,13 +192,34 @@ fn the_templates_carry_the_marker_on_the_first_line() {
 /// has none.
 #[test]
 fn the_words_of_the_command_start_after_the_subcommand() {
-    let line: Vec<OsString> = ["-C", "somewhere", "commit", "-m", "message", "--", "file"].iter().map(OsString::from).collect();
-    let after: Vec<OsString> = ["-m", "message", "--", "file"].iter().map(OsString::from).collect();
-    assert_eq!(arguments_after_subcommand(line.as_slice(), 2), after.as_slice());
-    assert_eq!(arguments_after_subcommand(line.as_slice(), 6), &[] as &[OsString], "the subcommand is the last word");
-    assert_eq!(arguments_after_subcommand(line.as_slice(), 40), &[] as &[OsString], "no such word");
+    let line: Vec<OsString> = ["-C", "somewhere", "commit", "-m", "message", "--", "file"]
+        .iter()
+        .map(OsString::from)
+        .collect();
+    let after: Vec<OsString> = ["-m", "message", "--", "file"]
+        .iter()
+        .map(OsString::from)
+        .collect();
+    assert_eq!(
+        arguments_after_subcommand(line.as_slice(), 2),
+        after.as_slice()
+    );
+    assert_eq!(
+        arguments_after_subcommand(line.as_slice(), 6),
+        &[] as &[OsString],
+        "the subcommand is the last word"
+    );
+    assert_eq!(
+        arguments_after_subcommand(line.as_slice(), 40),
+        &[] as &[OsString],
+        "no such word"
+    );
     let bare: Vec<OsString> = vec![OsString::from("commit"), OsString::from("-a")];
-    assert_eq!(arguments_after_subcommand(bare.as_slice(), 0), &bare[1..], "a subcommand in first place leaves everything after it, and not itself");
+    assert_eq!(
+        arguments_after_subcommand(bare.as_slice(), 0),
+        &bare[1..],
+        "a subcommand in first place leaves everything after it, and not itself"
+    );
 }
 
 /// A branch that switched under a commit is named as the person knows it:
@@ -156,9 +229,27 @@ fn the_words_of_the_command_start_after_the_subcommand() {
 /// and any other reference as it is.
 #[test]
 fn a_switched_branch_is_named_as_the_person_knows_it() {
-    assert_eq!(switched_branch_name(&crate::ref_name::RefName::from_text("HEAD")), "a detached head");
-    assert_eq!(switched_branch_name(&crate::ref_name::RefName::from_text("refs/heads/main")), "main");
-    assert_eq!(switched_branch_name(&crate::ref_name::RefName::from_text("refs/heads/topic/deep")), "topic/deep");
-    assert_eq!(switched_branch_name(&crate::ref_name::RefName::from_text("refs/tags/v1")), "refs/tags/v1");
-    assert_ne!(switched_branch_name(&crate::ref_name::RefName::from_text("HEADS")), "a detached head", "only the word HEAD is a detached head");
+    assert_eq!(
+        switched_branch_name(&crate::ref_name::RefName::from_text("HEAD")),
+        "a detached head"
+    );
+    assert_eq!(
+        switched_branch_name(&crate::ref_name::RefName::from_text("refs/heads/main")),
+        "main"
+    );
+    assert_eq!(
+        switched_branch_name(&crate::ref_name::RefName::from_text(
+            "refs/heads/topic/deep"
+        )),
+        "topic/deep"
+    );
+    assert_eq!(
+        switched_branch_name(&crate::ref_name::RefName::from_text("refs/tags/v1")),
+        "refs/tags/v1"
+    );
+    assert_ne!(
+        switched_branch_name(&crate::ref_name::RefName::from_text("HEADS")),
+        "a detached head",
+        "only the word HEAD is a detached head"
+    );
 }

@@ -14,8 +14,15 @@ use std::time::Duration;
 ///  in value and in the moment it arrives.
 #[test]
 fn an_answer_passes_through_unchanged() {
-    let answered: Result<u32, String> = crate::merge_second_pass::tests::await_it(keep_a_panic_awaiting(async { return 7; }));
-    assert_eq!(answered, Ok(7), "the answer of an item that did not panic is its own");
+    let answered: Result<u32, String> =
+        crate::merge_second_pass::tests::await_it(keep_a_panic_awaiting(async {
+            return 7;
+        }));
+    assert_eq!(
+        answered,
+        Ok(7),
+        "the answer of an item that did not panic is its own"
+    );
 }
 
 /// What:
@@ -26,10 +33,11 @@ fn an_answer_passes_through_unchanged() {
 /// a clone or a push that takes a second is awaited for that second.
 #[test]
 fn an_item_that_waited_answers_after_its_wait() {
-    let answered: Result<u32, String> = crate::merge_second_pass::tests::await_it(keep_a_panic_awaiting(async {
-        tokio::time::sleep(Duration::from_millis(20)).await;
-        return 9;
-    }));
+    let answered: Result<u32, String> =
+        crate::merge_second_pass::tests::await_it(keep_a_panic_awaiting(async {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            return 9;
+        }));
     assert_eq!(answered, Ok(9));
 }
 
@@ -42,13 +50,20 @@ fn an_item_that_waited_answers_after_its_wait() {
 /// and the line that settles its record says what happened.
 #[test]
 fn a_panic_comes_back_as_the_words_it_left() {
-    let answered: Result<u32, String> = crate::merge_second_pass::tests::await_it(keep_a_panic_awaiting(async {
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        panic!("a handler stopped unexpectedly");
-    }));
+    let answered: Result<u32, String> =
+        crate::merge_second_pass::tests::await_it(keep_a_panic_awaiting(async {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            panic!("a handler stopped unexpectedly");
+        }));
     let said: String = answered.expect_err("a panic is not an answer");
-    assert!(said.contains("stopped unexpectedly"), "the words say what happened: {said}");
-    assert!(said.contains("a handler stopped unexpectedly"), "the words carry the panic's own text: {said}");
+    assert!(
+        said.contains("stopped unexpectedly"),
+        "the words say what happened: {said}"
+    );
+    assert!(
+        said.contains("a handler stopped unexpectedly"),
+        "the words carry the panic's own text: {said}"
+    );
 }
 
 /// What:
@@ -59,10 +74,14 @@ fn a_panic_comes_back_as_the_words_it_left() {
 /// and a record settled with no reason would tell the person nothing.
 #[test]
 fn a_panic_whose_payload_is_not_text_still_says_the_work_stopped() {
-    let answered: Result<u32, String> = crate::merge_second_pass::tests::await_it(keep_a_panic_awaiting(async {
-        std::panic::panic_any(404_u32);
-    }));
+    let answered: Result<u32, String> =
+        crate::merge_second_pass::tests::await_it(keep_a_panic_awaiting(async {
+            std::panic::panic_any(404_u32);
+        }));
     let said: String = answered.expect_err("a panic is not an answer");
     assert!(said.contains("stopped unexpectedly"), "{said}");
-    assert!(said.contains("left no words"), "the words say that the panic carried none: {said}");
+    assert!(
+        said.contains("left no words"),
+        "the words say that the panic carried none: {said}"
+    );
 }

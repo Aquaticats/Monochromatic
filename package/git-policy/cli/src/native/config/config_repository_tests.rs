@@ -17,12 +17,27 @@
 //! ```
 
 /// Import the loader and the settings it produces.
-use super::{CONFIG_FILE_NAME, LoadedConfig, load_repository_config, settings_file_of};
-use crate::config_schema::{
-    ForbiddenStringsOptions, MarkdownAutofixOptions, MarkdownRule, PolicySetting, RulesFileEntry,
+use super::{
+    CONFIG_FILE_NAME,
+    LoadedConfig,
+    load_repository_config,
+    settings_file_of,
 };
-use crate::policy_registry::{PolicyId, Severity};
-use crate::test_support::{fixture, remove};
+use crate::config_schema::{
+    ForbiddenStringsOptions,
+    MarkdownAutofixOptions,
+    MarkdownRule,
+    PolicySetting,
+    RulesFileEntry,
+};
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -174,13 +189,35 @@ fn a_configuration_that_does_not_name_the_catalog_policy_behaves_as_before() {
         (PolicyId::ForbiddenStrings, Severity::Error, true),
         (PolicyId::CatalogSpecifiers, Severity::Off, false),
     ] {
-        assert_eq!(older.config.policies.setting(id), PolicySetting { id, severity, explicit }, "{id:?}");
+        assert_eq!(
+            older.config.policies.setting(id),
+            PolicySetting {
+                id,
+                severity,
+                explicit
+            },
+            "{id:?}"
+        );
     }
     std::fs::write(root.join(CONFIG_FILE_NAME), "{}\n").expect("empty configuration");
     let empty: LoadedConfig = load_repository_config(root.as_path()).expect("the empty file loads");
-    assert_eq!(empty.config.policies.setting(PolicyId::CatalogSpecifiers).severity, Severity::Off);
+    assert_eq!(
+        empty
+            .config
+            .policies
+            .setting(PolicyId::CatalogSpecifiers)
+            .severity,
+        Severity::Off
+    );
     std::fs::remove_file(root.join(CONFIG_FILE_NAME)).expect("remove");
     let absent: LoadedConfig = load_repository_config(root.as_path()).expect("no file loads");
-    assert_eq!(absent.config.policies.setting(PolicyId::CatalogSpecifiers).severity, Severity::Off);
+    assert_eq!(
+        absent
+            .config
+            .policies
+            .setting(PolicyId::CatalogSpecifiers)
+            .severity,
+        Severity::Off
+    );
     remove(root.as_path());
 }

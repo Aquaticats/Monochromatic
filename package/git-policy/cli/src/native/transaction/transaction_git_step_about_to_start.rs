@@ -24,23 +24,43 @@
 //! const step = stepAboutToStart({ context, request, terms }); // { command, subject, ledgerStep, bound, ... }
 //! ```
 
+/// The bound of one step,
+/// and the terms of the watch that holds the step to it.
+use crate::child_watch::{
+    StepBound,
+    WatchTerms,
+};
+/// The record a step that is never ended keeps for the clients that queue behind it,
+/// and the function that takes it.
+use crate::service_busy_step_record_on_this_thread::{
+    StepGuard,
+    enter_step,
+};
 /// The Git child, its input file and the words a notice names it with,
 /// and the test of a run the system refused.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, build_command, input_file, refused_by_the_system, step_subject};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    build_command,
+    input_file,
+    refused_by_the_system,
+    step_subject,
+};
 /// How long the step is waited for and what happens at the bound.
 use crate::transaction_git_step_bounds::step_bound;
 /// Whether the step may be re-run and whether a stop lets it finish.
-use crate::transaction_git_step_rerun_and_end_rules::{is_branch_write, may_be_rerun};
-/// The bound of one step,
-/// and the terms of the watch that holds the step to it.
-use crate::child_watch::{StepBound, WatchTerms};
-/// The record a step that is never ended keeps for the clients that queue behind it,
-/// and the function that takes it.
-use crate::service_busy_step_record_on_this_thread::{StepGuard, enter_step};
+use crate::transaction_git_step_rerun_and_end_rules::{
+    is_branch_write,
+    may_be_rerun,
+};
 /// The child's streams,
 /// and the write of a redo's notice to standard error.
 use std::io::Write;
-use std::process::{Command, Stdio};
+use std::process::{
+    Command,
+    Stdio,
+};
 /// When the step began,
 /// for the ledger of the steps a command ran.
 use std::time::Instant;
@@ -131,7 +151,10 @@ pub(crate) fn step_about_to_start(
             // ```ts
             // command.stdin(Stdio.from(inputFile(bytes, context.commonDir)));
             // ```
-            command.stdin(Stdio::from(input_file(bytes.as_slice(), context.common_dir.as_deref())?));
+            command.stdin(Stdio::from(input_file(
+                bytes.as_slice(),
+                context.common_dir.as_deref(),
+            )?));
         }
         None => {
             // What:     `Stdio::null()` is the null device in place of a terminal.
@@ -180,7 +203,11 @@ pub(crate) fn step_about_to_start(
     // const record = bound.kind === 'unbounded' ? enterStep(`${commandText(request.arguments)} in ${request.cwd}`) : undefined;
     // ```
     let record: Option<StepGuard> = if matches!(bound, StepBound::Unbounded) {
-        enter_step(format!("{} in {}", crate::transaction_git::command_text(&request.arguments), request.cwd.display()))
+        enter_step(format!(
+            "{} in {}",
+            crate::transaction_git::command_text(&request.arguments),
+            request.cwd.display()
+        ))
     } else {
         None
     };
@@ -200,7 +227,8 @@ pub(crate) fn step_about_to_start(
     // ```ts
     // const aStopLetsItFinish = bound.kind === 'unbounded' && isBranchWrite(request);
     // ```
-    let a_stop_lets_it_finish: bool = matches!(bound, StepBound::Unbounded) && is_branch_write(request);
+    let a_stop_lets_it_finish: bool =
+        matches!(bound, StepBound::Unbounded) && is_branch_write(request);
     // What:     The value those decisions make, with the record's guard kept inside it.
     // Why:      One value carries every face needs, so a face cannot forget one of them.
     //
@@ -235,7 +263,12 @@ pub(crate) fn step_about_to_start(
 /// ```ts
 /// function stepFinished(ledgerStep, request, began, output): GitOutput { noteStepAsked(ledgerStep, request.arguments, began, now() - began); return { code: output.status.code, stdout: output.stdout, stderr: output.stderr }; }
 /// ```
-pub(crate) fn step_finished(ledger_step: &str, request: &GitRequest, began: Instant, output: std::process::Output) -> GitOutput {
+pub(crate) fn step_finished(
+    ledger_step: &str,
+    request: &GitRequest,
+    began: Instant,
+    output: std::process::Output,
+) -> GitOutput {
     // What:     `note_step_asked(...)` writes this step into the ledger with the moment it began and how long it took.
     // Why:      The timing of every step is what a slow command is diagnosed from, and both faces record it here.
     //
@@ -243,7 +276,12 @@ pub(crate) fn step_finished(ledger_step: &str, request: &GitRequest, began: Inst
     // ```ts
     // noteStepAsked(ledgerStep, request.arguments, began, now() - began);
     // ```
-    crate::transaction_step_durations::note_step_asked(ledger_step, request.arguments.as_slice(), began, began.elapsed());
+    crate::transaction_step_durations::note_step_asked(
+        ledger_step,
+        request.arguments.as_slice(),
+        began,
+        began.elapsed(),
+    );
     // What:     `GitOutput { .. }` is the answer a step's caller reads: the exit status as an `Option<i32>`
     //           (`None` when a signal ended the child) and the two captured streams.
     // Why:      The transaction decides what a step means from these three pieces alone, so nothing of the child is kept.
@@ -316,7 +354,10 @@ pub(crate) fn start_failure(error: std::io::Error) -> std::io::Error {
 /// ```ts
 /// const answerOfAStart = (refused, finished) => refusedByTheSystem(finished) ? (refused = finished, retryable()) : finished;
 /// ```
-pub(crate) fn answer_of_a_start(refused: &mut Option<GitOutput>, finished: GitOutput) -> std::io::Result<GitOutput> {
+pub(crate) fn answer_of_a_start(
+    refused: &mut Option<GitOutput>,
+    finished: GitOutput,
+) -> std::io::Result<GitOutput> {
     // What:     `refused_by_the_system(&finished)` asks whether Git's own text says the system refused it a process.
     // Why:      Only that failure is worth waiting out; every other one is the step's answer.
     //

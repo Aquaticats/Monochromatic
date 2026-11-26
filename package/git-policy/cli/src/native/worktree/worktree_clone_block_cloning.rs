@@ -19,7 +19,10 @@
 //! if (kindOf(target) === 'zfs' && off) decline('its pool has block cloning off');
 //! ```
 
-use crate::fs_kind::{FilesystemKind, filesystem_kind};
+use crate::fs_kind::{
+    FilesystemKind,
+    filesystem_kind,
+};
 use std::path::Path;
 
 /// What:
@@ -74,11 +77,18 @@ pub(crate) fn switch_at(path: &Path) -> Option<bool> {
 /// ```ts
 /// const refusal = (kind, on, target) => kind === 'zfs' && on === false ? `${target} would receive the clones, and its pool has block cloning off` : undefined;
 /// ```
-pub(crate) fn block_cloning_refusal((kind, switch): (FilesystemKind, Option<bool>), target: &Path) -> Option<String> {
+pub(crate) fn block_cloning_refusal(
+    (kind, switch): (FilesystemKind, Option<bool>),
+    target: &Path,
+) -> Option<String> {
     if kind != FilesystemKind::Zfs || switch != Some(false) {
         return None;
     }
-    return Some(format!("{} would receive the clones, and its pool has ZFS block cloning off (`{}` reads 0), so every clone into it would be refused", target.display(), ZFS_BLOCK_CLONING_SWITCH));
+    return Some(format!(
+        "{} would receive the clones, and its pool has ZFS block cloning off (`{}` reads 0), so every clone into it would be refused",
+        target.display(),
+        ZFS_BLOCK_CLONING_SWITCH
+    ));
 }
 
 /// What:

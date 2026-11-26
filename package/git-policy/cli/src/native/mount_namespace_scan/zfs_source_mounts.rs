@@ -40,12 +40,21 @@ use crate::worktree_clone_mount::attach_the_clone::ZFS_FILE_SYSTEM_TYPE;
 /// ```ts
 /// const held = mountsOfSource(table, source);
 /// ```
-pub fn mounts_of_source<'a>(mounts: &'a [MountFacts], source: &str) -> Vec<&'a MountFacts> {
-    return mounts.iter().filter(|facts| return is_of_source(facts, source)).collect();
+pub fn mounts_of_source<'a>(
+    mounts: &'a [MountFacts],
+    source: &str,
+) -> Vec<&'a MountFacts> {
+    return mounts
+        .iter()
+        .filter(|facts| return is_of_source(facts, source))
+        .collect();
 }
 
 /// Whether one mount is a mount of the exact ZFS source.
-pub fn is_of_source(facts: &MountFacts, source: &str) -> bool {
+pub fn is_of_source(
+    facts: &MountFacts,
+    source: &str,
+) -> bool {
     return facts.filesystem_type == ZFS_FILE_SYSTEM_TYPE && facts.source == source;
 }
 

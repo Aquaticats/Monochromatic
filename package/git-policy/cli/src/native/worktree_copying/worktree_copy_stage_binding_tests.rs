@@ -2,8 +2,16 @@
 //! and of the check every installation makes against it.
 
 use super::*;
-use crate::private_storage::{take_directory_syncs, take_file_syncs};
-use crate::test_support::{fixture, git, remove, repository};
+use crate::private_storage::{
+    take_directory_syncs,
+    take_file_syncs,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use crate::worktree_add_binding::bind_registration;
 
 /// A repository with a linked worktree beside it,
@@ -11,7 +19,9 @@ use crate::worktree_add_binding::bind_registration;
 fn registered_worktree(name: &str) -> (PathBuf, PathBuf, crate::worktree_add_binding::Binding) {
     let root: PathBuf = fixture(name);
     let source: PathBuf = repository(root.as_path(), "source");
-    let topic: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let topic: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical root")
+        .join("topic");
     git(
         source.as_path(),
         &[
@@ -24,7 +34,9 @@ fn registered_worktree(name: &str) -> (PathBuf, PathBuf, crate::worktree_add_bin
         ],
     );
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let binding = bind_registration(common.as_path(), topic.as_path()).expect("binding").binding;
+    let binding = bind_registration(common.as_path(), topic.as_path())
+        .expect("binding")
+        .binding;
     return (root, common, binding);
 }
 
@@ -57,12 +69,27 @@ fn the_stage_binding_flushes_nothing() {
     take_file_syncs();
     take_directory_syncs();
     record_stage_binding(stage.as_path(), &binding).expect("recorded");
-    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the stage binding flushes no file");
-    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "the stage binding flushes no directory");
-    assert_eq!(stage_binding(stage.as_path()).expect("read").as_ref(), Some(&binding), "the binding is published whole");
+    assert_eq!(
+        take_file_syncs(),
+        Vec::<PathBuf>::new(),
+        "the stage binding flushes no file"
+    );
+    assert_eq!(
+        take_directory_syncs(),
+        Vec::<PathBuf>::new(),
+        "the stage binding flushes no directory"
+    );
+    assert_eq!(
+        stage_binding(stage.as_path()).expect("read").as_ref(),
+        Some(&binding),
+        "the binding is published whole"
+    );
     let control: PathBuf = root.join("durable-control");
     crate::private_storage::write_private_file(control.as_path(), b"control").expect("control");
-    assert!(!take_file_syncs().is_empty(), "the recorder sees a durable private file");
+    assert!(
+        !take_file_syncs().is_empty(),
+        "the recorder sees a durable private file"
+    );
     remove(root.as_path());
 }
 
@@ -74,7 +101,10 @@ fn a_recorded_binding_reads_back_whole_and_an_absent_one_reads_as_none() {
     let stage: PathBuf = container(root.as_path());
     assert_eq!(stage_binding(stage.as_path()).expect("absent"), None);
     record_stage_binding(stage.as_path(), &binding).expect("recorded");
-    assert_eq!(stage_binding(stage.as_path()).expect("read").as_ref(), Some(&binding));
+    assert_eq!(
+        stage_binding(stage.as_path()).expect("read").as_ref(),
+        Some(&binding)
+    );
     remove(root.as_path());
 }
 
@@ -83,7 +113,11 @@ fn a_recorded_binding_reads_back_whole_and_an_absent_one_reads_as_none() {
 fn an_unreadable_binding_record_is_a_failure() {
     let (root, _common, _binding) = registered_worktree("stage-binding-unreadable");
     let stage: PathBuf = container(root.as_path());
-    std::fs::write(stage.join(STAGE_BINDING_NAME), b"destination=zz\nphase=planned\n").expect("record");
+    std::fs::write(
+        stage.join(STAGE_BINDING_NAME),
+        b"destination=zz\nphase=planned\n",
+    )
+    .expect("record");
     let failure: WorktreeCopyError = stage_binding(stage.as_path()).expect_err("unreadable");
     assert!(failure.0.contains("is unreadable"), "{}", failure.0);
     remove(root.as_path());
@@ -96,7 +130,10 @@ fn a_binding_holds_until_the_registration_behind_the_path_is_another() {
     let (root, common, binding) = registered_worktree("stage-binding-holds");
     verify_stage_binding(common.as_path(), &binding).expect("the registration is the bound one");
     git(
-        std::fs::canonicalize(root.as_path()).expect("canonical root").join("source").as_path(),
+        std::fs::canonicalize(root.as_path())
+            .expect("canonical root")
+            .join("source")
+            .as_path(),
         &[
             "worktree",
             "remove",
@@ -105,7 +142,10 @@ fn a_binding_holds_until_the_registration_behind_the_path_is_another() {
         ],
     );
     git(
-        std::fs::canonicalize(root.as_path()).expect("canonical root").join("source").as_path(),
+        std::fs::canonicalize(root.as_path())
+            .expect("canonical root")
+            .join("source")
+            .as_path(),
         &[
             "worktree",
             "add",
@@ -116,8 +156,12 @@ fn a_binding_holds_until_the_registration_behind_the_path_is_another() {
             binding.destination.to_str().expect("utf8"),
         ],
     );
-    let reason: String = verify_stage_binding(common.as_path(), &binding).expect_err("another registration");
-    assert!(reason.contains(binding.admin.to_str().expect("utf8")), "the recorded registration is named: {reason}");
+    let reason: String =
+        verify_stage_binding(common.as_path(), &binding).expect_err("another registration");
+    assert!(
+        reason.contains(binding.admin.to_str().expect("utf8")),
+        "the recorded registration is named: {reason}"
+    );
     assert!(reason.contains("is registered by"), "{reason}");
     remove(root.as_path());
 }
@@ -129,7 +173,8 @@ const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
 ///  which blocks whoever opens it for reading until a writer comes.
 fn make_pipe(path: &Path) {
     use std::os::unix::ffi::OsStrExt as _;
-    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    let name: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
     // SAFETY: `name` is a NUL-terminated string that outlives the call.
     let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
     assert_eq!(result, 0, "mkfifo {}", path.display());
@@ -156,17 +201,31 @@ fn a_named_pipe_where_the_binding_record_sits_is_a_failure_not_a_wait() {
     let (root, _common, _binding) = registered_worktree("stage-binding-pipe");
     let stage: PathBuf = container(root.as_path());
     make_pipe(stage.join(STAGE_BINDING_NAME).as_path());
-    let (sender, receiver) = std::sync::mpsc::channel::<Result<Option<crate::worktree_add_binding::Binding>, WorktreeCopyError>>();
+    let (sender, receiver) = std::sync::mpsc::channel::<
+        Result<Option<crate::worktree_add_binding::Binding>, WorktreeCopyError>,
+    >();
     let settled: PathBuf = stage.clone();
     std::thread::spawn(move || {
         let _ = sender.send(stage_binding(settled.as_path()));
     });
-    let answer: Result<Option<crate::worktree_add_binding::Binding>, WorktreeCopyError> = match receiver.recv_timeout(PATIENCE) {
-        Ok(found) => found,
-        Err(_) => panic!("the stage's binding record waited for a writer of a pipe for {PATIENCE:?}"),
-    };
-    let failure: WorktreeCopyError = answer.expect_err("a pipe is not a registration this stage can carry");
-    assert!(failure.0.contains(STAGE_BINDING_NAME), "the record is named: {}", failure.0);
-    assert!(failure.0.contains(stage.to_string_lossy().as_ref()), "the stage is named: {}", failure.0);
+    let answer: Result<Option<crate::worktree_add_binding::Binding>, WorktreeCopyError> =
+        match receiver.recv_timeout(PATIENCE) {
+            Ok(found) => found,
+            Err(_) => {
+                panic!("the stage's binding record waited for a writer of a pipe for {PATIENCE:?}")
+            }
+        };
+    let failure: WorktreeCopyError =
+        answer.expect_err("a pipe is not a registration this stage can carry");
+    assert!(
+        failure.0.contains(STAGE_BINDING_NAME),
+        "the record is named: {}",
+        failure.0
+    );
+    assert!(
+        failure.0.contains(stage.to_string_lossy().as_ref()),
+        "the stage is named: {}",
+        failure.0
+    );
     remove(root.as_path());
 }

@@ -22,11 +22,21 @@
 #![cfg(unix)]
 
 use crate::index_cache_tree::CacheTree;
-use crate::repo_read_diff::{Change, diff_sorted};
+use crate::repo_read_diff::{
+    Change,
+    diff_sorted,
+};
 use crate::repo_read_layout::ObjectFormat;
-use crate::repo_read_object::{ObjectKind, name_length};
+use crate::repo_read_object::{
+    ObjectKind,
+    name_length,
+};
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_tree::{FlatEntry, is_tree_mode, parse_tree};
+use crate::repo_read_tree::{
+    FlatEntry,
+    is_tree_mode,
+    parse_tree,
+};
 
 /// The deepest tree nesting the walk follows,
 /// as `repo_read_tree.rs` follows it.
@@ -66,7 +76,10 @@ struct Walk<'a> {
 
 /// The subdirectory `name` of a cache-tree node;
 /// the file keeps its subdirectories sorted by length and then bytes.
-fn subtree_of<'a>(node: &'a CacheTree, name: &[u8]) -> Option<&'a CacheTree> {
+fn subtree_of<'a>(
+    node: &'a CacheTree,
+    name: &[u8],
+) -> Option<&'a CacheTree> {
     // A binary search over the sorted subdirectories by (length, bytes).
     let (mut low, mut high): (usize, usize) = (0, node.subtrees.len());
     while low < high {
@@ -83,7 +96,11 @@ fn subtree_of<'a>(node: &'a CacheTree, name: &[u8]) -> Option<&'a CacheTree> {
 
 /// The range of `range` whose paths start with `prefix`,
 /// which is one stretch because the paths are sorted.
-fn below(paths: &[&[u8]], range: (usize, usize), prefix: &[u8]) -> (usize, usize) {
+fn below(
+    paths: &[&[u8]],
+    range: (usize, usize),
+    prefix: &[u8],
+) -> (usize, usize) {
     let window: &[&[u8]] = &paths[range.0..range.1];
     // Two binary searches over the sorted paths: the first path not before the prefix, then the end of the paths that start with it.
     let (mut low, mut high): (usize, usize) = (0, window.len());
@@ -114,12 +131,21 @@ impl Walk<'_> {
     /// Walk the directory `tree` (below `prefix`),
     /// whose index paths are `range`,
     /// and `node` (its cache-tree node when there is one).
-    fn directory(&mut self, tree: &[u8], node: Option<&CacheTree>, prefix: &mut Vec<u8>, range: (usize, usize), depth: usize) -> Option<()> {
+    fn directory(
+        &mut self,
+        tree: &[u8],
+        node: Option<&CacheTree>,
+        prefix: &mut Vec<u8>,
+        range: (usize, usize),
+        depth: usize,
+    ) -> Option<()> {
         if depth > TREE_DEPTH_LIMIT {
             return None;
         }
         let valid_node: Option<&CacheTree> = match node {
-            Some(candidate) if candidate.entry_count >= 0 && candidate.id.as_slice() == tree => Some(candidate),
+            Some(candidate) if candidate.entry_count >= 0 && candidate.id.as_slice() == tree => {
+                Some(candidate)
+            }
             _ => None,
         };
         if let Some(valid) = valid_node {
@@ -146,7 +172,11 @@ impl Walk<'_> {
                 };
                 self.directory(entry.id.as_slice(), child, prefix, inner, depth + 1)?;
             } else {
-                self.tree.push(FlatEntry { path: prefix.clone(), mode: entry.mode, id: entry.id });
+                self.tree.push(FlatEntry {
+                    path: prefix.clone(),
+                    mode: entry.mode,
+                    id: entry.id,
+                });
                 if self.tree.len() > FLAT_ENTRY_LIMIT {
                     return None;
                 }
@@ -176,17 +206,32 @@ impl Walk<'_> {
 /// ```ts
 /// function unequalParts(odb, tree, format, cache, paths): { tree: FlatEntry[]; skipped: [number, number][] } | undefined;
 /// ```
-pub fn unequal_parts(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat, cache: &CacheTree, paths: &[&[u8]]) -> Option<UnequalParts> {
+pub fn unequal_parts(
+    database: &ObjectDatabase,
+    tree: &[u8],
+    format: ObjectFormat,
+    cache: &CacheTree,
+    paths: &[&[u8]],
+) -> Option<UnequalParts> {
     // Git reads the tree it compares with and fails when it is gone, so the root is read before any shortcut: a cache-tree that
     //  names it proves the directories below equal, not that the object is there.
     let root = database.read(tree)?;
     if root.kind != ObjectKind::Tree {
         return None;
     }
-    let mut walk: Walk<'_> = Walk { database, format, paths, tree: Vec::new(), skipped: Vec::new() };
+    let mut walk: Walk<'_> = Walk {
+        database,
+        format,
+        paths,
+        tree: Vec::new(),
+        skipped: Vec::new(),
+    };
     walk.directory(tree, Some(cache), &mut Vec::new(), (0, paths.len()), 0)?;
     walk.skipped.sort_unstable();
-    return Some(UnequalParts { tree: walk.tree, skipped: walk.skipped });
+    return Some(UnequalParts {
+        tree: walk.tree,
+        skipped: walk.skipped,
+    });
 }
 
 /// What:
@@ -199,7 +244,10 @@ pub fn unequal_parts(database: &ObjectDatabase, tree: &[u8], format: ObjectForma
 /// ```ts
 /// function outside<T>(all: T[], skipped: [number, number][]): T[];
 /// ```
-pub fn outside<'a, Item>(all: &'a [Item], skipped: &[(usize, usize)]) -> Vec<&'a Item> {
+pub fn outside<'a, Item>(
+    all: &'a [Item],
+    skipped: &[(usize, usize)],
+) -> Vec<&'a Item> {
     let mut kept: Vec<&Item> = Vec::new();
     let mut at: usize = 0;
     for (start, end) in skipped {
@@ -223,7 +271,13 @@ pub fn outside<'a, Item>(all: &'a [Item], skipped: &[(usize, usize)]) -> Vec<&'a
 /// ```ts
 /// function changesWithCache(odb, tree, format, cache, index: FlatEntry[]): Change[] | undefined;
 /// ```
-pub fn changes_with_cache(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat, cache: &CacheTree, index: &[FlatEntry]) -> Option<Vec<Change>> {
+pub fn changes_with_cache(
+    database: &ObjectDatabase,
+    tree: &[u8],
+    format: ObjectFormat,
+    cache: &CacheTree,
+    index: &[FlatEntry],
+) -> Option<Vec<Change>> {
     let mut paths: Vec<&[u8]> = Vec::new();
     for entry in index {
         paths.push(entry.path.as_slice());

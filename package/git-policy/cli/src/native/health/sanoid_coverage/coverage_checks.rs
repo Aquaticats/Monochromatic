@@ -32,18 +32,61 @@
 //! ```
 
 use super::coverage_finding::{
-    CoverageAnswer, CoverageFinding, FIELD_EXCLUSION_AUTOSNAP, FIELD_EXCLUSION_DATASET, FIELD_EXCLUSION_MARKER, FIELD_EXCLUSION_MOUNT, FIELD_EXCLUSION_SECTION, FIELD_RECURSION, FIELD_ROOT_SECTION,
-    FIELD_SECTION_ORDER, FIELD_STORE_COVERAGE, FIELD_TEMPLATE,
+    CoverageAnswer,
+    CoverageFinding,
+    FIELD_EXCLUSION_AUTOSNAP,
+    FIELD_EXCLUSION_DATASET,
+    FIELD_EXCLUSION_MARKER,
+    FIELD_EXCLUSION_MOUNT,
+    FIELD_EXCLUSION_SECTION,
+    FIELD_RECURSION,
+    FIELD_ROOT_SECTION,
+    FIELD_SECTION_ORDER,
+    FIELD_STORE_COVERAGE,
+    FIELD_TEMPLATE,
 };
 use super::coverage_words::{
-    AUTO_SNAPSHOT_OFF, AUTO_SNAPSHOT_PROPERTY, add_recursion_correction, add_section_correction, change_autosnap_correction, change_recursion_correction, marker_correction, marker_words, mountpoint_words,
-    move_section_correction, pass_detail, template_correction,
+    AUTO_SNAPSHOT_OFF,
+    AUTO_SNAPSHOT_PROPERTY,
+    add_recursion_correction,
+    add_section_correction,
+    change_autosnap_correction,
+    change_recursion_correction,
+    marker_correction,
+    marker_words,
+    mountpoint_words,
+    move_section_correction,
+    pass_detail,
+    template_correction,
 };
-use super::decided_coverage::{CoverageDecision, Exclusion, ExclusionMount, exclusion_section, root_section};
-use super::measured_dataset_tree::{MeasuredTree, has_path_mountpoint, is_under};
-use super::sanoid_conf_reading::{ConfigRefusal, ReadConfig, SettingLookup};
+use super::decided_coverage::{
+    CoverageDecision,
+    Exclusion,
+    ExclusionMount,
+    exclusion_section,
+    root_section,
+};
+use super::measured_dataset_tree::{
+    MeasuredTree,
+    has_path_mountpoint,
+    is_under,
+};
+use super::sanoid_conf_reading::{
+    ConfigRefusal,
+    ReadConfig,
+    SettingLookup,
+};
 use super::sanoid_section::{
-    AUTOSNAP_SETTING, PATH_SETTING, PROCESS_CHILDREN_ONLY_SETTING, RECURSIVE_SETTING, RECURSIVE_ZFS, Recursion, SKIP_CHILDREN_SETTING, TEMPLATE_SETTING, is_false_word, recursion_of,
+    AUTOSNAP_SETTING,
+    PATH_SETTING,
+    PROCESS_CHILDREN_ONLY_SETTING,
+    RECURSIVE_SETTING,
+    RECURSIVE_ZFS,
+    Recursion,
+    SKIP_CHILDREN_SETTING,
+    TEMPLATE_SETTING,
+    is_false_word,
+    recursion_of,
 };
 
 /// The check's stable name in a report line.
@@ -91,7 +134,17 @@ pub struct CoverageFacts {
 pub fn check_coverage(facts: &CoverageFacts) -> CoverageAnswer {
     let config: &ReadConfig = match &facts.config {
         Ok(read) => read,
-        Err(refusal) => return CoverageAnswer::new(Vec::new(), Some(format!("{} cannot be read as sanoid reads it: {}", facts.config_path, refusal.reason())), String::new()),
+        Err(refusal) => {
+            return CoverageAnswer::new(
+                Vec::new(),
+                Some(format!(
+                    "{} cannot be read as sanoid reads it: {}",
+                    facts.config_path,
+                    refusal.reason()
+                )),
+                String::new(),
+            );
+        }
     };
     if let Some(reason) = unproved_setting(facts, config) {
         return CoverageAnswer::new(Vec::new(), Some(reason), String::new());
@@ -103,8 +156,19 @@ pub fn check_coverage(facts: &CoverageFacts) -> CoverageAnswer {
     }
     match store_holder(facts, &mut findings) {
         Ok(holder) => {
-            let covered: usize = facts.tree.datasets_under(facts.decision.recursive_root.as_str()).iter().filter(|dataset| return !facts.decision.excludes(dataset.name.as_str())).count();
-            let detail: String = pass_detail(covered, facts.decision.recursive_root.as_str(), facts.decision.exclusions.len(), facts.store_path.as_str(), holder);
+            let covered: usize = facts
+                .tree
+                .datasets_under(facts.decision.recursive_root.as_str())
+                .iter()
+                .filter(|dataset| return !facts.decision.excludes(dataset.name.as_str()))
+                .count();
+            let detail: String = pass_detail(
+                covered,
+                facts.decision.recursive_root.as_str(),
+                facts.decision.exclusions.len(),
+                facts.store_path.as_str(),
+                holder,
+            );
             return CoverageAnswer::new(findings, None, detail);
         }
         Err(reason) => return CoverageAnswer::new(findings, Some(reason), String::new()),
@@ -112,7 +176,10 @@ pub fn check_coverage(facts: &CoverageFacts) -> CoverageAnswer {
 }
 
 /// What one relevant section says that this build does not model.
-fn unproved_setting(facts: &CoverageFacts, config: &ReadConfig) -> Option<String> {
+fn unproved_setting(
+    facts: &CoverageFacts,
+    config: &ReadConfig,
+) -> Option<String> {
     let mut datasets: Vec<&str> = vec![facts.decision.recursive_root.as_str()];
     for exclusion in &facts.decision.exclusions {
         datasets.push(exclusion.dataset.as_str());
@@ -121,15 +188,39 @@ fn unproved_setting(facts: &CoverageFacts, config: &ReadConfig) -> Option<String
         let Some(section) = config.section(dataset) else {
             continue;
         };
-        for key in [RECURSIVE_SETTING, TEMPLATE_SETTING, AUTOSNAP_SETTING, PATH_SETTING, PROCESS_CHILDREN_ONLY_SETTING, SKIP_CHILDREN_SETTING] {
+        for key in [
+            RECURSIVE_SETTING,
+            TEMPLATE_SETTING,
+            AUTOSNAP_SETTING,
+            PATH_SETTING,
+            PROCESS_CHILDREN_ONLY_SETTING,
+            SKIP_CHILDREN_SETTING,
+        ] {
             match section.setting(key) {
-                SettingLookup::CaseVariant { spelling, line } => {
-                    return Some(format!("the [{dataset}] section writes `{spelling}` on line {line}, which is not the key `{key}` sanoid reads, and this build cannot prove what sanoid does with it"));
+                SettingLookup::CaseVariant {
+                    spelling,
+                    line,
+                } => {
+                    return Some(format!(
+                        "the [{dataset}] section writes `{spelling}` on line {line}, which is not the key `{key}` sanoid reads, and this build cannot prove what sanoid does with it"
+                    ));
                 }
-                SettingLookup::Found { value, line } if matches!(key, PATH_SETTING | PROCESS_CHILDREN_ONLY_SETTING | SKIP_CHILDREN_SETTING) => {
-                    return Some(format!("the [{dataset}] section writes `{key} = {value}` on line {line}, and this build does not model what that changes about coverage"));
+                SettingLookup::Found {
+                    value,
+                    line,
+                } if matches!(
+                    key,
+                    PATH_SETTING | PROCESS_CHILDREN_ONLY_SETTING | SKIP_CHILDREN_SETTING
+                ) =>
+                {
+                    return Some(format!(
+                        "the [{dataset}] section writes `{key} = {value}` on line {line}, and this build does not model what that changes about coverage"
+                    ));
                 }
-                SettingLookup::Found { .. } | SettingLookup::Absent => continue,
+                SettingLookup::Found {
+                    ..
+                }
+                | SettingLookup::Absent => continue,
             }
         }
     }
@@ -138,40 +229,114 @@ fn unproved_setting(facts: &CoverageFacts, config: &ReadConfig) -> Option<String
 
 /// The recursive ancestor's section,
 /// its recursion and its template.
-fn root_findings(facts: &CoverageFacts, config: &ReadConfig, findings: &mut Vec<CoverageFinding>) {
+fn root_findings(
+    facts: &CoverageFacts,
+    config: &ReadConfig,
+    findings: &mut Vec<CoverageFinding>,
+) {
     let root: &str = facts.decision.recursive_root.as_str();
     let Some(section) = config.section(root) else {
-        let detail: String = format!("the configuration has no [{root}] section, so no dataset under {root} is covered");
-        findings.push(CoverageFinding::new(FIELD_ROOT_SECTION, detail, Some(add_section_correction(facts.config_path.as_str(), &root_section(&facts.decision)))));
+        let detail: String = format!(
+            "the configuration has no [{root}] section, so no dataset under {root} is covered"
+        );
+        findings.push(CoverageFinding::new(
+            FIELD_ROOT_SECTION,
+            detail,
+            Some(add_section_correction(
+                facts.config_path.as_str(),
+                &root_section(&facts.decision),
+            )),
+        ));
         return;
     };
     match recursion_of(section.written_value(RECURSIVE_SETTING)) {
         Recursion::Yes => {}
         Recursion::Zfs => {
-            let detail: String = format!("the [{root}] section sets `{RECURSIVE_SETTING} = {RECURSIVE_ZFS}`, so sanoid takes one recursive snapshot of {root} and every child dataset is in it, which no exclusion can be left out of");
-            findings.push(CoverageFinding::new(FIELD_RECURSION, detail, Some(change_recursion_correction(facts.config_path.as_str(), root, RECURSIVE_ZFS))));
+            let detail: String = format!(
+                "the [{root}] section sets `{RECURSIVE_SETTING} = {RECURSIVE_ZFS}`, so sanoid takes one recursive snapshot of {root} and every child dataset is in it, which no exclusion can be left out of"
+            );
+            findings.push(CoverageFinding::new(
+                FIELD_RECURSION,
+                detail,
+                Some(change_recursion_correction(
+                    facts.config_path.as_str(),
+                    root,
+                    RECURSIVE_ZFS,
+                )),
+            ));
         }
-        Recursion::Off { value: None } => {
-            let detail: String = format!("the [{root}] section writes no `{RECURSIVE_SETTING}` value, so only {root} itself is snapshotted and its child datasets are not");
-            findings.push(CoverageFinding::new(FIELD_RECURSION, detail, Some(add_recursion_correction(facts.config_path.as_str(), root))));
+        Recursion::Off {
+            value: None,
+        } => {
+            let detail: String = format!(
+                "the [{root}] section writes no `{RECURSIVE_SETTING}` value, so only {root} itself is snapshotted and its child datasets are not"
+            );
+            findings.push(CoverageFinding::new(
+                FIELD_RECURSION,
+                detail,
+                Some(add_recursion_correction(facts.config_path.as_str(), root)),
+            ));
         }
-        Recursion::Off { value: Some(written) } => {
-            let detail: String = format!("the [{root}] section writes `{RECURSIVE_SETTING} = {written}`, which sanoid does not read as true, so its child datasets are not covered");
-            findings.push(CoverageFinding::new(FIELD_RECURSION, detail, Some(change_recursion_correction(facts.config_path.as_str(), root, written.as_str()))));
+        Recursion::Off {
+            value: Some(written),
+        } => {
+            let detail: String = format!(
+                "the [{root}] section writes `{RECURSIVE_SETTING} = {written}`, which sanoid does not read as true, so its child datasets are not covered"
+            );
+            findings.push(CoverageFinding::new(
+                FIELD_RECURSION,
+                detail,
+                Some(change_recursion_correction(
+                    facts.config_path.as_str(),
+                    root,
+                    written.as_str(),
+                )),
+            ));
         }
     }
     match section.setting(TEMPLATE_SETTING) {
-        SettingLookup::Found { value, .. } => {
-            if !value.split(',').any(|name| return name.trim() == facts.decision.template) {
-                let detail: String = format!("the [{root}] section keeps the template `{value}`, which does not name `{}`", facts.decision.template);
-                findings.push(CoverageFinding::new(FIELD_TEMPLATE, detail, Some(template_correction(facts.config_path.as_str(), root, facts.decision.template.as_str(), Some(value.as_str())))));
+        SettingLookup::Found {
+            value,
+            ..
+        } => {
+            if !value
+                .split(',')
+                .any(|name| return name.trim() == facts.decision.template)
+            {
+                let detail: String = format!(
+                    "the [{root}] section keeps the template `{value}`, which does not name `{}`",
+                    facts.decision.template
+                );
+                findings.push(CoverageFinding::new(
+                    FIELD_TEMPLATE,
+                    detail,
+                    Some(template_correction(
+                        facts.config_path.as_str(),
+                        root,
+                        facts.decision.template.as_str(),
+                        Some(value.as_str()),
+                    )),
+                ));
             }
         }
         SettingLookup::Absent => {
-            let detail: String = format!("the [{root}] section names no template, so the retention this route decided for it does not apply");
-            findings.push(CoverageFinding::new(FIELD_TEMPLATE, detail, Some(template_correction(facts.config_path.as_str(), root, facts.decision.template.as_str(), None))));
+            let detail: String = format!(
+                "the [{root}] section names no template, so the retention this route decided for it does not apply"
+            );
+            findings.push(CoverageFinding::new(
+                FIELD_TEMPLATE,
+                detail,
+                Some(template_correction(
+                    facts.config_path.as_str(),
+                    root,
+                    facts.decision.template.as_str(),
+                    None,
+                )),
+            ));
         }
-        SettingLookup::CaseVariant { .. } => {}
+        SettingLookup::CaseVariant {
+            ..
+        } => {}
     }
 }
 
@@ -180,12 +345,19 @@ fn root_findings(facts: &CoverageFacts, config: &ReadConfig, findings: &mut Vec<
 /// its mount kind,
 /// its section and its
 /// marker.
-fn exclusion_findings(facts: &CoverageFacts, config: &ReadConfig, exclusion: &Exclusion, findings: &mut Vec<CoverageFinding>) {
+fn exclusion_findings(
+    facts: &CoverageFacts,
+    config: &ReadConfig,
+    exclusion: &Exclusion,
+    findings: &mut Vec<CoverageFinding>,
+) {
     let dataset: &str = exclusion.dataset.as_str();
     let found = facts.tree.dataset(dataset);
     match found {
         None => {
-            let detail: String = format!("the measured dataset tree holds no {dataset}, and a folder inside another dataset cannot be excluded, so {dataset} must be its own dataset before a section can leave it out");
+            let detail: String = format!(
+                "the measured dataset tree holds no {dataset}, and a folder inside another dataset cannot be excluded, so {dataset} must be its own dataset before a section can leave it out"
+            );
             findings.push(CoverageFinding::new(FIELD_EXCLUSION_DATASET, detail, None));
         }
         Some(measured) => mount_finding(exclusion, measured.mountpoint.as_deref(), findings),
@@ -194,13 +366,24 @@ fn exclusion_findings(facts: &CoverageFacts, config: &ReadConfig, exclusion: &Ex
     if let Some(measured) = found
         && measured.auto_snapshot.as_deref() != Some(AUTO_SNAPSHOT_OFF)
     {
-        let detail: String = format!("`{AUTO_SNAPSHOT_PROPERTY}` {} on {dataset}, and the decision sets it to {AUTO_SNAPSHOT_OFF} on every exclusion", marker_words(measured.auto_snapshot.as_deref()));
-        findings.push(CoverageFinding::new(FIELD_EXCLUSION_MARKER, detail, Some(marker_correction(dataset))));
+        let detail: String = format!(
+            "`{AUTO_SNAPSHOT_PROPERTY}` {} on {dataset}, and the decision sets it to {AUTO_SNAPSHOT_OFF} on every exclusion",
+            marker_words(measured.auto_snapshot.as_deref())
+        );
+        findings.push(CoverageFinding::new(
+            FIELD_EXCLUSION_MARKER,
+            detail,
+            Some(marker_correction(dataset)),
+        ));
     }
 }
 
 /// One exclusion's mount point against the kind the decision gives it.
-fn mount_finding(exclusion: &Exclusion, mountpoint: Option<&str>, findings: &mut Vec<CoverageFinding>) {
+fn mount_finding(
+    exclusion: &Exclusion,
+    mountpoint: Option<&str>,
+    findings: &mut Vec<CoverageFinding>,
+) {
     let dataset: &str = exclusion.dataset.as_str();
     let words: String = mountpoint_words(mountpoint);
     match exclusion.mount {
@@ -211,7 +394,9 @@ fn mount_finding(exclusion: &Exclusion, mountpoint: Option<&str>, findings: &mut
             findings.push(CoverageFinding::new(FIELD_EXCLUSION_MOUNT, detail, None));
         }
         ExclusionMount::Unmounted if has_path_mountpoint(mountpoint) => {
-            let detail: String = format!("the decision leaves {dataset} unmounted, and the measured mount point of {dataset} is {words}, and no configuration line or property ends this");
+            let detail: String = format!(
+                "the decision leaves {dataset} unmounted, and the measured mount point of {dataset} is {words}, and no configuration line or property ends this"
+            );
             findings.push(CoverageFinding::new(FIELD_EXCLUSION_MOUNT, detail, None));
         }
         ExclusionMount::Path | ExclusionMount::Unmounted => {}
@@ -220,24 +405,62 @@ fn mount_finding(exclusion: &Exclusion, mountpoint: Option<&str>, findings: &mut
 
 /// One exclusion's section,
 /// its `autosnap` value and its place in file order.
-fn section_findings(facts: &CoverageFacts, config: &ReadConfig, dataset: &str, findings: &mut Vec<CoverageFinding>) {
+fn section_findings(
+    facts: &CoverageFacts,
+    config: &ReadConfig,
+    dataset: &str,
+    findings: &mut Vec<CoverageFinding>,
+) {
     let Some(section) = config.section(dataset) else {
-        let detail: String = format!("the configuration has no [{dataset}] section, so the recursive section's settings reach {dataset} and it is snapshotted");
-        findings.push(CoverageFinding::new(FIELD_EXCLUSION_SECTION, detail, Some(add_section_correction(facts.config_path.as_str(), &exclusion_section(dataset)))));
+        let detail: String = format!(
+            "the configuration has no [{dataset}] section, so the recursive section's settings reach {dataset} and it is snapshotted"
+        );
+        findings.push(CoverageFinding::new(
+            FIELD_EXCLUSION_SECTION,
+            detail,
+            Some(add_section_correction(
+                facts.config_path.as_str(),
+                &exclusion_section(dataset),
+            )),
+        ));
         return;
     };
     match section.setting(AUTOSNAP_SETTING) {
-        SettingLookup::Found { value, line } => {
+        SettingLookup::Found {
+            value,
+            line,
+        } => {
             if !is_false_word(value.as_str()) {
-                let detail: String = format!("the [{dataset}] section writes `{AUTOSNAP_SETTING} = {value}` on line {line}, which sanoid does not read as false, so {dataset} is snapshotted");
-                findings.push(CoverageFinding::new(FIELD_EXCLUSION_AUTOSNAP, detail, Some(change_autosnap_correction(facts.config_path.as_str(), dataset, value.as_str()))));
+                let detail: String = format!(
+                    "the [{dataset}] section writes `{AUTOSNAP_SETTING} = {value}` on line {line}, which sanoid does not read as false, so {dataset} is snapshotted"
+                );
+                findings.push(CoverageFinding::new(
+                    FIELD_EXCLUSION_AUTOSNAP,
+                    detail,
+                    Some(change_autosnap_correction(
+                        facts.config_path.as_str(),
+                        dataset,
+                        value.as_str(),
+                    )),
+                ));
             }
         }
         SettingLookup::Absent => {
-            let detail: String = format!("the [{dataset}] section writes no `{AUTOSNAP_SETTING}` value, so the template's own value applies and {dataset} is snapshotted");
-            findings.push(CoverageFinding::new(FIELD_EXCLUSION_AUTOSNAP, detail, Some(add_section_correction(facts.config_path.as_str(), &exclusion_section(dataset)))));
+            let detail: String = format!(
+                "the [{dataset}] section writes no `{AUTOSNAP_SETTING}` value, so the template's own value applies and {dataset} is snapshotted"
+            );
+            findings.push(CoverageFinding::new(
+                FIELD_EXCLUSION_AUTOSNAP,
+                detail,
+                Some(add_section_correction(
+                    facts.config_path.as_str(),
+                    &exclusion_section(dataset),
+                )),
+            ));
         }
-        SettingLookup::CaseVariant { .. } => {}
+        SettingLookup::CaseVariant {
+            ..
+        } => {}
     }
     order_finding(facts, config, dataset, section.line, findings);
 }
@@ -257,17 +480,27 @@ fn section_findings(facts: &CoverageFacts, config: &ReadConfig, dataset: &str, f
 /// ```ts
 /// laterRecursiveSection(config, 'tank/home', last); // seeds the ancestor's position
 /// ```
-fn later_recursive_section(config: &ReadConfig, dataset: &str, last: &mut Option<(usize, String)>) {
+fn later_recursive_section(
+    config: &ReadConfig,
+    dataset: &str,
+    last: &mut Option<(usize, String)>,
+) {
     let Some(section) = config.section(dataset) else {
         return;
     };
-    if matches!(recursion_of(section.written_value(RECURSIVE_SETTING)), Recursion::Off { .. }) {
+    if matches!(
+        recursion_of(section.written_value(RECURSIVE_SETTING)),
+        Recursion::Off { .. }
+    ) {
         return;
     }
     let Some(position) = config.position(dataset) else {
         return;
     };
-    if last.as_ref().is_none_or(|(held, _)| return *held < position) {
+    if last
+        .as_ref()
+        .is_none_or(|(held, _)| return *held < position)
+    {
         *last = Some((position, String::from(dataset)));
     }
 }
@@ -275,7 +508,13 @@ fn later_recursive_section(config: &ReadConfig, dataset: &str, last: &mut Option
 /// The last section whose recursion reaches one dataset,
 /// and that dataset's
 /// section standing before it.
-fn order_finding(facts: &CoverageFacts, config: &ReadConfig, dataset: &str, section_line: usize, findings: &mut Vec<CoverageFinding>) {
+fn order_finding(
+    facts: &CoverageFacts,
+    config: &ReadConfig,
+    dataset: &str,
+    section_line: usize,
+    findings: &mut Vec<CoverageFinding>,
+) {
     let mut last: Option<(usize, String)> = None;
     later_recursive_section(config, facts.decision.recursive_root.as_str(), &mut last);
     for ancestor in facts.tree.ancestors(dataset) {
@@ -290,7 +529,11 @@ fn order_finding(facts: &CoverageFacts, config: &ReadConfig, dataset: &str, sect
         let detail: String = format!(
             "the [{dataset}] section stands on line {section_line} and the [{ancestor}] section on line {ancestor_line}, and sanoid copies a recursive section's settings onto every child without checking for a child section, so {dataset} is snapshotted"
         );
-        findings.push(CoverageFinding::new(FIELD_SECTION_ORDER, detail, Some(move_section_correction(dataset, ancestor.as_str()))));
+        findings.push(CoverageFinding::new(
+            FIELD_SECTION_ORDER,
+            detail,
+            Some(move_section_correction(dataset, ancestor.as_str())),
+        ));
     }
 }
 
@@ -308,15 +551,23 @@ fn order_finding(facts: &CoverageFacts, config: &ReadConfig, dataset: &str, sect
 /// ```ts
 /// storeHolder(facts, config, findings); // Ok('tank/home') | Err('no measured dataset ...')
 /// ```
-fn store_holder<'a>(facts: &'a CoverageFacts, findings: &mut Vec<CoverageFinding>) -> Result<&'a str, String> {
+fn store_holder<'a>(
+    facts: &'a CoverageFacts,
+    findings: &mut Vec<CoverageFinding>,
+) -> Result<&'a str, String> {
     let store: &str = facts.store_path.as_str();
     let Some(holder) = facts.tree.holding_dataset(store) else {
-        return Err(format!("no measured dataset's mount point covers the store at {store}, so this build cannot prove the store is snapshotted"));
+        return Err(format!(
+            "no measured dataset's mount point covers the store at {store}, so this build cannot prove the store is snapshotted"
+        ));
     };
     let root: &str = facts.decision.recursive_root.as_str();
-    let covered: bool = (holder == root || is_under(holder, root)) && !facts.decision.excludes(holder);
+    let covered: bool =
+        (holder == root || is_under(holder, root)) && !facts.decision.excludes(holder);
     if !covered {
-        let detail: String = format!("the store at {store} is held by {holder}, which the recursive section of {root} does not reach, so the store is not snapshotted");
+        let detail: String = format!(
+            "the store at {store} is held by {holder}, which the recursive section of {root} does not reach, so the store is not snapshotted"
+        );
         findings.push(CoverageFinding::new(FIELD_STORE_COVERAGE, detail, None));
     }
     return Ok(holder);

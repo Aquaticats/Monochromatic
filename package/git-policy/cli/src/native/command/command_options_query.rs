@@ -19,7 +19,13 @@
 /// ```ts
 /// import { Boundary, Occurrence, OptionValue, ParsedOptions } from './command_options.ts';
 /// ```
-use crate::command_options::{Boundary, Occurrence, OptionValue, ParsedOptions, WrapperOccurrence};
+use crate::command_options::{
+    Boundary,
+    Occurrence,
+    OptionValue,
+    ParsedOptions,
+    WrapperOccurrence,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
@@ -36,7 +42,10 @@ use std::ffi::OsString;
 /// ```ts
 /// const last = parsed.occurrences.findLast(o => o.id === id);
 /// ```
-pub fn last_occurrence(parsed: &ParsedOptions, id: u16) -> Option<Occurrence> {
+pub fn last_occurrence(
+    parsed: &ParsedOptions,
+    id: u16,
+) -> Option<Occurrence> {
     // `mut` lets later matches replace earlier ones during the single pass.
     let mut last: Option<Occurrence> = None;
     // `for occurrence in &parsed.occurrences` borrows each item in order.
@@ -59,7 +68,10 @@ pub fn last_occurrence(parsed: &ParsedOptions, id: u16) -> Option<Occurrence> {
 /// ```ts
 /// const stated = parsed.occurrences.some(o => o.id === id);
 /// ```
-pub fn is_stated(parsed: &ParsedOptions, id: u16) -> bool {
+pub fn is_stated(
+    parsed: &ParsedOptions,
+    id: u16,
+) -> bool {
     return last_occurrence(parsed, id).is_some();
 }
 
@@ -73,7 +85,10 @@ pub fn is_stated(parsed: &ParsedOptions, id: u16) -> bool {
 /// ```ts
 /// const enabled = last !== undefined && !last.negated;
 /// ```
-pub fn is_enabled(parsed: &ParsedOptions, id: u16) -> bool {
+pub fn is_enabled(
+    parsed: &ParsedOptions,
+    id: u16,
+) -> bool {
     // `if let Some(last) = ...` runs only when the option was written.
     if let Some(last) = last_occurrence(parsed, id) {
         return !last.negated;
@@ -98,7 +113,10 @@ pub fn is_enabled(parsed: &ParsedOptions, id: u16) -> bool {
 /// ```ts
 /// const positionals = [...parsed.leading, ...indexesAfterBoundary];
 /// ```
-pub fn positional_tokens(parsed: &ParsedOptions, length: usize) -> Vec<usize> {
+pub fn positional_tokens(
+    parsed: &ParsedOptions,
+    length: usize,
+) -> Vec<usize> {
     // `.clone()` copies the index list so the result is independently owned.
     let mut tokens: Vec<usize> = parsed.leading.clone();
     // What: `match` picks one arm per variant and unpacks the index a variant holds; the
@@ -133,11 +151,19 @@ pub fn positional_tokens(parsed: &ParsedOptions, length: usize) -> Vec<usize> {
 /// ```ts
 /// const text = 'offset' in value ? args[value.token].slice(value.offset) : args[value.token];
 /// ```
-pub fn value_bytes(arguments: &[OsString], value: OptionValue) -> &[u8] {
+pub fn value_bytes(
+    arguments: &[OsString],
+    value: OptionValue,
+) -> &[u8] {
     // `(usize, usize)` is a pair; a detached value is the whole token, so it starts at byte 0.
     let (token, offset): (usize, usize) = match value {
-        OptionValue::Attached { token, offset } => (token, offset),
-        OptionValue::Detached { token } => (token, 0),
+        OptionValue::Attached {
+            token,
+            offset,
+        } => (token, offset),
+        OptionValue::Detached {
+            token,
+        } => (token, 0),
     };
     // `&bytes[offset..]` borrows from `offset` to the end.
     return &arguments[token].as_encoded_bytes()[offset..];
@@ -193,7 +219,10 @@ pub fn split_wrapper_flags(occurrences: &[WrapperOccurrence]) -> WrapperFlags {
             });
         }
     }
-    return WrapperFlags { escape, other };
+    return WrapperFlags {
+        escape,
+        other,
+    };
 }
 
 /// What:
@@ -208,7 +237,11 @@ pub fn split_wrapper_flags(occurrences: &[WrapperOccurrence]) -> WrapperFlags {
 /// ```ts
 /// const kept = args.filter((_, i) => !removed.includes(i - offset));
 /// ```
-pub fn without_tokens(arguments: &[OsString], offset: usize, removed: &[usize]) -> Vec<OsString> {
+pub fn without_tokens(
+    arguments: &[OsString],
+    offset: usize,
+    removed: &[usize],
+) -> Vec<OsString> {
     let mut kept: Vec<OsString> = Vec::<OsString>::with_capacity(arguments.len());
     let mut index: usize = 0;
     while index < arguments.len() {

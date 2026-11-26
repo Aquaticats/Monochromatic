@@ -32,7 +32,10 @@ use crate::service_busy::LandingBoard;
 use crate::service_durable::Pending;
 use crate::service_index_prestage::Slot;
 use crate::service_index_refused_lock::Refused;
-use std::cell::{Cell, RefCell};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -155,7 +158,10 @@ pub fn in_a_landing<Output>(body: impl FnOnce() -> Output) -> Output {
 /// ```ts
 /// landing.run(new LandingState(), () => body(arguments))
 /// ```
-pub fn in_a_landing_with<Arguments, Output>(arguments: Arguments, body: fn(Arguments) -> Output) -> Output {
+pub fn in_a_landing_with<Arguments, Output>(
+    arguments: Arguments,
+    body: fn(Arguments) -> Output,
+) -> Output {
     #[cfg_attr(
         dylint_lib = "monochromatic_lint_closure",
         expect(
@@ -163,7 +169,9 @@ pub fn in_a_landing_with<Arguments, Output>(arguments: Arguments, body: fn(Argum
             reason = "`tokio::task::LocalKey::sync_scope` accepts only a callable with no arguments, and it must carry the arguments and the function; see package/git-policy/cli/doc/closure-lint-suppressions.md"
         )
     )]
-    let output: Output = LANDING.sync_scope(LandingState::new(), move || { return body(arguments); });
+    let output: Output = LANDING.sync_scope(LandingState::new(), move || {
+        return body(arguments);
+    });
     return output;
 }
 
@@ -177,7 +185,9 @@ pub fn in_a_landing_with<Arguments, Output>(arguments: Arguments, body: fn(Argum
 /// ```ts
 /// await landing.run(new LandingState(), () => future)
 /// ```
-pub async fn in_a_landing_task<Output>(future: impl std::future::Future<Output = Output>) -> Output {
+pub async fn in_a_landing_task<Output>(
+    future: impl std::future::Future<Output = Output>
+) -> Output {
     return LANDING.scope(LandingState::new(), future).await;
 }
 
@@ -205,7 +215,10 @@ fn state_of_no_landing() -> LandingState {
 /// ```ts
 /// apply(landing.getStore() ?? new LandingState(), arguments)
 /// ```
-pub fn on_the_landing_state<Arguments, Output>(arguments: Arguments, apply: fn(&LandingState, Arguments) -> Output) -> Output {
+pub fn on_the_landing_state<Arguments, Output>(
+    arguments: Arguments,
+    apply: fn(&LandingState, Arguments) -> Output,
+) -> Output {
     // The arguments wait in an `Option`: whichever of the two paths runs takes them.
     let mut waiting: Option<Arguments> = Some(arguments);
     #[cfg_attr(
@@ -217,14 +230,18 @@ pub fn on_the_landing_state<Arguments, Output>(arguments: Arguments, apply: fn(&
     )]
     let inside: Option<Output> = LANDING
         .try_with(|state| {
-            let Some(carried) = waiting.take() else { unreachable!("the closure runs once") };
+            let Some(carried) = waiting.take() else {
+                unreachable!("the closure runs once")
+            };
             return apply(state, carried);
         })
         .ok();
     return match inside {
         Some(output) => output,
         None => {
-            let Some(carried) = waiting.take() else { unreachable!("a missed scope never ran the closure") };
+            let Some(carried) = waiting.take() else {
+                unreachable!("a missed scope never ran the closure")
+            };
             apply(&state_of_no_landing(), carried)
         }
     };
@@ -234,19 +251,25 @@ pub fn on_the_landing_state<Arguments, Output>(arguments: Arguments, apply: fn(&
 /// a closure over it,
 /// where the production code passes a named function.
 #[cfg(test)]
-pub fn with_the_landing_state<Output, Use: FnOnce(&LandingState) -> Output>(use_state: Use) -> Output {
+pub fn with_the_landing_state<Output, Use: FnOnce(&LandingState) -> Output>(
+    use_state: Use
+) -> Output {
     // The closure waits in an `Option` for whichever of the two paths runs.
     let mut waiting: Option<Use> = Some(use_state);
     let inside: Option<Output> = LANDING
         .try_with(|state| {
-            let Some(use_it) = waiting.take() else { unreachable!("the closure runs once") };
+            let Some(use_it) = waiting.take() else {
+                unreachable!("the closure runs once")
+            };
             return use_it(state);
         })
         .ok();
     return match inside {
         Some(output) => output,
         None => {
-            let Some(use_it) = waiting.take() else { unreachable!("a missed scope never ran the closure") };
+            let Some(use_it) = waiting.take() else {
+                unreachable!("a missed scope never ran the closure")
+            };
             use_it(&state_of_no_landing())
         }
     };
@@ -269,7 +292,10 @@ pub(crate) fn commit_bytes_already_read(name: &str) -> Option<Vec<u8>> {
 }
 
 /// The read `commit_bytes_already_read` makes.
-fn the_commit_bytes_already_read(state: &LandingState, name: &str) -> Option<Vec<u8>> {
+fn the_commit_bytes_already_read(
+    state: &LandingState,
+    name: &str,
+) -> Option<Vec<u8>> {
     return state.commits_read.borrow().get(name).cloned();
 }
 
@@ -284,14 +310,23 @@ fn the_commit_bytes_already_read(state: &LandingState, name: &str) -> Option<Vec
 /// ```ts
 /// landing.commitsRead.set(name, bytes)
 /// ```
-pub(crate) fn remember_commit_bytes(name: &str, bytes: &[u8]) {
+pub(crate) fn remember_commit_bytes(
+    name: &str,
+    bytes: &[u8],
+) {
     on_the_landing_state((name, bytes), keep_the_commit_bytes);
 }
 
 /// The write `remember_commit_bytes` makes.
-fn keep_the_commit_bytes(state: &LandingState, read: (&str, &[u8])) {
+fn keep_the_commit_bytes(
+    state: &LandingState,
+    read: (&str, &[u8]),
+) {
     let (name, bytes) = read;
-    state.commits_read.borrow_mut().insert(name.to_owned(), bytes.to_vec());
+    state
+        .commits_read
+        .borrow_mut()
+        .insert(name.to_owned(), bytes.to_vec());
 }
 
 /// What:
@@ -318,7 +353,10 @@ pub(crate) fn forget_the_commits_read_by_an_earlier_landing() {
 }
 
 /// The write `forget_the_commits_read_by_an_earlier_landing` makes.
-fn forget_every_commit_read(state: &LandingState, _nothing: ()) {
+fn forget_every_commit_read(
+    state: &LandingState,
+    _nothing: (),
+) {
     state.commits_read.borrow_mut().clear();
 }
 

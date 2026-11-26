@@ -16,10 +16,18 @@
 /// The matcher under test.
 use super::compile_exclude;
 /// A disposable repository and its removal.
-use crate::test_support::{fixture, git, git_output, remove};
+use crate::test_support::{
+    fixture,
+    git,
+    git_output,
+    remove,
+};
 
 /// Whether `patterns` exclude `path`.
-fn excluded(patterns: &[&str], path: &[u8]) -> bool {
+fn excluded(
+    patterns: &[&str],
+    path: &[u8],
+) -> bool {
     let owned: Vec<String> = patterns.iter().map(ToString::to_string).collect();
     return compile_exclude(owned.as_slice())
         .expect("compiles")
@@ -137,13 +145,25 @@ fn a_pattern_that_cannot_compile_is_reported() {
 /// ```
 #[test]
 fn a_backwards_range_matches_what_native_git_matches() {
-    assert!(excluded(&["[z-a].md"], b"z.md"), "the character that opens the range is a member");
-    assert!(!excluded(&["[z-a].md"], b"a.md"), "the character that closes it is not");
+    assert!(
+        excluded(&["[z-a].md"], b"z.md"),
+        "the character that opens the range is a member"
+    );
+    assert!(
+        !excluded(&["[z-a].md"], b"a.md"),
+        "the character that closes it is not"
+    );
     assert!(!excluded(&["[z-a].md"], b"README.md"));
-    assert!(excluded(&["[c-a9-0].md"], b"9.md"), "each backwards range keeps its own first character");
+    assert!(
+        excluded(&["[c-a9-0].md"], b"9.md"),
+        "each backwards range keeps its own first character"
+    );
     assert!(excluded(&["[c-a9-0].md"], b"c.md"));
     assert!(!excluded(&["[c-a9-0].md"], b"a.md"));
-    assert!(!excluded(&["[!z-a].md"], b"z.md"), "a negated backwards range excludes what it names");
+    assert!(
+        !excluded(&["[!z-a].md"], b"z.md"),
+        "a negated backwards range excludes what it names"
+    );
     assert!(excluded(&["[!z-a].md"], b"a.md"));
 }
 
@@ -186,26 +206,68 @@ struct Shape {
 ///  an escaped leading exclamation mark,
 ///  and an escaped space.
 const SHAPES: [Shape; 14] = [
-    Shape { patterns: &["*.md"], name: "README.md" },
-    Shape { patterns: &["*.md", "!keep.md"], name: "keep.md" },
-    Shape { patterns: &["doc/", "!doc/keep.md"], name: "doc/keep.md" },
-    Shape { patterns: &["/README.md"], name: "doc/README.md" },
-    Shape { patterns: &["a{b.md"], name: "a{b.md" },
-    Shape { patterns: &["notes{old,new}.md"], name: "notes{old,new}.md" },
-    Shape { patterns: &["notes{old,new}.md"], name: "notesold.md" },
-    Shape { patterns: &["\\!literal.md"], name: "!literal.md" },
-    Shape { patterns: &["space\\ .md"], name: "space .md" },
+    Shape {
+        patterns: &["*.md"],
+        name: "README.md",
+    },
+    Shape {
+        patterns: &["*.md", "!keep.md"],
+        name: "keep.md",
+    },
+    Shape {
+        patterns: &["doc/", "!doc/keep.md"],
+        name: "doc/keep.md",
+    },
+    Shape {
+        patterns: &["/README.md"],
+        name: "doc/README.md",
+    },
+    Shape {
+        patterns: &["a{b.md"],
+        name: "a{b.md",
+    },
+    Shape {
+        patterns: &["notes{old,new}.md"],
+        name: "notes{old,new}.md",
+    },
+    Shape {
+        patterns: &["notes{old,new}.md"],
+        name: "notesold.md",
+    },
+    Shape {
+        patterns: &["\\!literal.md"],
+        name: "!literal.md",
+    },
+    Shape {
+        patterns: &["space\\ .md"],
+        name: "space .md",
+    },
     // What: A range that runs backwards, whose first character Git reads as a member of the class.
     // Why:  The glob compiler refuses the range, so a wrapper that asked it directly failed the policy instead of
     //       matching what Git matches.
     //
     // In TS you'd write (pseudocode):
     // expect(excluded(['[z-a].md'], 'z.md')).toBe(await nativeGitIgnores('[z-a].md', 'z.md'));
-    Shape { patterns: &["[z-a].md"], name: "z.md" },
-    Shape { patterns: &["[z-a].md"], name: "a.md" },
-    Shape { patterns: &["[z-a].md"], name: "README.md" },
-    Shape { patterns: &["[c-a9-0].md"], name: "9.md" },
-    Shape { patterns: &["[!z-a].md"], name: "a.md" },
+    Shape {
+        patterns: &["[z-a].md"],
+        name: "z.md",
+    },
+    Shape {
+        patterns: &["[z-a].md"],
+        name: "a.md",
+    },
+    Shape {
+        patterns: &["[z-a].md"],
+        name: "README.md",
+    },
+    Shape {
+        patterns: &["[c-a9-0].md"],
+        name: "9.md",
+    },
+    Shape {
+        patterns: &["[!z-a].md"],
+        name: "a.md",
+    },
 ];
 
 /// What:
@@ -218,7 +280,10 @@ const SHAPES: [Shape; 14] = [
 /// ```ts
 /// // writeFileSync('.gitignore', patterns.join('\n')); return spawnSync('git', ['check-ignore', '--no-index', '--quiet', '--', name]).status === 0;
 /// ```
-fn native_git_ignores(repository_root: &std::path::Path, shape: &Shape) -> bool {
+fn native_git_ignores(
+    repository_root: &std::path::Path,
+    shape: &Shape,
+) -> bool {
     let ignore_file: std::path::PathBuf = repository_root.join(".gitignore");
     std::fs::write(&ignore_file, format!("{}\n", shape.patterns.join("\n"))).expect("a .gitignore");
     let asked: std::process::Output = git_output(
@@ -253,7 +318,8 @@ fn native_git_ignores(repository_root: &std::path::Path, shape: &Shape) -> bool 
 #[test]
 fn the_matcher_reads_the_pattern_language_native_git_reads() {
     let root: std::path::PathBuf = fixture("exclude-differential");
-    let repository_root: std::path::PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let repository_root: std::path::PathBuf =
+        crate::test_support::repository(root.as_path(), "repo");
     // Every shape has a file of its own name, so the oracle removes only its own pattern file.
     for shape in &SHAPES {
         let named: std::path::PathBuf = repository_root.join(shape.name);

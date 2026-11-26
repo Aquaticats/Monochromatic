@@ -62,7 +62,9 @@ pub const REQUIRED_VARIABLE: &str = "CLI_GIT_REQUIRE_REAL_GIT_LFS";
 /// const required = (process.env.CLI_GIT_REQUIRE_REAL_GIT_LFS ?? '') !== '';
 /// ```
 pub fn the_run_requires_it() -> bool {
-    return std::env::var_os(REQUIRED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+    return std::env::var_os(REQUIRED_VARIABLE).is_some_and(|value| {
+        return !value.is_empty();
+    });
 }
 
 /// What:
@@ -81,8 +83,12 @@ pub fn the_run_requires_it() -> bool {
 pub fn found_in(path: Option<&OsStr>) -> Option<PathBuf> {
     let list: &OsStr = path?;
     return std::env::split_paths(list)
-        .map(|directory| { return directory.join(PROGRAM); })
-        .find(|candidate| { return candidate.is_file(); });
+        .map(|directory| {
+            return directory.join(PROGRAM);
+        })
+        .find(|candidate| {
+            return candidate.is_file();
+        });
 }
 
 /// What:
@@ -134,7 +140,11 @@ pub fn required(what: &str) -> Option<PathBuf> {
 /// ```ts
 /// const decided = (what, found, required) => found ?? (required ? fail(what) : noteSkipped(what));
 /// ```
-pub fn decided(what: &str, found: Option<PathBuf>, required: bool) -> Option<PathBuf> {
+pub fn decided(
+    what: &str,
+    found: Option<PathBuf>,
+    required: bool,
+) -> Option<PathBuf> {
     if let Some(program) = found {
         return Some(program);
     }

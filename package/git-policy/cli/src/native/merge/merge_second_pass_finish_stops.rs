@@ -52,23 +52,67 @@ pub enum Operation {
 
 /// The options shared by merge and pull that change nothing the finish needs to know.
 pub const HARMLESS_MERGE_OPTIONS: [&str; 21] = [
-    "-v", "--verbose", "--no-verbose", "--progress", "--no-progress", "--no-verify", "--verify", "--summary", "--no-summary",
-    "--no-signoff", "--no-verify-signatures", "--ff", "--no-ff", "--ff-only", "--allow-unrelated-histories", "--stat",
-    "--no-stat", "--log", "--no-log", "--quiet", "--autostash",
+    "-v",
+    "--verbose",
+    "--no-verbose",
+    "--progress",
+    "--no-progress",
+    "--no-verify",
+    "--verify",
+    "--summary",
+    "--no-summary",
+    "--no-signoff",
+    "--no-verify-signatures",
+    "--ff",
+    "--no-ff",
+    "--ff-only",
+    "--allow-unrelated-histories",
+    "--stat",
+    "--no-stat",
+    "--log",
+    "--no-log",
+    "--quiet",
+    "--autostash",
 ];
 
 /// The options of pull that only fetch,
 /// or choose merge or rebase,
 /// which the state files decide.
 pub const HARMLESS_PULL_OPTIONS: [&str; 17] = [
-    "--rebase", "-r", "--no-rebase", "--rebase=true", "--rebase=false", "--rebase=merges", "--all", "--prune", "-p", "--no-prune",
-    "--tags", "-t", "--no-tags", "--force", "-f", "--no-recurse-submodules", "--ipv4",
+    "--rebase",
+    "-r",
+    "--no-rebase",
+    "--rebase=true",
+    "--rebase=false",
+    "--rebase=merges",
+    "--all",
+    "--prune",
+    "-p",
+    "--no-prune",
+    "--tags",
+    "-t",
+    "--no-tags",
+    "--force",
+    "-f",
+    "--no-recurse-submodules",
+    "--ipv4",
 ];
 
 /// The options of a cherry-pick or revert that change nothing the finish needs to know.
 pub const HARMLESS_PICK_OPTIONS: [&str; 13] = [
-    "-x", "--ff", "--allow-empty", "--allow-empty-message", "--keep-redundant-commits", "--rerere-autoupdate",
-    "--no-rerere-autoupdate", "--reference", "-q", "--quiet", "-v", "--verbose", "--no-verbose",
+    "-x",
+    "--ff",
+    "--allow-empty",
+    "--allow-empty-message",
+    "--keep-redundant-commits",
+    "--rerere-autoupdate",
+    "--no-rerere-autoupdate",
+    "--reference",
+    "-q",
+    "--quiet",
+    "-v",
+    "--verbose",
+    "--no-verbose",
 ];
 
 /// The options that take the next token as their value and change nothing the finish needs to know.
@@ -86,7 +130,10 @@ pub const VALUE_OPTIONS: [&str; 4] = ["-s", "--strategy", "-X", "--strategy-opti
 /// ```ts
 /// function mergeStops(region: string[], pull: boolean): Stops | undefined;
 /// ```
-pub fn merge_stops(region: &[OsString], pull: bool) -> Option<Stops> {
+pub fn merge_stops(
+    region: &[OsString],
+    pull: bool,
+) -> Option<Stops> {
     let mut stops: Stops = Stops::default();
     let mut tokens = region.iter();
     while let Some(token) = tokens.next() {
@@ -103,12 +150,17 @@ pub fn merge_stops(region: &[OsString], pull: bool) -> Option<Stops> {
                 stops.message = true;
             }
             "--signoff" | "--no-gpg-sign" => stops.passed_on.push(token.clone()),
-            other if other.starts_with("--message=") || other.starts_with("--file=") => stops.message = true,
-            other if other.starts_with("-S") || other.starts_with("--gpg-sign") => stops.passed_on.push(token.clone()),
+            other if other.starts_with("--message=") || other.starts_with("--file=") => {
+                stops.message = true
+            }
+            other if other.starts_with("-S") || other.starts_with("--gpg-sign") => {
+                stops.passed_on.push(token.clone())
+            }
             other if VALUE_OPTIONS.contains(&other) => {
                 tokens.next()?;
             }
-            other if other.starts_with("--strategy=") || other.starts_with("--strategy-option=") => {}
+            other
+                if other.starts_with("--strategy=") || other.starts_with("--strategy-option=") => {}
             other if HARMLESS_MERGE_OPTIONS.contains(&other) => {}
             other if pull && HARMLESS_PULL_OPTIONS.contains(&other) => {}
             other if other.starts_with('-') && other != "-" => return None,
@@ -148,11 +200,18 @@ pub fn pick_stops(region: &[OsString]) -> Option<(Stops, bool)> {
                 tokens.next()?;
             }
             other if other.starts_with("--mainline=") || other.starts_with("--empty=") => {}
-            other if other.starts_with("-S") || other.starts_with("--gpg-sign") || other == "--no-gpg-sign" => stops.passed_on.push(token.clone()),
+            other
+                if other.starts_with("-S")
+                    || other.starts_with("--gpg-sign")
+                    || other == "--no-gpg-sign" =>
+            {
+                stops.passed_on.push(token.clone())
+            }
             other if VALUE_OPTIONS.contains(&other) => {
                 tokens.next()?;
             }
-            other if other.starts_with("--strategy=") || other.starts_with("--strategy-option=") => {}
+            other
+                if other.starts_with("--strategy=") || other.starts_with("--strategy-option=") => {}
             other if HARMLESS_PICK_OPTIONS.contains(&other) => {}
             other if other.starts_with('-') && other != "-" => return None,
             _ => {}
@@ -178,7 +237,9 @@ pub fn saved_pick_stops(git_dir: &Path) -> Option<Stops> {
     let text: String = std::fs::read_to_string(git_dir.join("sequencer/opts")).ok()?;
     let mut stops: Stops = Stops::default();
     for line in text.lines() {
-        let Some((name, value)) = line.split_once('=') else { continue };
+        let Some((name, value)) = line.split_once('=') else {
+            continue;
+        };
         match (name.trim(), value.trim()) {
             ("no-commit", "true") => stops.no_commit = true,
             ("edit", "true") => stops.edit = Some(true),

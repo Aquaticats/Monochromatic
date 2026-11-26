@@ -21,8 +21,12 @@ use crate::command_options::OptionErrorKind;
 use crate::command_test_support::os_arguments;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_only::{
-    CommitOnlyDecision, CommitOnlyViolationCode, PendingInjection, decide_commit_only,
-    resolve_index_state, violation_code_text,
+    CommitOnlyDecision,
+    CommitOnlyViolationCode,
+    PendingInjection,
+    decide_commit_only,
+    resolve_index_state,
+    violation_code_text,
 };
 use std::ffi::OsString;
 

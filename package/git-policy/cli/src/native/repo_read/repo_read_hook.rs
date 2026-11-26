@@ -18,8 +18,16 @@ use crate::git_metadata::MetadataOutput;
 #[cfg(unix)]
 use crate::repo_read_config_scan::ScopeEnvironment;
 #[cfg(unix)]
-use crate::repo_read_query::{Answer, Query, answer_with};
-use crate::transaction_git_request_and_reply_types::{GitContext, GitOutput, GitRequest};
+use crate::repo_read_query::{
+    Answer,
+    Query,
+    answer_with,
+};
+use crate::transaction_git_request_and_reply_types::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+};
 use std::ffi::OsString;
 #[cfg(unix)]
 use std::path::Path;
@@ -70,7 +78,10 @@ pub fn switch_off() -> [(OsString, OsString); 1] {
 /// ```ts
 /// try { return read(state); } catch (error) { log(error); return undefined; }
 /// ```
-pub fn guarded<S, T>(state: S, read: fn(S) -> Option<T>) -> Option<T> {
+pub fn guarded<S, T>(
+    state: S,
+    read: fn(S) -> Option<T>,
+) -> Option<T> {
     return match call_catching_panics(state, read) {
         Ok(found) => found,
         Err(payload) => {
@@ -81,7 +92,10 @@ pub fn guarded<S, T>(state: S, read: fn(S) -> Option<T>) -> Option<T> {
             } else {
                 "a panic without text"
             };
-            crate::diagnostic_log::warn("repo-read-guard", format!("an in-process read panicked and Git answers instead: {message}").as_str());
+            crate::diagnostic_log::warn(
+                "repo-read-guard",
+                format!("an in-process read panicked and Git answers instead: {message}").as_str(),
+            );
             None
         }
     };
@@ -91,7 +105,9 @@ pub fn guarded<S, T>(state: S, read: fn(S) -> Option<T>) -> Option<T> {
 /// as the guard calls it with the query,
 /// the base environment and the scope.
 #[cfg(unix)]
-fn answer_for_query((query, base, scope): (Query<'_>, Vec<(OsString, OsString)>, &ScopeEnvironment)) -> Option<Answer> {
+fn answer_for_query(
+    (query, base, scope): (Query<'_>, Vec<(OsString, OsString)>, &ScopeEnvironment)
+) -> Option<Answer> {
     return answer_with(&query, base, scope);
 }
 
@@ -111,7 +127,19 @@ fn attempt(
     let mut effective: Vec<(OsString, OsString)> = base.clone();
     effective.extend(variables.iter().cloned());
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(effective.as_slice());
-    return guarded((Query { arguments, directory, variables, input }, base, &scope), answer_for_query);
+    return guarded(
+        (
+            Query {
+                arguments,
+                directory,
+                variables,
+                input,
+            },
+            base,
+            &scope,
+        ),
+        answer_for_query,
+    );
 }
 
 /// What:
@@ -124,15 +152,32 @@ fn attempt(
 /// tryMetadata(args, overlay): MetadataOutput | undefined
 /// ```
 #[cfg(unix)]
-pub fn try_metadata(arguments: &[OsString], overlay: &[(OsString, OsString)]) -> Option<MetadataOutput> {
-    let found: Answer = attempt(arguments, None, std::env::vars_os().collect(), overlay, None)?;
-    return Some(MetadataOutput { success: found.code == 0, code: Some(found.code), stdout: found.stdout, stderr: found.stderr });
+pub fn try_metadata(
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+) -> Option<MetadataOutput> {
+    let found: Answer = attempt(
+        arguments,
+        None,
+        std::env::vars_os().collect(),
+        overlay,
+        None,
+    )?;
+    return Some(MetadataOutput {
+        success: found.code == 0,
+        code: Some(found.code),
+        stdout: found.stdout,
+        stderr: found.stderr,
+    });
 }
 
 /// Without file system readers for this platform,
 /// every query starts Git.
 #[cfg(not(unix))]
-pub fn try_metadata(_arguments: &[OsString], _overlay: &[(OsString, OsString)]) -> Option<MetadataOutput> {
+pub fn try_metadata(
+    _arguments: &[OsString],
+    _overlay: &[(OsString, OsString)],
+) -> Option<MetadataOutput> {
     return None;
 }
 
@@ -148,7 +193,11 @@ pub fn try_metadata(_arguments: &[OsString], _overlay: &[(OsString, OsString)]) 
 /// tryComplete(args, directory, environment): { code: number; stdout: Uint8Array; stderr: Uint8Array } | undefined
 /// ```
 #[cfg(unix)]
-pub fn try_complete(arguments: &[OsString], directory: &Path, environment: &[(OsString, OsString)]) -> Option<(Option<i32>, Vec<u8>, Vec<u8>)> {
+pub fn try_complete(
+    arguments: &[OsString],
+    directory: &Path,
+    environment: &[(OsString, OsString)],
+) -> Option<(Option<i32>, Vec<u8>, Vec<u8>)> {
     let found: Answer = attempt(arguments, Some(directory), Vec::new(), environment, None)?;
     return Some((Some(found.code), found.stdout, found.stderr));
 }
@@ -156,7 +205,11 @@ pub fn try_complete(arguments: &[OsString], directory: &Path, environment: &[(Os
 /// Without file system readers for this platform,
 /// every query starts Git.
 #[cfg(not(unix))]
-pub fn try_complete(_arguments: &[OsString], _directory: &std::path::Path, _environment: &[(OsString, OsString)]) -> Option<(Option<i32>, Vec<u8>, Vec<u8>)> {
+pub fn try_complete(
+    _arguments: &[OsString],
+    _directory: &std::path::Path,
+    _environment: &[(OsString, OsString)],
+) -> Option<(Option<i32>, Vec<u8>, Vec<u8>)> {
     return None;
 }
 
@@ -175,18 +228,30 @@ pub fn try_complete(_arguments: &[OsString], _directory: &std::path::Path, _envi
 /// tryRequest(context, request): GitOutput | undefined
 /// ```
 #[cfg(unix)]
-pub fn try_request(context: &GitContext, request: &GitRequest) -> Option<GitOutput> {
+pub fn try_request(
+    context: &GitContext,
+    request: &GitRequest,
+) -> Option<GitOutput> {
     // The same assembly the started command uses, so an in-process answer reads what Git would.
     let arguments: Vec<OsString> = request.full_arguments(context.global_prefix.as_slice());
     // The context names the Git it runs, which the readers need to learn the system configuration file.
     // The context names the Git it runs, which the readers need to learn the system configuration file.
-    let mut variables: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path());
+    let mut variables: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(
+        context.overlay.as_slice(),
+        context.real_git.as_path(),
+    );
     variables.extend(request.environment.iter().cloned());
     if let Some(index) = &request.index {
-        variables.push((OsString::from("GIT_INDEX_FILE"), index.clone().into_os_string()));
+        variables.push((
+            OsString::from("GIT_INDEX_FILE"),
+            index.clone().into_os_string(),
+        ));
     }
     if let Some(objects) = &request.object_directory {
-        variables.push((OsString::from("GIT_OBJECT_DIRECTORY"), objects.clone().into_os_string()));
+        variables.push((
+            OsString::from("GIT_OBJECT_DIRECTORY"),
+            objects.clone().into_os_string(),
+        ));
     }
     let mut base: Vec<(OsString, OsString)> = Vec::new();
     for (name, value) in std::env::vars_os() {
@@ -194,14 +259,27 @@ pub fn try_request(context: &GitContext, request: &GitRequest) -> Option<GitOutp
             base.push((name, value));
         }
     }
-    let found: Answer = attempt(arguments.as_slice(), Some(request.cwd.as_path()), base, variables.as_slice(), request.input.as_deref())?;
-    return Some(GitOutput { code: Some(found.code), stdout: found.stdout, stderr: found.stderr });
+    let found: Answer = attempt(
+        arguments.as_slice(),
+        Some(request.cwd.as_path()),
+        base,
+        variables.as_slice(),
+        request.input.as_deref(),
+    )?;
+    return Some(GitOutput {
+        code: Some(found.code),
+        stdout: found.stdout,
+        stderr: found.stderr,
+    });
 }
 
 /// Without file system readers for this platform,
 /// every request starts Git.
 #[cfg(not(unix))]
-pub fn try_request(_context: &GitContext, _request: &GitRequest) -> Option<GitOutput> {
+pub fn try_request(
+    _context: &GitContext,
+    _request: &GitRequest,
+) -> Option<GitOutput> {
     return None;
 }
 

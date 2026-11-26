@@ -55,13 +55,31 @@
 //! ```
 
 use crate::claim_time::ClaimTime;
-use crate::work_item::{CLAIMED, Claimed, entries_oldest_first, id_of_entry, parse_claim_name, renew_claim, settle_named};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use crate::work_item::{
+    CLAIMED,
+    Claimed,
+    entries_oldest_first,
+    id_of_entry,
+    parse_claim_name,
+    renew_claim,
+    settle_named,
+};
 use std::cell::RefCell;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 use std::time::Duration;
+use tokio::sync::mpsc::{
+    UnboundedReceiver,
+    UnboundedSender,
+    unbounded_channel,
+};
 
 /// How many times inside one lease a holder renews,
 /// so a renewal that is late by up to two intervals still beats the lease.
@@ -194,11 +212,17 @@ impl ClaimNames {
     /// new ClaimNames(Object.groupBy(await readdir(claimed), idOfEntry))
     /// ```
     fn listed(work_dir: &Path) -> ClaimNames {
-        let mut by_id: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut by_id: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
         for (name, _modified) in entries_oldest_first(work_dir, CLAIMED) {
-            by_id.entry(id_of_entry(name.as_str()).to_owned()).or_default().push(name);
+            by_id
+                .entry(id_of_entry(name.as_str()).to_owned())
+                .or_default()
+                .push(name);
         }
-        return ClaimNames { by_id };
+        return ClaimNames {
+            by_id,
+        };
     }
 
     /// What:
@@ -213,7 +237,10 @@ impl ClaimNames {
     /// ```ts
     /// this.byId.get(claim.id)?.find((name) => namesClaim(name, claim))
     /// ```
-    fn name_of(&self, claim: &Claim) -> Option<&str> {
+    fn name_of(
+        &self,
+        claim: &Claim,
+    ) -> Option<&str> {
         for name in self.by_id.get(claim.id.as_str())? {
             if names_claim(name.as_str(), claim) {
                 return Some(name.as_str());
@@ -251,8 +278,16 @@ pub struct Renewer {
 pub fn held_claims(work_dir: &Path) -> (HeldClaims, Renewer) {
     let (holds, taken) = unbounded_channel::<Taken>();
     return (
-        HeldClaims { claims: RefCell::new(Vec::new()), listed: RefCell::new(None), holds },
-        Renewer { work_dir: work_dir.to_path_buf(), holds: taken, names: Vec::new() },
+        HeldClaims {
+            claims: RefCell::new(Vec::new()),
+            listed: RefCell::new(None),
+            holds,
+        },
+        Renewer {
+            work_dir: work_dir.to_path_buf(),
+            holds: taken,
+            names: Vec::new(),
+        },
     );
 }
 
@@ -271,7 +306,10 @@ fn is_unsettled(entry: &(Arc<Claim>, String)) -> bool {
 }
 
 /// Whether `name` is the file of the claim `claim` (the id and the generation match).
-fn names_claim(name: &str, claim: &Claim) -> bool {
+fn names_claim(
+    name: &str,
+    claim: &Claim,
+) -> bool {
     if id_of_entry(name) != claim.id {
         return false;
     }
@@ -288,13 +326,21 @@ fn names_claim(name: &str, claim: &Claim) -> bool {
 impl HeldClaims {
     /// Add a claim the drain took,
     /// and tell the renewal thread to keep it fresh.
-    pub fn hold(&self, claimed: &Claimed) {
+    pub fn hold(
+        &self,
+        claimed: &Claimed,
+    ) {
         // A claim by an earlier release has no generation, so its token is empty.
         let token: String = match parse_claim_name(claimed.name.as_str()) {
             Some((found, _stamp)) => found.to_owned(),
             None => String::new(),
         };
-        let claim: Arc<Claim> = Arc::new(Claim { id: claimed.id.clone(), token, lost: AtomicBool::new(false), settled: AtomicBool::new(false) });
+        let claim: Arc<Claim> = Arc::new(Claim {
+            id: claimed.id.clone(),
+            token,
+            lost: AtomicBool::new(false),
+            settled: AtomicBool::new(false),
+        });
         self.claims.borrow_mut().push(Arc::clone(&claim));
         // A renewal thread that is gone (no thread could be made, or it ended) renews nothing: the claim then expires with its lease.
         let _sent = self.holds.send((claim, claimed.name.clone()));
@@ -302,7 +348,10 @@ impl HeldClaims {
 
     /// Forget a claim the drain gave up,
     /// so it is no longer renewed.
-    pub fn release(&self, id: &str) {
+    pub fn release(
+        &self,
+        id: &str,
+    ) {
         // The claims of other ids are kept in order; the ones of this id are marked settled and dropped.
         let mut claims = self.claims.borrow_mut();
         let mut kept: Vec<Arc<Claim>> = Vec::with_capacity(claims.len());
@@ -327,7 +376,10 @@ impl HeldClaims {
     }
 
     /// Whether the claim of `id` is held and was not found taken over.
-    pub fn is_held(&self, id: &str) -> bool {
+    pub fn is_held(
+        &self,
+        id: &str,
+    ) -> bool {
         for claim in self.claims.borrow().iter() {
             if claim.id == id && !claim.lost.load(Ordering::SeqCst) {
                 return true;
@@ -352,7 +404,11 @@ impl HeldClaims {
     /// ```ts
     /// for (let look = 0; look < LOOKS; look += 1) { const name = this.listed.nameOf(claim); if (name) return name; this.listed = ClaimNames.listed(workDir) }
     /// ```
-    fn current_name(&self, work_dir: &Path, claim: &Claim) -> Option<String> {
+    fn current_name(
+        &self,
+        work_dir: &Path,
+        claim: &Claim,
+    ) -> Option<String> {
         for _ in 0..LOOKS {
             let found: Option<String> = match self.listed.borrow().as_ref() {
                 Some(names) => names.name_of(claim).map(str::to_owned),
@@ -386,7 +442,11 @@ impl HeldClaims {
     /// ```ts
     /// held.has(id) && !held.lost(id) && currentName(workDir, claim) !== undefined
     /// ```
-    pub fn is_held_on_disk(&self, work_dir: &Path, id: &str) -> bool {
+    pub fn is_held_on_disk(
+        &self,
+        work_dir: &Path,
+        id: &str,
+    ) -> bool {
         // The claim is cloned out of the list, so the look at the directory happens with no lock held.
         let found: Option<Arc<Claim>> = {
             let claims = self.claims.borrow();
@@ -424,7 +484,12 @@ impl HeldClaims {
     /// A renewal that renames the
     ///  file between the look and the rename makes the rename find nothing,
     /// and the look is made again.
-    pub fn settle(&self, work_dir: &Path, id: &str, state: &str) -> Result<(), String> {
+    pub fn settle(
+        &self,
+        work_dir: &Path,
+        id: &str,
+        state: &str,
+    ) -> Result<(), String> {
         let claim: Arc<Claim> = {
             let mut claims = self.claims.borrow_mut();
             let mut found_at: Option<usize> = None;
@@ -445,7 +510,9 @@ impl HeldClaims {
         }
         let mut last: String = String::new();
         for _ in 0..LOOKS {
-            let Some(name) = self.current_name(work_dir, &claim) else { break };
+            let Some(name) = self.current_name(work_dir, &claim) else {
+                break;
+            };
             match settle_named(work_dir, name.as_str(), state) {
                 Ok(()) => return Ok(()),
                 Err(reason) => {
@@ -455,8 +522,14 @@ impl HeldClaims {
                 }
             }
         }
-        let reason: String = if last.is_empty() { format!("moving {id} to {state} failed: the claim is not in {CLAIMED}") } else { last };
-        return Err(format!("{reason}; its lease probably ran out and another instance took the work over"));
+        let reason: String = if last.is_empty() {
+            format!("moving {id} to {state} failed: the claim is not in {CLAIMED}")
+        } else {
+            last
+        };
+        return Err(format!(
+            "{reason}; its lease probably ran out and another instance took the work over"
+        ));
     }
 }
 
@@ -473,7 +546,10 @@ impl Renewer {
     /// a claim whose file is not there under its name is marked taken over,
     /// and a
     /// claim the drain settled is dropped.
-    pub fn renew(&mut self, now: &ClaimTime) {
+    pub fn renew(
+        &mut self,
+        now: &ClaimTime,
+    ) {
         self.take_in();
         self.names.retain(is_unsettled);
         for (claim, name) in &mut self.names {

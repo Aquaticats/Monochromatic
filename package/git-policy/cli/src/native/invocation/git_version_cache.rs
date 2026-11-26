@@ -27,14 +27,17 @@
 //! const text = identity && (await readCache(dir, identity)) ?? (await runGitVersion());
 //! ```
 
+/// The environment lookup shared by the wrapper.
+use crate::child_environment::environment_value;
 /// Debug lines for cache problems,
 ///  which never fail a command.
 use crate::diagnostic_log::debug;
-/// The environment lookup shared by the wrapper.
-use crate::child_environment::environment_value;
 /// OS strings and paths.
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The kind of the file that holds the text `git version` prints.
 pub const VERSION_KIND: &str = "git-version";
@@ -121,7 +124,10 @@ pub fn binary_identity(real_git: &Path) -> Option<BinaryIdentity> {
         metadata.dev(),
         metadata.ino()
     );
-    return Some(BinaryIdentity { path: String::from(path), text });
+    return Some(BinaryIdentity {
+        path: String::from(path),
+        text,
+    });
 }
 
 /// What:
@@ -164,7 +170,11 @@ pub fn cache_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> 
     if home.is_empty() {
         return None;
     }
-    return Some(PathBuf::from(home).join(".cache").join("monochromatic-git-policy-cli"));
+    return Some(
+        PathBuf::from(home)
+            .join(".cache")
+            .join("monochromatic-git-policy-cli"),
+    );
 }
 
 /// What:
@@ -178,10 +188,18 @@ pub fn cache_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> 
 /// ```ts
 /// join(directory, `${kind}-${hash(identity.path)}`)
 /// ```
-fn cache_file(directory: &Path, identity: &BinaryIdentity, kind: &str) -> PathBuf {
+fn cache_file(
+    directory: &Path,
+    identity: &BinaryIdentity,
+    kind: &str,
+) -> PathBuf {
     // The hashing traits give `.hash` and `.finish`.
-    use std::hash::{Hash, Hasher};
-    let mut hasher: std::collections::hash_map::DefaultHasher = std::collections::hash_map::DefaultHasher::new();
+    use std::hash::{
+        Hash,
+        Hasher,
+    };
+    let mut hasher: std::collections::hash_map::DefaultHasher =
+        std::collections::hash_map::DefaultHasher::new();
     identity.path.hash(&mut hasher);
     return directory.join(format!("{kind}-{:016x}", hasher.finish()));
 }
@@ -235,7 +253,10 @@ fn is_private_file_of_this_user(path: &Path) -> bool {
 /// ```ts
 /// const file = await readFile(cacheFile(dir, identity)); return file.startsWith(TAG + identity.text + '\n') ? file.slice(...) : undefined;
 /// ```
-pub fn read_version_text(directory: &Path, identity: &BinaryIdentity) -> Option<Vec<u8>> {
+pub fn read_version_text(
+    directory: &Path,
+    identity: &BinaryIdentity,
+) -> Option<Vec<u8>> {
     return read_cached_text(directory, identity, VERSION_KIND);
 }
 
@@ -254,7 +275,11 @@ pub fn read_version_text(directory: &Path, identity: &BinaryIdentity) -> Option<
 /// ```ts
 /// const file = await readFile(cacheFile(dir, identity, kind)); return file.startsWith(tag(kind) + identity.text + '\n') ? file.slice(...) : undefined;
 /// ```
-pub fn read_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str) -> Option<Vec<u8>> {
+pub fn read_cached_text(
+    directory: &Path,
+    identity: &BinaryIdentity,
+    kind: &str,
+) -> Option<Vec<u8>> {
     let path: PathBuf = cache_file(directory, identity, kind);
     if !is_private_file_of_this_user(path.as_path()) {
         return None;
@@ -280,33 +305,51 @@ pub fn read_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str)
 /// ```ts
 /// await mkdir(dir, { recursive: true, mode: 0o700 }); await writeFile(tmp, bytes, { mode: 0o600 }); await rename(tmp, file);
 /// ```
-pub fn store_version_text(directory: &Path, identity: &BinaryIdentity, text: &[u8]) {
+pub fn store_version_text(
+    directory: &Path,
+    identity: &BinaryIdentity,
+    text: &[u8],
+) {
     store_cached_text(directory, identity, VERSION_KIND, text);
 }
 
 /// Record `text` of `kind` for this identity,
 /// replacing any earlier entry;
 /// see `store_version_text`.
-pub fn store_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str, text: &[u8]) {
+pub fn store_cached_text(
+    directory: &Path,
+    identity: &BinaryIdentity,
+    kind: &str,
+    text: &[u8],
+) {
     if text.len() > TEXT_LIMIT {
         return;
     }
     if let Some(parent) = directory.parent()
         && let Err(error) = std::fs::create_dir_all(parent)
     {
-        debug(TAG, format!("could not create {}: {error}", parent.display()).as_str());
+        debug(
+            TAG,
+            format!("could not create {}: {error}", parent.display()).as_str(),
+        );
         return;
     }
     if let Err(error) = crate::private_storage::create_private_directory(directory)
         && error.kind() != std::io::ErrorKind::AlreadyExists
     {
-        debug(TAG, format!("could not create {}: {error}", directory.display()).as_str());
+        debug(
+            TAG,
+            format!("could not create {}: {error}", directory.display()).as_str(),
+        );
         return;
     }
     let unique: String = match crate::random_id::random_uuid() {
         Ok(id) => id,
         Err(error) => {
-            debug(TAG, format!("no random name for the cache file: {}", error.0).as_str());
+            debug(
+                TAG,
+                format!("no random name for the cache file: {}", error.0).as_str(),
+            );
             return;
         }
     };
@@ -317,14 +360,25 @@ pub fn store_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str
     bytes.extend_from_slice(identity.text.as_bytes());
     bytes.push(b'\n');
     bytes.extend_from_slice(text);
-    if let Err(error) = crate::private_storage::write_exclusive_scratch(temporary.as_path(), bytes.as_slice()) {
-        debug(TAG, format!("could not write {}: {error}", temporary.display()).as_str());
+    if let Err(error) =
+        crate::private_storage::write_exclusive_scratch(temporary.as_path(), bytes.as_slice())
+    {
+        debug(
+            TAG,
+            format!("could not write {}: {error}", temporary.display()).as_str(),
+        );
         return;
     }
     if let Err(error) = std::fs::rename(&temporary, cache_file(directory, identity, kind)) {
-        debug(TAG, format!("could not publish the cache file: {error}").as_str());
+        debug(
+            TAG,
+            format!("could not publish the cache file: {error}").as_str(),
+        );
         if let Err(removal) = std::fs::remove_file(&temporary) {
-            debug(TAG, format!("could not remove {}: {removal}", temporary.display()).as_str());
+            debug(
+                TAG,
+                format!("could not remove {}: {removal}", temporary.display()).as_str(),
+            );
         }
     }
 }

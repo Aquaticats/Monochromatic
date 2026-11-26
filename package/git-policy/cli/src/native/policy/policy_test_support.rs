@@ -14,19 +14,29 @@
 //! ```
 
 /// The facts interface and the fact types the script answers with.
-use crate::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// Real preparation,
 ///  for scripted facts given a repository.
-use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
+use crate::candidate_prediction::{
+    CandidateRequest,
+    PreparedCandidates,
+    prepare_candidates,
+};
 use crate::config_schema::PolicyConfig;
-use crate::policy_registry::{PolicyId, Severity};
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+};
 use crate::repository_facts::RepositoryFacts;
+use crate::repository_facts_abort_discard::AbortDiscard;
 use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_sequencer::SequencerState;
 use crate::rule_linked_worktree::GuardedCommand;
-use crate::repository_facts_abort_discard::AbortDiscard;
 use crate::rule_worktree_dirty::DirtyScope;
 /// The image's real Git,
 ///  which prepares candidates for scripted facts.
@@ -34,9 +44,15 @@ use crate::test_support::REAL_GIT;
 use crate::transaction_git::GitContext;
 use crate::worktree_identity::WorktreeIdentity;
 /// Branch names and global options are operating-system text.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// Locations and repositories are paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A provider that answers from fields and logs every fact it was asked for.
 #[derive(Clone, Debug)]
@@ -105,12 +121,18 @@ impl RepositoryFacts for ScriptedFacts {
         return self.index.clone();
     }
 
-    fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
+    fn worktree_dirty(
+        &mut self,
+        scope: DirtyScope,
+    ) -> Result<bool, String> {
         self.asked.push(format!("dirty:{scope:?}"));
         return self.dirty.clone();
     }
 
-    fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
+    fn staged_selection(
+        &mut self,
+        pathspecs: Vec<OsString>,
+    ) -> Result<StagedSelection, String> {
         self.asked.push(format!(
             "selection:{}",
             pathspecs.join(OsStr::new(" ")).to_string_lossy()
@@ -137,8 +159,14 @@ impl RepositoryFacts for ScriptedFacts {
     ///   return patterns || forces > 1 ? this.cleanDeletes : this.cleanDeletesWithoutExclusions;
     /// }
     /// ```
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        self.asked.push(format!("clean-would-delete:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
+    fn clean_deleted_paths(
+        &mut self,
+        arguments: Vec<OsString>,
+    ) -> Result<Vec<Vec<u8>>, String> {
+        self.asked.push(format!(
+            "clean-would-delete:{}",
+            arguments.join(OsStr::new(" ")).to_string_lossy()
+        ));
         let mut patterns: bool = false;
         let mut forces: usize = 0;
         for argument in &arguments {
@@ -154,7 +182,10 @@ impl RepositoryFacts for ScriptedFacts {
         return self.clean_deletes_without_exclusions.clone();
     }
 
-    fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
+    fn ignored_files_the_tree_tracks(
+        &mut self,
+        revision: Option<&OsStr>,
+    ) -> Result<Vec<String>, String> {
         self.asked.push(format!(
             "ignored-and-tracked:{}",
             revision.unwrap_or(OsStr::new("HEAD")).to_string_lossy()
@@ -162,8 +193,14 @@ impl RepositoryFacts for ScriptedFacts {
         return self.ignored_and_tracked.clone();
     }
 
-    fn untracked_files_the_tree_tracks(&mut self, revision: &OsStr) -> Result<Vec<String>, String> {
-        self.asked.push(format!("untracked-and-tracked:{}", revision.to_string_lossy()));
+    fn untracked_files_the_tree_tracks(
+        &mut self,
+        revision: &OsStr,
+    ) -> Result<Vec<String>, String> {
+        self.asked.push(format!(
+            "untracked-and-tracked:{}",
+            revision.to_string_lossy()
+        ));
         return self.untracked_and_tracked.clone();
     }
 
@@ -177,12 +214,18 @@ impl RepositoryFacts for ScriptedFacts {
         return self.sequencer.clone();
     }
 
-    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+    fn abort_discard(
+        &mut self,
+        command: GuardedCommand,
+    ) -> Result<AbortDiscard, String> {
         self.asked.push(format!("abort-discard:{command:?}"));
         return self.abort_discard.clone();
     }
 
-    fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
+    fn remote_guess_creates_branch(
+        &mut self,
+        target: &OsStr,
+    ) -> Result<bool, String> {
         self.asked
             .push(format!("remote-guess:{}", target.to_string_lossy()));
         return self.remote_guess.clone();
@@ -245,7 +288,10 @@ impl RepositoryFacts for ScriptedFacts {
 
 /// The location of a command run in the main worktree rooted at `root`,
 ///  `prefix` below its top level.
-pub(crate) fn main_worktree(root: &str, prefix: &str) -> RepositoryLocation {
+pub(crate) fn main_worktree(
+    root: &str,
+    prefix: &str,
+) -> RepositoryLocation {
     return RepositoryLocation {
         identity: WorktreeIdentity::MainWorktree {
             common_dir: PathBuf::from(format!("{root}/.git")),
@@ -257,7 +303,10 @@ pub(crate) fn main_worktree(root: &str, prefix: &str) -> RepositoryLocation {
 }
 
 /// The location of a command run at the top level of a linked worktree at `root` of the repository at `main`.
-pub(crate) fn linked_worktree(main: &str, root: &str) -> RepositoryLocation {
+pub(crate) fn linked_worktree(
+    main: &str,
+    root: &str,
+) -> RepositoryLocation {
     return RepositoryLocation {
         identity: WorktreeIdentity::LinkedWorktree {
             common_dir: PathBuf::from(format!("{main}/.git")),

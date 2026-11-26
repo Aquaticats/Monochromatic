@@ -5,7 +5,13 @@
 
 use crate::worktree_clone_binding_record::add_state_commands::SETTLING_COMMAND_WORDS;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_record_settling::settling_words::{CONFIRM_GUID_FLAG, CONFIRM_REMOVAL_FLAG, carries_a_placeholder, the_last_four_digits, the_usage_line};
+use crate::worktree_clone_record_settling::settling_words::{
+    CONFIRM_GUID_FLAG,
+    CONFIRM_REMOVAL_FLAG,
+    carries_a_placeholder,
+    the_last_four_digits,
+    the_usage_line,
+};
 
 /// One GUID built from its decimal digits.
 fn guid(digits: &str) -> DatasetGuid {
@@ -31,7 +37,9 @@ fn a_short_guid_answers_with_every_digit_it_has() {
 #[test]
 fn a_placeholder_is_recognized_in_either_flag() {
     assert!(carries_a_placeholder("<slot>"));
-    assert!(carries_a_placeholder("<the last 4 decimal digits of cloneGuid=>"));
+    assert!(carries_a_placeholder(
+        "<the last 4 decimal digits of cloneGuid=>"
+    ));
     assert!(!carries_a_placeholder("3102"));
     assert!(!carries_a_placeholder("fix-flaky-test"));
 }

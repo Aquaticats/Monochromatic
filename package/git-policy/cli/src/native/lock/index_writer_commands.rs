@@ -28,11 +28,14 @@
 //! isIndexWriter(await resolveForwardedCommand({ args, gitPath }))
 //! ```
 
-/// The resolved command.
-use crate::forwarded_command::ResolvedCommand;
 /// Git's own `reset` table,
 ///  for the mode a region ends in.
-use crate::command_reset::{ResetMode, parse_reset_region};
+use crate::command_reset::{
+    ResetMode,
+    parse_reset_region,
+};
+/// The resolved command.
+use crate::forwarded_command::ResolvedCommand;
 
 /// Commands that write the index in every form.
 pub const ALWAYS_WRITING_COMMANDS: [&[u8]; 15] = [
@@ -73,13 +76,22 @@ pub struct LongOption {
 
 /// `git restore --staged`;
 ///  `--s` is ambiguous with `--source`.
-pub const RESTORE_STAGED: LongOption = LongOption { name: b"--staged", minimum_length: 4 };
+pub const RESTORE_STAGED: LongOption = LongOption {
+    name: b"--staged",
+    minimum_length: 4,
+};
 /// `git apply --cached`;
 ///  `--c` is ambiguous with `--check`.
-pub const APPLY_CACHED: LongOption = LongOption { name: b"--cached", minimum_length: 4 };
+pub const APPLY_CACHED: LongOption = LongOption {
+    name: b"--cached",
+    minimum_length: 4,
+};
 /// `git apply --index`;
 ///  `--in` is ambiguous with `--intent-to-add` and `--inaccurate-eof`.
-pub const APPLY_INDEX: LongOption = LongOption { name: b"--index", minimum_length: 5 };
+pub const APPLY_INDEX: LongOption = LongOption {
+    name: b"--index",
+    minimum_length: 5,
+};
 
 /// What:
 ///  The option tokens after the subcommand and before `--`.
@@ -116,7 +128,10 @@ pub fn option_tokens(command: &ResolvedCommand) -> Vec<&[u8]> {
 /// ```ts
 /// function matchesLong({ token, option }): boolean;
 /// ```
-pub fn matches_long(token: &[u8], option: LongOption) -> bool {
+pub fn matches_long(
+    token: &[u8],
+    option: LongOption,
+) -> bool {
     let name: &[u8] = match token.iter().position(is_equals) {
         Some(end) => &token[..end],
         None => token,
@@ -149,7 +164,11 @@ fn is_equals(byte: &u8) -> bool {
 /// ```ts
 /// function clusterHas({ token, letter, valueLetters }): boolean;
 /// ```
-pub fn cluster_has(token: &[u8], letter: u8, value_letters: &[u8]) -> bool {
+pub fn cluster_has(
+    token: &[u8],
+    letter: u8,
+    value_letters: &[u8],
+) -> bool {
     if !token.starts_with(b"-") || token.starts_with(b"--") {
         return false;
     }

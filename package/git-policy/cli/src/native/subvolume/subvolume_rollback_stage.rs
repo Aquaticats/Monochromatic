@@ -38,7 +38,13 @@ use std::path::PathBuf;
 /// ```
 fn stage_that_the_rollback_deletes(run: &Run<'_>) -> PathBuf {
     let root: PathBuf = run.layout.root.clone();
-    if run.journal.has_begun("exchange") && !run.journal.is_done("exchange") && run.platform.is_subvolume_root(root.as_path()).unwrap_or(false) {
+    if run.journal.has_begun("exchange")
+        && !run.journal.is_done("exchange")
+        && run
+            .platform
+            .is_subvolume_root(root.as_path())
+            .unwrap_or(false)
+    {
         return root;
     }
     return run.layout.new_path.clone();
@@ -62,7 +68,11 @@ pub(crate) fn stage_is_not_a_subvolume(run: &Run<'_>) -> Option<Refusal> {
     if !stage.exists() {
         return None;
     }
-    if !run.platform.is_subvolume_root(stage.as_path()).unwrap_or(false) {
+    if !run
+        .platform
+        .is_subvolume_root(stage.as_path())
+        .unwrap_or(false)
+    {
         return Some(Refusal {
             cause: format!(
                 "{} is not a subvolume, and this rollback deletes only the subvolume the migration created; nothing was deleted",
@@ -87,7 +97,8 @@ pub(crate) fn stage_is_not_a_subvolume(run: &Run<'_>) -> Option<Refusal> {
             ),
         });
     };
-    let found: Option<crate::fs_beneath::ObjectId> = crate::worktree_convert_phases::identity_of_path(stage.as_path());
+    let found: Option<crate::fs_beneath::ObjectId> =
+        crate::worktree_convert_phases::identity_of_path(stage.as_path());
     if let Some(identity) = found
         && crate::worktree_convert_journal::is_recorded_object(&recorded, &identity)
     {

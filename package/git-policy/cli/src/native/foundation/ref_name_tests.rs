@@ -25,7 +25,10 @@ use super::RefName;
 /// ```
 #[test]
 fn the_name_is_what_git_printed_before_its_line_feed() {
-    assert_eq!(RefName::from_git_output(b"refs/heads/main\n"), RefName::from_text("refs/heads/main"));
+    assert_eq!(
+        RefName::from_git_output(b"refs/heads/main\n"),
+        RefName::from_text("refs/heads/main")
+    );
     // A name that is not text keeps every byte, which a lossy reading would replace.
     let raw: RefName = RefName::from_git_output(b"refs/heads/topic-\xff\n");
     assert_eq!(raw.bytes(), b"refs/heads/topic-\xff");
@@ -72,5 +75,8 @@ fn a_name_tells_whether_it_is_text_and_whether_it_is_the_head() {
     assert!(!RefName::from_git_output(b"refs/heads/topic-\xff\n").is_text());
     assert!(RefName::from_text("HEAD").is_head());
     assert!(!RefName::from_text("refs/heads/HEAD").is_head());
-    assert_eq!(RefName::from_text("HEAD").short(), RefName::from_text("HEAD"));
+    assert_eq!(
+        RefName::from_text("HEAD").short(),
+        RefName::from_text("HEAD")
+    );
 }

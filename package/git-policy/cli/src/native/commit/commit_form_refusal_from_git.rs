@@ -48,19 +48,27 @@
 //! switch (answer.decide()) { case 'end-with-git': ... case 'accept': ... case 'unavailable': ... }
 //! ```
 
-/// Running one real-Git start and reading its answer.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// Copying the person's index into a scratch directory of this repository.
 use crate::commit_index_bytes::copy_index_with_timestamps;
-/// The directory a refused commit's scratch files are made in.
-use crate::scratch_location::prepare_repository_scratch;
 /// A unique name for the question's own index.
 use crate::random_id::random_uuid;
+/// The directory a refused commit's scratch files are made in.
+use crate::scratch_location::prepare_repository_scratch;
+/// Running one real-Git start and reading its answer.
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 /// `OsString` is owned operating-system text of raw bytes,
 ///  so an argument Git reads keeps the bytes the person wrote.
 use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The option that makes the question a dry run,
 /// spelled as Git spells it.
@@ -172,9 +180,18 @@ impl Answer {
             Self::Unanswered(why) => return Decision::RefuseInOurWords(*why),
             // Zero means Git would run this command. The question was a dry run, so nothing has been committed by it, and
             //  the transaction that follows makes the one commit this command asks for.
-            Self::Answered { status: 0, .. } => return Decision::Accept,
-            Self::Answered { status, stderr } => {
-                return Decision::EndWithGit { status: *status, stderr: stderr.clone() };
+            Self::Answered {
+                status: 0,
+                ..
+            } => return Decision::Accept,
+            Self::Answered {
+                status,
+                stderr,
+            } => {
+                return Decision::EndWithGit {
+                    status: *status,
+                    stderr: stderr.clone(),
+                };
             }
         }
     }
@@ -198,7 +215,10 @@ impl Answer {
 /// ```ts
 /// const unavailableWords = (form: string, why: Unanswered) => `monochromatic-git-policy-cli: git commit refuses this form (${form}) ...`;
 /// ```
-pub fn unavailable_words(form: &str, why: Unanswered) -> String {
+pub fn unavailable_words(
+    form: &str,
+    why: Unanswered,
+) -> String {
     let happened: &str = match why {
         Unanswered::NotStarted => {
             "Real Git could not be started to print that message here, so this sentence is the wrapper's; \
@@ -262,7 +282,10 @@ pub fn the_question(region: &[OsString]) -> Vec<OsString> {
 /// ```ts
 /// const privateIndex = (context, cwd) => copyIntoScratch(gitAnswersTheIndexPath(context, cwd));
 /// ```
-fn a_private_index(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
+fn a_private_index(
+    context: &GitContext,
+    cwd: &Path,
+) -> Option<PathBuf> {
     let query: GitRequest = GitRequest::new(cwd, &INDEX_QUERY);
     let answered: GitOutput = run_git(context, &query).ok()?;
     if answered.code != Some(0) {
@@ -293,7 +316,11 @@ fn a_private_index(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 /// ```ts
 /// const answer = await askGit({ context, cwd, region });
 /// ```
-pub fn ask_git(context: &GitContext, cwd: &Path, region: &[OsString]) -> Answer {
+pub fn ask_git(
+    context: &GitContext,
+    cwd: &Path,
+    region: &[OsString],
+) -> Answer {
     // The question writes to an index of its own when one can be made, and to the person's otherwise.
     let private: Option<PathBuf> = a_private_index(context, cwd);
     let mut request: GitRequest = GitRequest::new(cwd, the_question(region).as_slice());
@@ -306,10 +333,15 @@ pub fn ask_git(context: &GitContext, cwd: &Path, region: &[OsString]) -> Answer 
     }
     return match ran {
         Ok(output) => match output.code {
-            Some(status) => Answer::Answered { status, stderr: output.stderr },
+            Some(status) => Answer::Answered {
+                status,
+                stderr: output.stderr,
+            },
             None => Answer::Unanswered(Unanswered::EndedWithoutAStatus),
         },
-        Err(error) if error.kind() == std::io::ErrorKind::TimedOut => Answer::Unanswered(Unanswered::HeldPastItsBound),
+        Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+            Answer::Unanswered(Unanswered::HeldPastItsBound)
+        }
         Err(_) => Answer::Unanswered(Unanswered::NotStarted),
     };
 }

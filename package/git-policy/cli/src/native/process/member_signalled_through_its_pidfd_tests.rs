@@ -3,8 +3,15 @@
 //! and a member the kernel refuses a descriptor for is left alone.
 
 use super::*;
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long a control waits before it calls a process it did not signal alive:
 ///  longer than a `SIGKILL` on its way takes.
@@ -12,20 +19,28 @@ const STILL_RUNNING_BOUND: Duration = Duration::from_millis(500);
 
 /// A child of this test process that is nobody's step.
 fn a_sleeper() -> Child {
-    return crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a long-running child");
+    return crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+        .expect("a long-running child");
 }
 
 /// The member a look would have read for `child`.
 #[cfg(target_os = "linux")]
 fn member_of_the_sleeper(child: &Child) -> TreeMember {
     let pid: i32 = i32::try_from(child.id()).expect("a process number");
-    let (started, _zombie): (u64, bool) = crate::process_tree::identity_of(pid).expect("the sleeper is read");
-    return TreeMember { pid, started };
+    let (started, _zombie): (u64, bool) =
+        crate::process_tree::identity_of(pid).expect("the sleeper is read");
+    return TreeMember {
+        pid,
+        started,
+    };
 }
 
 /// Whether `child` ended within the bound,
 /// and how.
-fn ended_within(child: &mut Child, bound: Duration) -> Option<i32> {
+fn ended_within(
+    child: &mut Child,
+    bound: Duration,
+) -> Option<i32> {
     use std::os::unix::process::ExitStatusExt;
     let deadline: Instant = Instant::now() + bound;
     loop {
@@ -59,8 +74,15 @@ fn a_member_the_kernel_refuses_a_descriptor_for_is_not_signalled() {
         sleeper.kill().expect("cleanup");
         sleeper.wait().expect("reaped");
     }
-    assert_eq!(delivered, vec![Delivered::Unproven], "a stop without a descriptor answers that it proved nothing, and nothing was sent");
-    assert!(ended.is_none(), "the member was signalled by its number after the kernel refused a descriptor for it: {ended:?}");
+    assert_eq!(
+        delivered,
+        vec![Delivered::Unproven],
+        "a stop without a descriptor answers that it proved nothing, and nothing was sent"
+    );
+    assert!(
+        ended.is_none(),
+        "the member was signalled by its number after the kernel refused a descriptor for it: {ended:?}"
+    );
 }
 
 /// The positive control:
@@ -78,7 +100,11 @@ fn a_member_with_a_descriptor_is_signalled() {
         sleeper.kill().expect("cleanup");
         sleeper.wait().expect("reaped");
     }
-    assert_eq!(delivered, vec![Delivered::Sent], "a member whose number was proven is signalled through its descriptor");
+    assert_eq!(
+        delivered,
+        vec![Delivered::Sent],
+        "a member whose number was proven is signalled through its descriptor"
+    );
     assert!(ended.is_some(), "the signalled member ended");
 }
 
@@ -112,7 +138,18 @@ fn only_no_such_process_means_the_member_is_gone() {
     other.wait().expect("reaped");
     refuse_the_next_signal_with(libc::ESRCH);
     let absent: Vec<Delivered> = kill_members(std::slice::from_ref(&other_member));
-    assert_eq!(refused, vec![Delivered::Unproven], "a refusal that is not `ESRCH` proves nothing about the member");
-    assert!(survivor.is_none(), "the member was reported gone and left alone although the refusal was not `ESRCH`: {survivor:?}");
-    assert_eq!(absent, vec![Delivered::Gone], "`ESRCH` is the one refusal that proves the process is gone");
+    assert_eq!(
+        refused,
+        vec![Delivered::Unproven],
+        "a refusal that is not `ESRCH` proves nothing about the member"
+    );
+    assert!(
+        survivor.is_none(),
+        "the member was reported gone and left alone although the refusal was not `ESRCH`: {survivor:?}"
+    );
+    assert_eq!(
+        absent,
+        vec![Delivered::Gone],
+        "`ESRCH` is the one refusal that proves the process is gone"
+    );
 }

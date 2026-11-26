@@ -29,21 +29,69 @@
 //! const verdict = await convertWorktree({ platform, path, options, interrupt, say });
 //! ```
 
-use crate::line_sink::LineSink;
 use crate::fs_beneath::ObjectId;
-use crate::process_use::{UseTarget, processes_using};
-use crate::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
-use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::line_sink::LineSink;
+use crate::process_use::{
+    UseTarget,
+    processes_using,
+};
+use crate::single_owner_claim::{
+    ClaimOutcome,
+    OwnerClaim,
+    take_claim,
+};
+use crate::subvolume_error::{
+    Interrupt,
+    MigrateError,
+};
 use crate::subvolume_lock::is_ours;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_remove::remove_tree;
-pub use crate::worktree_convert_inspection::{CONVERTING_SUFFIX, Candidate, Owned, Refusal, RefusalKind, converting_path, inspect, refusals};
-use crate::worktree_convert_journal::{CLAIM_PREFIX, Journal, legacy_lock_is_held};
-pub use crate::worktree_convert_journal::{JOURNAL_NAME, Phase};
-use crate::worktree_convert_leftover_stage_record::{LeftoverStage, forget_leftover_stage, leftover_stage_of, record_leftover_stage};
-use crate::worktree_convert_phases::{Job, Where, copy_phase, finish, hold_index_lock, identity_of_path, index_phase, old_tree_is_at, removal_phase, stage_free_identity, stage_identity_of, swap_phase, verify_swap};
+pub use crate::worktree_convert_inspection::{
+    CONVERTING_SUFFIX,
+    Candidate,
+    Owned,
+    Refusal,
+    RefusalKind,
+    converting_path,
+    inspect,
+    refusals,
+};
+use crate::worktree_convert_journal::{
+    CLAIM_PREFIX,
+    Journal,
+    legacy_lock_is_held,
+};
+pub use crate::worktree_convert_journal::{
+    JOURNAL_NAME,
+    Phase,
+};
+use crate::worktree_convert_leftover_stage_record::{
+    LeftoverStage,
+    forget_leftover_stage,
+    leftover_stage_of,
+    record_leftover_stage,
+};
+use crate::worktree_convert_phases::{
+    Job,
+    Where,
+    copy_phase,
+    finish,
+    hold_index_lock,
+    identity_of_path,
+    index_phase,
+    old_tree_is_at,
+    removal_phase,
+    stage_free_identity,
+    stage_identity_of,
+    swap_phase,
+    verify_swap,
+};
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What a run did with one worktree.
@@ -100,7 +148,10 @@ fn new_token() -> String {
         Ok(elapsed) => elapsed.as_nanos(),
         Err(_before_epoch) => 0,
     };
-    return format!("monochromatic-git-policy-cli convert-worktree-to-subvolume pid={} at={nanos}", std::process::id());
+    return format!(
+        "monochromatic-git-policy-cli convert-worktree-to-subvolume pid={} at={nanos}",
+        std::process::id()
+    );
 }
 
 /// What:
@@ -119,7 +170,11 @@ fn processes_inside(directory: &Path) -> Vec<String> {
     let scan = processes_using(&UseTarget::Inside(directory));
     let mut holders: Vec<String> = Vec::new();
     for user in &scan.users {
-        holders.push(format!("process {} ({})", user.pid, user.command.as_deref().unwrap_or("unknown")));
+        holders.push(format!(
+            "process {} ({})",
+            user.pid,
+            user.command.as_deref().unwrap_or("unknown")
+        ));
     }
     if let Some(why) = scan.unavailable.as_ref() {
         holders.push(format!("the process table cannot be read ({why})"));
@@ -153,7 +208,12 @@ fn processes_inside(directory: &Path) -> Vec<String> {
 /// ```ts
 /// const verdict = await abandonLeftoverStage(platform, path, reason, say); // undefined when there is no stage
 /// ```
-fn abandon_leftover_stage(platform: &dyn Platform, path: &Path, reason: &str, say: &mut dyn LineSink) -> Result<Option<Verdict>, MigrateError> {
+fn abandon_leftover_stage(
+    platform: &dyn Platform,
+    path: &Path,
+    reason: &str,
+    say: &mut dyn LineSink,
+) -> Result<Option<Verdict>, MigrateError> {
     return abandon_leftover_stage_seamed(platform, path, reason, say, &mut nothing_at_all);
 }
 
@@ -198,7 +258,10 @@ fn abandon_leftover_stage_seamed(
         )])));
     };
     let Some(found) = identity_of_path(&converting) else {
-        return Ok(Some(Verdict::Skipped(vec![format!("{} cannot be examined, so it is left alone", converting.display())])));
+        return Ok(Some(Verdict::Skipped(vec![format!(
+            "{} cannot be examined, so it is left alone",
+            converting.display()
+        )])));
     };
     if found != recorded.original && recorded.created != Some(found) {
         return Ok(Some(Verdict::Skipped(vec![format!(
@@ -235,11 +298,21 @@ fn abandon_leftover_stage_seamed(
             found.encode()
         )])));
     }
-    say.say(format!("  {reason}; what is left of that conversion is the copy at {}", converting.display()).as_str());
+    say.say(
+        format!(
+            "  {reason}; what is left of that conversion is the copy at {}",
+            converting.display()
+        )
+        .as_str(),
+    );
     if platform.is_subvolume_root(converting.as_path())? {
         platform.destroy_subvolume(converting.as_path())?;
     } else {
-        MigrateError::from_io_result(remove_tree(converting.as_path()), "remove the leftover stage", converting.as_path())?;
+        MigrateError::from_io_result(
+            remove_tree(converting.as_path()),
+            "remove the leftover stage",
+            converting.as_path(),
+        )?;
     }
     say.say(format!("  destroyed the leftover stage {}", converting.display()).as_str());
     forget_leftover_stage(path);
@@ -253,7 +326,12 @@ fn abandon_leftover_stage_seamed(
 /// release the lock and drop the journal.
 ///  Past the swap there is nothing to undo,
 /// and the command says to run it again.
-fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
+fn abandon(
+    platform: &dyn Platform,
+    candidate: &Candidate,
+    journal: Journal,
+    say: &mut dyn LineSink,
+) -> Result<Verdict, MigrateError> {
     return abandon_seamed(platform, candidate, journal, say, &mut nothing_at_all);
 }
 
@@ -294,15 +372,25 @@ fn abandon_seamed(
     // that process with it, so the same scan the removal phase runs comes first here too.
     let holders: Vec<String> = processes_inside(converting.as_path());
     if !holders.is_empty() {
-        return Ok(Verdict::Skipped(vec![format!("the stage {} is kept because {}; stop that and run the command again", converting.display(), holders.join("; "))]));
+        return Ok(Verdict::Skipped(vec![format!(
+            "the stage {} is kept because {}; stop that and run the command again",
+            converting.display(),
+            holders.join("; ")
+        )]));
     }
     between_scans();
     if stage_identity_of(candidate.path.as_path())?.is_some() {
         // An empty stage this conversion created and never recorded is its own as well, so the abandon destroys it instead
         // of leaving the person a directory only a hand can remove.
-        if crate::worktree_convert_unrecorded_stage::stage_is_this_conversions(&journal, candidate.path.as_path())? {
+        if crate::worktree_convert_unrecorded_stage::stage_is_this_conversions(
+            &journal,
+            candidate.path.as_path(),
+        )? {
             if !platform.is_subvolume_root(converting.as_path())? {
-                return Err(MigrateError::Journal(format!("{} is not a subvolume root, so it is not what this conversion created and is left alone", converting.display())));
+                return Err(MigrateError::Journal(format!(
+                    "{} is not a subvolume root, so it is not what this conversion created and is left alone",
+                    converting.display()
+                )));
             }
             // The last look before the call, as the removal phase takes it: the window is one check wide and cannot be closed
             // without a lock the owner does not want.
@@ -316,10 +404,20 @@ fn abandon_seamed(
             }
             platform.destroy_subvolume(converting.as_path())?;
         } else {
-            say.say(format!("  {} is not recorded as made by this conversion, so it was left alone", converting.display()).as_str());
+            say.say(
+                format!(
+                    "  {} is not recorded as made by this conversion, so it was left alone",
+                    converting.display()
+                )
+                .as_str(),
+            );
         }
     }
-    let job: Job<'_> = Job { candidate, converting, journal };
+    let job: Job<'_> = Job {
+        candidate,
+        converting,
+        journal,
+    };
     finish(&job)?;
     return Ok(Verdict::Abandoned);
 }
@@ -340,23 +438,39 @@ fn abandon_seamed(
 /// ```ts
 /// const verdict = await convertWorktree({ platform, path, options, interrupt, say });
 /// ```
-pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOptions, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
+pub fn convert_worktree(
+    platform: &dyn Platform,
+    path: &Path,
+    options: ConvertOptions,
+    interrupt: &Interrupt,
+    say: &mut dyn LineSink,
+) -> Result<Verdict, MigrateError> {
     // The platform's answer holds for the whole conversion, and a conversion on a platform that flushes turns the
     // flushes back on even inside a stand-in's extent, as a command's does.
     let _flushes: crate::subvolume_file_write_steps::WritesKeptInMemory =
-        crate::subvolume_file_write_steps::WritesKeptInMemory::for_flush_policy(platform.flushes_to_disk());
+        crate::subvolume_file_write_steps::WritesKeptInMemory::for_flush_policy(
+            platform.flushes_to_disk(),
+        );
     return convert_in_phases(platform, path, options, interrupt, say);
 }
 
 /// The phases of one conversion,
 /// which `convert_worktree` wraps in the platform's answer about flushing.
-fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptions, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
+fn convert_in_phases(
+    platform: &dyn Platform,
+    path: &Path,
+    options: ConvertOptions,
+    interrupt: &Interrupt,
+    say: &mut dyn LineSink,
+) -> Result<Verdict, MigrateError> {
     let candidate: Candidate = match inspect(path) {
         Ok(found) => found,
         Err(reason) => {
             // A path without a registration can still own the stage of a conversion the removal cut off, and the abandon is
             // the one verb that may destroy it.
-            if options.abandon && let Some(verdict) = abandon_leftover_stage(platform, path, reason.as_str(), say)? {
+            if options.abandon
+                && let Some(verdict) = abandon_leftover_stage(platform, path, reason.as_str(), say)?
+            {
                 return Ok(verdict);
             }
             return Ok(Verdict::Skipped(vec![reason]));
@@ -367,13 +481,19 @@ fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptio
     let _claim: Option<OwnerClaim> = if options.dry_run {
         None
     } else {
-        match take_claim(candidate.admin.as_path(), std::ffi::OsStr::new(CLAIM_PREFIX))? {
+        match take_claim(
+            candidate.admin.as_path(),
+            std::ffi::OsStr::new(CLAIM_PREFIX),
+        )? {
             ClaimOutcome::Held(held) => {
                 if legacy_lock_is_held(candidate.admin.as_path())? {
                     return Ok(Verdict::Skipped(vec![format!(
                         "another conversion of {} is running (a command of release 0.5.20 or older holds {}), so this one did not start",
                         candidate.path.display(),
-                        candidate.admin.join(crate::worktree_convert_journal::LOCK_NAME).display()
+                        candidate
+                            .admin
+                            .join(crate::worktree_convert_journal::LOCK_NAME)
+                            .display()
                     )]));
                 }
                 Some(held)
@@ -405,7 +525,9 @@ fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptio
         && found.phase == Phase::Synced
     {
         let converting: PathBuf = converting_path(candidate.path.as_path());
-        if old_tree_is_at(found, candidate.path.as_path(), converting.as_path()) == Where::AtConverting {
+        if old_tree_is_at(found, candidate.path.as_path(), converting.as_path())
+            == Where::AtConverting
+        {
             found.phase = Phase::Exchanged;
             if !options.dry_run {
                 found.save(candidate.admin.as_path())?;
@@ -415,7 +537,9 @@ fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptio
     if options.abandon {
         return match journal {
             Some(found) => abandon(platform, &candidate, found, say),
-            None => Ok(Verdict::Skipped(vec![String::from("no conversion is in progress here, so there is nothing to abandon")])),
+            None => Ok(Verdict::Skipped(vec![String::from(
+                "no conversion is in progress here, so there is nothing to abandon",
+            )])),
         };
     }
     if journal.is_none() && platform.is_subvolume_root(candidate.path.as_path())? {
@@ -431,12 +555,19 @@ fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptio
         // Only what this command owns is exempt: the index lock that holds its token, and the stage whose identity it recorded.
         let owned: Owned = match journal.as_ref() {
             Some(found) => Owned {
-                index_lock: is_ours(candidate.admin.join("index.lock").as_path(), found.token.as_str()),
-                stage: crate::worktree_convert_unrecorded_stage::stage_is_this_conversions(found, candidate.path.as_path())?,
+                index_lock: is_ours(
+                    candidate.admin.join("index.lock").as_path(),
+                    found.token.as_str(),
+                ),
+                stage: crate::worktree_convert_unrecorded_stage::stage_is_this_conversions(
+                    found,
+                    candidate.path.as_path(),
+                )?,
             },
             None => Owned::default(),
         };
-        let reasons: Vec<Refusal> = refusals(platform, &candidate, owned, options.command_line_attributes);
+        let reasons: Vec<Refusal> =
+            refusals(platform, &candidate, owned, options.command_line_attributes);
         if !reasons.is_empty() {
             let mut texts: Vec<String> = Vec::new();
             for reason in reasons {
@@ -446,7 +577,11 @@ fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptio
         }
     }
     if options.dry_run {
-        return Ok(if resuming { Verdict::Resumed } else { Verdict::WouldConvert });
+        return Ok(if resuming {
+            Verdict::Resumed
+        } else {
+            Verdict::WouldConvert
+        });
     }
     let old: ObjectId = stage_free_identity(candidate.path.as_path())?;
     let token: String = match journal.as_ref() {
@@ -463,7 +598,11 @@ fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptio
         synced_ms: None,
     });
     let converting: PathBuf = converting_path(candidate.path.as_path());
-    let mut job: Job<'_> = Job { candidate: &candidate, converting, journal: started };
+    let mut job: Job<'_> = Job {
+        candidate: &candidate,
+        converting,
+        journal: started,
+    };
     if !resuming {
         // The journal first, made exclusively: the lock and the subvolume exist only after the journal names them.
         job.journal.create_new(candidate.admin.as_path())?;
@@ -472,7 +611,13 @@ fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptio
         copy_phase(platform, &mut job, interrupt, say)?;
         // Both objects this conversion may leave at the converting name are recorded beside the worktree now, because the
         // journal that names them dies with the registration.
-        record_leftover_stage(candidate.path.as_path(), &LeftoverStage { original: job.journal.old_identity, created: job.journal.new_identity });
+        record_leftover_stage(
+            candidate.path.as_path(),
+            &LeftoverStage {
+                original: job.journal.old_identity,
+                created: job.journal.new_identity,
+            },
+        );
         swap_phase(platform, &mut job, interrupt)?;
     }
     verify_swap(platform, &job)?;
@@ -486,7 +631,11 @@ fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptio
         removal_phase(platform, &mut job, interrupt)?;
     }
     finish(&job)?;
-    return Ok(if resuming { Verdict::Resumed } else { Verdict::Converted });
+    return Ok(if resuming {
+        Verdict::Resumed
+    } else {
+        Verdict::Converted
+    });
 }
 
 /// Conversion controls stay out of the release executable.

@@ -17,7 +17,11 @@
 //! function effectiveEnvironment(overlay: [string, string][]): [string, string][];
 //! ```
 
-use crate::child_environment::{COUNT_VARIABLE, environment_value, parse_config_count};
+use crate::child_environment::{
+    COUNT_VARIABLE,
+    environment_value,
+    parse_config_count,
+};
 use std::ffi::OsString;
 
 /// The environment variables a plain read tolerates,
@@ -201,7 +205,10 @@ pub(crate) fn env_config_is_plain(variables: &[(OsString, OsString)]) -> bool {
 /// ```ts
 /// envConfigKeys(variables).every((key) => !declines(key)); // false when malformed
 /// ```
-pub fn env_config_avoids(variables: &[(OsString, OsString)], declines: &dyn Fn(&str) -> bool) -> bool {
+pub fn env_config_avoids(
+    variables: &[(OsString, OsString)],
+    declines: &dyn Fn(&str) -> bool,
+) -> bool {
     let Some(count_text) = environment_value(variables, COUNT_VARIABLE) else {
         return true;
     };
@@ -212,7 +219,8 @@ pub fn env_config_avoids(variables: &[(OsString, OsString)], declines: &dyn Fn(&
         return false;
     }
     for index in 0..count {
-        let Some(key) = environment_value(variables, format!("GIT_CONFIG_KEY_{index}").as_str()) else {
+        let Some(key) = environment_value(variables, format!("GIT_CONFIG_KEY_{index}").as_str())
+        else {
             return false;
         };
         match key.to_str() {

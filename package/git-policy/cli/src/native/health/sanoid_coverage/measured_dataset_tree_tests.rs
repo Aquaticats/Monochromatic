@@ -16,17 +16,42 @@
 //! expect(tree.holdingDataset('/home/someone/.npm')).toBe('tank/nosnap/npm');
 //! ```
 
-use super::{MeasuredDataset, MeasuredTree, has_path_mountpoint, is_under};
+use super::{
+    MeasuredDataset,
+    MeasuredTree,
+    has_path_mountpoint,
+    is_under,
+};
 
 /// A tree of four datasets with the mount points a machine reports.
 fn a_tree() -> MeasuredTree {
     return MeasuredTree {
         datasets: vec![
-            MeasuredDataset { name: String::from("tank/home"), mountpoint: Some(String::from("/fixture/home")), auto_snapshot: None },
-            MeasuredDataset { name: String::from("tank/home/worktrees"), mountpoint: Some(String::from("/fixture/home/.claude/worktrees")), auto_snapshot: None },
-            MeasuredDataset { name: String::from("tank/homework"), mountpoint: Some(String::from("/fixture/homework")), auto_snapshot: None },
-            MeasuredDataset { name: String::from("tank/nosnap/npm"), mountpoint: Some(String::from("/fixture/home/.npm")), auto_snapshot: Some(String::from("false")) },
-            MeasuredDataset { name: String::from("tank/nosnap"), mountpoint: Some(String::from("none")), auto_snapshot: Some(String::from("false")) },
+            MeasuredDataset {
+                name: String::from("tank/home"),
+                mountpoint: Some(String::from("/fixture/home")),
+                auto_snapshot: None,
+            },
+            MeasuredDataset {
+                name: String::from("tank/home/worktrees"),
+                mountpoint: Some(String::from("/fixture/home/.claude/worktrees")),
+                auto_snapshot: None,
+            },
+            MeasuredDataset {
+                name: String::from("tank/homework"),
+                mountpoint: Some(String::from("/fixture/homework")),
+                auto_snapshot: None,
+            },
+            MeasuredDataset {
+                name: String::from("tank/nosnap/npm"),
+                mountpoint: Some(String::from("/fixture/home/.npm")),
+                auto_snapshot: Some(String::from("false")),
+            },
+            MeasuredDataset {
+                name: String::from("tank/nosnap"),
+                mountpoint: Some(String::from("none")),
+                auto_snapshot: Some(String::from("false")),
+            },
         ],
     };
 }
@@ -35,10 +60,19 @@ fn a_tree() -> MeasuredTree {
 #[test]
 fn a_name_on_a_separator_is_under_and_a_prefix_alone_is_not() {
     assert!(is_under("tank/home/worktrees", "tank/home"));
-    assert!(is_under("tank/home", "tank"), "a child of the pool is under it");
-    assert!(!is_under("tank/homework", "tank/home"), "a name that merely begins with the ancestor is not under it");
+    assert!(
+        is_under("tank/home", "tank"),
+        "a child of the pool is under it"
+    );
+    assert!(
+        !is_under("tank/homework", "tank/home"),
+        "a name that merely begins with the ancestor is not under it"
+    );
     assert!(!is_under("tank/hom", "tank/home"));
-    assert!(!is_under("tank/home", "tank/home"), "a dataset is not under itself");
+    assert!(
+        !is_under("tank/home", "tank/home"),
+        "a dataset is not under itself"
+    );
 }
 
 /// Only a value that begins with `/` is a path mount point.
@@ -56,20 +90,49 @@ fn only_a_value_that_begins_with_a_slash_is_a_path() {
 #[test]
 fn the_datasets_under_an_ancestor_are_its_descendants_in_name_order() {
     let tree: MeasuredTree = a_tree();
-    let under: Vec<&str> = tree.datasets_under("tank/home").iter().map(|dataset| return dataset.name.as_str()).collect();
-    assert_eq!(under, vec!["tank/home/worktrees"], "tank/homework only begins with the ancestor's name");
+    let under: Vec<&str> = tree
+        .datasets_under("tank/home")
+        .iter()
+        .map(|dataset| return dataset.name.as_str())
+        .collect();
+    assert_eq!(
+        under,
+        vec!["tank/home/worktrees"],
+        "tank/homework only begins with the ancestor's name"
+    );
     assert_eq!(tree.datasets_under("tank/homework").len(), 0);
-    let under_pool: Vec<&str> = tree.datasets_under("tank").iter().map(|dataset| return dataset.name.as_str()).collect();
-    assert_eq!(under_pool, vec!["tank/home", "tank/home/worktrees", "tank/homework", "tank/nosnap", "tank/nosnap/npm"]);
+    let under_pool: Vec<&str> = tree
+        .datasets_under("tank")
+        .iter()
+        .map(|dataset| return dataset.name.as_str())
+        .collect();
+    assert_eq!(
+        under_pool,
+        vec![
+            "tank/home",
+            "tank/home/worktrees",
+            "tank/homework",
+            "tank/nosnap",
+            "tank/nosnap/npm"
+        ]
+    );
 }
 
 /// The measured ancestors of one dataset come nearest first.
 #[test]
 fn the_measured_ancestors_come_nearest_first() {
     let tree: MeasuredTree = a_tree();
-    let ancestors: Vec<&str> = tree.ancestors("tank/home/worktrees").iter().map(|dataset| return dataset.name.as_str()).collect();
+    let ancestors: Vec<&str> = tree
+        .ancestors("tank/home/worktrees")
+        .iter()
+        .map(|dataset| return dataset.name.as_str())
+        .collect();
     assert_eq!(ancestors, vec!["tank/home"]);
-    let npm_ancestors: Vec<&str> = tree.ancestors("tank/nosnap/npm").iter().map(|dataset| return dataset.name.as_str()).collect();
+    let npm_ancestors: Vec<&str> = tree
+        .ancestors("tank/nosnap/npm")
+        .iter()
+        .map(|dataset| return dataset.name.as_str())
+        .collect();
     assert_eq!(npm_ancestors, vec!["tank/nosnap"]);
 }
 
@@ -78,8 +141,14 @@ fn the_measured_ancestors_come_nearest_first() {
 #[test]
 fn the_holding_dataset_is_the_longest_mount_point_the_path_is_under() {
     let tree: MeasuredTree = a_tree();
-    assert_eq!(tree.holding_dataset("/fixture/home/.npm/packages"), Some("tank/nosnap/npm"));
-    assert_eq!(tree.holding_dataset("/fixture/home/.local/share/pnpm/store"), Some("tank/home"));
+    assert_eq!(
+        tree.holding_dataset("/fixture/home/.npm/packages"),
+        Some("tank/nosnap/npm")
+    );
+    assert_eq!(
+        tree.holding_dataset("/fixture/home/.local/share/pnpm/store"),
+        Some("tank/home")
+    );
     assert_eq!(tree.holding_dataset("/fixture/home"), Some("tank/home"));
 }
 
@@ -90,12 +159,26 @@ fn the_holding_dataset_is_the_longest_mount_point_the_path_is_under() {
 fn the_holding_dataset_is_the_deepest_mount_point_not_the_longest_name() {
     let tree: MeasuredTree = MeasuredTree {
         datasets: vec![
-            MeasuredDataset { name: String::from("tank/nosnap/npm"), mountpoint: Some(String::from("/fixture/home")), auto_snapshot: Some(String::from("false")) },
-            MeasuredDataset { name: String::from("tank/home"), mountpoint: Some(String::from("/fixture/home/.npm")), auto_snapshot: None },
+            MeasuredDataset {
+                name: String::from("tank/nosnap/npm"),
+                mountpoint: Some(String::from("/fixture/home")),
+                auto_snapshot: Some(String::from("false")),
+            },
+            MeasuredDataset {
+                name: String::from("tank/home"),
+                mountpoint: Some(String::from("/fixture/home/.npm")),
+                auto_snapshot: None,
+            },
         ],
     };
-    assert_eq!(tree.holding_dataset("/fixture/home/.npm/packages"), Some("tank/home"));
-    assert_eq!(tree.holding_dataset("/fixture/home/other"), Some("tank/nosnap/npm"));
+    assert_eq!(
+        tree.holding_dataset("/fixture/home/.npm/packages"),
+        Some("tank/home")
+    );
+    assert_eq!(
+        tree.holding_dataset("/fixture/home/other"),
+        Some("tank/nosnap/npm")
+    );
 }
 
 /// A path next to a mount point but not under it is held by nothing there,
@@ -103,8 +186,17 @@ fn the_holding_dataset_is_the_deepest_mount_point_not_the_longest_name() {
 #[test]
 fn a_path_beside_a_mount_point_is_held_by_nothing_there() {
     let tree: MeasuredTree = a_tree();
-    assert_eq!(tree.holding_dataset("/fixture/homework/x"), Some("tank/homework"));
+    assert_eq!(
+        tree.holding_dataset("/fixture/homework/x"),
+        Some("tank/homework")
+    );
     assert_eq!(tree.holding_dataset("/fixture/other"), None);
-    let only_unmounted: MeasuredTree = MeasuredTree { datasets: vec![MeasuredDataset { name: String::from("tank/nosnap"), mountpoint: Some(String::from("none")), auto_snapshot: None }] };
+    let only_unmounted: MeasuredTree = MeasuredTree {
+        datasets: vec![MeasuredDataset {
+            name: String::from("tank/nosnap"),
+            mountpoint: Some(String::from("none")),
+            auto_snapshot: None,
+        }],
+    };
     assert_eq!(only_unmounted.holding_dataset("/anywhere"), None);
 }

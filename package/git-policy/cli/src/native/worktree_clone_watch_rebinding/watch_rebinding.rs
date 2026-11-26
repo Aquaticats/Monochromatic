@@ -23,7 +23,11 @@
 //! const held = openThePath(slot); const watches = sameObject(recorded, held) ? 'same' : 'blind';
 //! ```
 
-use crate::fs_beneath::{ObjectId, identity_of, open_root};
+use crate::fs_beneath::{
+    ObjectId,
+    identity_of,
+    open_root,
+};
 use crate::shell_quote::shell_quote;
 use std::path::Path;
 
@@ -105,8 +109,15 @@ pub fn the_object_the_path_shows(slot: &Path) -> std::io::Result<ObjectId> {
 /// ```ts
 /// function whatAWatchSetBeforeStillSees(before: ObjectId, now: ObjectId): Watches;
 /// ```
-pub fn what_a_watch_set_before_still_sees(before: ObjectId, now: ObjectId) -> Watches {
-    return if before == now { Watches::StillTheSameTree } else { Watches::Blind };
+pub fn what_a_watch_set_before_still_sees(
+    before: ObjectId,
+    now: ObjectId,
+) -> Watches {
+    return if before == now {
+        Watches::StillTheSameTree
+    } else {
+        Watches::Blind
+    };
 }
 
 /// What:
@@ -145,14 +156,20 @@ pub fn the_persons_line(slot: &Path) -> String {
 /// ```ts
 /// function afterTheMount(slot: string, recorded: ObjectId): AfterTheMount;
 /// ```
-pub fn after_the_mount(slot: &Path, recorded: ObjectId) -> std::io::Result<AfterTheMount> {
+pub fn after_the_mount(
+    slot: &Path,
+    recorded: ObjectId,
+) -> std::io::Result<AfterTheMount> {
     let now: ObjectId = the_object_the_path_shows(slot)?;
     let watches: Watches = what_a_watch_set_before_still_sees(recorded, now);
     let line: Option<String> = match watches {
         Watches::StillTheSameTree => None,
         Watches::Blind => Some(the_persons_line(slot)),
     };
-    return Ok(AfterTheMount { watches, line });
+    return Ok(AfterTheMount {
+        watches,
+        line,
+    });
 }
 
 /// Controls stay out of the release executable.

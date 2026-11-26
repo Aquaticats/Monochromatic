@@ -36,12 +36,19 @@ fn two_paths_in_different_slots() -> (PathBuf, PathBuf) {
 #[test]
 fn a_name_that_is_held_is_refused_until_the_holder_drops() {
     let path: PathBuf = PathBuf::from("claim-control-held");
-    let first: HeldName = hold_name_while_publishing(path.as_path(), FAR_LONGER_THAN_A_CONTROL).expect("a free name is held");
-    let refused: std::io::Error = hold_name_while_publishing(path.as_path(), Duration::ZERO).err().expect("the name is held");
+    let first: HeldName = hold_name_while_publishing(path.as_path(), FAR_LONGER_THAN_A_CONTROL)
+        .expect("a free name is held");
+    let refused: std::io::Error = hold_name_while_publishing(path.as_path(), Duration::ZERO)
+        .err()
+        .expect("the name is held");
     assert_eq!(refused.kind(), std::io::ErrorKind::TimedOut);
-    assert!(refused.to_string().contains("claim-control-held"), "{refused}");
+    assert!(
+        refused.to_string().contains("claim-control-held"),
+        "{refused}"
+    );
     drop(first);
-    hold_name_while_publishing(path.as_path(), Duration::ZERO).expect("the name is free once the holder dropped");
+    hold_name_while_publishing(path.as_path(), Duration::ZERO)
+        .expect("the name is free once the holder dropped");
 }
 
 /// A thread that waits for a held name gets it as soon as the holder lets go,
@@ -49,16 +56,24 @@ fn a_name_that_is_held_is_refused_until_the_holder_drops() {
 #[test]
 fn a_waiting_thread_gets_the_name_when_the_holder_lets_go() {
     let path: PathBuf = PathBuf::from("claim-control-waiting");
-    let first: HeldName = hold_name_while_publishing(path.as_path(), FAR_LONGER_THAN_A_CONTROL).expect("held");
+    let first: HeldName =
+        hold_name_while_publishing(path.as_path(), FAR_LONGER_THAN_A_CONTROL).expect("held");
     let waiter_path: PathBuf = path.clone();
     let waiter = std::thread::spawn(move || {
-        return hold_name_while_publishing(waiter_path.as_path(), FAR_LONGER_THAN_A_CONTROL).map(drop);
+        return hold_name_while_publishing(waiter_path.as_path(), FAR_LONGER_THAN_A_CONTROL)
+            .map(drop);
     });
     // The waiter is waiting while the holder holds: a thread that finished could not have been waiting.
     std::thread::sleep(Duration::from_millis(50));
-    assert!(!waiter.is_finished(), "the waiter must not hold a name that is held");
+    assert!(
+        !waiter.is_finished(),
+        "the waiter must not hold a name that is held"
+    );
     drop(first);
-    waiter.join().expect("the waiter").expect("the waiter got the name");
+    waiter
+        .join()
+        .expect("the waiter")
+        .expect("the waiter got the name");
 }
 
 /// A claim is given back when the publish panics,
@@ -68,12 +83,15 @@ fn a_panic_while_holding_gives_the_name_back() {
     let path: PathBuf = PathBuf::from("claim-control-panic");
     let panicking_path: PathBuf = path.clone();
     let outcome = std::thread::spawn(move || {
-        let _held: HeldName = hold_name_while_publishing(panicking_path.as_path(), FAR_LONGER_THAN_A_CONTROL).expect("held");
+        let _held: HeldName =
+            hold_name_while_publishing(panicking_path.as_path(), FAR_LONGER_THAN_A_CONTROL)
+                .expect("held");
         panic!("the publish panicked");
     })
     .join();
     assert!(outcome.is_err(), "the control's thread panicked");
-    hold_name_while_publishing(path.as_path(), Duration::ZERO).expect("the claim was given back by the unwind");
+    hold_name_while_publishing(path.as_path(), Duration::ZERO)
+        .expect("the claim was given back by the unwind");
 }
 
 /// Names in different slots are held at once;
@@ -82,7 +100,8 @@ fn a_panic_while_holding_gives_the_name_back() {
 fn names_in_different_slots_are_held_at_the_same_time() {
     let (first, second) = two_paths_in_different_slots();
     let _a: HeldName = hold_name_while_publishing(first.as_path(), Duration::ZERO).expect("first");
-    let _b: HeldName = hold_name_while_publishing(second.as_path(), Duration::ZERO).expect("second, in another slot");
+    let _b: HeldName = hold_name_while_publishing(second.as_path(), Duration::ZERO)
+        .expect("second, in another slot");
 }
 
 /// Many threads that each hold one name,
@@ -100,7 +119,11 @@ fn the_claim_makes_a_read_and_a_write_one_step() {
             let shared: Arc<AtomicUsize> = Arc::clone(&counter);
             return std::thread::spawn(move || {
                 for _ in 0..ROUNDS {
-                    let _held: HeldName = hold_name_while_publishing(Path::new("claim-control-counter"), FAR_LONGER_THAN_A_CONTROL).expect("held");
+                    let _held: HeldName = hold_name_while_publishing(
+                        Path::new("claim-control-counter"),
+                        FAR_LONGER_THAN_A_CONTROL,
+                    )
+                    .expect("held");
                     let seen: usize = shared.load(Ordering::SeqCst);
                     std::thread::yield_now();
                     shared.store(seen + 1, Ordering::SeqCst);
@@ -122,9 +145,18 @@ fn the_claim_makes_a_read_and_a_write_one_step() {
 #[test]
 fn the_wait_for_a_held_name_is_a_wake_on_the_flag_and_not_a_poll() {
     let source: &str = include_str!("name_held_while_one_thread_publishes_it.rs");
-    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    let code: String = source
+        .lines()
+        .filter(|line| {
+            return !line.trim_start().starts_with("//");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
     for forbidden in ["thread::sleep", "yield_now"] {
-        assert!(!code.contains(forbidden), "the wait for a held name still polls with `{forbidden}`");
+        assert!(
+            !code.contains(forbidden),
+            "the wait for a held name still polls with `{forbidden}`"
+        );
     }
 }
 
@@ -137,11 +169,19 @@ fn a_wait_for_a_name_that_is_never_given_back_ends_at_its_bound() {
     let path: PathBuf = PathBuf::from("claim-control-bounded-wait");
     let _held: HeldName = hold_name_while_publishing(path.as_path(), Duration::ZERO).expect("held");
     let started: Instant = Instant::now();
-    let refused: std::io::Error = hold_name_while_publishing(path.as_path(), BOUND).err().expect("the name is never given back");
+    let refused: std::io::Error = hold_name_while_publishing(path.as_path(), BOUND)
+        .err()
+        .expect("the name is never given back");
     let waited: Duration = started.elapsed();
     assert_eq!(refused.kind(), std::io::ErrorKind::TimedOut);
-    assert!(waited >= BOUND, "the wait ended at {waited:?}, before its bound of {BOUND:?}");
-    assert!(waited < BOUND + GENEROUS_SLACK, "the wait took {waited:?} for a bound of {BOUND:?}");
+    assert!(
+        waited >= BOUND,
+        "the wait ended at {waited:?}, before its bound of {BOUND:?}"
+    );
+    assert!(
+        waited < BOUND + GENEROUS_SLACK,
+        "the wait took {waited:?} for a bound of {BOUND:?}"
+    );
 }
 
 /// Waiters that are woken one after another by a name that is taken and given back many times all get it inside their bound:
@@ -173,5 +213,9 @@ fn no_wake_is_lost_when_many_threads_take_and_give_back_one_name() {
     for worker in workers {
         worker.join().expect("a worker");
     }
-    assert_eq!(timed_out.load(Ordering::SeqCst), 0, "a waiter ran out its bound while the name was being given back");
+    assert_eq!(
+        timed_out.load(Ordering::SeqCst),
+        0,
+        "a waiter ran out its bound while the name was being given back"
+    );
 }

@@ -28,20 +28,43 @@
 //! ```
 
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
-use crate::worktree_clone_mount_protocol::clone_mount_intent::{IntentReading, read_intent};
+use crate::worktree_clone_mount_protocol::clone_mount_intent::{
+    IntentReading,
+    read_intent,
+};
 use crate::worktree_clone_removal_proof_and_plan::loss_names::NamesToBeLost;
 use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
-    EnteredRemoval, PreparedRemoval, RemovalClock, RemovalEntry, enter_the_removal, facts_of, prepare_the_removal_over_a_plan, refuse_a_plan_of_another_clone,
+    EnteredRemoval,
+    PreparedRemoval,
+    RemovalClock,
+    RemovalEntry,
+    enter_the_removal,
+    facts_of,
+    prepare_the_removal_over_a_plan,
+    refuse_a_plan_of_another_clone,
 };
-use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{CloneAbsence, settle_the_recorded_names, the_clone_absence};
-use crate::worktree_clone_removal_proof_and_plan::removal_identities::{prove_the_adds_registration, read_the_recorded_binding};
+use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
+    CloneAbsence,
+    settle_the_recorded_names,
+    the_clone_absence,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
+    prove_the_adds_registration,
+    read_the_recorded_binding,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use crate::worktree_clone_removal_proof_and_plan::unmount_request::{ExpectedUnmount, RemovalIntent, RemovalUnmount, UnmountProof, verify_the_answer};
+use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
+    ExpectedUnmount,
+    RemovalIntent,
+    RemovalUnmount,
+    UnmountProof,
+    verify_the_answer,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -107,29 +130,73 @@ pub fn start_the_removal(
     probe: &dyn DatasetReader,
 ) -> Result<TheStart, RemovalStop> {
     let recorded = read_the_recorded_binding(entry.common_dir, entry.slot)?;
-    let standing: Option<DestructionPlan> = read_an_existing_plan(entry.common_dir, recorded.clone_guid).map_err(|refusal| {
-        return RemovalStop::PlanUnreadable { path: crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir).join(recorded.clone_guid.file_name()), refusal };
-    })?;
+    let standing: Option<DestructionPlan> =
+        read_an_existing_plan(entry.common_dir, recorded.clone_guid).map_err(|refusal| {
+            return RemovalStop::PlanUnreadable {
+                path: crate::worktree_clone_binding_record::registration_home::plans_folder(
+                    entry.common_dir,
+                )
+                .join(recorded.clone_guid.file_name()),
+                refusal,
+            };
+        })?;
     let Some(plan) = standing else {
-        return Ok(TheStart::Present { entered: enter_the_removal(entry, reads, unmount, clock)? });
+        return Ok(TheStart::Present {
+            entered: enter_the_removal(entry, reads, unmount, clock)?,
+        });
     };
     refuse_a_plan_of_another_clone(&plan, &recorded)?;
-    let plan_path: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir).join(recorded.clone_guid.file_name());
+    let plan_path: PathBuf =
+        crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir)
+            .join(recorded.clone_guid.file_name());
     let head: HeadWord = plan.head;
     return match the_clone_absence(probe, recorded.clone_dataset.as_str(), recorded.clone_guid)? {
-        CloneAbsence::There { .. } => Ok(TheStart::Present { entered: adopt_the_removal(entry, reads, unmount, clock, probe)? }),
-        CloneAbsence::Reused { guid } => Err(RemovalStop::TheCloneNameWasReused { name: recorded.clone_dataset, recorded_guid: recorded.clone_guid.file_name(), live_guid: guid.file_name() }),
+        CloneAbsence::There {
+            ..
+        } => Ok(TheStart::Present {
+            entered: adopt_the_removal(entry, reads, unmount, clock, probe)?,
+        }),
+        CloneAbsence::Reused {
+            guid,
+        } => Err(RemovalStop::TheCloneNameWasReused {
+            name: recorded.clone_dataset,
+            recorded_guid: recorded.clone_guid.file_name(),
+            live_guid: guid.file_name(),
+        }),
         CloneAbsence::Gone => match head {
             HeadWord::Requested | HeadWord::Unknown | HeadWord::Gone => {
                 let lost: NamesToBeLost = NamesToBeLost {
                     slot: String::from(entry.slot),
                     dataset: recorded.clone_dataset.clone(),
-                    snapshots: plan.named_snapshots().iter().map(|snapshot| return snapshot.name.clone()).collect(),
-                    bookmarks: reads.bookmarks_of(recorded.clone_dataset.as_str(), recorded.clone_guid).map(|objects| return objects.iter().map(|object| return object.full_name()).collect()).unwrap_or_default(),
+                    snapshots: plan
+                        .named_snapshots()
+                        .iter()
+                        .map(|snapshot| return snapshot.name.clone())
+                        .collect(),
+                    bookmarks: reads
+                        .bookmarks_of(recorded.clone_dataset.as_str(), recorded.clone_guid)
+                        .map(|objects| {
+                            return objects
+                                .iter()
+                                .map(|object| return object.full_name())
+                                .collect();
+                        })
+                        .unwrap_or_default(),
                 };
-                Ok(TheStart::Gone { plan, plan_path, lost, pool: recorded.pool })
+                Ok(TheStart::Gone {
+                    plan,
+                    plan_path,
+                    lost,
+                    pool: recorded.pool,
+                })
             }
-            HeadWord::Present | HeadWord::Refused => Err(RemovalStop::TheCloneIsTheSettlingCommands { slot: String::from(entry.slot), path: plan_path, head: String::from(head.word()) }),
+            HeadWord::Present | HeadWord::Refused => {
+                Err(RemovalStop::TheCloneIsTheSettlingCommands {
+                    slot: String::from(entry.slot),
+                    path: plan_path,
+                    head: String::from(head.word()),
+                })
+            }
         },
     };
 }
@@ -164,30 +231,63 @@ pub fn adopt_the_removal(
     clock: &dyn RemovalClock,
     probe: &dyn DatasetReader,
 ) -> Result<EnteredRemoval, RemovalStop> {
-    let (prepared, standing): (PreparedRemoval, Option<DestructionPlan>) = prepare_the_removal_over_a_plan(entry, reads, false)?;
+    let (prepared, standing): (PreparedRemoval, Option<DestructionPlan>) =
+        prepare_the_removal_over_a_plan(entry, reads, false)?;
     let Some(mut plan) = standing else {
-        return Err(RemovalStop::APlanStands { slot: String::from(entry.slot), path: PathBuf::new() });
+        return Err(RemovalStop::APlanStands {
+            slot: String::from(entry.slot),
+            path: PathBuf::new(),
+        });
     };
     refuse_the_live_intent(probe, plan.facts.clone_dataset.as_str())?;
     let intent: RemovalIntent = RemovalIntent::fresh()?;
     let answer = unmount.request_the_unmount(&intent.mount_intent())?;
-    let proof: UnmountProof = verify_the_answer(&answer, &ExpectedUnmount { clone_guid: prepared.recorded.clone_guid, nonce: intent.nonce.clone() })?;
+    let proof: UnmountProof = verify_the_answer(
+        &answer,
+        &ExpectedUnmount {
+            clone_guid: prepared.recorded.clone_guid,
+            nonce: intent.nonce.clone(),
+        },
+    )?;
     prove_the_adds_registration(entry.common_dir, &prepared.recorded)?;
-    plan.facts = facts_of(&prepared.recorded, &prepared.proven, &proof, prepared.registration, clock)?;
+    plan.facts = facts_of(
+        &prepared.recorded,
+        &prepared.proven,
+        &proof,
+        prepared.registration,
+        clock,
+    )?;
     settle_the_recorded_names(&mut plan, prepared.proven.inventory.objects.as_slice())?;
     let folder: PlanFolder = PlanFolder::open_or_create(entry.common_dir).map_err(|refusal| {
-        return RemovalStop::PlanUnreadable { path: crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir), refusal };
+        return RemovalStop::PlanUnreadable {
+            path: crate::worktree_clone_binding_record::registration_home::plans_folder(
+                entry.common_dir,
+            ),
+            refusal,
+        };
     })?;
     let plan_path: PathBuf = folder.publish(&plan).map_err(|refusal| {
-        return RemovalStop::ThePlanCouldNotHoldTheAnswer { path: folder.path().join(prepared.recorded.clone_guid.file_name()), said: refusal.message(folder.path()) };
+        return RemovalStop::ThePlanCouldNotHoldTheAnswer {
+            path: folder.path().join(prepared.recorded.clone_guid.file_name()),
+            said: refusal.message(folder.path()),
+        };
     })?;
     let lost: NamesToBeLost = NamesToBeLost {
         slot: String::from(entry.slot),
         dataset: prepared.recorded.clone_dataset.clone(),
-        snapshots: plan.named_snapshots().iter().map(|snapshot| return snapshot.name.clone()).collect(),
+        snapshots: plan
+            .named_snapshots()
+            .iter()
+            .map(|snapshot| return snapshot.name.clone())
+            .collect(),
         bookmarks: prepared.lost.bookmarks.clone(),
     };
-    return Ok(EnteredRemoval { pool: prepared.recorded.pool, plan, plan_path, lost });
+    return Ok(EnteredRemoval {
+        pool: prepared.recorded.pool,
+        plan,
+        plan_path,
+        lost,
+    });
 }
 
 /// What:
@@ -209,13 +309,29 @@ pub fn adopt_the_removal(
 /// ```ts
 /// refuseTheLiveIntent(probe, clone);
 /// ```
-pub fn refuse_the_live_intent(probe: &dyn DatasetReader, clone: &str) -> Result<(), RemovalStop> {
-    let identity = probe.identity(clone).map_err(|failure| return RemovalStop::DoesNotAnswer { object: String::from(clone), reason: failure.message() })?;
+pub fn refuse_the_live_intent(
+    probe: &dyn DatasetReader,
+    clone: &str,
+) -> Result<(), RemovalStop> {
+    let identity = probe.identity(clone).map_err(|failure| {
+        return RemovalStop::DoesNotAnswer {
+            object: String::from(clone),
+            reason: failure.message(),
+        };
+    })?;
     return match read_intent(Some(&identity.properties), clone) {
         IntentReading::Request(_intent) => Ok(()),
-        IntentReading::Absent => Err(RemovalStop::NoLiveIntent { clone: String::from(clone) }),
-        IntentReading::Inherited { from } => Err(RemovalStop::NoLiveIntent { clone: format!("{clone} (inherited from {from})") }),
-        IntentReading::Refused(refusal) => Err(RemovalStop::NoLiveIntent { clone: format!("{clone} ({})", refusal.message()) }),
+        IntentReading::Absent => Err(RemovalStop::NoLiveIntent {
+            clone: String::from(clone),
+        }),
+        IntentReading::Inherited {
+            from,
+        } => Err(RemovalStop::NoLiveIntent {
+            clone: format!("{clone} (inherited from {from})"),
+        }),
+        IntentReading::Refused(refusal) => Err(RemovalStop::NoLiveIntent {
+            clone: format!("{clone} ({})", refusal.message()),
+        }),
     };
 }
 

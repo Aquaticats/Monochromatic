@@ -17,7 +17,11 @@
 //! ```
 
 /// The requests for the child of this test binary, its deadline and the check that its one test passed.
-use super::child_test_process::{ChildTest, finished, passed};
+use super::child_test_process::{
+    ChildTest,
+    finished,
+    passed,
+};
 /// `OsStr` is borrowed operating-system text of raw bytes.
 use std::ffi::OsStr;
 
@@ -26,13 +30,19 @@ const CHILD_VARIABLE: &str = "CLI_GIT_NO_THREADS_CHILD";
 
 /// Lowers the soft process limit to one in the child between its fork and its exec.
 fn apply_limit() -> std::io::Result<()> {
-    let mut found = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    let mut found = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
     // SAFETY: `getrlimit` and `setrlimit` are async-signal-safe and read and write only this local value.
     unsafe {
         if libc::getrlimit(libc::RLIMIT_NPROC, &mut found) != 0 {
             return Err(std::io::Error::last_os_error());
         }
-        let lowered = libc::rlimit { rlim_cur: 1, rlim_max: found.rlim_max };
+        let lowered = libc::rlimit {
+            rlim_cur: 1,
+            rlim_max: found.rlim_max,
+        };
         if libc::setrlimit(libc::RLIMIT_NPROC, &lowered) != 0 {
             return Err(std::io::Error::last_os_error());
         }
@@ -74,13 +84,19 @@ pub(crate) fn refuse_threads_again() -> std::io::Result<()> {
 /// The soft process limit,
 /// or the hard one when `allowed` is nothing.
 fn set_process_limit(allowed: Option<u64>) -> std::io::Result<()> {
-    let mut found = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    let mut found = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
     // SAFETY: `getrlimit` and `setrlimit` are async-signal-safe and read and write only this local value.
     unsafe {
         if libc::getrlimit(libc::RLIMIT_NPROC, &mut found) != 0 {
             return Err(std::io::Error::last_os_error());
         }
-        let wanted = libc::rlimit { rlim_cur: allowed.unwrap_or(found.rlim_max), rlim_max: found.rlim_max };
+        let wanted = libc::rlimit {
+            rlim_cur: allowed.unwrap_or(found.rlim_max),
+            rlim_max: found.rlim_max,
+        };
         if libc::setrlimit(libc::RLIMIT_NPROC, &wanted) != 0 {
             return Err(std::io::Error::last_os_error());
         }
@@ -118,11 +134,20 @@ mod tests;
 ///   return true;
 /// }
 /// ```
-pub(crate) fn ran_in_child(module: &str, name: &str) -> bool {
+pub(crate) fn ran_in_child(
+    module: &str,
+    name: &str,
+) -> bool {
     if std::env::var_os(CHILD_VARIABLE).is_some() {
         return false;
     }
-    let strip = |full: &str| -> String { return full.split_once("::").map_or(String::from(full), |(_, rest)| { return String::from(rest); }); };
+    let strip = |full: &str| -> String {
+        return full
+            .split_once("::")
+            .map_or(String::from(full), |(_, rest)| {
+                return String::from(rest);
+            });
+    };
     let probe_path: String = format!("{}::tests::thread_probe", strip(module_path!()));
     let environment: [(&str, &OsStr); 1] = [(CHILD_VARIABLE, OsStr::new("1"))];
     let probe = finished(ChildTest {

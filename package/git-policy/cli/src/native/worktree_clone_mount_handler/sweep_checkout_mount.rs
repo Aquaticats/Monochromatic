@@ -30,8 +30,14 @@
 //! const mount = liveCheckoutMounts.mountHolding('/home/user/Monochromatic'); // { source, filesystemType, shared }
 //! ```
 
-use crate::fs_mount_options::{read_mount_facts, MountFacts};
-use std::path::{Path, PathBuf};
+use crate::fs_mount_options::{
+    MountFacts,
+    read_mount_facts,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The leaf name the design gives the checkout dataset.
 pub const DESIGN_CHECKOUT_DATASET_NAME: &str = crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::DESIGN_CHECKOUT_DATASET_NAME;
@@ -44,7 +50,8 @@ pub const SHARED_FIELD_PREFIX: &str = "shared:";
 
 /// The filesystem type a dataset is attached as,
 /// which is the type the fallback reads a dataset name from.
-pub const ZFS_FILE_SYSTEM_TYPE: &str = crate::worktree_clone_mount::attach_the_clone::ZFS_FILE_SYSTEM_TYPE;
+pub const ZFS_FILE_SYSTEM_TYPE: &str =
+    crate::worktree_clone_mount::attach_the_clone::ZFS_FILE_SYSTEM_TYPE;
 
 /// What:
 ///  The mount the checkout is on.
@@ -82,7 +89,11 @@ impl CheckoutMount {
     /// The dataset the checkout is on,
     /// where it is a dataset mount rather than a folder on another filesystem.
     pub fn dataset(&self) -> Option<&str> {
-        return if self.filesystem_type == ZFS_FILE_SYSTEM_TYPE { Some(self.source.as_str()) } else { None };
+        return if self.filesystem_type == ZFS_FILE_SYSTEM_TYPE {
+            Some(self.source.as_str())
+        } else {
+            None
+        };
     }
 }
 
@@ -118,12 +129,17 @@ impl CheckoutMountRefusal {
     /// naming the table and the way forward.
     pub fn message(&self) -> String {
         return match self {
-            CheckoutMountRefusal::Unreadable { checkout, reason } => format!(
+            CheckoutMountRefusal::Unreadable {
+                checkout,
+                reason,
+            } => format!(
                 "the mount {} is on could not be read from `{}` ({reason}), so nothing here says which dataset the checkout is on or whether it is shared. Nothing was enumerated, attached or recorded. Ways forward: check that this process can read the kernel's mount table, then run the sweep again.",
                 checkout.display(),
                 crate::fs_mount_options::MOUNTINFO_PATH
             ),
-            CheckoutMountRefusal::NotMounted { checkout } => format!(
+            CheckoutMountRefusal::NotMounted {
+                checkout,
+            } => format!(
                 "`{}` lists no mount holding {}, so the checkout is not the mount the route expects. Nothing was enumerated, attached or recorded. Ways forward: check that the checkout dataset is mounted at that path, then run the sweep again.",
                 crate::fs_mount_options::MOUNTINFO_PATH,
                 checkout.display()
@@ -145,7 +161,10 @@ impl CheckoutMountRefusal {
 /// ```
 pub trait CheckoutMounts {
     /// The mount holding the given checkout.
-    fn mount_holding(&self, checkout: &Path) -> Result<CheckoutMount, CheckoutMountRefusal>;
+    fn mount_holding(
+        &self,
+        checkout: &Path,
+    ) -> Result<CheckoutMount, CheckoutMountRefusal>;
 }
 
 /// What:
@@ -163,14 +182,28 @@ pub trait CheckoutMounts {
 pub struct LiveCheckoutMounts;
 
 impl CheckoutMounts for LiveCheckoutMounts {
-    fn mount_holding(&self, checkout: &Path) -> Result<CheckoutMount, CheckoutMountRefusal> {
-        let read: Option<MountFacts> =
-            read_mount_facts(checkout).map_err(|reason| return CheckoutMountRefusal::Unreadable { checkout: checkout.to_path_buf(), reason })?;
+    fn mount_holding(
+        &self,
+        checkout: &Path,
+    ) -> Result<CheckoutMount, CheckoutMountRefusal> {
+        let read: Option<MountFacts> = read_mount_facts(checkout).map_err(|reason| {
+            return CheckoutMountRefusal::Unreadable {
+                checkout: checkout.to_path_buf(),
+                reason,
+            };
+        })?;
         let Some(facts) = read else {
-            return Err(CheckoutMountRefusal::NotMounted { checkout: checkout.to_path_buf() });
+            return Err(CheckoutMountRefusal::NotMounted {
+                checkout: checkout.to_path_buf(),
+            });
         };
         let shared: Option<String> = facts.optional_field(SHARED_FIELD_PREFIX).map(String::from);
-        return Ok(CheckoutMount { source: facts.source, filesystem_type: facts.filesystem_type, mount_point: facts.mount_point, shared });
+        return Ok(CheckoutMount {
+            source: facts.source,
+            filesystem_type: facts.filesystem_type,
+            mount_point: facts.mount_point,
+            shared,
+        });
     }
 }
 

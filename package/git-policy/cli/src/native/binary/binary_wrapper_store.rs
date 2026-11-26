@@ -49,12 +49,18 @@
 //! ```
 
 /// Native path and file types.
-use std::path::{Path, PathBuf};
-/// Distinguishes the partial files of callers in one process.
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// The name of the build,
 /// computed once per process.
 use std::sync::OnceLock;
+/// Distinguishes the partial files of callers in one process.
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 /// Ages.
 use std::time::Duration;
 
@@ -151,7 +157,10 @@ pub fn content_name(path: &Path) -> std::io::Result<String> {
         hasher.write(&chunk[..read]);
         length += u64::try_from(read).map_err(std::io::Error::other)?;
     }
-    return Ok(format!("{:016x}-{length}-monochromatic-git-policy-cli", hasher.finish()));
+    return Ok(format!(
+        "{:016x}-{length}-monochromatic-git-policy-cli",
+        hasher.finish()
+    ));
 }
 
 /// What:
@@ -178,15 +187,23 @@ pub fn name_once(
     compute: impl FnOnce() -> std::io::Result<String>,
 ) -> std::io::Result<String> {
     return cell
-        .get_or_init(|| { return compute().map_err(|error| { return (error.kind(), error.to_string()); }); })
+        .get_or_init(|| {
+            return compute().map_err(|error| {
+                return (error.kind(), error.to_string());
+            });
+        })
         .clone()
-        .map_err(|(kind, message)| { return std::io::Error::new(kind, message); });
+        .map_err(|(kind, message)| {
+            return std::io::Error::new(kind, message);
+        });
 }
 
 /// The name of the build `built`,
 /// read once per process.
 fn build_name(built: &Path) -> std::io::Result<String> {
-    return name_once(&BUILD_NAME, || { return content_name(built); });
+    return name_once(&BUILD_NAME, || {
+        return content_name(built);
+    });
 }
 
 /// What:
@@ -208,9 +225,14 @@ fn build_name(built: &Path) -> std::io::Result<String> {
 ///  When the store cannot be created or written,
 ///  the copy fails,
 ///  or the copy does not have the build's name.
-pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
+pub fn shared_copy(
+    built: &Path,
+    root: &Path,
+) -> std::io::Result<PathBuf> {
     let name: String = build_name(built)?;
-    return shared_copy_waiting(built, name.as_str(), root, &|| {}, &|store, stored| { return wait_for_publisher(store, stored); });
+    return shared_copy_waiting(built, name.as_str(), root, &|| {}, &|store, stored| {
+        return wait_for_publisher(store, stored);
+    });
 }
 
 /// What:
@@ -223,7 +245,13 @@ pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
 ///
 /// # Errors
 ///  The errors of `shared_copy`.
-pub fn shared_copy_waiting(built: &Path, name: &str, root: &Path, before_publish: &dyn Fn(), wait: &dyn Fn(&Path, &Path) -> WaitEnd) -> std::io::Result<PathBuf> {
+pub fn shared_copy_waiting(
+    built: &Path,
+    name: &str,
+    root: &Path,
+    before_publish: &dyn Fn(),
+    wait: &dyn Fn(&Path, &Path) -> WaitEnd,
+) -> std::io::Result<PathBuf> {
     let store: PathBuf = root.join(STORE_DIRECTORY);
     std::fs::create_dir_all(&store)?;
     wait(store.as_path(), store.join(name).as_path());
@@ -255,7 +283,10 @@ pub trait WaitClock {
     /// The time now.
     fn now(&self) -> std::time::SystemTime;
     /// Wait for `poll`.
-    fn pause(&self, poll: Duration);
+    fn pause(
+        &self,
+        poll: Duration,
+    );
 }
 
 /// The system's clock and sleep.
@@ -269,7 +300,10 @@ impl WaitClock for SystemClock {
     }
 
     /// A thread sleep.
-    fn pause(&self, poll: Duration) {
+    fn pause(
+        &self,
+        poll: Duration,
+    ) {
         std::thread::sleep(poll);
     }
 }
@@ -288,7 +322,11 @@ impl WaitClock for SystemClock {
 /// A time in the future (a clock that moved back) counts as
 ///  recent,
 /// and the wait it causes ends at the cap.
-fn copy_in_progress(store: &Path, window: Duration, now: std::time::SystemTime) -> bool {
+fn copy_in_progress(
+    store: &Path,
+    window: Duration,
+    now: std::time::SystemTime,
+) -> bool {
     use std::os::unix::fs::MetadataExt;
     let Ok(entries) = std::fs::read_dir(store) else {
         return false;
@@ -297,10 +335,17 @@ fn copy_in_progress(store: &Path, window: Duration, now: std::time::SystemTime) 
         let Ok(metadata) = entry.metadata() else {
             return false;
         };
-        if !entry.file_name().to_string_lossy().starts_with(PARTIAL_PREFIX) || metadata.nlink() != 1 {
+        if !entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(PARTIAL_PREFIX)
+            || metadata.nlink() != 1
+        {
             return false;
         }
-        return match metadata.modified().map(|modified| { return now.duration_since(modified); }) {
+        return match metadata.modified().map(|modified| {
+            return now.duration_since(modified);
+        }) {
             Ok(Ok(age)) => age < window,
             Ok(Err(_)) => true,
             Err(_) => false,
@@ -313,8 +358,16 @@ fn copy_in_progress(store: &Path, window: Duration, now: std::time::SystemTime) 
 /// on the system's clock with the production limits.
 /// Why:
 ///  See `wait_for_publisher_on`.
-pub fn wait_for_publisher(store: &Path, stored: &Path) -> WaitEnd {
-    return wait_for_publisher_on(store, stored, [PROGRESS_WINDOW, WAIT_POLL, WAIT_CAP], &SystemClock);
+pub fn wait_for_publisher(
+    store: &Path,
+    stored: &Path,
+) -> WaitEnd {
+    return wait_for_publisher_on(
+        store,
+        stored,
+        [PROGRESS_WINDOW, WAIT_POLL, WAIT_CAP],
+        &SystemClock,
+    );
 }
 
 /// What:
@@ -340,7 +393,12 @@ pub fn wait_for_publisher(store: &Path, stored: &Path) -> WaitEnd {
 /// Time comes
 ///  from `clock`,
 /// so the end of the wait is a decision a control reads from the result.
-pub fn wait_for_publisher_on(store: &Path, stored: &Path, limits: [Duration; 3], clock: &dyn WaitClock) -> WaitEnd {
+pub fn wait_for_publisher_on(
+    store: &Path,
+    stored: &Path,
+    limits: [Duration; 3],
+    clock: &dyn WaitClock,
+) -> WaitEnd {
     let [window, poll, cap] = limits;
     let began: std::time::SystemTime = clock.now();
     loop {
@@ -351,7 +409,9 @@ pub fn wait_for_publisher_on(store: &Path, stored: &Path, limits: [Duration; 3],
         if !copy_in_progress(store, window, now) {
             return WaitEnd::NobodyCopying;
         }
-        if now.duration_since(began).is_ok_and(|waited| { return waited >= cap; }) {
+        if now.duration_since(began).is_ok_and(|waited| {
+            return waited >= cap;
+        }) {
             return WaitEnd::CapReached;
         }
         clock.pause(poll);
@@ -373,7 +433,12 @@ pub fn wait_for_publisher_on(store: &Path, stored: &Path, limits: [Duration; 3],
 ///
 /// # Errors
 ///  The errors of `shared_copy`.
-pub fn shared_copy_named(built: &Path, name: &str, root: &Path, before_publish: &dyn Fn()) -> std::io::Result<PathBuf> {
+pub fn shared_copy_named(
+    built: &Path,
+    name: &str,
+    root: &Path,
+    before_publish: &dyn Fn(),
+) -> std::io::Result<PathBuf> {
     let store: PathBuf = root.join(STORE_DIRECTORY);
     std::fs::create_dir_all(&store)?;
     let stored: PathBuf = store.join(name);
@@ -424,14 +489,21 @@ pub fn shared_copy_named(built: &Path, name: &str, root: &Path, before_publish: 
 /// # Errors
 ///  When the file cannot be created for another reason than its name existing,
 ///  or every name tried exists.
-pub fn reserve_partial(store: &Path, counter: &AtomicUsize) -> std::io::Result<PathBuf> {
+pub fn reserve_partial(
+    store: &Path,
+    counter: &AtomicUsize,
+) -> std::io::Result<PathBuf> {
     for _ in 0..RESERVE_ATTEMPTS {
         let candidate: PathBuf = store.join(format!(
             "{PARTIAL_PREFIX}{}-{}",
             std::process::id(),
             counter.fetch_add(1, Ordering::SeqCst)
         ));
-        match std::fs::OpenOptions::new().write(true).create_new(true).open(&candidate) {
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
             Ok(_) => return Ok(candidate),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(error),
@@ -456,13 +528,19 @@ pub fn reserve_partial(store: &Path, counter: &AtomicUsize) -> std::io::Result<P
 ///
 /// # Errors
 ///  When the link fails for a reason other than the stored copy existing.
-pub fn publish(partial: &Path, stored: &Path) -> std::io::Result<()> {
+pub fn publish(
+    partial: &Path,
+    stored: &Path,
+) -> std::io::Result<()> {
     let published: std::io::Result<()> = match std::fs::hard_link(partial, stored) {
         Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => Err(error),
         _ => Ok(()),
     };
     if let Err(error) = std::fs::remove_file(partial) {
-        eprintln!("wrapper store: could not remove {} ({error})", partial.display());
+        eprintln!(
+            "wrapper store: could not remove {} ({error})",
+            partial.display()
+        );
     }
     return published;
 }
@@ -511,7 +589,9 @@ pub fn link_stored(
 fn now_seconds() -> i64 {
     return std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |since| { return i64::try_from(since.as_secs()).unwrap_or(i64::MAX); });
+        .map_or(0, |since| {
+            return i64::try_from(since.as_secs()).unwrap_or(i64::MAX);
+        });
 }
 
 /// What:
@@ -525,7 +605,11 @@ fn now_seconds() -> i64 {
 /// so the age is the time since a fixture last linked
 ///  or unlinked it.
 /// `remove_idle_builds_at` says how a link that arrives while the removal is under way is kept.
-pub fn remove_idle_builds(store: &Path, keep: &Path, idle: Duration) {
+pub fn remove_idle_builds(
+    store: &Path,
+    keep: &Path,
+    idle: Duration,
+) {
     remove_idle_builds_at(store, keep, idle, now_seconds(), &mut |_| {});
 }
 
@@ -552,7 +636,13 @@ pub fn remove_idle_builds(store: &Path, keep: &Path, idle: Duration) {
 /// never a fixture without its wrapper.
 /// `after_decision` lets a control link a
 ///  fixture at exactly that moment.
-pub fn remove_idle_builds_at(store: &Path, keep: &Path, idle: Duration, now: i64, after_decision: &mut dyn FnMut(&Path)) {
+pub fn remove_idle_builds_at(
+    store: &Path,
+    keep: &Path,
+    idle: Duration,
+    now: i64,
+    after_decision: &mut dyn FnMut(&Path),
+) {
     use std::os::unix::fs::MetadataExt;
     let Ok(entries) = std::fs::read_dir(store) else {
         return;
@@ -566,7 +656,11 @@ pub fn remove_idle_builds_at(store: &Path, keep: &Path, idle: Duration, now: i64
         if now.saturating_sub(metadata.ctime()) < idle_seconds {
             continue;
         }
-        if entry.file_name().to_string_lossy().starts_with(PARTIAL_PREFIX) {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(PARTIAL_PREFIX)
+        {
             remove_name(&path);
         } else if path != keep && metadata.nlink() == 1 {
             after_decision(path.as_path());
@@ -581,7 +675,10 @@ fn remove_name(path: &Path) {
     if let Err(error) = std::fs::remove_file(path)
         && error.kind() != std::io::ErrorKind::NotFound
     {
-        eprintln!("wrapper store: could not remove {} ({error})", path.display());
+        eprintln!(
+            "wrapper store: could not remove {} ({error})",
+            path.display()
+        );
     }
 }
 
@@ -589,27 +686,40 @@ fn remove_name(path: &Path) {
 /// then its name
 ///  stays.
 /// See `remove_idle_builds_at`.
-fn remove_copy_nobody_linked(store: &Path, path: &Path) {
+fn remove_copy_nobody_linked(
+    store: &Path,
+    path: &Path,
+) {
     use std::os::unix::fs::MetadataExt;
     let away: PathBuf = match reserve_partial(store, &PARTIALS_STARTED) {
         Ok(reserved) => reserved,
         Err(error) => {
-            eprintln!("wrapper store: could not set {} aside ({error})", path.display());
+            eprintln!(
+                "wrapper store: could not set {} aside ({error})",
+                path.display()
+            );
             return;
         }
     };
     if let Err(error) = std::fs::rename(path, &away) {
         if error.kind() != std::io::ErrorKind::NotFound {
-            eprintln!("wrapper store: could not set {} aside ({error})", path.display());
+            eprintln!(
+                "wrapper store: could not set {} aside ({error})",
+                path.display()
+            );
         }
         remove_name(&away);
         return;
     }
-    if std::fs::metadata(&away).is_ok_and(|metadata| { return metadata.nlink() != 1; })
-        && let Err(error) = std::fs::hard_link(&away, path)
+    if std::fs::metadata(&away).is_ok_and(|metadata| {
+        return metadata.nlink() != 1;
+    }) && let Err(error) = std::fs::hard_link(&away, path)
         && error.kind() != std::io::ErrorKind::AlreadyExists
     {
-        eprintln!("wrapper store: could not restore {} ({error})", path.display());
+        eprintln!(
+            "wrapper store: could not restore {} ({error})",
+            path.display()
+        );
     }
     remove_name(&away);
 }

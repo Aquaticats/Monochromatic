@@ -18,7 +18,10 @@
 //! const entries: number = countEntries(root); // readdir on each directory, one count per name
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  How many entries are below `root`.
@@ -82,7 +85,9 @@ pub fn count_entries(root: &Path) -> u64 {
         // ```ts
         // let listing; try { listing = readdirSync(directory); } catch { continue; }
         // ```
-        let Ok(listing) = std::fs::read_dir(&directory) else { continue };
+        let Ok(listing) = std::fs::read_dir(&directory) else {
+            continue;
+        };
         // What: `listing.flatten()` walks the `Result` items of the listing and drops the failed ones, keeping the `DirEntry`
         //       of each name that was read.
         // Why: A name that vanished between the listing and the read is not counted, as in the copy pass.

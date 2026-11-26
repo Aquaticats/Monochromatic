@@ -19,20 +19,44 @@
 //! ```
 
 use crate::blocked_commit_lines::named_reason;
-use crate::held_push_commit_on_the_remote::{OnTheRemote, RemoteRecord};
-use crate::held_push_holder_and_verdict::{Holding, Verdict, holding_in, pid_of, proven_gone};
+use crate::held_push_commit_on_the_remote::{
+    OnTheRemote,
+    RemoteRecord,
+};
+use crate::held_push_holder_and_verdict::{
+    Holding,
+    Verdict,
+    holding_in,
+    pid_of,
+    proven_gone,
+};
 use crate::held_push_release_wakes_the_service::WakeTheService;
 use crate::iso_time::now_iso;
-use crate::service_client::{ClientConfig, wake};
+use crate::service_client::{
+    ClientConfig,
+    wake,
+};
 use crate::service_handoff_queued_push_words::queued_push_line;
 use crate::service_messages::ClientFailure;
 use crate::service_messages_of_a_work_that_was_not_handed_over::not_handed_over;
+use crate::service_review_key::{
+    ReviewKey,
+    key_from_environment,
+};
 use crate::service_work::work_directory;
-use crate::service_review_key::{ReviewKey, key_from_environment};
 use crate::standards_review_input::has_shadow_log;
-use crate::work_item::{WorkItem, WorkKind, enqueue, enqueue_all, state_directory};
+use crate::work_item::{
+    WorkItem,
+    WorkKind,
+    enqueue,
+    enqueue_all,
+    state_directory,
+};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What the wrapper knows about a commit the service landed.
 #[derive(Clone, Debug)]
@@ -80,7 +104,11 @@ fn environment_variable(name: &str) -> Option<String> {
 /// ```ts
 /// await handOver(handoff, landed)
 /// ```
-pub fn hand_over(handoff: &ServiceHandoff, landed: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+pub fn hand_over(
+    handoff: &ServiceHandoff,
+    landed: &str,
+    notices: &mut dyn Write,
+) -> Result<(), ClientFailure> {
     let key: Option<ReviewKey> = key_from_environment(&environment_variable);
     return hand_over_with_key(handoff, landed, key.as_ref(), notices);
 }
@@ -102,17 +130,30 @@ pub fn hand_over(handoff: &ServiceHandoff, landed: &str, notices: &mut dyn Write
 /// ```ts
 /// await handOverWithKey(handoff, landed, key)
 /// ```
-pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+pub fn hand_over_with_key(
+    handoff: &ServiceHandoff,
+    landed: &str,
+    review_key: Option<&ReviewKey>,
+    notices: &mut dyn Write,
+) -> Result<(), ClientFailure> {
     // A work item spells its branch in text, and a spelling with replacement characters would push another branch. A commit on a
     //  branch whose name is not text therefore leaves no item, and the person is told once: the commit is on the branch, and a
     //  push they make themselves sends it.
     let Some(reference) = handoff.reference.text() else {
-        let _said = writeln!(notices, "{}", unqueued_branch_note(handoff.reference.as_os_str(), landed));
+        let _said = writeln!(
+            notices,
+            "{}",
+            unqueued_branch_note(handoff.reference.as_os_str(), landed)
+        );
         return Ok(());
     };
     let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
     // A review is left only where the repository keeps a shadow log; the file is the repository's own switch.
-    let review: &[WorkKind] = if has_shadow_log(handoff.repository.as_path()) { &[WorkKind::Review] } else { &[] };
+    let review: &[WorkKind] = if has_shadow_log(handoff.repository.as_path()) {
+        &[WorkKind::Review]
+    } else {
+        &[]
+    };
     // One round for the commit's records: each state directory the queue asks about is listed once, however many kinds the
     //  commit leaves.
     let mut items: Vec<WorkItem> = Vec::new();
@@ -132,7 +173,14 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
     enqueue_all(work_dir.as_path(), items.as_slice()).map_err(ClientFailure::WorkNotHandedOver)?;
     // The records this wake is about are the commit's upkeep and review, never a push of its own: the push record of a landed
     //  commit comes from the landing, which holds the request's programs in the service's memory itself.
-    return wake(&handoff.config, handoff.git_dir.as_path(), review_key, &[], notices).map_err(not_handed_over);
+    return wake(
+        &handoff.config,
+        handoff.git_dir.as_path(),
+        review_key,
+        &[],
+        notices,
+    )
+    .map_err(not_handed_over);
 }
 
 /// What:
@@ -154,9 +202,14 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 /// # Errors
 ///
 /// The work queue's own words when the record cannot be written.
-pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
+pub fn promote_the_push(
+    handoff: &ServiceHandoff,
+    landed: &str,
+) -> Result<(), ClientFailure> {
     // Nothing was held for a branch whose name is not text (`hand_over_with_key`), so there is nothing to promote.
-    let Some(reference) = handoff.reference.text() else { return Ok(()) };
+    let Some(reference) = handoff.reference.text() else {
+        return Ok(());
+    };
     let item: WorkItem = push_item(handoff, landed, reference);
     let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
     // A record an earlier release held is named by the kind and the commit alone, and it is this push's.
@@ -198,7 +251,12 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 /// ```
 /// The words a command says when the verdict could not be kept,
 /// or nothing when it was.
-pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str, wake: &dyn WakeTheService) -> Option<String> {
+pub fn forget_the_push(
+    handoff: &ServiceHandoff,
+    landed: &str,
+    reason: &str,
+    wake: &dyn WakeTheService,
+) -> Option<String> {
     // A branch whose name is not text held no record (`hand_over_with_key`), so there is none to take back and no verdict to keep.
     let reference: &str = handoff.reference.text()?;
     let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
@@ -219,7 +277,9 @@ pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str, wak
     //  left in `pending`, the next wake would push a commit the gate kept local, and left in `held`, every command would name a push
     //  nothing may make. The held record is kept while the verdict could not be, because it is then the only copy of the refusal.
     for id in [item.id(), item.id_before_the_branch()] {
-        let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir.as_path(), crate::work_item::PENDING).join(id.as_str()));
+        let _removed: std::io::Result<()> = std::fs::remove_file(
+            state_directory(work_dir.as_path(), crate::work_item::PENDING).join(id.as_str()),
+        );
         if durable {
             crate::work_item::forget_held(work_dir.as_path(), id.as_str());
         }
@@ -236,7 +296,9 @@ pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str, wak
     }
     return Some(format!(
         "the commit {landed} stays local, because its post-commit checks refused it ({reason}), but the verdict that stops this branch's automatic push could not be written to {}. The held record keeps the refusal, so no push this repository makes sends the commit, and every later command tries to keep that verdict again; a push you make of the branch still sends it.",
-        work_directory(handoff.git_dir.as_path()).join(crate::work_item_holding::BLOCKED).display()
+        work_directory(handoff.git_dir.as_path())
+            .join(crate::work_item_holding::BLOCKED)
+            .display()
     ));
 }
 
@@ -252,7 +314,10 @@ pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str, wak
 /// ```ts
 /// const note = `the commit ${landed} landed on ${shellQuote(ref)} ...`
 /// ```
-pub fn unqueued_branch_note(reference: &std::ffi::OsStr, landed: &str) -> String {
+pub fn unqueued_branch_note(
+    reference: &std::ffi::OsStr,
+    landed: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the commit {landed} landed on {}, whose name is not text. Its automatic push was not queued, \
          because a push record names a branch in text and a spelling with replacement characters would push another branch; the commit \
@@ -262,7 +327,11 @@ pub fn unqueued_branch_note(reference: &std::ffi::OsStr, landed: &str) -> String
 }
 
 /// The push record of one landed commit of a worktree.
-fn push_item(handoff: &ServiceHandoff, landed: &str, reference: &str) -> WorkItem {
+fn push_item(
+    handoff: &ServiceHandoff,
+    landed: &str,
+    reference: &str,
+) -> WorkItem {
     return WorkItem {
         kind: WorkKind::Push,
         repository: handoff.repository.clone(),
@@ -280,7 +349,10 @@ fn push_item(handoff: &ServiceHandoff, landed: &str, reference: &str) -> WorkIte
 
 /// The push record a command that moved a branch leaves,
 /// and the hand-off that carries its values before a round can claim it.
-pub use crate::push_record_of_a_moved_branch::{hand_over_push, write_push_record};
+pub use crate::push_record_of_a_moved_branch::{
+    hand_over_push,
+    write_push_record,
+};
 
 /// Handoff controls stay out of the release executable.
 #[cfg(test)]
@@ -309,7 +381,12 @@ mod tests;
 /// ```ts
 /// heldPushLine(branchRef, commit, holding, gone)
 /// ```
-pub fn held_push_line(reference: &str, commit: &str, holding: &Holding, gone: bool) -> String {
+pub fn held_push_line(
+    reference: &str,
+    commit: &str,
+    holding: &Holding,
+    gone: bool,
+) -> String {
     // A refusal the record holds and no verdict answers is the one state in which this worktree has the gate's words and no reader of
     //  them beside the record: the commit must never be published here, and the line says why nothing has been and what happens next.
     //  It says nothing about the command's liveness, because the refusal is the same whether that command ended or not.
@@ -339,7 +416,9 @@ pub fn held_push_line(reference: &str, commit: &str, holding: &Holding, gone: bo
     };
     return match holding.holder.is_empty() {
         // A record that names no command is one of an earlier release, or one whose hold was written without an answer.
-        true => format!("the commit {commit} is held: no command has said whether its checks passed, so this record pushes nothing; {carried}"),
+        true => format!(
+            "the commit {commit} is held: no command has said whether its checks passed, so this record pushes nothing; {carried}"
+        ),
         // The command that would have decided is proven gone, so nothing will ever write a verdict for this commit.
         false => format!(
             "the commit {commit} is held: the command that landed it (process {}) ended before its checks ran, so this record pushes nothing; {carried}",
@@ -364,8 +443,16 @@ pub fn held_push_line(reference: &str, commit: &str, holding: &Holding, gone: bo
 /// ```ts
 /// aRefusalThatCouldNotBeKept(branchRef, commit, reason)
 /// ```
-pub fn a_refusal_that_could_not_be_kept(reference: &str, commit: &str, reason: &str) -> String {
-    let by_the_person: &str = if reference.is_empty() { "a push you make yourself still sends it" } else { "a push you make of it still sends it" };
+pub fn a_refusal_that_could_not_be_kept(
+    reference: &str,
+    commit: &str,
+    reason: &str,
+) -> String {
+    let by_the_person: &str = if reference.is_empty() {
+        "a push you make yourself still sends it"
+    } else {
+        "a push you make of it still sends it"
+    };
     return format!(
         "the commit {commit} is held: the checks refused it ({}), and the verdict that stops this branch's push could not be written, so nothing this \
          repository pushes sends it, and {by_the_person}",
@@ -422,7 +509,11 @@ fn pid_text(holder: &str) -> String {
 /// ```ts
 /// heldPushNotices(gitDir, record, wake) // one line per held record Git does not already hold, and a settlement for each whose command is gone
 /// ```
-pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn WakeTheService) -> Vec<String> {
+pub fn held_push_notices(
+    git_dir: &Path,
+    record: &dyn RemoteRecord,
+    wake: &dyn WakeTheService,
+) -> Vec<String> {
     let work_dir: PathBuf = work_directory(git_dir);
     let held: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD);
     let Ok(listing) = std::fs::read_dir(held.as_path()) else {
@@ -436,14 +527,18 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
     let mut forgotten: Vec<String> = Vec::new();
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        let Some(commit) = crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) else { continue };
+        let Some(commit) = crate::work_item_ids_and_names::object_of_a_record_name(name.as_str())
+        else {
+            continue;
+        };
         // A record that cannot be read still names its commit through its own file name, and its branch is unknown: the line is
         //  said with the branch the record would have carried when it can be read, and without a branch otherwise.
         //  A named pipe at its name answers as unreadable at once (`crate::plain_file::read_plain_text`) instead of waiting on.
         let text: Option<String> = crate::plain_file::read_plain_text(&entry.path()).ok();
         let item: Option<WorkItem> = text.clone().and_then(work_item_of);
         let branch: String = item.as_ref().map_or_else(String::new, branch_of);
-        if !branch.is_empty() && record.on_the_remote(branch.as_str(), commit) == OnTheRemote::There {
+        if !branch.is_empty() && record.on_the_remote(branch.as_str(), commit) == OnTheRemote::There
+        {
             // Git holds the commit in the branch's remote, so the push this record would make has been made by another push of the
             //  branch. Nothing waits on it: it is settled where a finished push goes.
             settle_held(work_dir.as_path(), name.as_str());
@@ -461,7 +556,11 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
                     if crate::work_item::promote(work_dir.as_path(), name.as_str()) {
                         released = true;
                         // The record became runnable in this command, so it has not waited at all.
-                        lines.push(queued_push_line(branch.as_str(), commit, std::time::Duration::ZERO));
+                        lines.push(queued_push_line(
+                            branch.as_str(),
+                            commit,
+                            std::time::Duration::ZERO,
+                        ));
                         continue;
                     }
                 }
@@ -472,14 +571,22 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
                 //  the commit and what still sends it.
                 Verdict::Blocked => {
                     if let Some(found) = item.as_ref() {
-                        if crate::work_item::block(work_dir.as_path(), found, holding.reason.as_str()) {
+                        if crate::work_item::block(
+                            work_dir.as_path(),
+                            found,
+                            holding.reason.as_str(),
+                        ) {
                             crate::work_item::forget_held(work_dir.as_path(), name.as_str());
                             forgotten.push(name.clone());
                             continue;
                         }
                         // The verdict could not be written, so this record is the only statement that the commit stays local: it is
                         //  left where it is and the line below says what holds it.
-                        lines.push(a_refusal_that_could_not_be_kept(branch.as_str(), commit, holding.reason.as_str()));
+                        lines.push(a_refusal_that_could_not_be_kept(
+                            branch.as_str(),
+                            commit,
+                            holding.reason.as_str(),
+                        ));
                         continue;
                     }
                 }
@@ -512,12 +619,17 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
 /// ```ts
 /// const settle = (workDir, state, id) => { mkdirp(join(workDir, 'done')); rename(join(workDir, state, id), join(workDir, 'done', id)); };
 /// ```
-fn settle_where_a_push_that_was_made_is_kept(work_dir: &Path, state: &str, name: &str) {
+fn settle_where_a_push_that_was_made_is_kept(
+    work_dir: &Path,
+    state: &str,
+    name: &str,
+) {
     let done: PathBuf = state_directory(work_dir, crate::work_item::DONE);
     if crate::private_storage::create_private_directory_all(done.as_path()).is_err() {
         return;
     }
-    let _settled: std::io::Result<()> = std::fs::rename(state_directory(work_dir, state).join(name), done.join(name));
+    let _settled: std::io::Result<()> =
+        std::fs::rename(state_directory(work_dir, state).join(name), done.join(name));
 }
 
 /// What:
@@ -535,7 +647,10 @@ fn settle_where_a_push_that_was_made_is_kept(work_dir: &Path, state: &str, name:
 /// ```ts
 /// const settleHeld = (workDir, id) => { mkdirp(join(workDir, 'done')); rename(join(workDir, 'held', id), join(workDir, 'done', id)); };
 /// ```
-fn settle_held(work_dir: &Path, name: &str) {
+fn settle_held(
+    work_dir: &Path,
+    name: &str,
+) {
     settle_where_a_push_that_was_made_is_kept(work_dir, crate::work_item::HELD, name);
 }
 
@@ -613,30 +728,51 @@ pub const PUSH_QUEUED_AFTER: std::time::Duration = std::time::Duration::from_sec
 /// ```ts
 /// queuedPushNotices(gitDir, now, record, wake) // settle what Git already holds; the oldest waiting push, then a count; wake
 /// ```
-pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime, record: &dyn RemoteRecord, wake: &dyn WakeTheService) -> Vec<String> {
+pub fn queued_push_notices(
+    git_dir: &Path,
+    now: std::time::SystemTime,
+    record: &dyn RemoteRecord,
+    wake: &dyn WakeTheService,
+) -> Vec<String> {
     let work_dir: PathBuf = work_directory(git_dir);
     let mut waiting: Vec<(std::time::SystemTime, String, String)> = Vec::new();
     // The pending push records this command settles here, by the id the service holds their values against.
     let mut forgotten: Vec<String> = Vec::new();
-    for (name, queued) in crate::work_item::entries_oldest_first(work_dir.as_path(), crate::work_item::PENDING) {
+    for (name, queued) in
+        crate::work_item::entries_oldest_first(work_dir.as_path(), crate::work_item::PENDING)
+    {
         if !name.starts_with(format!("{}-", WorkKind::Push.name()).as_str()) {
             continue;
         }
-        if now.duration_since(queued).unwrap_or(std::time::Duration::ZERO) < PUSH_QUEUED_AFTER {
+        if now
+            .duration_since(queued)
+            .unwrap_or(std::time::Duration::ZERO)
+            < PUSH_QUEUED_AFTER
+        {
             continue;
         }
         // The record names its own commit and branch; one that cannot be read still names its commit through its file name, and
         //  a record with no branch has no upstream to ask about.
-        let path: PathBuf = state_directory(work_dir.as_path(), crate::work_item::PENDING).join(name.as_str());
-        let (commit, reference): (String, String) = match crate::plain_file::read_plain_text(&path).ok().and_then(work_item_of) {
+        let path: PathBuf =
+            state_directory(work_dir.as_path(), crate::work_item::PENDING).join(name.as_str());
+        let (commit, reference): (String, String) = match crate::plain_file::read_plain_text(&path)
+            .ok()
+            .and_then(work_item_of)
+        {
             Some(item) => (item.oid, item.branch_ref),
             None => match crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) {
                 Some(commit) => (commit.to_string(), String::new()),
                 None => continue,
             },
         };
-        if !reference.is_empty() && record.on_the_remote(reference.as_str(), commit.as_str()) == OnTheRemote::There {
-            settle_where_a_push_that_was_made_is_kept(work_dir.as_path(), crate::work_item::PENDING, name.as_str());
+        if !reference.is_empty()
+            && record.on_the_remote(reference.as_str(), commit.as_str()) == OnTheRemote::There
+        {
+            settle_where_a_push_that_was_made_is_kept(
+                work_dir.as_path(),
+                crate::work_item::PENDING,
+                name.as_str(),
+            );
             forgotten.push(name.clone());
             continue;
         }
@@ -644,13 +780,27 @@ pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime, record: &
     }
     // A record this command settled keeps no value: nothing runs it any more, and the service learns nothing else about it.
     wake.forget_programs(git_dir, forgotten.as_slice());
-    let Some((queued, oldest_commit, oldest_reference)) = waiting.first() else { return Vec::new() };
-    let waited: std::time::Duration = now.duration_since(*queued).unwrap_or(std::time::Duration::ZERO);
-    let mut lines: Vec<String> = vec![queued_push_line(oldest_reference.as_str(), oldest_commit.as_str(), waited)];
+    let Some((queued, oldest_commit, oldest_reference)) = waiting.first() else {
+        return Vec::new();
+    };
+    let waited: std::time::Duration = now
+        .duration_since(*queued)
+        .unwrap_or(std::time::Duration::ZERO);
+    let mut lines: Vec<String> = vec![queued_push_line(
+        oldest_reference.as_str(),
+        oldest_commit.as_str(),
+        waited,
+    )];
     let more: usize = waiting.len() - 1;
     if more > 0 {
-        let (subject, possessive): (&str, &str) = if more == 1 { ("commit is", "its") } else { ("commits are", "their") };
-        lines.push(format!("{more} more {subject} queued for {possessive} push the same way"));
+        let (subject, possessive): (&str, &str) = if more == 1 {
+            ("commit is", "its")
+        } else {
+            ("commits are", "their")
+        };
+        lines.push(format!(
+            "{more} more {subject} queued for {possessive} push the same way"
+        ));
     }
     // The service is told now, so the record that waits is taken without waiting for the next commit either.
     wake.wake(git_dir);

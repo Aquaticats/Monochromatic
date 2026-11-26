@@ -11,7 +11,10 @@ fn words(items: &[&str]) -> Vec<OsString> {
 
 /// The value of one variable an answer names,
 /// or nothing when it names none of that name.
-fn named(variables: &[(OsString, OsString)], name: &str) -> Option<String> {
+fn named(
+    variables: &[(OsString, OsString)],
+    name: &str,
+) -> Option<String> {
     return variables
         .iter()
         .find(|(key, _)| {
@@ -33,21 +36,40 @@ fn named(variables: &[(OsString, OsString)], name: &str) -> Option<String> {
 #[test]
 fn the_callers_pairs_are_appended_to_the_parameters_the_environment_holds() {
     let environment: Vec<(OsString, OsString)> = vec![
-        (OsString::from(PARAMETERS_VARIABLE), OsString::from("'inherited.key'='inherited value'")),
+        (
+            OsString::from(PARAMETERS_VARIABLE),
+            OsString::from("'inherited.key'='inherited value'"),
+        ),
         (OsString::from("GIT_CONFIG_COUNT"), OsString::from("3")),
     ];
-    let variables = child_configuration_variables(words(&["-c", "a=b"]).as_slice(), environment.as_slice()).expect("no variable is named");
+    let variables =
+        child_configuration_variables(words(&["-c", "a=b"]).as_slice(), environment.as_slice())
+            .expect("no variable is named");
     assert_eq!(
         named(variables.as_slice(), PARAMETERS_VARIABLE).as_deref(),
         Some("'inherited.key'='inherited value' 'a'='b'"),
         "the inherited parameters come first and the caller's pair after them"
     );
-    assert_eq!(named(variables.as_slice(), "GIT_CONFIG_COUNT"), None, "the caller's pair takes no numbered slot");
-    assert!(child_configuration_variables(&[], &[]).expect("nothing to read").is_empty());
+    assert_eq!(
+        named(variables.as_slice(), "GIT_CONFIG_COUNT"),
+        None,
+        "the caller's pair takes no numbered slot"
+    );
+    assert!(
+        child_configuration_variables(&[], &[])
+            .expect("nothing to read")
+            .is_empty()
+    );
     // A variable the environment holds as the empty text names no entry, as Git reads it.
-    let empty: Vec<(OsString, OsString)> = vec![(OsString::from(PARAMETERS_VARIABLE), OsString::new())];
-    let from_empty = child_configuration_variables(words(&["-c", "a=b"]).as_slice(), empty.as_slice()).expect("nothing to answer");
-    assert_eq!(named(from_empty.as_slice(), PARAMETERS_VARIABLE).as_deref(), Some("'a'='b'"));
+    let empty: Vec<(OsString, OsString)> =
+        vec![(OsString::from(PARAMETERS_VARIABLE), OsString::new())];
+    let from_empty =
+        child_configuration_variables(words(&["-c", "a=b"]).as_slice(), empty.as_slice())
+            .expect("nothing to answer");
+    assert_eq!(
+        named(from_empty.as_slice(), PARAMETERS_VARIABLE).as_deref(),
+        Some("'a'='b'")
+    );
 }
 
 /// What:
@@ -60,13 +82,19 @@ fn the_callers_pairs_are_appended_to_the_parameters_the_environment_holds() {
 ///  The two spellings keep the order the caller gave them.
 #[test]
 fn a_configuration_from_the_environment_becomes_a_pair() {
-    let environment: Vec<(OsString, OsString)> =
-        vec![(OsString::from("POLICY_PUSH_URL"), OsString::from("http://example.invalid/x"))];
+    let environment: Vec<(OsString, OsString)> = vec![(
+        OsString::from("POLICY_PUSH_URL"),
+        OsString::from("http://example.invalid/x"),
+    )];
     for prefix in [
         vec!["--config-env=remote.origin.pushurl=POLICY_PUSH_URL"],
         vec!["--config-env", "remote.origin.pushurl=POLICY_PUSH_URL"],
     ] {
-        let answered = child_configuration_variables(words(prefix.as_slice()).as_slice(), environment.as_slice()).expect("the environment answers");
+        let answered = child_configuration_variables(
+            words(prefix.as_slice()).as_slice(),
+            environment.as_slice(),
+        )
+        .expect("the environment answers");
         assert_eq!(
             named(answered.as_slice(), PARAMETERS_VARIABLE).as_deref(),
             Some("'remote.origin.pushurl'='http://example.invalid/x'"),
@@ -74,9 +102,18 @@ fn a_configuration_from_the_environment_becomes_a_pair() {
         );
     }
     // The last `=` names the variable and leaves the key before it, as Git reads the option.
-    let split_at_last = command_line_pairs(words(&["--config-env=probe.key=x=POLICY_PUSH_URL"]).as_slice(), environment.as_slice())
-        .expect("the environment answers");
-    assert_eq!(split_at_last, vec![(OsString::from("probe.key=x"), OsString::from("http://example.invalid/x"))]);
+    let split_at_last = command_line_pairs(
+        words(&["--config-env=probe.key=x=POLICY_PUSH_URL"]).as_slice(),
+        environment.as_slice(),
+    )
+    .expect("the environment answers");
+    assert_eq!(
+        split_at_last,
+        vec![(
+            OsString::from("probe.key=x"),
+            OsString::from("http://example.invalid/x")
+        )]
+    );
     // A caller's `-c` keeps everything after its first `=`, and the pairs keep the order the caller gave them.
     let both_spellings = child_configuration_variables(
         words(&["-c", "first=a=b", "--config-env=second=POLICY_PUSH_URL"]).as_slice(),
@@ -95,8 +132,19 @@ fn a_configuration_from_the_environment_becomes_a_pair() {
         vec!["--config-env=probe.key="],
         vec!["--config-env"],
     ] {
-        assert!(child_configuration_variables(words(prefix.as_slice()).as_slice(), environment.as_slice()).is_none(), "{prefix:?}");
-        assert!(command_line_pairs(words(prefix.as_slice()).as_slice(), environment.as_slice()).is_none(), "{prefix:?}");
+        assert!(
+            child_configuration_variables(
+                words(prefix.as_slice()).as_slice(),
+                environment.as_slice()
+            )
+            .is_none(),
+            "{prefix:?}"
+        );
+        assert!(
+            command_line_pairs(words(prefix.as_slice()).as_slice(), environment.as_slice())
+                .is_none(),
+            "{prefix:?}"
+        );
     }
 }
 
@@ -110,7 +158,13 @@ fn a_configuration_from_the_environment_becomes_a_pair() {
 #[test]
 fn a_setting_holding_a_space_or_a_quote_is_quoted_as_git_quotes_it() {
     let variables = child_configuration_variables(
-        words(&["-c", "probe.spaced=http://a b.invalid/x", "-c", "probe.quoted=it's"]).as_slice(),
+        words(&[
+            "-c",
+            "probe.spaced=http://a b.invalid/x",
+            "-c",
+            "probe.quoted=it's",
+        ])
+        .as_slice(),
         &[],
     )
     .expect("nothing comes from a variable");
@@ -131,14 +185,35 @@ fn a_setting_holding_a_space_or_a_quote_is_quoted_as_git_quotes_it() {
 #[test]
 fn the_directory_options_become_their_variables() {
     let variables = child_configuration_variables(
-        words(&["--git-dir=/g", "--work-tree", "/w", "--namespace=ns", "-C", "/elsewhere"]).as_slice(),
+        words(&[
+            "--git-dir=/g",
+            "--work-tree",
+            "/w",
+            "--namespace=ns",
+            "-C",
+            "/elsewhere",
+        ])
+        .as_slice(),
         &[],
     )
     .expect("no variable is named");
-    assert_eq!(named(variables.as_slice(), "GIT_DIR").as_deref(), Some("/g"));
-    assert_eq!(named(variables.as_slice(), "GIT_WORK_TREE").as_deref(), Some("/w"));
-    assert_eq!(named(variables.as_slice(), "GIT_NAMESPACE").as_deref(), Some("ns"));
-    assert_eq!(named(variables.as_slice(), PARAMETERS_VARIABLE), None, "a directory option sets no configuration");
+    assert_eq!(
+        named(variables.as_slice(), "GIT_DIR").as_deref(),
+        Some("/g")
+    );
+    assert_eq!(
+        named(variables.as_slice(), "GIT_WORK_TREE").as_deref(),
+        Some("/w")
+    );
+    assert_eq!(
+        named(variables.as_slice(), "GIT_NAMESPACE").as_deref(),
+        Some("ns")
+    );
+    assert_eq!(
+        named(variables.as_slice(), PARAMETERS_VARIABLE),
+        None,
+        "a directory option sets no configuration"
+    );
 }
 
 /// What:
@@ -153,11 +228,14 @@ fn the_directory_options_become_their_variables() {
 fn a_variable_name_that_is_not_text_is_answered_for_by_its_bytes() {
     use std::os::unix::ffi::OsStringExt;
     let awkward: Vec<u8> = b"POLICY\xff_URL".to_vec();
-    let environment: Vec<(OsString, OsString)> =
-        vec![(OsString::from_vec(awkward.clone()), OsString::from("http://example.invalid/x"))];
+    let environment: Vec<(OsString, OsString)> = vec![(
+        OsString::from_vec(awkward.clone()),
+        OsString::from("http://example.invalid/x"),
+    )];
     let mut token: OsString = OsString::from("--config-env=remote.origin.pushurl=");
     token.push(OsString::from_vec(awkward));
-    let variables = child_configuration_variables(vec![token].as_slice(), environment.as_slice()).expect("the environment answers");
+    let variables = child_configuration_variables(vec![token].as_slice(), environment.as_slice())
+        .expect("the environment answers");
     assert_eq!(
         named(variables.as_slice(), PARAMETERS_VARIABLE).as_deref(),
         Some("'remote.origin.pushurl'='http://example.invalid/x'")
@@ -175,8 +253,11 @@ fn a_setting_that_is_not_text_is_carried_as_its_bytes() {
     use std::os::unix::ffi::OsStringExt;
     let mut setting: Vec<u8> = b"probe.key=".to_vec();
     setting.extend_from_slice(b"a\xffb");
-    let carried = child_configuration_variables(vec![OsString::from("-c"), OsString::from_vec(setting)].as_slice(), &[])
-        .expect("nothing comes from a variable");
+    let carried = child_configuration_variables(
+        vec![OsString::from("-c"), OsString::from_vec(setting)].as_slice(),
+        &[],
+    )
+    .expect("nothing comes from a variable");
     let rendered = carried
         .iter()
         .find(|(key, _)| {

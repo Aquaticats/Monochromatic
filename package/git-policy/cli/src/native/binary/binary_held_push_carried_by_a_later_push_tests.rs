@@ -22,14 +22,35 @@
 //! ```
 
 use super::commit::remove_settled;
-use super::support::{Fixture, Observed, fixture, git, repository, run_wrapped, start_fixture_service, FixtureService};
+use super::support::{
+    Fixture,
+    FixtureService,
+    Observed,
+    fixture,
+    git,
+    repository,
+    run_wrapped,
+    start_fixture_service,
+};
 use git_policy_cli::service_fault::FAULT_VARIABLE;
 use git_policy_cli::service_work::work_directory;
-use git_policy_cli::work_item::{DONE, HELD, WorkItem, WorkKind, state_directory};
+use git_policy_cli::work_item::{
+    DONE,
+    HELD,
+    WorkItem,
+    WorkKind,
+    state_directory,
+};
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::process::{Command, Output};
-use std::time::{Duration, Instant};
+use std::process::{
+    Command,
+    Output,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The fault point after the service answered and before the wrapper's gate promoted the push.
 const AFTER_ANSWER: &str = "after-answer";
@@ -51,16 +72,43 @@ fn setup(name: &str) -> Setup {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let remote: PathBuf = fixture.root.join("remote.git");
-    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", remote.to_str().expect("UTF-8")]);
+    git(
+        &fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            remote.to_str().expect("UTF-8"),
+        ],
+    );
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
     git(&fixture, &repo, &["add", "a.txt"]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
-    git(&fixture, &repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
-    git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(
+        &fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("UTF-8")],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "main"],
+    );
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    return Setup { fixture, repo, remote, service };
+    return Setup {
+        fixture,
+        repo,
+        remote,
+        service,
+    };
 }
 
 fn git_dir(setup: &Setup) -> PathBuf {
@@ -77,24 +125,46 @@ fn stderr_of(observed: &Observed) -> String {
 /// Why:
 ///   The gate is what promotes the record,
 /// and a kill before it is the state the held line exists for.
-fn commit_and_die_after_the_answer(setup: &Setup, content: &str) -> String {
+fn commit_and_die_after_the_answer(
+    setup: &Setup,
+    content: &str,
+) -> String {
     std::fs::write(setup.repo.join("a.txt"), content).expect("edit");
-    let mut command: Command = super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"]);
+    let mut command: Command = super::commit::wrapped_commit(
+        &setup.fixture,
+        setup.repo.as_path(),
+        &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
     command.env(FAULT_VARIABLE, AFTER_ANSWER);
     let output: Output = command.output().expect("the wrapped commit runs");
-    assert!(!output.status.success(), "the wrapper was killed at the fault point: {:?}", output.status);
+    assert!(
+        !output.status.success(),
+        "the wrapper was killed at the fault point: {:?}",
+        output.status
+    );
     let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
     return String::from_utf8_lossy(&named.stdout).trim().to_string();
 }
 
 /// Commits `content` through the service and returns the new commit's name.
-fn commit_through(setup: &Setup, content: &str) -> String {
+fn commit_through(
+    setup: &Setup,
+    content: &str,
+) -> String {
     std::fs::write(setup.repo.join("a.txt"), content).expect("edit");
-    let mut command: Command = super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"]);
+    let mut command: Command = super::commit::wrapped_commit(
+        &setup.fixture,
+        setup.repo.as_path(),
+        &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
     let output: Output = command.output().expect("the wrapped commit runs");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
     return String::from_utf8_lossy(&named.stdout).trim().to_string();
 }
@@ -102,7 +172,10 @@ fn commit_through(setup: &Setup, content: &str) -> String {
 /// Whether the bare remote holds `commit`.
 /// The question is asked of real Git and a "no" is an answer,
 /// not a failure of the command.
-fn remote_has(setup: &Setup, commit: &str) -> bool {
+fn remote_has(
+    setup: &Setup,
+    commit: &str,
+) -> bool {
     let asked: Output = super::support::direct(&setup.fixture)
         .current_dir(setup.remote.as_path())
         .args(["cat-file", "-e", format!("{commit}^{{commit}}").as_str()])
@@ -111,7 +184,10 @@ fn remote_has(setup: &Setup, commit: &str) -> bool {
     return asked.status.success();
 }
 
-fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
+fn wait_until(
+    what: &str,
+    condition: &dyn Fn() -> bool,
+) {
     let began: Instant = Instant::now();
     while !condition() {
         assert!(began.elapsed() < PATIENCE, "never happened: {what}");
@@ -121,10 +197,23 @@ fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
 
 /// The records of the work queue of the setup,
 /// by state.
-fn records_in(setup: &Setup, state: &str) -> Vec<String> {
-    let mut names: Vec<String> = std::fs::read_dir(state_directory(work_directory(git_dir(setup).as_path()).as_path(), state))
-        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
-        .unwrap_or_default();
+fn records_in(
+    setup: &Setup,
+    state: &str,
+) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(state_directory(
+        work_directory(git_dir(setup).as_path()).as_path(),
+        state,
+    ))
+    .map(|listing| {
+        return listing
+            .flatten()
+            .map(|entry| {
+                return entry.file_name().to_string_lossy().into_owned();
+            })
+            .collect();
+    })
+    .unwrap_or_default();
     names.sort();
     return names;
 }
@@ -158,40 +247,123 @@ fn a_held_commit_a_later_push_carried_is_no_longer_said_to_be_held() {
     let setup: Setup = setup("held-carried-by-a-later-push");
     let held: String = commit_and_die_after_the_answer(&setup, "one\n");
     let id: String = push_id(held.as_str());
-    assert_eq!(records_in(&setup, HELD), vec![id.clone()], "the killed wrapper left its push held");
+    assert_eq!(
+        records_in(&setup, HELD),
+        vec![id.clone()],
+        "the killed wrapper left its push held"
+    );
     assert!(!remote_has(&setup, held.as_str()), "nothing pushed it");
     // The held line is true here, and it is the state the next assertion is about.
-    let before: Observed = run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
-    assert!(stderr_of(&before).contains(held.as_str()), "the held commit is named: {}", stderr_of(&before));
-    assert!(stderr_of(&before).contains("the command that landed it"), "the line names what holds it: {}", stderr_of(&before));
-    assert!(stderr_of(&before).contains("ended before its checks ran"), "{}", stderr_of(&before));
-    assert!(stderr_of(&before).contains("a push you make of refs/heads/main sends it"), "the remedy is named: {}", stderr_of(&before));
+    let before: Observed =
+        run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
+    assert!(
+        stderr_of(&before).contains(held.as_str()),
+        "the held commit is named: {}",
+        stderr_of(&before)
+    );
+    assert!(
+        stderr_of(&before).contains("the command that landed it"),
+        "the line names what holds it: {}",
+        stderr_of(&before)
+    );
+    assert!(
+        stderr_of(&before).contains("ended before its checks ran"),
+        "{}",
+        stderr_of(&before)
+    );
+    assert!(
+        stderr_of(&before).contains("a push you make of refs/heads/main sends it"),
+        "the remedy is named: {}",
+        stderr_of(&before)
+    );
     // A later commit of the branch pushes the branch, and the queue pushes the branch: the held commit goes with it.
     let later: String = commit_through(&setup, "two\n");
     wait_until("the remote branch is the later commit", &|| {
-        let published: String = String::from_utf8_lossy(&git(&setup.fixture, setup.remote.as_path(), &["rev-parse", "refs/heads/main"]).stdout).trim().to_string();
+        let published: String = String::from_utf8_lossy(
+            &git(
+                &setup.fixture,
+                setup.remote.as_path(),
+                &["rev-parse", "refs/heads/main"],
+            )
+            .stdout,
+        )
+        .trim()
+        .to_string();
         return published == later;
     });
-    assert!(remote_has(&setup, held.as_str()), "the later push carried the held commit");
+    assert!(
+        remote_has(&setup, held.as_str()),
+        "the later push carried the held commit"
+    );
     // The proof is Git's own record of the remote branch, so the control waits until that record agrees with the remote: a push
     //  that was stopped after it delivered the commits leaves the remote-tracking ref behind, and the held line is then still
     //  true of the record.
     wait_until("the remote-tracking ref is the remote's tip", &|| {
-        let tracked: String = String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", "refs/remotes/origin/main"]).stdout).trim().to_string();
-        let published: String = String::from_utf8_lossy(&git(&setup.fixture, setup.remote.as_path(), &["rev-parse", "refs/heads/main"]).stdout).trim().to_string();
+        let tracked: String = String::from_utf8_lossy(
+            &git(
+                &setup.fixture,
+                &setup.repo,
+                &["rev-parse", "refs/remotes/origin/main"],
+            )
+            .stdout,
+        )
+        .trim()
+        .to_string();
+        let published: String = String::from_utf8_lossy(
+            &git(
+                &setup.fixture,
+                setup.remote.as_path(),
+                &["rev-parse", "refs/heads/main"],
+            )
+            .stdout,
+        )
+        .trim()
+        .to_string();
         return tracked == published;
     });
-    let status: String = String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["status", "--porcelain=v1", "--branch"]).stdout).into_owned();
-    assert_eq!(status.trim_end(), "## main...origin/main", "Git shows nothing left to push");
+    let status: String = String::from_utf8_lossy(
+        &git(
+            &setup.fixture,
+            &setup.repo,
+            &["status", "--porcelain=v1", "--branch"],
+        )
+        .stdout,
+    )
+    .into_owned();
+    assert_eq!(
+        status.trim_end(),
+        "## main...origin/main",
+        "Git shows nothing left to push"
+    );
     // Every later command agrees with Git from here on.
     let after: Observed = run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
-    assert!(!stderr_of(&after).contains(held.as_str()), "the commit the remote holds is not said to be held: {}", stderr_of(&after));
-    assert!(!stderr_of(&after).contains("ended before its checks ran"), "{}", stderr_of(&after));
-    assert!(records_in(&setup, HELD).is_empty(), "the record left the held state: {:?}", records_in(&setup, HELD));
-    assert!(records_in(&setup, DONE).contains(&id), "and is known to the queue as a push that was made: {:?}", records_in(&setup, DONE));
+    assert!(
+        !stderr_of(&after).contains(held.as_str()),
+        "the commit the remote holds is not said to be held: {}",
+        stderr_of(&after)
+    );
+    assert!(
+        !stderr_of(&after).contains("ended before its checks ran"),
+        "{}",
+        stderr_of(&after)
+    );
+    assert!(
+        records_in(&setup, HELD).is_empty(),
+        "the record left the held state: {:?}",
+        records_in(&setup, HELD)
+    );
+    assert!(
+        records_in(&setup, DONE).contains(&id),
+        "and is known to the queue as a push that was made: {:?}",
+        records_in(&setup, DONE)
+    );
     // Settled once: the command after it says nothing either.
     let again: Observed = run_wrapped(&setup.fixture, setup.repo.as_path(), &["log", "--oneline"]);
-    assert!(!stderr_of(&again).contains(held.as_str()), "{}", stderr_of(&again));
+    assert!(
+        !stderr_of(&again).contains(held.as_str()),
+        "{}",
+        stderr_of(&again)
+    );
     remove_settled(&setup.fixture);
 }
 
@@ -209,10 +381,23 @@ fn a_held_commit_the_remote_does_not_hold_keeps_its_line() {
     let held: String = commit_and_die_after_the_answer(&setup, "one\n");
     assert!(!remote_has(&setup, held.as_str()), "nothing pushed it");
     for _ in 0..2 {
-        let said: Observed = run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
-        assert!(stderr_of(&said).contains(held.as_str()), "the held commit is still named: {}", stderr_of(&said));
-        assert!(stderr_of(&said).contains("ended before its checks ran"), "{}", stderr_of(&said));
+        let said: Observed =
+            run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
+        assert!(
+            stderr_of(&said).contains(held.as_str()),
+            "the held commit is still named: {}",
+            stderr_of(&said)
+        );
+        assert!(
+            stderr_of(&said).contains("ended before its checks ran"),
+            "{}",
+            stderr_of(&said)
+        );
     }
-    assert_eq!(records_in(&setup, HELD), vec![push_id(held.as_str())], "the record stays held");
+    assert_eq!(
+        records_in(&setup, HELD),
+        vec![push_id(held.as_str())],
+        "the record stays held"
+    );
     remove_settled(&setup.fixture);
 }

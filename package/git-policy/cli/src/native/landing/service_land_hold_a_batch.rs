@@ -22,19 +22,40 @@
 //! return await holdABatch({ ...landing, locks }) // one held outcome per request, or the failure that names the lock
 //! ```
 
-use crate::held_commit_record::{Holding, hold, list};
-use crate::held_commit_words::{answer, waiting};
+use crate::held_commit_record::{
+    Holding,
+    hold,
+    list,
+};
+use crate::held_commit_words::{
+    answer,
+    waiting,
+};
 use crate::landed_summary::short_name;
-use crate::service_index_lock::{Announce, Announcer};
-use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, remove_start};
+use crate::service_index_lock::{
+    Announce,
+    Announcer,
+};
+use crate::service_journal::{
+    Intent,
+    OPEN_EXTENSION,
+    batch_path,
+    remove_start,
+};
 use crate::service_land_context::LandContext;
 use crate::service_land_outcomes::Outcome;
-use crate::service_protocol::{CommitRequest, FailureCode};
+use crate::service_protocol::{
+    CommitRequest,
+    FailureCode,
+};
 use crate::service_server_land_group::forget_what_a_batch_owes;
 use crate::service_timing::LandTiming;
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Instant;
 
 /// What a landing knows when a reference lock kept its branch where it was.
@@ -128,11 +149,27 @@ The branch moves as soon as the lock is gone. {}",
                 refused.words
             );
             let objects: PathBuf = refused.first.common_dir.join("objects");
-            let short: String = short_name(refused.git, refused.repository, objects.as_path(), None, refused.new);
+            let short: String = short_name(
+                refused.git,
+                refused.repository,
+                objects.as_path(),
+                None,
+                refused.new,
+            );
             let held_now: usize = list(refused.first.git_dir.as_path()).0.len();
             let answer: String = answer(&held_batch, short.as_str(), held_now);
-            refused.announce.announce(Announce::Holder(waiting(&held_batch, short.as_str(), held_batch.locks.as_slice())));
-            return Ok(vec![Outcome::Held { commit: refused.new.to_string(), words: answer }; refused.requests]);
+            refused.announce.announce(Announce::Holder(waiting(
+                &held_batch,
+                short.as_str(),
+                held_batch.locks.as_slice(),
+            )));
+            return Ok(vec![
+                Outcome::Held {
+                    commit: refused.new.to_string(),
+                    words: answer
+                };
+                refused.requests
+            ]);
         }
         // A record that cannot be written is a commit that could not be made durable: the words are the lock's own, and nothing
         //  was changed.
@@ -150,7 +187,14 @@ its commit is not kept; {} Run the commit again once the journal at {} can be wr
             //  that would have held it could not be written, and the person is told where the commit is
             //  (`end_a_batch_that_will_not_land`).
             end_a_batch_that_will_not_land(
-                &DropTheBatch { git: refused.git, context: refused.context, repository: refused.repository, seq: refused.seq, intent: refused.intent, scratch: refused.scratch },
+                &DropTheBatch {
+                    git: refused.git,
+                    context: refused.context,
+                    repository: refused.repository,
+                    seq: refused.seq,
+                    intent: refused.intent,
+                    scratch: refused.scratch,
+                },
                 refused.announce,
             );
             return Err(FailureCode::ReferenceLocked);
@@ -177,7 +221,13 @@ its commit is not kept; {} Run the commit again once the journal at {} can be wr
 /// ```ts
 /// warn(`batch ${seq} in the repository at ${repo}: the write of ${ref} has not happened yet ...`)
 /// ```
-pub(crate) fn say_it_waits(seq: u64, repository: &Path, reference: &crate::ref_name::RefName, old: &str, within_bound: bool) {
+pub(crate) fn say_it_waits(
+    seq: u64,
+    repository: &Path,
+    reference: &crate::ref_name::RefName,
+    old: &str,
+    within_bound: bool,
+) {
     if !within_bound {
         return;
     }
@@ -232,13 +282,29 @@ pub struct GivenUp<'a> {
 /// ```ts
 /// const kept = keepAnUnlandedCommit(...); forgetTheBatch(); if (kept.named) updateRef(['-d', scratch, new])
 /// ```
-pub(crate) fn end_a_batch_that_will_not_land(drop: &DropTheBatch<'_>, announce: &dyn Announcer) {
+pub(crate) fn end_a_batch_that_will_not_land(
+    drop: &DropTheBatch<'_>,
+    announce: &dyn Announcer,
+) {
     let new: &str = drop.intent.new.as_str();
     let kept: crate::service_land_side_reference_write::AKeptCommit =
-        crate::service_land_side_reference_write::keep_an_unlanded_commit(drop.git, drop.repository, drop.seq, drop.scratch, new, announce);
+        crate::service_land_side_reference_write::keep_an_unlanded_commit(
+            drop.git,
+            drop.repository,
+            drop.seq,
+            drop.scratch,
+            new,
+            announce,
+        );
     forget_the_batch_that_will_not_land(drop);
     if kept.named {
-        let _let_go = crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(drop.git, drop.repository, drop.scratch, new);
+        let _let_go =
+            crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(
+                drop.git,
+                drop.repository,
+                drop.scratch,
+                new,
+            );
     }
 }
 
@@ -263,9 +329,18 @@ pub(crate) fn give_up(given: &GivenUp<'_>) -> FailureCode {
         crate::service_timing::in_the_repository_at(given.repository),
         given.reference
     );
-    given.announce.announce(Announce::Holder(format!("The wait for the lock has ended, and Git said: {said}")));
+    given.announce.announce(Announce::Holder(format!(
+        "The wait for the lock has ended, and Git said: {said}"
+    )));
     end_a_batch_that_will_not_land(
-        &DropTheBatch { git: given.git, context: given.context, repository: given.repository, seq: given.seq, intent: given.intent, scratch: given.scratch },
+        &DropTheBatch {
+            git: given.git,
+            context: given.context,
+            repository: given.repository,
+            seq: given.seq,
+            intent: given.intent,
+            scratch: given.scratch,
+        },
         given.announce,
     );
     return FailureCode::ReferenceLocked;
@@ -310,7 +385,13 @@ pub struct DropTheBatch<'a> {
 /// ```
 pub(crate) fn drop_the_batch(drop: &DropTheBatch<'_>) {
     forget_the_batch_that_will_not_land(drop);
-    let _let_go = crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(drop.git, drop.repository, drop.scratch, drop.intent.new.as_str());
+    let _let_go =
+        crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(
+            drop.git,
+            drop.repository,
+            drop.scratch,
+            drop.intent.new.as_str(),
+        );
 }
 
 /// What:
@@ -326,7 +407,11 @@ pub(crate) fn drop_the_batch(drop: &DropTheBatch<'_>) {
 /// ```ts
 /// endABatchTheWriteNeverStarted(drop, code) // the records go; a ceiling step keeps the commit first
 /// ```
-pub(crate) fn end_a_batch_the_write_never_started(drop: &DropTheBatch<'_>, code: FailureCode, announce: &dyn Announcer) {
+pub(crate) fn end_a_batch_the_write_never_started(
+    drop: &DropTheBatch<'_>,
+    code: FailureCode,
+    announce: &dyn Announcer,
+) {
     if code == FailureCode::StepTooSlow {
         forget_the_batch_that_will_not_land(drop);
         return;
@@ -349,7 +434,11 @@ pub(crate) fn end_a_batch_the_write_never_started(drop: &DropTheBatch<'_>, code:
 /// rm(intent); forgetWhatABatchOwes(intent); rm(start)
 /// ```
 pub(crate) fn forget_the_batch_that_will_not_land(drop: &DropTheBatch<'_>) {
-    let _intent_removed = std::fs::remove_file(batch_path(drop.context.journal.as_path(), drop.seq, OPEN_EXTENSION));
+    let _intent_removed = std::fs::remove_file(batch_path(
+        drop.context.journal.as_path(),
+        drop.seq,
+        OPEN_EXTENSION,
+    ));
     forget_what_a_batch_owes(drop.intent);
     remove_start(drop.context.journal.as_path(), drop.seq);
 }

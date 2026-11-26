@@ -33,14 +33,29 @@
 //! await keepThenRemove(scratchRef(seq), keptRef(seq)); // only for a batch that will not land
 //! ```
 
-use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
-use crate::service_journal::{OPEN_EXTENSION, batch_path};
+use crate::blocking_jobs_within_the_budget::{
+    TheAnswerOfAJobAwaited,
+    run_a_job_awaited_no_longer_than,
+};
+use crate::service_journal::{
+    OPEN_EXTENSION,
+    batch_path,
+};
 use crate::service_land_context::LandContext;
 use crate::service_protocol::CommitRequest;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTING, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    NO_REFLOG_SETTING,
+    run_git,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use crate::wait_ceilings::LANDING_STATE_CEILING;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// The exit status `git rev-parse --verify --quiet` gives for a name that is no object:
@@ -197,7 +212,10 @@ enum ASymbolicReference {
 /// ```ts
 /// const request = { cwd: repository, arguments: ['symbolic-ref', '--quiet', name] };
 /// ```
-fn symbolic_request(repository: &Path, name: &str) -> GitRequest {
+fn symbolic_request(
+    repository: &Path,
+    name: &str,
+) -> GitRequest {
     return GitRequest::new(repository, &["symbolic-ref", "--quiet", name]);
 }
 
@@ -219,12 +237,24 @@ fn symbolic_answered_by(answered: std::io::Result<GitOutput>) -> ASymbolicRefere
         return ASymbolicReference::Unasked;
     };
     if output.succeeded() {
-        return ASymbolicReference::PointsAt(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+        return ASymbolicReference::PointsAt(
+            String::from_utf8_lossy(output.stdout.as_slice())
+                .trim()
+                .to_string(),
+        );
     }
-    return if output.code == Some(NAME_IS_NO_OBJECT) && output.stderr.is_empty() { ASymbolicReference::NotSymbolic } else { ASymbolicReference::Unasked };
+    return if output.code == Some(NAME_IS_NO_OBJECT) && output.stderr.is_empty() {
+        ASymbolicReference::NotSymbolic
+    } else {
+        ASymbolicReference::Unasked
+    };
 }
 
-fn symbolic_reference(git: &GitContext, repository: &Path, name: &str) -> ASymbolicReference {
+fn symbolic_reference(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+) -> ASymbolicReference {
     return symbolic_answered_by(run_git(git, &symbolic_request(repository, name)));
 }
 
@@ -235,7 +265,11 @@ fn symbolic_reference(git: &GitContext, repository: &Path, name: &str) -> ASymbo
 /// ```ts
 /// async function symbolicReferenceAwaiting(git, repository, name): Promise<ASymbolicReference>;
 /// ```
-async fn symbolic_reference_awaiting(git: &GitContext, repository: &Path, name: &str) -> ASymbolicReference {
+async fn symbolic_reference_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+) -> ASymbolicReference {
     return symbolic_answered_by(run_git_awaiting(git, &symbolic_request(repository, name)).await);
 }
 
@@ -258,11 +292,17 @@ async fn symbolic_reference_awaiting(git: &GitContext, repository: &Path, name: 
 /// ```ts
 /// async function valueOf(git, repository, name) { const symbolic = await git(['symbolic-ref', '--quiet', name]); if (symbolic.code === 0) return { symbolic: symbolic.out.trim() }; if (symbolic.code !== 1 || symbolic.err) return 'unasked'; const asked = await git(['rev-parse', '--verify', '--quiet', name]); return asked.code === 0 ? { names: asked.out.trim() } : asked.code === 1 && !asked.err ? 'absent' : 'unasked'; }
 /// ```
-pub(crate) fn value_of(git: &GitContext, repository: &Path, name: &str) -> RefValue {
+pub(crate) fn value_of(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+) -> RefValue {
     return match symbolic_reference(git, repository, name) {
         ASymbolicReference::PointsAt(target) => RefValue::Symbolic(target),
         ASymbolicReference::Unasked => RefValue::Unasked,
-        ASymbolicReference::NotSymbolic => value_answered_by(run_git(git, &value_request(repository, name))),
+        ASymbolicReference::NotSymbolic => {
+            value_answered_by(run_git(git, &value_request(repository, name)))
+        }
     };
 }
 
@@ -272,11 +312,17 @@ pub(crate) fn value_of(git: &GitContext, repository: &Path, name: &str) -> RefVa
 /// ```ts
 /// async function valueOfAwaiting(git, repository, name): Promise<RefValue>;
 /// ```
-pub(crate) async fn value_of_awaiting(git: &GitContext, repository: &Path, name: &str) -> RefValue {
+pub(crate) async fn value_of_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+) -> RefValue {
     return match symbolic_reference_awaiting(git, repository, name).await {
         ASymbolicReference::PointsAt(target) => RefValue::Symbolic(target),
         ASymbolicReference::Unasked => RefValue::Unasked,
-        ASymbolicReference::NotSymbolic => value_answered_by(run_git_awaiting(git, &value_request(repository, name)).await),
+        ASymbolicReference::NotSymbolic => {
+            value_answered_by(run_git_awaiting(git, &value_request(repository, name)).await)
+        }
     };
 }
 
@@ -290,7 +336,10 @@ pub(crate) async fn value_of_awaiting(git: &GitContext, repository: &Path, name:
 /// ```ts
 /// const request = { cwd: repository, arguments: ['rev-parse', '--verify', '--quiet', name] };
 /// ```
-fn value_request(repository: &Path, name: &str) -> GitRequest {
+fn value_request(
+    repository: &Path,
+    name: &str,
+) -> GitRequest {
     return GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", name]);
 }
 
@@ -311,9 +360,17 @@ fn value_answered_by(answered: std::io::Result<GitOutput>) -> RefValue {
         return RefValue::Unasked;
     };
     if output.succeeded() {
-        return RefValue::Names(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+        return RefValue::Names(
+            String::from_utf8_lossy(output.stdout.as_slice())
+                .trim()
+                .to_string(),
+        );
     }
-    return if output.code == Some(NAME_IS_NO_OBJECT) && output.stderr.is_empty() { RefValue::Absent } else { RefValue::Unasked };
+    return if output.code == Some(NAME_IS_NO_OBJECT) && output.stderr.is_empty() {
+        RefValue::Absent
+    } else {
+        RefValue::Unasked
+    };
 }
 
 /// What:
@@ -328,7 +385,11 @@ fn value_answered_by(answered: std::io::Result<GitOutput>) -> RefValue {
 /// ```ts
 /// await git(['-c', 'core.logAllRefUpdates=false', 'update-ref', ...arguments])
 /// ```
-fn write_ref(git: &GitContext, repository: &Path, arguments: &[&str]) -> bool {
+fn write_ref(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[&str],
+) -> bool {
     return git_took_it(run_git(git, &GitRequest::new(repository, arguments)));
 }
 
@@ -338,7 +399,11 @@ fn write_ref(git: &GitContext, repository: &Path, arguments: &[&str]) -> bool {
 /// ```ts
 /// async function writeRefAwaiting(git, repository, arguments): Promise<boolean>;
 /// ```
-async fn write_ref_awaiting(git: &GitContext, repository: &Path, arguments: &[&str]) -> bool {
+async fn write_ref_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[&str],
+) -> bool {
     return git_took_it(run_git_awaiting(git, &GitRequest::new(repository, arguments)).await);
 }
 
@@ -369,8 +434,15 @@ fn git_took_it(answered: std::io::Result<GitOutput>) -> bool {
 /// ```ts
 /// console.warn(`batch ${seq} in the repository at ${repo}: ${reason}`)
 /// ```
-fn left(seq: u64, repository: &Path, reason: &str) {
-    crate::service_warn!("batch {seq} {}: {reason}", crate::service_timing::in_the_repository_at(repository));
+fn left(
+    seq: u64,
+    repository: &Path,
+    reason: &str,
+) {
+    crate::service_warn!(
+        "batch {seq} {}: {reason}",
+        crate::service_timing::in_the_repository_at(repository)
+    );
 }
 
 /// What:
@@ -395,7 +467,11 @@ fn left(seq: u64, repository: &Path, reason: &str) {
 /// ```ts
 /// const tip = await valueOf(scratch); if (tip === 'absent') return 'removed'; if (tip === 'unasked') return 'left'; if (!await keep(tip)) return 'left'; return await git(['update-ref', '-d', '--no-deref', scratch]) ? 'removed' : 'left'
 /// ```
-pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq: u64) -> ScratchRefRemoval {
+pub(crate) fn clear_after_dropped_batch(
+    git: &GitContext,
+    repository: &Path,
+    seq: u64,
+) -> ScratchRefRemoval {
     let scratch: String = scratch_ref(seq);
     let kept: String = kept_ref(seq);
     let tip: String = match value_of(git, repository, scratch.as_str()) {
@@ -409,7 +485,11 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
             return ScratchRefRemoval::Left;
         }
         RefValue::Unasked => {
-            left(seq, repository, format!("{scratch} cannot be read, so nothing is removed").as_str());
+            left(
+                seq,
+                repository,
+                format!("{scratch} cannot be read, so nothing is removed").as_str(),
+            );
             return ScratchRefRemoval::Left;
         }
     };
@@ -427,13 +507,32 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
             return ScratchRefRemoval::Left;
         }
         RefValue::Unasked => {
-            left(seq, repository, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
+            left(
+                seq,
+                repository,
+                format!(
+                    "{kept} cannot be read, so the scratch reference {scratch} is left as it is"
+                )
+                .as_str(),
+            );
             return ScratchRefRemoval::Left;
         }
         RefValue::Absent => {
             // The empty old value asks Git for a write of a name that names nothing: a reference another command writes between this
             //  read and the write is never replaced (`keep_on_a_side_ref`, the owner's rule "never discard user data").
-            if !write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", kept.as_str(), tip.as_str(), ""]) {
+            if !write_ref(
+                git,
+                repository,
+                &[
+                    "-c",
+                    NO_REFLOG_SETTING,
+                    "update-ref",
+                    "--no-deref",
+                    kept.as_str(),
+                    tip.as_str(),
+                    "",
+                ],
+            ) {
                 left(
                     seq,
                     repository,
@@ -450,7 +549,19 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
     }
     // The old value is the one just read: a reference another command wrote in between is never removed, because the commit it
     //  names may be the only thing naming it (the owner's rule "never discard user data").
-    if write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str(), tip.as_str()]) {
+    if write_ref(
+        git,
+        repository,
+        &[
+            "-c",
+            NO_REFLOG_SETTING,
+            "update-ref",
+            "-d",
+            "--no-deref",
+            scratch.as_str(),
+            tip.as_str(),
+        ],
+    ) {
         crate::service_log!(
             "batch {} {}: the scratch reference {scratch} of a batch that did not land is removed",
             seq,
@@ -480,8 +591,18 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
 /// ```ts
 /// const removal = await clearAfterDroppedBatchAwaiting(git, repository, seq)
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn clear_after_dropped_batch_awaiting(git: &GitContext, repository: &Path, seq: u64) -> ScratchRefRemoval {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn clear_after_dropped_batch_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    seq: u64,
+) -> ScratchRefRemoval {
     let scratch: String = scratch_ref(seq);
     let kept: String = kept_ref(seq);
     let tip: String = match value_of_awaiting(git, repository, scratch.as_str()).await {
@@ -495,7 +616,11 @@ pub(crate) async fn clear_after_dropped_batch_awaiting(git: &GitContext, reposit
             return ScratchRefRemoval::Left;
         }
         RefValue::Unasked => {
-            left(seq, repository, format!("{scratch} cannot be read, so nothing is removed").as_str());
+            left(
+                seq,
+                repository,
+                format!("{scratch} cannot be read, so nothing is removed").as_str(),
+            );
             return ScratchRefRemoval::Left;
         }
     };
@@ -513,13 +638,34 @@ pub(crate) async fn clear_after_dropped_batch_awaiting(git: &GitContext, reposit
             return ScratchRefRemoval::Left;
         }
         RefValue::Unasked => {
-            left(seq, repository, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
+            left(
+                seq,
+                repository,
+                format!(
+                    "{kept} cannot be read, so the scratch reference {scratch} is left as it is"
+                )
+                .as_str(),
+            );
             return ScratchRefRemoval::Left;
         }
         RefValue::Absent => {
             // The empty old value asks Git for a write of a name that names nothing: a reference another command writes between this
             //  read and the write is never replaced (`keep_on_a_side_ref`, the owner's rule "never discard user data").
-            if !write_ref_awaiting(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", kept.as_str(), tip.as_str(), ""]).await {
+            if !write_ref_awaiting(
+                git,
+                repository,
+                &[
+                    "-c",
+                    NO_REFLOG_SETTING,
+                    "update-ref",
+                    "--no-deref",
+                    kept.as_str(),
+                    tip.as_str(),
+                    "",
+                ],
+            )
+            .await
+            {
                 left(
                     seq,
                     repository,
@@ -536,7 +682,21 @@ pub(crate) async fn clear_after_dropped_batch_awaiting(git: &GitContext, reposit
     }
     // The old value is the one just read: a reference another command wrote in between is never removed, because the commit it
     //  names may be the only thing naming it (the owner's rule "never discard user data").
-    if write_ref_awaiting(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str(), tip.as_str()]).await {
+    if write_ref_awaiting(
+        git,
+        repository,
+        &[
+            "-c",
+            NO_REFLOG_SETTING,
+            "update-ref",
+            "-d",
+            "--no-deref",
+            scratch.as_str(),
+            tip.as_str(),
+        ],
+    )
+    .await
+    {
         crate::service_log!(
             "batch {} {}: the scratch reference {scratch} of a batch that did not land is removed",
             seq,
@@ -562,14 +722,23 @@ pub(crate) async fn clear_after_dropped_batch_awaiting(git: &GitContext, reposit
 /// ```ts
 /// const first = requests[0]; if (!first || openIntent(journal, seq)) return 'removed'; return await clearAfterDroppedBatch(git, first.repository, seq)
 /// ```
-pub(crate) fn clear_after_a_failed_landing(context: &LandContext, requests: &[CommitRequest], seq: u64) -> ScratchRefRemoval {
+pub(crate) fn clear_after_a_failed_landing(
+    context: &LandContext,
+    requests: &[CommitRequest],
+    seq: u64,
+) -> ScratchRefRemoval {
     // No request is no import, so the batch made no reference at all.
-    let Some(first) = requests.first() else { return ScratchRefRemoval::Removed };
+    let Some(first) = requests.first() else {
+        return ScratchRefRemoval::Removed;
+    };
     // An open intent names the batch's own worktree, and the restart that settles it removes the reference then.
     if batch_path(context.journal.as_path(), seq, OPEN_EXTENSION).exists() {
         return ScratchRefRemoval::Removed;
     }
-    let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
+    let git: GitContext = GitContext {
+        common_dir: Some(first.common_dir.clone()),
+        ..context.git.clone()
+    };
     return clear_after_dropped_batch(&git, first.repository.as_path(), seq);
 }
 
@@ -605,13 +774,22 @@ fn an_intent_is_open(question: OpenIntentQuestion) -> bool {
 /// ```ts
 /// const open = await anOpenIntentAwaiting(journal, seq); // null when the look gave no answer
 /// ```
-async fn an_open_intent_awaiting(journal: &Path, seq: u64) -> Option<bool> {
+async fn an_open_intent_awaiting(
+    journal: &Path,
+    seq: u64,
+) -> Option<bool> {
     return an_open_intent_within(LANDING_STATE_CEILING, journal, seq).await;
 }
 
 /// `an_open_intent_awaiting` with the wait `ceiling` grants.
-async fn an_open_intent_within(ceiling: Duration, journal: &Path, seq: u64) -> Option<bool> {
-    let question: OpenIntentQuestion = OpenIntentQuestion { path: batch_path(journal, seq, OPEN_EXTENSION) };
+async fn an_open_intent_within(
+    ceiling: Duration,
+    journal: &Path,
+    seq: u64,
+) -> Option<bool> {
+    let question: OpenIntentQuestion = OpenIntentQuestion {
+        path: batch_path(journal, seq, OPEN_EXTENSION),
+    };
     return match run_a_job_awaited_no_longer_than(ceiling, question, an_intent_is_open).await {
         TheAnswerOfAJobAwaited::Ran(open) => Some(open),
         TheAnswerOfAJobAwaited::NotRun | TheAnswerOfAJobAwaited::NoAnswer => None,
@@ -633,10 +811,22 @@ async fn an_open_intent_within(ceiling: Duration, journal: &Path, seq: u64) -> O
 /// ```ts
 /// const removal = await clearAfterAFailedLandingAwaiting(context, requests, seq)
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn clear_after_a_failed_landing_awaiting(context: &LandContext, requests: &[CommitRequest], seq: u64) -> ScratchRefRemoval {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn clear_after_a_failed_landing_awaiting(
+    context: &LandContext,
+    requests: &[CommitRequest],
+    seq: u64,
+) -> ScratchRefRemoval {
     // No request is no import, so the batch made no reference at all.
-    let Some(first) = requests.first() else { return ScratchRefRemoval::Removed };
+    let Some(first) = requests.first() else {
+        return ScratchRefRemoval::Removed;
+    };
     // An open intent names the batch's own worktree, and the restart that settles it removes the reference then.
     match an_open_intent_awaiting(context.journal.as_path(), seq).await {
         Some(true) => return ScratchRefRemoval::Removed,
@@ -650,7 +840,10 @@ pub(crate) async fn clear_after_a_failed_landing_awaiting(context: &LandContext,
             return ScratchRefRemoval::Left;
         }
     }
-    let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
+    let git: GitContext = GitContext {
+        common_dir: Some(first.common_dir.clone()),
+        ..context.git.clone()
+    };
     return clear_after_dropped_batch_awaiting(&git, first.repository.as_path(), seq).await;
 }
 

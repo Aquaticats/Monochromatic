@@ -7,11 +7,23 @@
 //! the way `private_storage_tests` shows a directory sync that a filesystem cannot do.
 
 use super::*;
-use crate::subvolume_test_support::{Flushing, PlainPlatform, checkout_with_worktree, migrate_arguments, run_command};
 use crate::subvolume_arguments::MigrateArguments;
 use crate::subvolume_error::Interrupt;
-use crate::test_support::{fixture, remove};
-use crate::worktree_convert::{ConvertOptions, convert_worktree};
+use crate::subvolume_test_support::{
+    Flushing,
+    PlainPlatform,
+    checkout_with_worktree,
+    migrate_arguments,
+    run_command,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use crate::worktree_convert::{
+    ConvertOptions,
+    convert_worktree,
+};
 use std::cell::Cell;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -20,7 +32,9 @@ use std::rc::Rc;
 /// or nothing where this system has no `procfs`.
 fn directory_that_cannot_be_flushed() -> Option<&'static Path> {
     let procfs: &Path = Path::new("/proc/self");
-    let refused: bool = std::fs::File::open(procfs).is_ok_and(|handle| { return handle.sync_all().is_err(); });
+    let refused: bool = std::fs::File::open(procfs).is_ok_and(|handle| {
+        return handle.sync_all().is_err();
+    });
     return if refused { Some(procfs) } else { None };
 }
 
@@ -32,7 +46,11 @@ fn a_directory_that_cannot_be_flushed_is_reported() {
         eprintln!("skipped: this system has no procfs, so no directory flush is refused");
         return;
     };
-    assert!(sync_directory_to_disk(procfs).is_err(), "the kernel refuses to flush {}", procfs.display());
+    assert!(
+        sync_directory_to_disk(procfs).is_err(),
+        "the kernel refuses to flush {}",
+        procfs.display()
+    );
 }
 
 /// A thread that keeps its writes in memory does not ask the kernel to flush,
@@ -48,7 +66,10 @@ fn a_thread_that_keeps_its_writes_in_memory_does_not_flush() {
         sync_directory_to_disk(procfs)
     };
     assert!(outcome.is_ok(), "the flush was skipped: {outcome:?}");
-    assert!(sync_directory_to_disk(procfs).is_err(), "the switch is back when the body ended");
+    assert!(
+        sync_directory_to_disk(procfs).is_err(),
+        "the switch is back when the body ended"
+    );
 }
 
 /// The switch goes back when the body panics,
@@ -64,7 +85,10 @@ fn the_switch_goes_back_when_the_body_panics() {
         panic!("the body fails on purpose");
     });
     assert!(caught.is_err(), "the body panics on purpose");
-    assert!(sync_directory_to_disk(procfs).is_err(), "the switch is back after a body that panicked");
+    assert!(
+        sync_directory_to_disk(procfs).is_err(),
+        "the switch is back after a body that panicked"
+    );
 }
 
 /// A write that keeps its bytes in memory writes all of them,
@@ -85,7 +109,10 @@ fn a_write_that_keeps_its_bytes_in_memory_writes_all_of_them() {
     let mut file: std::fs::File = std::fs::File::create(flushed.as_path()).expect("flushed file");
     write_all_then_sync(&mut file, bytes).expect("the write and its flush");
     assert_eq!(std::fs::read(kept.as_path()).expect("kept bytes"), bytes);
-    assert_eq!(std::fs::read(flushed.as_path()).expect("flushed bytes"), bytes);
+    assert_eq!(
+        std::fs::read(flushed.as_path()).expect("flushed bytes"),
+        bytes
+    );
     remove(root.as_path());
 }
 
@@ -99,7 +126,10 @@ fn a_write_that_keeps_its_bytes_in_memory_writes_all_of_them() {
 /// this handle answers differently to the two,
 /// which is what tells them apart.
 fn handle_that_cannot_be_flushed() -> Option<std::fs::File> {
-    let handle: std::fs::File = std::fs::OpenOptions::new().write(true).open("/dev/null").ok()?;
+    let handle: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/null")
+        .ok()?;
     // Where a flush is allowed there is nothing to tell the two branches apart.
     return match handle.sync_all() {
         Ok(()) => None,
@@ -122,9 +152,15 @@ fn the_switch_decides_whether_a_write_is_flushed() {
         let _kept = WritesKeptInMemory::for_this_thread();
         write_all_then_sync(&mut handle, bytes)
     };
-    assert!(kept.is_ok(), "the switch skipped the flush, so the refusal was never met: {kept:?}");
+    assert!(
+        kept.is_ok(),
+        "the switch skipped the flush, so the refusal was never met: {kept:?}"
+    );
     let flushed: std::io::Result<()> = write_all_then_sync(&mut handle, bytes);
-    assert!(flushed.is_err(), "the write made the flush and the kernel refused it: {flushed:?}");
+    assert!(
+        flushed.is_err(),
+        "the write made the flush and the kernel refused it: {flushed:?}"
+    );
 }
 
 /// What:
@@ -137,7 +173,10 @@ fn the_switch_decides_whether_a_write_is_flushed() {
 ///  platform records what a flush of `procfs`,
 /// which refuses one,
 /// answered there.
-fn flushing(procfs: &'static Path, flushed: Rc<Cell<Option<bool>>>) -> Flushing {
+fn flushing(
+    procfs: &'static Path,
+    flushed: Rc<Cell<Option<bool>>>,
+) -> Flushing {
     return Flushing {
         inner: PlainPlatform::new(),
         on_question: Box::new(move || {
@@ -160,13 +199,20 @@ fn a_command_on_a_platform_that_flushes_flushes_inside_one_that_skips() {
     let parent: PathBuf = fixture("flushing-command-inside-skipping");
     let root: PathBuf = parent.join("checkout");
     std::fs::create_dir(root.as_path()).expect("the checkout directory");
-    let arguments: MigrateArguments = MigrateArguments { dry_run: true, ..migrate_arguments() };
+    let arguments: MigrateArguments = MigrateArguments {
+        dry_run: true,
+        ..migrate_arguments()
+    };
     let (code, lines) = {
         // The extent of the stand-in that skips the flushes, as a control's simulated run has it.
         let _kept = WritesKeptInMemory::for_this_thread();
         run_command(&platform, &arguments, root.as_path(), &Interrupt::never())
     };
-    assert_eq!(flushed.get(), Some(true), "the command on a platform that flushes made its flush, though it ran inside a stand-in that skips them (exit {code}, {lines:?})");
+    assert_eq!(
+        flushed.get(),
+        Some(true),
+        "the command on a platform that flushes made its flush, though it ran inside a stand-in that skips them (exit {code}, {lines:?})"
+    );
     remove(parent.as_path());
 }
 
@@ -182,15 +228,34 @@ fn a_conversion_on_a_platform_that_flushes_flushes_inside_one_that_skips() {
     let platform: Flushing = flushing(procfs, Rc::clone(&flushed));
     let (parent, root) = checkout_with_worktree("flushing-conversion-inside-skipping");
     let worktree: PathBuf = root.join("wt");
-    let options: ConvertOptions = ConvertOptions { dry_run: true, abandon: false, command_line_attributes: false };
+    let options: ConvertOptions = ConvertOptions {
+        dry_run: true,
+        abandon: false,
+        command_line_attributes: false,
+    };
     let mut lines: Vec<String> = Vec::new();
     {
         // The extent of the stand-in that skips the flushes, as a control's simulated run has it.
         let _kept = WritesKeptInMemory::for_this_thread();
-        let verdict = convert_worktree(&platform, worktree.as_path(), options, &Interrupt::never(), &mut |text: &str| { lines.push(String::from(text)); });
-        assert!(verdict.is_ok(), "the conversion was previewed, so it reached the platform: {verdict:?} {lines:?}");
+        let verdict = convert_worktree(
+            &platform,
+            worktree.as_path(),
+            options,
+            &Interrupt::never(),
+            &mut |text: &str| {
+                lines.push(String::from(text));
+            },
+        );
+        assert!(
+            verdict.is_ok(),
+            "the conversion was previewed, so it reached the platform: {verdict:?} {lines:?}"
+        );
     }
-    assert_eq!(flushed.get(), Some(true), "the conversion on a platform that flushes made its flush, though it ran inside a stand-in that skips them ({lines:?})");
+    assert_eq!(
+        flushed.get(),
+        Some(true),
+        "the conversion on a platform that flushes made its flush, though it ran inside a stand-in that skips them ({lines:?})"
+    );
     remove(parent.as_path());
 }
 
@@ -207,12 +272,33 @@ fn a_link_at_the_targets_name_is_replaced_and_its_target_is_untouched() {
     let notes: PathBuf = root.join("notes.txt");
     std::fs::write(notes.as_path(), b"a person's notes\n").expect("their file");
     let target: PathBuf = root.join("list.txt");
-    std::os::unix::fs::symlink(notes.as_path(), target.as_path()).expect("a link at the target's name");
+    std::os::unix::fs::symlink(notes.as_path(), target.as_path())
+        .expect("a link at the target's name");
     write_beside_then_rename(target.as_path(), b"ignored/restored.txt\n").expect("written");
-    assert_eq!(std::fs::read(notes.as_path()).expect("their file"), b"a person's notes\n", "the target of the link is untouched");
-    assert!(!std::fs::symlink_metadata(target.as_path()).expect("the name").file_type().is_symlink(), "the name holds the bytes, not the link");
-    assert_eq!(std::fs::read(target.as_path()).expect("the list"), b"ignored/restored.txt\n");
-    assert_eq!(std::fs::read_dir(root.as_path()).expect("listing").flatten().count(), 2, "no temporary file stays");
+    assert_eq!(
+        std::fs::read(notes.as_path()).expect("their file"),
+        b"a person's notes\n",
+        "the target of the link is untouched"
+    );
+    assert!(
+        !std::fs::symlink_metadata(target.as_path())
+            .expect("the name")
+            .file_type()
+            .is_symlink(),
+        "the name holds the bytes, not the link"
+    );
+    assert_eq!(
+        std::fs::read(target.as_path()).expect("the list"),
+        b"ignored/restored.txt\n"
+    );
+    assert_eq!(
+        std::fs::read_dir(root.as_path())
+            .expect("listing")
+            .flatten()
+            .count(),
+        2,
+        "no temporary file stays"
+    );
     remove(root.as_path());
 }
 
@@ -222,8 +308,20 @@ fn a_link_at_the_targets_name_is_replaced_and_its_target_is_untouched() {
 fn a_write_that_cannot_be_put_in_place_leaves_nothing_behind() {
     let root: PathBuf = fixture("file-write-missing-parent");
     let target: PathBuf = root.join("gone").join("list.txt");
-    let error: std::io::Error = write_beside_then_rename(target.as_path(), b"x").expect_err("no such directory");
-    assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "the failure is the missing directory");
-    assert_eq!(std::fs::read_dir(root.as_path()).expect("listing").flatten().count(), 0, "nothing is left in the directory that exists");
+    let error: std::io::Error =
+        write_beside_then_rename(target.as_path(), b"x").expect_err("no such directory");
+    assert_eq!(
+        error.kind(),
+        std::io::ErrorKind::NotFound,
+        "the failure is the missing directory"
+    );
+    assert_eq!(
+        std::fs::read_dir(root.as_path())
+            .expect("listing")
+            .flatten()
+            .count(),
+        0,
+        "nothing is left in the directory that exists"
+    );
     remove(root.as_path());
 }

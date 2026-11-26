@@ -21,7 +21,10 @@
 
 use crate::kept_names_in_the_git_directories::data_folder_for_reading;
 use crate::plain_file::open_plain_file;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder,
 /// inside the Git directory's data folder,
@@ -56,7 +59,10 @@ pub(super) fn fresh_kept_folder(git_dir: &Path) -> std::io::Result<PathBuf> {
             Err(error) => return Err(error),
         }
     }
-    return Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "every numbered folder this command can make already exists"));
+    return Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "every numbered folder this command can make already exists",
+    ));
 }
 
 /// What:
@@ -87,9 +93,14 @@ pub(super) fn holds_nothing(directory: &Path) -> bool {
 /// mkdirSync(dirname(target), { recursive: true });
 /// ```
 fn make_the_copy_folder(in_the_copy: &Path) -> Result<(), String> {
-    let Some(parent): Option<&Path> = in_the_copy.parent() else { return Ok(()) };
+    let Some(parent): Option<&Path> = in_the_copy.parent() else {
+        return Ok(());
+    };
     if let Err(error) = std::fs::create_dir_all(parent) {
-        return Err(format!("the folder {} of its copy could not be made: {error}", parent.display()));
+        return Err(format!(
+            "the folder {} of its copy could not be made: {error}",
+            parent.display()
+        ));
     }
     return Ok(());
 }
@@ -107,17 +118,34 @@ fn make_the_copy_folder(in_the_copy: &Path) -> Result<(), String> {
 /// ```ts
 /// copyFileSync(openPlain(source), target);
 /// ```
-fn copy_plain_file(from: &Path, to: &Path, metadata: &std::fs::Metadata) -> Result<(), String> {
+fn copy_plain_file(
+    from: &Path,
+    to: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), String> {
     let mut source: std::fs::File = match open_plain_file(from) {
         Ok(opened) => opened,
-        Err(error) => return Err(format!("the wrapper could not open {}: {error}", from.display())),
+        Err(error) => {
+            return Err(format!(
+                "the wrapper could not open {}: {error}",
+                from.display()
+            ));
+        }
     };
     let mut destination: std::fs::File = match std::fs::File::create(to) {
         Ok(made) => made,
-        Err(error) => return Err(format!("its copy at {} could not be made: {error}", to.display())),
+        Err(error) => {
+            return Err(format!(
+                "its copy at {} could not be made: {error}",
+                to.display()
+            ));
+        }
     };
     if let Err(error) = std::io::copy(&mut source, &mut destination) {
-        return Err(format!("its copy at {} could not be written: {error}", to.display()));
+        return Err(format!(
+            "its copy at {} could not be written: {error}",
+            to.display()
+        ));
     }
     return copy_the_mode(metadata, to);
 }
@@ -128,11 +156,17 @@ fn copy_plain_file(from: &Path, to: &Path, metadata: &std::fs::Metadata) -> Resu
 ///   An entry a person runs is its bytes and its mode,
 ///  so a copy that is not executable would not be the file they had.
 #[cfg(unix)]
-fn copy_the_mode(metadata: &std::fs::Metadata, to: &Path) -> Result<(), String> {
+fn copy_the_mode(
+    metadata: &std::fs::Metadata,
+    to: &Path,
+) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt as _;
     let mode: u32 = metadata.permissions().mode() & 0o777;
     if let Err(error) = std::fs::set_permissions(to, std::fs::Permissions::from_mode(mode)) {
-        return Err(format!("the mode of its copy at {} could not be set: {error}", to.display()));
+        return Err(format!(
+            "the mode of its copy at {} could not be set: {error}",
+            to.display()
+        ));
     }
     return Ok(());
 }
@@ -140,7 +174,10 @@ fn copy_the_mode(metadata: &std::fs::Metadata, to: &Path) -> Result<(), String> 
 /// The same on a platform whose permissions are not Unix bits:
 ///  the copy keeps what `std::fs::File::create` gave it.
 #[cfg(not(unix))]
-fn copy_the_mode(_metadata: &std::fs::Metadata, _to: &Path) -> Result<(), String> {
+fn copy_the_mode(
+    _metadata: &std::fs::Metadata,
+    _to: &Path,
+) -> Result<(), String> {
     return Ok(());
 }
 
@@ -156,14 +193,24 @@ fn copy_the_mode(_metadata: &std::fs::Metadata, _to: &Path) -> Result<(), String
 /// ```ts
 /// const metadata = lstatSync(path); if (metadata.isDirectory()) throw 'it is a directory'; if (metadata.isSymbolicLink()) symlinkSync(readlinkSync(path), target); else copyPlainFile(path, target);
 /// ```
-pub(super) fn keep_one(in_the_worktree: &Path, in_the_copy: &Path) -> Result<(), String> {
+pub(super) fn keep_one(
+    in_the_worktree: &Path,
+    in_the_copy: &Path,
+) -> Result<(), String> {
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(in_the_worktree) {
         Ok(seen) => seen,
-        Err(error) => return Err(format!("the wrapper could not read {}: {error}", in_the_worktree.display())),
+        Err(error) => {
+            return Err(format!(
+                "the wrapper could not read {}: {error}",
+                in_the_worktree.display()
+            ));
+        }
     };
     let kind: std::fs::FileType = metadata.file_type();
     if kind.is_dir() {
-        return Err(String::from("it is a directory, and the wrapper copies plain files and symbolic links"));
+        return Err(String::from(
+            "it is a directory, and the wrapper copies plain files and symbolic links",
+        ));
     }
     make_the_copy_folder(in_the_copy)?;
     if kind.is_symlink() {
@@ -172,7 +219,9 @@ pub(super) fn keep_one(in_the_worktree: &Path, in_the_copy: &Path) -> Result<(),
     if kind.is_file() {
         return copy_plain_file(in_the_worktree, in_the_copy, &metadata);
     }
-    return Err(String::from("it is neither a plain file nor a symbolic link"));
+    return Err(String::from(
+        "it is neither a plain file nor a symbolic link",
+    ));
 }
 
 /// What:
@@ -181,13 +230,24 @@ pub(super) fn keep_one(in_the_worktree: &Path, in_the_copy: &Path) -> Result<(),
 ///   A symbolic link's bytes are its target's text,
 ///  so the copy is made with that text and never by following it.
 #[cfg(unix)]
-fn copy_symbolic_link(in_the_worktree: &Path, in_the_copy: &Path) -> Result<(), String> {
+fn copy_symbolic_link(
+    in_the_worktree: &Path,
+    in_the_copy: &Path,
+) -> Result<(), String> {
     let target: PathBuf = match std::fs::read_link(in_the_worktree) {
         Ok(named) => named,
-        Err(error) => return Err(format!("the wrapper could not read the link target of {}: {error}", in_the_worktree.display())),
+        Err(error) => {
+            return Err(format!(
+                "the wrapper could not read the link target of {}: {error}",
+                in_the_worktree.display()
+            ));
+        }
     };
     if let Err(error) = std::os::unix::fs::symlink(target, in_the_copy) {
-        return Err(format!("the link at {} could not be made: {error}", in_the_copy.display()));
+        return Err(format!(
+            "the link at {} could not be made: {error}",
+            in_the_copy.display()
+        ));
     }
     return Ok(());
 }
@@ -196,6 +256,11 @@ fn copy_symbolic_link(in_the_worktree: &Path, in_the_copy: &Path) -> Result<(), 
 ///  which keeps the words and refuses the entry:
 ///  no gate builds this crate there.
 #[cfg(not(unix))]
-fn copy_symbolic_link(_in_the_worktree: &Path, _in_the_copy: &Path) -> Result<(), String> {
-    return Err(String::from("it is a symbolic link, which this platform's copy cannot make"));
+fn copy_symbolic_link(
+    _in_the_worktree: &Path,
+    _in_the_copy: &Path,
+) -> Result<(), String> {
+    return Err(String::from(
+        "it is a symbolic link, which this platform's copy cannot make",
+    ));
 }

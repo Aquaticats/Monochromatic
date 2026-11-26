@@ -20,6 +20,75 @@
 //! // const outcome = await runWrappedCommand(stripped, environment, checks);
 //! ```
 
+use crate::action::ENGINE_FAILURE_EXIT_CODE;
+/// `git add` asks for what it would stage.
+use crate::candidate_prediction::CandidateRequest;
+use crate::command_commit::{
+    CommitRegion,
+    parse_commit_region,
+};
+use crate::command_options::OptionError;
+use crate::command_push::{
+    PushRegion,
+    parse_push_region,
+};
+use crate::commit_command::{
+    CommitCommand,
+    run_commit_command,
+};
+use crate::config_loading::{
+    ConfigLoading,
+    classify_config_loading,
+};
+use crate::config_schema::{
+    CliGitConfig,
+    PolicyConfig,
+};
+use crate::diagnostics::EngineFailureCode;
+use crate::event_hints::manual_push_failure_hint;
+use crate::global_arguments::GlobalOutcome;
+use crate::invocation_config::{
+    config_invalid_event,
+    load_identity_config,
+};
+use crate::policy_checks::ShippedChecks;
+/// What the command offers its content policies.
+use crate::policy_content::LifecycleContent;
+use crate::policy_engine::{
+    StageEnd,
+    StageRequest,
+    StageResult,
+    any_policy_applies,
+    pass_exit_code,
+    run_policy_stage,
+};
+use crate::policy_events::{
+    EngineFailureHint,
+    PolicyEvent,
+    render_policy_events,
+};
+use crate::policy_pass::{
+    PassResult,
+    policies_of_kind,
+    run_policy_pass,
+};
+use crate::policy_registry::PolicyId;
+use crate::policy_trigger::Trigger;
+use crate::repository_facts::RepositoryFacts;
+use crate::repository_link_answer::EXIT_GIT_FATAL;
+use crate::repository_location::RepositoryLocation;
+/// Startup recovery as a command step.
+use crate::startup_gate::{
+    Gate,
+    recover_for_command,
+};
+/// A valid preparation lease marks a command started by a hook of a live transaction.
+use crate::unported::{
+    Unported,
+    unported_from_unavailable,
+    unported_notice,
+};
+use crate::worktree_identity::worktree_root;
 /// What:
 ///  `use` brings names from sibling files into this file;
 ///  `super::` means "the parent
@@ -34,39 +103,19 @@
 /// ```ts
 /// import { runPolicyPass } from './policy_pass.ts';
 /// ```
-use crate::wrapped_command_notices_snapshots_and_manual_push::{prepare_manual_push, record_escape_use, show_held_commits, show_push_failures, snapshot_before_worktree_removal, sweep_shadow_pools_of_gone_worktrees};
-use crate::action::ENGINE_FAILURE_EXIT_CODE;
-use crate::repository_link_answer::EXIT_GIT_FATAL;
-/// `git add` asks for what it would stage.
-use crate::candidate_prediction::CandidateRequest;
-use crate::command_options::OptionError;
-use crate::command_push::{PushRegion, parse_push_region};
-use crate::config_loading::{ConfigLoading, classify_config_loading};
-use crate::command_commit::{CommitRegion, parse_commit_region};
-use crate::commit_command::{CommitCommand, run_commit_command};
-use crate::config_schema::{CliGitConfig, PolicyConfig};
-use crate::diagnostics::EngineFailureCode;
-use crate::global_arguments::GlobalOutcome;
-use crate::invocation_config::{config_invalid_event, load_identity_config};
-use crate::policy_checks::ShippedChecks;
-/// What the command offers its content policies.
-use crate::policy_content::LifecycleContent;
-use crate::policy_engine::{
-    StageEnd, StageRequest, StageResult, any_policy_applies, pass_exit_code, run_policy_stage,
+use crate::wrapped_command_notices_snapshots_and_manual_push::{
+    prepare_manual_push,
+    record_escape_use,
+    show_held_commits,
+    show_push_failures,
+    snapshot_before_worktree_removal,
+    sweep_shadow_pools_of_gone_worktrees,
 };
-use crate::event_hints::manual_push_failure_hint;
-use crate::policy_events::{EngineFailureHint, PolicyEvent, render_policy_events};
-use crate::policy_pass::{PassResult, policies_of_kind, run_policy_pass};
-use crate::policy_registry::PolicyId;
-use crate::policy_trigger::Trigger;
-use crate::repository_facts::RepositoryFacts;
-use crate::repository_location::RepositoryLocation;
-/// Startup recovery as a command step.
-use crate::startup_gate::{Gate, recover_for_command};
-/// A valid preparation lease marks a command started by a hook of a live transaction.
-use crate::unported::{Unported, unported_from_unavailable, unported_notice};
-use crate::worktree_identity::worktree_root;
-use crate::wrapper_invocation::{StrippedInvocation, command_region, command_word};
+use crate::wrapper_invocation::{
+    StrippedInvocation,
+    command_region,
+    command_word,
+};
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might
@@ -137,7 +186,11 @@ pub enum WrappedOutcome {
 /// ```ts
 /// function refused(events: string, what: Unported, command: string): WrappedOutcome;
 /// ```
-fn refused(events: String, what: &Unported, command: &str) -> WrappedOutcome {
+fn refused(
+    events: String,
+    what: &Unported,
+    command: &str,
+) -> WrappedOutcome {
     // `mut` allows appending the notice after the events.
     let mut stderr: String = events;
     // `.as_str()` lends the owned notice as borrowed text.
@@ -168,7 +221,11 @@ fn refused(events: String, what: &Unported, command: &str) -> WrappedOutcome {
 /// ```ts
 /// function stageEnding(events: PolicyEvent[], end: StageEnd, command: string): WrappedOutcome | undefined;
 /// ```
-fn stage_ending(events: &[PolicyEvent], end: StageEnd, command: &str) -> Option<WrappedOutcome> {
+fn stage_ending(
+    events: &[PolicyEvent],
+    end: StageEnd,
+    command: &str,
+) -> Option<WrappedOutcome> {
     let rendered: String = render_policy_events(0, events);
     // `if let StageEnd::Unavailable(x) = end` runs only for that ending and binds what it carries.
     if let StageEnd::Unavailable(unavailable) = end {
@@ -273,7 +330,11 @@ fn prepare_guarded_command<F: RepositoryFacts>(
     };
     // An isolated merge whose process died is settled before configuration loads, so the checks that follow never read
     // its half-finished checkout.
-    match recover_for_command(&checks.facts.transaction_context(), &location.identity, environment) {
+    match recover_for_command(
+        &checks.facts.transaction_context(),
+        &location.identity,
+        environment,
+    ) {
         Gate::Clear => {}
         Gate::Stop(stderr) => {
             return Err(WrappedOutcome::Exit {
@@ -389,7 +450,11 @@ fn recover_before_read_only<F: RepositoryFacts>(
     let Some(Ok(location)) = checks.facts.asked_location() else {
         return None;
     };
-    match recover_for_command(&checks.facts.transaction_context(), &location.identity, environment) {
+    match recover_for_command(
+        &checks.facts.transaction_context(),
+        &location.identity,
+        environment,
+    ) {
         Gate::Clear => return None,
         Gate::Stop(stderr) => {
             return Some(WrappedOutcome::Exit {
@@ -465,7 +530,10 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
     // A held commit that no reference of the repository can hold stops the command before Git removes the only
     //  references that name it (`worktree_removal_held_commits.rs`).
     if let Some(stderr) = snapshot_before_worktree_removal(stripped, checks) {
-        return WrappedOutcome::Exit { code: ENGINE_FAILURE_EXIT_CODE, stderr };
+        return WrappedOutcome::Exit {
+            code: ENGINE_FAILURE_EXIT_CODE,
+            stderr,
+        };
     }
     if let Some(config) = &loaded
         && let Some(ending) = run_commit_if_real(stripped, environment, checks, config)
@@ -488,9 +556,7 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
     if let Some(ending) = stage_ending(pass.events.as_slice(), pass.end, command.as_str()) {
         return ending;
     }
-    if skips_config
-        && let Some(ending) = recover_before_read_only(checks, environment)
-    {
+    if skips_config && let Some(ending) = recover_before_read_only(checks, environment) {
         return ending;
     }
     // `mut` allows the push gate to append its events.
@@ -505,7 +571,8 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
         let gated: Vec<PolicyId> = every_policy();
         if any_policy_applies(&gate_request, gated.as_slice()) {
             // The push's scope is discovered before any policy reads content; a discovery failure refuses the push.
-            if let Err(failure) = prepare_manual_push(checks, environment, command_region(stripped)) {
+            if let Err(failure) = prepare_manual_push(checks, environment, command_region(stripped))
+            {
                 // Git refused the push itself: nothing could be published, and Git's own words and status are the answer.
                 if let Some(refusal) = failure.refusal {
                     // What: The sentence naming the next step follows Git's own words, which the probe's refusal carried.
@@ -520,7 +587,10 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
                     if let Some(sentence) = failure.sentence.as_ref() {
                         stderr.push_str(sentence.as_str());
                     }
-                    return WrappedOutcome::Exit { code: refusal.code, stderr };
+                    return WrappedOutcome::Exit {
+                        code: refusal.code,
+                        stderr,
+                    };
                 }
                 events.push(PolicyEvent::EngineFailure {
                     code: EngineFailureCode::ContentUnavailable,
@@ -548,12 +618,21 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
     //  notice says where this command asks for the filters and that no hook is needed. An answer of `OutsideWorktree`
     //  is no repository at all (or a directory inside `.git`), and git-lfs writes no hook there.
     let in_a_repository: bool = checks.facts.asked_location().is_some_and(|answer| {
-        return answer.is_ok_and(|location| { return location.identity != crate::worktree_identity::WorktreeIdentity::OutsideWorktree; });
+        return answer.is_ok_and(|location| {
+            return location.identity
+                != crate::worktree_identity::WorktreeIdentity::OutsideWorktree;
+        });
     });
-    let (arguments, hook_notice): (Vec<OsString>, String) = crate::lfs_install_arguments::with_skip_repo(pass.arguments, in_a_repository);
+    let (arguments, hook_notice): (Vec<OsString>, String) =
+        crate::lfs_install_arguments::with_skip_repo(pass.arguments, in_a_repository);
     return WrappedOutcome::Forward {
         arguments,
-        stderr: format!("{}{}{}", checks.notices.concat(), hook_notice, render_policy_events(0, events.as_slice())),
+        stderr: format!(
+            "{}{}{}",
+            checks.notices.concat(),
+            hook_notice,
+            render_policy_events(0, events.as_slice())
+        ),
     };
 }
 

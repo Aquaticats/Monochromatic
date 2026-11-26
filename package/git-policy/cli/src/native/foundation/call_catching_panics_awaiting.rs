@@ -25,7 +25,10 @@
 use crate::panic_notice::while_panics_are_expected;
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{
+    Context,
+    Poll,
+};
 
 /// What a panic said:
 /// its text when it carried a string,
@@ -61,7 +64,12 @@ pub fn panic_words(payload: &(dyn std::any::Any + Send)) -> String {
 /// ```ts
 /// const pollTheBoxed = ([future, context]) => future.poll(context);
 /// ```
-fn poll_the_boxed<'of, 'context, T>((future, context): (&mut Pin<Box<dyn Future<Output = T> + Send + 'of>>, &mut Context<'context>)) -> Poll<T> {
+fn poll_the_boxed<'of, 'context, T>(
+    (future, context): (
+        &mut Pin<Box<dyn Future<Output = T> + Send + 'of>>,
+        &mut Context<'context>,
+    )
+) -> Poll<T> {
     return future.as_mut().poll(context);
 }
 
@@ -92,8 +100,12 @@ impl<T> Future for CatchingPanics<'_, T> {
     /// Poll the guarded future once.
     /// `Pin<Box<..>>` is always `Unpin`,
     /// so the whole value may be taken by `&mut` and the box it holds is never moved.
-    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
-        let caught: std::thread::Result<Poll<T>> = while_panics_are_expected((&mut self.get_mut().work, context), poll_the_boxed::<T>);
+    fn poll(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<Self::Output> {
+        let caught: std::thread::Result<Poll<T>> =
+            while_panics_are_expected((&mut self.get_mut().work, context), poll_the_boxed::<T>);
         return match caught {
             Ok(Poll::Ready(value)) => Poll::Ready(Ok(value)),
             Ok(Poll::Pending) => Poll::Pending,
@@ -114,8 +126,12 @@ impl<T> Future for CatchingPanics<'_, T> {
 /// ```ts
 /// const caught = callCatchingPanicsAwaiting(work); // Ok(value) or Err(the panic's words)
 /// ```
-pub fn call_catching_panics_awaiting<'of, T: 'of, W: Future<Output = T> + Send + 'of>(work: W) -> CatchingPanics<'of, T> {
-    return CatchingPanics { work: Box::pin(work) };
+pub fn call_catching_panics_awaiting<'of, T: 'of, W: Future<Output = T> + Send + 'of>(
+    work: W
+) -> CatchingPanics<'of, T> {
+    return CatchingPanics {
+        work: Box::pin(work),
+    };
 }
 
 /// Controls for the guarded await stay out of the release executable.

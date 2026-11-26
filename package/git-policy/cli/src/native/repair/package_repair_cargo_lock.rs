@@ -54,14 +54,21 @@
 
 /// The debug log of the repair.
 use crate::diagnostic_log::debug;
+/// A path written into a name as its own bytes.
+use crate::path_bytes_in_records::hex_of_path;
 /// Exclusive,
 /// synced,
 /// private files and directories.
-use crate::private_storage::{create_private_directory_all, sync_directory, write_exclusive_synced};
-/// A path written into a name as its own bytes.
-use crate::path_bytes_in_records::hex_of_path;
+use crate::private_storage::{
+    create_private_directory_all,
+    sync_directory,
+    write_exclusive_synced,
+};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairCargoLock";
@@ -128,7 +135,11 @@ pub fn read_lock(root: &Path) -> Option<Vec<u8>> {
 /// ```ts
 /// const said = restoreLock({ root, before, keptIn }); // string | undefined
 /// ```
-pub fn restore_lock(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>) -> Option<String> {
+pub fn restore_lock(
+    root: &Path,
+    before: Option<&[u8]>,
+    kept_in: Option<&Path>,
+) -> Option<String> {
     return put_the_checkout_back(root, before, kept_in, None);
 }
 
@@ -152,7 +163,12 @@ pub fn restore_lock(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>) 
 /// ```ts
 /// const said = restoreOnlyTheCleansOwn({ root, before, keptIn, theCleansOwn }); // string | undefined
 /// ```
-pub fn restore_only_the_cleans_own(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>, the_cleans_own: &[u8]) -> Option<String> {
+pub fn restore_only_the_cleans_own(
+    root: &Path,
+    before: Option<&[u8]>,
+    kept_in: Option<&Path>,
+    the_cleans_own: &[u8],
+) -> Option<String> {
     return put_the_checkout_back(root, before, kept_in, Some(the_cleans_own));
 }
 
@@ -168,7 +184,12 @@ pub fn restore_only_the_cleans_own(root: &Path, before: Option<&[u8]>, kept_in: 
 /// ```ts
 /// function putTheCheckoutBack({ root, before, keptIn, onlyWhen }): string | undefined;
 /// ```
-fn put_the_checkout_back(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>, only_when: Option<&[u8]>) -> Option<String> {
+fn put_the_checkout_back(
+    root: &Path,
+    before: Option<&[u8]>,
+    kept_in: Option<&Path>,
+    only_when: Option<&[u8]>,
+) -> Option<String> {
     let path: PathBuf = root.join(LOCK_FILE);
     let after: Option<Vec<u8>> = std::fs::read(&path).ok();
     if after.as_deref() == before {
@@ -207,7 +228,8 @@ fn put_the_checkout_back(root: &Path, before: Option<&[u8]>, kept_in: Option<&Pa
             }
         },
     };
-    let restored: Restored = replace_the_clean_s_own(path.as_path(), before, after.as_deref(), kept_in);
+    let restored: Restored =
+        replace_the_clean_s_own(path.as_path(), before, after.as_deref(), kept_in);
     return match (restored, kept) {
         (Restored::TheirWriteStays(Some(kept_lock)), _) => Some(format!(
             "the {LOCK_FILE} of {} was written again while the checked-out lock was being put back, so the file is left exactly as it is found; \
@@ -222,7 +244,14 @@ fn put_the_checkout_back(root: &Path, before: Option<&[u8]>, kept_in: Option<&Pa
         )),
         (Restored::LeftAsFound(reason), _) => {
             // The step names what it could not do and what became of every byte, so this line adds only where to look.
-            debug(TAG, format!("{} was not put back as checked out ({reason})", path.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "{} was not put back as checked out ({reason})",
+                    path.display()
+                )
+                .as_str(),
+            );
             Some(format!(
                 "the {LOCK_FILE} of {} was not put back as checked out ({reason}); `git diff -- {LOCK_FILE}` in that worktree shows the file as it stands",
                 root.display()
@@ -237,7 +266,6 @@ fn put_the_checkout_back(root: &Path, before: Option<&[u8]>, kept_in: Option<&Pa
         (Restored::TheCheckoutIsBack, None) => None,
     };
 }
-
 
 /// What:
 ///  Put the bytes a clean displaced where they survive it,
@@ -257,20 +285,34 @@ fn put_the_checkout_back(root: &Path, before: Option<&[u8]>, kept_in: Option<&Pa
 /// ```ts
 /// const dir = join(keptIn, DISPLACED_DIRECTORY, hexOf(lock)); mkdir(dir); const copy = nextFree(join(dir, 'Cargo.lock')); writeAndSync(copy, bytes); syncDirectory(dir); return copy;
 /// ```
-fn keep_the_bytes(kept_in: &Path, lock: &Path, bytes: &[u8]) -> Result<PathBuf, String> {
+fn keep_the_bytes(
+    kept_in: &Path,
+    lock: &Path,
+    bytes: &[u8],
+) -> Result<PathBuf, String> {
     let directory: PathBuf = copies_directory(kept_in, lock);
     if let Err(error) = create_private_directory_all(directory.as_path()) {
-        return Err(format!("{} could not be made ({error})", directory.display()));
+        return Err(format!(
+            "{} could not be made ({error})",
+            directory.display()
+        ));
     }
     // A lock displaced once already keeps its first copy and this one stands beside it: the first copy is the oldest statement of
     //  what a clean found, and replacing it would lose the bytes of the earlier repair.
     for step in 0.. {
-        let name: String = if step == 0 { String::from(LOCK_FILE) } else { format!("{LOCK_FILE}.{step}") };
+        let name: String = if step == 0 {
+            String::from(LOCK_FILE)
+        } else {
+            format!("{LOCK_FILE}.{step}")
+        };
         let copy: PathBuf = directory.join(name);
         match write_exclusive_synced(copy.as_path(), bytes) {
             Ok(()) => {
                 if let Err(error) = sync_directory(directory.as_path()) {
-                    return Err(format!("{} could not be made durable ({error})", directory.display()));
+                    return Err(format!(
+                        "{} could not be made durable ({error})",
+                        directory.display()
+                    ));
                 }
                 return Ok(copy);
             }
@@ -278,7 +320,10 @@ fn keep_the_bytes(kept_in: &Path, lock: &Path, bytes: &[u8]) -> Result<PathBuf, 
             Err(error) => return Err(format!("{} could not be written ({error})", copy.display())),
         }
     }
-    return Err(format!("no free name was found under {}", directory.display()));
+    return Err(format!(
+        "no free name was found under {}",
+        directory.display()
+    ));
 }
 
 /// What:
@@ -293,7 +338,10 @@ fn keep_the_bytes(kept_in: &Path, lock: &Path, bytes: &[u8]) -> Result<PathBuf, 
 /// ```ts
 /// const dir = chunk(hexOf(lock), 200).reduce((path, piece) => join(path, piece), join(keptIn, DISPLACED_DIRECTORY));
 /// ```
-fn copies_directory(kept_in: &Path, lock: &Path) -> PathBuf {
+fn copies_directory(
+    kept_in: &Path,
+    lock: &Path,
+) -> PathBuf {
     let hex: String = hex_of_path(lock);
     let mut directory: PathBuf = kept_in.join(DISPLACED_DIRECTORY);
     for piece in hex.as_bytes().chunks(NAME_BYTES) {
@@ -353,17 +401,30 @@ enum Restored {
 /// ```ts
 /// replaceTheCleansOwn(path, before, after, keptIn) // never replaces an unkept file
 /// ```
-fn replace_the_clean_s_own(path: &Path, before: Option<&[u8]>, after: Option<&[u8]>, kept_in: Option<&Path>) -> Restored {
+fn replace_the_clean_s_own(
+    path: &Path,
+    before: Option<&[u8]>,
+    after: Option<&[u8]>,
+    kept_in: Option<&Path>,
+) -> Restored {
     #[cfg(test)]
-    BETWEEN_THE_READING_AND_THE_RESTORE.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
+    BETWEEN_THE_READING_AND_THE_RESTORE.with(|hook| {
+        if let Some(pause) = hook.borrow().as_ref() {
+            pause();
+        }
+    });
     return match (before, after, kept_in) {
-        (Some(checkout), Some(read), Some(directory)) => exchange_the_file_read(path, checkout, read, directory),
+        (Some(checkout), Some(read), Some(directory)) => {
+            exchange_the_file_read(path, checkout, read, directory)
+        }
         // The clean created a lock the checkout has not, so the file goes, and a write that landed since keeps its file.
         (None, Some(read), Some(directory)) => take_the_file_away(path, read, directory),
         // The clean removed the lock the checkout has, so it is written where nothing stands.
         (Some(checkout), None, _) => write_where_nothing_stands(path, checkout),
         // Nothing stood there and the checkout has none: nothing to put back.
-        (None, None, _) | (Some(_), Some(_), None) | (None, Some(_), None) => Restored::TheCheckoutIsBack,
+        (None, None, _) | (Some(_), Some(_), None) | (None, Some(_), None) => {
+            Restored::TheCheckoutIsBack
+        }
     };
 }
 
@@ -378,7 +439,12 @@ fn replace_the_clean_s_own(path: &Path, before: Option<&[u8]>, after: Option<&[u
 /// ```ts
 /// const staged = stageTheCheckout(dir, lock, checkout); await exchange(staged, lock); return judge(staged, read);
 /// ```
-fn exchange_the_file_read(path: &Path, checkout: &[u8], read: &[u8], directory: &Path) -> Restored {
+fn exchange_the_file_read(
+    path: &Path,
+    checkout: &[u8],
+    read: &[u8],
+    directory: &Path,
+) -> Restored {
     let staged: PathBuf = match stage_the_checkout(directory, path, checkout) {
         Ok(staged) => staged,
         Err(reason) => return Restored::LeftAsFound(reason),
@@ -392,11 +458,17 @@ fn exchange_the_file_read(path: &Path, checkout: &[u8], read: &[u8], directory: 
         if is_cross_device(&error) {
             return match std::fs::write(path, checkout) {
                 Ok(()) => Restored::TheCheckoutIsBack,
-                Err(refusal) => Restored::LeftAsFound(format!("{} could not be written ({refusal})", path.display())),
+                Err(refusal) => Restored::LeftAsFound(format!(
+                    "{} could not be written ({refusal})",
+                    path.display()
+                )),
             };
         }
         if !crate::rename_that_never_replaces::rename_unsupported(&error) {
-            return Restored::LeftAsFound(format!("{} could not be replaced ({error})", path.display()));
+            return Restored::LeftAsFound(format!(
+                "{} could not be replaced ({error})",
+                path.display()
+            ));
         }
         return replace_after_a_second_look(path, checkout, read, directory);
     }
@@ -418,7 +490,10 @@ fn exchange_the_file_read(path: &Path, checkout: &[u8], read: &[u8], directory: 
 /// ```ts
 /// exchange(staged, lock) // or the refusal a control planted
 /// ```
-fn the_exchange(from: &Path, to: &Path) -> std::io::Result<()> {
+fn the_exchange(
+    from: &Path,
+    to: &Path,
+) -> std::io::Result<()> {
     #[cfg(test)]
     {
         if THE_NEXT_EXCHANGE_FINDS_ANOTHER_FILESYSTEM.with(|flag| return flag.replace(false)) {
@@ -464,7 +539,12 @@ fn is_cross_device(error: &std::io::Error) -> bool {
 /// ```ts
 /// if (read(lock) !== read) return theirWriteStays(staged); await rename(staged, lock); return theCheckoutIsBack;
 /// ```
-fn replace_after_a_second_look(path: &Path, checkout: &[u8], read: &[u8], directory: &Path) -> Restored {
+fn replace_after_a_second_look(
+    path: &Path,
+    checkout: &[u8],
+    read: &[u8],
+    directory: &Path,
+) -> Restored {
     // The exchange's staging file went, so the bytes are staged again for this step.
     let staged: PathBuf = match stage_the_checkout(directory, path, checkout) {
         Ok(staged) => staged,
@@ -477,7 +557,10 @@ fn replace_after_a_second_look(path: &Path, checkout: &[u8], read: &[u8], direct
     }
     if let Err(error) = std::fs::rename(staged.as_path(), path) {
         let _dropped = std::fs::remove_file(staged.as_path());
-        return Restored::LeftAsFound(format!("{} could not be replaced ({error})", path.display()));
+        return Restored::LeftAsFound(format!(
+            "{} could not be replaced ({error})",
+            path.display()
+        ));
     }
     return Restored::TheCheckoutIsBack;
 }
@@ -495,7 +578,11 @@ fn replace_after_a_second_look(path: &Path, checkout: &[u8], read: &[u8], direct
 /// ```ts
 /// if (read(displaced) === read) { unlink(displaced); return theCheckoutIsBack(); } await exchange(displaced, lock); return theirWriteStays(displaced);
 /// ```
-fn judge_the_displaced(path: &Path, displaced: &Path, read: &[u8]) -> Restored {
+fn judge_the_displaced(
+    path: &Path,
+    displaced: &Path,
+    read: &[u8],
+) -> Restored {
     let handed_back: Option<Vec<u8>> = std::fs::read(displaced).ok();
     if handed_back.as_deref() == Some(read) {
         let _dropped = std::fs::remove_file(displaced);
@@ -524,13 +611,20 @@ fn judge_the_displaced(path: &Path, displaced: &Path, read: &[u8]) -> Restored {
 /// ```ts
 /// const moved = freeName(dir, lock); rename(lock, moved); return judgeTheMovedFile(lock, moved, read);
 /// ```
-fn take_the_file_away(path: &Path, read: &[u8], directory: &Path) -> Restored {
+fn take_the_file_away(
+    path: &Path,
+    read: &[u8],
+    directory: &Path,
+) -> Restored {
     let moving: PathBuf = a_free_staging_name(directory, path);
     if let Err(error) = std::fs::rename(path, moving.as_path()) {
         if error.kind() == std::io::ErrorKind::NotFound {
             return Restored::TheCheckoutIsBack;
         }
-        return Restored::LeftAsFound(format!("{} could not be moved aside ({error})", path.display()));
+        return Restored::LeftAsFound(format!(
+            "{} could not be moved aside ({error})",
+            path.display()
+        ));
     }
     let moved: Option<Vec<u8>> = std::fs::read(moving.as_path()).ok();
     if moved.as_deref() == Some(read) {
@@ -560,12 +654,25 @@ fn take_the_file_away(path: &Path, read: &[u8], directory: &Path) -> Restored {
 /// ```ts
 /// const file = openSync(lock, 'wx'); writeSync(file, checkout); closeSync(file);
 /// ```
-fn write_where_nothing_stands(path: &Path, checkout: &[u8]) -> Restored {
-    let opened: std::io::Result<std::fs::File> = std::fs::OpenOptions::new().write(true).create_new(true).open(path);
+fn write_where_nothing_stands(
+    path: &Path,
+    checkout: &[u8],
+) -> Restored {
+    let opened: std::io::Result<std::fs::File> = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path);
     let mut file: std::fs::File = match opened {
         Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Restored::TheirWriteStays(None),
-        Err(error) => return Restored::LeftAsFound(format!("{} could not be written ({error})", path.display())),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Restored::TheirWriteStays(None);
+        }
+        Err(error) => {
+            return Restored::LeftAsFound(format!(
+                "{} could not be written ({error})",
+                path.display()
+            ));
+        }
     };
     if let Err(error) = std::io::Write::write_all(&mut file, checkout) {
         drop(file);
@@ -589,14 +696,21 @@ fn write_where_nothing_stands(path: &Path, checkout: &[u8]) -> Restored {
 /// ```ts
 /// const staged = freeStagingName(dir, lock); writeExclusiveSynced(staged, checkout); return staged;
 /// ```
-fn stage_the_checkout(directory: &Path, lock: &Path, checkout: &[u8]) -> Result<PathBuf, String> {
+fn stage_the_checkout(
+    directory: &Path,
+    lock: &Path,
+    checkout: &[u8],
+) -> Result<PathBuf, String> {
     let copies: PathBuf = copies_directory(directory, lock);
     if let Err(error) = create_private_directory_all(copies.as_path()) {
         return Err(format!("{} could not be made ({error})", copies.display()));
     }
     let staged: PathBuf = a_free_staging_name(directory, lock);
     if let Err(error) = write_exclusive_synced(staged.as_path(), checkout) {
-        return Err(format!("{} could not be written ({error})", staged.display()));
+        return Err(format!(
+            "{} could not be written ({error})",
+            staged.display()
+        ));
     }
     return Ok(staged);
 }
@@ -612,10 +726,17 @@ fn stage_the_checkout(directory: &Path, lock: &Path, checkout: &[u8]) -> Result<
 /// ```ts
 /// for (let step = 0; ; step += 1) { const name = step === 0 ? 'Cargo.lock.restoring' : `Cargo.lock.restoring.${step}`; if (!exists(join(dir, name))) return join(dir, name); }
 /// ```
-fn a_free_staging_name(directory: &Path, lock: &Path) -> PathBuf {
+fn a_free_staging_name(
+    directory: &Path,
+    lock: &Path,
+) -> PathBuf {
     let copies: PathBuf = copies_directory(directory, lock);
     for step in 0.. {
-        let name: String = if step == 0 { format!("{LOCK_FILE}.{STAGING_SUFFIX}") } else { format!("{LOCK_FILE}.{STAGING_SUFFIX}.{step}") };
+        let name: String = if step == 0 {
+            format!("{LOCK_FILE}.{STAGING_SUFFIX}")
+        } else {
+            format!("{LOCK_FILE}.{STAGING_SUFFIX}.{step}")
+        };
         let candidate: PathBuf = copies.join(name);
         if std::fs::symlink_metadata(candidate.as_path()).is_err() {
             return candidate;

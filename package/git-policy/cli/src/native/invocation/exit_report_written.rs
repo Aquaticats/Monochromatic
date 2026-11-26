@@ -34,7 +34,11 @@ use std::io::Write;
 /// ```ts
 /// writeExit(code, report, explanation);
 /// ```
-pub(crate) fn write_exit(code: i32, report: &[u8], text: &[u8]) -> i32 {
+pub(crate) fn write_exit(
+    code: i32,
+    report: &[u8],
+    text: &[u8],
+) -> i32 {
     // The exit status carries the result, so a refused write changes nothing here.
     let _written = std::io::stdout().write_all(report);
     let _said = std::io::stderr().write_all(text);

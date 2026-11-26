@@ -62,7 +62,11 @@ pub(super) fn open_a_terminal_pair() -> io::Result<(OwnedFd, OwnedFd)> {
     // ```ts
     // const master = rustix.openpt(RDWR | NOCTTY | CLOEXEC);
     // ```
-    let master: OwnedFd = rustix::pty::openpt(rustix::pty::OpenptFlags::RDWR | rustix::pty::OpenptFlags::NOCTTY | rustix::pty::OpenptFlags::CLOEXEC)?;
+    let master: OwnedFd = rustix::pty::openpt(
+        rustix::pty::OpenptFlags::RDWR
+            | rustix::pty::OpenptFlags::NOCTTY
+            | rustix::pty::OpenptFlags::CLOEXEC,
+    )?;
     // On Linux the kernel needs nothing of `grantpt`; on the systems where it does, it decides who may open the slave.
     rustix::pty::grantpt(&master)?;
     rustix::pty::unlockpt(&master)?;
@@ -82,8 +86,13 @@ pub(super) fn open_a_terminal_pair() -> io::Result<(OwnedFd, OwnedFd)> {
     // ```ts
     // const slavePath = os.str(path);
     // ```
-    let slave_path: &std::path::Path = std::path::Path::new(std::ffi::OsStr::from_bytes(path.as_c_str().to_bytes()));
-    let slave: OwnedFd = rustix::fs::open(slave_path, rustix::fs::OFlags::RDWR | rustix::fs::OFlags::NOCTTY, rustix::fs::Mode::empty())?;
+    let slave_path: &std::path::Path =
+        std::path::Path::new(std::ffi::OsStr::from_bytes(path.as_c_str().to_bytes()));
+    let slave: OwnedFd = rustix::fs::open(
+        slave_path,
+        rustix::fs::OFlags::RDWR | rustix::fs::OFlags::NOCTTY,
+        rustix::fs::Mode::empty(),
+    )?;
     clear_output_processing(&slave);
     give_the_size_of_the_person_s_terminal(&slave);
     // What: `Ok((..))` is the success variant carrying both ends: master first, slave second.
@@ -128,7 +137,9 @@ fn clear_output_processing(slave: &OwnedFd) {
     // ```ts
     // settings.output_modes &= ~OPOST;
     // ```
-    settings.output_modes.remove(rustix::termios::OutputModes::OPOST);
+    settings
+        .output_modes
+        .remove(rustix::termios::OutputModes::OPOST);
     // What: `Now` applies the settings at once; the siblings are `Drain`, which lets the output go first, and `Flush`.
     // Why:  The child has written nothing yet, so there is nothing to drain.
     //
@@ -136,7 +147,8 @@ fn clear_output_processing(slave: &OwnedFd) {
     // ```ts
     // tcsetattr(slave, TCSANOW, settings);
     // ```
-    let _applied: rustix::io::Result<()> = rustix::termios::tcsetattr(slave, rustix::termios::OptionalActions::Now, &settings);
+    let _applied: rustix::io::Result<()> =
+        rustix::termios::tcsetattr(slave, rustix::termios::OptionalActions::Now, &settings);
 }
 
 /// What:

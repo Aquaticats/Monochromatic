@@ -30,6 +30,12 @@
 /// The child this wait owns,
 /// and the descriptor that names it for good.
 use crate::child_awaited_through_a_pidfd::OwnedChild;
+/// What one look at the step says about the kernel holding it,
+/// and the look itself.
+use crate::scratch_step_look_below::{
+    WhatTheLookSays,
+    what_the_look_says,
+};
 /// The end of the child,
 /// and its status.
 use std::process::ExitStatus;
@@ -39,9 +45,6 @@ use std::process::ExitStatus;
 use std::sync::mpsc::SyncSender;
 /// Time spans.
 use std::time::Duration;
-/// What one look at the step says about the kernel holding it,
-/// and the look itself.
-use crate::scratch_step_look_below::{WhatTheLookSays, what_the_look_says};
 
 /// What:
 ///  How long after the signal the first look at the step is made,
@@ -88,7 +91,11 @@ pub(crate) const AFTER_THE_STOP: Duration = Duration::from_millis(250);
 /// # Errors
 ///
 /// The error of a wait the system failed.
-pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, lines: Option<&SyncSender<String>>) -> std::io::Result<ExitStatus> {
+pub(crate) async fn until_reaped(
+    owned: &mut OwnedChild,
+    waited: Duration,
+    lines: Option<&SyncSender<String>>,
+) -> std::io::Result<ExitStatus> {
     let Some(queue) = lines else {
         return owned.wait().await;
     };
@@ -110,7 +117,13 @@ pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, lines
             // Why:  A line the writer could not take is tried again at the next look rather than counted as said,
             //       and one it took is never said a second time: one stop is one sentence, not three.
             WhatTheLookSays::TheKernelHoldsIt(held) if seen_held && !said => {
-                let line: String = crate::scratch_step_held_by_the_kernel::held_by_the_kernel_line(crate::scratch_step_held_by_the_kernel::HeldByTheKernel { step, waited, held });
+                let line: String = crate::scratch_step_held_by_the_kernel::held_by_the_kernel_line(
+                    crate::scratch_step_held_by_the_kernel::HeldByTheKernel {
+                        step,
+                        waited,
+                        held,
+                    },
+                );
                 said = queue.try_send(line).is_ok();
                 pause = AFTER_THE_STOP;
             }

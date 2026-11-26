@@ -3,7 +3,10 @@
 //! everything else is named and kept.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use crate::worktree_copy_install_entry::capture_installed_path;
 use std::path::PathBuf;
 
@@ -40,9 +43,14 @@ fn proven_paths_are_removed_child_first() {
     std::fs::create_dir(destination.join("cache")).expect("dir");
     std::fs::hard_link(stage.join("cache/file"), destination.join("cache/file")).expect("link");
     let created: Vec<InstalledPath> = vec![
-        capture_installed_path(destination.join("cache").as_path(), b"cache", true).expect("dir id"),
-        capture_installed_path(destination.join("cache/file").as_path(), b"cache/file", true)
-            .expect("file id"),
+        capture_installed_path(destination.join("cache").as_path(), b"cache", true)
+            .expect("dir id"),
+        capture_installed_path(
+            destination.join("cache/file").as_path(),
+            b"cache/file",
+            true,
+        )
+        .expect("file id"),
     ];
     let retained: Vec<String> = rollback_created(
         stage.as_path(),
@@ -63,7 +71,8 @@ fn absent_paths_are_neither_removed_nor_retained() {
     let (stage, destination, entries) = staged_file(root.as_path());
     std::fs::create_dir(destination.join("cache")).expect("dir");
     let created: Vec<InstalledPath> = vec![
-        capture_installed_path(destination.join("cache").as_path(), b"cache", true).expect("dir id"),
+        capture_installed_path(destination.join("cache").as_path(), b"cache", true)
+            .expect("dir id"),
     ];
     std::fs::remove_dir(destination.join("cache")).expect("gone");
     let retained: Vec<String> = rollback_created(
@@ -85,7 +94,8 @@ fn replaced_path_is_retained_as_changed() {
     let (stage, destination, entries) = staged_file(root.as_path());
     std::fs::create_dir(destination.join("cache")).expect("dir");
     let created: Vec<InstalledPath> = vec![
-        capture_installed_path(destination.join("cache").as_path(), b"cache", true).expect("dir id"),
+        capture_installed_path(destination.join("cache").as_path(), b"cache", true)
+            .expect("dir id"),
     ];
     // Renaming keeps the original object alive, so the replacement cannot reuse its inode.
     std::fs::rename(destination.join("cache"), destination.join("moved")).expect("move aside");
@@ -115,8 +125,12 @@ fn edited_file_is_retained_by_path() {
     std::fs::create_dir(destination.join("cache")).expect("dir");
     std::fs::write(destination.join("cache/file"), b"bytes").expect("file");
     let created: Vec<InstalledPath> = vec![
-        capture_installed_path(destination.join("cache/file").as_path(), b"cache/file", true)
-            .expect("id"),
+        capture_installed_path(
+            destination.join("cache/file").as_path(),
+            b"cache/file",
+            true,
+        )
+        .expect("id"),
     ];
     std::fs::write(destination.join("cache/file"), b"edited!").expect("edit in place");
     let retained: Vec<String> = rollback_created(

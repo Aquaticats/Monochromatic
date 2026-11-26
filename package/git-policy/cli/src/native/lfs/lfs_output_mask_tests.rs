@@ -16,8 +16,12 @@ fn masked(text: &str) -> String {
 #[test]
 fn the_incident_line_loses_its_user_and_token() {
     assert_eq!(
-        masked("batch response: Fatal error: Server error https://user:secret@lfs.example.invalid/objects/batch from HTTP 503"),
-        format!("batch response: Fatal error: Server error https://{CREDENTIALS_MASK}@lfs.example.invalid/objects/batch from HTTP 503"),
+        masked(
+            "batch response: Fatal error: Server error https://user:secret@lfs.example.invalid/objects/batch from HTTP 503"
+        ),
+        format!(
+            "batch response: Fatal error: Server error https://{CREDENTIALS_MASK}@lfs.example.invalid/objects/batch from HTTP 503"
+        ),
     );
 }
 
@@ -27,7 +31,11 @@ fn the_incident_line_loses_its_user_and_token() {
 #[test]
 fn a_user_alone_and_a_token_alone_are_masked() {
     for userinfo in ["git", "ghp_token", "user:", ":pass", "us.er:p-a_s~s"] {
-        assert_eq!(masked(&format!("ssh://{userinfo}@host/r.git")), format!("ssh://{CREDENTIALS_MASK}@host/r.git"), "{userinfo}");
+        assert_eq!(
+            masked(&format!("ssh://{userinfo}@host/r.git")),
+            format!("ssh://{CREDENTIALS_MASK}@host/r.git"),
+            "{userinfo}"
+        );
     }
 }
 
@@ -40,15 +48,30 @@ fn a_user_alone_and_a_token_alone_are_masked() {
 #[test]
 fn an_at_sign_outside_the_authority_is_not_userinfo() {
     for (text, wanted) in [
-        ("https://host/path@name/objects", "https://host/<credentials>/objects"),
+        (
+            "https://host/path@name/objects",
+            "https://host/<credentials>/objects",
+        ),
         ("https://host/a/b@c@d", "https://host/a/<credentials>"),
-        ("https://host?next=user@example.invalid", "https://host?next=<credentials>"),
+        (
+            "https://host?next=user@example.invalid",
+            "https://host?next=<credentials>",
+        ),
         ("https://host#frag@ment", "https://host#<credentials>"),
-        ("https://host:8443/@scope/pkg", "https://host:8443/<credentials>/pkg"),
-        ("https://[::1]:8080/@scope", "https://[::1]:8080/<credentials>"),
+        (
+            "https://host:8443/@scope/pkg",
+            "https://host:8443/<credentials>/pkg",
+        ),
+        (
+            "https://[::1]:8080/@scope",
+            "https://[::1]:8080/<credentials>",
+        ),
         ("https://host\\path@name", "https://host\\path@name"),
         ("https://host", "https://host"),
-        ("no url here, only user@example.invalid", "no url here, only user@example.invalid"),
+        (
+            "no url here, only user@example.invalid",
+            "no url here, only user@example.invalid",
+        ),
         ("scp-style git@host:path.git", "scp-style git@host:path.git"),
     ] {
         let shown: String = wanted.replace("<credentials>", CREDENTIALS_MASK);
@@ -60,9 +83,18 @@ fn an_at_sign_outside_the_authority_is_not_userinfo() {
 /// so an `@` inside a password cannot leave a tail behind.
 #[test]
 fn the_userinfo_ends_at_the_last_at_sign_of_the_authority() {
-    assert_eq!(masked("https://user:p@ss@host/x"), format!("https://{CREDENTIALS_MASK}@host/x"));
-    assert_eq!(masked("https://a@b@c@host"), format!("https://{CREDENTIALS_MASK}@host"));
-    assert_eq!(masked("https://user:p@ss@host/plain"), format!("https://{CREDENTIALS_MASK}@host/plain"));
+    assert_eq!(
+        masked("https://user:p@ss@host/x"),
+        format!("https://{CREDENTIALS_MASK}@host/x")
+    );
+    assert_eq!(
+        masked("https://a@b@c@host"),
+        format!("https://{CREDENTIALS_MASK}@host")
+    );
+    assert_eq!(
+        masked("https://user:p@ss@host/plain"),
+        format!("https://{CREDENTIALS_MASK}@host/plain")
+    );
 }
 
 /// Percent-encoded userinfo,
@@ -76,7 +108,10 @@ fn percent_encoded_userinfo_is_masked_whole_and_an_encoded_segment_is_hidden() {
         masked("https://us%40er:p%3Ass%2F@host/a%40b/objects"),
         format!("https://{CREDENTIALS_MASK}@host/{CREDENTIALS_MASK}/objects"),
     );
-    assert_eq!(masked("https://%75ser:%73ecret@host/"), format!("https://{CREDENTIALS_MASK}@host/"));
+    assert_eq!(
+        masked("https://%75ser:%73ecret@host/"),
+        format!("https://{CREDENTIALS_MASK}@host/")
+    );
 }
 
 /// An IPv6 host in brackets keeps its colons and port;
@@ -84,9 +119,18 @@ fn percent_encoded_userinfo_is_masked_whole_and_an_encoded_segment_is_hidden() {
 /// and without userinfo nothing is.
 #[test]
 fn bracketed_ipv6_hosts_are_kept_and_their_userinfo_is_masked() {
-    assert_eq!(masked("https://user:secret@[::1]:8080/objects"), format!("https://{CREDENTIALS_MASK}@[::1]:8080/objects"));
-    assert_eq!(masked("https://u:s@[2001:db8::7]/x"), format!("https://{CREDENTIALS_MASK}@[2001:db8::7]/x"));
-    assert_eq!(masked("https://[fe80::1%25eth0]:9/x@y"), format!("https://[fe80::1%25eth0]:9/{CREDENTIALS_MASK}"));
+    assert_eq!(
+        masked("https://user:secret@[::1]:8080/objects"),
+        format!("https://{CREDENTIALS_MASK}@[::1]:8080/objects")
+    );
+    assert_eq!(
+        masked("https://u:s@[2001:db8::7]/x"),
+        format!("https://{CREDENTIALS_MASK}@[2001:db8::7]/x")
+    );
+    assert_eq!(
+        masked("https://[fe80::1%25eth0]:9/x@y"),
+        format!("https://[fe80::1%25eth0]:9/{CREDENTIALS_MASK}")
+    );
 }
 
 /// Every URL on a line is handled on its own,
@@ -96,7 +140,9 @@ fn bracketed_ipv6_hosts_are_kept_and_their_userinfo_is_masked() {
 #[test]
 fn several_urls_on_one_line_are_masked_one_by_one() {
     assert_eq!(
-        masked("from https://a:1@one.invalid/x to \"http://b:2@two.invalid:81/y\" via <ssh://c@three.invalid> (https://four.invalid/plain)"),
+        masked(
+            "from https://a:1@one.invalid/x to \"http://b:2@two.invalid:81/y\" via <ssh://c@three.invalid> (https://four.invalid/plain)"
+        ),
         format!(
             "from https://{m}@one.invalid/x to \"http://{m}@two.invalid:81/y\" via <ssh://{m}@three.invalid> (https://four.invalid/plain)",
             m = CREDENTIALS_MASK
@@ -107,8 +153,13 @@ fn several_urls_on_one_line_are_masked_one_by_one() {
         format!("https://{m}@h1/x, https://{m}@h2/y", m = CREDENTIALS_MASK),
     );
     assert_eq!(
-        masked("Put \"https://u:p@storage.invalid/o?sig=a@b\": EOF; Post https://u:p@lfs.invalid/objects/batch: dial tcp"),
-        format!("Put \"https://{m}@storage.invalid/o?sig={m}\": EOF; Post https://{m}@lfs.invalid/objects/batch: dial tcp", m = CREDENTIALS_MASK),
+        masked(
+            "Put \"https://u:p@storage.invalid/o?sig=a@b\": EOF; Post https://u:p@lfs.invalid/objects/batch: dial tcp"
+        ),
+        format!(
+            "Put \"https://{m}@storage.invalid/o?sig={m}\": EOF; Post https://{m}@lfs.invalid/objects/batch: dial tcp",
+            m = CREDENTIALS_MASK
+        ),
     );
 }
 
@@ -132,9 +183,18 @@ fn the_authority_may_end_at_a_quote_a_bracket_or_the_end_of_the_text() {
 /// a separator with no scheme before it does not start a URL.
 #[test]
 fn any_scheme_counts_and_a_bare_separator_does_not() {
-    assert_eq!(masked("git+ssh://u:p@host/r"), format!("git+ssh://{CREDENTIALS_MASK}@host/r"));
-    assert_eq!(masked("x-y.z1://u:p@host/r"), format!("x-y.z1://{CREDENTIALS_MASK}@host/r"));
-    assert_eq!(masked("file:///home/u@x/repo"), format!("file:///home/{CREDENTIALS_MASK}/repo"));
+    assert_eq!(
+        masked("git+ssh://u:p@host/r"),
+        format!("git+ssh://{CREDENTIALS_MASK}@host/r")
+    );
+    assert_eq!(
+        masked("x-y.z1://u:p@host/r"),
+        format!("x-y.z1://{CREDENTIALS_MASK}@host/r")
+    );
+    assert_eq!(
+        masked("file:///home/u@x/repo"),
+        format!("file:///home/{CREDENTIALS_MASK}/repo")
+    );
     assert_eq!(masked(" ://u:p@host/r"), " ://u:p@host/r");
     assert_eq!(masked("://u:p@host"), "://u:p@host");
 }
@@ -144,9 +204,17 @@ fn any_scheme_counts_and_a_bare_separator_does_not() {
 #[test]
 fn other_text_and_other_bytes_pass_through_unchanged() {
     assert_eq!(masked(""), "");
-    assert_eq!(masked("Uploading LFS objects: 100% (3/3), 12 MB | 1.1 MB/s\r"), "Uploading LFS objects: 100% (3/3), 12 MB | 1.1 MB/s\r");
+    assert_eq!(
+        masked("Uploading LFS objects: 100% (3/3), 12 MB | 1.1 MB/s\r"),
+        "Uploading LFS objects: 100% (3/3), 12 MB | 1.1 MB/s\r"
+    );
     let raw: Vec<u8> = b"bad \xff\xfe bytes https://\xc3\xa9:p\xff@host/objects \xff tail".to_vec();
-    let expected: Vec<u8> = [b"bad \xff\xfe bytes https://".as_slice(), CREDENTIALS_MASK.as_bytes(), b"@host/objects \xff tail".as_slice()].concat();
+    let expected: Vec<u8> = [
+        b"bad \xff\xfe bytes https://".as_slice(),
+        CREDENTIALS_MASK.as_bytes(),
+        b"@host/objects \xff tail".as_slice(),
+    ]
+    .concat();
     assert_eq!(mask_url_secrets(raw.as_slice()), expected);
 }
 
@@ -161,7 +229,11 @@ fn a_long_line_is_masked_in_linear_time() {
     //  count of the bytes the scan looked at would need a seam in the mask. Measured on this host at a load average of 47: this
     //  line was masked in 0.08 s, so the 30 s ceiling carries 375 times the figure it was measured at and a quadratic scan is
     //  still minutes away from it.
-    assert!(started.elapsed() < std::time::Duration::from_secs(30), "a quadratic scan of this line takes minutes: {:?}", started.elapsed());
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(30),
+        "a quadratic scan of this line takes minutes: {:?}",
+        started.elapsed()
+    );
     assert!(!result.contains("//a@"), "every userinfo is hidden");
     let unterminated: String = format!("https://{}", "@".repeat(1_000_000));
     assert!(masked(&unterminated).starts_with("https://<credentials>@"));
@@ -173,8 +245,14 @@ fn a_long_line_is_masked_in_linear_time() {
 #[test]
 fn the_host_of_a_destination_is_the_server_alone() {
     let cases: [(&str, Option<&str>); 7] = [
-        ("https://lfs:<credentials>@monochromatic-lfs.aquaticat.workers.dev/objects/batch", Some("monochromatic-lfs.aquaticat.workers.dev")),
-        ("https://user:secret@127.0.0.1:36437/lfs", Some("127.0.0.1:36437")),
+        (
+            "https://lfs:<credentials>@monochromatic-lfs.aquaticat.workers.dev/objects/batch",
+            Some("monochromatic-lfs.aquaticat.workers.dev"),
+        ),
+        (
+            "https://user:secret@127.0.0.1:36437/lfs",
+            Some("127.0.0.1:36437"),
+        ),
         ("https://example.invalid/x", Some("example.invalid")),
         ("ssh://git@host:22/repo.git", Some("host:22")),
         ("origin", None),
@@ -192,13 +270,30 @@ fn the_host_of_a_destination_is_the_server_alone() {
 fn the_servers_a_failure_names_are_read_in_order() {
     let line: &str = "fatal: could not read Username for 'https://lfs.example.invalid': No such device or address; \
                       batch response: Authorization error: https://user:secret@other.example.invalid/objects/batch";
-    assert_eq!(hosts_in(line), vec![String::from("lfs.example.invalid"), String::from("other.example.invalid")]);
-    assert_eq!(hosts_in("nothing here names a server"), Vec::<String>::new());
-    assert_eq!(hosts_in("a path /home/person/repo is not one"), Vec::<String>::new());
-    assert_eq!(hosts_in("the same host twice: https://host.invalid/a and https://host.invalid/b"), vec![String::from("host.invalid")]);
+    assert_eq!(
+        hosts_in(line),
+        vec![
+            String::from("lfs.example.invalid"),
+            String::from("other.example.invalid")
+        ]
+    );
+    assert_eq!(
+        hosts_in("nothing here names a server"),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        hosts_in("a path /home/person/repo is not one"),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        hosts_in("the same host twice: https://host.invalid/a and https://host.invalid/b"),
+        vec![String::from("host.invalid")]
+    );
     // Text this module already masked still names its server: the mask stands where the userinfo was.
     assert_eq!(
-        hosts_in(&format!("batch response: Authorization error: https://lfs:{CREDENTIALS_MASK}@host.invalid/objects/batch")),
+        hosts_in(&format!(
+            "batch response: Authorization error: https://lfs:{CREDENTIALS_MASK}@host.invalid/objects/batch"
+        )),
         vec![String::from("host.invalid")]
     );
 }
@@ -265,7 +360,10 @@ fn a_token_in_the_path_of_an_lfs_url_is_hidden() {
 /// ```
 #[test]
 fn a_repository_name_with_a_capital_or_a_digit_stays_named() {
-    for plain in ["https://github.com/Org/Repo.git/info/lfs", "https://github.com/owner-2026/notes.2026/info/lfs"] {
+    for plain in [
+        "https://github.com/Org/Repo.git/info/lfs",
+        "https://github.com/owner-2026/notes.2026/info/lfs",
+    ] {
         assert_eq!(masked(plain), plain, "{plain}");
     }
 }
@@ -295,12 +393,16 @@ fn a_path_segment_at_the_mask_length_is_hidden_and_short_labels_stay() {
     let at_the_limit: String = "a".repeat(MASKED_SEGMENT_LENGTH);
     let under_the_limit: String = "a".repeat(MASKED_SEGMENT_LENGTH - 1);
     assert_eq!(
-        masked(&format!("https://lfs.example.invalid/{at_the_limit}/objects/batch")),
+        masked(&format!(
+            "https://lfs.example.invalid/{at_the_limit}/objects/batch"
+        )),
         format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/objects/batch"),
         "a segment at the mask length is hidden and the short labels after it stay"
     );
     assert_eq!(
-        masked(&format!("https://lfs.example.invalid/{under_the_limit}/lfs")),
+        masked(&format!(
+            "https://lfs.example.invalid/{under_the_limit}/lfs"
+        )),
         format!("https://lfs.example.invalid/{under_the_limit}/lfs"),
         "a segment one character under the mask length prints as written"
     );
@@ -316,7 +418,11 @@ fn a_path_segment_at_the_mask_length_is_hidden_and_short_labels_stay() {
         "https://lfs.example.invalid/repository-name.git/info/lfs",
         "http://127.0.0.1:36437/silent.git",
     ] {
-        assert_eq!(masked(plain), plain, "a path of short labels stays readable");
+        assert_eq!(
+            masked(plain),
+            plain,
+            "a path of short labels stays readable"
+        );
     }
 }
 
@@ -355,8 +461,16 @@ fn the_segment_rule_at_its_edges() {
         format!("https://lfs.example.invalid/{}/objects", CREDENTIALS_MASK),
         "an encoded slash stays inside its segment"
     );
-    for plain in ["https://lfs.example.invalid/objects/batch/", "https://lfs.example.invalid//objects/batch", "https://host.invalid/"] {
-        assert_eq!(masked(plain), plain, "a trailing slash and an empty segment carry nothing: {plain}");
+    for plain in [
+        "https://lfs.example.invalid/objects/batch/",
+        "https://lfs.example.invalid//objects/batch",
+        "https://host.invalid/",
+    ] {
+        assert_eq!(
+            masked(plain),
+            plain,
+            "a trailing slash and an empty segment carry nothing: {plain}"
+        );
     }
     // A quote, a bracket, a comma or a full stop ends the URL after its path, and the path still prints whole.
     for (before, after) in [("\"", "\""), ("(", ")"), ("", ","), ("", ".")] {
@@ -371,7 +485,10 @@ fn the_segment_rule_at_its_edges() {
 fn every_value_of_a_query_is_hidden_and_a_plain_key_stays() {
     assert_eq!(
         masked("https://lfs.example.invalid/lfs?token=CANARYQUERY7720&ref=main&sig=a%2Fb"),
-        format!("https://lfs.example.invalid/lfs?token={m}&ref={m}&sig={m}", m = CREDENTIALS_MASK),
+        format!(
+            "https://lfs.example.invalid/lfs?token={m}&ref={m}&sig={m}",
+            m = CREDENTIALS_MASK
+        ),
     );
     // A key is hidden too when it is shaped like a token: the config key of the incident carried one.
     assert_eq!(
@@ -401,11 +518,20 @@ fn a_url_with_no_secret_is_left_alone() {
 /// in a path segment and in a query value alike.
 #[test]
 fn an_encoded_secret_in_a_path_or_a_query_is_hidden() {
-    assert_eq!(masked("https://host.invalid/a%2Fb/lfs"), format!("https://host.invalid/{m}/lfs", m = CREDENTIALS_MASK));
-    assert_eq!(masked("https://host.invalid/lfs?token=%43ANARY%2B7720"), format!("https://host.invalid/lfs?token={m}", m = CREDENTIALS_MASK));
+    assert_eq!(
+        masked("https://host.invalid/a%2Fb/lfs"),
+        format!("https://host.invalid/{m}/lfs", m = CREDENTIALS_MASK)
+    );
+    assert_eq!(
+        masked("https://host.invalid/lfs?token=%43ANARY%2B7720"),
+        format!("https://host.invalid/lfs?token={m}", m = CREDENTIALS_MASK)
+    );
     // A segment over the limit is a token whatever it carries, and the canary is made long enough for it.
     assert!(CANARY_PATH.len() >= MASKED_SEGMENT_LENGTH, "{CANARY_PATH}");
-    assert_eq!(masked(&format!("https://host.invalid/{CANARY_PATH}/lfs")), format!("https://host.invalid/{m}/lfs", m = CREDENTIALS_MASK));
+    assert_eq!(
+        masked(&format!("https://host.invalid/{CANARY_PATH}/lfs")),
+        format!("https://host.invalid/{m}/lfs", m = CREDENTIALS_MASK)
+    );
 }
 
 /// A fragment is a place a token is carried too,
@@ -414,9 +540,15 @@ fn an_encoded_secret_in_a_path_or_a_query_is_hidden() {
 fn a_fragment_keeps_its_plain_keys_and_hides_its_values() {
     assert_eq!(
         masked("https://host.invalid/lfs#access_token=CANARYQUERY7720"),
-        format!("https://host.invalid/lfs#access_token={m}", m = CREDENTIALS_MASK),
+        format!(
+            "https://host.invalid/lfs#access_token={m}",
+            m = CREDENTIALS_MASK
+        ),
     );
-    assert_eq!(masked("https://host.invalid/lfs#CANARYQUERY7720"), format!("https://host.invalid/lfs#{m}", m = CREDENTIALS_MASK));
+    assert_eq!(
+        masked("https://host.invalid/lfs#CANARYQUERY7720"),
+        format!("https://host.invalid/lfs#{m}", m = CREDENTIALS_MASK)
+    );
 }
 
 /// A long line of URLs whose paths and queries carry tokens is masked with no token left and no quadratic scan:
@@ -424,15 +556,29 @@ fn a_fragment_keeps_its_plain_keys_and_hides_its_values() {
 /// and it still reads every byte a constant number of times.
 #[test]
 fn a_long_line_of_tokens_is_hidden_in_linear_time() {
-    let one: String = format!("https://lfs:{CANARY_USER}:{CANARY_PASS}@host/{CANARY_PATH}/lfs?token={CANARY_QUERY} ");
+    let one: String = format!(
+        "https://lfs:{CANARY_USER}:{CANARY_PASS}@host/{CANARY_PATH}/lfs?token={CANARY_QUERY} "
+    );
     let line: String = one.repeat(100_000);
     let started: std::time::Instant = std::time::Instant::now();
     let result: String = masked(&line);
-    assert!(started.elapsed() < std::time::Duration::from_secs(30), "a quadratic scan of this line takes minutes: {:?}", started.elapsed());
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(30),
+        "a quadratic scan of this line takes minutes: {:?}",
+        started.elapsed()
+    );
     for canary in [CANARY_USER, CANARY_PASS, CANARY_PATH, CANARY_QUERY] {
-        assert!(!result.contains(canary), "{canary} survives in a line of 100000 URLs");
+        assert!(
+            !result.contains(canary),
+            "{canary} survives in a line of 100000 URLs"
+        );
     }
-    assert!(result.contains(&format!("https://{CREDENTIALS_MASK}@host/{CREDENTIALS_MASK}/lfs?token={CREDENTIALS_MASK} ")), "the masked shape is kept");
+    assert!(
+        result.contains(&format!(
+            "https://{CREDENTIALS_MASK}@host/{CREDENTIALS_MASK}/lfs?token={CREDENTIALS_MASK} "
+        )),
+        "the masked shape is kept"
+    );
 }
 
 /// What:
@@ -450,7 +596,10 @@ fn a_long_line_of_tokens_is_hidden_in_linear_time() {
 #[test]
 fn masking_twice_leaves_the_text_as_masking_once() {
     // Written from the parts, so the repository's credential scanner reads no URL userinfo here.
-    let with_userinfo: String = format!("batch response: Server error https://user:{}@lfs.example.invalid/objects/batch from HTTP 503", "planted-secret");
+    let with_userinfo: String = format!(
+        "batch response: Server error https://user:{}@lfs.example.invalid/objects/batch from HTTP 503",
+        "planted-secret"
+    );
     for text in [
         with_userinfo.as_str(),
         "batch response: Server error https://lfs.example.invalid/lfs?token=planted9query7value from HTTP 503",
@@ -460,7 +609,11 @@ fn masking_twice_leaves_the_text_as_masking_once() {
     ] {
         let once: String = masked(text);
         assert_eq!(masked(once.as_str()), once, "{text}");
-        assert_eq!(once.matches(CREDENTIALS_MASK).count(), masked(once.as_str()).matches(CREDENTIALS_MASK).count(), "{text}");
+        assert_eq!(
+            once.matches(CREDENTIALS_MASK).count(),
+            masked(once.as_str()).matches(CREDENTIALS_MASK).count(),
+            "{text}"
+        );
     }
 }
 
@@ -485,19 +638,32 @@ fn a_capped_head_keeps_whole_lines_and_hides_a_url_the_cut_would_open() {
     let cap: u64 = u64::try_from(whole.len()).expect("a length");
     let kept: MaskedHead = mask_url_secrets_within(whole.as_bytes(), cap);
     assert!(!kept.cut, "the whole text fits");
-    assert_eq!(String::from_utf8_lossy(kept.text.as_slice()).into_owned(), masked(whole.as_str()));
+    assert_eq!(
+        String::from_utf8_lossy(kept.text.as_slice()).into_owned(),
+        masked(whole.as_str())
+    );
 
     // A cap that falls inside the URL keeps the line before it and drops that line whole.
     let cut_at: u64 = u64::try_from("first line\n".len() + filler.len() + 12).expect("a length");
     let cut: MaskedHead = mask_url_secrets_within(whole.as_bytes(), cut_at);
     assert!(cut.cut, "the text is longer than the cap");
     let shown: String = String::from_utf8_lossy(cut.text.as_slice()).into_owned();
-    assert_eq!(shown, "first line\n", "only the whole line before the cut is kept: {shown}");
-    assert!(!shown.contains("planted"), "no part of the password survives: {shown}");
+    assert_eq!(
+        shown, "first line\n",
+        "only the whole line before the cut is kept: {shown}"
+    );
+    assert!(
+        !shown.contains("planted"),
+        "no part of the password survives: {shown}"
+    );
 
     // A cap inside a line that holds no break at all keeps nothing rather than half a URL.
     let none: MaskedHead = mask_url_secrets_within(whole.as_bytes(), 4);
-    assert!(none.cut && none.text.is_empty(), "{:?}", String::from_utf8_lossy(none.text.as_slice()));
+    assert!(
+        none.cut && none.text.is_empty(),
+        "{:?}",
+        String::from_utf8_lossy(none.text.as_slice())
+    );
 }
 
 //endregion

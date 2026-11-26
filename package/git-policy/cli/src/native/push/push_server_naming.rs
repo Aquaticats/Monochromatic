@@ -20,21 +20,34 @@
 //! const naming = ServerNaming.of(command, environment); await naming.ask(); naming.server(); // 'host:port'
 //! ```
 
+/// The grace a stopped query gets.
+use crate::bounded_push::STOP_GRACE;
+/// The bounded query that answers where a remote name sends a push,
+/// and the answer it gives.
+use crate::bounded_query::{
+    QueryOutput,
+    query_window,
+    run_bounded_query_awaiting,
+};
 /// The host a destination names,
 /// with no userinfo and no token,
 /// and the hosts a run's own words name.
-use crate::lfs_output_mask::{host_of, hosts_in};
-/// The bounded query that answers where a remote name sends a push,
-/// and the answer it gives.
-use crate::bounded_query::{QueryOutput, query_window, run_bounded_query_awaiting};
-/// The grace a stopped query gets.
-use crate::bounded_push::STOP_GRACE;
+use crate::lfs_output_mask::{
+    host_of,
+    hosts_in,
+};
 /// Owned OS strings of the child environment.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// The path the answer is asked in.
 use std::path::PathBuf;
 /// `Command` describes the run and `CommandArgs` walks its words.
-use std::process::{Command, CommandArgs};
+use std::process::{
+    Command,
+    CommandArgs,
+};
 
 /// What:
 ///  How a wait and a stop name the server they are waiting for:
@@ -84,7 +97,10 @@ impl<'a> ServerNaming<'a> {
     /// ```ts
     /// { destination: destinationOf(command), program: command.program, directory: command.cwd, environment, asked: false }
     /// ```
-    pub fn of(command: &Command, environment: &'a [(OsString, OsString)]) -> ServerNaming<'a> {
+    pub fn of(
+        command: &Command,
+        environment: &'a [(OsString, OsString)],
+    ) -> ServerNaming<'a> {
         return ServerNaming {
             destination: destination_of(command),
             program: command.get_program().into(),
@@ -107,7 +123,10 @@ impl<'a> ServerNaming<'a> {
     /// ```ts
     /// { known = known ?? server }
     /// ```
-    pub fn named_by_the_caller(&mut self, server: Option<&str>) {
+    pub fn named_by_the_caller(
+        &mut self,
+        server: Option<&str>,
+    ) {
         if self.known.is_none() {
             self.known = server.map(str::to_owned);
         }
@@ -133,11 +152,16 @@ impl<'a> ServerNaming<'a> {
     /// ```ts
     /// { const host = hostsIn(output)[0]; if (host && (known === undefined || known === host)) known = host }
     /// ```
-    pub fn consider_output(&mut self, output: &str) {
+    pub fn consider_output(
+        &mut self,
+        output: &str,
+    ) {
         let Some(host) = hosts_in(output).into_iter().next() else {
             return;
         };
-        if self.known.as_ref().is_some_and(|known| { return known != &host; }) {
+        if self.known.as_ref().is_some_and(|known| {
+            return known != &host;
+        }) {
             return;
         }
         self.known = Some(host);
@@ -190,7 +214,9 @@ impl<'a> ServerNaming<'a> {
         }
         // An upload's program has no `remote get-url` command (`git-lfs` answers `unknown command "remote"`), so an upload's
         //  server comes from its plan or from its own words and never from a query here.
-        if self.program.file_name().is_some_and(|name| { return name == OsStr::new("git-lfs"); }) {
+        if self.program.file_name().is_some_and(|name| {
+            return name == OsStr::new("git-lfs");
+        }) {
             return None;
         }
         let mut query: Command = Command::new(&self.program);
@@ -205,9 +231,15 @@ impl<'a> ServerNaming<'a> {
         }
         // The answer is bounded as every Git query of the wrapper's own is, by the same window and the same stop.
         let text: String = format!("remote get-url --push {destination}");
-        let answer: QueryOutput = run_bounded_query_awaiting(query, text.as_str(), query_window(self.environment), STOP_GRACE, self.environment)
-            .await
-            .ok()?;
+        let answer: QueryOutput = run_bounded_query_awaiting(
+            query,
+            text.as_str(),
+            query_window(self.environment),
+            STOP_GRACE,
+            self.environment,
+        )
+        .await
+        .ok()?;
         if answer.code != Some(0) {
             return None;
         }

@@ -15,11 +15,22 @@
 //! ```
 
 /// The failure kinds the canonical failure classifies.
-use crate::dependent_version_content::{PlanError, PolicyIncomplete};
+use crate::dependent_version_content::{
+    PlanError,
+    PolicyIncomplete,
+};
 /// Canonical JSON writers shared with the fixture reader.
-use crate::dependent_version_fixture_json::{array, object, quote, quote_hex};
+use crate::dependent_version_fixture_json::{
+    array,
+    object,
+    quote,
+    quote_hex,
+};
 /// The planned bump and the plan outcome.
-use crate::dependent_version_plan::{ManifestBump, PlanOutcome};
+use crate::dependent_version_plan::{
+    ManifestBump,
+    PlanOutcome,
+};
 /// The policy's findings.
 use crate::dependent_version_policy::DependentFinding;
 /// The incumbent's message for an unsupported version.
@@ -32,19 +43,22 @@ use crate::dependent_version_release::unsupported_message;
 pub fn failed(error: &PlanError) -> String {
     let (class, detail): (&str, String) = match error {
         PlanError::ContentUnavailable(_) => ("unavailable", String::new()),
-        PlanError::PolicyIncomplete(PolicyIncomplete::NotUtf8 { .. }) => ("decode", String::new()),
-        PlanError::PolicyIncomplete(PolicyIncomplete::ManifestSyntax { .. }) => {
-            ("syntax", String::new())
-        }
-        PlanError::PolicyIncomplete(PolicyIncomplete::ManifestShape { problem, .. }) => {
-            ("shape", problem.clone())
-        }
-        PlanError::PolicyIncomplete(PolicyIncomplete::DuplicateName { .. }) => {
-            ("graph", String::new())
-        }
-        PlanError::PolicyIncomplete(PolicyIncomplete::PublishSetUnknown { .. }) => {
-            ("publish-set", String::new())
-        }
+        PlanError::PolicyIncomplete(PolicyIncomplete::NotUtf8 {
+            ..
+        }) => ("decode", String::new()),
+        PlanError::PolicyIncomplete(PolicyIncomplete::ManifestSyntax {
+            ..
+        }) => ("syntax", String::new()),
+        PlanError::PolicyIncomplete(PolicyIncomplete::ManifestShape {
+            problem,
+            ..
+        }) => ("shape", problem.clone()),
+        PlanError::PolicyIncomplete(PolicyIncomplete::DuplicateName {
+            ..
+        }) => ("graph", String::new()),
+        PlanError::PolicyIncomplete(PolicyIncomplete::PublishSetUnknown {
+            ..
+        }) => ("publish-set", String::new()),
     };
     return object(&[
         ("kind", quote("failed")),

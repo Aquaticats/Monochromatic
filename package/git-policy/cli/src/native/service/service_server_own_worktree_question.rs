@@ -34,9 +34,15 @@ use std::time::Duration;
 /// ```ts
 /// if (ownWorktreeGoneNow(settings, untilIdle)) stopOwnUnitsAndEnd();
 /// ```
-pub fn own_worktree_gone_now(settings: &ServeSettings, until_idle: Duration) -> bool {
+pub fn own_worktree_gone_now(
+    settings: &ServeSettings,
+    until_idle: Duration,
+) -> bool {
     if settings.own_git_dir.is_none() || until_idle <= settings.own_worktree_check {
         return false;
     }
-    return settings.own_git_dir.as_deref().is_some_and(crate::service_units_of_removed_worktrees::worktree_is_gone);
+    return settings
+        .own_git_dir
+        .as_deref()
+        .is_some_and(crate::service_units_of_removed_worktrees::worktree_is_gone);
 }

@@ -30,17 +30,42 @@ mod child_test_process;
 
 /// The public interface under control,
 ///  imported the way another crate would.
-use forbidden_strings::{CandidateScan, ScanFinding};
+use forbidden_strings::{
+    CandidateScan,
+    ScanFinding,
+};
 use git_policy_cli::candidate_error::CandidateFailure;
 use git_policy_cli::candidate_record::CandidateChange;
 use git_policy_cli::candidate_store::CandidateStore;
-use git_policy_cli::candidate_version::{Candidate, CandidateSource, CandidateVersion};
-use git_policy_cli::scanner_adapter::{CandidateScanner, RulesSource};
-use git_policy_cli::scanner_run::{ScanRunError, scan_version};
-use git_policy_cli::scanner_selection::{rules_candidate_path, rules_source};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use git_policy_cli::candidate_version::{
+    Candidate,
+    CandidateSource,
+    CandidateVersion,
+};
+use git_policy_cli::scanner_adapter::{
+    CandidateScanner,
+    RulesSource,
+};
+use git_policy_cli::scanner_run::{
+    ScanRunError,
+    scan_version,
+};
+use git_policy_cli::scanner_selection::{
+    rules_candidate_path,
+    rules_source,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
 use std::rc::Rc;
 
 /// The real Git 2.56.0 executable installed in the verification image.
@@ -52,7 +77,10 @@ const ISOLATED_FIXTURE_VARIABLE: &str = "CLI_GIT_NATIVE_CONSUMER_FIXTURE";
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity,
 ///  and require success.
-fn git(directory: &Path, arguments: &[&str]) {
+fn git(
+    directory: &Path,
+    arguments: &[&str],
+) {
     let output: Output = Command::new(REAL_GIT)
         .current_dir(directory)
         .env_clear()
@@ -75,7 +103,10 @@ fn git(directory: &Path, arguments: &[&str]) {
 
 /// The pathnames of the candidates whose scans hold at least one finding,
 ///  sorted.
-fn reported_paths(version: &CandidateVersion, scans: &[CandidateScan]) -> Vec<Vec<u8>> {
+fn reported_paths(
+    version: &CandidateVersion,
+    scans: &[CandidateScan],
+) -> Vec<Vec<u8>> {
     let mut reported: Vec<Vec<u8>> = Vec::new();
     for scan in scans {
         if scan.findings.is_empty() {
@@ -116,7 +147,8 @@ fn policy_pass(directory: &Path) {
     std::fs::write(repo.join("worktree-leak.txt"), format!("{token}\n")).expect("worktree edit");
     std::fs::write(repo.join("staged-leak.txt"), "clean\n").expect("worktree edit");
     // The rules file is selected the way the standalone scanner selects it, relative to the root.
-    let rules: RulesSource = rules_source(None, Some(OsStr::new("rules.txt")), repo.as_path()).expect("rules source");
+    let rules: RulesSource =
+        rules_source(None, Some(OsStr::new("rules.txt")), repo.as_path()).expect("rules source");
     assert!(rules.explicit);
     let scanner: CandidateScanner = match CandidateScanner::load(&rules, false) {
         Ok(loaded) => loaded,
@@ -124,8 +156,8 @@ fn policy_pass(directory: &Path) {
     };
     assert_eq!(scanner.cache_warnings().len(), 1);
     assert_eq!(scanner.cache_warnings()[0].reason(), "missing");
-    let rules_path: Vec<u8> =
-        rules_candidate_path(rules.entries[0].path.as_path(), repo.as_path()).expect("rules file is tracked");
+    let rules_path: Vec<u8> = rules_candidate_path(rules.entries[0].path.as_path(), repo.as_path())
+        .expect("rules file is tracked");
     let mut store: CandidateStore = CandidateStore::new(
         Path::new(REAL_GIT),
         &[OsString::from("-C"), repo.clone().into_os_string()],
@@ -135,8 +167,13 @@ fn policy_pass(directory: &Path) {
         .version(&CandidateSource::StagedAgainstHead)
         .expect("staged version");
     assert_eq!(version.candidates().len(), 3);
-    let scans: Vec<CandidateScan> =
-        scan_version(&scanner, &mut store, &version, std::slice::from_ref(&rules_path)).expect("pass");
+    let scans: Vec<CandidateScan> = scan_version(
+        &scanner,
+        &mut store,
+        &version,
+        std::slice::from_ref(&rules_path),
+    )
+    .expect("pass");
     // The rules file is skipped; the staged leak is reported; the worktree-only leak is not.
     assert_eq!(scans.len(), 2);
     assert_eq!(
@@ -165,7 +202,12 @@ fn policy_pass(directory: &Path) {
     // A fix stages the cleaned content; the earlier version must not be read again.
     git(repo.as_path(), &["add", "staged-leak.txt"]);
     store.invalidate();
-    match scan_version(&scanner, &mut store, &version, std::slice::from_ref(&rules_path)) {
+    match scan_version(
+        &scanner,
+        &mut store,
+        &version,
+        std::slice::from_ref(&rules_path),
+    ) {
         Ok(_) => panic!("a version from before the fix must be refused"),
         Err(ScanRunError::Candidate(error)) => {
             assert_eq!(error.failure, CandidateFailure::StaleCandidate);
@@ -175,9 +217,13 @@ fn policy_pass(directory: &Path) {
     let fixed: Rc<CandidateVersion> = store
         .version(&CandidateSource::StagedAgainstHead)
         .expect("version after the fix");
-    let after: Vec<CandidateScan> =
-        scan_version(&scanner, &mut store, &fixed, std::slice::from_ref(&rules_path))
-            .expect("second pass");
+    let after: Vec<CandidateScan> = scan_version(
+        &scanner,
+        &mut store,
+        &fixed,
+        std::slice::from_ref(&rules_path),
+    )
+    .expect("second pass");
     assert_eq!(after.len(), 2);
     assert!(reported_paths(&fixed, after.as_slice()).is_empty());
 }
@@ -191,7 +237,8 @@ fn public_interface_runs_a_policy_pass() {
         return;
     }
     // Cargo's per-target scratch directory, never the system temporary directory (issue 1809).
-    let root: PathBuf = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("native-consumer-{}", std::process::id()));
+    let root: PathBuf = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("native-consumer-{}", std::process::id()));
     if root.exists() {
         std::fs::remove_dir_all(&root).expect("remove stale fixture");
     }
@@ -202,8 +249,11 @@ fn public_interface_runs_a_policy_pass() {
     let fixture_directory: PathBuf = std::fs::canonicalize(&work).expect("canonical fixture");
     let home: PathBuf = root.join("home");
     let cache: PathBuf = root.join("cache");
-    let environment: [(&str, &OsStr); 3] =
-        [(ISOLATED_FIXTURE_VARIABLE, fixture_directory.as_os_str()), ("HOME", home.as_os_str()), ("FORBIDDEN_STRINGS_CACHE_DIR", cache.as_os_str())];
+    let environment: [(&str, &OsStr); 3] = [
+        (ISOLATED_FIXTURE_VARIABLE, fixture_directory.as_os_str()),
+        ("HOME", home.as_os_str()),
+        ("FORBIDDEN_STRINGS_CACHE_DIR", cache.as_os_str()),
+    ];
     // The child's pass is this control's assertion, and its two cache variables must not come in from this process.
     crate::child_test_process::passed(crate::child_test_process::ChildTest {
         exact_test: "public_interface_runs_a_policy_pass",

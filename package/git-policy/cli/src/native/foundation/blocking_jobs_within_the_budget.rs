@@ -29,14 +29,26 @@
 //! const value = await runBlockingJobWithinTheBudget(() => copyTree(source, target)); // Ok(value) | Err(NoThreadToStart)
 //! ```
 
-use crate::blocking_job::{BlockingJobError, run_blocking_job};
-use crate::the_claim_a_job_takes_before_running_it::TheClaimOnAJobsWork;
-use crate::the_place_of_one_blocking_job::{APlaceGivenBackWhenItEnds, ThePlaceOfOneJob};
+use crate::blocking_job::{
+    BlockingJobError,
+    run_blocking_job,
+};
 use crate::parallel_budget::HostResources;
 use crate::runtime_limits::RuntimeLimits;
 use crate::runtime_plan::budgeted_workers;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, OnceLock};
+use crate::the_claim_a_job_takes_before_running_it::TheClaimOnAJobsWork;
+use crate::the_place_of_one_blocking_job::{
+    APlaceGivenBackWhenItEnds,
+    ThePlaceOfOneJob,
+};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use std::sync::{
+    Arc,
+    OnceLock,
+};
 use std::time::Duration;
 use tokio::sync::Semaphore;
 
@@ -86,8 +98,13 @@ fn budget() -> &'static TheBudget {
 fn decide_the_budget() -> TheBudget {
     let host: HostResources = HostResources::read();
     let limits: RuntimeLimits = RuntimeLimits::read();
-    let allowed: usize = budgeted_workers(&host, &limits).min(HELD_TO.load(Ordering::SeqCst)).max(1);
-    return TheBudget { places: Arc::new(Semaphore::new(allowed)), allowed };
+    let allowed: usize = budgeted_workers(&host, &limits)
+        .min(HELD_TO.load(Ordering::SeqCst))
+        .max(1);
+    return TheBudget {
+        places: Arc::new(Semaphore::new(allowed)),
+        allowed,
+    };
 }
 
 /// What:
@@ -191,12 +208,14 @@ where
 {
     // A control can wait on this ask instead of on a clock, so work that bypasses the bound cannot pass it.
     #[cfg(test)]
-    let _asking: jobs_waiting_for_a_place::AJobWaits = jobs_waiting_for_a_place::note_that_a_job_waits();
-    let place: tokio::sync::OwnedSemaphorePermit = match Arc::clone(&budget().places).acquire_owned().await {
-        Ok(taken) => taken,
-        // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
-        Err(_closed) => return Err(BlockingJobError::Cancelled),
-    };
+    let _asking: jobs_waiting_for_a_place::AJobWaits =
+        jobs_waiting_for_a_place::note_that_a_job_waits();
+    let place: tokio::sync::OwnedSemaphorePermit =
+        match Arc::clone(&budget().places).acquire_owned().await {
+            Ok(taken) => taken,
+            // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
+            Err(_closed) => return Err(BlockingJobError::Cancelled),
+        };
     // The place is this job's, so it is no longer one of the jobs waiting for one.
     #[cfg(test)]
     drop(_asking);
@@ -217,7 +236,10 @@ where
 /// ```ts
 /// const value = await runTheJobHoldingThePlace(place, job);
 /// ```
-async fn run_a_job_holding_the_place<T, J>(place: tokio::sync::OwnedSemaphorePermit, job: J) -> Result<T, BlockingJobError>
+async fn run_a_job_holding_the_place<T, J>(
+    place: tokio::sync::OwnedSemaphorePermit,
+    job: J,
+) -> Result<T, BlockingJobError>
 where
     T: Send + 'static,
     J: FnOnce() -> T + Send + 'static,
@@ -227,7 +249,11 @@ where
     let claimed: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
     let held: Arc<ThePlaceOfOneJob> = ThePlaceOfOneJob::holding(place);
     // A caller that stops waiting drops this, and the job the pool still holds queued must then do nothing.
-    let mut call: TheCallOnAJob = TheCallOnAJob { claimed: Arc::clone(&claimed), held: Arc::clone(&held), settled: false };
+    let mut call: TheCallOnAJob = TheCallOnAJob {
+        claimed: Arc::clone(&claimed),
+        held: Arc::clone(&held),
+        settled: false,
+    };
     let (jobs_claim, jobs_place) = (Arc::clone(&claimed), Arc::clone(&held));
     let outcome = run_blocking_job(move || {
         // The claim comes first, before anything of the job's own work.
@@ -245,7 +271,9 @@ where
             Ok(value)
         }
         // The job found the claim taken, which only this frame's reporter does, and only after this call returned.
-        Ok(None) => panic!("a blocking job found its own work given up on while the caller still waited for it"),
+        Ok(None) => panic!(
+            "a blocking job found its own work given up on while the caller still waited for it"
+        ),
         Err(failed) => {
             // The place goes back here only when the job will never run: a job that took the claim holds it until its
             //  work ends, so the process's bound keeps covering every running job.
@@ -309,7 +337,9 @@ fn slow_places() -> &'static Arc<Semaphore> {
 /// The places slow work may take,
 /// made by the first slow job that asks for one.
 fn the_places_slow_work_may_take() -> Arc<Semaphore> {
-    return Arc::new(Semaphore::new(budget().allowed.saturating_sub(SLOW_WORK_RESERVE).max(1)));
+    return Arc::new(Semaphore::new(
+        budget().allowed.saturating_sub(SLOW_WORK_RESERVE).max(1),
+    ));
 }
 
 /// What:
@@ -333,11 +363,12 @@ where
     T: Send + 'static,
     J: FnOnce() -> T + Send + 'static,
 {
-    let slow: tokio::sync::OwnedSemaphorePermit = match Arc::clone(slow_places()).acquire_owned().await {
-        Ok(taken) => taken,
-        // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
-        Err(_closed) => return Err(BlockingJobError::Cancelled),
-    };
+    let slow: tokio::sync::OwnedSemaphorePermit =
+        match Arc::clone(slow_places()).acquire_owned().await {
+            Ok(taken) => taken,
+            // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
+            Err(_closed) => return Err(BlockingJobError::Cancelled),
+        };
     let answer: Result<T, BlockingJobError> = run_blocking_job_within_the_budget(job).await;
     drop(slow);
     return answer;
@@ -356,11 +387,15 @@ where
 /// ```ts
 /// try { return await runASlowJobWithinTheBudget(() => work(state)); } catch (refused) { if (!refused.noThreadToStart) raise(refused); return work(state); }
 /// ```
-pub async fn run_a_slow_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
-    let slow: tokio::sync::OwnedSemaphorePermit = match Arc::clone(slow_places()).acquire_owned().await {
-        Ok(taken) => taken,
-        Err(_closed) => return Err(BlockingJobError::Cancelled),
-    };
+pub async fn run_a_slow_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(
+    state: S,
+    work: fn(S) -> T,
+) -> Result<T, BlockingJobError> {
+    let slow: tokio::sync::OwnedSemaphorePermit =
+        match Arc::clone(slow_places()).acquire_owned().await {
+            Ok(taken) => taken,
+            Err(_closed) => return Err(BlockingJobError::Cancelled),
+        };
     // The place for slow work is held on this frame, so the work done in turn below it is covered too.
     let answer: Result<T, BlockingJobError> = run_a_job_or_in_turn(state, work).await;
     drop(slow);
@@ -393,18 +428,26 @@ pub async fn run_a_slow_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'sta
 /// ```ts
 /// try { return await runBlockingJobWithinTheBudget(() => work(state)); } catch (refused) { if (!refused.noThreadToStart) raise(refused); const place = await budget.places.acquire(); try { return work(state); } finally { place.release(); } }
 /// ```
-pub async fn run_a_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
+pub async fn run_a_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(
+    state: S,
+    work: fn(S) -> T,
+) -> Result<T, BlockingJobError> {
     let theirs: S = state.clone();
-    let outcome: Result<T, BlockingJobError> = run_blocking_job_within_the_budget(move || { return work(theirs); }).await;
+    let outcome: Result<T, BlockingJobError> = run_blocking_job_within_the_budget(move || {
+        return work(theirs);
+    })
+    .await;
     return match outcome {
         Ok(value) => Ok(value),
         // The job will not run and changed nothing, so the same work runs here, and its place is held until it ends.
-        Err(BlockingJobError::NoThreadToStart) => match Arc::clone(&budget().places).acquire_owned().await {
-            // The place is this frame's and it is dropped after the work, never before it.
-            Ok(_place) => Ok(work(state)),
-            // The semaphore lives as long as the process, so a closed one is a defect: nothing is run.
-            Err(_closed) => Err(BlockingJobError::Cancelled),
-        },
+        Err(BlockingJobError::NoThreadToStart) => {
+            match Arc::clone(&budget().places).acquire_owned().await {
+                // The place is this frame's and it is dropped after the work, never before it.
+                Ok(_place) => Ok(work(state)),
+                // The semaphore lives as long as the process, so a closed one is a defect: nothing is run.
+                Err(_closed) => Err(BlockingJobError::Cancelled),
+            }
+        }
         Err(another) => Err(another),
     };
 }
@@ -427,19 +470,28 @@ pub async fn run_a_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(
 /// ```ts
 /// const answered = aRefusedThreadStart(failed, claim, place); // NeverRuns | StartedAnyway
 /// ```
-fn a_refused_thread_start(failed: BlockingJobError, claimed: &TheClaimOnAJobsWork, held: &ThePlaceOfOneJob) -> BlockingJobError {
+fn a_refused_thread_start(
+    failed: BlockingJobError,
+    claimed: &TheClaimOnAJobsWork,
+    held: &ThePlaceOfOneJob,
+) -> BlockingJobError {
     if claimed.the_reporter_takes_it() {
         held.give_it_back();
         return match failed {
             // The runner's own refusal promises nothing about the closure the pool queued; the claim this call has just
             //  taken is what makes this answer sure.
-            BlockingJobError::MayStillRunAfterItsThreadWasRefused => BlockingJobError::NoThreadToStart,
+            BlockingJobError::MayStillRunAfterItsThreadWasRefused => {
+                BlockingJobError::NoThreadToStart
+            }
             other => other,
         };
     }
     // The job took the claim, so it runs or has run, and this answer says only what is known.
     return match failed {
-        BlockingJobError::NoThreadToStart | BlockingJobError::MayStillRunAfterItsThreadWasRefused => BlockingJobError::StartedAfterItsThreadWasRefused,
+        BlockingJobError::NoThreadToStart
+        | BlockingJobError::MayStillRunAfterItsThreadWasRefused => {
+            BlockingJobError::StartedAfterItsThreadWasRefused
+        }
         other => other,
     };
 }
@@ -492,7 +544,11 @@ pub enum TheAnswerOfAJobAwaited<T> {
 /// ```ts
 /// const answer = await runAJobAwaitedNoLongerThan(ceiling, state, work);
 /// ```
-pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'static>(ceiling: Duration, state: S, work: fn(S) -> T) -> TheAnswerOfAJobAwaited<T> {
+pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'static>(
+    ceiling: Duration,
+    state: S,
+    work: fn(S) -> T,
+) -> TheAnswerOfAJobAwaited<T> {
     #[cfg(test)]
     if let Some(answering) = a_controls_answer::the_answer_a_control_states() {
         // The work runs, as it does on the pool, so a control sees the step's own changes; only the answer is the control's.
@@ -502,7 +558,10 @@ pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'stat
             a_controls_answer::AStatesAnswer::NoAnswer => TheAnswerOfAJobAwaited::NoAnswer,
         };
     }
-    return run_a_job_once_awaited_no_longer_than(ceiling, move || { return work(state); }).await;
+    return run_a_job_once_awaited_no_longer_than(ceiling, move || {
+        return work(state);
+    })
+    .await;
 }
 
 /// What:
@@ -526,15 +585,23 @@ pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'stat
 /// ```ts
 /// const answer = await runAJobOnceAwaitedNoLongerThan(ceiling, job);
 /// ```
-pub async fn run_a_job_once_awaited_no_longer_than<T: Send + 'static, J: FnOnce() -> T + Send + 'static>(ceiling: Duration, job: J) -> TheAnswerOfAJobAwaited<T> {
+pub async fn run_a_job_once_awaited_no_longer_than<
+    T: Send + 'static,
+    J: FnOnce() -> T + Send + 'static,
+>(
+    ceiling: Duration,
+    job: J,
+) -> TheAnswerOfAJobAwaited<T> {
     // A control can wait on this ask instead of on a clock, so work that bypasses the bound cannot pass it.
     #[cfg(test)]
-    let _asking: jobs_waiting_for_a_place::AJobWaits = jobs_waiting_for_a_place::note_that_a_job_waits();
-    let place: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(ceiling, Arc::clone(&budget().places).acquire_owned()).await {
-        Ok(Ok(taken)) => taken,
-        // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
-        Ok(Err(_)) | Err(_) => return TheAnswerOfAJobAwaited::NotRun,
-    };
+    let _asking: jobs_waiting_for_a_place::AJobWaits =
+        jobs_waiting_for_a_place::note_that_a_job_waits();
+    let place: tokio::sync::OwnedSemaphorePermit =
+        match tokio::time::timeout(ceiling, Arc::clone(&budget().places).acquire_owned()).await {
+            Ok(Ok(taken)) => taken,
+            // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
+            Ok(Err(_)) | Err(_) => return TheAnswerOfAJobAwaited::NotRun,
+        };
     #[cfg(test)]
     drop(_asking);
     return match tokio::time::timeout(ceiling, run_a_job_holding_the_place(place, job)).await {

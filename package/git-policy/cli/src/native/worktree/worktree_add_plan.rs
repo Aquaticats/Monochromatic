@@ -21,10 +21,28 @@
 //! const plan = parseAddPlan(['-C', 'repo', 'worktree', 'add', '-b', 'topic', '../topic'], 1, cwd); // undefined: plain Git
 //! ```
 
-use crate::worktree_add_plan_path_questions::{is_slash, is_symbolic_link, names_parent_directory, nearest_existing_ancestor};
-use crate::worktree_add_option_table::{AddOption, LongOption, Takes, option_for_short_letter, resolve_long, take_value};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use crate::worktree_add_option_table::{
+    AddOption,
+    LongOption,
+    Takes,
+    option_for_short_letter,
+    resolve_long,
+    take_value,
+};
+use crate::worktree_add_plan_path_questions::{
+    is_slash,
+    is_symbolic_link,
+    names_parent_directory,
+    nearest_existing_ancestor,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The facts of a `git worktree add` the ladder serves.
@@ -66,13 +84,27 @@ pub struct AddPlan {
 }
 
 /// The options of `add` that take no value and keep the checkout of a new worktree the ordinary one.
-const FLAG_OPTIONS: &[&[u8]] = &[b"--detach", b"-d", b"--quiet", b"-q", b"--lock", b"--checkout"];
+const FLAG_OPTIONS: &[&[u8]] = &[
+    b"--detach",
+    b"-d",
+    b"--quiet",
+    b"-q",
+    b"--lock",
+    b"--checkout",
+];
 
 /// The options of `add` whose value is the next argument.
 const VALUE_OPTIONS: &[&[u8]] = &[b"-b", b"--reason"];
 
 /// The global options that cannot change how the ladder's own Git runs read the repository.
-const HARMLESS_GLOBALS: &[&[u8]] = &[b"--no-pager", b"-P", b"--paginate", b"-p", b"--no-advice", b"--no-lazy-fetch"];
+const HARMLESS_GLOBALS: &[&[u8]] = &[
+    b"--no-pager",
+    b"-P",
+    b"--paginate",
+    b"-p",
+    b"--no-advice",
+    b"--no-lazy-fetch",
+];
 
 /// What:
 ///  The directory a command starts in:
@@ -91,7 +123,10 @@ const HARMLESS_GLOBALS: &[&[u8]] = &[b"--no-pager", b"-P", b"--paginate", b"-p",
 /// ```ts
 /// function startDirectory(prefix: string[], cwd: string): string | undefined;
 /// ```
-pub fn start_directory(global_prefix: &[OsString], current: &Path) -> Option<PathBuf> {
+pub fn start_directory(
+    global_prefix: &[OsString],
+    current: &Path,
+) -> Option<PathBuf> {
     let mut start: PathBuf = current.to_path_buf();
     let mut tokens = global_prefix.iter();
     while let Some(token) = tokens.next() {
@@ -150,7 +185,10 @@ fn is_valued_global_with_equals(word: &[u8]) -> bool {
 /// ```ts
 /// function recordedDestination(start: string, operand: string): string | undefined;
 /// ```
-fn recorded_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
+fn recorded_destination(
+    start: &Path,
+    operand: &OsStr,
+) -> Option<PathBuf> {
     use std::os::unix::ffi::OsStrExt;
     let mut trimmed: &[u8] = operand.as_bytes();
     while let Some(rest) = trimmed.strip_suffix(b"/") {
@@ -240,7 +278,16 @@ fn add_operands(region: &[OsString]) -> Option<AddWords<'_>> {
             return None;
         }
     }
-    return if (1..=2).contains(&operands.len()) { Some(AddWords { operands, quiet, new_branch, detach }) } else { None };
+    return if (1..=2).contains(&operands.len()) {
+        Some(AddWords {
+            operands,
+            quiet,
+            new_branch,
+            detach,
+        })
+    } else {
+        None
+    };
 }
 
 /// What:
@@ -258,7 +305,11 @@ fn add_operands(region: &[OsString]) -> Option<AddWords<'_>> {
 /// ```ts
 /// function parseAddPlan(args: string[], subcommandIndex: number, start: string): AddPlan | undefined;
 /// ```
-pub fn parse_add_plan(arguments: &[OsString], subcommand_index: usize, start: &Path) -> Option<AddPlan> {
+pub fn parse_add_plan(
+    arguments: &[OsString],
+    subcommand_index: usize,
+    start: &Path,
+) -> Option<AddPlan> {
     if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree" {
         return None;
     }
@@ -298,7 +349,10 @@ pub fn why_a_plain_add(destination: Option<&Path>) -> String {
     if let Some(parent) = destination.and_then(Path::parent)
         && matches!(std::fs::symlink_metadata(parent), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound)
     {
-        return format!("because the folder it goes in, {}, does not exist yet", crate::json_record::quote(parent.to_string_lossy().as_ref()));
+        return format!(
+            "because the folder it goes in, {}, does not exist yet",
+            crate::json_record::quote(parent.to_string_lossy().as_ref())
+        );
     }
     return String::from("because the command's form is not one the wrapper reads");
 }
@@ -319,8 +373,15 @@ pub fn why_a_plain_add(destination: Option<&Path>) -> String {
 /// ```ts
 /// const quiet = (args, subcommandIndex) => addOperands(args.slice(subcommandIndex + 2))?.[1] ?? false;
 /// ```
-pub fn add_is_quiet(arguments: &[OsString], subcommand_index: usize) -> bool {
-    let word_is = |index: usize, wanted: &[u8]| { return arguments.get(index).is_some_and(|word| { return word.as_encoded_bytes() == wanted; }); };
+pub fn add_is_quiet(
+    arguments: &[OsString],
+    subcommand_index: usize,
+) -> bool {
+    let word_is = |index: usize, wanted: &[u8]| {
+        return arguments.get(index).is_some_and(|word| {
+            return word.as_encoded_bytes() == wanted;
+        });
+    };
     if !word_is(subcommand_index, b"worktree") {
         return false;
     }
@@ -328,15 +389,27 @@ pub fn add_is_quiet(arguments: &[OsString], subcommand_index: usize) -> bool {
     if !word_is(word_index, b"add") {
         return false;
     }
-    return add_operands(&arguments[word_index + 1..]).is_some_and(|words: AddWords<'_>| { return words.quiet; });
+    return add_operands(&arguments[word_index + 1..]).is_some_and(|words: AddWords<'_>| {
+        return words.quiet;
+    });
 }
-
 
 /// The global options that take no value and change nothing about where a relative destination lies.
 const COPY_NEUTRAL_GLOBALS: &[&[u8]] = &[
-    b"--no-pager", b"-P", b"--paginate", b"-p", b"--no-replace-objects", b"--no-lazy-fetch", b"--no-optional-locks",
-    b"--no-advice", b"--literal-pathspecs", b"--no-literal-pathspecs", b"--glob-pathspecs", b"--noglob-pathspecs",
-    b"--icase-pathspecs", b"--bare",
+    b"--no-pager",
+    b"-P",
+    b"--paginate",
+    b"-p",
+    b"--no-replace-objects",
+    b"--no-lazy-fetch",
+    b"--no-optional-locks",
+    b"--no-advice",
+    b"--literal-pathspecs",
+    b"--no-literal-pathspecs",
+    b"--glob-pathspecs",
+    b"--noglob-pathspecs",
+    b"--icase-pathspecs",
+    b"--bare",
 ];
 
 /// The global options that take a value in the next token or after `=`,
@@ -354,7 +427,13 @@ const COPY_NEUTRAL_GLOBALS: &[&[u8]] = &[
 /// and leaves it alone when it is outside
 /// (`setup.c`,
 /// lines 1222 to 1231).
-const COPY_VALUED_GLOBALS: &[&[u8]] = &[b"--git-dir", b"--work-tree", b"--namespace", b"--config-env", b"--attr-source"];
+const COPY_VALUED_GLOBALS: &[&[u8]] = &[
+    b"--git-dir",
+    b"--work-tree",
+    b"--namespace",
+    b"--config-env",
+    b"--attr-source",
+];
 
 /// The global options that take a value in the next token only.
 const COPY_SEPARATE_VALUE_GLOBALS: &[&[u8]] = &[b"-c", b"--shallow-file"];
@@ -373,7 +452,10 @@ const COPY_SEPARATE_VALUE_GLOBALS: &[&[u8]] = &[b"-c", b"--shallow-file"];
 /// ```ts
 /// function copyStartDirectory(globalPrefix: string[], current: string): string | undefined;
 /// ```
-pub fn copy_start_directory(global_prefix: &[OsString], current: &Path) -> Option<PathBuf> {
+pub fn copy_start_directory(
+    global_prefix: &[OsString],
+    current: &Path,
+) -> Option<PathBuf> {
     let mut start: PathBuf = current.to_path_buf();
     let mut tokens = global_prefix.iter();
     while let Some(token) = tokens.next() {
@@ -383,10 +465,11 @@ pub fn copy_start_directory(global_prefix: &[OsString], current: &Path) -> Optio
             if !target.is_empty() {
                 start = start.join(target);
             }
-        } else if COPY_SEPARATE_VALUE_GLOBALS.contains(&bytes) || COPY_VALUED_GLOBALS.contains(&bytes) {
-            tokens.next()?;
-        } else if is_valued_global_with_equals(bytes) || bytes.starts_with(b"--exec-path=")
+        } else if COPY_SEPARATE_VALUE_GLOBALS.contains(&bytes)
+            || COPY_VALUED_GLOBALS.contains(&bytes)
         {
+            tokens.next()?;
+        } else if is_valued_global_with_equals(bytes) || bytes.starts_with(b"--exec-path=") {
             continue;
         } else if !COPY_NEUTRAL_GLOBALS.contains(&bytes) {
             return None;
@@ -427,7 +510,12 @@ fn copy_add_operands(region: &[OsString]) -> Option<Vec<&OsString>> {
             operands.extend(tokens.by_ref());
         } else if let Some(long) = bytes.strip_prefix(b"--") {
             let resolved: LongOption<'_> = resolve_long(std::str::from_utf8(long).ok()?)?;
-            take_value(resolved.option, resolved.unset, resolved.attached, &mut tokens)?;
+            take_value(
+                resolved.option,
+                resolved.unset,
+                resolved.attached,
+                &mut tokens,
+            )?;
         } else {
             // Bundled short options: flags stand alone, and `b` or `B` takes the rest of the token or the next token.
             let letters: &[u8] = &bytes[1..];
@@ -442,7 +530,11 @@ fn copy_add_operands(region: &[OsString]) -> Option<Vec<&OsString>> {
             }
         }
     }
-    return if (1..=2).contains(&operands.len()) { Some(operands) } else { None };
+    return if (1..=2).contains(&operands.len()) {
+        Some(operands)
+    } else {
+        None
+    };
 }
 
 /// What:
@@ -462,7 +554,10 @@ fn copy_add_operands(region: &[OsString]) -> Option<Vec<&OsString>> {
 /// ```ts
 /// function creatingDestination(start: string, operand: string): string | undefined;
 /// ```
-fn creating_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
+fn creating_destination(
+    start: &Path,
+    operand: &OsStr,
+) -> Option<PathBuf> {
     use std::os::unix::ffi::OsStrExt;
     let mut trimmed: &[u8] = operand.as_bytes();
     while let Some(rest) = trimmed.strip_suffix(b"/") {
@@ -502,7 +597,11 @@ fn creating_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
 /// ```ts
 /// function parseCopyDestination(args: string[], subcommandIndex: number, start: string): string | undefined;
 /// ```
-pub fn parse_copy_destination(arguments: &[OsString], subcommand_index: usize, start: &Path) -> Option<PathBuf> {
+pub fn parse_copy_destination(
+    arguments: &[OsString],
+    subcommand_index: usize,
+    start: &Path,
+) -> Option<PathBuf> {
     if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree" {
         return None;
     }

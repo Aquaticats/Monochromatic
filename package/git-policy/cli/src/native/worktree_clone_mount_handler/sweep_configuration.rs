@@ -44,13 +44,27 @@
 //! const configuration = readConfiguration('/etc/…/git-worktree-clone-mounts.jsonc', liveMountedDatasets);
 //! ```
 
-use crate::jsonc_member_text::{MemberReading, text_of_member};
 use super::sweep_configuration_refusal::ConfigurationRefusal;
+use crate::jsonc_member_text::{
+    MemberReading,
+    text_of_member,
+};
 use crate::start_probe::probe_source_name::check_dataset_name;
-use crate::zfs_mounted_dataset::mounted_dataset_instance::{MountedDatasetInstance, MountedDatasets};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{
+    MountedDatasetInstance,
+    MountedDatasets,
+};
 use crate::zfs_mounted_dataset::mounted_dataset_refusal::MountedDatasetRefusal;
-use crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::{the_checkout_dataset_at, the_designs_container_beside, the_one_mount_of, the_one_mounted_checkout};
-use std::path::{Path, PathBuf};
+use crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::{
+    the_checkout_dataset_at,
+    the_designs_container_beside,
+    the_one_mount_of,
+    the_one_mounted_checkout,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The object this step's names sit in.
 pub const CLONE_MOUNTS_KEY: &str = crate::handler_configuration_keys::CLONE_MOUNTS_KEY;
@@ -115,12 +129,22 @@ pub struct SweepConfiguration {
 /// # Errors
 /// The document is not JSONC,
 /// or the member is there and its value is not text.
-fn optional_text(document: &str, object: &str, key: &str, path: &Path) -> Result<Option<String>, ConfigurationRefusal> {
+fn optional_text(
+    document: &str,
+    object: &str,
+    key: &str,
+    path: &Path,
+) -> Result<Option<String>, ConfigurationRefusal> {
     return match text_of_member(document, object, key) {
         MemberReading::Text(text) => Ok(Some(text)),
         MemberReading::Absent => Ok(None),
-        MemberReading::DocumentNotJsonc => Err(ConfigurationRefusal::NotJsonc { path: path.to_path_buf() }),
-        MemberReading::NotText => Err(ConfigurationRefusal::NotText { path: path.to_path_buf(), key: format!("{object}.{key}") }),
+        MemberReading::DocumentNotJsonc => Err(ConfigurationRefusal::NotJsonc {
+            path: path.to_path_buf(),
+        }),
+        MemberReading::NotText => Err(ConfigurationRefusal::NotText {
+            path: path.to_path_buf(),
+            key: format!("{object}.{key}"),
+        }),
     };
 }
 
@@ -138,8 +162,19 @@ fn optional_text(document: &str, object: &str, key: &str, path: &Path) -> Result
 ///
 /// # Errors
 /// The name is not one the kernel takes.
-fn named_dataset(name: String, key: &str, path: &Path) -> Result<String, ConfigurationRefusal> {
-    check_dataset_name(name.as_str()).map_err(|why| return ConfigurationRefusal::NameRefused { path: path.to_path_buf(), key: String::from(key), name: name.clone(), why })?;
+fn named_dataset(
+    name: String,
+    key: &str,
+    path: &Path,
+) -> Result<String, ConfigurationRefusal> {
+    check_dataset_name(name.as_str()).map_err(|why| {
+        return ConfigurationRefusal::NameRefused {
+            path: path.to_path_buf(),
+            key: String::from(key),
+            name: name.clone(),
+            why,
+        };
+    })?;
     return Ok(name);
 }
 
@@ -155,8 +190,16 @@ fn named_dataset(name: String, key: &str, path: &Path) -> Result<String, Configu
 /// ```ts
 /// const found = discovered(theOneMountedCheckout(mounts), path);
 /// ```
-fn discovered<T>(found: Result<T, MountedDatasetRefusal>, path: &Path) -> Result<T, ConfigurationRefusal> {
-    return found.map_err(|refusal| return ConfigurationRefusal::Discovery { path: path.to_path_buf(), refusal });
+fn discovered<T>(
+    found: Result<T, MountedDatasetRefusal>,
+    path: &Path,
+) -> Result<T, ConfigurationRefusal> {
+    return found.map_err(|refusal| {
+        return ConfigurationRefusal::Discovery {
+            path: path.to_path_buf(),
+            refusal,
+        };
+    });
 }
 
 /// What:
@@ -187,7 +230,8 @@ fn checkout_of(
     return match (path_entry, dataset_entry) {
         (Some(checkout), Some(dataset)) => Ok((checkout, dataset)),
         (Some(checkout), None) => {
-            let dataset: String = discovered(the_checkout_dataset_at(checkout.as_path(), mounts), path)?;
+            let dataset: String =
+                discovered(the_checkout_dataset_at(checkout.as_path(), mounts), path)?;
             Ok((checkout, dataset))
         }
         (None, Some(dataset)) => {
@@ -195,7 +239,8 @@ fn checkout_of(
             Ok((checkout, dataset))
         }
         (None, None) => {
-            let one: MountedDatasetInstance = discovered(the_one_mounted_checkout(mounts, container_entry), path)?;
+            let one: MountedDatasetInstance =
+                discovered(the_one_mounted_checkout(mounts, container_entry), path)?;
             Ok((one.mount_point, one.dataset))
         }
     };
@@ -223,56 +268,89 @@ fn checkout_of(
 /// a checkout path is not absolute,
 /// a design name matched no dataset or several,
 /// or the two checkout keys name different folders.
-pub fn parse_configuration(document: &str, path: &Path, mounts: &dyn MountedDatasets) -> Result<SweepConfiguration, ConfigurationRefusal> {
-    let dataset_entry: Option<String> = match optional_text(document, CLONE_MOUNTS_KEY, CHECKOUT_DATASET_KEY, path)? {
-        Some(name) => Some(named_dataset(name, &format!("{CLONE_MOUNTS_KEY}.{CHECKOUT_DATASET_KEY}"), path)?),
-        None => None,
-    };
-    let path_entry: Option<PathBuf> = match optional_text(document, CLONE_MOUNTS_KEY, CHECKOUT_KEY, path)? {
-        Some(text) => {
-            let checkout: PathBuf = PathBuf::from(text.as_str());
-            if !checkout.is_absolute() {
-                return Err(ConfigurationRefusal::CheckoutNotAbsolute {
-                    path: path.to_path_buf(),
-                    key: format!("{CLONE_MOUNTS_KEY}.{CHECKOUT_KEY}"),
-                    text,
-                });
+pub fn parse_configuration(
+    document: &str,
+    path: &Path,
+    mounts: &dyn MountedDatasets,
+) -> Result<SweepConfiguration, ConfigurationRefusal> {
+    let dataset_entry: Option<String> =
+        match optional_text(document, CLONE_MOUNTS_KEY, CHECKOUT_DATASET_KEY, path)? {
+            Some(name) => Some(named_dataset(
+                name,
+                &format!("{CLONE_MOUNTS_KEY}.{CHECKOUT_DATASET_KEY}"),
+                path,
+            )?),
+            None => None,
+        };
+    let path_entry: Option<PathBuf> =
+        match optional_text(document, CLONE_MOUNTS_KEY, CHECKOUT_KEY, path)? {
+            Some(text) => {
+                let checkout: PathBuf = PathBuf::from(text.as_str());
+                if !checkout.is_absolute() {
+                    return Err(ConfigurationRefusal::CheckoutNotAbsolute {
+                        path: path.to_path_buf(),
+                        key: format!("{CLONE_MOUNTS_KEY}.{CHECKOUT_KEY}"),
+                        text,
+                    });
+                }
+                Some(checkout)
             }
-            Some(checkout)
-        }
-        None => None,
-    };
+            None => None,
+        };
     // The clone container this run uses is read before the table is, because a row inside it is no instance
     // of the checkout (the project's first answer of 2026-11-22).
-    let parent_entry: Option<String> = match optional_text(document, CLONE_MOUNTS_KEY, PARENT_KEY, path)? {
-        Some(name) => Some(named_dataset(name, &format!("{CLONE_MOUNTS_KEY}.{PARENT_KEY}"), path)?),
-        None => None,
-    };
-    let probe_checkout_entry: Option<PathBuf> = match optional_text(document, PROBE_OBJECT_KEY, PROBE_CHECKOUT_KEY, path)? {
-        Some(text) => {
-            let guessed: PathBuf = PathBuf::from(text.as_str());
-            if !guessed.is_absolute() {
-                return Err(ConfigurationRefusal::CheckoutNotAbsolute {
-                    path: path.to_path_buf(),
-                    key: format!("{PROBE_OBJECT_KEY}.{PROBE_CHECKOUT_KEY}"),
-                    text,
-                });
+    let parent_entry: Option<String> =
+        match optional_text(document, CLONE_MOUNTS_KEY, PARENT_KEY, path)? {
+            Some(name) => Some(named_dataset(
+                name,
+                &format!("{CLONE_MOUNTS_KEY}.{PARENT_KEY}"),
+                path,
+            )?),
+            None => None,
+        };
+    let probe_checkout_entry: Option<PathBuf> =
+        match optional_text(document, PROBE_OBJECT_KEY, PROBE_CHECKOUT_KEY, path)? {
+            Some(text) => {
+                let guessed: PathBuf = PathBuf::from(text.as_str());
+                if !guessed.is_absolute() {
+                    return Err(ConfigurationRefusal::CheckoutNotAbsolute {
+                        path: path.to_path_buf(),
+                        key: format!("{PROBE_OBJECT_KEY}.{PROBE_CHECKOUT_KEY}"),
+                        text,
+                    });
+                }
+                Some(guessed)
             }
-            Some(guessed)
-        }
-        None => None,
-    };
-    let (checkout, checkout_dataset): (PathBuf, String) = checkout_of(path_entry, dataset_entry, parent_entry.as_deref(), mounts, path)?;
+            None => None,
+        };
+    let (checkout, checkout_dataset): (PathBuf, String) = checkout_of(
+        path_entry,
+        dataset_entry,
+        parent_entry.as_deref(),
+        mounts,
+        path,
+    )?;
     if let Some(probe) = probe_checkout_entry
         && probe != checkout
     {
-        return Err(ConfigurationRefusal::CheckoutsDiffer { path: path.to_path_buf(), probe, sweep: checkout });
+        return Err(ConfigurationRefusal::CheckoutsDiffer {
+            path: path.to_path_buf(),
+            probe,
+            sweep: checkout,
+        });
     }
     let parent_dataset: String = match parent_entry {
         Some(container) => container,
-        None => discovered(the_designs_container_beside(checkout_dataset.as_str()), path)?,
+        None => discovered(
+            the_designs_container_beside(checkout_dataset.as_str()),
+            path,
+        )?,
     };
-    return Ok(SweepConfiguration { parent_dataset, checkout, checkout_dataset });
+    return Ok(SweepConfiguration {
+        parent_dataset,
+        checkout,
+        checkout_dataset,
+    });
 }
 
 /// What:
@@ -300,20 +378,44 @@ pub fn parse_configuration(document: &str, path: &Path, mounts: &dyn MountedData
 /// Everything `parse_configuration` refuses,
 /// a file that is there and unreadable,
 /// and a file that is not one this program alone may write.
-pub fn read_configuration(path: &Path, mounts: &dyn MountedDatasets) -> Result<SweepConfiguration, ConfigurationRefusal> {
-    let document: Option<String> = match crate::file_only_root_may_write::read_file_only_root_may_write(path) {
-        // A file that is there and holds nothing is refused rather than read as a file that names nothing:
-        // the project's answer of 2026-11-22 says an empty file is not the same as no file.
-        Ok(Some(text)) if text.trim().is_empty() => return Err(ConfigurationRefusal::Empty { path: path.to_path_buf() }),
-        Ok(text) => text,
-        // A file that could not be opened or read at all is a read failure and keeps that sentence; a file that is
-        // there and fails a term of root control answers which term, so the two are never worded as one.
-        Err(refusal @ crate::file_only_root_may_write::FileControlRefusal::Open { .. }) => {
-            return Err(ConfigurationRefusal::Unreadable { path: path.to_path_buf(), reason: refusal.reason() });
-        }
-        Err(refusal) => return Err(ConfigurationRefusal::NotUnderRootControl { path: path.to_path_buf(), reason: refusal.reason() }),
-    };
-    return parse_configuration(document.as_deref().unwrap_or(NO_FILE_DOCUMENT), path, mounts);
+pub fn read_configuration(
+    path: &Path,
+    mounts: &dyn MountedDatasets,
+) -> Result<SweepConfiguration, ConfigurationRefusal> {
+    let document: Option<String> =
+        match crate::file_only_root_may_write::read_file_only_root_may_write(path) {
+            // A file that is there and holds nothing is refused rather than read as a file that names nothing:
+            // the project's answer of 2026-11-22 says an empty file is not the same as no file.
+            Ok(Some(text)) if text.trim().is_empty() => {
+                return Err(ConfigurationRefusal::Empty {
+                    path: path.to_path_buf(),
+                });
+            }
+            Ok(text) => text,
+            // A file that could not be opened or read at all is a read failure and keeps that sentence; a file that is
+            // there and fails a term of root control answers which term, so the two are never worded as one.
+            Err(
+                refusal @ crate::file_only_root_may_write::FileControlRefusal::Open {
+                    ..
+                },
+            ) => {
+                return Err(ConfigurationRefusal::Unreadable {
+                    path: path.to_path_buf(),
+                    reason: refusal.reason(),
+                });
+            }
+            Err(refusal) => {
+                return Err(ConfigurationRefusal::NotUnderRootControl {
+                    path: path.to_path_buf(),
+                    reason: refusal.reason(),
+                });
+            }
+        };
+    return parse_configuration(
+        document.as_deref().unwrap_or(NO_FILE_DOCUMENT),
+        path,
+        mounts,
+    );
 }
 
 /// Controls stay out of the release executable.

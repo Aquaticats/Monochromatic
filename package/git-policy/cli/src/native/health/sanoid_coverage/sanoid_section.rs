@@ -58,10 +58,14 @@ pub const RECURSIVE_ZFS: &str = "zfs";
 pub const AUTOSNAP_NO: &str = "no";
 
 /// The words sanoid reads a toggle as true (`/usr/bin/sanoid:942`).
-pub const TRUE_WORDS: [&str; 10] = ["1", "true", "True", "TRUE", "yes", "Yes", "YES", "on", "On", "ON"];
+pub const TRUE_WORDS: [&str; 10] = [
+    "1", "true", "True", "TRUE", "yes", "Yes", "YES", "on", "On", "ON",
+];
 
 /// The words sanoid reads a toggle as false (`/usr/bin/sanoid:943`).
-pub const FALSE_WORDS: [&str; 10] = ["0", "false", "False", "FALSE", "no", "No", "NO", "off", "Off", "OFF"];
+pub const FALSE_WORDS: [&str; 10] = [
+    "0", "false", "False", "FALSE", "no", "No", "NO", "off", "Off", "OFF",
+];
 
 /// What:
 ///  One `key = value` line inside a section.
@@ -108,14 +112,27 @@ pub struct SanoidSection {
 
 impl SanoidSection {
     /// A section of one dataset with the settings it writes.
-    pub fn new(dataset: impl Into<String>, settings: Vec<SanoidSetting>) -> Self {
-        return SanoidSection { dataset: dataset.into(), settings };
+    pub fn new(
+        dataset: impl Into<String>,
+        settings: Vec<SanoidSetting>,
+    ) -> Self {
+        return SanoidSection {
+            dataset: dataset.into(),
+            settings,
+        };
     }
 
     /// The value the section writes for one key,
     /// or nothing when it writes none.
-    pub fn value_of(&self, key: &str) -> Option<&str> {
-        return self.settings.iter().find(|setting| return setting.key == key).map(|setting| return setting.value.as_str());
+    pub fn value_of(
+        &self,
+        key: &str,
+    ) -> Option<&str> {
+        return self
+            .settings
+            .iter()
+            .find(|setting| return setting.key == key)
+            .map(|setting| return setting.value.as_str());
     }
 }
 
@@ -163,7 +180,9 @@ pub fn is_false_word(value: &str) -> bool {
 /// How sanoid reads one `recursive` value (`/usr/bin/sanoid:1075` to `:1076`).
 pub fn recursion_of(value: Option<&str>) -> Recursion {
     let Some(written) = value else {
-        return Recursion::Off { value: None };
+        return Recursion::Off {
+            value: None,
+        };
     };
     if written.to_lowercase().contains(RECURSIVE_ZFS) {
         return Recursion::Zfs;
@@ -171,7 +190,9 @@ pub fn recursion_of(value: Option<&str>) -> Recursion {
     if is_true_word(written) {
         return Recursion::Yes;
     }
-    return Recursion::Off { value: Some(String::from(written)) };
+    return Recursion::Off {
+        value: Some(String::from(written)),
+    };
 }
 
 /// What:

@@ -96,8 +96,9 @@ fn dead_owners_are_dead() {
         classify_transaction_owner(i64::from(i32::MAX), "linux:1").expect("gone"),
         OwnerLiveness::Dead
     );
-    let mut child: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("60"))
-        .expect("sleeper");
+    let mut child: std::process::Child =
+        crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("60"))
+            .expect("sleeper");
     let pid: i64 = i64::from(child.id());
     let identity: String = crate::process_identity::process_birth_identity(pid)
         .expect("probe")
@@ -111,7 +112,10 @@ fn dead_owners_are_dead() {
     while classify_transaction_owner(pid, identity.as_str()).expect("zombie")
         == OwnerLiveness::Alive
     {
-        assert!(started.elapsed() < std::time::Duration::from_secs(60), "the killed sleeper still looks alive");
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(60),
+            "the killed sleeper still looks alive"
+        );
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     child.wait().expect("reap");
@@ -137,7 +141,9 @@ fn a_refused_probe_is_an_error() {
             "a signalable PID 1 is not linux:1"
         ),
         Err(OwnerLivenessError::Identity(error)) => panic!("unexpected identity failure: {error}"),
-        Err(OwnerLivenessError::ForeignRecordRefused(text)) => panic!("a bare PID is no foreign record: {text}"),
+        Err(OwnerLivenessError::ForeignRecordRefused(text)) => {
+            panic!("a bare PID is no foreign record: {text}")
+        }
     }
 }
 
@@ -148,17 +154,25 @@ fn the_namespace_is_an_optional_last_field() {
     let mut named: TransactionOwner = incumbent_owner();
     named.owner_pid_namespace = Some(String::from("pid:[4026531836]"));
     let encoded: String = encode_transaction_owner(&named);
-    assert!(encoded.ends_with(",\"ownerPidNamespace\":\"pid:[4026531836]\"}\n"), "{encoded}");
+    assert!(
+        encoded.ends_with(",\"ownerPidNamespace\":\"pid:[4026531836]\"}\n"),
+        "{encoded}"
+    );
     assert_eq!(parse_transaction_owner(encoded.as_bytes()), Some(named));
     assert_eq!(incumbent_owner().owner_pid_namespace, None);
     assert_eq!(
-        parse_transaction_owner(INCUMBENT_OWNER.as_bytes()).expect("old record").owner_pid_namespace,
+        parse_transaction_owner(INCUMBENT_OWNER.as_bytes())
+            .expect("old record")
+            .owner_pid_namespace,
         None
     );
     for ignored in ["\"\"", "5", "null", "[]"] {
-        let text: String = INCUMBENT_OWNER.replace("}\n", &format!(",\"ownerPidNamespace\":{ignored}}}\n"));
+        let text: String =
+            INCUMBENT_OWNER.replace("}\n", &format!(",\"ownerPidNamespace\":{ignored}}}\n"));
         assert_eq!(
-            parse_transaction_owner(text.as_bytes()).expect(ignored).owner_pid_namespace,
+            parse_transaction_owner(text.as_bytes())
+                .expect(ignored)
+                .owner_pid_namespace,
             None,
             "{ignored}"
         );
@@ -169,17 +183,25 @@ fn the_namespace_is_an_optional_last_field() {
 #[cfg(target_os = "linux")]
 #[test]
 fn the_current_owner_names_its_namespace() {
-    let owner: TransactionOwner = current_transaction_owner("id", "2026-10-06T00:00:00.000Z").expect("identity");
-    assert_eq!(owner.owner_pid_namespace, crate::pid_namespace::current_pid_namespace());
+    let owner: TransactionOwner =
+        current_transaction_owner("id", "2026-10-06T00:00:00.000Z").expect("identity");
+    assert_eq!(
+        owner.owner_pid_namespace,
+        crate::pid_namespace::current_pid_namespace()
+    );
     assert!(owner.owner_pid_namespace.is_some());
 }
 
 /// The record file whose age and PID the classifier is given.
 #[cfg(target_os = "linux")]
-fn owner_file(directory: &std::path::Path, age: std::time::Duration) -> std::path::PathBuf {
+fn owner_file(
+    directory: &std::path::Path,
+    age: std::time::Duration,
+) -> std::path::PathBuf {
     let path: std::path::PathBuf = directory.join("owner.json");
     let file: std::fs::File = std::fs::File::create(path.as_path()).expect("create");
-    file.set_modified(std::time::SystemTime::now() - age).expect("age");
+    file.set_modified(std::time::SystemTime::now() - age)
+        .expect("age");
     return path;
 }
 
@@ -203,9 +225,13 @@ fn an_owner_of_another_namespace_is_alive_until_its_record_expires() {
     );
     // Past the patience the record is neither alive nor dead (owner, 2026-11-04, "Refuse and name it (Recommended)"): the
     // classifier refuses, and the error names the record, the owner and its namespace.
-    let refused = classify_transaction_owner_record(&owner, old.as_path()).expect_err("an expired foreign record is refused");
+    let refused = classify_transaction_owner_record(&owner, old.as_path())
+        .expect_err("an expired foreign record is refused");
     let text: String = format!("{refused:?}");
-    assert!(text.contains("pid:[1]") && text.contains(old.to_string_lossy().as_ref()), "{text}");
+    assert!(
+        text.contains("pid:[1]") && text.contains(old.to_string_lossy().as_ref()),
+        "{text}"
+    );
 }
 
 /// A record of another PID namespace that is gone is a dead owner,
@@ -226,7 +252,8 @@ fn an_owner_of_another_namespace_whose_record_is_gone_is_dead_and_not_refused() 
     owner.owner_pid_namespace = Some(String::from("pid:[1]"));
     let record: std::path::PathBuf = directory.join("owner.json");
     assert_eq!(
-        classify_transaction_owner_record(&owner, record.as_path()).expect("a gone record is no refusal"),
+        classify_transaction_owner_record(&owner, record.as_path())
+            .expect("a gone record is no refusal"),
         OwnerLiveness::Dead
     );
 }
@@ -251,7 +278,8 @@ fn an_owner_of_this_namespace_or_none_is_judged_by_its_pid() {
         classify_transaction_owner_record(&owner, fresh.as_path()).expect("none"),
         OwnerLiveness::Dead
     );
-    let own: TransactionOwner = current_transaction_owner("id", "2026-10-06T00:00:00.000Z").expect("own");
+    let own: TransactionOwner =
+        current_transaction_owner("id", "2026-10-06T00:00:00.000Z").expect("own");
     assert_eq!(
         classify_transaction_owner_record(&own, fresh.as_path()).expect("alive"),
         OwnerLiveness::Alive

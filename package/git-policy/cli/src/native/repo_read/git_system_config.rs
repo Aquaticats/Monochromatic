@@ -25,10 +25,22 @@
 //! const path = cached(identity, 'git-system-config') ?? (await run(realGit, ['var', 'GIT_CONFIG_SYSTEM'])); // undefined: unknown
 //! ```
 
-use crate::child_environment::{FORWARD_TARGET_VARIABLE, environment_value};
-use crate::git_version_cache::{BinaryIdentity, binary_identity, cache_directory, read_cached_text, store_cached_text};
+use crate::child_environment::{
+    FORWARD_TARGET_VARIABLE,
+    environment_value,
+};
+use crate::git_version_cache::{
+    BinaryIdentity,
+    binary_identity,
+    cache_directory,
+    read_cached_text,
+    store_cached_text,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The kind of the cache file that holds the compiled-in system configuration path.
 pub const SYSTEM_CONFIG_KIND: &str = "git-system-config";
@@ -71,7 +83,10 @@ fn ask_git_attributes(real_git: &Path) -> Option<Vec<u8>> {
 }
 
 /// Start the executable at `real_git` with `var <variable>` and the environment's overrides removed.
-fn ask_git_var(real_git: &Path, variable: &str) -> Option<Vec<u8>> {
+fn ask_git_var(
+    real_git: &Path,
+    variable: &str,
+) -> Option<Vec<u8>> {
     let mut command = std::process::Command::new(real_git);
     command
         .args(["var", variable])
@@ -82,9 +97,20 @@ fn ask_git_var(real_git: &Path, variable: &str) -> Option<Vec<u8>> {
         .stderr(std::process::Stdio::null());
     // The environment was cleared, so the marker of this start is added after it (`started_as_git.rs`), and it is a start of
     //  the wrapper's own reading: nothing of the person's runs under it.
-    crate::started_as_git::mark_real_git_start(&mut command, crate::started_as_git::StartMode::Query);
-    let output = crate::captured_child_run_to_its_end::output_of_within_bound(&mut command, crate::wait_ceilings::PLUMBING_STEP_CEILING).ok()?;
-    return if output.status.success() { Some(output.stdout) } else { None };
+    crate::started_as_git::mark_real_git_start(
+        &mut command,
+        crate::started_as_git::StartMode::Query,
+    );
+    let output = crate::captured_child_run_to_its_end::output_of_within_bound(
+        &mut command,
+        crate::wait_ceilings::PLUMBING_STEP_CEILING,
+    )
+    .ok()?;
+    return if output.status.success() {
+        Some(output.stdout)
+    } else {
+        None
+    };
 }
 
 /// What:
@@ -101,7 +127,11 @@ fn ask_git_var(real_git: &Path, variable: &str) -> Option<Vec<u8>> {
 /// ```ts
 /// const path = (await readCache(dir, identity, kind)) ?? (await ask(realGit)); // undefined: unknown
 /// ```
-pub fn system_config_of(real_git: &Path, cache: Option<&Path>, ask: &dyn Fn(&Path) -> Option<Vec<u8>>) -> Option<PathBuf> {
+pub fn system_config_of(
+    real_git: &Path,
+    cache: Option<&Path>,
+    ask: &dyn Fn(&Path) -> Option<Vec<u8>>,
+) -> Option<PathBuf> {
     return learned_path(real_git, cache, SYSTEM_CONFIG_KIND, ask);
 }
 
@@ -118,13 +148,22 @@ pub fn system_config_of(real_git: &Path, cache: Option<&Path>, ask: &dyn Fn(&Pat
 /// ```ts
 /// const path = (await readCache(dir, identity, 'git-system-attributes')) ?? (await run(realGit, ['var', 'GIT_ATTR_SYSTEM'])); // undefined: unknown
 /// ```
-pub fn system_attributes_of(real_git: &Path, cache: Option<&Path>, ask: &dyn Fn(&Path) -> Option<Vec<u8>>) -> Option<PathBuf> {
+pub fn system_attributes_of(
+    real_git: &Path,
+    cache: Option<&Path>,
+    ask: &dyn Fn(&Path) -> Option<Vec<u8>>,
+) -> Option<PathBuf> {
     return learned_path(real_git, cache, SYSTEM_ATTRIBUTES_KIND, ask);
 }
 
 /// A path the executable at `real_git` reports for itself,
 /// cached under `kind` for its identity.
-fn learned_path(real_git: &Path, cache: Option<&Path>, kind: &str, ask: &dyn Fn(&Path) -> Option<Vec<u8>>) -> Option<PathBuf> {
+fn learned_path(
+    real_git: &Path,
+    cache: Option<&Path>,
+    kind: &str,
+    ask: &dyn Fn(&Path) -> Option<Vec<u8>>,
+) -> Option<PathBuf> {
     let identity: BinaryIdentity = binary_identity(real_git)?;
     if let Some(directory) = cache
         && let Some(text) = read_cached_text(directory, &identity, kind)
@@ -138,7 +177,12 @@ fn learned_path(real_git: &Path, cache: Option<&Path>, kind: &str, ask: &dyn Fn(
     if let Some(directory) = cache
         && binary_identity(real_git).as_ref() == Some(&identity)
     {
-        store_cached_text(directory, &identity, kind, path.as_os_str().as_encoded_bytes());
+        store_cached_text(
+            directory,
+            &identity,
+            kind,
+            path.as_os_str().as_encoded_bytes(),
+        );
     }
     return Some(path);
 }
@@ -157,10 +201,16 @@ fn learned_path(real_git: &Path, cache: Option<&Path>, kind: &str, ask: &dyn Fn(
 /// ```ts
 /// const named = { [FORWARD_TARGET]: realGit, ...variables }; // the variables win when they name one
 /// ```
-pub fn with_real_git(variables: &[(OsString, OsString)], real_git: &Path) -> Vec<(OsString, OsString)> {
+pub fn with_real_git(
+    variables: &[(OsString, OsString)],
+    real_git: &Path,
+) -> Vec<(OsString, OsString)> {
     let mut named: Vec<(OsString, OsString)> = variables.to_vec();
     if environment_value(variables, FORWARD_TARGET_VARIABLE).is_none() {
-        named.push((OsString::from(FORWARD_TARGET_VARIABLE), real_git.as_os_str().to_os_string()));
+        named.push((
+            OsString::from(FORWARD_TARGET_VARIABLE),
+            real_git.as_os_str().to_os_string(),
+        ));
     }
     return named;
 }
@@ -180,7 +230,11 @@ pub fn with_real_git(variables: &[(OsString, OsString)], real_git: &Path) -> Vec
 /// ```
 pub fn system_config_for(variables: &[(OsString, OsString)]) -> Option<PathBuf> {
     let target: OsString = environment_value(variables, FORWARD_TARGET_VARIABLE)?;
-    return system_config_of(Path::new(&target), cache_directory(variables).as_deref(), &ask_git);
+    return system_config_of(
+        Path::new(&target),
+        cache_directory(variables).as_deref(),
+        &ask_git,
+    );
 }
 
 /// What:
@@ -197,7 +251,11 @@ pub fn system_config_for(variables: &[(OsString, OsString)]) -> Option<PathBuf> 
 /// ```
 pub fn system_attributes_for(variables: &[(OsString, OsString)]) -> Option<PathBuf> {
     let target: OsString = environment_value(variables, FORWARD_TARGET_VARIABLE)?;
-    return system_attributes_of(Path::new(&target), cache_directory(variables).as_deref(), &ask_git_attributes);
+    return system_attributes_of(
+        Path::new(&target),
+        cache_directory(variables).as_deref(),
+        &ask_git_attributes,
+    );
 }
 
 #[cfg(test)]

@@ -5,9 +5,18 @@
 //! elsewhere reported by the fixture helper).
 
 use super::*;
-use crate::fs_btrfs_test_support::{btrfs_fixture, removal_allowed};
-use crate::fs_kind::{is_subvolume_root, BTRFS_SUBVOLUME_ROOT_INODE};
-use crate::test_support::{fixture, remove};
+use crate::fs_btrfs_test_support::{
+    btrfs_fixture,
+    removal_allowed,
+};
+use crate::fs_kind::{
+    BTRFS_SUBVOLUME_ROOT_INODE,
+    is_subvolume_root,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
@@ -38,7 +47,10 @@ const WIDE_VALUES: [u64; 3] = [0x9000_940e, 0x9000_940f, 0x9000_9417];
 /// before the btrfs numbers are trusted.
 #[test]
 fn the_encoding_reproduces_the_clone_request() {
-    assert_eq!(ioc_write(9, std::mem::size_of::<libc::c_int>()), libc::FICLONE);
+    assert_eq!(
+        ioc_write(9, std::mem::size_of::<libc::c_int>()),
+        libc::FICLONE
+    );
 }
 
 /// Each encoding gives the numbers the kernel headers give under it,
@@ -46,7 +58,11 @@ fn the_encoding_reproduces_the_clone_request() {
 ///  gives the constants the code uses.
 #[test]
 fn the_request_numbers_equal_the_header_values_of_every_encoding() {
-    for (layout, expected) in [(GENERIC_IOC_LAYOUT, GENERIC_VALUES), (WIDE_DIRECTION_IOC_LAYOUT, WIDE_VALUES), (PARISC_IOC_LAYOUT, WIDE_VALUES)] {
+    for (layout, expected) in [
+        (GENERIC_IOC_LAYOUT, GENERIC_VALUES),
+        (WIDE_DIRECTION_IOC_LAYOUT, WIDE_VALUES),
+        (PARISC_IOC_LAYOUT, WIDE_VALUES),
+    ] {
         let computed: [u64; 3] = [
             u64::from(ioc_write_with(layout, 14, VOLUME_ARGUMENT_BYTES)),
             u64::from(ioc_write_with(layout, 15, VOLUME_ARGUMENT_BYTES)),
@@ -54,9 +70,16 @@ fn the_request_numbers_equal_the_header_values_of_every_encoding() {
         ];
         assert_eq!(computed, expected, "{layout:?}");
     }
-    let on_this_architecture: [u64; 3] = [BTRFS_IOC_SUBVOL_CREATE as u64, BTRFS_IOC_SNAP_DESTROY as u64, BTRFS_IOC_SNAP_CREATE_V2 as u64];
+    let on_this_architecture: [u64; 3] = [
+        BTRFS_IOC_SUBVOL_CREATE as u64,
+        BTRFS_IOC_SNAP_DESTROY as u64,
+        BTRFS_IOC_SNAP_CREATE_V2 as u64,
+    ];
     let wide: bool = HOST_IOC_LAYOUT == WIDE_DIRECTION_IOC_LAYOUT;
-    assert_eq!(on_this_architecture, if wide { WIDE_VALUES } else { GENERIC_VALUES });
+    assert_eq!(
+        on_this_architecture,
+        if wide { WIDE_VALUES } else { GENERIC_VALUES }
+    );
 }
 
 /// Both argument structures are 4096 bytes,
@@ -70,21 +93,44 @@ fn the_argument_structures_have_the_size_the_requests_state() {
     assert_eq!(std::mem::offset_of!(VolArgsV2, name), 8 + 8 + 8 + 32);
     // The fields of the subvolume's own record start where the header puts them: the tree id, the 256-byte name,
     // parent id, dir id, generation and flags, then the three UUIDs and the transactions.
-    assert_eq!(std::mem::size_of::<SubvolumeInfoArgs>(), SUBVOLUME_INFO_BYTES);
-    assert_eq!(std::mem::offset_of!(SubvolumeInfoArgs, uuid), 8 + 256 + 8 * 4);
-    assert_eq!(std::mem::offset_of!(SubvolumeInfoArgs, parent_uuid), 8 + 256 + 8 * 4 + 16);
-    assert_eq!(std::mem::offset_of!(SubvolumeInfoArgs, otransid), 8 + 256 + 8 * 4 + 16 * 3 + 8);
+    assert_eq!(
+        std::mem::size_of::<SubvolumeInfoArgs>(),
+        SUBVOLUME_INFO_BYTES
+    );
+    assert_eq!(
+        std::mem::offset_of!(SubvolumeInfoArgs, uuid),
+        8 + 256 + 8 * 4
+    );
+    assert_eq!(
+        std::mem::offset_of!(SubvolumeInfoArgs, parent_uuid),
+        8 + 256 + 8 * 4 + 16
+    );
+    assert_eq!(
+        std::mem::offset_of!(SubvolumeInfoArgs, otransid),
+        8 + 256 + 8 * 4 + 16 * 3 + 8
+    );
 }
 
 /// The request number of the subvolume's own record equals the header's `_IOR(0x94, 60, 504)` under each encoding,
 /// and the one this build uses is the value this host's kernel answered.
 #[test]
 fn the_subvolume_info_request_equals_the_header_values_of_every_encoding() {
-    for (layout, expected) in [(GENERIC_IOC_LAYOUT, 0x81f8_943cu64), (WIDE_DIRECTION_IOC_LAYOUT, 0x41f8_943c), (PARISC_IOC_LAYOUT, 0x41f8_943c)] {
-        assert_eq!(u64::from(ioc_read_with(layout, 60, SUBVOLUME_INFO_BYTES)), expected, "{layout:?}");
+    for (layout, expected) in [
+        (GENERIC_IOC_LAYOUT, 0x81f8_943cu64),
+        (WIDE_DIRECTION_IOC_LAYOUT, 0x41f8_943c),
+        (PARISC_IOC_LAYOUT, 0x41f8_943c),
+    ] {
+        assert_eq!(
+            u64::from(ioc_read_with(layout, 60, SUBVOLUME_INFO_BYTES)),
+            expected,
+            "{layout:?}"
+        );
     }
     let wide: bool = HOST_IOC_LAYOUT == WIDE_DIRECTION_IOC_LAYOUT;
-    assert_eq!(u64::from(BTRFS_IOC_GET_SUBVOL_INFO as u32), if wide { 0x41f8_943c } else { 0x81f8_943c });
+    assert_eq!(
+        u64::from(BTRFS_IOC_GET_SUBVOL_INFO as u32),
+        if wide { 0x41f8_943c } else { 0x81f8_943c }
+    );
 }
 
 /// A name that is not one plain component is refused with `EINVAL` before any call,
@@ -111,7 +157,9 @@ fn a_name_that_is_not_one_component_is_refused_before_any_call() {
 #[test]
 fn a_missing_parent_is_a_typed_error() {
     let root: PathBuf = fixture("fs-ioctl-parent");
-    let error: PrimitiveError = subvolume_create(root.join("absent").as_path(), std::ffi::OsStr::new("x")).expect_err("no parent");
+    let error: PrimitiveError =
+        subvolume_create(root.join("absent").as_path(), std::ffi::OsStr::new("x"))
+            .expect_err("no parent");
     assert_eq!(error.errno, libc::ENOENT);
     remove(root.as_path());
 }
@@ -119,10 +167,14 @@ fn a_missing_parent_is_a_typed_error() {
 /// A path with no last component cannot be split.
 #[test]
 fn a_path_without_a_name_cannot_be_split() {
-    let error: PrimitiveError = split_parent(Path::new("/"), "BTRFS_IOC_SUBVOL_CREATE").expect_err("the root has no name");
+    let error: PrimitiveError =
+        split_parent(Path::new("/"), "BTRFS_IOC_SUBVOL_CREATE").expect_err("the root has no name");
     assert_eq!(error.errno, libc::EINVAL);
     let (parent, name) = split_parent(Path::new("relative"), "x").expect("a bare name");
-    assert_eq!((parent, name), (PathBuf::from("."), std::ffi::OsString::from("relative")));
+    assert_eq!(
+        (parent, name),
+        (PathBuf::from("."), std::ffi::OsString::from("relative"))
+    );
 }
 
 /// On a filesystem that is not btrfs the ioctls answer with a feature-missing error,
@@ -132,12 +184,17 @@ fn a_path_without_a_name_cannot_be_split() {
 #[test]
 fn off_btrfs_the_ioctls_report_a_missing_feature() {
     let root: PathBuf = fixture("fs-ioctl-off");
-    if crate::fs_kind::filesystem_kind(root.as_path()) == Ok(crate::fs_kind::FilesystemKind::Btrfs) {
-        eprintln!("BTRFS CONTROL NOT RUN: off-btrfs-ioctls (fixture root {} is on btrfs, and this control needs a filesystem that is not btrfs)", root.display());
+    if crate::fs_kind::filesystem_kind(root.as_path()) == Ok(crate::fs_kind::FilesystemKind::Btrfs)
+    {
+        eprintln!(
+            "BTRFS CONTROL NOT RUN: off-btrfs-ioctls (fixture root {} is on btrfs, and this control needs a filesystem that is not btrfs)",
+            root.display()
+        );
         remove(root.as_path());
         return;
     }
-    let error: PrimitiveError = subvolume_create_at(root.join("sub").as_path()).expect_err("not btrfs");
+    let error: PrimitiveError =
+        subvolume_create_at(root.join("sub").as_path()).expect_err("not btrfs");
     assert!(error.means_feature_missing(), "{error}");
     let unread = subvolume_info(root.as_path()).expect_err("no subvolume record is readable here");
     assert!(unread.means_feature_missing(), "{unread}");
@@ -153,28 +210,47 @@ fn off_btrfs_the_ioctls_report_a_missing_feature() {
 ///  with `EPERM` and `rmdir` removes the empty subvolume).
 #[test]
 fn btrfs_create_snapshot_and_destroy_each_work_once() {
-    let Some(root) = btrfs_fixture("fs-ioctl-real") else { return };
+    let Some(root) = btrfs_fixture("fs-ioctl-real") else {
+        return;
+    };
     let source: PathBuf = root.join("source");
     subvolume_create_at(source.as_path()).expect("create");
-    assert_eq!(std::fs::metadata(&source).expect("stat").ino(), BTRFS_SUBVOLUME_ROOT_INODE);
+    assert_eq!(
+        std::fs::metadata(&source).expect("stat").ino(),
+        BTRFS_SUBVOLUME_ROOT_INODE
+    );
     std::fs::write(source.join("file"), b"content").expect("file in the source");
 
     let copy: PathBuf = root.join("copy");
     snapshot_create_at(source.as_path(), copy.as_path()).expect("snapshot");
     assert_eq!(is_subvolume_root(copy.as_path()), Ok(true));
-    assert_eq!(std::fs::read(copy.join("file")).expect("file in the snapshot"), b"content");
+    assert_eq!(
+        std::fs::read(copy.join("file")).expect("file in the snapshot"),
+        b"content"
+    );
 
     // The record the kernel writes into the snapshot names the subvolume it was taken from, and a later transaction.
     let facts: SubvolumeInfo = subvolume_info(copy.as_path()).expect("the facts of the snapshot");
     let origin: SubvolumeInfo = subvolume_info(source.as_path()).expect("the facts of the source");
-    assert_eq!(facts.parent_uuid, origin.uuid, "the snapshot names the subvolume it was taken from");
+    assert_eq!(
+        facts.parent_uuid, origin.uuid,
+        "the snapshot names the subvolume it was taken from"
+    );
     // The source is no snapshot of anything, so its own parent is nobody, and the snapshot's record carries a transaction.
-    assert_eq!(origin.parent_uuid, [0u8; 16], "a plain subvolume was taken from no source");
-    assert_ne!(facts.transid_at_creation, 0, "the snapshot's record names the transaction that created it");
+    assert_eq!(
+        origin.parent_uuid, [0u8; 16],
+        "a plain subvolume was taken from no source"
+    );
+    assert_ne!(
+        facts.transid_at_creation, 0,
+        "the snapshot's record names the transaction that created it"
+    );
     let holding: PathBuf = root.join("plain-for-facts");
     std::fs::create_dir(holding.as_path()).expect("plain directory");
     assert_ne!(
-        subvolume_info(holding.as_path()).expect("the facts of the holding subvolume").uuid,
+        subvolume_info(holding.as_path())
+            .expect("the facts of the holding subvolume")
+            .uuid,
         origin.uuid,
         "a plain directory answers with the subvolume that holds it, not with the source"
     );
@@ -183,7 +259,8 @@ fn btrfs_create_snapshot_and_destroy_each_work_once() {
     assert_eq!(again.errno, libc::EEXIST);
     let plain: PathBuf = root.join("plain");
     std::fs::create_dir(&plain).expect("plain directory");
-    let not_a_subvolume = snapshot_create_at(plain.as_path(), root.join("from-plain").as_path()).expect_err("a plain directory is no source");
+    let not_a_subvolume = snapshot_create_at(plain.as_path(), root.join("from-plain").as_path())
+        .expect_err("a plain directory is no source");
     assert!(not_a_subvolume.means_feature_missing(), "{not_a_subvolume}");
 
     std::fs::remove_file(copy.join("file")).expect("empty the snapshot");
@@ -208,9 +285,15 @@ fn btrfs_create_snapshot_and_destroy_each_work_once() {
 /// so a comparison written back at the call site fails wherever the suite runs.
 #[test]
 fn a_positive_ioctl_answer_is_not_a_failure() {
-    assert!(!is_a_failure(&1), "an answer of one is the request's own value, not a failure");
+    assert!(
+        !is_a_failure(&1),
+        "an answer of one is the request's own value, not a failure"
+    );
     assert!(!is_a_failure(&0), "an answer of zero is a success");
-    assert!(is_a_failure(&-1), "the answer of a failed request is -1, and `errno` is read only then");
+    assert!(
+        is_a_failure(&-1),
+        "the answer of a failed request is -1, and `errno` is read only then"
+    );
 }
 
 /// What:
@@ -276,13 +359,28 @@ fn filled(answered: libc::c_int) -> impl FnOnce(&mut SubvolumeInfoArgs) -> libc:
 fn answers_of_one_and_zero_return_the_subvolume_record_and_a_negative_answer_fails() {
     let operation: &'static str = "BTRFS_IOC_GET_SUBVOL_INFO";
     let path: PathBuf = PathBuf::from("/the/subvolume/the/answer/is/stated/for");
-    let on_one: SubvolumeInfo = record_from_answer(operation, path.as_path(), filled(1)).expect("an answer of one is the request's own value, not a failure");
-    assert_eq!(on_one, STATED_RECORD, "the record is the structure the request filled");
-    let on_zero: SubvolumeInfo = record_from_answer(operation, path.as_path(), filled(0)).expect("an answer of zero is a success");
-    assert_eq!(on_zero, STATED_RECORD, "an answer of zero fills the record the same way");
-    let failure: PrimitiveError = record_from_answer(operation, path.as_path(), filled(-1)).expect_err("the answer of a failed request is -1");
-    assert_eq!(failure.operation, operation, "the failure names the request");
-    assert_eq!(failure.path, path, "the failure names the path the request was about");
+    let on_one: SubvolumeInfo = record_from_answer(operation, path.as_path(), filled(1))
+        .expect("an answer of one is the request's own value, not a failure");
+    assert_eq!(
+        on_one, STATED_RECORD,
+        "the record is the structure the request filled"
+    );
+    let on_zero: SubvolumeInfo = record_from_answer(operation, path.as_path(), filled(0))
+        .expect("an answer of zero is a success");
+    assert_eq!(
+        on_zero, STATED_RECORD,
+        "an answer of zero fills the record the same way"
+    );
+    let failure: PrimitiveError = record_from_answer(operation, path.as_path(), filled(-1))
+        .expect_err("the answer of a failed request is -1");
+    assert_eq!(
+        failure.operation, operation,
+        "the failure names the request"
+    );
+    assert_eq!(
+        failure.path, path,
+        "the failure names the path the request was about"
+    );
 }
 
 /// The kernel's answer to `BTRFS_IOC_GET_SUBVOL_INFO`,
@@ -302,24 +400,47 @@ fn answers_of_one_and_zero_return_the_subvolume_record_and_a_negative_answer_fai
 /// so that pass is not taken for the positive case this control exists for.
 #[test]
 fn btrfs_a_positive_answer_to_the_subvolume_record_is_a_success() {
-    let Some(root) = btrfs_fixture("fs-ioctl-positive-answer") else { return };
+    let Some(root) = btrfs_fixture("fs-ioctl-positive-answer") else {
+        return;
+    };
     let source: PathBuf = root.join("source");
     subvolume_create_at(source.as_path()).expect("create");
-    let directory: std::fs::File = std::fs::File::open(source.as_path()).expect("open the subvolume root");
+    let directory: std::fs::File =
+        std::fs::File::open(source.as_path()).expect("open the subvolume root");
     // SAFETY: `SubvolumeInfoArgs` is plain integers and bytes, so the all-zero value is a valid value.
     let mut written: SubvolumeInfoArgs = unsafe { std::mem::zeroed() };
     // SAFETY: `directory` is open for the call; `written` is the 504-byte structure the request number states.
-    let answered: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, &mut written) };
-    assert!(!is_a_failure(&answered), "the call itself failed: {}", std::io::Error::last_os_error());
+    let answered: libc::c_int = unsafe {
+        libc::ioctl(
+            directory.as_raw_fd(),
+            BTRFS_IOC_GET_SUBVOL_INFO,
+            &mut written,
+        )
+    };
+    assert!(
+        !is_a_failure(&answered),
+        "the call itself failed: {}",
+        std::io::Error::last_os_error()
+    );
     if answered == 0 {
         eprintln!(
             "KERNEL ANSWERED ZERO: btrfs_a_positive_answer_to_the_subvolume_record_is_a_success (the kernel answered 0, so the positive answer this control exists for went unexercised: the backref search ended at a leaf boundary, or this kernel is v7.2 or later and resets the value before it copies the structure out)"
         );
     }
-    let facts: SubvolumeInfo = subvolume_info(source.as_path()).expect("the record's answer is a success whatever value it carries");
-    assert_eq!(facts.uuid, written.uuid, "the wrapper answers with the record the kernel wrote");
-    assert_eq!(facts.parent_uuid, written.parent_uuid, "the wrapper answers with the parent the kernel wrote");
-    assert_eq!(facts.transid_at_creation, written.otransid, "the wrapper answers with the creating transaction the kernel wrote");
+    let facts: SubvolumeInfo = subvolume_info(source.as_path())
+        .expect("the record's answer is a success whatever value it carries");
+    assert_eq!(
+        facts.uuid, written.uuid,
+        "the wrapper answers with the record the kernel wrote"
+    );
+    assert_eq!(
+        facts.parent_uuid, written.parent_uuid,
+        "the wrapper answers with the parent the kernel wrote"
+    );
+    assert_eq!(
+        facts.transid_at_creation, written.otransid,
+        "the wrapper answers with the creating transaction the kernel wrote"
+    );
     remove(root.as_path());
 }
 
@@ -351,13 +472,26 @@ const BTRFS_FS_TREE_OBJECTID: u64 = 5;
 /// ```
 #[test]
 fn btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record() {
-    let Some(root) = btrfs_fixture("fs-ioctl-top-level-answer") else { return };
-    let directory: std::fs::File = std::fs::File::open(root.as_path()).expect("open the fixture root");
+    let Some(root) = btrfs_fixture("fs-ioctl-top-level-answer") else {
+        return;
+    };
+    let directory: std::fs::File =
+        std::fs::File::open(root.as_path()).expect("open the fixture root");
     // SAFETY: `SubvolumeInfoArgs` is plain integers and bytes, so the all-zero value is a valid value.
     let mut written: SubvolumeInfoArgs = unsafe { std::mem::zeroed() };
     // SAFETY: `directory` is open for the call; `written` is the 504-byte structure the request number states.
-    let answered: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, &mut written) };
-    assert!(!is_a_failure(&answered), "the call itself failed: {}", std::io::Error::last_os_error());
+    let answered: libc::c_int = unsafe {
+        libc::ioctl(
+            directory.as_raw_fd(),
+            BTRFS_IOC_GET_SUBVOL_INFO,
+            &mut written,
+        )
+    };
+    assert!(
+        !is_a_failure(&answered),
+        "the call itself failed: {}",
+        std::io::Error::last_os_error()
+    );
     if written.treeid != BTRFS_FS_TREE_OBJECTID {
         eprintln!(
             "TOP-LEVEL FIXTURE NOT REACHED: btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record (the fixture root {} belongs to subvolume {}, not the filesystem's top-level subvolume {}; point CLI_GIT_TEST_ROOT at the top-level subvolume to exercise its answer)",
@@ -368,9 +502,16 @@ fn btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record() {
         remove(root.as_path());
         return;
     }
-    assert_eq!(answered, 0, "the top-level subvolume runs no backref search, so its answer is 0");
-    let facts: SubvolumeInfo = subvolume_info(root.as_path()).expect("the top-level subvolume's answer of zero is a record, not an error");
-    assert_eq!(facts.uuid, written.uuid, "the wrapper answers with the record the kernel wrote");
+    assert_eq!(
+        answered, 0,
+        "the top-level subvolume runs no backref search, so its answer is 0"
+    );
+    let facts: SubvolumeInfo = subvolume_info(root.as_path())
+        .expect("the top-level subvolume's answer of zero is a record, not an error");
+    assert_eq!(
+        facts.uuid, written.uuid,
+        "the wrapper answers with the record the kernel wrote"
+    );
     remove(root.as_path());
 }
 
@@ -378,7 +519,9 @@ fn btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record() {
 /// so removal goes deepest first.
 #[test]
 fn btrfs_a_subvolume_with_a_nested_subvolume_is_not_destroyed_in_one_step() {
-    let Some(root) = btrfs_fixture("fs-ioctl-nested") else { return };
+    let Some(root) = btrfs_fixture("fs-ioctl-nested") else {
+        return;
+    };
     if !removal_allowed(root.as_path()) {
         remove(root.as_path());
         return;
@@ -386,7 +529,8 @@ fn btrfs_a_subvolume_with_a_nested_subvolume_is_not_destroyed_in_one_step() {
     let outer: PathBuf = root.join("outer");
     subvolume_create_at(outer.as_path()).expect("outer");
     subvolume_create_at(outer.join("inner").as_path()).expect("inner");
-    let refused = subvolume_destroy_at(outer.as_path()).expect_err("a nested subvolume blocks the destroy");
+    let refused =
+        subvolume_destroy_at(outer.as_path()).expect_err("a nested subvolume blocks the destroy");
     assert_eq!(refused.errno, libc::ENOTEMPTY, "{refused}");
     subvolume_destroy_at(outer.join("inner").as_path()).expect("inner first");
     subvolume_destroy_at(outer.as_path()).expect("then outer");
@@ -406,13 +550,32 @@ fn the_requests_for_the_destroy_by_id_equal_the_header_values_of_every_encoding(
     const GENERIC_DESTROY_V2: u32 = 0x5000_943f;
     const WIDE_DESTROY_V2: u32 = 0x9000_943f;
     const LOOKUP: u32 = 0xd000_9412;
-    for (layout, destroy) in [(GENERIC_IOC_LAYOUT, GENERIC_DESTROY_V2), (WIDE_DIRECTION_IOC_LAYOUT, WIDE_DESTROY_V2), (PARISC_IOC_LAYOUT, WIDE_DESTROY_V2)] {
-        assert_eq!(ioc_write_with(layout, 63, VOLUME_ARGUMENT_BYTES), destroy, "{layout:?}");
-        assert_eq!(ioc_read_write_with(layout, 18, VOLUME_ARGUMENT_BYTES), LOOKUP, "{layout:?}");
+    for (layout, destroy) in [
+        (GENERIC_IOC_LAYOUT, GENERIC_DESTROY_V2),
+        (WIDE_DIRECTION_IOC_LAYOUT, WIDE_DESTROY_V2),
+        (PARISC_IOC_LAYOUT, WIDE_DESTROY_V2),
+    ] {
+        assert_eq!(
+            ioc_write_with(layout, 63, VOLUME_ARGUMENT_BYTES),
+            destroy,
+            "{layout:?}"
+        );
+        assert_eq!(
+            ioc_read_write_with(layout, 18, VOLUME_ARGUMENT_BYTES),
+            LOOKUP,
+            "{layout:?}"
+        );
     }
     assert_eq!(BTRFS_IOC_INO_LOOKUP as u64, u64::from(LOOKUP));
     let wide: bool = HOST_IOC_LAYOUT == WIDE_DIRECTION_IOC_LAYOUT;
-    assert_eq!(BTRFS_IOC_SNAP_DESTROY_V2 as u64, u64::from(if wide { WIDE_DESTROY_V2 } else { GENERIC_DESTROY_V2 }));
+    assert_eq!(
+        BTRFS_IOC_SNAP_DESTROY_V2 as u64,
+        u64::from(if wide {
+            WIDE_DESTROY_V2
+        } else {
+            GENERIC_DESTROY_V2
+        })
+    );
 }
 
 /// A subvolume's id names it for good:
@@ -425,26 +588,48 @@ fn the_requests_for_the_destroy_by_id_equal_the_header_values_of_every_encoding(
 /// which also shows the request was understood and the id resolved).
 #[test]
 fn btrfs_the_destroy_by_id_removes_the_subvolume_whose_id_it_is_given() {
-    let Some(root) = btrfs_fixture("fs-ioctl-by-id") else { return };
+    let Some(root) = btrfs_fixture("fs-ioctl-by-id") else {
+        return;
+    };
     let (first, second) = (root.join("first"), root.join("second"));
     subvolume_create_at(first.as_path()).expect("first");
     subvolume_create_at(second.as_path()).expect("second");
-    let first_id: u64 = subvolume_id(&std::fs::File::open(first.as_path()).expect("open"), first.as_path()).expect("id of the first");
-    let second_id: u64 = subvolume_id(&std::fs::File::open(second.as_path()).expect("open"), second.as_path()).expect("id of the second");
+    let first_id: u64 = subvolume_id(
+        &std::fs::File::open(first.as_path()).expect("open"),
+        first.as_path(),
+    )
+    .expect("id of the first");
+    let second_id: u64 = subvolume_id(
+        &std::fs::File::open(second.as_path()).expect("open"),
+        second.as_path(),
+    )
+    .expect("id of the second");
     assert_ne!(first_id, second_id);
     // A file inside a subvolume belongs to that subvolume's id.
     std::fs::write(first.join("file"), b"x").expect("file");
-    assert_eq!(subvolume_id(&std::fs::File::open(first.join("file")).expect("open"), first.as_path()).expect("id of a file"), first_id);
+    assert_eq!(
+        subvolume_id(
+            &std::fs::File::open(first.join("file")).expect("open"),
+            first.as_path()
+        )
+        .expect("id of a file"),
+        first_id
+    );
     // The path moves; the id still leads to the same subvolume.
     std::fs::remove_file(first.join("file")).expect("empty it");
     std::fs::rename(first.as_path(), root.join("renamed")).expect("rename");
-    let through: std::fs::File = std::fs::File::open(root.as_path()).expect("any directory of the filesystem");
+    let through: std::fs::File =
+        std::fs::File::open(root.as_path()).expect("any directory of the filesystem");
     if removal_allowed(root.as_path()) {
         snapshot_destroy_by_id(&through, first_id, first.as_path()).expect("destroy by id");
-        assert!(!root.join("renamed").exists(), "the subvolume with that id is gone, under its new name");
+        assert!(
+            !root.join("renamed").exists(),
+            "the subvolume with that id is gone, under its new name"
+        );
         assert!(second.is_dir(), "the other one is untouched");
     } else {
-        let refused = snapshot_destroy_by_id(&through, first_id, first.as_path()).expect_err("the mount option is absent");
+        let refused = snapshot_destroy_by_id(&through, first_id, first.as_path())
+            .expect_err("the mount option is absent");
         assert_eq!(refused.errno, libc::EPERM, "{refused}");
         assert!(root.join("renamed").is_dir() && second.is_dir());
     }

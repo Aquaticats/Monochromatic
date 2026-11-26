@@ -11,11 +11,23 @@ use super::*;
 #[test]
 fn the_first_number_published_is_the_child() {
     let told: ChildNumber = ChildNumber::not_started();
-    assert_eq!(told.number(), None, "a child that has not started has no number");
+    assert_eq!(
+        told.number(),
+        None,
+        "a child that has not started has no number"
+    );
     told.publish(7);
-    assert_eq!(told.number(), Some(7), "the number the start returned is the child's");
+    assert_eq!(
+        told.number(),
+        Some(7),
+        "the number the start returned is the child's"
+    );
     told.publish(9);
-    assert_eq!(told.number(), Some(7), "a later start does not take the number from the child the caller waits for");
+    assert_eq!(
+        told.number(),
+        Some(7),
+        "a later start does not take the number from the child the caller waits for"
+    );
 }
 
 /// Two callers keep their own child,

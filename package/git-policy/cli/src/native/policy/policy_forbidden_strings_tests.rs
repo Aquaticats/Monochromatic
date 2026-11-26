@@ -22,26 +22,66 @@
 
 /// Import the module under test.
 use super::{
-    ENGINE_ERROR_MESSAGE, FORBIDDEN_STRING_CODE, LINE_BREAK_MESSAGE, ScannerSettings, ScannerState,
-    cache_access, check_forbidden_strings, default_scanner_settings, incomplete_scan, match_finding,
-    service_reads_the_same_rules, unloaded_scanner, CachePublisher,
+    CachePublisher,
+    ENGINE_ERROR_MESSAGE,
+    FORBIDDEN_STRING_CODE,
+    LINE_BREAK_MESSAGE,
+    ScannerSettings,
+    ScannerState,
+    cache_access,
+    check_forbidden_strings,
+    default_scanner_settings,
+    incomplete_scan,
+    match_finding,
+    service_reads_the_same_rules,
+    unloaded_scanner,
 };
 use crate::candidate_prediction::CandidateRequest;
 use crate::config_schema::RulesFileEntry;
 use crate::diagnostics::EngineFailureCode;
 /// The event form of a pathname.
 use crate::event_path::EventPath;
-use crate::policy_content::{ContentState, LifecycleContent};
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
-use crate::policy_test_support::{ScriptedFacts, main_worktree, scripted_facts};
-use crate::scanner_adapter::{CandidateScanner, RulesSource, compiled_rules_artifact_exists};
+use crate::policy_content::{
+    ContentState,
+    LifecycleContent,
+};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyOutcome,
+};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    main_worktree,
+    scripted_facts,
+};
+use crate::scanner_adapter::{
+    CandidateScanner,
+    RulesSource,
+    compiled_rules_artifact_exists,
+};
 use crate::scanner_selection::rules_source;
-use crate::scanner_test_support::{needle, run_isolated};
-use crate::test_support::{git, repository};
-use forbidden_strings::{CacheAccess, CandidateScan, ScanFinding};
-use std::ffi::{OsStr, OsString};
+use crate::scanner_test_support::{
+    needle,
+    run_isolated,
+};
+use crate::test_support::{
+    git,
+    repository,
+};
+use forbidden_strings::{
+    CacheAccess,
+    CandidateScan,
+    ScanFinding,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Scripted facts at the top level of `repo`,
 ///  preparing candidates there with real Git.
@@ -65,11 +105,18 @@ fn add(values: &[&str]) -> LifecycleContent {
 }
 
 /// Settings with these options and variable.
-fn settings(rules_file: Option<&str>, variable: Option<&OsStr>, builtin: bool) -> ScannerSettings {
+fn settings(
+    rules_file: Option<&str>,
+    variable: Option<&OsStr>,
+    builtin: bool,
+) -> ScannerSettings {
     let mut chosen: ScannerSettings = default_scanner_settings();
     chosen.options.builtin_rules = builtin;
     chosen.options.rules_files = rules_file.map(|name| {
-        return vec![RulesFileEntry { path: String::from(name), optional: false }];
+        return vec![RulesFileEntry {
+            path: String::from(name),
+            optional: false,
+        }];
     });
     chosen.rules_variable = variable.map(OsStr::to_os_string);
     return chosen;
@@ -77,7 +124,11 @@ fn settings(rules_file: Option<&str>, variable: Option<&OsStr>, builtin: bool) -
 
 /// The policy's outcome for one lifecycle in `repo`,
 ///  with a fresh content and scanner.
-fn check(repo: &Path, lifecycle: &LifecycleContent, chosen: &ScannerSettings) -> PolicyOutcome {
+fn check(
+    repo: &Path,
+    lifecycle: &LifecycleContent,
+    chosen: &ScannerSettings,
+) -> PolicyOutcome {
     return check_forbidden_strings(
         &mut ContentState::new(),
         lifecycle,
@@ -88,7 +139,10 @@ fn check(repo: &Path, lifecycle: &LifecycleContent, chosen: &ScannerSettings) ->
 }
 
 /// A content match at `line` about `path`.
-fn content_match(path: &str, line: usize) -> PolicyFinding {
+fn content_match(
+    path: &str,
+    line: usize,
+) -> PolicyFinding {
     return PolicyFinding {
         code: FORBIDDEN_STRING_CODE,
         message: format!("Forbidden string matched at line {line} (rule 0)."),
@@ -108,7 +162,10 @@ fn repository_with_needle(work: &Path) -> PathBuf {
 
 /// Load `rules` under `access`,
 ///  so a control can name the write the load takes.
-fn loaded_with(rules: &RulesSource, access: CacheAccess) -> CandidateScanner {
+fn loaded_with(
+    rules: &RulesSource,
+    access: CacheAccess,
+) -> CandidateScanner {
     return match CandidateScanner::load_writing_cache(rules, false, access) {
         Ok(scanner) => scanner,
         Err(error) => panic!("the fixture's rules must load: {error}"),
@@ -215,7 +272,11 @@ fn missing_rules(work: &Path) {
         settings(None, None, false),
     ] {
         match check(repo.as_path(), &clean, &chosen) {
-            PolicyOutcome::Failed { code, message, .. } => {
+            PolicyOutcome::Failed {
+                code,
+                message,
+                ..
+            } => {
                 assert_eq!(code, EngineFailureCode::PolicyIncomplete, "{chosen:?}");
                 assert!(
                     message.starts_with(
@@ -498,7 +559,10 @@ fn unknown_root(work: &Path) {
         &settings(None, None, true),
         &mut unloaded_scanner(),
     ) {
-        PolicyOutcome::Failed { code, .. } => {
+        PolicyOutcome::Failed {
+            code,
+            ..
+        } => {
             assert_eq!(code, EngineFailureCode::ContentUnavailable);
         }
         other => panic!("expected a failure, got {other:?}"),
@@ -550,10 +614,14 @@ fn a_command_with_no_service_publishes_the_rules_itself() {
 fn publishes_itself(work: &Path) {
     let repo: PathBuf = repository_with_needle(work);
     std::fs::write(repo.join("rules.txt"), format!("{}\n", needle())).expect("rules");
-    let rules: RulesSource = match rules_source(Some(&[RulesFileEntry {
-        path: String::from("rules.txt"),
-        optional: false,
-    }]), None, repo.as_path()) {
+    let rules: RulesSource = match rules_source(
+        Some(&[RulesFileEntry {
+            path: String::from("rules.txt"),
+            optional: false,
+        }]),
+        None,
+        repo.as_path(),
+    ) {
         Ok(found) => found,
         Err(error) => panic!("the fixture's rules must resolve: {error}"),
     };
@@ -562,7 +630,10 @@ fn publishes_itself(work: &Path) {
         git_dir: git_dir.as_path(),
         repository: repo.as_path(),
     };
-    assert!(!compiled_rules_artifact_exists(&rules), "the fixture's cache starts empty");
+    assert!(
+        !compiled_rules_artifact_exists(&rules),
+        "the fixture's cache starts empty"
+    );
     assert_eq!(
         publisher.access(&rules),
         CacheAccess::ReadWrite,
@@ -576,8 +647,14 @@ fn publishes_itself(work: &Path) {
     // loadWritingCache(rules, false, CacheAccess::ReadWrite); expect(hasCompiledRules(rules)).toBe(true);
     // ```
     let writing: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
-    assert!(!writing.cache_warnings().is_empty(), "the first load compiles from the text");
-    assert!(compiled_rules_artifact_exists(&rules), "the writing load published the artifact");
+    assert!(
+        !writing.cache_warnings().is_empty(),
+        "the first load compiles from the text"
+    );
+    assert!(
+        compiled_rules_artifact_exists(&rules),
+        "the writing load published the artifact"
+    );
     assert_eq!(publisher.access(&rules), CacheAccess::ReadWrite);
 }
 
@@ -596,18 +673,35 @@ fn publishes_itself(work: &Path) {
 fn only_a_list_the_configuration_names_is_left_to_the_service() {
     let root: PathBuf = PathBuf::from("/repo");
     // A configuration that names files wins over a variable that names another: the service compiles the same list.
-    let named: ScannerSettings = settings(Some("rules.txt"), Some(OsStr::new("elsewhere.txt")), false);
+    let named: ScannerSettings =
+        settings(Some("rules.txt"), Some(OsStr::new("elsewhere.txt")), false);
     let configured: RulesSource = rules_source(
-        Some(&[RulesFileEntry { path: String::from("rules.txt"), optional: false }]),
+        Some(&[RulesFileEntry {
+            path: String::from("rules.txt"),
+            optional: false,
+        }]),
         Some(OsStr::new("elsewhere.txt")),
         root.as_path(),
     )
     .expect("the fixture's rules must resolve");
-    assert!(service_reads_the_same_rules(&named, root.as_path(), &configured));
+    assert!(service_reads_the_same_rules(
+        &named,
+        root.as_path(),
+        &configured
+    ));
     // No configuration and a variable that names a list: only this command can publish that text.
     let from_variable: ScannerSettings = settings(None, Some(OsStr::new("elsewhere.txt")), false);
-    assert!(!service_reads_the_same_rules(&from_variable, root.as_path(), &configured));
+    assert!(!service_reads_the_same_rules(
+        &from_variable,
+        root.as_path(),
+        &configured
+    ));
     // No configuration and no variable: both read the default file.
-    let default_list: RulesSource = rules_source(None, None, root.as_path()).expect("the default list must resolve");
-    assert!(service_reads_the_same_rules(&settings(None, None, false), root.as_path(), &default_list));
+    let default_list: RulesSource =
+        rules_source(None, None, root.as_path()).expect("the default list must resolve");
+    assert!(service_reads_the_same_rules(
+        &settings(None, None, false),
+        root.as_path(),
+        &default_list
+    ));
 }

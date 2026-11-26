@@ -27,7 +27,10 @@
 //! const words = await wordsOfAPushWithoutItsTransport(git, item); // a skip's text, shown by the person's next command
 //! ```
 
-use crate::auto_push::{Planned, push_arguments};
+use crate::auto_push::{
+    Planned,
+    push_arguments,
+};
 use crate::auto_push_awaiting::plan_named_push_awaiting;
 use crate::auto_push_single_flight::PushGit;
 use crate::shell_quote::shell_quote;
@@ -83,11 +86,14 @@ pub fn gone(
     let Some(programs) = held else {
         return Some(TransportGone::TheServiceWasStartedAgain);
     };
-    let unspellable: bool = programs
-        .not_text
-        .iter()
-        .any(|name| { return crate::service_push_programs_held_in_memory::TRANSPORT.contains(&name.as_str()); });
-    return if unspellable { Some(TransportGone::TheValueCouldNotTravel) } else { None };
+    let unspellable: bool = programs.not_text.iter().any(|name| {
+        return crate::service_push_programs_held_in_memory::TRANSPORT.contains(&name.as_str());
+    });
+    return if unspellable {
+        Some(TransportGone::TheValueCouldNotTravel)
+    } else {
+        None
+    };
 }
 
 /// What:
@@ -106,7 +112,11 @@ pub fn gone(
 /// ```ts
 /// `the push of ${branch} of ${repository} was not made: ... run: ${git push ...}`
 /// ```
-pub async fn words(git: &PushGit, item: &WorkItem, gone: TransportGone) -> String {
+pub async fn words(
+    git: &PushGit,
+    item: &WorkItem,
+    gone: TransportGone,
+) -> String {
     let command: Option<String> = push_command(git, item).await;
     // The command is the last line and on its own, so a person copies one line and a control can run exactly what is printed.
     let repository: String = item.repository.display().to_string();
@@ -114,7 +124,9 @@ pub async fn words(git: &PushGit, item: &WorkItem, gone: TransportGone) -> Strin
         Some(printed) => format!("\nRun this in {repository}: {printed}"),
         // A branch with no upstream and no `origin` has nowhere to be pushed, so no command names a way out and the words say
         //  only what happened; the push this replaces would have been skipped for the same reason.
-        None => String::from("\nThis branch names no remote to push to, so give it one and push it yourself."),
+        None => String::from(
+            "\nThis branch names no remote to push to, so give it one and push it yourself.",
+        ),
     };
     let reason: &str = match gone {
         TransportGone::TheServiceWasStartedAgain => {
@@ -128,7 +140,12 @@ pub async fn words(git: &PushGit, item: &WorkItem, gone: TransportGone) -> Strin
              push was not made, and nothing was sent through another transport."
         }
     };
-    return format!("the push of {branch} of {repository} was not made. {reason}{run}", branch = item.branch_ref, repository = repository, run = run);
+    return format!(
+        "the push of {branch} of {repository} was not made. {reason}{run}",
+        branch = item.branch_ref,
+        repository = repository,
+        run = run
+    );
 }
 
 /// What:
@@ -145,17 +162,29 @@ pub async fn words(git: &PushGit, item: &WorkItem, gone: TransportGone) -> Strin
 /// ```ts
 /// const plan = await planNamedPush(git, branchRef); return plan.kind === 'push' ? 'git ' + pushArguments(branchRef, plan.sent, plan.setUpstream).map(quote).join(' ') : undefined;
 /// ```
-async fn push_command(git: &PushGit, item: &WorkItem) -> Option<String> {
+async fn push_command(
+    git: &PushGit,
+    item: &WorkItem,
+) -> Option<String> {
     // The plan is the service's own, asked of the local repository only: it names the remote and the refspec, and it starts
     //  nothing that reaches the network.
-    let planned: Planned = plan_named_push_awaiting(git, item.branch_ref.as_str(), &mut std::io::sink()).await.ok()?;
+    let planned: Planned =
+        plan_named_push_awaiting(git, item.branch_ref.as_str(), &mut std::io::sink())
+            .await
+            .ok()?;
     let (sent, set_upstream): (crate::auto_push::Sent, bool) = match planned {
         Planned::Skip(_) => return None,
-        Planned::Push { sent, set_upstream, .. } => (sent, set_upstream),
+        Planned::Push {
+            sent,
+            set_upstream,
+            ..
+        } => (sent, set_upstream),
     };
     let arguments: Vec<String> = push_arguments(item.branch_ref.as_str(), &sent, set_upstream);
     let mut quoted: Vec<String> = vec![String::from("git")];
-    quoted.extend(arguments.iter().map(|argument| { return shell_quote(argument.as_bytes()); }));
+    quoted.extend(arguments.iter().map(|argument| {
+        return shell_quote(argument.as_bytes());
+    }));
     return Some(quoted.join(" "));
 }
 

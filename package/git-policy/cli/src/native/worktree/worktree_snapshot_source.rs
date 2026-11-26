@@ -25,22 +25,59 @@
 //! const source = await chooseSnapshotSource({ context, identity, plan }); // throws the reason it cannot be one
 //! ```
 
-use crate::add_timing::{begin_work, end_work};
+use crate::add_timing::{
+    begin_work,
+    end_work,
+};
+use crate::config_snapshot::{
+    ConfigEntry,
+    ConfigSnapshot,
+    read_config_snapshot,
+    read_config_snapshot_awaiting,
+};
 use crate::diagnostic_log::debug;
-pub use crate::worktree_snapshot_source_changed_paths::{ChangedPaths, changed_paths, plain};
-use crate::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot, read_config_snapshot_awaiting};
-use crate::fs_kind::{FilesystemKind, filesystem_kind, may_clone, is_subvolume_root};
+use crate::fs_kind::{
+    FilesystemKind,
+    filesystem_kind,
+    is_subvolume_root,
+    may_clone,
+};
 use crate::fs_mount_options::read_mount_facts;
 use crate::lazy_runtime::run_on_runtime;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_clean::{CleanRefusal, CleanRefusalKind, CleanSource, check_clean, check_clean_awaiting, dirty_source};
-use crate::worktree_clone_block_cloning::{ZFS_BLOCK_CLONING_SWITCH, block_cloning_refusal_at};
-use crate::worktree_clone_domain::{clone_domain_refusal_of, clone_write_target, unclonable_filesystem_asked};
+use crate::worktree_clean::{
+    CleanRefusal,
+    CleanRefusalKind,
+    CleanSource,
+    check_clean,
+    check_clean_awaiting,
+    dirty_source,
+};
+use crate::worktree_clone_block_cloning::{
+    ZFS_BLOCK_CLONING_SWITCH,
+    block_cloning_refusal_at,
+};
+use crate::worktree_clone_domain::{
+    clone_domain_refusal_of,
+    clone_write_target,
+    unclonable_filesystem_asked,
+};
 use crate::worktree_identity::WorktreeIdentity;
-use crate::worktree_trash_ignore_rule::{trash_location_is_ignored, trash_location_is_ignored_awaiting};
+pub use crate::worktree_snapshot_source_changed_paths::{
+    ChangedPaths,
+    changed_paths,
+    plain,
+};
+use crate::worktree_trash_ignore_rule::{
+    trash_location_is_ignored,
+    trash_location_is_ignored_awaiting,
+};
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeSnapshotSource";
@@ -96,10 +133,14 @@ pub struct SnapshotSource {
 /// async function registeredRoots(commonDir: string): Promise<string[]>;
 /// ```
 pub fn registered_roots(common_dir: &Path) -> Vec<PathBuf> {
-    let Ok(listing) = std::fs::read_dir(common_dir.join("worktrees")) else { return Vec::new() };
+    let Ok(listing) = std::fs::read_dir(common_dir.join("worktrees")) else {
+        return Vec::new();
+    };
     let mut roots: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
-        let Ok(recorded) = std::fs::read(entry.path().join("gitdir")) else { continue };
+        let Ok(recorded) = std::fs::read(entry.path().join("gitdir")) else {
+            continue;
+        };
         let line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());
         let pointer: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(line));
         if let Some(root) = pointer.parent() {
@@ -132,7 +173,10 @@ fn configuration_refusal(entries: &[ConfigEntry]) -> Option<String> {
             return Some(String::from("core.sparseCheckout is set"));
         }
         if entry.scope == "worktree" {
-            return Some(format!("the worktree-specific configuration sets {}", entry.key));
+            return Some(format!(
+                "the worktree-specific configuration sets {}",
+                entry.key
+            ));
         }
     }
     return None;
@@ -150,11 +194,19 @@ fn configuration_refusal(entries: &[ConfigEntry]) -> Option<String> {
 /// ```ts
 /// function onOneBtrfs(first: string, second: string): boolean;
 /// ```
-fn on_one_btrfs(first: &Path, second: &Path) -> bool {
-    if filesystem_kind(first) != Ok(FilesystemKind::Btrfs) || filesystem_kind(second) != Ok(FilesystemKind::Btrfs) {
+fn on_one_btrfs(
+    first: &Path,
+    second: &Path,
+) -> bool {
+    if filesystem_kind(first) != Ok(FilesystemKind::Btrfs)
+        || filesystem_kind(second) != Ok(FilesystemKind::Btrfs)
+    {
         return false;
     }
-    let (Ok(Some(one)), Ok(Some(other))) = (read_mount_facts(first), read_mount_facts(second)) else { return false };
+    let (Ok(Some(one)), Ok(Some(other))) = (read_mount_facts(first), read_mount_facts(second))
+    else {
+        return false;
+    };
     return one.source == other.source;
 }
 
@@ -214,8 +266,22 @@ fn nested_through_link(nested: &[PathBuf]) -> Option<PathBuf> {
 /// ```
 fn worktree_of(identity: &WorktreeIdentity) -> Result<(&PathBuf, &PathBuf, &PathBuf), String> {
     return match identity {
-        WorktreeIdentity::MainWorktree { worktree_root, git_dir, common_dir } | WorktreeIdentity::LinkedWorktree { worktree_root, git_dir, common_dir } => Ok((worktree_root, git_dir, common_dir)),
-        WorktreeIdentity::BareRepository { .. } | WorktreeIdentity::OutsideWorktree => Err(String::from("there is no worktree to copy from")),
+        WorktreeIdentity::MainWorktree {
+            worktree_root,
+            git_dir,
+            common_dir,
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            worktree_root,
+            git_dir,
+            common_dir,
+        } => Ok((worktree_root, git_dir, common_dir)),
+        WorktreeIdentity::BareRepository {
+            ..
+        }
+        | WorktreeIdentity::OutsideWorktree => {
+            Err(String::from("there is no worktree to copy from"))
+        }
     };
 }
 
@@ -232,17 +298,27 @@ fn worktree_of(identity: &WorktreeIdentity) -> Result<(&PathBuf, &PathBuf, &Path
 /// ```ts
 /// function snapshotRefusal(identity: WorktreeIdentity, plan: AddPlan): string | undefined;
 /// ```
-pub fn snapshot_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<String> {
-    let (root, _git_dir, _common_dir): (&PathBuf, &PathBuf, &PathBuf) = match worktree_of(identity) {
+pub fn snapshot_refusal(
+    identity: &WorktreeIdentity,
+    plan: &AddPlan,
+) -> Option<String> {
+    let (root, _git_dir, _common_dir): (&PathBuf, &PathBuf, &PathBuf) = match worktree_of(identity)
+    {
         Ok(found) => found,
         Err(reason) => return Some(reason),
     };
-    let Some(parent) = plan.destination.parent() else { return Some(String::from("the destination has no parent directory")) };
+    let Some(parent) = plan.destination.parent() else {
+        return Some(String::from("the destination has no parent directory"));
+    };
     if !is_subvolume_root(root.as_path()).unwrap_or(false) {
         return Some(format!("{} is not a btrfs subvolume", root.display()));
     }
     if !on_one_btrfs(root.as_path(), parent) {
-        return Some(format!("{} and {} are not on one btrfs filesystem", root.display(), parent.display()));
+        return Some(format!(
+            "{} and {} are not on one btrfs filesystem",
+            root.display(),
+            parent.display()
+        ));
     }
     return None;
 }
@@ -267,8 +343,15 @@ pub fn snapshot_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<S
 /// ```ts
 /// function cloneRefusal(identity: WorktreeIdentity, plan: AddPlan): string | undefined;
 /// ```
-pub fn clone_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<String> {
-    let mut questions: CloneRungQuestions<'_> = CloneRungQuestions { may_clone: &mut may_clone, block_cloning: &mut block_cloning_refusal_at_switch, domain_refusal: &mut clone_domain_refusal_of };
+pub fn clone_refusal(
+    identity: &WorktreeIdentity,
+    plan: &AddPlan,
+) -> Option<String> {
+    let mut questions: CloneRungQuestions<'_> = CloneRungQuestions {
+        may_clone: &mut may_clone,
+        block_cloning: &mut block_cloning_refusal_at_switch,
+        domain_refusal: &mut clone_domain_refusal_of,
+    };
     return clone_refusal_asked(identity, plan, &mut questions);
 }
 
@@ -314,14 +397,23 @@ pub(crate) struct CloneRungQuestions<'a> {
 /// ```ts
 /// function cloneRefusalAsked(identity, plan, questions): string | undefined;
 /// ```
-pub(crate) fn clone_refusal_asked(identity: &WorktreeIdentity, plan: &AddPlan, questions: &mut CloneRungQuestions<'_>) -> Option<String> {
-    let (root, _git_dir, _common_dir): (&PathBuf, &PathBuf, &PathBuf) = match worktree_of(identity) {
+pub(crate) fn clone_refusal_asked(
+    identity: &WorktreeIdentity,
+    plan: &AddPlan,
+    questions: &mut CloneRungQuestions<'_>,
+) -> Option<String> {
+    let (root, _git_dir, _common_dir): (&PathBuf, &PathBuf, &PathBuf) = match worktree_of(identity)
+    {
         Ok(found) => found,
         Err(reason) => return Some(reason),
     };
-    let Some(parent) = plan.destination.parent() else { return Some(String::from("the destination has no parent directory")) };
+    let Some(parent) = plan.destination.parent() else {
+        return Some(String::from("the destination has no parent directory"));
+    };
     let target: PathBuf = clone_write_target((plan.destination.as_path(), parent));
-    if let Some(reason) = unclonable_filesystem_asked((root.as_path(), target.as_path()), questions.may_clone) {
+    if let Some(reason) =
+        unclonable_filesystem_asked((root.as_path(), target.as_path()), questions.may_clone)
+    {
         return Some(reason);
     }
     if let Some(reason) = (questions.block_cloning)(target.as_path()) {
@@ -369,7 +461,10 @@ pub struct Refusal {
 impl Refusal {
     /// A refusal by a feature or a state the checks cannot read.
     fn unsupported(reason: impl Into<String>) -> Refusal {
-        return Refusal { reason: reason.into(), kind: RefusalKind::Unsupported };
+        return Refusal {
+            reason: reason.into(),
+            kind: RefusalKind::Unsupported,
+        };
     }
 }
 
@@ -389,7 +484,10 @@ impl Refusal {
 /// ```ts
 /// async function sourceRefusal(context: GitContext, identity: WorktreeIdentity): Promise<SnapshotSource>; // throws a Refusal
 /// ```
-pub fn source_refusal(context: &GitContext, identity: &WorktreeIdentity) -> Result<SnapshotSource, Refusal> {
+pub fn source_refusal(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+) -> Result<SnapshotSource, Refusal> {
     return checked_source(context, identity, false);
 }
 
@@ -409,7 +507,10 @@ pub fn source_refusal(context: &GitContext, identity: &WorktreeIdentity) -> Resu
 /// ```ts
 /// async function sourceOrDirty(context: GitContext, identity: WorktreeIdentity): Promise<SnapshotSource>; // throws a Refusal
 /// ```
-pub fn source_or_dirty(context: &GitContext, identity: &WorktreeIdentity) -> Result<SnapshotSource, Refusal> {
+pub fn source_or_dirty(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+) -> Result<SnapshotSource, Refusal> {
     return checked_source(context, identity, true);
 }
 
@@ -444,7 +545,9 @@ fn read_configuration_timed((context, root): (&GitContext, &Path)) -> Option<Con
 /// ```ts
 /// const began = beginWork(); const read = await readConfigSnapshotAwaiting(context, root); endWork('readConfig', began);
 /// ```
-async fn read_configuration_timed_awaiting((context, root): (&GitContext, &Path)) -> Option<ConfigSnapshot> {
+async fn read_configuration_timed_awaiting(
+    (context, root): (&GitContext, &Path)
+) -> Option<ConfigSnapshot> {
     let began: std::time::Instant = begin_work();
     let read: Option<ConfigSnapshot> = read_config_snapshot_awaiting(context, root).await;
     end_work("readConfig", began);
@@ -477,7 +580,9 @@ async fn read_configuration_timed_awaiting((context, root): (&GitContext, &Path)
 /// ```ts
 /// const began = beginWork(); ensureTrashIsExcluded(commonDir); const ignored = trashLocationIsIgnored(context, root); endWork('trashIgnored', began);
 /// ```
-fn trash_location_ignored_timed((context, root, _git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> bool {
+fn trash_location_ignored_timed(
+    (context, root, _git_dir, common_dir): (&GitContext, &Path, &Path, &Path)
+) -> bool {
     let began: std::time::Instant = begin_work();
     let ignored: bool = ignore_line_written(common_dir) && trash_location_is_ignored(context, root);
     end_work("trashIgnored", began);
@@ -518,18 +623,23 @@ fn ignore_line_written(common_dir: &Path) -> bool {
 /// ```ts
 /// const began = beginWork(); const ignored = await trashLocationIsIgnoredAwaiting(context, root); endWork('trashIgnored', began);
 /// ```
-async fn trash_location_ignored_timed_awaiting((context, root, _git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> bool {
+async fn trash_location_ignored_timed_awaiting(
+    (context, root, _git_dir, common_dir): (&GitContext, &Path, &Path, &Path)
+) -> bool {
     let began: std::time::Instant = begin_work();
     // The write is a few bytes of one file, small enough to do on this task rather than as a job of the pool, and the
     //  question below must not be asked before it.
-    let ignored: bool = ignore_line_written(common_dir) && trash_location_is_ignored_awaiting(context, root).await;
+    let ignored: bool =
+        ignore_line_written(common_dir) && trash_location_is_ignored_awaiting(context, root).await;
     end_work("trashIgnored", began);
     return ignored;
 }
 
 /// The cleanliness check of the source,
 /// which runs beside the two reads.
-fn clean_check_of_source((context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> Result<CleanSource, CleanRefusal> {
+fn clean_check_of_source(
+    (context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)
+) -> Result<CleanSource, CleanRefusal> {
     return check_clean(context, root, git_dir, common_dir);
 }
 
@@ -548,8 +658,13 @@ type TrashAndCleanVerdicts = (bool, Result<CleanSource, CleanRefusal>);
 /// ```ts
 /// const [ignored, checked] = await Promise.all([trashLocationIgnored(args), cleanCheckOfSource(args)]);
 /// ```
-async fn check_trash_and_cleanliness_awaiting((context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> TrashAndCleanVerdicts {
-    return tokio::join!(trash_location_ignored_timed_awaiting((context, root, git_dir, common_dir)), check_clean_awaiting(context, root, git_dir, common_dir));
+async fn check_trash_and_cleanliness_awaiting(
+    (context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)
+) -> TrashAndCleanVerdicts {
+    return tokio::join!(
+        trash_location_ignored_timed_awaiting((context, root, git_dir, common_dir)),
+        check_clean_awaiting(context, root, git_dir, common_dir)
+    );
 }
 
 /// What:
@@ -569,8 +684,13 @@ async fn check_trash_and_cleanliness_awaiting((context, root, git_dir, common_di
 /// ```ts
 /// const [config, [ignored, checked]] = await Promise.all([readConfiguration(args), checkTrashAndCleanliness(args)]);
 /// ```
-async fn the_checks_of_the_source(state: (&GitContext, &Path, &Path, &Path)) -> (Option<ConfigSnapshot>, TrashAndCleanVerdicts) {
-    return tokio::join!(read_configuration_timed_awaiting((state.0, state.1)), check_trash_and_cleanliness_awaiting(state));
+async fn the_checks_of_the_source(
+    state: (&GitContext, &Path, &Path, &Path)
+) -> (Option<ConfigSnapshot>, TrashAndCleanVerdicts) {
+    return tokio::join!(
+        read_configuration_timed_awaiting((state.0, state.1)),
+        check_trash_and_cleanliness_awaiting(state)
+    );
 }
 
 /// What:
@@ -587,18 +707,28 @@ async fn the_checks_of_the_source(state: (&GitContext, &Path, &Path, &Path)) -> 
 /// ```ts
 /// const config = readConfiguration(args); const ignored = trashLocationIgnored(args); const checked = checkClean(args);
 /// ```
-fn the_checks_of_the_source_in_turn((context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> (Option<ConfigSnapshot>, TrashAndCleanVerdicts) {
+fn the_checks_of_the_source_in_turn(
+    (context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)
+) -> (Option<ConfigSnapshot>, TrashAndCleanVerdicts) {
     let read_config: Option<ConfigSnapshot> = read_configuration_timed((context, root));
     let trash_ignored: bool = trash_location_ignored_timed((context, root, git_dir, common_dir));
-    let checked: Result<CleanSource, CleanRefusal> = clean_check_of_source((context, root, git_dir, common_dir));
+    let checked: Result<CleanSource, CleanRefusal> =
+        clean_check_of_source((context, root, git_dir, common_dir));
     return (read_config, (trash_ignored, checked));
 }
 
 /// The checks of `source_refusal`,
 /// and of `source_or_dirty` when `allow_dirty` is set.
-fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty: bool) -> Result<SnapshotSource, Refusal> {
-    let (root, git_dir, common_dir): (&PathBuf, &PathBuf, &PathBuf) = worktree_of(identity).map_err(Refusal::unsupported)?;
-    if git_dir.join("info/sparse-checkout").exists() || common_dir.join("info/sparse-checkout").exists() {
+fn checked_source(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+    allow_dirty: bool,
+) -> Result<SnapshotSource, Refusal> {
+    let (root, git_dir, common_dir): (&PathBuf, &PathBuf, &PathBuf) =
+        worktree_of(identity).map_err(Refusal::unsupported)?;
+    if git_dir.join("info/sparse-checkout").exists()
+        || common_dir.join("info/sparse-checkout").exists()
+    {
         return Err(Refusal::unsupported("the source has a sparse checkout"));
     }
     let mut nested: Vec<PathBuf> = Vec::new();
@@ -619,16 +749,27 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
     // The configuration, the ignore rule of the place left-out directories are set aside at and the cleanliness of the files
     //  read different things and write nothing, so they run side by side on the process's runtime, or one after another on this
     //  thread where no runtime can be built; the verdicts are read in the order the checks have always had.
-    let state: (&GitContext, &Path, &Path, &Path) = (context, root.as_path(), git_dir.as_path(), common_dir.as_path());
-    let (read_config, (trash_ignored, checked)): (Option<ConfigSnapshot>, TrashAndCleanVerdicts) = match run_on_runtime(the_checks_of_the_source(state)) {
-        Ok(verdicts) => verdicts,
-        Err(refusal) => {
-            crate::diagnostic_log::debug("checkedSource", format!("the checks of the source run one after another ({refusal})").as_str());
-            the_checks_of_the_source_in_turn(state)
-        }
-    };
+    let state: (&GitContext, &Path, &Path, &Path) = (
+        context,
+        root.as_path(),
+        git_dir.as_path(),
+        common_dir.as_path(),
+    );
+    let (read_config, (trash_ignored, checked)): (Option<ConfigSnapshot>, TrashAndCleanVerdicts) =
+        match run_on_runtime(the_checks_of_the_source(state)) {
+            Ok(verdicts) => verdicts,
+            Err(refusal) => {
+                crate::diagnostic_log::debug(
+                    "checkedSource",
+                    format!("the checks of the source run one after another ({refusal})").as_str(),
+                );
+                the_checks_of_the_source_in_turn(state)
+            }
+        };
     let Some(snapshot) = read_config else {
-        return Err(Refusal::unsupported("the Git configuration could not be read"));
+        return Err(Refusal::unsupported(
+            "the Git configuration could not be read",
+        ));
     };
     if let Some(reason) = configuration_refusal(snapshot.entries()) {
         return Err(Refusal::unsupported(reason));
@@ -636,18 +777,31 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
     let (clean, dirty): (CleanSource, Option<ChangedPaths>) = match checked {
         Ok(found) => (found, None),
         Err(why) if allow_dirty && restorable_here(identity) && why.kind.restorable() => {
-            let found = dirty_source(git_dir.as_path(), common_dir.as_path(), why).map_err(unclean)?;
+            let found =
+                dirty_source(git_dir.as_path(), common_dir.as_path(), why).map_err(unclean)?;
             // A source whose files Git finds equal to the commit is snapshotted too: the stat data was all that kept it from being clean.
-            let changed: ChangedPaths = changed_paths(context, root.as_path()).map_err(status_failed)?;
+            let changed: ChangedPaths =
+                changed_paths(context, root.as_path()).map_err(status_failed)?;
             if changed.attributes_changed {
-                return Err(Refusal::unsupported("a .gitattributes file is among the uncommitted changes, and its rules could change how the restore writes other files"));
+                return Err(Refusal::unsupported(
+                    "a .gitattributes file is among the uncommitted changes, and its rules could change how the restore writes other files",
+                ));
             }
             crate::diagnostic_log::debug("sourceOrDirty", format!("{} is snapshotted with {} uncommitted paths, the first {:?}; the restore follows ({})", root.display(), changed.count, changed.first, found.why).as_str());
             (found.source, Some(changed))
         }
         Err(why) => return Err(unclean(why)),
     };
-    return Ok(SnapshotSource { root: root.clone(), git_dir: git_dir.clone(), common_dir: common_dir.clone(), clean, nested, config: snapshot, trash_ignored, dirty });
+    return Ok(SnapshotSource {
+        root: root.clone(),
+        git_dir: git_dir.clone(),
+        common_dir: common_dir.clone(),
+        clean,
+        nested,
+        config: snapshot,
+        trash_ignored,
+        dirty,
+    });
 }
 
 /// What:
@@ -662,7 +816,10 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
 /// new Refusal(why.reason, { unclean: why.kind })
 /// ```
 fn unclean(why: CleanRefusal) -> Refusal {
-    return Refusal { reason: why.reason, kind: RefusalKind::Unclean(why.kind) };
+    return Refusal {
+        reason: why.reason,
+        kind: RefusalKind::Unclean(why.kind),
+    };
 }
 
 /// What:
@@ -675,7 +832,10 @@ fn unclean(why: CleanRefusal) -> Refusal {
 /// new Refusal(reason, 'statusFailed')
 /// ```
 fn status_failed(reason: String) -> Refusal {
-    return Refusal { reason, kind: RefusalKind::StatusFailed };
+    return Refusal {
+        reason,
+        kind: RefusalKind::StatusFailed,
+    };
 }
 
 /// What:
@@ -707,7 +867,10 @@ fn restorable_here(identity: &WorktreeIdentity) -> bool {
 /// ```ts
 /// async function commonSource(context: GitContext, identity: WorktreeIdentity): Promise<SnapshotSource>; // throws a reason
 /// ```
-pub fn common_source(context: &GitContext, identity: &WorktreeIdentity) -> Result<SnapshotSource, String> {
+pub fn common_source(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+) -> Result<SnapshotSource, String> {
     return match source_refusal(context, identity) {
         Ok(source) => Ok(source),
         Err(refusal) => Err(refusal.reason),
@@ -724,7 +887,10 @@ pub fn common_source(context: &GitContext, identity: &WorktreeIdentity) -> Resul
 /// `the worktree ${path} inside the source is an ordinary directory; ...`
 /// ```
 fn ordinary_worktree_reason(path: PathBuf) -> String {
-    return format!("the worktree {} inside the source is an ordinary directory; `git monochromatic-git-policy-cli migrate-to-subvolume` makes it a subvolume", path.display());
+    return format!(
+        "the worktree {} inside the source is an ordinary directory; `git monochromatic-git-policy-cli migrate-to-subvolume` makes it a subvolume",
+        path.display()
+    );
 }
 
 /// What:
@@ -740,7 +906,10 @@ fn ordinary_worktree_reason(path: PathBuf) -> String {
 /// ```
 pub fn snapshot_blocker(source: &SnapshotSource) -> Option<String> {
     if let Some(path) = nested_through_link(source.nested.as_slice()) {
-        return Some(format!("the worktree {} inside the source is reached through a symbolic link", path.display()));
+        return Some(format!(
+            "the worktree {} inside the source is reached through a symbolic link",
+            path.display()
+        ));
     }
     // A snapshot of the main checkout sets the nested ordinary worktrees aside (`worktree_trash.rs`), so they do not block it.
     if source.git_dir == source.common_dir {
@@ -764,7 +933,11 @@ pub fn snapshot_blocker(source: &SnapshotSource) -> Option<String> {
 /// ```ts
 /// async function chooseSnapshotSource(args: { context: GitContext; identity: WorktreeIdentity; plan: AddPlan }): Promise<SnapshotSource>; // throws a reason
 /// ```
-pub fn choose_snapshot_source(context: &GitContext, identity: &WorktreeIdentity, plan: &AddPlan) -> Result<SnapshotSource, String> {
+pub fn choose_snapshot_source(
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+    plan: &AddPlan,
+) -> Result<SnapshotSource, String> {
     if let Some(reason) = snapshot_refusal(identity, plan) {
         return Err(reason);
     }

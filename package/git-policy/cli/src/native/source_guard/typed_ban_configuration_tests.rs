@@ -43,7 +43,8 @@ const DISALLOWED_CALLS: [&str; 9] = [
 #[test]
 fn the_typed_ban_is_configured_as_this_design_names_it() {
     let crate_root: &Path = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let manifest: String = std::fs::read_to_string(crate_root.join("Cargo.toml")).expect("the manifest");
+    let manifest: String =
+        std::fs::read_to_string(crate_root.join("Cargo.toml")).expect("the manifest");
     let mut levels: Vec<String> = Vec::new();
     let mut in_table: bool = false;
     for line in manifest.lines() {
@@ -57,19 +58,41 @@ fn the_typed_ban_is_configured_as_this_design_names_it() {
         }
         levels.push(String::from(trimmed));
     }
-    assert_eq!(squeezed(levels.join("\n").as_str()), CLIPPY_LEVELS, "the crate's Clippy level table is not the reviewed one, and a level changed here silences every pinned call without changing a line of source");
-    let configuration: String = std::fs::read_to_string(crate_root.join("clippy.toml")).expect("the Clippy configuration");
-    let calls: Vec<&str> = configuration.lines().filter_map(|line| { return line.trim().strip_prefix("{ path = \"") }).filter_map(|rest| { return rest.split('"').next(); }).collect();
-    assert_eq!(calls, DISALLOWED_CALLS, "the disallowed calls are not the reviewed set, in the reviewed order");
+    assert_eq!(
+        squeezed(levels.join("\n").as_str()),
+        CLIPPY_LEVELS,
+        "the crate's Clippy level table is not the reviewed one, and a level changed here silences every pinned call without changing a line of source"
+    );
+    let configuration: String =
+        std::fs::read_to_string(crate_root.join("clippy.toml")).expect("the Clippy configuration");
+    let calls: Vec<&str> = configuration
+        .lines()
+        .filter_map(|line| return line.trim().strip_prefix("{ path = \""))
+        .filter_map(|rest| {
+            return rest.split('"').next();
+        })
+        .collect();
+    assert_eq!(
+        calls, DISALLOWED_CALLS,
+        "the disallowed calls are not the reviewed set, in the reviewed order"
+    );
 }
 
 /// The two rows the root modes add are each read by the list above,
 /// and neither is the call a control may make.
 #[test]
 fn the_two_argument_vector_rows_are_both_named() {
-    let configuration: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("clippy.toml")).expect("the Clippy configuration");
+    let configuration: String =
+        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("clippy.toml"))
+            .expect("the Clippy configuration");
     for call in ["std::env::args", "std::env::args_os"] {
-        assert!(configuration.contains(&format!("{{ path = \"{call}\"")), "`{call}` is one of the two calls the root-mode dispatch rests on: an alias or a direct call would read the argument vector anywhere else");
+        assert!(
+            configuration.contains(&format!("{{ path = \"{call}\"")),
+            "`{call}` is one of the two calls the root-mode dispatch rests on: an alias or a direct call would read the argument vector anywhere else"
+        );
     }
-    assert!(configuration.contains("disallowed-methods = ["), "the rows sit in the one table Clippy reads");
+    assert!(
+        configuration.contains("disallowed-methods = ["),
+        "the rows sit in the one table Clippy reads"
+    );
 }

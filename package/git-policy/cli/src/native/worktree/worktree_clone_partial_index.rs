@@ -31,12 +31,24 @@
 //! const bytes = indexOfTheTree({ tree, stats, hashLength }); // throws the reason a tree path cannot be an entry
 //! ```
 
-use crate::index_full::{FullEntry, FullIndex};
-use crate::index_full_write::{Trailer, write_full_index};
+use crate::index_full::{
+    FullEntry,
+    FullIndex,
+};
+use crate::index_full_write::{
+    Trailer,
+    write_full_index,
+};
 use crate::index_stat::StatData;
 use crate::repo_read_tree::FlatEntry;
-use crate::subvolume_index::{StatFields, StoredStat};
-use crate::subvolume_sha::{sha1, sha256};
+use crate::subvolume_index::{
+    StatFields,
+    StoredStat,
+};
+use crate::subvolume_sha::{
+    sha1,
+    sha256,
+};
 use std::collections::HashMap;
 
 /// The index version this writes:
@@ -86,12 +98,23 @@ fn stat_data_of(found: StatFields) -> StatData {
 /// ```ts
 /// function entryOf(committed: FlatEntry, stats: StatFields | undefined): FullEntry;
 /// ```
-fn entry_of(committed: &FlatEntry, stats: Option<StatFields>) -> FullEntry {
+fn entry_of(
+    committed: &FlatEntry,
+    stats: Option<StatFields>,
+) -> FullEntry {
     let stat: StatData = match stats {
         Some(found) => stat_data_of(found),
         None => StatData::default(),
     };
-    return FullEntry { stat, mode: committed.mode, id: committed.id.clone(), flags: 0, extended: 0, path: committed.path.clone(), monitor_valid: false };
+    return FullEntry {
+        stat,
+        mode: committed.mode,
+        id: committed.id.clone(),
+        flags: 0,
+        extended: 0,
+        path: committed.path.clone(),
+        monitor_valid: false,
+    };
 }
 
 /// What:
@@ -138,9 +161,13 @@ pub fn fields_the_source_recorded(stored: StoredStat) -> StatFields {
 /// ```
 fn checksum_of(hash_length: usize) -> fn(&[u8]) -> Vec<u8> {
     if hash_length == 32 {
-        return |data: &[u8]| { return sha256(data).to_vec(); };
+        return |data: &[u8]| {
+            return sha256(data).to_vec();
+        };
     }
-    return |data: &[u8]| { return sha1(data).to_vec(); };
+    return |data: &[u8]| {
+        return sha1(data).to_vec();
+    };
 }
 
 /// What:
@@ -157,19 +184,38 @@ fn checksum_of(hash_length: usize) -> fn(&[u8]) -> Vec<u8> {
 /// ```ts
 /// const bytes = indexOfTheTree({ tree, stats, hashLength }); // throws the reason
 /// ```
-pub fn index_of_the_tree(tree: &[FlatEntry], stats: &HashMap<Vec<u8>, StatFields>, hash_length: usize) -> Result<Vec<u8>, String> {
+pub fn index_of_the_tree(
+    tree: &[FlatEntry],
+    stats: &HashMap<Vec<u8>, StatFields>,
+    hash_length: usize,
+) -> Result<Vec<u8>, String> {
     let mut entries: Vec<FullEntry> = Vec::with_capacity(tree.len());
     for committed in tree {
         if committed.path.is_empty() {
             return Err(String::from("a tree entry has no name"));
         }
         if committed.id.len() != hash_length {
-            return Err(format!("the object name of {} is not the repository's hash length", String::from_utf8_lossy(committed.path.as_slice())));
+            return Err(format!(
+                "the object name of {} is not the repository's hash length",
+                String::from_utf8_lossy(committed.path.as_slice())
+            ));
         }
-        entries.push(entry_of(committed, stats.get(committed.path.as_slice()).copied()));
+        entries.push(entry_of(
+            committed,
+            stats.get(committed.path.as_slice()).copied(),
+        ));
     }
-    let index: FullIndex = FullIndex { version: INDEX_VERSION, entries, cache_tree: None, resolve_undo: None, untracked: None, fsmonitor: None };
-    return write_full_index(&index, &checksum_of(hash_length), Trailer::Hashed).ok_or_else(|| { return String::from("the index of the tree is larger than its format counts"); });
+    let index: FullIndex = FullIndex {
+        version: INDEX_VERSION,
+        entries,
+        cache_tree: None,
+        resolve_undo: None,
+        untracked: None,
+        fsmonitor: None,
+    };
+    return write_full_index(&index, &checksum_of(hash_length), Trailer::Hashed).ok_or_else(|| {
+        return String::from("the index of the tree is larger than its format counts");
+    });
 }
 
 /// Partial-clone index controls stay out of the release executable.

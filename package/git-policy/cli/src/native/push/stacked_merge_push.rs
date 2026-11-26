@@ -20,20 +20,32 @@
 //! return await runAction(action);
 //! ```
 
-/// The coordinator's Git and its error type.
-use crate::auto_push_single_flight::{PushGit, SingleFlightError};
 /// The planned action and the engine failure status.
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
+use crate::action::{
+    Action,
+    ENGINE_FAILURE_EXIT_CODE,
+};
+/// The coordinator's Git and its error type.
+use crate::auto_push_single_flight::{
+    PushGit,
+    SingleFlightError,
+};
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::debug;
 /// The planner of an invocation.
 use crate::entry::plan_invocation;
 /// The pushes run as children.
-use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
+use crate::push_stacking::{
+    STACKED_PUSH_MARKER,
+    run_stacked_push,
+};
 /// The facts a planner needs about this process.
 use crate::real_git::process_resolution_inputs;
 /// The settled or plain run of the planned Git.
-use crate::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
+use crate::worktree_copy_forward::{
+    ForwardedRun,
+    run_forwarded_git,
+};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 /// Standard streams as writable values.
@@ -80,7 +92,10 @@ fn status_of_forwarded(run: ForwardedRun) -> i32 {
         // A push the person's Git was killed in keeps a status of its own here: what the stacked run needs is whether the
         //  push failed, and a shell's report of the death is 128 + the signal.
         ForwardedRun::Killed(signal) => crate::forwarding::SIGNAL_EXIT_BASE + signal,
-        ForwardedRun::Failed { stderr, code } => {
+        ForwardedRun::Failed {
+            stderr,
+            code,
+        } => {
             write_to_standard_error(stderr.as_str());
             code
         }
@@ -106,36 +121,73 @@ fn run_planned(action: Action) -> i32 {
     let marker = (OsString::from(STACKED_PUSH_MARKER), OsString::from("1"));
 
     match action {
-        Action::Forward { real_git, arguments, mut overlay, stderr } => {
+        Action::Forward {
+            real_git,
+            arguments,
+            mut overlay,
+            stderr,
+        } => {
             write_to_standard_error(stderr.as_str());
             overlay.push(marker);
-            return status_of_forwarded(run_forwarded_git(real_git.as_path(), arguments.as_slice(), overlay.as_slice(), None));
+            return status_of_forwarded(run_forwarded_git(
+                real_git.as_path(),
+                arguments.as_slice(),
+                overlay.as_slice(),
+                None,
+            ));
         }
-        Action::ForwardSettled { real_git, arguments, mut overlay, copy, stderr } => {
+        Action::ForwardSettled {
+            real_git,
+            arguments,
+            mut overlay,
+            copy,
+            stderr,
+        } => {
             write_to_standard_error(stderr.as_str());
             overlay.push(marker);
-            return status_of_forwarded(run_forwarded_git(real_git.as_path(), arguments.as_slice(), overlay.as_slice(), Some(&*copy)));
+            return status_of_forwarded(run_forwarded_git(
+                real_git.as_path(),
+                arguments.as_slice(),
+                overlay.as_slice(),
+                Some(&*copy),
+            ));
         }
-        Action::ForwardPush { mut forward, stderr } => {
+        Action::ForwardPush {
+            mut forward,
+            stderr,
+        } => {
             write_to_standard_error(stderr.as_str());
             forward.overlay.push(marker);
             return run_stacked_push(&forward);
         }
-        Action::Exit { code, stdout, stderr } => {
+        Action::Exit {
+            code,
+            stdout,
+            stderr,
+        } => {
             // Terminal output error: the exit status carries the result.
             let _written = std::io::stdout().write_all(stdout.as_bytes());
             write_to_standard_error(stderr.as_str());
             return code;
         }
-        Action::ExitBytes { code, stdout, stderr } => {
+        Action::ExitBytes {
+            code,
+            stdout,
+            stderr,
+        } => {
             // Both reports are pathnames as bytes: the exit status carries the result.
             let _written = std::io::stdout().write_all(stdout.as_slice());
             let _said = std::io::stderr().write_all(stderr.as_slice());
             return code;
         }
         other => {
-            debug(TAG, format!("a merge push planned an action it cannot run: {other:?}").as_str());
-            write_to_standard_error("monochromatic-git-policy-cli: the merge push could not be planned; nothing was pushed.\n");
+            debug(
+                TAG,
+                format!("a merge push planned an action it cannot run: {other:?}").as_str(),
+            );
+            write_to_standard_error(
+                "monochromatic-git-policy-cli: the merge push could not be planned; nothing was pushed.\n",
+            );
             return ENGINE_FAILURE_EXIT_CODE;
         }
     }
@@ -167,8 +219,10 @@ pub fn gated_merge_push(
     let environment: Vec<(OsString, OsString)> = marked_environment(git.environment.as_slice());
     // A run nested in this wrapper process inherits the directory the process was started in; it is read here as this
     //  run's entry, and nothing of this process changes it.
-    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::read_from_the_process();
-    let inputs = process_resolution_inputs(environment.as_slice(), &start).map_err(SingleFlightError::Io)?;
+    let start: crate::start_directory::StartDirectory =
+        crate::start_directory::StartDirectory::read_from_the_process();
+    let inputs =
+        process_resolution_inputs(environment.as_slice(), &start).map_err(SingleFlightError::Io)?;
     let action: Action = plan_invocation(arguments.as_slice(), environment.as_slice(), &inputs);
     return Ok(run_planned(action));
 }

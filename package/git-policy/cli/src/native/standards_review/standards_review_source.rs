@@ -27,8 +27,16 @@
 //! const patch = git('show', '--format=', '--patch', sha); const blobs = catFileBatchNul(codeFiles.map((name) => concat(sha, ':', name.bytes, 0)));
 //! ```
 
-use crate::standards_review_input::{ChangedPath, LandedCommit, MAX_EXCERPT_FILES};
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::standards_review_input::{
+    ChangedPath,
+    LandedCommit,
+    MAX_EXCERPT_FILES,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::Path;
@@ -89,8 +97,23 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// ```ts
 /// git('show', '--format=', '--patch', '--no-color', '--no-ext-diff', '--no-textconv', sha)
 /// ```
-fn read_patch(context: &GitContext, cwd: &Path, sha: &str) -> Result<Vec<u8>, String> {
-    let request: GitRequest = GitRequest::new(cwd, &["show", "--format=", "--patch", "--no-color", "--no-ext-diff", "--no-textconv", sha]);
+fn read_patch(
+    context: &GitContext,
+    cwd: &Path,
+    sha: &str,
+) -> Result<Vec<u8>, String> {
+    let request: GitRequest = GitRequest::new(
+        cwd,
+        &[
+            "show",
+            "--format=",
+            "--patch",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+            sha,
+        ],
+    );
     let output = match run_git(context, &request) {
         Ok(done) => done,
         Err(error) => return Err(format!("starting git show failed: {error}")),
@@ -99,7 +122,9 @@ fn read_patch(context: &GitContext, cwd: &Path, sha: &str) -> Result<Vec<u8>, St
         return Err(format!("git show {sha} failed: {}", output.error_text()));
     }
     if output.stdout.len() > MAX_PATCH_BYTES {
-        return Err(format!("the patch of {sha} is over {MAX_PATCH_BYTES} bytes"));
+        return Err(format!(
+            "the patch of {sha} is over {MAX_PATCH_BYTES} bytes"
+        ));
     }
     return Ok(output.stdout);
 }
@@ -141,14 +166,20 @@ pub struct RequestedObject {
 /// ```ts
 /// const objects = names.map((name) => ({ name, spec: concat(utf8(sha), ':', name.bytes) }));
 /// ```
-fn requested_objects(sha: &str, names: &[ChangedPath]) -> Vec<RequestedObject> {
+fn requested_objects(
+    sha: &str,
+    names: &[ChangedPath],
+) -> Vec<RequestedObject> {
     let mut objects: Vec<RequestedObject> = Vec::with_capacity(names.len());
     for name in names {
         let mut spec: Vec<u8> = Vec::new();
         spec.extend_from_slice(sha.as_bytes());
         spec.push(b':');
         spec.extend_from_slice(name.as_bytes());
-        objects.push(RequestedObject { name: name.clone(), spec });
+        objects.push(RequestedObject {
+            name: name.clone(),
+            spec,
+        });
     }
     return objects;
 }
@@ -190,7 +221,10 @@ fn missing_line(spec: &[u8]) -> Vec<u8> {
 /// ```ts
 /// parseBatch({ output, objects }): Map<ChangedPath, string>
 /// ```
-pub fn parse_batch(output: &[u8], objects: &[RequestedObject]) -> Result<BTreeMap<ChangedPath, String>, String> {
+pub fn parse_batch(
+    output: &[u8],
+    objects: &[RequestedObject],
+) -> Result<BTreeMap<ChangedPath, String>, String> {
     let mut texts: BTreeMap<ChangedPath, String> = BTreeMap::new();
     let mut offset: usize = 0;
     for object in objects {
@@ -204,7 +238,8 @@ pub fn parse_batch(output: &[u8], objects: &[RequestedObject]) -> Result<BTreeMa
         let Some(relative) = output[offset..].iter().position(is_line_feed_byte) else {
             return Err(format!("git cat-file omitted the header for {name}"));
         };
-        let header: String = String::from_utf8_lossy(&output[offset..offset + relative]).into_owned();
+        let header: String =
+            String::from_utf8_lossy(&output[offset..offset + relative]).into_owned();
         offset += relative + 1;
         let fields: Vec<&str> = header.split(' ').collect();
         let announced_size: Option<usize> = match fields.get(2) {
@@ -213,18 +248,32 @@ pub fn parse_batch(output: &[u8], objects: &[RequestedObject]) -> Result<BTreeMa
         };
         let size: usize = match (fields.len(), fields.get(1), announced_size) {
             (3, Some(&"blob"), Some(size)) => size,
-            _ => return Err(format!("git cat-file returned an unexpected header for {name}: {header}")),
+            _ => {
+                return Err(format!(
+                    "git cat-file returned an unexpected header for {name}: {header}"
+                ));
+            }
         };
         // The content must end before the output does, and a line feed must follow it.
         let end: usize = match offset.checked_add(size) {
             Some(end) if end < output.len() && output[end] == b'\n' => end,
-            _ => return Err(format!("git cat-file returned truncated content for {name}")),
+            _ => {
+                return Err(format!(
+                    "git cat-file returned truncated content for {name}"
+                ));
+            }
         };
-        texts.insert(name.clone(), String::from_utf8_lossy(&output[offset..end]).into_owned());
+        texts.insert(
+            name.clone(),
+            String::from_utf8_lossy(&output[offset..end]).into_owned(),
+        );
         offset = end + 1;
     }
     if offset != output.len() {
-        return Err(format!("git cat-file answered more objects than the {} the review asked for", objects.len()));
+        return Err(format!(
+            "git cat-file answered more objects than the {} the review asked for",
+            objects.len()
+        ));
     }
     return Ok(texts);
 }
@@ -242,14 +291,31 @@ pub fn parse_batch(output: &[u8], objects: &[RequestedObject]) -> Result<BTreeMa
 /// ```ts
 /// git('diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha).split('\0').filter(Boolean)
 /// ```
-pub fn read_names(context: &GitContext, cwd: &Path, sha: &str) -> Result<Vec<ChangedPath>, String> {
-    let request: GitRequest = GitRequest::new(cwd, &["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", sha]);
+pub fn read_names(
+    context: &GitContext,
+    cwd: &Path,
+    sha: &str,
+) -> Result<Vec<ChangedPath>, String> {
+    let request: GitRequest = GitRequest::new(
+        cwd,
+        &[
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            "-z",
+            sha,
+        ],
+    );
     let output = match run_git(context, &request) {
         Ok(done) => done,
         Err(error) => return Err(format!("starting git diff-tree failed: {error}")),
     };
     if !output.succeeded() {
-        return Err(format!("git diff-tree {sha} failed: {}", output.error_text()));
+        return Err(format!(
+            "git diff-tree {sha} failed: {}",
+            output.error_text()
+        ));
     }
     let mut names: Vec<ChangedPath> = Vec::new();
     for name in output.stdout.split(is_nul_byte) {
@@ -271,7 +337,11 @@ pub fn read_names(context: &GitContext, cwd: &Path, sha: &str) -> Result<Vec<Cha
 /// ```ts
 /// git('show', '--no-patch', '--format=%B', sha)
 /// ```
-pub fn read_message(context: &GitContext, cwd: &Path, sha: &str) -> Result<String, String> {
+pub fn read_message(
+    context: &GitContext,
+    cwd: &Path,
+    sha: &str,
+) -> Result<String, String> {
     let request: GitRequest = GitRequest::new(cwd, &["show", "--no-patch", "--format=%B", sha]);
     let output = match run_git(context, &request) {
         Ok(done) => done,
@@ -324,11 +394,24 @@ fn batch_request(objects: &[RequestedObject]) -> Vec<u8> {
 /// ```ts
 /// const commit = await readLandedCommit({ context, cwd, sha, subject, codeFiles });
 /// ```
-pub fn read_landed_commit(context: &GitContext, cwd: &Path, sha: &str, subject: &str, code_files: &[ChangedPath]) -> Result<LandedCommit, String> {
+pub fn read_landed_commit(
+    context: &GitContext,
+    cwd: &Path,
+    sha: &str,
+    subject: &str,
+    code_files: &[ChangedPath],
+) -> Result<LandedCommit, String> {
     let patch: Vec<u8> = read_patch(context, cwd, sha)?;
     let wanted: Vec<ChangedPath> = code_files.iter().take(MAX_EXCERPT_FILES).cloned().collect();
     let objects: Vec<RequestedObject> = requested_objects(sha, wanted.as_slice());
-    let mut request: GitRequest = GitRequest::new(cwd, &[OsString::from("cat-file"), OsString::from("--batch"), OsString::from("-z")]);
+    let mut request: GitRequest = GitRequest::new(
+        cwd,
+        &[
+            OsString::from("cat-file"),
+            OsString::from("--batch"),
+            OsString::from("-z"),
+        ],
+    );
     request.input = Some(batch_request(objects.as_slice()));
     let output = match run_git(context, &request) {
         Ok(done) => done,
@@ -337,8 +420,14 @@ pub fn read_landed_commit(context: &GitContext, cwd: &Path, sha: &str, subject: 
     if !output.succeeded() {
         return Err(format!("git cat-file failed: {}", output.error_text()));
     }
-    let contents: BTreeMap<ChangedPath, String> = parse_batch(output.stdout.as_slice(), objects.as_slice())?;
-    return Ok(LandedCommit { sha: String::from(sha), subject: String::from(subject), patch, contents });
+    let contents: BTreeMap<ChangedPath, String> =
+        parse_batch(output.stdout.as_slice(), objects.as_slice())?;
+    return Ok(LandedCommit {
+        sha: String::from(sha),
+        subject: String::from(subject),
+        patch,
+        contents,
+    });
 }
 
 /// Controls stay out of the release executable.

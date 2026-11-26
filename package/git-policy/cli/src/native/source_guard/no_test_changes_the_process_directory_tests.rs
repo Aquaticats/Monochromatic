@@ -10,7 +10,14 @@
 
 use std::path::Path;
 
-use crate::source_scan_tests::{CrateRoot, SourceFile, classified_sources, real_roots, source_root, write_tree};
+use crate::source_scan_tests::{
+    CrateRoot,
+    SourceFile,
+    classified_sources,
+    real_roots,
+    source_root,
+    write_tree,
+};
 
 /// The call whose presence is a finding.
 /// A control that wants the code under test to start in a fixture passes the fixture's path
@@ -53,15 +60,24 @@ fn lines_making_the_call(text: &str) -> Vec<usize> {
 /// The sources the scan reads:
 /// every file the module tree reaches,
 /// release files and test sidecars alike.
-fn sources_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<SourceFile>, String> {
+fn sources_in(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<SourceFile>, String> {
     return classified_sources(root, roots);
 }
 
 /// Every `file:line` of the crate's sources that changes the directory of the process.
-fn findings_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<String>, String> {
+fn findings_in(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<String>, String> {
     let mut found: Vec<String> = Vec::new();
     for file in sources_in(root, roots)? {
-        if NAMES_THE_CALL_WITHOUT_MAKING_IT.iter().any(|(named, _)| return *named == file.path) {
+        if NAMES_THE_CALL_WITHOUT_MAKING_IT
+            .iter()
+            .any(|(named, _)| return *named == file.path)
+        {
             continue;
         }
         let text: String = std::fs::read_to_string(root.join(file.path.as_str()))
@@ -95,7 +111,8 @@ fn no_source_changes_the_process_directory() {
 /// so the list shrinks when a file moves rather than excusing nothing.
 #[test]
 fn every_exempt_file_is_a_source_of_this_crate() {
-    let sources: Vec<SourceFile> = sources_in(&source_root(), &real_roots()).expect("the crate's sources");
+    let sources: Vec<SourceFile> =
+        sources_in(&source_root(), &real_roots()).expect("the crate's sources");
     let stale: Vec<String> = NAMES_THE_CALL_WITHOUT_MAKING_IT
         .iter()
         .filter(|(named, _)| {
@@ -127,8 +144,18 @@ fn the_scan_finds_a_planted_call() {
             ),
         ],
     );
-    let found: Vec<String> = findings_in(root.as_path(), &[crate::source_scan_tests::release_root("lib.rs")])
-        .expect("the fixture sources");
-    assert_eq!(found, vec![String::from("helper_tests.rs:2"), String::from("helper_tests.rs:6")], "the planted calls were not found");
+    let found: Vec<String> = findings_in(
+        root.as_path(),
+        &[crate::source_scan_tests::release_root("lib.rs")],
+    )
+    .expect("the fixture sources");
+    assert_eq!(
+        found,
+        vec![
+            String::from("helper_tests.rs:2"),
+            String::from("helper_tests.rs:6")
+        ],
+        "the planted calls were not found"
+    );
     crate::test_support::remove(root.as_path());
 }

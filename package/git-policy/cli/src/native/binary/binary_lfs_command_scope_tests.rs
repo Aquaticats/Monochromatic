@@ -19,10 +19,26 @@
 //! fails these controls instead of passing them
 //! (`testing/real_git_lfs_the_run_requires.rs`).
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, direct, fixture, git, observe, repository, stderr_of};
+use super::commit::{
+    git_text,
+    remove_settled,
+    wrapped_commit,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    direct,
+    fixture,
+    git,
+    observe,
+    repository,
+    stderr_of,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The variable the `--config-env` control names its push URL through.
 const PUSH_URL_VARIABLE: &str = "FIXTURE_PUSH_URL";
@@ -36,8 +52,9 @@ const PUSH_URL_VARIABLE: &str = "FIXTURE_PUSH_URL";
 /// so the upload finds a program there or reports that none is installed,
 /// and a run that states the program must be there fails instead of passing.
 fn link_git_lfs(fixture: &Fixture) -> Option<PathBuf> {
-    let installed: PathBuf =
-        super::real_git_lfs_the_run_requires::required("the real upload named only by a command-scoped push URL")?;
+    let installed: PathBuf = super::real_git_lfs_the_run_requires::required(
+        "the real upload named only by a command-scoped push URL",
+    )?;
     std::os::unix::fs::symlink(installed, fixture.root.join("bin/git-lfs")).expect("git-lfs link");
     return Some(fixture.root.join("bin/git-lfs"));
 }
@@ -55,12 +72,34 @@ fn two_remotes(fixture: &Fixture) -> Option<(PathBuf, PathBuf, PathBuf)> {
     let fetch: PathBuf = fixture.root.join("fetch.git");
     let push: PathBuf = fixture.root.join("push.git");
     for remote in [&fetch, &push] {
-        let name: String = remote.file_name().expect("a name").to_string_lossy().into_owned();
-        git(fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", name.as_str()]);
+        let name: String = remote
+            .file_name()
+            .expect("a name")
+            .to_string_lossy()
+            .into_owned();
+        git(
+            fixture,
+            fixture.root.as_path(),
+            &[
+                "init",
+                "--quiet",
+                "--bare",
+                "--initial-branch=main",
+                name.as_str(),
+            ],
+        );
     }
-    git(fixture, repo.as_path(), &["remote", "add", "origin", fetch.to_str().expect("UTF-8")]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["remote", "add", "origin", fetch.to_str().expect("UTF-8")],
+    );
     // The wrapper uploads before a push only for a repository whose own configuration holds an LFS key.
-    git(fixture, repo.as_path(), &["config", "lfs.repositoryformatversion", "0"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["config", "lfs.repositoryformatversion", "0"],
+    );
     return Some((repo, fetch, push));
 }
 
@@ -73,7 +112,11 @@ fn two_remotes(fixture: &Fixture) -> Option<(PathBuf, PathBuf, PathBuf)> {
 /// the pointer is what the push publishes,
 /// and the fixture therefore needs no clean filter,
 /// no `.gitattributes` and no LFS server.
-fn commit_pointer(fixture: &Fixture, repo: &Path, name: &str) -> String {
+fn commit_pointer(
+    fixture: &Fixture,
+    repo: &Path,
+    name: &str,
+) -> String {
     let content: Vec<u8> = format!("{name} LFS content\n").into_bytes();
     let digest: [u8; 32] = git_policy_cli::subvolume_sha::sha256(content.as_slice());
     let oid: String = git_policy_cli::hexadecimal_of_bytes::hexadecimal_of_bytes(digest.as_slice());
@@ -82,29 +125,53 @@ fn commit_pointer(fixture: &Fixture, repo: &Path, name: &str) -> String {
         content.len()
     );
     std::fs::write(repo.join(name), pointer.as_bytes()).expect("pointer file");
-    let storage: PathBuf = repo.join(".git/lfs/objects").join(&oid[..2]).join(&oid[2..4]);
+    let storage: PathBuf = repo
+        .join(".git/lfs/objects")
+        .join(&oid[..2])
+        .join(&oid[2..4]);
     std::fs::create_dir_all(&storage).expect("LFS object directory");
     std::fs::write(storage.join(oid.as_str()), content.as_slice()).expect("LFS object");
     git(fixture, repo, &["add", "--", name]);
-    git(fixture, repo, &["commit", "--quiet", &format!("--message={name}")]);
+    git(
+        fixture,
+        repo,
+        &["commit", "--quiet", &format!("--message={name}")],
+    );
     return oid;
 }
 
 /// Whether the bare remote's file-backed LFS store holds the object named `oid`.
-fn stored(remote: &Path, oid: &str) -> bool {
-    return remote.join("lfs/objects").join(&oid[..2]).join(&oid[2..4]).join(oid).is_file();
+fn stored(
+    remote: &Path,
+    oid: &str,
+) -> bool {
+    return remote
+        .join("lfs/objects")
+        .join(&oid[..2])
+        .join(&oid[2..4])
+        .join(oid)
+        .is_file();
 }
 
 /// The remote's `refs/heads/main`,
 /// or `absent`.
-fn remote_main(fixture: &Fixture, remote: &Path) -> String {
+fn remote_main(
+    fixture: &Fixture,
+    remote: &Path,
+) -> String {
     let output = direct(fixture)
         .arg(format!("--git-dir={}", remote.display()))
         .args(["rev-parse", "--verify", "--quiet", "refs/heads/main"])
         .output()
         .expect("rev-parse starts");
-    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-    return if text.is_empty() { String::from("absent") } else { text };
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
+    return if text.is_empty() {
+        String::from("absent")
+    } else {
+        text
+    };
 }
 
 /// What:
@@ -122,20 +189,52 @@ fn a_command_scoped_push_url_carries_the_upload_to_the_push_remote() {
         return;
     };
     let first: String = commit_pointer(&fixture, repo.as_path(), "first.bin");
-    let control: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), &["push", "--quiet", "origin", "main"]), b"");
+    let control: Observed = observe(
+        &mut wrapped_commit(
+            &fixture,
+            repo.as_path(),
+            &["push", "--quiet", "origin", "main"],
+        ),
+        b"",
+    );
     assert_eq!(control.code, Some(0), "{}", stderr_of(&control));
-    assert!(stored(fetch.as_path(), first.as_str()), "the positive control stored the first object in the fetch remote: {}", stderr_of(&control));
+    assert!(
+        stored(fetch.as_path(), first.as_str()),
+        "the positive control stored the first object in the fetch remote: {}",
+        stderr_of(&control)
+    );
     let second: String = commit_pointer(&fixture, repo.as_path(), "second.bin");
     let selection: String = format!("remote.origin.pushurl={}", push.display());
     let pushed: Observed = observe(
-        &mut wrapped_commit(&fixture, repo.as_path(), &["-c", selection.as_str(), "push", "--quiet", "origin", "main"]),
+        &mut wrapped_commit(
+            &fixture,
+            repo.as_path(),
+            &[
+                "-c",
+                selection.as_str(),
+                "push",
+                "--quiet",
+                "origin",
+                "main",
+            ],
+        ),
         b"",
     );
     let stderr: String = stderr_of(&pushed);
     assert_eq!(pushed.code, Some(0), "{stderr}");
-    assert_eq!(remote_main(&fixture, push.as_path()), git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim(), "the ref moved to the push remote: {stderr}");
-    assert!(stored(push.as_path(), second.as_str()), "the object of the pointer is in the push remote's store: {stderr}");
-    assert!(!stored(fetch.as_path(), second.as_str()), "no object of the selected push reached the fetch remote: {stderr}");
+    assert_eq!(
+        remote_main(&fixture, push.as_path()),
+        git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim(),
+        "the ref moved to the push remote: {stderr}"
+    );
+    assert!(
+        stored(push.as_path(), second.as_str()),
+        "the object of the pointer is in the push remote's store: {stderr}"
+    );
+    assert!(
+        !stored(fetch.as_path(), second.as_str()),
+        "no object of the selected push reached the fetch remote: {stderr}"
+    );
     remove_settled(&fixture);
 }
 
@@ -153,19 +252,44 @@ fn a_push_url_named_by_the_environment_carries_the_upload_to_the_push_remote() {
         return;
     };
     let first: String = commit_pointer(&fixture, repo.as_path(), "first.bin");
-    let control: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), &["push", "--quiet", "origin", "main"]), b"");
+    let control: Observed = observe(
+        &mut wrapped_commit(
+            &fixture,
+            repo.as_path(),
+            &["push", "--quiet", "origin", "main"],
+        ),
+        b"",
+    );
     assert_eq!(control.code, Some(0), "{}", stderr_of(&control));
-    assert!(stored(fetch.as_path(), first.as_str()), "the positive control stored the first object in the fetch remote: {}", stderr_of(&control));
+    assert!(
+        stored(fetch.as_path(), first.as_str()),
+        "the positive control stored the first object in the fetch remote: {}",
+        stderr_of(&control)
+    );
     let second: String = commit_pointer(&fixture, repo.as_path(), "second.bin");
     let selection: String = format!("--config-env=remote.origin.pushurl={PUSH_URL_VARIABLE}");
-    let mut command = wrapped_commit(&fixture, repo.as_path(), &[selection.as_str(), "push", "--quiet", "origin", "main"]);
+    let mut command = wrapped_commit(
+        &fixture,
+        repo.as_path(),
+        &[selection.as_str(), "push", "--quiet", "origin", "main"],
+    );
     command.env(PUSH_URL_VARIABLE, push.as_os_str());
     let pushed: Observed = observe(&mut command, b"");
     let stderr: String = stderr_of(&pushed);
     assert_eq!(pushed.code, Some(0), "{stderr}");
-    assert_eq!(remote_main(&fixture, push.as_path()), git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim(), "the ref moved to the push remote: {stderr}");
-    assert!(stored(push.as_path(), second.as_str()), "the object of the pointer is in the push remote's store: {stderr}");
-    assert!(!stored(fetch.as_path(), second.as_str()), "no object of the selected push reached the fetch remote: {stderr}");
+    assert_eq!(
+        remote_main(&fixture, push.as_path()),
+        git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim(),
+        "the ref moved to the push remote: {stderr}"
+    );
+    assert!(
+        stored(push.as_path(), second.as_str()),
+        "the object of the pointer is in the push remote's store: {stderr}"
+    );
+    assert!(
+        !stored(fetch.as_path(), second.as_str()),
+        "no object of the selected push reached the fetch remote: {stderr}"
+    );
     remove_settled(&fixture);
 }
 

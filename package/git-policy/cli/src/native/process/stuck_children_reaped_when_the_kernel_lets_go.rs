@@ -44,7 +44,10 @@
 //! ```
 
 use std::process::Child;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{
+    Mutex,
+    MutexGuard,
+};
 
 /// What:
 ///  `enum Nowait` is one child this command stopped waiting for,
@@ -116,7 +119,10 @@ impl Nowait {
 }
 
 /// The list of children waiting for a reaper.
-fn waiting_for_a_reaper() -> Result<MutexGuard<'static, Vec<Nowait>>, std::sync::PoisonError<MutexGuard<'static, Vec<Nowait>>>> {
+fn waiting_for_a_reaper() -> Result<
+    MutexGuard<'static, Vec<Nowait>>,
+    std::sync::PoisonError<MutexGuard<'static, Vec<Nowait>>>,
+> {
     return WAITING_FOR_A_REAPER.lock();
 }
 
@@ -165,13 +171,15 @@ pub fn drain_the_registry() {
 /// ```
 pub fn reap_soon(child: Child) {
     let (hand_over, taken) = std::sync::mpsc::channel::<Child>();
-    let started = std::thread::Builder::new().name(String::from(REAPER_THREAD_NAME)).spawn(move || {
-        // This reaper collects the child it was given, and then whatever a refused start left behind.
-        if let Ok(mut first) = taken.recv() {
-            let _reaped = first.wait();
-        }
-        drain_the_registry();
-    });
+    let started = std::thread::Builder::new()
+        .name(String::from(REAPER_THREAD_NAME))
+        .spawn(move || {
+            // This reaper collects the child it was given, and then whatever a refused start left behind.
+            if let Ok(mut first) = taken.recv() {
+                let _reaped = first.wait();
+            }
+            drain_the_registry();
+        });
     if started.is_err() {
         // No thread could be given the child, so the child that the closure would have owned is still here, in this process's
         //  hands: it waits for a reaper that the next call may start.
@@ -204,10 +212,12 @@ pub fn reap_soon(child: Child) {
 /// reapSoonPid(pid);
 /// ```
 pub fn reap_soon_pid(pid: libc::pid_t) {
-    let started = std::thread::Builder::new().name(String::from(REAPER_THREAD_NAME)).spawn(move || {
-        collect_the_number(pid);
-        drain_the_registry();
-    });
+    let started = std::thread::Builder::new()
+        .name(String::from(REAPER_THREAD_NAME))
+        .spawn(move || {
+            collect_the_number(pid);
+            drain_the_registry();
+        });
     if started.is_err() {
         keep(Nowait::Pid(pid));
     }

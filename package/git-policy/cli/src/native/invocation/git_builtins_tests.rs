@@ -11,8 +11,15 @@
 //! ```
 
 /// The table under test and the real-Git fixture helpers.
-use super::{GIT_BUILTIN_COMMANDS, is_git_builtin};
-use crate::test_support::{fixture, git_output, remove};
+use super::{
+    GIT_BUILTIN_COMMANDS,
+    is_git_builtin,
+};
+use crate::test_support::{
+    fixture,
+    git_output,
+    remove,
+};
 use std::path::PathBuf;
 use std::process::Output;
 

@@ -21,11 +21,16 @@ use std::path::Path;
 pub(super) const LINE_PREFIX: &str = "monochromatic-git-policy-cli: ";
 
 /// The sentence after the list of staged files.
-pub(super) fn closing_words(operation: &str, remaining: usize) -> String {
+pub(super) fn closing_words(
+    operation: &str,
+    remaining: usize,
+) -> String {
     let rest: String = if remaining == 0 {
         format!("no conflicted file is left; finish the {operation} the way Git said above")
     } else {
-        format!("resolve the files Git still lists as conflicted, then finish the {operation} the way Git said above")
+        format!(
+            "resolve the files Git still lists as conflicted, then finish the {operation} the way Git said above"
+        )
     };
     return format!("Review a merged file with `git diff --cached -- <file>`; {rest}.");
 }
@@ -47,7 +52,10 @@ pub(super) fn closing_words(operation: &str, remaining: usize) -> String {
 /// ```ts
 /// const endingCommand = (gitDir, operation) => endingCommandOf(gitDir) ?? ({rebase: 'git rebase --continue', 'cherry-pick': 'git cherry-pick --continue', revert: 'git revert --continue'}[operation] ?? 'git commit');
 /// ```
-pub(super) fn ending_command(git_dir: &Path, operation: &str) -> &'static str {
+pub(super) fn ending_command(
+    git_dir: &Path,
+    operation: &str,
+) -> &'static str {
     if let Some(in_progress) = crate::merge_second_pass_finish::ending_command_of(git_dir) {
         return in_progress;
     }
@@ -77,14 +85,23 @@ pub(super) fn ending_command(git_dir: &Path, operation: &str) -> &'static str {
 /// ```ts
 /// const line = (operation, staged, conflicted, ending) => `${LINE_PREFIX}${REPORT_MARK}: the ${operation} did not finish: the files the second merge pass staged as resolved are ${staged}, and ${conflicted.length === 0 ? 'no file is conflicted' : `${conflicted.join(', ')} ${conflicted.length === 1 ? 'is' : 'are'} conflicted again where the ending step stopped`}; run ${ending} to end the ${operation}.`;
 /// ```
-pub(super) fn unfinished_words(operation: &str, staged: &str, conflicted: Option<&[String]>, ending: &str) -> String {
+pub(super) fn unfinished_words(
+    operation: &str,
+    staged: &str,
+    conflicted: Option<&[String]>,
+    ending: &str,
+) -> String {
     let kept: String = format!("the files the second merge pass staged as resolved are {staged}");
     let Some(known) = conflicted else {
         // An index that cannot be read again is not a clean one, and the line must not say it is.
-        return format!("{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and the index could not be read again, so which files are conflicted now cannot be said; run {ending} to end the {operation}.");
+        return format!(
+            "{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and the index could not be read again, so which files are conflicted now cannot be said; run {ending} to end the {operation}."
+        );
     };
     if known.is_empty() {
-        return format!("{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and no file is conflicted; run {ending} to end the {operation}.");
+        return format!(
+            "{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and no file is conflicted; run {ending} to end the {operation}."
+        );
     }
     let one: bool = known.len() == 1;
     return format!(

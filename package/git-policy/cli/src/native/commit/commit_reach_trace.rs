@@ -63,7 +63,10 @@ pub struct ReachTrace {
 
 impl ReachTrace {
     /// Notes the release a greeting named.
-    pub fn saw_release(&mut self, release: Option<&str>) {
+    pub fn saw_release(
+        &mut self,
+        release: Option<&str>,
+    ) {
         let word: String = release.unwrap_or(UNANNOUNCED).to_string();
         if !self.releases_seen.contains(&word) {
             self.releases_seen.push(word);
@@ -82,7 +85,11 @@ impl ReachTrace {
 /// holderKindOf(text) // 'proven-alive' | 'unproven'
 /// ```
 pub fn holder_kind_of(text: &str) -> &'static str {
-    return if text.contains("(proven by ") { "proven-alive" } else { "unproven" };
+    return if text.contains("(proven by ") {
+        "proven-alive"
+    } else {
+        "unproven"
+    };
 }
 
 /// What:
@@ -100,7 +107,10 @@ pub fn holder_kind_of(text: &str) -> &'static str {
 /// ```ts
 /// holderKindAfter(earlier, text) // earlier === 'proven-alive' ? 'proven-alive' : holderKindOf(text)
 /// ```
-pub fn holder_kind_after(earlier: Option<&'static str>, text: &str) -> &'static str {
+pub fn holder_kind_after(
+    earlier: Option<&'static str>,
+    text: &str,
+) -> &'static str {
     return match earlier {
         Some("proven-alive") => "proven-alive",
         Some(_) | None => holder_kind_of(text),

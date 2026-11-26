@@ -24,11 +24,16 @@ fn the_record_and_its_staging_files_are_removed() {
     let staged: PathBuf = git_dir.join(FOLDER).join(format!(".{FILE}.Xk2Qa.partial"));
     let staged_again: PathBuf = git_dir.join(FOLDER).join(format!(".{FILE}.7fF0b.partial"));
     for path in [&record, &staged, &staged_again] {
-        std::fs::write(path, b"{\"v\":1,\"variables\":{\"PATH\":\"/fake/bin\"}}\n").expect("a file of that branch's own shape");
+        std::fs::write(path, b"{\"v\":1,\"variables\":{\"PATH\":\"/fake/bin\"}}\n")
+            .expect("a file of that branch's own shape");
     }
     remove_what_an_earlier_branch_wrote(git_dir.as_path());
     for path in [&record, &staged, &staged_again] {
-        assert!(!path.exists(), "{} is gone after the first command that meets it", path.display());
+        assert!(
+            !path.exists(),
+            "{} is gone after the first command that meets it",
+            path.display()
+        );
     }
 }
 
@@ -48,13 +53,21 @@ fn nothing_else_in_the_folder_is_touched() {
     let queued: PathBuf = work.join("push-0123456789abcdef0123456789abcdef01234567-abc");
     std::fs::write(queued.as_path(), b"{}\n").expect("a queued record");
     let a_directory_of_the_records_name: PathBuf = folder.join(FILE);
-    std::fs::create_dir_all(a_directory_of_the_records_name.as_path()).expect("not the file that branch wrote");
+    std::fs::create_dir_all(a_directory_of_the_records_name.as_path())
+        .expect("not the file that branch wrote");
     let a_staging_name_that_is_not_one: PathBuf = folder.join(format!(".{FILE}.keep"));
-    std::fs::write(a_staging_name_that_is_not_one.as_path(), b"mine\n").expect("a file of the person's own");
+    std::fs::write(a_staging_name_that_is_not_one.as_path(), b"mine\n")
+        .expect("a file of the person's own");
     remove_what_an_earlier_branch_wrote(git_dir.as_path());
     assert!(queued.exists(), "a queued push of this release stays");
-    assert!(a_directory_of_the_records_name.is_dir(), "a directory of that name is not that branch's record");
-    assert!(a_staging_name_that_is_not_one.exists(), "a name that is not one of that branch's staging files stays");
+    assert!(
+        a_directory_of_the_records_name.is_dir(),
+        "a directory of that name is not that branch's record"
+    );
+    assert!(
+        a_staging_name_that_is_not_one.exists(),
+        "a name that is not one of that branch's staging files stays"
+    );
 }
 
 /// What:
@@ -74,7 +87,10 @@ fn a_worktree_without_the_record_is_unchanged() {
     std::fs::write(record.as_path(), b"{}\n").expect("the record that branch wrote");
     remove_what_an_earlier_branch_wrote(git_dir.as_path());
     remove_what_an_earlier_branch_wrote(git_dir.as_path());
-    assert!(!record.exists(), "the second command finds nothing and says nothing");
+    assert!(
+        !record.exists(),
+        "the second command finds nothing and says nothing"
+    );
 }
 
 /// What:
@@ -86,11 +102,13 @@ fn a_worktree_without_the_record_is_unchanged() {
 #[test]
 fn a_link_of_that_name_is_removed_and_not_what_it_names() {
     let git_dir: PathBuf = git_directory_with_the_folder("link");
-    let elsewhere: PathBuf = crate::test_support::fixture_with_prefix("native-earlier-record", "elsewhere");
+    let elsewhere: PathBuf =
+        crate::test_support::fixture_with_prefix("native-earlier-record", "elsewhere");
     let kept: PathBuf = elsewhere.join("kept.txt");
     std::fs::write(kept.as_path(), b"not the record\n").expect("a file outside the Git directory");
     let link: PathBuf = git_dir.join(FOLDER).join(FILE);
-    std::os::unix::fs::symlink(kept.as_path(), link.as_path()).expect("a link with the record's name");
+    std::os::unix::fs::symlink(kept.as_path(), link.as_path())
+        .expect("a link with the record's name");
     remove_what_an_earlier_branch_wrote(git_dir.as_path());
     assert!(!link.exists(), "the link is gone");
     assert!(kept.exists(), "and the file it named is untouched");

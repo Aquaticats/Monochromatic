@@ -9,7 +9,10 @@
 //! It moved out of `test_support.rs` when that file passed the code-line limit.
 
 /// The folder and runtime directory types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The cleanup a folder made here is handed to,
 /// which runs when the test thread ends however its test ended.
@@ -78,8 +81,12 @@ thread_local! {
 /// the folder is also made exclusively,
 /// so a token drawn twice still names two folders.
 fn fresh_folder_token() -> String {
-    let uuid: String = crate::random_id::random_uuid().expect("the operating system's random source");
-    return uuid.get(..FOLDER_TOKEN_DIGITS).expect("a UUID is longer than the token").to_string();
+    let uuid: String =
+        crate::random_id::random_uuid().expect("the operating system's random source");
+    return uuid
+        .get(..FOLDER_TOKEN_DIGITS)
+        .expect("a UUID is longer than the token")
+        .to_string();
 }
 
 /// What:
@@ -104,7 +111,11 @@ fn this_threads_folder_token() -> String {
 ///   A folder that exists because this thread made it is used again,
 /// where one another run made is passed over.
 fn this_thread_made(folder: &Path) -> bool {
-    return THREAD_FOLDERS.with(|folders| { return folders.borrow().made.iter().any(|made| { return made == folder; }); });
+    return THREAD_FOLDERS.with(|folders| {
+        return folders.borrow().made.iter().any(|made| {
+            return made == folder;
+        });
+    });
 }
 
 /// What:
@@ -116,7 +127,9 @@ fn this_thread_made(folder: &Path) -> bool {
 /// whether its test passed,
 /// failed or was killed.
 fn this_thread_made_folder(folder: &Path) {
-    THREAD_FOLDERS.with(|folders| { folders.borrow_mut().made.push(folder.to_path_buf()); });
+    THREAD_FOLDERS.with(|folders| {
+        folders.borrow_mut().made.push(folder.to_path_buf());
+    });
     track_for_this_thread(folder);
 }
 
@@ -127,7 +140,9 @@ fn this_thread_made_folder(folder: &Path) {
 ///   A folder is never shared:
 /// two runs that draw one token take different names rather than write in one place.
 fn this_thread_takes_another_token() {
-    THREAD_FOLDERS.with(|folders| { folders.borrow_mut().token = fresh_folder_token(); });
+    THREAD_FOLDERS.with(|folders| {
+        folders.borrow_mut().token = fresh_folder_token();
+    });
 }
 
 /// What:
@@ -173,25 +188,42 @@ fn places_this_account_offers() -> Vec<PathBuf> {
 /// ```ts
 /// runtimeDirectoryParent('pr', 32) // '/home/tester/temp/agent/pr3f9a1c'
 /// ```
-pub(crate) fn runtime_directory_parent(prefix: &str, longest: usize) -> PathBuf {
+pub(crate) fn runtime_directory_parent(
+    prefix: &str,
+    longest: usize,
+) -> PathBuf {
     let name_length: usize = prefix.len() + FOLDER_TOKEN_DIGITS;
     let offered: Vec<PathBuf> = places_this_account_offers();
-    let fitting: Vec<&PathBuf> = offered.iter().filter(|place| { return place.as_os_str().len() + 1 + name_length <= longest; }).collect();
+    let fitting: Vec<&PathBuf> = offered
+        .iter()
+        .filter(|place| {
+            return place.as_os_str().len() + 1 + name_length <= longest;
+        })
+        .collect();
     if fitting.is_empty() {
         let tried: String = if offered.is_empty() {
             String::from("this account names no home directory and no runtime directory")
         } else {
-            let described: Vec<String> = offered.iter().map(|place| {
-                let folder: PathBuf = place.join(format!("{prefix}{}", "x".repeat(FOLDER_TOKEN_DIGITS)));
-                return format!("{} ({} bytes)", folder.display(), folder.as_os_str().len());
-            }).collect();
+            let described: Vec<String> = offered
+                .iter()
+                .map(|place| {
+                    let folder: PathBuf =
+                        place.join(format!("{prefix}{}", "x".repeat(FOLDER_TOKEN_DIGITS)));
+                    return format!("{} ({} bytes)", folder.display(), folder.as_os_str().len());
+                })
+                .collect();
             described.join(", ")
         };
-        panic!("no folder this account offers leaves room for a runtime directory's name: the control needs a folder of at most {longest} bytes, and the folders are {tried}");
+        panic!(
+            "no folder this account offers leaves room for a runtime directory's name: the control needs a folder of at most {longest} bytes, and the folders are {tried}"
+        );
     }
     // The longest place that fits is the folder's place; a name another run took there moves this thread to another
     // token rather than to a shorter place, so the place a control asks for is the place it gets.
-    let place: &Path = fitting.first().expect("a place that fits was found above").as_path();
+    let place: &Path = fitting
+        .first()
+        .expect("a place that fits was found above")
+        .as_path();
     std::fs::create_dir_all(place).expect("a place this account offers");
     for _attempt in 0..FOLDER_TOKEN_ATTEMPTS {
         let folder: PathBuf = place.join(format!("{prefix}{}", this_threads_folder_token()));
@@ -204,11 +236,15 @@ pub(crate) fn runtime_directory_parent(prefix: &str, longest: usize) -> PathBuf 
                 return folder;
             }
             // A folder another run made is not shared, so this thread takes another token.
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => this_thread_takes_another_token(),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                this_thread_takes_another_token()
+            }
             Err(error) => panic!("the folder {} cannot be made: {error}", folder.display()),
         }
     }
-    panic!("no folder was left for this thread: {FOLDER_TOKEN_ATTEMPTS} tokens were tried and every one of them named a folder another run had made");
+    panic!(
+        "no folder was left for this thread: {FOLDER_TOKEN_ATTEMPTS} tokens were tried and every one of them named a folder another run had made"
+    );
 }
 
 /// What:
@@ -224,8 +260,14 @@ pub(crate) fn runtime_directory_parent(prefix: &str, longest: usize) -> PathBuf 
 /// ```ts
 /// runtimeDirectoryUnder(parent, 40, 'longest') // `${parent}/longest`
 /// ```
-pub(crate) fn runtime_directory_under(parent: &Path, length: usize, tag: &str) -> PathBuf {
-    let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a runtime directory longer than the folder it stands in");
+pub(crate) fn runtime_directory_under(
+    parent: &Path,
+    length: usize,
+    tag: &str,
+) -> PathBuf {
+    let room: usize = length
+        .checked_sub(parent.as_os_str().len() + 1)
+        .expect("a runtime directory longer than the folder it stands in");
     assert!(
         room >= room_a_runtime_name_needs(tag),
         "a runtime directory of {length} bytes leaves {room} bytes below {}, too little to name a control {tag:?} in",
@@ -240,7 +282,11 @@ pub(crate) fn runtime_directory_under(parent: &Path, length: usize, tag: &str) -
     };
     let runtime: PathBuf = parent.join(name);
     std::fs::create_dir_all(&runtime).expect("the runtime directory");
-    assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
+    assert_eq!(
+        runtime.as_os_str().len(),
+        length,
+        "the directory is exactly as long as the control asks"
+    );
     track_for_this_thread(runtime.as_path());
     return runtime;
 }

@@ -1,7 +1,14 @@
 //! Controls for conclusion cleanup against real files-backend and reftable repositories.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 
 /// A real worktree Git directory,
 ///  a shadow and a transaction directory with copies.
@@ -42,7 +49,10 @@ fn scene(name: &str) -> Scene {
 }
 
 /// Run the cleanup for a scene.
-fn clean(scene: &Scene, format: RefFormat) -> Result<(), RecoveryError> {
+fn clean(
+    scene: &Scene,
+    format: RefFormat,
+) -> Result<(), RecoveryError> {
     return reproduce_conclusion_cleanup(
         &git_context(),
         scene.repo.as_path(),

@@ -37,7 +37,10 @@
 /// // type Path = string   // borrowed view
 /// // type PathBuf = string // owned copy
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  `AtomicU64` is an unsigned 64-bit counter that several threads may change at once without a lock,
@@ -52,7 +55,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// // let fixturesMade = 0n; const n = fixturesMade++; // the runtime makes the increment atomic enough for this
 /// ```
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// What:
 ///  The environment variable that moves every fixture root,
@@ -117,7 +123,10 @@ pub(crate) fn forbid_core_dumps() {
         // ```ts
         // const none = { soft: 0, hard: 0 };
         // ```
-        let none: libc::rlimit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        let none: libc::rlimit = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
         // What: `setrlimit` asks the kernel to apply that pair; `unsafe` marks a call whose safety the compiler cannot
         //  check, and the `SAFETY` note says why this one is sound.
         // Why: apply the pair to this test process, from which every child inherits it.
@@ -158,7 +167,7 @@ pub(crate) fn run_fixture_root() -> PathBuf {
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const base = env.CLI_GIT_TEST_ROOT !== undefined ? env.CLI_GIT_TEST_ROOT : targetDir(); 
+    // const base = env.CLI_GIT_TEST_ROOT !== undefined ? env.CLI_GIT_TEST_ROOT : targetDir();
     // ```
     let base: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE).map_or_else(
         || {
@@ -169,9 +178,9 @@ pub(crate) fn run_fixture_root() -> PathBuf {
             // ```ts
             // const target = dirname(dirname(dirname(process.execPath)));
             // ```
-            let target: Option<PathBuf> = this_test_binary()
-                .ok()
-                .and_then(|executable| { return executable.ancestors().nth(3).map(Path::to_path_buf); });
+            let target: Option<PathBuf> = this_test_binary().ok().and_then(|executable| {
+                return executable.ancestors().nth(3).map(Path::to_path_buf);
+            });
             // What: `unwrap_or_else` answers the found target, or the manifest directory's `target` when the test
             //  binary's own path could not be read.
             // Why: a build that runs the test binary from somewhere unexpected still gets a root inside the crate.
@@ -181,7 +190,9 @@ pub(crate) fn run_fixture_root() -> PathBuf {
             // const root = join(target ?? join(manifestDir, 'target'), 'test-fixtures');
             // ```
             return target
-                .unwrap_or_else(|| { return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"); })
+                .unwrap_or_else(|| {
+                    return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target");
+                })
                 .join("test-fixtures");
         },
         PathBuf::from,
@@ -268,7 +279,10 @@ pub(crate) fn fixture_root() -> PathBuf {
 /// ```ts
 /// function thisTestBinary(): string | undefined; // process.execPath
 /// ```
-#[allow(clippy::disallowed_methods, reason = "identifies the running test binary so a control can start a helper copy of it; the wrapper is never started this way")]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "identifies the running test binary so a control can start a helper copy of it; the wrapper is never started this way"
+)]
 pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
     // What: `current_exe` asks the operating system for the path of the program running now.
     // Why: a control starts a second copy of this test binary to play a helper, and it must name the same file.
@@ -317,7 +331,9 @@ pub(crate) fn system_temporary_directories() -> Vec<PathBuf> {
     // ```
     let set: Option<PathBuf> = std::env::var_os("TMPDIR")
         .map(PathBuf::from)
-        .filter(|directory| { return !directory.as_os_str().is_empty(); });
+        .filter(|directory| {
+            return !directory.as_os_str().is_empty();
+        });
     // What: `chain` appends the optional entry after the listed pair, `map` turns each one into what its path
     //  resolves to, and `collect` builds the owned array the caller reads.
     // Why: a root that is a link into a listed directory is in that directory, so the comparison must use the
@@ -330,7 +346,9 @@ pub(crate) fn system_temporary_directories() -> Vec<PathBuf> {
     return listed
         .into_iter()
         .chain(set)
-        .map(|directory| { return std::fs::canonicalize(&directory).unwrap_or(directory); })
+        .map(|directory| {
+            return std::fs::canonicalize(&directory).unwrap_or(directory);
+        })
         .collect();
 }
 
@@ -388,7 +406,11 @@ fn the_number_of_this_fixture() -> u64 {
 /// ```ts
 /// function madeFixtureFolder(directory: string, prefix: string, name: string): string;
 /// ```
-pub(crate) fn made_fixture_folder(directory: &Path, prefix: &str, name: &str) -> PathBuf {
+pub(crate) fn made_fixture_folder(
+    directory: &Path,
+    prefix: &str,
+    name: &str,
+) -> PathBuf {
     // What: `create_dir_all` makes the parent folder too, and the `if let Err` arm takes the failure value out of the
     //  `Result` the call answers (`Result` is Rust's "either a value or an error", TS's `T | Error`).
     // Why: a root that has gone makes every later failure a bare "no such file"; the report below names what became
@@ -406,7 +428,10 @@ pub(crate) fn made_fixture_folder(directory: &Path, prefix: &str, name: &str) ->
         // ```ts
         // throw new Error(`fixture directory root: ${error}; ${missingFixtureRootReport(directory)}`);
         // ```
-        panic!("fixture directory root: {error}; {}", missing_fixture_root_report(directory));
+        panic!(
+            "fixture directory root: {error}; {}",
+            missing_fixture_root_report(directory)
+        );
     }
     // What: the folder's own name, built with `format!` (TS's template string) from the prefix, the process number,
     //  this call's number and the name the test asked for.
@@ -416,7 +441,11 @@ pub(crate) fn made_fixture_folder(directory: &Path, prefix: &str, name: &str) ->
     // ```ts
     // const created = join(directory, `${prefix}-${process.pid}-${theNumberOfThisFixture()}-${name}`);
     // ```
-    let created: PathBuf = directory.join(format!("{prefix}-{}-{}-{name}", std::process::id(), the_number_of_this_fixture()));
+    let created: PathBuf = directory.join(format!(
+        "{prefix}-{}-{}-{name}",
+        std::process::id(),
+        the_number_of_this_fixture()
+    ));
     // What: `exists` asks whether anything at all stands at that path.
     // Why: a folder a killed run left with this call's number is in the way of `create_dir` below.
     //
@@ -447,7 +476,10 @@ pub(crate) fn made_fixture_folder(directory: &Path, prefix: &str, name: &str) ->
     // if (!mkdirSync(created)) throw new Error(`fresh fixture: ...; ${missingFixtureRootReport(directory)}`);
     // ```
     if let Err(error) = std::fs::create_dir(&created) {
-        panic!("fresh fixture: {error}; {}", missing_fixture_root_report(directory));
+        panic!(
+            "fresh fixture: {error}; {}",
+            missing_fixture_root_report(directory)
+        );
     }
     // What: `canonicalize` answers the path with every link and `.`/`..` resolved, so comparisons with Git's own
     //  canonical output are exact.
@@ -506,7 +538,11 @@ pub(crate) fn missing_fixture_root_report(root: &Path) -> String {
     // ```ts
     // const state = existsSync(root) ? 'exists' : 'does not exist';
     // ```
-    let state: &str = if root.exists() { "exists" } else { "does not exist" };
+    let state: &str = if root.exists() {
+        "exists"
+    } else {
+        "does not exist"
+    };
     // What: the tail expression is the report: the root with its state, then what each folder above it holds.
     // Why: a person reading a failure of 217 tests learns which folder went and how far up the loss reached.
     //
@@ -532,7 +568,10 @@ pub(crate) fn missing_fixture_root_report(root: &Path) -> String {
 /// ```ts
 /// function whatAFolderHolds(label: string, folder: string): string;
 /// ```
-fn what_a_folder_holds(label: &str, folder: &Path) -> String {
+fn what_a_folder_holds(
+    label: &str,
+    folder: &Path,
+) -> String {
     // What: `exists` asks whether anything stands at the path.
     // Why: a folder that is gone is a different answer from a folder that is empty, and the report says which.
     //
@@ -599,7 +638,11 @@ fn what_a_folder_holds(label: &str, folder: &Path) -> String {
     // ```ts
     // const tail = more === 0 ? '' : ` and ${more} more`;
     // ```
-    let tail: String = if more == 0 { String::new() } else { format!(" and {more} more") };
+    let tail: String = if more == 0 {
+        String::new()
+    } else {
+        format!(" and {more} more")
+    };
     // What: the tail expression joins the label, the folder, the shown names with `", "` between them, and the count
     //  of the names left out.
     // Why: one line per folder is what the failure report is built from.
@@ -608,7 +651,11 @@ fn what_a_folder_holds(label: &str, folder: &Path) -> String {
     // ```ts
     // return `${label} ${folder} holds: ${names.join(', ')}${tail}`;
     // ```
-    return format!("{label} {} holds: {}{tail}", folder.display(), names.join(", "));
+    return format!(
+        "{label} {} holds: {}{tail}",
+        folder.display(),
+        names.join(", ")
+    );
 }
 
 /// What:
@@ -646,7 +693,10 @@ pub(crate) fn restore_owner_access(root: &Path) {
     // ```ts
     // // import { lstatSync, chmodSync } from 'node:fs';
     // ```
-    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+    use std::os::unix::fs::{
+        MetadataExt as _,
+        PermissionsExt as _,
+    };
     // What: `geteuid` answers the number of this process's user; `unsafe` because the compiler cannot check the call.
     // Why: only a folder this user owns may have its mode changed.
     //
@@ -726,7 +776,10 @@ pub(crate) fn restore_owner_access(root: &Path) {
             // ```ts
             // chmodSync(directory, (mode | ownerBits) & 0o7777);
             // ```
-            let _widened = std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(mode | owner_bits));
+            let _widened = std::fs::set_permissions(
+                &directory,
+                std::fs::Permissions::from_mode(mode | owner_bits),
+            );
         }
         // The directory may have been closed to this user until a moment ago, so it is listed after the mode is restored.
         //
@@ -876,7 +929,10 @@ pub(crate) fn remove_patiently(
 /// ```ts
 /// function settleFixture(root: string, keep: boolean): void; // best effort: never fails the test
 /// ```
-pub(crate) fn settle_fixture(root: &Path, keep: bool) {
+pub(crate) fn settle_fixture(
+    root: &Path,
+    keep: bool,
+) {
     // What: leaving early when the person asked to keep the tree.
     // Why: a kept fixture is what a failure is looked at in.
     //
@@ -897,7 +953,9 @@ pub(crate) fn settle_fixture(root: &Path, keep: bool) {
     // ```
     let _removed: std::io::Result<()> = remove_patiently(
         root,
-        &|directory| { return std::fs::remove_dir_all(directory); },
+        &|directory| {
+            return std::fs::remove_dir_all(directory);
+        },
         REMOVAL_TRIES,
         REMOVAL_PAUSE,
     );

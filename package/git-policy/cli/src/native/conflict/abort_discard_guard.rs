@@ -36,8 +36,17 @@
 
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_facts_abort_discard::AbortDiscard;
-use crate::rule_abort_messages::{discard_refusal_text, ignored_file_refusal_text, unreadable_refusal_text, untracked_file_text};
-use crate::rule_abort_operation::{AbortOperation, OperationEnd, ended_operation};
+use crate::rule_abort_messages::{
+    discard_refusal_text,
+    ignored_file_refusal_text,
+    unreadable_refusal_text,
+    untracked_file_text,
+};
+use crate::rule_abort_operation::{
+    AbortOperation,
+    OperationEnd,
+    ended_operation,
+};
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_linked_worktree_messages::ignored_file_message;
 
@@ -81,7 +90,11 @@ pub enum AbortVerdict {
 /// ```ts
 /// const text = unreadableRefusalText(operation, ends, operation, message);
 /// ```
-fn unreadable(operation: AbortOperation, ends: OperationEnd, message: &str) -> AbortVerdict {
+fn unreadable(
+    operation: AbortOperation,
+    ends: OperationEnd,
+    message: &str,
+) -> AbortVerdict {
     return AbortVerdict::Refused(unreadable_refusal_text(operation, ends, operation, message));
 }
 
@@ -101,26 +114,45 @@ fn unreadable(operation: AbortOperation, ends: OperationEnd, message: &str) -> A
 /// ```ts
 /// function judgeAbortDiscard(facts, command): AbortVerdict;
 /// ```
-pub fn judge_abort_discard(facts: &mut dyn RepositoryFacts, command: GuardedCommand) -> AbortVerdict {
+pub fn judge_abort_discard(
+    facts: &mut dyn RepositoryFacts,
+    command: GuardedCommand,
+) -> AbortVerdict {
     // Every other guarded form deletes or overwrites by itself,
     //  and this carve-out is only about the forms that end an operation.
-    let Some((operation, ends)): Option<(AbortOperation, OperationEnd)> = ended_operation(command) else {
+    let Some((operation, ends)): Option<(AbortOperation, OperationEnd)> = ended_operation(command)
+    else {
         return AbortVerdict::NotApplicable;
     };
     let discard: AbortDiscard = match facts.abort_discard(command) {
         Ok(answer) => answer,
         Err(message) => return unreadable(operation, ends, message.as_str()),
     };
-    let AbortDiscard::Waiting { in_progress, ends: measured_ends, restored, baseline, worktree, staged, conflicted } = discard else {
+    let AbortDiscard::Waiting {
+        in_progress,
+        ends: measured_ends,
+        restored,
+        baseline,
+        worktree,
+        staged,
+        conflicted,
+    } = discard
+    else {
         return AbortVerdict::LeftToGit;
     };
-    debug_assert!(measured_ends == ends, "the reading of what this form ends is the same one the guard is judging");
+    debug_assert!(
+        measured_ends == ends,
+        "the reading of what this form ends is the same one the guard is judging"
+    );
     // An ignored file at a path the restored tree tracks is where a person keeps their environment and their local
     //  secrets, and the command writes that tree back: it is refused naming the paths.
     let revision: Option<&std::ffi::OsStr> = Some(restored.as_os_str());
     match facts.ignored_files_the_tree_tracks(revision) {
         Ok(shared) if !shared.is_empty() => {
-            return AbortVerdict::Refused(ignored_file_refusal_text(ignored_file_message(command, revision, shared.as_slice()), in_progress));
+            return AbortVerdict::Refused(ignored_file_refusal_text(
+                ignored_file_message(command, revision, shared.as_slice()),
+                in_progress,
+            ));
         }
         Ok(_) => {}
         Err(message) => return unreadable(operation, ends, message.as_str()),
@@ -132,7 +164,13 @@ pub fn judge_abort_discard(facts: &mut dyn RepositoryFacts, command: GuardedComm
     //  and the person is told that it is Git that refuses and which file stands in the way.
     match facts.untracked_files_the_tree_tracks(restored.as_os_str()) {
         Ok(untracked) if !untracked.is_empty() => {
-            return AbortVerdict::Refused(untracked_file_text(operation, ends, in_progress, restored.to_string_lossy().as_ref(), untracked.as_slice()));
+            return AbortVerdict::Refused(untracked_file_text(
+                operation,
+                ends,
+                in_progress,
+                restored.to_string_lossy().as_ref(),
+                untracked.as_slice(),
+            ));
         }
         Ok(_) => {}
         Err(message) => return unreadable(operation, ends, message.as_str()),

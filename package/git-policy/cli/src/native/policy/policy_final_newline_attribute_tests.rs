@@ -16,19 +16,48 @@
 #![cfg(unix)]
 
 /// Import the module under test.
-use super::{FINAL_NEWLINE_CODE, FINAL_NEWLINE_MESSAGE, check_final_newline};
-use crate::candidate_object::{ObjectId, parse_object_id};
+use super::{
+    FINAL_NEWLINE_CODE,
+    FINAL_NEWLINE_MESSAGE,
+    check_final_newline,
+};
+use crate::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
+use crate::candidate_prediction::{
+    CandidateRequest,
+    PushedScope,
+};
 use crate::candidate_version::CandidateVersion;
-use crate::candidate_prediction::{CandidateRequest, PushedScope};
 use crate::diagnostics::EngineFailureCode;
 use crate::event_path::EventPath;
-use crate::policy_content::{ContentState, Correction, LifecycleContent};
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
-use crate::policy_test_support::{ScriptedFacts, scripted_facts};
+use crate::policy_content::{
+    ContentState,
+    Correction,
+    LifecycleContent,
+};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyOutcome,
+};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    scripted_facts,
+};
 use crate::policy_trigger::Trigger;
-use crate::test_support::{fixture, git, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_text,
+    remove,
+    repository,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// The finding about the file at `path` of a lifecycle that does not correct.
@@ -44,7 +73,11 @@ fn finding(path: &str) -> PolicyFinding {
 
 /// Write `bytes` at `relative` below `repo`,
 ///  creating the directories above it.
-fn write(repo: &Path, relative: &str, bytes: &[u8]) {
+fn write(
+    repo: &Path,
+    relative: &str,
+    bytes: &[u8],
+) {
     let target: PathBuf = repo.join(relative);
     std::fs::create_dir_all(target.parent().expect("a parent directory")).expect("directories");
     std::fs::write(target, bytes).expect("file");
@@ -56,7 +89,11 @@ fn add_all() -> LifecycleContent {
 }
 
 /// The outcome of one check of `lifecycle` run from `directory`.
-fn check_from(directory: &Path, lifecycle: &LifecycleContent, trigger: Trigger) -> PolicyOutcome {
+fn check_from(
+    directory: &Path,
+    lifecycle: &LifecycleContent,
+    trigger: Trigger,
+) -> PolicyOutcome {
     let mut facts: ScriptedFacts = scripted_facts();
     facts.candidates_repository = Some(directory.to_path_buf());
     return check_final_newline(
@@ -69,18 +106,27 @@ fn check_from(directory: &Path, lifecycle: &LifecycleContent, trigger: Trigger) 
 }
 
 /// The outcome of one check of `lifecycle` run at the top of `repo`.
-fn check(repo: &Path, lifecycle: &LifecycleContent) -> PolicyOutcome {
+fn check(
+    repo: &Path,
+    lifecycle: &LifecycleContent,
+) -> PolicyOutcome {
     return check_from(repo, lifecycle, Trigger::PreForward);
 }
 
 /// The object name `revision` resolves to in `repo`.
-fn object(repo: &Path, revision: &str) -> ObjectId {
+fn object(
+    repo: &Path,
+    revision: &str,
+) -> ObjectId {
     let text: String = git_text(repo, &["rev-parse", revision]);
     return parse_object_id(text.trim().as_bytes()).expect("an object name");
 }
 
 /// Commit everything in `repo` with `message`.
-fn commit_all(repo: &Path, message: &str) {
+fn commit_all(
+    repo: &Path,
+    message: &str,
+) {
     git(repo, &["add", "--all"]);
     git(
         repo,
@@ -186,20 +232,32 @@ fn the_forbidden_strings_fuzz_sidecar_declaration_preserves_its_files() {
     let root: PathBuf = fixture("final-newline-attribute-sidecar");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let sidecar: &str = "package/forbidden-strings/cli.fuzz";
-    write(
-        repo.as_path(),
-        ".gitattributes",
-        b"* text=auto eol=lf\n",
-    );
+    write(repo.as_path(), ".gitattributes", b"* text=auto eol=lf\n");
     write(
         repo.as_path(),
         &format!("{sidecar}/.gitattributes"),
         b"seed/** -text\ncorpus/** -text\nartifacts/** -text\n",
     );
-    write(repo.as_path(), &format!("{sidecar}/seed/fuzz_depth_envelope/boundary-512"), b"[[[");
-    write(repo.as_path(), &format!("{sidecar}/seed/malformed-deep"), b"extra\n\n");
-    write(repo.as_path(), &format!("{sidecar}/corpus/entry"), b"corpus");
-    write(repo.as_path(), &format!("{sidecar}/artifacts/crash"), b"crash");
+    write(
+        repo.as_path(),
+        &format!("{sidecar}/seed/fuzz_depth_envelope/boundary-512"),
+        b"[[[",
+    );
+    write(
+        repo.as_path(),
+        &format!("{sidecar}/seed/malformed-deep"),
+        b"extra\n\n",
+    );
+    write(
+        repo.as_path(),
+        &format!("{sidecar}/corpus/entry"),
+        b"corpus",
+    );
+    write(
+        repo.as_path(),
+        &format!("{sidecar}/artifacts/crash"),
+        b"crash",
+    );
     write(repo.as_path(), &format!("{sidecar}/src/lib.rs"), b"source");
     assert_eq!(
         check(repo.as_path(), &add_all()),
@@ -217,14 +275,22 @@ fn the_toml_edit_fixture_declaration_preserves_its_sources() {
     let root: PathBuf = fixture("final-newline-attribute-toml-fixture");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let package: &str = "package/test-fixture/toml-edit";
+    write(repo.as_path(), ".gitattributes", b"* text=auto eol=lf\n");
     write(
         repo.as_path(),
-        ".gitattributes",
-        b"* text=auto eol=lf\n",
+        &format!("{package}/.gitattributes"),
+        b"src/** -text\n",
     );
-    write(repo.as_path(), &format!("{package}/.gitattributes"), b"src/** -text\n");
-    write(repo.as_path(), &format!("{package}/src/no-final-newline.toml"), b"key = 1");
-    write(repo.as_path(), &format!("{package}/src/extra-final-newlines.toml"), b"key = 1\n\n");
+    write(
+        repo.as_path(),
+        &format!("{package}/src/no-final-newline.toml"),
+        b"key = 1",
+    );
+    write(
+        repo.as_path(),
+        &format!("{package}/src/extra-final-newlines.toml"),
+        b"key = 1\n\n",
+    );
     write(repo.as_path(), &format!("{package}/README.md"), b"readme");
     assert_eq!(
         check(repo.as_path(), &add_all()),
@@ -364,8 +430,7 @@ fn a_landed_commit_reads_the_attributes_of_its_own_tree() {
     write(repo.as_path(), ".gitattributes", b"");
     git(repo.as_path(), &["add", ".gitattributes"]);
     write(repo.as_path(), ".gitattributes", b"plain.txt -text\n");
-    let lifecycle: LifecycleContent =
-        LifecycleContent::Requested(CandidateRequest::Landed(landed));
+    let lifecycle: LifecycleContent = LifecycleContent::Requested(CandidateRequest::Landed(landed));
     assert_eq!(
         check_from(repo.as_path(), &lifecycle, Trigger::PostCommit),
         PolicyOutcome::Findings(vec![finding("plain.txt")])
@@ -433,8 +498,7 @@ fn a_canonical_file_needs_no_attribute_lookup() {
     write(repo.as_path(), "fine.txt", b"fine\n");
     commit_all(repo.as_path(), "canonical");
     let landed: ObjectId = object(repo.as_path(), "HEAD");
-    let lifecycle: LifecycleContent =
-        LifecycleContent::Requested(CandidateRequest::Landed(landed));
+    let lifecycle: LifecycleContent = LifecycleContent::Requested(CandidateRequest::Landed(landed));
     let mut facts: ScriptedFacts = scripted_facts();
     facts.candidates_repository = Some(repo.clone());
     let mut content: ContentState = ContentState::new();
@@ -442,7 +506,13 @@ fn a_canonical_file_needs_no_attribute_lookup() {
     start_object_reader(&mut content, &lifecycle, &mut facts);
     break_git_configuration(repo.as_path());
     assert_eq!(
-        check_final_newline(&mut content, &lifecycle, &mut facts, Trigger::PostCommit, false),
+        check_final_newline(
+            &mut content,
+            &lifecycle,
+            &mut facts,
+            Trigger::PostCommit,
+            false
+        ),
         PolicyOutcome::Findings(Vec::new())
     );
     remove(root.as_path());
@@ -457,15 +527,24 @@ fn an_attribute_lookup_that_fails_fails_the_policy() {
     write(repo.as_path(), "plain.txt", b"plain");
     commit_all(repo.as_path(), "landed");
     let landed: ObjectId = object(repo.as_path(), "HEAD");
-    let lifecycle: LifecycleContent =
-        LifecycleContent::Requested(CandidateRequest::Landed(landed));
+    let lifecycle: LifecycleContent = LifecycleContent::Requested(CandidateRequest::Landed(landed));
     let mut facts: ScriptedFacts = scripted_facts();
     facts.candidates_repository = Some(repo.clone());
     let mut content: ContentState = ContentState::new();
     start_object_reader(&mut content, &lifecycle, &mut facts);
     break_git_configuration(repo.as_path());
-    match check_final_newline(&mut content, &lifecycle, &mut facts, Trigger::PostCommit, false) {
-        PolicyOutcome::Failed { code, message, .. } => {
+    match check_final_newline(
+        &mut content,
+        &lifecycle,
+        &mut facts,
+        Trigger::PostCommit,
+        false,
+    ) {
+        PolicyOutcome::Failed {
+            code,
+            message,
+            ..
+        } => {
             assert_eq!(code, EngineFailureCode::ContentUnavailable);
             // The failure is the attribute lookup's, not the object reader's.
             assert!(

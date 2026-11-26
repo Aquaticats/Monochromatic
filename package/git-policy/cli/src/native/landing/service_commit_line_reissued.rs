@@ -31,13 +31,26 @@
 //! const line = await reissuedArguments({ context, cwd, arguments, subcommand, file, prepared, interactive });
 //! ```
 
-use crate::commit_args::{normalise_commit_args, takes_next_token};
+use crate::commit_args::{
+    normalise_commit_args,
+    takes_next_token,
+};
 use crate::commit_transaction::TransactionStop;
-use crate::path_bytes::{argument_bytes, os_from_path_bytes};
+use crate::path_bytes::{
+    argument_bytes,
+    os_from_path_bytes,
+};
 use crate::service_amend::split_author;
 use crate::service_amend_replayed::stored_commit_fields;
-use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
-use std::ffi::{OsStr, OsString};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git_checked,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::path::Path;
 
 /// The token that ends the options of a commit region.
@@ -76,7 +89,10 @@ pub(crate) struct BorrowedAuthor {
 /// const borrows = (token) => ['-c', '-C', '--reuse-message', '--reedit-message'].includes(nameOf(token));
 /// ```
 fn borrows_its_author(token: &OsStr) -> bool {
-    return matches!(name_of(token), Some("-c" | "-C" | "--reuse-message" | "--reedit-message"));
+    return matches!(
+        name_of(token),
+        Some("-c" | "-C" | "--reuse-message" | "--reedit-message")
+    );
 }
 
 /// The name half of an option split at the `=` that attached its value.
@@ -113,12 +129,16 @@ fn name_of(token: &OsStr) -> Option<&str> {
 /// const rewords = (token) => /^--(fixup|squash)=reword(:|$)/.test(token);
 /// ```
 fn rewords_another_commit(token: &OsStr) -> bool {
-    let Some(text) = token.to_str() else { return false };
+    let Some(text) = token.to_str() else {
+        return false;
+    };
     let named: Option<&str> = match text.strip_prefix("--fixup=") {
         Some(value) => Some(value),
         None => text.strip_prefix("--squash="),
     };
-    let Some(value) = named else { return false; };
+    let Some(value) = named else {
+        return false;
+    };
     return value == "reword" || value.starts_with("reword:");
 }
 
@@ -153,7 +173,11 @@ fn without_selection_letters(token: &OsStr) -> Option<OsString> {
         }
         kept.push(letter);
     }
-    return if kept == b"-" { None } else { Some(os_from_path_bytes(kept.as_slice())) };
+    return if kept == b"-" {
+        None
+    } else {
+        Some(os_from_path_bytes(kept.as_slice()))
+    };
 }
 
 /// What:
@@ -172,8 +196,12 @@ fn without_selection_letters(token: &OsStr) -> Option<OsString> {
 /// ```ts
 /// rewordsACommit(args, subcommand) // boolean
 /// ```
-pub(crate) fn rewords_a_commit(arguments: &[OsString], subcommand: usize) -> bool {
-    let region: Vec<OsString> = normalise_commit_args(arguments.get(subcommand + 1..).unwrap_or(&[]));
+pub(crate) fn rewords_a_commit(
+    arguments: &[OsString],
+    subcommand: usize,
+) -> bool {
+    let region: Vec<OsString> =
+        normalise_commit_args(arguments.get(subcommand + 1..).unwrap_or(&[]));
     let mut state: State = State::Option;
     for token in &region {
         match state {
@@ -191,7 +219,11 @@ pub(crate) fn rewords_a_commit(arguments: &[OsString], subcommand: usize) -> boo
         if rewords_another_commit(token.as_os_str()) {
             return true;
         }
-        state = if takes_next_token(token.as_os_str()) { State::Value } else { State::Option };
+        state = if takes_next_token(token.as_os_str()) {
+            State::Value
+        } else {
+            State::Option
+        };
     }
     return false;
 }
@@ -246,7 +278,11 @@ enum Settled {
 /// ```ts
 /// withoutSettledOptions({ region, interactive, borrowed });
 /// ```
-fn without_settled_options(region: &[OsString], interactive: bool, borrowed: Option<&BorrowedAuthor>) -> Settled {
+fn without_settled_options(
+    region: &[OsString],
+    interactive: bool,
+    borrowed: Option<&BorrowedAuthor>,
+) -> Settled {
     let mut kept: Vec<OsString> = Vec::new();
     let mut state: State = State::Option;
     for token in region {
@@ -310,12 +346,20 @@ fn without_settled_options(region: &[OsString], interactive: bool, borrowed: Opt
 
 /// What the walk reads after an option it keeps.
 fn kept_after(token: &OsStr) -> State {
-    return if takes_next_token(token) { State::Value } else { State::Option };
+    return if takes_next_token(token) {
+        State::Value
+    } else {
+        State::Option
+    };
 }
 
 /// What the walk reads after an option it drops.
 fn dropped_after(token: &OsStr) -> State {
-    return if takes_next_token(token) { State::DroppedValue } else { State::Option };
+    return if takes_next_token(token) {
+        State::DroppedValue
+    } else {
+        State::Option
+    };
 }
 
 /// What:
@@ -333,11 +377,25 @@ fn dropped_after(token: &OsStr) -> State {
 /// # Errors
 ///
 /// `TransactionStop::Message` when the commit cannot be read.
-pub(crate) fn borrowed_author_of(context: &GitContext, cwd: &Path, commit: &str) -> Result<Option<BorrowedAuthor>, TransactionStop> {
-    let read = run_git_checked(context, &GitRequest::new(cwd, &["cat-file", "commit", commit]))?;
-    let Some(fields) = stored_commit_fields(read.stdout.as_slice()) else { return Ok(None) };
-    let Some((name, email, date)) = split_author(fields.authored_by()) else { return Ok(None) };
-    return Ok(Some(BorrowedAuthor { author: format!("{name} <{email}>"), date }));
+pub(crate) fn borrowed_author_of(
+    context: &GitContext,
+    cwd: &Path,
+    commit: &str,
+) -> Result<Option<BorrowedAuthor>, TransactionStop> {
+    let read = run_git_checked(
+        context,
+        &GitRequest::new(cwd, &["cat-file", "commit", commit]),
+    )?;
+    let Some(fields) = stored_commit_fields(read.stdout.as_slice()) else {
+        return Ok(None);
+    };
+    let Some((name, email, date)) = split_author(fields.authored_by()) else {
+        return Ok(None);
+    };
+    return Ok(Some(BorrowedAuthor {
+        author: format!("{name} <{email}>"),
+        date,
+    }));
 }
 
 /// What:
@@ -368,20 +426,26 @@ pub(crate) fn reissued_arguments(
     prepared: Option<&str>,
     interactive: bool,
 ) -> Result<Option<Vec<OsString>>, TransactionStop> {
-    let region: Vec<OsString> = normalise_commit_args(arguments.get(subcommand + 1..).unwrap_or(&[]));
-    let (mut rebuilt, borrowed): (Vec<OsString>, Option<BorrowedAuthor>) = match without_settled_options(region.as_slice(), interactive, None) {
-        Settled::Line(kept) => (kept, None),
-        Settled::Cannot => return Ok(None),
-        Settled::NeedsTheAuthorship => {
-            let Some(commit) = prepared else { return Ok(None) };
-            let Some(found) = borrowed_author_of(context, cwd, commit)? else { return Ok(None) };
-            match without_settled_options(region.as_slice(), interactive, Some(&found)) {
-                Settled::Line(kept) => (kept, Some(found)),
-                // A line that names its own author and a commit to reuse it from cannot be both.
-                Settled::NeedsTheAuthorship | Settled::Cannot => return Ok(None),
+    let region: Vec<OsString> =
+        normalise_commit_args(arguments.get(subcommand + 1..).unwrap_or(&[]));
+    let (mut rebuilt, borrowed): (Vec<OsString>, Option<BorrowedAuthor>) =
+        match without_settled_options(region.as_slice(), interactive, None) {
+            Settled::Line(kept) => (kept, None),
+            Settled::Cannot => return Ok(None),
+            Settled::NeedsTheAuthorship => {
+                let Some(commit) = prepared else {
+                    return Ok(None);
+                };
+                let Some(found) = borrowed_author_of(context, cwd, commit)? else {
+                    return Ok(None);
+                };
+                match without_settled_options(region.as_slice(), interactive, Some(&found)) {
+                    Settled::Line(kept) => (kept, Some(found)),
+                    // A line that names its own author and a commit to reuse it from cannot be both.
+                    Settled::NeedsTheAuthorship | Settled::Cannot => return Ok(None),
+                }
             }
-        }
-    };
+        };
     // The authorship the line borrowed goes where the option that borrowed it was, and Git reads it from there.
     if let Some(found) = borrowed.as_ref() {
         rebuilt.insert(0, OsString::from(format!("--author={}", found.author)));
@@ -389,7 +453,11 @@ pub(crate) fn reissued_arguments(
     }
     let mut whole: Vec<OsString> = arguments.get(..=subcommand).unwrap_or(&[]).to_vec();
     whole.extend(rebuilt);
-    return Ok(crate::service_commit_args::with_fixed_message(whole.as_slice(), subcommand, file));
+    return Ok(crate::service_commit_args::with_fixed_message(
+        whole.as_slice(),
+        subcommand,
+        file,
+    ));
 }
 
 /// Controls for the line a moved branch rebuilds stay out of the release executable.

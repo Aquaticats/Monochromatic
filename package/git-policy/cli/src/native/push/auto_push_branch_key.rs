@@ -34,7 +34,10 @@ pub struct BranchKeyError {
 /// Displays the diagnostic only.
 impl std::fmt::Display for BranchKeyError {
     /// Writes the diagnostic text.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(&self.message);
     }
 }
@@ -98,11 +101,12 @@ pub fn encode_branch_key(ref_name: &str) -> String {
 /// ```ts
 /// function decodeEscape({ key, index }): number; // throws BranchKeyError
 /// ```
-fn decode_escape(key: &[u8], index: usize) -> Result<u8, BranchKeyError> {
+fn decode_escape(
+    key: &[u8],
+    index: usize,
+) -> Result<u8, BranchKeyError> {
     let digits = key.get(index + 1..index + 3).unwrap_or(&[]);
-    if digits.len() != 2
-        || !digits.iter().all(is_upper_hex_ref)
-    {
+    if digits.len() != 2 || !digits.iter().all(is_upper_hex_ref) {
         return Err(BranchKeyError {
             message: format!(
                 "Push coordination key has a malformed escape at {index}: {}",

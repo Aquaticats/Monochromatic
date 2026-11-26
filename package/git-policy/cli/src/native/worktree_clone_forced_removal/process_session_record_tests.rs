@@ -10,7 +10,14 @@ use crate::worktree_clone_forced_removal::process_session_record::*;
 
 /// The fields a record carries after the command name,
 /// in the kernel's own order.
-fn stat_line(command: &str, state: char, parent: i32, group: i32, session: i32, started: u64) -> String {
+fn stat_line(
+    command: &str,
+    state: char,
+    parent: i32,
+    group: i32,
+    session: i32,
+    started: u64,
+) -> String {
     let mut fields: Vec<String> = vec![String::from(state)];
     fields.push(parent.to_string());
     fields.push(group.to_string());
@@ -47,7 +54,11 @@ fn a_command_name_holding_parentheses_does_not_move_the_fields() {
 #[test]
 fn a_short_record_is_blind() {
     let outcome: ReadOutcome = parse_process_record(1, "1 (sh) S 0 0 0");
-    let ReadOutcome::Blind { word, .. } = outcome else {
+    let ReadOutcome::Blind {
+        word,
+        ..
+    } = outcome
+    else {
         panic!("a short record is not found: {outcome:?}");
     };
     assert_eq!(word, RefusalWord::HolderBlind);
@@ -78,11 +89,16 @@ fn only_a_missing_task_is_gone() {
 /// and a number no task has is gone.
 #[test]
 fn a_record_reads_from_a_fixture_tree() {
-    let tree: std::path::PathBuf = crate::testing::test_support::fixture_root().join("process-record-reads");
+    let tree: std::path::PathBuf =
+        crate::testing::test_support::fixture_root().join("process-record-reads");
     let _removed: std::io::Result<()> = std::fs::remove_dir_all(&tree);
     let folder: std::path::PathBuf = tree.join("777");
     std::fs::create_dir_all(folder.as_path()).expect("the task's folder");
-    std::fs::write(folder.join("stat"), stat_line("worker", 'R', 1, 777, 777, 5)).expect("the record");
+    std::fs::write(
+        folder.join("stat"),
+        stat_line("worker", 'R', 1, 777, 777, 5),
+    )
+    .expect("the record");
     let ReadOutcome::Found(record) = read_process_record(tree.as_path(), 777) else {
         panic!("the fixture's record reads");
     };
@@ -96,7 +112,8 @@ fn a_record_reads_from_a_fixture_tree() {
 /// so its record reads as a task that has gone.
 #[test]
 fn a_zombie_is_gone() {
-    let tree: std::path::PathBuf = crate::testing::test_support::fixture_root().join("process-record-zombie");
+    let tree: std::path::PathBuf =
+        crate::testing::test_support::fixture_root().join("process-record-zombie");
     let _removed: std::io::Result<()> = std::fs::remove_dir_all(&tree);
     let folder: std::path::PathBuf = tree.join("9");
     std::fs::create_dir_all(folder.as_path()).expect("the task's folder");

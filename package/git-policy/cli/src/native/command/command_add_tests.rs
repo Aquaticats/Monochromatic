@@ -16,19 +16,42 @@
 ///  its table,
 ///  the oracles and the real-Git fixture helpers.
 use super::{
-    ADD_ESCAPE_HATCH, ADD_TABLE, AddRegion, caller_global_prefix, is_ordinary_named_path,
-    literal_pathspecs_enabled, names_no_literal_character, parse_add_region,
+    ADD_ESCAPE_HATCH,
+    ADD_TABLE,
+    AddRegion,
+    caller_global_prefix,
+    is_ordinary_named_path,
+    literal_pathspecs_enabled,
+    names_no_literal_character,
+    parse_add_region,
 };
 use crate::command_options::OptionErrorKind;
-use crate::command_test_completion::{git_completion, render_completion};
+use crate::command_test_completion::{
+    git_completion,
+    render_completion,
+};
 use crate::command_test_support::{
-    assert_table_invariants, byte_argument, fixture, git, git_output, os_arguments, output_text,
-    remove, repository, repository_with_tracked_file,
+    assert_table_invariants,
+    byte_argument,
+    fixture,
+    git,
+    git_output,
+    os_arguments,
+    output_text,
+    remove,
+    repository,
+    repository_with_tracked_file,
 };
 /// The argument lists the policy's own queries carry.
-use crate::rule_add_explicit::{selection_query_arguments, whole_worktree_query_arguments};
+use crate::rule_add_explicit::{
+    selection_query_arguments,
+    whole_worktree_query_arguments,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Parse a region Git accepts,
 ///  with no other wrapper flags.
@@ -54,7 +77,11 @@ fn detects_the_incumbent_bulk_flags() {
         assert!(region(values.as_slice()).update_token.is_none());
     }
     for values in [vec!["-u"], vec!["--update"]] {
-        assert_eq!(region(values.as_slice()).update_token, Some(0), "{values:?}");
+        assert_eq!(
+            region(values.as_slice()).update_token,
+            Some(0),
+            "{values:?}"
+        );
         assert!(region(values.as_slice()).all_token.is_none());
     }
     // A flag is found wherever the caller wrote it, before or after `--`.
@@ -157,9 +184,31 @@ fn only_an_ordinary_named_path_is_no_question() {
 #[test]
 fn every_whole_tree_spelling_is_a_question_git_answers() {
     for spelling in [
-        ".", "./", ".//", "././", ".*", "..", "sub/..", "sub/../", "sub/../.", "*", "**", "./**",
-        ":/*", ":/**", ":/", ":(top)", ":(glob)**", ":(top,glob)**", ":(top)**", ":(icase)*",
-        ":(attr:!nope)", ":!nothing-here", ":^nothing-here", "*.txt", "sub/*",
+        ".",
+        "./",
+        ".//",
+        "././",
+        ".*",
+        "..",
+        "sub/..",
+        "sub/../",
+        "sub/../.",
+        "*",
+        "**",
+        "./**",
+        ":/*",
+        ":/**",
+        ":/",
+        ":(top)",
+        ":(glob)**",
+        ":(top,glob)**",
+        ":(top)**",
+        ":(icase)*",
+        ":(attr:!nope)",
+        ":!nothing-here",
+        ":^nothing-here",
+        "*.txt",
+        "sub/*",
     ] {
         assert_eq!(
             questioned(&[spelling]),
@@ -288,7 +337,10 @@ fn staged(root: &Path) -> String {
 
 /// The paths one query lists,
 ///  each as Git printed it.
-fn listed(directory: &Path, arguments: &[OsString]) -> Vec<String> {
+fn listed(
+    directory: &Path,
+    arguments: &[OsString],
+) -> Vec<String> {
     let answer: std::process::Output = git_output(directory, arguments);
     assert!(
         answer.status.success(),
@@ -344,15 +396,52 @@ fn the_caller_mode_is_its_last_literal_option_then_the_variable() {
     assert!(!literal(&[], None));
     assert!(literal(&["--literal-pathspecs"], None));
     assert!(!literal(&["--no-literal-pathspecs"], None));
-    assert!(!literal(&["--literal-pathspecs", "--no-literal-pathspecs"], None), "the later option wins");
-    assert!(literal(&["--no-literal-pathspecs", "--literal-pathspecs"], None));
-    assert!(literal(&["-C", "dir", "-c", "core.pager=cat", "--literal-pathspecs"], None), "other global options do not disturb it");
-    assert!(!literal(&["-C", "--literal-pathspecs"], None), "the value of -C is no option of the caller's");
-    assert!(!literal(&["-c", "--no-literal-pathspecs"], None), "nor is the value of -c");
-    assert!(literal(&["-C", "--literal-pathspecs", "--literal-pathspecs"], None), "the option after that value still counts");
-    for (value, expected) in [("1", true), ("true", true), ("yes", true), ("ON", true), ("0", false), ("false", false), ("", false), ("banana", false)] {
-        assert_eq!(literal(&[], Some(value)), expected, "GIT_LITERAL_PATHSPECS={value:?}");
-        assert!(!literal(&["--no-literal-pathspecs"], Some(value)), "an option the caller wrote overrides the variable");
+    assert!(
+        !literal(&["--literal-pathspecs", "--no-literal-pathspecs"], None),
+        "the later option wins"
+    );
+    assert!(literal(
+        &["--no-literal-pathspecs", "--literal-pathspecs"],
+        None
+    ));
+    assert!(
+        literal(
+            &["-C", "dir", "-c", "core.pager=cat", "--literal-pathspecs"],
+            None
+        ),
+        "other global options do not disturb it"
+    );
+    assert!(
+        !literal(&["-C", "--literal-pathspecs"], None),
+        "the value of -C is no option of the caller's"
+    );
+    assert!(
+        !literal(&["-c", "--no-literal-pathspecs"], None),
+        "nor is the value of -c"
+    );
+    assert!(
+        literal(&["-C", "--literal-pathspecs", "--literal-pathspecs"], None),
+        "the option after that value still counts"
+    );
+    for (value, expected) in [
+        ("1", true),
+        ("true", true),
+        ("yes", true),
+        ("ON", true),
+        ("0", false),
+        ("false", false),
+        ("", false),
+        ("banana", false),
+    ] {
+        assert_eq!(
+            literal(&[], Some(value)),
+            expected,
+            "GIT_LITERAL_PATHSPECS={value:?}"
+        );
+        assert!(
+            !literal(&["--no-literal-pathspecs"], Some(value)),
+            "an option the caller wrote overrides the variable"
+        );
     }
 }
 
@@ -360,11 +449,26 @@ fn the_caller_mode_is_its_last_literal_option_then_the_variable() {
 #[test]
 fn the_caller_global_prefix_stops_at_the_subcommand() {
     let prefix = |values: &[&str]| -> Vec<String> {
-        return caller_global_prefix(os_arguments(values).as_slice()).iter().map(|word| { return word.to_string_lossy().into_owned(); }).collect();
+        return caller_global_prefix(os_arguments(values).as_slice())
+            .iter()
+            .map(|word| {
+                return word.to_string_lossy().into_owned();
+            })
+            .collect();
     };
     assert_eq!(prefix(&["add", "--", "**"]), Vec::<String>::new());
-    assert_eq!(prefix(&["--literal-pathspecs", "add", "--", "**"]), vec![String::from("--literal-pathspecs")]);
-    assert_eq!(prefix(&["-C", "dir", "--no-pager", "add", "-A"]), vec![String::from("-C"), String::from("dir"), String::from("--no-pager")]);
+    assert_eq!(
+        prefix(&["--literal-pathspecs", "add", "--", "**"]),
+        vec![String::from("--literal-pathspecs")]
+    );
+    assert_eq!(
+        prefix(&["-C", "dir", "--no-pager", "add", "-A"]),
+        vec![
+            String::from("-C"),
+            String::from("dir"),
+            String::from("--no-pager")
+        ]
+    );
 }
 
 /// The two queries the policy reads are built here:
@@ -376,7 +480,9 @@ fn the_queries_carry_the_caller_mode_and_their_own() {
     let spellings: Vec<OsString> = os_arguments(&[":(top)", "a*b"]);
     let selection: Vec<String> = selection_query_arguments(prefix.as_slice(), spellings.as_slice())
         .iter()
-        .map(|word| { return word.to_string_lossy().into_owned(); })
+        .map(|word| {
+            return word.to_string_lossy().into_owned();
+        })
         .collect();
     assert_eq!(
         selection,
@@ -396,7 +502,9 @@ fn the_queries_carry_the_caller_mode_and_their_own() {
     );
     let whole: Vec<String> = whole_worktree_query_arguments(prefix.as_slice())
         .iter()
-        .map(|word| { return word.to_string_lossy().into_owned(); })
+        .map(|word| {
+            return word.to_string_lossy().into_owned();
+        })
         .collect();
     assert_eq!(
         whole,
@@ -428,8 +536,15 @@ fn a_directory_named_like_a_mode_option_is_no_mode_in_git() {
     let root: PathBuf = repository(directory.as_path(), "--literal-pathspecs");
     std::fs::write(root.join("a.txt"), b"a\n").expect("write a.txt");
     std::fs::write(root.join("b.txt"), b"b\n").expect("write b.txt");
-    git(directory.as_path(), &["-C", "--literal-pathspecs", "add", "--", "**"]);
-    assert_eq!(staged(root.as_path()), "a.txt\nb.txt", "Git stages everything below the directory -C named");
+    git(
+        directory.as_path(),
+        &["-C", "--literal-pathspecs", "add", "--", "**"],
+    );
+    assert_eq!(
+        staged(root.as_path()),
+        "a.txt\nb.txt",
+        "Git stages everything below the directory -C named"
+    );
     remove(directory.as_path());
 }
 
@@ -445,24 +560,53 @@ fn the_selection_query_lists_exactly_what_git_add_stages() {
     std::fs::write(root.join("sub/below.txt"), b"below\n").expect("write below file");
     std::fs::write(root.join(".gitignore"), b"*.log\n").expect("write ignore file");
     std::fs::write(root.join("ignored.log"), b"gone\n").expect("write ignored file");
-    git(root.as_path(), &["add", "--", ".gitignore", "sub/below.txt", "top.txt"]);
+    git(
+        root.as_path(),
+        &["add", "--", ".gitignore", "sub/below.txt", "top.txt"],
+    );
     git(root.as_path(), &["commit", "--quiet", "--message=tree"]);
     // Every tracked file differs from the index, so each spelling below stages all of them.
     for path in ["sub/below.txt", "top.txt", "tracked.txt"] {
         std::fs::write(root.join(path), b"changed\n").expect("modify a tracked file");
     }
-    let whole: Vec<String> = listed(root.as_path(), whole_worktree_query_arguments(&[]).as_slice());
-    assert_eq!(whole, vec![".gitignore", "sub/below.txt", "top.txt", "tracked.txt"]);
+    let whole: Vec<String> = listed(
+        root.as_path(),
+        whole_worktree_query_arguments(&[]).as_slice(),
+    );
+    assert_eq!(
+        whole,
+        vec![".gitignore", "sub/below.txt", "top.txt", "tracked.txt"]
+    );
     // A tracked file that differs from the index is staged by every spelling below.
     std::fs::write(root.join(".gitignore"), b"*.log\n# changed\n").expect("modify the ignore file");
     for spelling in [
-        ".", "./", ".//", "././", "./**", "*", "**", ":/*", ":/**", ":/", ":(top)",
-        ":(glob)**", ":(top,glob)**", ":(top)**", ":(icase)*", ":(attr:!nope)", ":!nothing-here",
-        ":^nothing-here", "sub/..", "sub/../",
+        ".",
+        "./",
+        ".//",
+        "././",
+        "./**",
+        "*",
+        "**",
+        ":/*",
+        ":/**",
+        ":/",
+        ":(top)",
+        ":(glob)**",
+        ":(top,glob)**",
+        ":(top)**",
+        ":(icase)*",
+        ":(attr:!nope)",
+        ":!nothing-here",
+        ":^nothing-here",
+        "sub/..",
+        "sub/../",
     ] {
         let spellings: Vec<OsString> = vec![OsString::from(spelling)];
         assert_eq!(
-            listed(root.as_path(), selection_query_arguments(&[], spellings.as_slice()).as_slice()),
+            listed(
+                root.as_path(),
+                selection_query_arguments(&[], spellings.as_slice()).as_slice()
+            ),
             whole,
             "{spelling:?} selects the whole tree"
         );
@@ -473,7 +617,10 @@ fn the_selection_query_lists_exactly_what_git_add_stages() {
     // A pattern that happens to fit every path selects them all, and names a character of a name.
     let pattern: Vec<OsString> = vec![OsString::from("*.*")];
     assert_eq!(
-        listed(root.as_path(), selection_query_arguments(&[], pattern.as_slice()).as_slice()),
+        listed(
+            root.as_path(),
+            selection_query_arguments(&[], pattern.as_slice()).as_slice()
+        ),
         whole,
         "every path of this tree holds a dot"
     );
@@ -492,7 +639,10 @@ fn literal_mode_stages_the_literal_file_in_git() {
     let (directory, root): (PathBuf, PathBuf) = repository_with_tracked_file("add-literal-mode");
     for spelling in ["*", "**", ":(top)", ":(glob)**"] {
         std::fs::write(root.join(spelling), b"literal\n").expect("write the literal file");
-        git(root.as_path(), &["--literal-pathspecs", "add", "--", spelling]);
+        git(
+            root.as_path(),
+            &["--literal-pathspecs", "add", "--", spelling],
+        );
         assert_eq!(staged(root.as_path()), spelling, "{spelling}");
         git(root.as_path(), &["reset", "--quiet"]);
         std::fs::remove_file(root.join(spelling)).expect("remove the literal file");
@@ -501,8 +651,15 @@ fn literal_mode_stages_the_literal_file_in_git() {
     std::fs::create_dir(root.join("sub")).expect("sub directory");
     std::fs::write(root.join("sub/below.txt"), b"below\n").expect("write below file");
     for spelling in [".", "./"] {
-        git(root.as_path(), &["--literal-pathspecs", "add", "--", spelling]);
-        assert_eq!(staged(root.as_path()), "sub/below.txt\ntop.txt", "{spelling}");
+        git(
+            root.as_path(),
+            &["--literal-pathspecs", "add", "--", spelling],
+        );
+        assert_eq!(
+            staged(root.as_path()),
+            "sub/below.txt\ntop.txt",
+            "{spelling}"
+        );
         git(root.as_path(), &["reset", "--quiet"]);
     }
     assert!(!names_no_literal_character(b"**", true) && names_no_literal_character(b".", true));

@@ -11,8 +11,20 @@
 
 /// Import the pairs under test.
 use super::{
-    COMMAND_WORD, COMMIT_TIMING_LOG, DATA_FOLDER, DISCARD_AUDIT_LOG, MERGE_INTENT_FOLDER, MESSAGE_PREFIX, PROGRAM,
-    PUSH_TRIGGER_LOG, REPOSITORY_SCRATCH, RenamedName, SERVICE_UNIT, SETTINGS_FILE, WORKTREE_ADD_TIMING_LOG, WORKTREE_COPY_RECORD_FOLDER,
+    COMMAND_WORD,
+    COMMIT_TIMING_LOG,
+    DATA_FOLDER,
+    DISCARD_AUDIT_LOG,
+    MERGE_INTENT_FOLDER,
+    MESSAGE_PREFIX,
+    PROGRAM,
+    PUSH_TRIGGER_LOG,
+    REPOSITORY_SCRATCH,
+    RenamedName,
+    SERVICE_UNIT,
+    SETTINGS_FILE,
+    WORKTREE_ADD_TIMING_LOG,
+    WORKTREE_COPY_RECORD_FOLDER,
 };
 
 /// Every pair this release keeps,
@@ -45,8 +57,14 @@ fn program_and_command_word_follow_the_crate_name() {
 /// The settings file keeps its extension and gains the program's name.
 #[test]
 fn settings_file_is_the_program_name_with_the_same_ending() {
-    assert_eq!(SETTINGS_FILE.current, format!("{}.config.jsonc", PROGRAM.current));
-    assert_eq!(SETTINGS_FILE.earlier, format!("{}.config.jsonc", COMMAND_WORD.earlier));
+    assert_eq!(
+        SETTINGS_FILE.current,
+        format!("{}.config.jsonc", PROGRAM.current)
+    );
+    assert_eq!(
+        SETTINGS_FILE.earlier,
+        format!("{}.config.jsonc", COMMAND_WORD.earlier)
+    );
 }
 
 /// A current spelling never equals its earlier spelling,
@@ -66,7 +84,11 @@ fn an_earlier_spelling_never_matches_a_current_name_by_prefix_and_separator() {
     for pair in ALL_PAIRS {
         for other in ALL_PAIRS {
             let prefix_of_current: bool = other.current.starts_with(pair.earlier);
-            assert!(!prefix_of_current, "{} starts with {}", other.current, pair.earlier);
+            assert!(
+                !prefix_of_current,
+                "{} starts with {}",
+                other.current, pair.earlier
+            );
         }
     }
 }
@@ -75,7 +97,16 @@ fn an_earlier_spelling_never_matches_a_current_name_by_prefix_and_separator() {
 ///  so one search finds everything it left in a Git directory.
 #[test]
 fn kept_names_begin_with_the_program_name() {
-    for pair in [DATA_FOLDER, DISCARD_AUDIT_LOG, COMMIT_TIMING_LOG, WORKTREE_ADD_TIMING_LOG, PUSH_TRIGGER_LOG, MERGE_INTENT_FOLDER, WORKTREE_COPY_RECORD_FOLDER, REPOSITORY_SCRATCH] {
+    for pair in [
+        DATA_FOLDER,
+        DISCARD_AUDIT_LOG,
+        COMMIT_TIMING_LOG,
+        WORKTREE_ADD_TIMING_LOG,
+        PUSH_TRIGGER_LOG,
+        MERGE_INTENT_FOLDER,
+        WORKTREE_COPY_RECORD_FOLDER,
+        REPOSITORY_SCRATCH,
+    ] {
         assert!(pair.current.starts_with(PROGRAM.current), "{pair:?}");
         assert!(pair.earlier.starts_with("cli-git"), "{pair:?}");
     }

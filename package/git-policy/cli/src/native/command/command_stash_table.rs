@@ -24,7 +24,13 @@
 /// ```ts
 /// import { Arity, type OptionSpec, type ParseMode, row, UNREAD } from './command_options.ts';
 /// ```
-use crate::command_options::{Arity, OptionSpec, ParseMode, UNREAD, row};
+use crate::command_options::{
+    Arity,
+    OptionSpec,
+    ParseMode,
+    UNREAD,
+    row,
+};
 
 /// `git stash push` (`push_stash`,
 ///  builtin/stash.c:1920-1940).

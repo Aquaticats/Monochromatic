@@ -37,7 +37,11 @@ use std::os::fd::OwnedFd;
 // What: `io` is the input and output error type every start, wait and read here answers with.
 use std::io;
 // What: `Child`, `Command` and `Stdio` are the started program, its description, and how its streams are connected.
-use std::process::{Child, Command, Stdio};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 // What: How the child ended, with the exit-code mapping the wrapper's exit uses.
 use crate::forwarding::ChildOutcome;
 // What: The guard whose handlers a started child is published to, and the token that points them at it.
@@ -53,7 +57,11 @@ use crate::signal_relay_relayed_child::RelayedChild;
 // import { copyWhatIsReadable, drainWhatIsLeft, makeNonBlocking } from './the-relayed-bytes';
 // ```
 use super::a_terminal_the_child_writes_its_error_stream_to::open_a_terminal_pair;
-use super::the_relayed_bytes::{copy_what_is_readable, drain_what_is_left, make_non_blocking};
+use super::the_relayed_bytes::{
+    copy_what_is_readable,
+    drain_what_is_left,
+    make_non_blocking,
+};
 
 /// What:
 ///  How much of the child's error stream the relay keeps for the reading after the wait.
@@ -79,7 +87,10 @@ pub(super) const KEPT_TAIL_BYTES: usize = 65536;
 /// ```ts
 /// const POLL_SLICE = { tv_sec: 0, tv_nsec: 100_000_000 }; // 100 ms
 /// ```
-pub(super) const POLL_SLICE: rustix::event::Timespec = rustix::event::Timespec { tv_sec: 0, tv_nsec: 100_000_000 };
+pub(super) const POLL_SLICE: rustix::event::Timespec = rustix::event::Timespec {
+    tv_sec: 0,
+    tv_nsec: 100_000_000,
+};
 
 /// What:
 ///  One read's worth of the child's error stream.
@@ -189,7 +200,11 @@ pub struct RelayedStart {
 /// const source = pair?.master ?? relayed.child.stderr;
 /// return { child, source, relayed };
 /// ```
-pub fn start_relaying(shape: ErrorStreamShape, guard: Option<&SignalGuard>, command: &mut Command) -> io::Result<RelayedStart> {
+pub fn start_relaying(
+    shape: ErrorStreamShape,
+    guard: Option<&SignalGuard>,
+    command: &mut Command,
+) -> io::Result<RelayedStart> {
     // What: `Option<OwnedFd>` is "a descriptor or nothing": the pseudo-terminal's master when K2 chose a terminal.
     // Why:  A pipe's reading end belongs to the child value, so only one shape opens a descriptor here.
     //
@@ -249,7 +264,10 @@ pub fn start_relaying(shape: ErrorStreamShape, guard: Option<&SignalGuard>, comm
         // ```ts
         // (await spawnRetrying(command), undefined)
         // ```
-        None => (crate::start_retry::RetryStart::spawn_retrying(command)?, None),
+        None => (
+            crate::start_retry::RetryStart::spawn_retrying(command)?,
+            None,
+        ),
     };
     // What: `OwnedFd::from` takes the pipe's reading end out of the child value, which then holds no stream.
     // Why:  Both shapes are then read through one descriptor, and the child value is only the wait.
@@ -262,7 +280,9 @@ pub fn start_relaying(shape: ErrorStreamShape, guard: Option<&SignalGuard>, comm
         Some(descriptor) => descriptor,
         None => {
             let Some(piped) = child.stderr.take() else {
-                return Err(io::Error::other("the child's error stream is not the wrapper's"));
+                return Err(io::Error::other(
+                    "the child's error stream is not the wrapper's",
+                ));
             };
             OwnedFd::from(piped)
         }
@@ -276,7 +296,11 @@ pub fn start_relaying(shape: ErrorStreamShape, guard: Option<&SignalGuard>, comm
     // ```ts
     // return { child, source, relayed };
     // ```
-    return Ok(RelayedStart { child: Some(child), source: Some(source), relayed });
+    return Ok(RelayedStart {
+        child: Some(child),
+        source: Some(source),
+        relayed,
+    });
 }
 
 /// What:
@@ -290,7 +314,10 @@ pub fn start_relaying(shape: ErrorStreamShape, guard: Option<&SignalGuard>, comm
 /// ```ts
 /// for (;;) { await pollOne(source, 100ms); drain(); const s = child.tryWait(); if (s) { drain(); return { outcome: s, kept }; } }
 /// ```
-pub fn read_to_the_child_s_end(start: RelayedStart, out: &mut dyn std::io::Write) -> io::Result<RelayedErrorStream> {
+pub fn read_to_the_child_s_end(
+    start: RelayedStart,
+    out: &mut dyn std::io::Write,
+) -> io::Result<RelayedErrorStream> {
     // `mut` lets the wait take the child's status and the tail grow.
     // What: `mut start` lets the child and the token be taken out of the start, whose own drop then finds nothing to end.
     // Why:   The read is the one owner of the child.
@@ -352,8 +379,12 @@ pub fn read_to_the_child_s_end(start: RelayedStart, out: &mut dyn std::io::Write
         // ```ts
         // poll([{ fd: source, events: IN }], 100ms);
         // ```
-        let mut watched: [rustix::event::PollFd<'_>; 1] = [rustix::event::PollFd::new(&source, rustix::event::PollFlags::IN)];
-        let _ready: rustix::io::Result<usize> = rustix::event::poll(&mut watched, Some(&POLL_SLICE));
+        let mut watched: [rustix::event::PollFd<'_>; 1] = [rustix::event::PollFd::new(
+            &source,
+            rustix::event::PollFlags::IN,
+        )];
+        let _ready: rustix::io::Result<usize> =
+            rustix::event::poll(&mut watched, Some(&POLL_SLICE));
         // What: The answer says whether the stream reached its end, which a writer's closing brings.
         // Why:  After that nothing more arrives, and the wait left is the child's own.
         //
@@ -392,7 +423,12 @@ pub fn read_to_the_child_s_end(start: RelayedStart, out: &mut dyn std::io::Write
 /// ```ts
 /// relayed[Symbol.dispose](); return { outcome: outcomeOf(status), childNumber, kept };
 /// ```
-fn finish(status: std::process::ExitStatus, child_number: u32, kept: Vec<u8>, relayed: Option<RelayedChild>) -> io::Result<RelayedErrorStream> {
+fn finish(
+    status: std::process::ExitStatus,
+    child_number: u32,
+    kept: Vec<u8>,
+    relayed: Option<RelayedChild>,
+) -> io::Result<RelayedErrorStream> {
     // The token goes here, after the child was reaped, so the relay stops pointing at a number the kernel may hand again.
     drop(relayed);
     // What: `outcome_of` turns the operating system's status into "exited with this code" or "ended by this signal".
@@ -410,7 +446,11 @@ fn finish(status: std::process::ExitStatus, child_number: u32, kept: Vec<u8>, re
     // ```ts
     // return { outcome, childNumber, kept };
     // ```
-    return Ok(RelayedErrorStream { outcome, child_number, kept });
+    return Ok(RelayedErrorStream {
+        outcome,
+        child_number,
+        kept,
+    });
 }
 
 /// What:

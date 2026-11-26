@@ -15,7 +15,10 @@
 //! if (!QUALIFIED_TARGETS.includes(process.arch)) return refusalForTarget(process.arch);
 //! ```
 
-use monochromatic_zfs_request_to_openzfs_kernel_device::{CompatibilityRefusal as Refusal, CompatibilityStep as Step};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    CompatibilityRefusal as Refusal,
+    CompatibilityStep as Step,
+};
 
 /// The targets the managed route is qualified for.
 pub const QUALIFIED_TARGETS: [&str; 1] = ["x86_64"];

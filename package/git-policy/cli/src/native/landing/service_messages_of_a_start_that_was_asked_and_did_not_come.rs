@@ -94,11 +94,21 @@ pub enum RequestedStart {
 /// ```ts
 /// didNotStart(unit, answer, asked) // 'the service manager says cli-git@3f9a.service is activating, so a start of it is under way, and this command asked it for nothing itself'
 /// ```
-pub(crate) fn did_not_start(unit: Option<&str>, answer: &ManagerLastWords, asked: RequestedStart) -> String {
+pub(crate) fn did_not_start(
+    unit: Option<&str>,
+    answer: &ManagerLastWords,
+    asked: RequestedStart,
+) -> String {
     let Some(named) = unit else {
-        return String::from("no service manager could be asked about this worktree's commit service, so nothing started it");
+        return String::from(
+            "no service manager could be asked about this worktree's commit service, so nothing started it",
+        );
     };
-    return format!("{}, and {}", what_the_manager_said(named, answer), what_this_command_asked(named, asked));
+    return format!(
+        "{}, and {}",
+        what_the_manager_said(named, answer),
+        what_this_command_asked(named, asked)
+    );
 }
 
 /// What:
@@ -112,13 +122,18 @@ pub(crate) fn did_not_start(unit: Option<&str>, answer: &ManagerLastWords, asked
 /// ```ts
 /// whatTheManagerSaid(unit, answer) // 'the service manager says cli-git@3f9a.service is activating, so a start of it is under way'
 /// ```
-fn what_the_manager_said(unit: &str, answer: &ManagerLastWords) -> String {
+fn what_the_manager_said(
+    unit: &str,
+    answer: &ManagerLastWords,
+) -> String {
     return match answer {
         ManagerLastWords::State(state) if state == "activating" => {
             format!("the service manager says {unit} is activating, so a start of it is under way")
         }
         ManagerLastWords::State(state) => format!("the service manager says {unit} is {state}"),
-        ManagerLastWords::NotHeld => format!("the service manager answered that it holds no such unit, {unit}"),
+        ManagerLastWords::NotHeld => {
+            format!("the service manager answered that it holds no such unit, {unit}")
+        }
         ManagerLastWords::Silent => format!("the service manager gave no answer about {unit}"),
     };
 }
@@ -135,11 +150,16 @@ fn what_the_manager_said(unit: &str, answer: &ManagerLastWords) -> String {
 /// ```ts
 /// whatThisCommandAsked(unit, asked) // 'this command asked it to start cli-git@3f9a.service'
 /// ```
-fn what_this_command_asked(unit: &str, asked: RequestedStart) -> String {
+fn what_this_command_asked(
+    unit: &str,
+    asked: RequestedStart,
+) -> String {
     return match asked {
         RequestedStart::Nothing => String::from("this command asked it for nothing itself"),
         RequestedStart::Start => format!("this command asked it to start {unit}"),
-        RequestedStart::ResetAndStart => format!("this command asked it to forget that {unit} failed and then to start it"),
+        RequestedStart::ResetAndStart => {
+            format!("this command asked it to forget that {unit} failed and then to start it")
+        }
         RequestedStart::Restart => format!("this command asked it to restart {unit}"),
     };
 }
@@ -156,12 +176,23 @@ fn what_this_command_asked(unit: &str, asked: RequestedStart) -> String {
 /// ```ts
 /// workNotHandedOver(failure) // { kind: 'work-not-handed-over', reason } | undefined
 /// ```
-pub(crate) fn work_not_handed_over(failure: &crate::service_messages::ClientFailure) -> Option<crate::service_messages::ClientFailure> {
-    let crate::service_messages::ClientFailure::DidNotStart { unit, answer, asked } = failure else { return None };
-    return Some(crate::service_messages::ClientFailure::WorkNotHandedOver(format!(
-        "the commit service did not start: {}",
-        did_not_start(unit.as_deref(), answer, *asked)
-    )));
+pub(crate) fn work_not_handed_over(
+    failure: &crate::service_messages::ClientFailure
+) -> Option<crate::service_messages::ClientFailure> {
+    let crate::service_messages::ClientFailure::DidNotStart {
+        unit,
+        answer,
+        asked,
+    } = failure
+    else {
+        return None;
+    };
+    return Some(crate::service_messages::ClientFailure::WorkNotHandedOver(
+        format!(
+            "the commit service did not start: {}",
+            did_not_start(unit.as_deref(), answer, *asked)
+        ),
+    ));
 }
 
 /// Controls stay out of the release executable.

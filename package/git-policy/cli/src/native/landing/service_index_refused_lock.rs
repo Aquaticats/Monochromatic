@@ -21,8 +21,14 @@
 //! remember(lock, waited); const earlier = recall(lock); // Duration | undefined
 //! ```
 
-use crate::index_lock_evidence::{LockMetadata, read_lock_metadata};
-use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
+use crate::index_lock_evidence::{
+    LockMetadata,
+    read_lock_metadata,
+};
+use crate::landing_state_carried_by_its_task::{
+    LandingState,
+    on_the_landing_state,
+};
 use std::path::Path;
 use std::time::Duration;
 
@@ -39,13 +45,19 @@ pub(crate) struct Refused {
 
 /// Keeps `refused` as the lock the landing last gave up on,
 /// or nothing.
-fn keep_the_refused_lock(state: &LandingState, refused: Option<Refused>) {
+fn keep_the_refused_lock(
+    state: &LandingState,
+    refused: Option<Refused>,
+) {
     *state.refused_lock.borrow_mut() = refused;
 }
 
 /// The lock the landing last gave up on,
 /// when one is remembered.
-fn refused_lock_remembered(state: &LandingState, (): ()) -> Option<Refused> {
+fn refused_lock_remembered(
+    state: &LandingState,
+    (): (),
+) -> Option<Refused> {
     return *state.refused_lock.borrow();
 }
 
@@ -58,13 +70,22 @@ fn refused_lock_remembered(state: &LandingState, (): ()) -> Option<Refused> {
 /// ```ts
 /// remember('/repo/.git/index.lock', 600_000)
 /// ```
-pub fn remember(lock: &Path, waited: Duration) {
+pub fn remember(
+    lock: &Path,
+    waited: Duration,
+) {
     // A lock that cannot be read now is remembered as nothing: the next wait is then a full one, the safe side.
     let Ok(Some(identity)) = read_lock_metadata(lock) else {
         forget();
         return;
     };
-    on_the_landing_state(Some(Refused { identity, waited }), keep_the_refused_lock);
+    on_the_landing_state(
+        Some(Refused {
+            identity,
+            waited,
+        }),
+        keep_the_refused_lock,
+    );
 }
 
 /// What:
@@ -82,7 +103,11 @@ pub fn recall(lock: &Path) -> Option<Duration> {
         return None;
     };
     let remembered: Refused = on_the_landing_state((), refused_lock_remembered)?;
-    return if remembered.identity == identity { Some(remembered.waited) } else { None };
+    return if remembered.identity == identity {
+        Some(remembered.waited)
+    } else {
+        None
+    };
 }
 
 /// Forgets the lock this thread gave up on:

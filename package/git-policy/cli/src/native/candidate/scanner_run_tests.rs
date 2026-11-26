@@ -16,23 +16,50 @@
 
 /// Import the run under test and shared fixtures.
 use super::scan_version;
-use crate::candidate_object::{ObjectId, parse_object_id};
+use crate::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
 use crate::candidate_store::CandidateStore;
-use crate::candidate_version::{CandidateSource, CandidateVersion};
+use crate::candidate_version::{
+    CandidateSource,
+    CandidateVersion,
+};
 use crate::git_metadata::strip_git_line;
-use crate::scanner_adapter::{CandidateScanner, RulesSource};
-use crate::scanner_test_support::{needle, rules_file, run_isolated};
-use crate::test_support::{REAL_GIT, git, repository};
-use forbidden_strings::{CandidateScan, RulesEntry, ScanFinding};
+use crate::scanner_adapter::{
+    CandidateScanner,
+    RulesSource,
+};
+use crate::scanner_test_support::{
+    needle,
+    rules_file,
+    run_isolated,
+};
+use crate::test_support::{
+    REAL_GIT,
+    git,
+    repository,
+};
+use forbidden_strings::{
+    CandidateScan,
+    RulesEntry,
+    ScanFinding,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// Load the planted single-rule file explicitly,
 ///  without the built-in baseline.
 pub(super) fn loaded(rules: &Path) -> CandidateScanner {
     let source: RulesSource = RulesSource {
-        entries: vec![RulesEntry { path: rules.to_path_buf(), optional: false }],
+        entries: vec![RulesEntry {
+            path: rules.to_path_buf(),
+            optional: false,
+        }],
         explicit: true,
     };
     match CandidateScanner::load(&source, false) {

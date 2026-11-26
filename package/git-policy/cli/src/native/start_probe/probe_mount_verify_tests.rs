@@ -14,7 +14,11 @@
 //! verifyMount(table, { mountId: 41, source: 'pool/ds@ready' });
 //! ```
 
-use super::{ExpectedMount, VerifyFailure, verify_mount};
+use super::{
+    ExpectedMount,
+    VerifyFailure,
+    verify_mount,
+};
 use crate::fs_mount_options::parse_mount_table;
 
 /// The mount line the probe's attach would make.
@@ -24,7 +28,14 @@ const THE_MOUNT: &str = "41 30 0:32 / /var/tmp/probe/slot ro,nosuid,nodev,relati
 #[test]
 fn the_mount_the_attach_asked_for_passes() {
     let table = parse_mount_table(THE_MOUNT.as_bytes());
-    let mount = verify_mount(table.as_slice(), ExpectedMount { mount_id: 41, source: "zpcachyos/nosnap/git-worktree-probe@ready" }).expect("the mount is the one asked for");
+    let mount = verify_mount(
+        table.as_slice(),
+        ExpectedMount {
+            mount_id: 41,
+            source: "zpcachyos/nosnap/git-worktree-probe@ready",
+        },
+    )
+    .expect("the mount is the one asked for");
     assert_eq!(mount.mount_id, 41);
     assert_eq!(mount.filesystem, "zfs");
     assert!(mount.options.contains(&String::from("ro")));
@@ -34,14 +45,49 @@ fn the_mount_the_attach_asked_for_passes() {
 #[test]
 fn every_wrong_fact_is_named() {
     let table = parse_mount_table(THE_MOUNT.as_bytes());
-    assert_eq!(verify_mount(table.as_slice(), ExpectedMount { mount_id: 42, source: "x" }).err(), Some(VerifyFailure::NotListed { expected: 42 }));
     assert_eq!(
-        verify_mount(table.as_slice(), ExpectedMount { mount_id: 41, source: "other@ready" }).err(),
-        Some(VerifyFailure::OtherSource { found: String::from("zpcachyos/nosnap/git-worktree-probe@ready"), expected: String::from("other@ready") })
+        verify_mount(
+            table.as_slice(),
+            ExpectedMount {
+                mount_id: 42,
+                source: "x"
+            }
+        )
+        .err(),
+        Some(VerifyFailure::NotListed {
+            expected: 42
+        })
     );
-    let other_filesystem: &str = "41 30 0:32 / /var/tmp/probe/slot ro,nosuid,nodev,relatime - tmpfs tmpfs ro\n";
+    assert_eq!(
+        verify_mount(
+            table.as_slice(),
+            ExpectedMount {
+                mount_id: 41,
+                source: "other@ready"
+            }
+        )
+        .err(),
+        Some(VerifyFailure::OtherSource {
+            found: String::from("zpcachyos/nosnap/git-worktree-probe@ready"),
+            expected: String::from("other@ready")
+        })
+    );
+    let other_filesystem: &str =
+        "41 30 0:32 / /var/tmp/probe/slot ro,nosuid,nodev,relatime - tmpfs tmpfs ro\n";
     let other_table = parse_mount_table(other_filesystem.as_bytes());
-    assert_eq!(verify_mount(other_table.as_slice(), ExpectedMount { mount_id: 41, source: "tmpfs" }).err(), Some(VerifyFailure::OtherFilesystem { found: String::from("tmpfs") }));
+    assert_eq!(
+        verify_mount(
+            other_table.as_slice(),
+            ExpectedMount {
+                mount_id: 41,
+                source: "tmpfs"
+            }
+        )
+        .err(),
+        Some(VerifyFailure::OtherFilesystem {
+            found: String::from("tmpfs")
+        })
+    );
 }
 
 /// A missing flag fails the arm with that flag's name.
@@ -50,7 +96,16 @@ fn a_missing_flag_is_named() {
     let missing_nodev: &str = "41 30 0:32 / /var/tmp/probe/slot ro,nosuid,relatime - zfs zpcachyos/nosnap/git-worktree-probe@ready ro\n";
     let table = parse_mount_table(missing_nodev.as_bytes());
     assert_eq!(
-        verify_mount(table.as_slice(), ExpectedMount { mount_id: 41, source: "zpcachyos/nosnap/git-worktree-probe@ready" }).err(),
-        Some(VerifyFailure::MissingFlag { flag: "nodev" })
+        verify_mount(
+            table.as_slice(),
+            ExpectedMount {
+                mount_id: 41,
+                source: "zpcachyos/nosnap/git-worktree-probe@ready"
+            }
+        )
+        .err(),
+        Some(VerifyFailure::MissingFlag {
+            flag: "nodev"
+        })
     );
 }

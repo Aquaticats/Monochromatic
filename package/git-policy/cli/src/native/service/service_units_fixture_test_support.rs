@@ -16,7 +16,10 @@
 //! ```
 
 use crate::service_claim_watch::WATCH_DIRECTORY;
-use crate::service_instance::{SOCKET_DIRECTORY, socket_path};
+use crate::service_instance::{
+    SOCKET_DIRECTORY,
+    socket_path,
+};
 use crate::service_journal::DONE_EXTENSION;
 use crate::service_journal_folder_of_an_instance::journal_of;
 use crate::service_units_of_removed_worktrees::UnitFolders;
@@ -52,9 +55,17 @@ pub fn age_a_journal(journal: &std::path::Path) {
 ///   The product decides from a file's own time,
 /// so a control that needs an old one sets that time rather than sleeping;
 /// the directory needs no write permission for this and a fixture may have none.
-fn age_by(path: &std::path::Path, older: std::time::Duration) {
-    let when: std::time::SystemTime = std::time::SystemTime::now().checked_sub(older).expect("a fixture time after the epoch");
-    std::fs::File::open(path).expect("a fixture path to age").set_modified(when).expect("a fixture time to age");
+fn age_by(
+    path: &std::path::Path,
+    older: std::time::Duration,
+) {
+    let when: std::time::SystemTime = std::time::SystemTime::now()
+        .checked_sub(older)
+        .expect("a fixture time after the epoch");
+    std::fs::File::open(path)
+        .expect("a fixture path to age")
+        .set_modified(when)
+        .expect("a fixture time to age");
 }
 
 /// What:
@@ -65,12 +76,20 @@ fn age_by(path: &std::path::Path, older: std::time::Duration) {
 /// and a control of a journal's cleanup needs a note that names a repository that is there
 /// and one that names a repository that is gone,
 /// without waiting for a service to write one.
-pub fn write_a_claim_watch_note(journal: &std::path::Path, git_dir: &std::path::Path) {
+pub fn write_a_claim_watch_note(
+    journal: &std::path::Path,
+    git_dir: &std::path::Path,
+) {
     use std::os::unix::ffi::OsStrExt as _;
     let folder: PathBuf = journal.join(WATCH_DIRECTORY);
     std::fs::create_dir_all(&folder).expect("claim watch folder");
-    let hex: String = crate::hexadecimal_of_bytes::hexadecimal_of_bytes(git_dir.as_os_str().as_bytes());
-    std::fs::write(folder.join("0123456789abcdef-0.watch"), format!("claim-watch-1 {hex}\n")).expect("a note of the claim watch");
+    let hex: String =
+        crate::hexadecimal_of_bytes::hexadecimal_of_bytes(git_dir.as_os_str().as_bytes());
+    std::fs::write(
+        folder.join("0123456789abcdef-0.watch"),
+        format!("claim-watch-1 {hex}\n"),
+    )
+    .expect("a note of the claim watch");
 }
 
 /// One repository and one runtime directory on disk:
@@ -94,18 +113,29 @@ pub fn machine(name: &str) -> Machine {
     let state: PathBuf = root.join("state");
     std::fs::create_dir_all(runtime.join(SOCKET_DIRECTORY)).expect("socket directory");
     std::fs::create_dir_all(&state).expect("state directory");
-    return Machine { root, runtime, state };
+    return Machine {
+        root,
+        runtime,
+        state,
+    };
 }
 
 impl Machine {
     /// The folders the units and the survey read.
     pub fn folders(&self) -> UnitFolders<'_> {
-        return UnitFolders { runtime_dir: self.runtime.as_path(), state_dir: Some(self.state.as_path()) };
+        return UnitFolders {
+            runtime_dir: self.runtime.as_path(),
+            state_dir: Some(self.state.as_path()),
+        };
     }
 
     /// The administrative directory a linked worktree named `name` has,
     /// made when `present` and otherwise only named.
-    pub fn linked(&self, name: &str, present: bool) -> PathBuf {
+    pub fn linked(
+        &self,
+        name: &str,
+        present: bool,
+    ) -> PathBuf {
         let common: PathBuf = self.root.join("repository/.git");
         let admin: PathBuf = common.join("worktrees").join(name);
         if present {
@@ -118,13 +148,20 @@ impl Machine {
 
     /// A socket file for an instance,
     /// as the manager keeps one while the socket unit listens.
-    pub fn socket_of(&self, instance: &str) {
-        std::fs::write(socket_path(self.runtime.as_path(), instance), b"listening").expect("socket file");
+    pub fn socket_of(
+        &self,
+        instance: &str,
+    ) {
+        std::fs::write(socket_path(self.runtime.as_path(), instance), b"listening")
+            .expect("socket file");
     }
 
     /// The journal folder of an instance,
     /// made as the unit's `--journal` names it.
-    pub fn journal_of(&self, instance: &str) -> PathBuf {
+    pub fn journal_of(
+        &self,
+        instance: &str,
+    ) -> PathBuf {
         let wrapper_state: PathBuf = self.state.join(SERVICE_UNIT.current);
         let journal: PathBuf = journal_of(wrapper_state.as_path(), instance);
         std::fs::create_dir_all(&journal).expect("journal folder");
@@ -134,11 +171,17 @@ impl Machine {
     /// A journal as a service of a worktree that committed leaves it:
     /// the finished batches it remembers,
     /// and the landing record that is empty once nothing is in flight.
-    pub fn settled_journal_of(&self, instance: &str) -> PathBuf {
+    pub fn settled_journal_of(
+        &self,
+        instance: &str,
+    ) -> PathBuf {
         let journal: PathBuf = self.journal_of(instance);
-        std::fs::write(journal.join(format!("1.{DONE_EXTENSION}")), b"seq=1\n").expect("a finished batch");
-        std::fs::write(journal.join(format!("2.{DONE_EXTENSION}")), b"seq=2\n").expect("a finished batch");
-        std::fs::create_dir_all(journal.join(LANDING_RECORD_DIRECTORY)).expect("the landing's record");
+        std::fs::write(journal.join(format!("1.{DONE_EXTENSION}")), b"seq=1\n")
+            .expect("a finished batch");
+        std::fs::write(journal.join(format!("2.{DONE_EXTENSION}")), b"seq=2\n")
+            .expect("a finished batch");
+        std::fs::create_dir_all(journal.join(LANDING_RECORD_DIRECTORY))
+            .expect("the landing's record");
         return journal;
     }
 
@@ -146,7 +189,10 @@ impl Machine {
     /// every record in it,
     /// and the folder itself,
     /// older than the longest a client of it can look.
-    pub fn aged_settled_journal_of(&self, instance: &str) -> PathBuf {
+    pub fn aged_settled_journal_of(
+        &self,
+        instance: &str,
+    ) -> PathBuf {
         let journal: PathBuf = self.settled_journal_of(instance);
         age_a_journal(journal.as_path());
         return journal;

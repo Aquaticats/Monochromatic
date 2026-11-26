@@ -30,7 +30,10 @@ use std::path::Path;
 /// ```ts
 /// await writeFile(path, bytes, { mode: 0o600 });
 /// ```
-pub(crate) fn overwrite_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub(crate) fn overwrite_private(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     std::fs::write(path, bytes)?;
     return set_private_file(path);
 }
@@ -94,7 +97,9 @@ pub(crate) fn create_parent(shadow: &Path) -> std::io::Result<()> {
 /// ```
 pub fn ensure_private_directory(directory: &Path) -> std::io::Result<()> {
     match create_private_directory(directory) {
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && directory.is_dir() => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && directory.is_dir() => {
+            return Ok(());
+        }
         other => return other,
     }
 }

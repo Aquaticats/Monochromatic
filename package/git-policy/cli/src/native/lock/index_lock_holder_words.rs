@@ -12,7 +12,10 @@
 //! ```
 
 /// Process start times.
-use crate::process_start::{ProcessStart, resolve_process_start};
+use crate::process_start::{
+    ProcessStart,
+    resolve_process_start,
+};
 
 /// What:
 ///  The program name of a process,
@@ -32,7 +35,11 @@ use crate::process_start::{ProcessStart, resolve_process_start};
 fn program_of(pid: i64) -> Option<String> {
     let text: String = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok()?;
     let name: &str = text.trim();
-    return if name.is_empty() { None } else { Some(name.to_string()) };
+    return if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
+    };
 }
 
 /// What:
@@ -52,7 +59,10 @@ fn program_of(pid: i64) -> Option<String> {
 /// ```ts
 /// function holderWayOut({ pid, command }): string; // 'The holder is PID 5 (git), started 2026-11-07T18:04:20.000Z; ...'
 /// ```
-pub fn holder_way_out(pid: i64, command: Option<&str>) -> String {
+pub fn holder_way_out(
+    pid: i64,
+    command: Option<&str>,
+) -> String {
     let named: Option<String> = match command {
         Some(given) => Some(given.to_string()),
         None => program_of(pid),
@@ -62,7 +72,13 @@ pub fn holder_way_out(pid: i64, command: Option<&str>) -> String {
         None => String::from("program unknown"),
     };
     let started: String = match resolve_process_start(pid) {
-        ProcessStart::Running { started_at_ms, .. } => format!("started {}", crate::iso_time::format_iso_milliseconds(started_at_ms as i64)),
+        ProcessStart::Running {
+            started_at_ms,
+            ..
+        } => format!(
+            "started {}",
+            crate::iso_time::format_iso_milliseconds(started_at_ms as i64)
+        ),
         ProcessStart::Missing => String::from("start time unknown, it has just ended"),
         ProcessStart::Unknown(_) => String::from("start time unknown"),
     };
@@ -118,7 +134,10 @@ pub fn partial_summary(reasons: &[String]) -> String {
     let processes: Vec<&String> = reasons.iter().filter(names_a_process).collect();
     let mut parts: Vec<String> = Vec::new();
     if let Some(first) = processes.first() {
-        parts.push(format!("{} processes could not be looked at, the first of them: {first}", processes.len()));
+        parts.push(format!(
+            "{} processes could not be looked at, the first of them: {first}",
+            processes.len()
+        ));
     }
     match cut {
         Some(bound) => parts.push(String::from(bound.as_str())),

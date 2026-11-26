@@ -25,8 +25,17 @@
 //! const outcome = check_store_entries(facts); // pass | finding('record'|'name') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
-use crate::worktree_clone_mount::{PARENT_RECORD_NAME, is_known_staging_name, slot_name_refusal};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
+use crate::worktree_clone_mount::{
+    PARENT_RECORD_NAME,
+    is_known_staging_name,
+    slot_name_refusal,
+};
 
 /// What:
 ///  One name the store folder lists,
@@ -138,7 +147,11 @@ pub struct StoreListingFacts {
 /// const staging = entries.filter((entry) => isKnownStagingName(entry.name));
 /// ```
 pub fn known_staging_entries(facts: &StoreListingFacts) -> Vec<&ListedEntry> {
-    return facts.entries.iter().filter(|entry| return is_known_staging_name(&entry.name)).collect();
+    return facts
+        .entries
+        .iter()
+        .filter(|entry| return is_known_staging_name(&entry.name))
+        .collect();
 }
 
 /// What:
@@ -209,33 +222,79 @@ fn record_count(facts: &StoreListingFacts) -> usize {
 pub fn check_store_entries(facts: &StoreListingFacts) -> CheckOutcome {
     let mut misfiled: Vec<String> = Vec::new();
     for slot in &facts.slots {
-        if let RecordFacts::Misfiled { recorded } = &slot.facts {
+        if let RecordFacts::Misfiled {
+            recorded,
+        } = &slot.facts
+        {
             misfiled.push(format!("`{}` carries the key `{recorded}`", slot.name));
         }
     }
-    if let RecordFacts::Misfiled { recorded } = &facts.parent {
-        misfiled.push(format!("`{PARENT_RECORD_NAME}` carries the key `{recorded}`"));
+    if let RecordFacts::Misfiled {
+        recorded,
+    } = &facts.parent
+    {
+        misfiled.push(format!(
+            "`{PARENT_RECORD_NAME}` carries the key `{recorded}`"
+        ));
     }
-    let foreign: Vec<String> = facts.entries.iter().filter(|entry| return is_foreign_entry(&entry.name)).map(|entry| return format!("`{}`", entry.name)).collect();
+    let foreign: Vec<String> = facts
+        .entries
+        .iter()
+        .filter(|entry| return is_foreign_entry(&entry.name))
+        .map(|entry| return format!("`{}`", entry.name))
+        .collect();
     if !misfiled.is_empty() {
-        return finding("record", format!("the store holds a record under a name its key does not match: {}", misfiled.join("; ")));
+        return finding(
+            "record",
+            format!(
+                "the store holds a record under a name its key does not match: {}",
+                misfiled.join("; ")
+            ),
+        );
     }
     if !foreign.is_empty() {
-        return finding("name", format!("the store holds {} contraindicated name(s): {}; the slot grammar refuses each, so a slot under one would be missed by a later read", foreign.len(), foreign.join(", ")));
+        return finding(
+            "name",
+            format!(
+                "the store holds {} contraindicated name(s): {}; the slot grammar refuses each, so a slot under one would be missed by a later read",
+                foreign.len(),
+                foreign.join(", ")
+            ),
+        );
     }
     let mut unreadable: Vec<String> = Vec::new();
     for slot in &facts.slots {
-        if let RecordFacts::Unreadable { why } = &slot.facts {
+        if let RecordFacts::Unreadable {
+            why,
+        } = &slot.facts
+        {
             unreadable.push(format!("`{}` ({why})", slot.name));
         }
     }
-    if let RecordFacts::Unreadable { why } = &facts.parent {
+    if let RecordFacts::Unreadable {
+        why,
+    } = &facts.parent
+    {
         unreadable.push(format!("`{PARENT_RECORD_NAME}` ({why})"));
     }
     if !unreadable.is_empty() {
-        return unknown(format!("the store holds {} record(s) this account could not read: {}, so the set is unproved", unreadable.len(), unreadable.join(", ")));
+        return unknown(format!(
+            "the store holds {} record(s) this account could not read: {}, so the set is unproved",
+            unreadable.len(),
+            unreadable.join(", ")
+        ));
     }
-    return pass(format!("the store lists {} entries: {} record(s) ({} slot(s) and {})", facts.entries.len(), record_count(facts), facts.slots.len(), if matches!(facts.parent, RecordFacts::Absent) { "no parent record" } else { "the parent's record" }));
+    return pass(format!(
+        "the store lists {} entries: {} record(s) ({} slot(s) and {})",
+        facts.entries.len(),
+        record_count(facts),
+        facts.slots.len(),
+        if matches!(facts.parent, RecordFacts::Absent) {
+            "no parent record"
+        } else {
+            "the parent's record"
+        }
+    ));
 }
 
 /// What:
@@ -256,8 +315,24 @@ pub fn check_staging_forms(facts: &StoreListingFacts) -> CheckOutcome {
     if staging.is_empty() {
         return pass(String::from("no known staging form is in the store"));
     }
-    let described: Vec<String> = staging.iter().map(|entry| return format!("`{}` ({})", entry.name, age_text(entry.modified_seconds_ago))).collect();
-    return finding("staging", format!("{} known staging form(s) left by a killed writer: {}; no reader reads one, and this step removes them", staging.len(), described.join(", ")));
+    let described: Vec<String> = staging
+        .iter()
+        .map(|entry| {
+            return format!(
+                "`{}` ({})",
+                entry.name,
+                age_text(entry.modified_seconds_ago)
+            );
+        })
+        .collect();
+    return finding(
+        "staging",
+        format!(
+            "{} known staging form(s) left by a killed writer: {}; no reader reads one, and this step removes them",
+            staging.len(),
+            described.join(", ")
+        ),
+    );
 }
 
 /// What:
@@ -272,11 +347,31 @@ pub fn check_staging_forms(facts: &StoreListingFacts) -> CheckOutcome {
 /// const outcome = check_unknown_dot_entries(facts); // pass | finding('name')
 /// ```
 pub fn check_unknown_dot_entries(facts: &StoreListingFacts) -> CheckOutcome {
-    let unknown_dots: Vec<String> = facts.entries.iter().filter(|entry| return is_unknown_dot_entry(&entry.name)).map(|entry| return format!("`{}` ({})", entry.name, age_text(entry.modified_seconds_ago))).collect();
+    let unknown_dots: Vec<String> = facts
+        .entries
+        .iter()
+        .filter(|entry| return is_unknown_dot_entry(&entry.name))
+        .map(|entry| {
+            return format!(
+                "`{}` ({})",
+                entry.name,
+                age_text(entry.modified_seconds_ago)
+            );
+        })
+        .collect();
     if unknown_dots.is_empty() {
-        return pass(String::from("every dot entry is `.parent` or one of the two known staging forms"));
+        return pass(String::from(
+            "every dot entry is `.parent` or one of the two known staging forms",
+        ));
     }
-    return finding("name", format!("{} dot entry(s) match neither known staging form and no writer of this repository makes them: {}; they are reported and left in place", unknown_dots.len(), unknown_dots.join(", ")));
+    return finding(
+        "name",
+        format!(
+            "{} dot entry(s) match neither known staging form and no writer of this repository makes them: {}; they are reported and left in place",
+            unknown_dots.len(),
+            unknown_dots.join(", ")
+        ),
+    );
 }
 
 /// Controls stay out of the release executable.

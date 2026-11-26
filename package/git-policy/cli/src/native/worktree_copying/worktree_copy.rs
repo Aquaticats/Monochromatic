@@ -39,32 +39,66 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
-use crate::add_timing::{begin_on_route as begin_timing_on_route, begin_step, end_step, finish as finish_timing};
+use crate::add_timing::{
+    begin_on_route as begin_timing_on_route,
+    begin_step,
+    end_step,
+    finish as finish_timing,
+};
 use crate::diagnostic_log::warn;
-use crate::forwarding::{ChildStarted, NoChildRecorded};
+use crate::forwarding::{
+    ChildStarted,
+    NoChildRecorded,
+};
 use crate::json_record::quote;
-use crate::transaction_git::GitContext;
-use crate::worktree_copy_after_refusal::settle_refused_destination;
-use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure};
-use crate::worktree_copy_recovery::{RecoveryDestinations, recover_pending_worktree_copies};
-use crate::worktree_copy_selection::CopySelection;
-use crate::worktree_copy_owed_copy::owed_selection_of;
-use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_creation};
-use crate::worktree_copy_notices::nothing_but_a_reservation;
-use crate::worktree_copy_registry::{WorktreeCopyObservation, destination_is_registered, observe_copy_source};
-use crate::worktree_copy_synchronize::synchronize_after;
-use crate::worktree_add_binding::OwedCopy;
-use crate::worktree_identity::WorktreeIdentity;
-use crate::worktree_add_plan::AddPlan;
-use crate::worktree_ladder::{LadderResult, begin_ladder_holding};
-use crate::worktree_subvolume::{CreatedSubvolume, Reservation, reserve_destination};
 #[cfg(target_os = "linux")]
 use crate::package_repair::RepairSwitch;
+use crate::transaction_git::GitContext;
+use crate::worktree_add_binding::OwedCopy;
+use crate::worktree_add_plan::AddPlan;
+pub(crate) use crate::worktree_copy_after_lock::{
+    AfterLock,
+    finish_trash_and_repair,
+};
+use crate::worktree_copy_after_refusal::settle_refused_destination;
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    lifecycle_failure,
+};
+use crate::worktree_copy_notices::nothing_but_a_reservation;
+use crate::worktree_copy_owed_copy::owed_selection_of;
+use crate::worktree_copy_recovery::{
+    RecoveryDestinations,
+    recover_pending_worktree_copies,
+};
+use crate::worktree_copy_registry::{
+    WorktreeCopyObservation,
+    destination_is_registered,
+    observe_copy_source,
+};
+use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_stage_claim::{
+    StageClaim,
+    claim_stage_for_creation,
+};
+use crate::worktree_copy_synchronize::synchronize_after;
+use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_ladder::{
+    LadderResult,
+    begin_ladder_holding,
+};
+use crate::worktree_subvolume::{
+    CreatedSubvolume,
+    Reservation,
+    reserve_destination,
+};
 #[cfg(target_os = "linux")]
 use crate::worktree_trash::PendingTrash;
-pub(crate) use crate::worktree_copy_after_lock::{AfterLock, finish_trash_and_repair};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeCopy";
@@ -208,7 +242,11 @@ pub trait GitRunner {
     /// Run `step` and report how Git ended,
     /// naming the process number of the Git it started to `child_started` as soon as it has one,
     /// so the add's record can say which Git may still be at work if this command is killed.
-    fn run(&mut self, step: &GitStep<'_>, child_started: &mut dyn ChildStarted) -> Result<GitStatus, WorktreeCopyError>;
+    fn run(
+        &mut self,
+        step: &GitStep<'_>,
+        child_started: &mut dyn ChildStarted,
+    ) -> Result<GitStatus, WorktreeCopyError>;
 }
 
 /// What:
@@ -222,7 +260,11 @@ pub trait GitRunner {
 /// ```ts
 /// renderSummary({ copiedEntries, destinationCount, sourceRoot })
 /// ```
-pub fn summary_line(copied: usize, destinations: usize, source: Option<&Path>) -> String {
+pub fn summary_line(
+    copied: usize,
+    destinations: usize,
+    source: Option<&Path>,
+) -> String {
     let source_text: String = match source {
         None => String::from("bare repository with an empty source set"),
         Some(path) => quote(path.to_string_lossy().as_ref()),
@@ -305,7 +347,10 @@ struct ChildOfACreatingCommand<'a> {
 impl ChildStarted for ChildOfACreatingCommand<'_> {
     /// Name the Git in the claim,
     /// when the command has both a claim and a destination.
-    fn started(&mut self, pid: u32) {
+    fn started(
+        &mut self,
+        pid: u32,
+    ) {
         if let (Some(claim), Some(destination)) = (self.claim, self.destination) {
             claim.remember_running_child(destination, pid);
         }
@@ -334,7 +379,9 @@ fn settle_creation(
     stderr: &mut (dyn Write + Send),
 ) -> Result<(Settlement, AfterLock), WorktreeCopyError> {
     let registered_before: bool = match invocation.destination.as_deref() {
-        Some(destination) => destination_is_registered(observation.common_dir.as_path(), destination),
+        Some(destination) => {
+            destination_is_registered(observation.common_dir.as_path(), destination)
+        }
         None => false,
     };
     let choose_rung_entered: bool = begin_step("chooseRung");
@@ -349,9 +396,19 @@ fn settle_creation(
     // leaves everything the next command needs to make that copy itself. A selection of named paths is not one of the
     // two listings a record can name, so such a command records nothing and its worktree is named instead.
     let owed: Option<OwedCopy> = observation.source_root.as_ref().and_then(|source| {
-        return owed_selection_of(&observation.selection).map(|selection| { return OwedCopy { source: source.clone(), selection }; });
+        return owed_selection_of(&observation.selection).map(|selection| {
+            return OwedCopy {
+                source: source.clone(),
+                selection,
+            };
+        });
     });
-    let recorded = claim_stage_for_creation(observation.common_dir.as_path(), invocation.destination.as_deref(), copies, owed.as_ref());
+    let recorded = claim_stage_for_creation(
+        observation.common_dir.as_path(),
+        invocation.destination.as_deref(),
+        copies,
+        owed.as_ref(),
+    );
     end_step(record_destination_entered);
     let mut held: Option<StageClaim> = match recorded {
         Ok(found) => found,
@@ -360,7 +417,12 @@ fn settle_creation(
             None
         }
     };
-    let ladder = begin_ladder_holding(invocation.add_plan.as_ref(), &mut held, &invocation.context, &invocation.identity);
+    let ladder = begin_ladder_holding(
+        invocation.add_plan.as_ref(),
+        &mut held,
+        &invocation.context,
+        &invocation.identity,
+    );
     // Who owns the destination is decided here, before real Git runs, in one exclusive creation: the command whose
     // directory Git fills copies into it, whatever its own Git then returns, and every command that finds the directory
     // there copies nothing. A rung that already made its destination settles it itself, so its identity is not reserved
@@ -372,7 +434,10 @@ fn settle_creation(
     let mut made_here: bool = false;
     let reserved_before_git: Reservation = match (copies, ladder.destination_identity()) {
         (true, Some(identity)) => match invocation.destination.as_deref() {
-            Some(destination) => Reservation::Mine(CreatedSubvolume { path: destination.to_path_buf(), identity: Some(identity) }),
+            Some(destination) => Reservation::Mine(CreatedSubvolume {
+                path: destination.to_path_buf(),
+                identity: Some(identity),
+            }),
             None => Reservation::NotAttempted,
         },
         (true, None) => match invocation.destination.as_deref() {
@@ -403,13 +468,27 @@ fn settle_creation(
         Ok(status) => {
             let finish_rung_entered: bool = begin_step("finishRung");
             // The line Git's checkout prints goes to the standard output, and every note about what the add did instead goes to the stream this command was given, so a caller that hands in its own report reads the whole of it.
-            let finished = ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout(), stderr);
+            let finished = ladder.finish(
+                status,
+                run_git,
+                &invocation.context,
+                &mut std::io::stdout(),
+                stderr,
+            );
             end_step(finish_rung_entered);
             Ok(finished)
         }
         Err(error) => {
             // Git did not start: the ladder only has its empty subvolume to remove, whatever status it is given.
-            ladder.finish(GitStatus { code: None }, run_git, &invocation.context, &mut std::io::sink(), stderr);
+            ladder.finish(
+                GitStatus {
+                    code: None,
+                },
+                run_git,
+                &invocation.context,
+                &mut std::io::sink(),
+                stderr,
+            );
             Err(error)
         }
     };
@@ -422,7 +501,10 @@ fn settle_creation(
     // that another command replaced it (a service of a snapshot of the main checkout would report no ignored-state copy and
     // would leave its copy record behind).
     let reserved: Reservation = match (finished.placed, invocation.destination.as_deref()) {
-        (Some(placed), Some(destination)) => Reservation::Mine(CreatedSubvolume { path: destination.to_path_buf(), identity: Some(placed) }),
+        (Some(placed), Some(destination)) => Reservation::Mine(CreatedSubvolume {
+            path: destination.to_path_buf(),
+            identity: Some(placed),
+        }),
         _ => reserved_before_git,
     };
     #[cfg(target_os = "linux")]
@@ -443,7 +525,19 @@ fn settle_creation(
     let (copy_failure, created): (Option<WorktreeCopyError>, Vec<PathBuf>) =
         if git.succeeded() || invocation.destination.is_some() {
             let copy_ignored_entered: bool = begin_step("copyIgnored");
-            let copy_ignored_outcome = synchronize_after(invocation, observation, registered_before, copies, &reserved, git.succeeded(), carried.as_deref(), &mut held, &mut left_unfilled, &mut another_commands_worktree, stderr);
+            let copy_ignored_outcome = synchronize_after(
+                invocation,
+                observation,
+                registered_before,
+                copies,
+                &reserved,
+                git.succeeded(),
+                carried.as_deref(),
+                &mut held,
+                &mut left_unfilled,
+                &mut another_commands_worktree,
+                stderr,
+            );
             end_step(copy_ignored_entered);
             match copy_ignored_outcome {
                 Ok(roots) => (None, roots),
@@ -459,7 +553,11 @@ fn settle_creation(
     // <branch> <path> main`). `rmdir` cannot remove a directory that holds anything, so a destination another program
     // wrote into stays with everything in it, and the person is told which path this command left there. Nothing is
     // removed while the copy failed: what stands at the path is not known then.
-    if made_here && copy_failure.is_none() && !git.succeeded() && let Reservation::Mine(made) = &reserved {
+    if made_here
+        && copy_failure.is_none()
+        && !git.succeeded()
+        && let Reservation::Mine(made) = &reserved
+    {
         // The person's stream carries this line, and a closed one keeps the status Git gave.
         if let Some(line) = settle_refused_destination(made) {
             let _written = stderr.write_all(line.as_bytes());
@@ -498,16 +596,46 @@ fn settle_creation(
         && let Some(unused) = held.take()
     {
         let release_unused_entered: bool = begin_step("releaseClaim");
-        let released: Result<(), WorktreeCopyError> = if swapped { unused.settle_unsynced() } else { unused.settle() };
+        let released: Result<(), WorktreeCopyError> = if swapped {
+            unused.settle_unsynced()
+        } else {
+            unused.settle()
+        };
         end_step(release_unused_entered);
         if let Err(error) = released {
-            warn(TAG, format!("the record of the worktree add could not be removed ({})", error.0).as_str());
+            warn(
+                TAG,
+                format!(
+                    "the record of the worktree add could not be removed ({})",
+                    error.0
+                )
+                .as_str(),
+            );
         }
     }
     #[cfg(target_os = "linux")]
-    return Ok((Settlement { git, copy_failure }, AfterLock { source_root: observation.source_root.clone(), created, trash }));
+    return Ok((
+        Settlement {
+            git,
+            copy_failure,
+        },
+        AfterLock {
+            source_root: observation.source_root.clone(),
+            created,
+            trash,
+        },
+    ));
     #[cfg(not(target_os = "linux"))]
-    return Ok((Settlement { git, copy_failure }, AfterLock { source_root: observation.source_root.clone(), created }));
+    return Ok((
+        Settlement {
+            git,
+            copy_failure,
+        },
+        AfterLock {
+            source_root: observation.source_root.clone(),
+            created,
+        },
+    ));
 }
 
 /// What:
@@ -554,10 +682,8 @@ fn settle_invocation(
     if invocation.opted_out || invocation.short_circuit {
         return forward_only(run_git);
     }
-    let Some(observation) = observe_copy_source(
-        &invocation.identity,
-        invocation.effective_cwd.as_path(),
-    )?
+    let Some(observation) =
+        observe_copy_source(&invocation.identity, invocation.effective_cwd.as_path())?
     else {
         return forward_only(run_git);
     };
@@ -571,11 +697,14 @@ fn settle_invocation(
         // rung names its steps as it enters them.
         let plain: Option<String> = match &invocation.add_plan {
             Some(_served) => None,
-            None => Some(crate::worktree_add_plan::why_a_plain_add(invocation.destination.as_deref())),
+            None => Some(crate::worktree_add_plan::why_a_plain_add(
+                invocation.destination.as_deref(),
+            )),
         };
         begin_timing_on_route(observation.common_dir.clone(), invocation.quiet, plain);
     }
-    let settled: Result<Settlement, WorktreeCopyError> = settle_observed(invocation, &observation, run_git, stderr);
+    let settled: Result<Settlement, WorktreeCopyError> =
+        settle_observed(invocation, &observation, run_git, stderr);
     if recorded {
         finish_timing(settled.as_ref().map_or(1, exit_code));
     }
@@ -607,12 +736,18 @@ fn settle_observed(
     // Recovery never waits: it takes over only journals and claims whose owner is dead, and one rename picks its single winner.
     // A copy is finished only into the worktree this command runs in, so no command pays for another worktree's ignored
     // state ("Agents should never wait on each other on commits or merges").
-    let destinations: RecoveryDestinations<'_> = match crate::worktree_identity::worktree_root(&invocation.identity) {
-        Some(root) => RecoveryDestinations::OnlyThisWorktree(root),
-        None => RecoveryDestinations::NoWorktree,
-    };
+    let destinations: RecoveryDestinations<'_> =
+        match crate::worktree_identity::worktree_root(&invocation.identity) {
+            Some(root) => RecoveryDestinations::OnlyThisWorktree(root),
+            None => RecoveryDestinations::NoWorktree,
+        };
     let recover_entered: bool = begin_step("recover");
-    let recover_outcome = recover_pending_worktree_copies(observation.common_dir.as_path(), destinations, &invocation.context, stderr);
+    let recover_outcome = recover_pending_worktree_copies(
+        observation.common_dir.as_path(),
+        destinations,
+        &invocation.context,
+        stderr,
+    );
     end_step(recover_entered);
     recover_outcome?;
     if !invocation.creates {

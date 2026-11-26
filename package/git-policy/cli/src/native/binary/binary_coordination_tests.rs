@@ -19,14 +19,36 @@
 
 /// The shared fixtures and bounded process helpers.
 use super::support::{
-    Fixture, Observed, fixture, git, observe, remove, repository, run_direct, stderr_of, wrapped,
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
+    run_direct,
+    stderr_of,
+    wrapped,
 };
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
 
 /// Commit `name` with the given text,
 ///  so the repository has a history to rebase.
-fn commit_file(fixture: &Fixture, repo: &Path, name: &str, text: &str) {
+fn commit_file(
+    fixture: &Fixture,
+    repo: &Path,
+    name: &str,
+    text: &str,
+) {
     std::fs::write(repo.join(name), text).expect("file");
     git(fixture, repo, &["add", "--", name]);
     git(fixture, repo, &["commit", "--quiet", "--message", name]);
@@ -54,7 +76,14 @@ fn a_nested_git_add_inside_rebase_does_not_deadlock() {
     command
         .current_dir(&repo)
         .args(["rebase", "--exec", exec_step.as_str(), "HEAD~1"]);
-    let output: Output = finish(command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("start the wrapped rebase"));
+    let output: Output = finish(
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("start the wrapped rebase"),
+    );
     assert_eq!(
         output.status.code(),
         Some(0),
@@ -76,11 +105,28 @@ fn a_foreign_index_lock_is_refused_as_native_git_refuses_it() {
     commit_file(&fixture, repo.as_path(), "a.txt", "one\n");
     std::fs::write(repo.join("b.txt"), "two\n").expect("file to add");
     std::fs::write(repo.join(".git/index.lock"), b"").expect("a lock nobody can be proven to hold");
-    let wrapped_run: Observed = observe(wrapped(&fixture).current_dir(&repo).args(["add", "--", "b.txt"]), b"");
+    let wrapped_run: Observed = observe(
+        wrapped(&fixture)
+            .current_dir(&repo)
+            .args(["add", "--", "b.txt"]),
+        b"",
+    );
     let native_run: Observed = run_direct(&fixture, repo.as_path(), &["add", "--", "b.txt"]);
     assert_eq!(native_run.code, Some(128), "{}", stderr_of(&native_run));
-    assert_eq!(wrapped_run.code, native_run.code, "{}", stderr_of(&wrapped_run));
-    assert_eq!(stderr_of(&wrapped_run), stderr_of(&native_run), "Git's own words, and nothing of the wrapper's");
-    assert!(repo.join(".git/index.lock").exists(), "the foreign lock is left in place");
+    assert_eq!(
+        wrapped_run.code,
+        native_run.code,
+        "{}",
+        stderr_of(&wrapped_run)
+    );
+    assert_eq!(
+        stderr_of(&wrapped_run),
+        stderr_of(&native_run),
+        "Git's own words, and nothing of the wrapper's"
+    );
+    assert!(
+        repo.join(".git/index.lock").exists(),
+        "the foreign lock is left in place"
+    );
     remove(&fixture);
 }

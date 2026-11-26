@@ -21,16 +21,47 @@
 //! const end = await finishInterruptedCheckout({ commonDir, destination, source, context });
 //! ```
 
-use crate::fs_beneath::{ObjectId, Owned, identity_at, open_root, remove_if_identical};
-use crate::index_lock_holders::{HolderEvidence, scan_platform_holders};
+use crate::fs_beneath::{
+    ObjectId,
+    Owned,
+    identity_at,
+    open_root,
+    remove_if_identical,
+};
+use crate::index_lock_holders::{
+    HolderEvidence,
+    scan_platform_holders,
+};
 use crate::json_record::quote;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
-use crate::worktree_add_binding::{bind_registration, path_identity};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
+use crate::worktree_add_binding::{
+    bind_registration,
+    path_identity,
+};
 use crate::worktree_copy_ceiling::CopyCeiling;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
-use crate::worktree_copy_interrupted_add_settlement::{INDEX, INDEX_LOCK, add_is_finished};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+    raw_failure_of,
+};
+use crate::worktree_copy_interrupted_add_settlement::{
+    INDEX,
+    INDEX_LOCK,
+    add_is_finished,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  How one pass of finishing an interrupted add's checkout ended.
@@ -93,13 +124,22 @@ fn names_of(directory: &Path) -> Option<Vec<OsString>> {
 /// ```ts
 /// const same = (left, right) => { const a = statSync(left); const b = statSync(right); return b.isFile() && a.size === b.size && readFileSync(left).equals(readFileSync(right)) };
 /// ```
-fn holds_the_same_bytes(left: &Path, right: &Path) -> bool {
-    let Ok(held) = std::fs::metadata(left) else { return false };
-    let Ok(wanted) = std::fs::metadata(right) else { return false };
+fn holds_the_same_bytes(
+    left: &Path,
+    right: &Path,
+) -> bool {
+    let Ok(held) = std::fs::metadata(left) else {
+        return false;
+    };
+    let Ok(wanted) = std::fs::metadata(right) else {
+        return false;
+    };
     if !wanted.is_file() || held.len() != wanted.len() {
         return false;
     }
-    let (Ok(mine), Ok(theirs)) = (std::fs::read(left), std::fs::read(right)) else { return false };
+    let (Ok(mine), Ok(theirs)) = (std::fs::read(left), std::fs::read(right)) else {
+        return false;
+    };
     return mine == theirs;
 }
 
@@ -119,7 +159,11 @@ fn holds_the_same_bytes(left: &Path, right: &Path) -> bool {
 /// ```ts
 /// const foreign = firstForeignEntry(destination, source, ''); // undefined when nothing is foreign
 /// ```
-fn first_foreign_entry(destination: &Path, source: &Path, relative: &Path) -> Option<PathBuf> {
+fn first_foreign_entry(
+    destination: &Path,
+    source: &Path,
+    relative: &Path,
+) -> Option<PathBuf> {
     let names: Vec<OsString> = names_of(destination)?;
     for name in names {
         let here: PathBuf = destination.join(name.as_os_str());
@@ -127,7 +171,9 @@ fn first_foreign_entry(destination: &Path, source: &Path, relative: &Path) -> Op
         if relative.as_os_str().is_empty() && name.as_os_str() == OsStr::new(POINTER) {
             continue;
         }
-        let Ok(held) = std::fs::symlink_metadata(here.as_path()) else { return Some(named) };
+        let Ok(held) = std::fs::symlink_metadata(here.as_path()) else {
+            return Some(named);
+        };
         if held.is_dir() {
             // A directory that cannot be listed proves nothing about the files below it, so it is named rather than
             // walked past.
@@ -141,7 +187,12 @@ fn first_foreign_entry(destination: &Path, source: &Path, relative: &Path) -> Op
         }
         let there: PathBuf = source.join(named.as_path());
         if held.file_type().is_symlink() {
-            let (Ok(mine), Ok(theirs)) = (std::fs::read_link(here.as_path()), std::fs::read_link(there.as_path())) else { return Some(named) };
+            let (Ok(mine), Ok(theirs)) = (
+                std::fs::read_link(here.as_path()),
+                std::fs::read_link(there.as_path()),
+            ) else {
+                return Some(named);
+            };
             let same: bool = mine == theirs;
             if !same {
                 return Some(named);
@@ -165,8 +216,12 @@ fn first_foreign_entry(destination: &Path, source: &Path, relative: &Path) -> Op
 /// ```ts
 /// const provable = namesOf(destination) !== undefined && firstForeignEntry(destination, source, '') === undefined;
 /// ```
-fn destination_holds_only_the_sources_bytes(destination: &Path, source: &Path) -> bool {
-    return names_of(destination).is_some() && first_foreign_entry(destination, source, Path::new("")).is_none();
+fn destination_holds_only_the_sources_bytes(
+    destination: &Path,
+    source: &Path,
+) -> bool {
+    return names_of(destination).is_some()
+        && first_foreign_entry(destination, source, Path::new("")).is_none();
 }
 
 /// What:
@@ -185,7 +240,10 @@ fn destination_holds_only_the_sources_bytes(destination: &Path, source: &Path) -
 /// ```ts
 /// const unheld = (lock) => { const e = scanPlatformHolders(lock); return e.holders.length === 0 && !e.unresolved() };
 /// ```
-fn nothing_holds_the_lock_open(lock: &Path, locked: ObjectId) -> bool {
+fn nothing_holds_the_lock_open(
+    lock: &Path,
+    locked: ObjectId,
+) -> bool {
     let evidence: HolderEvidence = scan_platform_holders(lock, locked.device, locked.inode);
     return evidence.holders.is_empty() && !evidence.unresolved();
 }
@@ -207,7 +265,10 @@ fn nothing_holds_the_lock_open(lock: &Path, locked: ObjectId) -> bool {
 /// ```ts
 /// clearTheLock(admin, ownerIsDead); // throws the reason nothing was removed
 /// ```
-fn clear_the_lock(admin: &Path, owner_is_dead: bool) -> Result<(), WorktreeCopyError> {
+fn clear_the_lock(
+    admin: &Path,
+    owner_is_dead: bool,
+) -> Result<(), WorktreeCopyError> {
     let directory = open_root(admin).map_err(raw_failure_of)?;
     let lock: &OsStr = OsStr::new(INDEX_LOCK);
     let locked: ObjectId = match identity_at(&directory, lock) {
@@ -225,7 +286,8 @@ fn clear_the_lock(admin: &Path, owner_is_dead: bool) -> Result<(), WorktreeCopyE
             ));
         }
     };
-    let published: bool = matches!(identity_at(&directory, OsStr::new(INDEX)), Ok(index) if index == locked);
+    let published: bool =
+        matches!(identity_at(&directory, OsStr::new(INDEX)), Ok(index) if index == locked);
     if !published && !owner_is_dead {
         return Err(failure_with_cause(
             format!(
@@ -270,12 +332,26 @@ fn clear_the_lock(admin: &Path, owner_is_dead: bool) -> Result<(), WorktreeCopyE
 /// ```ts
 /// const out = await runGit({ cwd: destination, args: ['reset', '--hard', '--no-recurse-submodules'], env: { GIT_DIR: admin, GIT_WORK_TREE: destination } });
 /// ```
-fn check_out_like_git(context: &GitContext, destination: &Path, admin: &Path) -> Result<GitOutput, WorktreeCopyError> {
+fn check_out_like_git(
+    context: &GitContext,
+    destination: &Path,
+    admin: &Path,
+) -> Result<GitOutput, WorktreeCopyError> {
     let request: GitRequest = GitRequest {
         cwd: destination.to_path_buf(),
-        arguments: vec![OsString::from("reset"), OsString::from("--hard"), OsString::from("--no-recurse-submodules")],
+        arguments: vec![
+            OsString::from("reset"),
+            OsString::from("--hard"),
+            OsString::from("--no-recurse-submodules"),
+        ],
         without_prefix: true,
-        environment: vec![(OsString::from("GIT_DIR"), admin.as_os_str().to_os_string()), (OsString::from("GIT_WORK_TREE"), destination.as_os_str().to_os_string())],
+        environment: vec![
+            (OsString::from("GIT_DIR"), admin.as_os_str().to_os_string()),
+            (
+                OsString::from("GIT_WORK_TREE"),
+                destination.as_os_str().to_os_string(),
+            ),
+        ],
         ..GitRequest::default()
     };
     return run_git(context, &request).map_err(raw_failure_of);
@@ -309,24 +385,37 @@ pub fn finish_interrupted_checkout(
     ceiling: &CopyCeiling,
 ) -> Result<CheckoutFinish, WorktreeCopyError> {
     let Ok(bound) = bind_registration(common_dir, destination) else {
-        return Ok(CheckoutFinish::NotProvable(String::from("it is not a registration of this repository that its pointer names")));
+        return Ok(CheckoutFinish::NotProvable(String::from(
+            "it is not a registration of this repository that its pointer names",
+        )));
     };
-    if bound.binding.destination != destination || path_identity(destination) != Some(bound.binding.destination_id) {
-        return Ok(CheckoutFinish::NotProvable(String::from("the directory there is not the one Git made for the add")));
+    if bound.binding.destination != destination
+        || path_identity(destination) != Some(bound.binding.destination_id)
+    {
+        return Ok(CheckoutFinish::NotProvable(String::from(
+            "the directory there is not the one Git made for the add",
+        )));
     }
     let admin: PathBuf = bound.binding.admin.clone();
     if add_is_finished(destination, admin.as_path()) {
         return Ok(CheckoutFinish::Whole);
     }
     if !source.is_dir() {
-        return Ok(CheckoutFinish::NotProvable(format!("the source {} stands no more", quote(source.to_string_lossy().as_ref()))));
+        return Ok(CheckoutFinish::NotProvable(format!(
+            "the source {} stands no more",
+            quote(source.to_string_lossy().as_ref())
+        )));
     }
     if !destination_holds_only_the_sources_bytes(destination, source) {
         let foreign: String = match first_foreign_entry(destination, source, Path::new("")) {
-            Some(found) => String::from_utf8_lossy(found.as_os_str().as_encoded_bytes()).into_owned(),
+            Some(found) => {
+                String::from_utf8_lossy(found.as_os_str().as_encoded_bytes()).into_owned()
+            }
             None => String::new(),
         };
-        return Ok(CheckoutFinish::NotProvable(format!("the entry {foreign} there holds something the source does not")));
+        return Ok(CheckoutFinish::NotProvable(format!(
+            "the entry {foreign} there holds something the source does not"
+        )));
     }
     if ceiling.reached() {
         return Ok(CheckoutFinish::NotProvable(ceiling.stopped_sentence()));
@@ -334,10 +423,15 @@ pub fn finish_interrupted_checkout(
     clear_the_lock(admin.as_path(), owner_is_dead)?;
     let checked: GitOutput = check_out_like_git(context, destination, admin.as_path())?;
     if !checked.succeeded() {
-        return Ok(CheckoutFinish::NotProvable(format!("Git's own checkout of it ended with {}", String::from_utf8_lossy(checked.stderr.as_slice()).trim())));
+        return Ok(CheckoutFinish::NotProvable(format!(
+            "Git's own checkout of it ended with {}",
+            String::from_utf8_lossy(checked.stderr.as_slice()).trim()
+        )));
     }
     if !add_is_finished(destination, admin.as_path()) {
-        return Ok(CheckoutFinish::NotProvable(String::from("Git's own checkout of it ended and the worktree still holds no index")));
+        return Ok(CheckoutFinish::NotProvable(String::from(
+            "Git's own checkout of it ended and the worktree still holds no index",
+        )));
     }
     return Ok(CheckoutFinish::Finished(format!(
         "monochromatic-git-policy-cli: finished the checkout an interrupted `git worktree add` left incomplete in {}: every entry it had already made held the source's bytes, and Git's own checkout completed the rest.",

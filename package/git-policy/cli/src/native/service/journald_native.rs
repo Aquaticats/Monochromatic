@@ -37,10 +37,16 @@
 
 pub use crate::journald_native_socket_target::Target;
 use std::io::Write;
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::os::linux::net::SocketAddrExt;
-use std::os::unix::net::{SocketAddr, UnixDatagram};
+use std::os::unix::net::{
+    SocketAddr,
+    UnixDatagram,
+};
+use std::sync::Mutex;
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// Test-only:
 /// names another socket to send entries to,
@@ -142,7 +148,10 @@ impl Priority {
 /// ```ts
 /// text.length > limit ? text.slice(0, limit) + ' [cut]' : text
 /// ```
-pub fn cut(text: &str, limit: usize) -> String {
+pub fn cut(
+    text: &str,
+    limit: usize,
+) -> String {
     return match text.char_indices().nth(limit) {
         Some((end, _)) => format!("{}{CUT_MARK}", &text[..end]),
         None => text.to_string(),
@@ -161,14 +170,21 @@ pub fn cut(text: &str, limit: usize) -> String {
 /// ```ts
 /// text.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, limit)
 /// ```
-pub fn one_line(text: &str, limit: usize) -> String {
+pub fn one_line(
+    text: &str,
+    limit: usize,
+) -> String {
     let mut single: String = String::with_capacity(text.len().min(limit + CUT_MARK.len()));
     for (count, character) in text.chars().enumerate() {
         if count >= limit {
             single.push_str(CUT_MARK);
             break;
         }
-        single.push(if character.is_control() { ' ' } else { character });
+        single.push(if character.is_control() {
+            ' '
+        } else {
+            character
+        });
     }
     return single;
 }
@@ -227,7 +243,11 @@ fn is_field_name_byte(byte: &u8) -> bool {
 /// the byte
 /// length as eight little-endian bytes,
 /// the value and `\n`.
-fn push_field(entry: &mut Vec<u8>, name: &str, value: &str) {
+fn push_field(
+    entry: &mut Vec<u8>,
+    name: &str,
+    value: &str,
+) {
     if value.contains('\n') {
         entry.extend_from_slice(name.as_bytes());
         entry.push(b'\n');
@@ -251,7 +271,11 @@ fn push_field(entry: &mut Vec<u8>, name: &str, value: &str) {
 /// ```ts
 /// datagramAs('cli-git-service', priority, message, fields)
 /// ```
-pub fn datagram(priority: Priority, message: &str, fields: &[(&str, String)]) -> Vec<u8> {
+pub fn datagram(
+    priority: Priority,
+    message: &str,
+    fields: &[(&str, String)],
+) -> Vec<u8> {
     return datagram_as(IDENTIFIER, priority, message, fields);
 }
 
@@ -279,9 +303,18 @@ pub fn datagram(priority: Priority, message: &str, fields: &[(&str, String)]) ->
 /// ```ts
 /// `PRIORITY=${n}\nSYSLOG_IDENTIFIER=${identifier}\nMESSAGE=${message}\n${fields.map(([k, v]) => `${k}=${v}\n`).join('')}`
 /// ```
-pub fn datagram_as(identifier: &str, priority: Priority, message: &str, fields: &[(&str, String)]) -> Vec<u8> {
+pub fn datagram_as(
+    identifier: &str,
+    priority: Priority,
+    message: &str,
+    fields: &[(&str, String)],
+) -> Vec<u8> {
     let mut entry: Vec<u8> = Vec::new();
-    push_field(&mut entry, "PRIORITY", priority.number().to_string().as_str());
+    push_field(
+        &mut entry,
+        "PRIORITY",
+        priority.number().to_string().as_str(),
+    );
     push_field(&mut entry, "SYSLOG_IDENTIFIER", identifier);
     push_field(&mut entry, "MESSAGE", cut(message, MESSAGE_LIMIT).as_str());
     for (name, value) in fields {
@@ -297,14 +330,19 @@ pub fn datagram_as(identifier: &str, priority: Priority, message: &str, fields: 
 /// standard error is still the journal:
 /// the variable alone is not enough,
 /// because a redirection leaves it set.
-pub fn stream_matches(variable: Option<&str>, device: u64, inode: u64) -> bool {
+pub fn stream_matches(
+    variable: Option<&str>,
+    device: u64,
+    inode: u64,
+) -> bool {
     let Some(text) = variable else {
         return false;
     };
     let Some((named_device, named_inode)) = text.split_once(':') else {
         return false;
     };
-    return named_device.parse::<u64>().ok() == Some(device) && named_inode.parse::<u64>().ok() == Some(inode);
+    return named_device.parse::<u64>().ok() == Some(device)
+        && named_inode.parse::<u64>().ok() == Some(inode);
 }
 
 /// The device and inode of standard error,
@@ -349,7 +387,8 @@ pub fn raw_address(address: &SocketAddr) -> Option<(libc::sockaddr_un, libc::soc
     for (slot, byte) in raw.sun_path[offset..].iter_mut().zip(name) {
         *slot = libc::c_char::from_ne_bytes([*byte]);
     }
-    let length: usize = std::mem::size_of::<libc::sa_family_t>() + offset + name.len() + usize::from(offset == 0);
+    let length: usize =
+        std::mem::size_of::<libc::sa_family_t>() + offset + name.len() + usize::from(offset == 0);
     return Some((raw, libc::socklen_t::try_from(length).ok()?));
 }
 
@@ -422,13 +461,23 @@ impl Sink {
     /// ```ts
     /// Sink.choose(process.env.JOURNAL_STREAM, stderrIdentity(), '/run/systemd/journal/socket')
     /// ```
-    pub fn choose(variable: Option<&str>, stderr: Option<(u64, u64)>, socket: &Target) -> Self {
+    pub fn choose(
+        variable: Option<&str>,
+        stderr: Option<(u64, u64)>,
+        socket: &Target,
+    ) -> Self {
         let stream: bool = match stderr {
             Some((device, inode)) => stream_matches(variable, device, inode),
             None => false,
         };
         let native: Option<UnixDatagram> = if stream { Self::open() } else { None };
-        return Self { native, address: socket.address(), stream, pending: Mutex::new(Vec::new()), lost: AtomicU64::new(0) };
+        return Self {
+            native,
+            address: socket.address(),
+            stream,
+            pending: Mutex::new(Vec::new()),
+            lost: AtomicU64::new(0),
+        };
     }
 
     /// An unconnected datagram socket that never blocks,
@@ -498,7 +547,14 @@ impl Sink {
     /// ```ts
     /// try { socket.send(datagram) } catch { stderr.write(prefix + line) ?? count(dropped) }
     /// ```
-    pub fn deliver(&self, priority: Priority, message: &str, fields: &[(&str, String)], line: &str, stderr: &mut dyn Write) -> Delivery {
+    pub fn deliver(
+        &self,
+        priority: Priority,
+        message: &str,
+        fields: &[(&str, String)],
+        line: &str,
+        stderr: &mut dyn Write,
+    ) -> Delivery {
         let lost: u64 = self.lost.load(Ordering::Relaxed);
         if let Some(socket) = self.native.as_ref()
             && let Some(address) = self.address.as_ref()
@@ -507,7 +563,13 @@ impl Sink {
             if lost > 0 {
                 all.push((LOST_FIELD, lost.to_string()));
             }
-            if socket.send_to_addr(datagram(priority, message, all.as_slice()).as_slice(), address).is_ok() {
+            if socket
+                .send_to_addr(
+                    datagram(priority, message, all.as_slice()).as_slice(),
+                    address,
+                )
+                .is_ok()
+            {
                 self.forgive(lost);
                 return Delivery::Native;
             }
@@ -521,9 +583,17 @@ impl Sink {
     /// one on the stream),
     /// so the second
     /// subtraction must find less than it expects and stop at zero instead of wrapping.
-    fn forgive(&self, count: u64) {
+    fn forgive(
+        &self,
+        count: u64,
+    ) {
         let mut current: u64 = self.lost.load(Ordering::Relaxed);
-        while let Err(seen) = self.lost.compare_exchange_weak(current, current.saturating_sub(count), Ordering::Relaxed, Ordering::Relaxed) {
+        while let Err(seen) = self.lost.compare_exchange_weak(
+            current,
+            current.saturating_sub(count),
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
             current = seen;
         }
     }
@@ -546,10 +616,18 @@ impl Sink {
     /// ```ts
     /// if (pending.length) flush(pending); if (!pending.length) write(note + line) else lost++
     /// ```
-    fn fall_back(&self, priority: Priority, line: &str, stderr: &mut dyn Write) -> Delivery {
+    fn fall_back(
+        &self,
+        priority: Priority,
+        line: &str,
+        stderr: &mut dyn Write,
+    ) -> Delivery {
         // Only the journal's stream carries a `<priority>` prefix; any other standard error gets its plain line, and the rest of
         //  it is kept for the next line like the stream's, because a writer that never waits may take a line only in part.
-        let mut pending = self.pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut pending = self
+            .pending
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if !pending.is_empty() {
             let finished: usize = write_what_fits(stderr, pending.as_slice());
             pending.drain(..finished);
@@ -561,7 +639,13 @@ impl Sink {
         let lost: u64 = self.lost.load(Ordering::Relaxed);
         let mut bytes: Vec<u8> = Vec::new();
         if lost > 0 {
-            bytes.extend_from_slice(format!("<{}>{LOST_NOTICE_HEAD}{lost}{LOST_NOTICE_TAIL}\n", Priority::Warning.number()).as_bytes());
+            bytes.extend_from_slice(
+                format!(
+                    "<{}>{LOST_NOTICE_HEAD}{lost}{LOST_NOTICE_TAIL}\n",
+                    Priority::Warning.number()
+                )
+                .as_bytes(),
+            );
         }
         if self.stream {
             bytes.extend_from_slice(format!("<{}>{line}", priority.number()).as_bytes());
@@ -587,11 +671,15 @@ pub const LOST_FIELD: &str = "CLI_GIT_LOG_DROPPED";
 const LOST_NOTICE_HEAD: &str = "monochromatic-git-policy-cli-service: ";
 
 /// What it says after the count.
-const LOST_NOTICE_TAIL: &str = " log entries were dropped before this one because the log stream had no room";
+const LOST_NOTICE_TAIL: &str =
+    " log entries were dropped before this one because the log stream had no room";
 
 /// Writes as much of `bytes` as `stream` takes without waiting,
 /// and gives how much it took.
-fn write_what_fits(stream: &mut dyn Write, bytes: &[u8]) -> usize {
+fn write_what_fits(
+    stream: &mut dyn Write,
+    bytes: &[u8],
+) -> usize {
     let mut done: usize = 0;
     while done < bytes.len() {
         match stream.write(&bytes[done..]) {
@@ -665,9 +753,19 @@ pub const PIPE_CHUNK: usize = 4096;
 /// # Errors
 /// The error number of the failed call,
 /// `EAGAIN` when there is no room.
-pub fn send_without_waiting(descriptor: std::os::fd::RawFd, bytes: &[u8]) -> Result<usize, libc::c_int> {
+pub fn send_without_waiting(
+    descriptor: std::os::fd::RawFd,
+    bytes: &[u8],
+) -> Result<usize, libc::c_int> {
     // SAFETY: `bytes` is valid for its length for the call, and `send` is safe in a signal handler.
-    let sent: isize = unsafe { libc::send(descriptor, bytes.as_ptr().cast(), bytes.len(), libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL) };
+    let sent: isize = unsafe {
+        libc::send(
+            descriptor,
+            bytes.as_ptr().cast(),
+            bytes.len(),
+            libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL,
+        )
+    };
     if let Ok(count) = usize::try_from(sent) {
         return Ok(count);
     }
@@ -678,7 +776,11 @@ pub fn send_without_waiting(descriptor: std::os::fd::RawFd, bytes: &[u8]) -> Res
     }
     // Not a socket (a file or a pipe a test or a redirection put there): an ordinary write, made only when the descriptor
     //  shows room and small enough for a pipe to take whole, so it cannot block.
-    let mut request: libc::pollfd = libc::pollfd { fd: descriptor, events: libc::POLLOUT, revents: 0 };
+    let mut request: libc::pollfd = libc::pollfd {
+        fd: descriptor,
+        events: libc::POLLOUT,
+        revents: 0,
+    };
     // SAFETY: `request` is valid for the call, which reads and writes one `pollfd`, and `poll` is safe in a signal handler.
     let ready: libc::c_int = unsafe { libc::poll(&raw mut request, 1, 0) };
     if ready <= 0 || request.revents & libc::POLLOUT == 0 {
@@ -699,18 +801,26 @@ pub fn send_without_waiting(descriptor: std::os::fd::RawFd, bytes: &[u8]) -> Res
 impl StreamWriter {
     /// A writer to standard error.
     pub fn stderr() -> Self {
-        return Self { descriptor: libc::STDERR_FILENO };
+        return Self {
+            descriptor: libc::STDERR_FILENO,
+        };
     }
 
     /// A writer to a stream socket descriptor.
     pub fn on(descriptor: std::os::fd::RawFd) -> Self {
-        return Self { descriptor };
+        return Self {
+            descriptor,
+        };
     }
 }
 
 impl Write for StreamWriter {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        return send_without_waiting(self.descriptor, bytes).map_err(std::io::Error::from_raw_os_error);
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
+        return send_without_waiting(self.descriptor, bytes)
+            .map_err(std::io::Error::from_raw_os_error);
     }
 
     fn flush(&mut self) -> std::io::Result<()> {

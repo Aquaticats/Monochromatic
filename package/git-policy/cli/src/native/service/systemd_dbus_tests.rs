@@ -11,20 +11,31 @@ use crate::test_support::remove;
 /// A directory whose path is short enough for a socket,
 /// in the agent scratch directory.
 fn short_directory(name: &str) -> std::path::PathBuf {
-    let scratch = std::path::PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
+    let scratch = std::path::PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
+        .join("temp/agent");
     let directory = scratch.join(format!("dbus-{}-{name}", std::process::id()));
     std::fs::create_dir_all(&directory).expect("scratch directory");
     return directory;
 }
-use std::io::{Read, Write};
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::io::{
+    Read,
+    Write,
+};
+use std::os::unix::net::{
+    UnixListener,
+    UnixStream,
+};
 
 /// A string-like header field written out byte by byte:
 /// code,
 /// a one-character signature,
 /// the length,
 /// the text and its end.
-fn hand_field(code: u8, kind: u8, text: &str) -> Vec<u8> {
+fn hand_field(
+    code: u8,
+    kind: u8,
+    text: &str,
+) -> Vec<u8> {
     let mut bytes: Vec<u8> = vec![code, 1, kind, 0];
     bytes.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
     bytes.extend(text.as_bytes());
@@ -43,7 +54,12 @@ fn pad8(bytes: &mut Vec<u8>) {
 /// the fixed header,
 /// the header fields each starting on an eight-byte boundary,
 /// and the body.
-fn hand_message(kind: u8, serial: u32, fields: &[Vec<u8>], body: &[u8]) -> Vec<u8> {
+fn hand_message(
+    kind: u8,
+    serial: u32,
+    fields: &[Vec<u8>],
+    body: &[u8],
+) -> Vec<u8> {
     let mut array: Vec<u8> = Vec::new();
     for field in fields {
         pad8(&mut array);
@@ -81,7 +97,10 @@ fn a_call_without_arguments_has_the_specified_layout() {
     assert_eq!(encode_call(1, &RESET_FAILED_UNIT, &[]), wanted);
     // The numbers worked out by hand from the specification: 34, 33, 43 and 24 bytes of fields at offsets 16, 56, 96 and 144.
     assert_eq!(wanted.len(), 168);
-    assert_eq!(u32::from_le_bytes([wanted[12], wanted[13], wanted[14], wanted[15]]), 152);
+    assert_eq!(
+        u32::from_le_bytes([wanted[12], wanted[13], wanted[14], wanted[15]]),
+        152
+    );
 }
 
 /// A call with two strings carries their signature and the strings,
@@ -102,10 +121,18 @@ fn a_call_with_two_strings_carries_them_in_the_body() {
     let split: usize = message.len() - body.len();
     assert_eq!(split % 8, 0, "the body starts on an eight-byte boundary");
     assert_eq!(&message[split..], body.as_slice());
-    assert_eq!(u32::from_le_bytes([message[4], message[5], message[6], message[7]]) as usize, body.len());
-    assert_eq!(u32::from_le_bytes([message[8], message[9], message[10], message[11]]), 7);
+    assert_eq!(
+        u32::from_le_bytes([message[4], message[5], message[6], message[7]]) as usize,
+        body.len()
+    );
+    assert_eq!(
+        u32::from_le_bytes([message[8], message[9], message[10], message[11]]),
+        7
+    );
     let signature: Vec<u8> = vec![FIELD_SIGNATURE, 1, b'g', 0, 2, b's', b's', 0];
-    assert!(message.windows(signature.len()).any(|window| { return window == signature.as_slice(); }));
+    assert!(message.windows(signature.len()).any(|window| {
+        return window == signature.as_slice();
+    }));
 }
 
 /// The reply-serial field of a hand-built reply.
@@ -120,14 +147,30 @@ fn serial_field(serial: u32) -> Vec<u8> {
 #[test]
 fn replies_built_by_hand_are_read() {
     let returned: Vec<u8> = hand_message(METHOD_RETURN, 2, &[serial_field(5)], &[]);
-    assert_eq!(decode_reply(&returned), Ok(Reply { kind: METHOD_RETURN, reply_serial: Some(5), error_name: None, first_text: None }));
+    assert_eq!(
+        decode_reply(&returned),
+        Ok(Reply {
+            kind: METHOD_RETURN,
+            reply_serial: Some(5),
+            error_name: None,
+            first_text: None
+        })
+    );
     let mut body: Vec<u8> = Vec::new();
     body.extend(7u32.to_le_bytes());
     body.extend(b"no room\0");
     let failed: Vec<u8> = hand_message(
         ERROR,
         3,
-        &[hand_field(FIELD_ERROR_NAME, b's', "org.freedesktop.systemd1.NoSuchUnit"), serial_field(9), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]],
+        &[
+            hand_field(
+                FIELD_ERROR_NAME,
+                b's',
+                "org.freedesktop.systemd1.NoSuchUnit",
+            ),
+            serial_field(9),
+            vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0],
+        ],
         &body,
     );
     assert_eq!(
@@ -146,16 +189,25 @@ fn replies_built_by_hand_are_read() {
 #[test]
 fn damaged_replies_are_refused() {
     let whole: Vec<u8> = hand_message(METHOD_RETURN, 2, &[serial_field(1)], &[]);
-    assert!(matches!(decode_reply(&whole[..10]), Err(CallError::Malformed(_))));
+    assert!(matches!(
+        decode_reply(&whole[..10]),
+        Err(CallError::Malformed(_))
+    ));
     let mut big_endian: Vec<u8> = whole.clone();
     big_endian[0] = b'B';
-    assert!(matches!(decode_reply(&big_endian), Err(CallError::Malformed(_))));
+    assert!(matches!(
+        decode_reply(&big_endian),
+        Err(CallError::Malformed(_))
+    ));
     let mut lies: Vec<u8> = whole.clone();
     lies[4..8].copy_from_slice(&1000u32.to_le_bytes());
     assert!(matches!(decode_reply(&lies), Err(CallError::Malformed(_))));
     let mut long_fields: Vec<u8> = whole;
     long_fields[12..16].copy_from_slice(&u32::MAX.to_le_bytes());
-    assert!(matches!(decode_reply(&long_fields), Err(CallError::Malformed(_))));
+    assert!(matches!(
+        decode_reply(&long_fields),
+        Err(CallError::Malformed(_))
+    ));
 }
 
 /// Every prefix and every single-byte change of well-formed replies is answered with a result,
@@ -167,7 +219,16 @@ fn the_reader_is_total_over_damaged_input() {
     body.extend(b"abc\0");
     let samples: Vec<Vec<u8>> = vec![
         hand_message(METHOD_RETURN, 2, &[serial_field(1)], &[]),
-        hand_message(ERROR, 3, &[hand_field(FIELD_ERROR_NAME, b's', "a.b.C"), serial_field(2), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]], &body),
+        hand_message(
+            ERROR,
+            3,
+            &[
+                hand_field(FIELD_ERROR_NAME, b's', "a.b.C"),
+                serial_field(2),
+                vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0],
+            ],
+            &body,
+        ),
     ];
     for sample in samples {
         for length in 0..=sample.len() {
@@ -188,14 +249,29 @@ fn the_reader_is_total_over_damaged_input() {
 #[test]
 fn the_session_bus_path_is_found() {
     let runtime: &Path = Path::new("/run/user/1000");
-    assert_eq!(session_bus_path(Some("unix:path=/run/user/1000/bus"), None), Some(std::path::PathBuf::from("/run/user/1000/bus")));
     assert_eq!(
-        session_bus_path(Some("unix:abstract=/tmp/x,guid=1;unix:guid=2,path=/tmp/other"), None),
+        session_bus_path(Some("unix:path=/run/user/1000/bus"), None),
+        Some(std::path::PathBuf::from("/run/user/1000/bus"))
+    );
+    assert_eq!(
+        session_bus_path(
+            Some("unix:abstract=/tmp/x,guid=1;unix:guid=2,path=/tmp/other"),
+            None
+        ),
         Some(std::path::PathBuf::from("/tmp/other"))
     );
-    assert_eq!(session_bus_path(Some("unix:abstract=/tmp/x"), Some(runtime)), Some(runtime.join("bus")));
-    assert_eq!(session_bus_path(Some("unix:path=/a%20b"), Some(runtime)), Some(runtime.join("bus")));
-    assert_eq!(session_bus_path(None, Some(runtime)), Some(runtime.join("bus")));
+    assert_eq!(
+        session_bus_path(Some("unix:abstract=/tmp/x"), Some(runtime)),
+        Some(runtime.join("bus"))
+    );
+    assert_eq!(
+        session_bus_path(Some("unix:path=/a%20b"), Some(runtime)),
+        Some(runtime.join("bus"))
+    );
+    assert_eq!(
+        session_bus_path(None, Some(runtime)),
+        Some(runtime.join("bus"))
+    );
     assert_eq!(session_bus_path(None, None), None);
 }
 
@@ -209,7 +285,11 @@ struct Script {
 /// the line-based authentication,
 /// then for each call the messages the script gives (a signal first,
 ///  to show it is skipped).
-fn serve_bus(listener: UnixListener, script: Script, seen: std::sync::mpsc::Sender<(String, Vec<Vec<u8>>)>) {
+fn serve_bus(
+    listener: UnixListener,
+    script: Script,
+    seen: std::sync::mpsc::Sender<(String, Vec<Vec<u8>>)>,
+) {
     std::thread::spawn(move || {
         let (mut stream, first) = accept_and_authenticate(&listener);
         let mut calls: Vec<Vec<u8>> = Vec::new();
@@ -218,7 +298,9 @@ fn serve_bus(listener: UnixListener, script: Script, seen: std::sync::mpsc::Send
             let serial = serial_of(&call);
             calls.push(call);
             for answer in answers {
-                stream.write_all(&answering(answer, serial)).expect("answer");
+                stream
+                    .write_all(&answering(answer, serial))
+                    .expect("answer");
             }
         }
         let _sent = seen.send((first, calls));
@@ -235,7 +317,9 @@ fn accept_and_authenticate(listener: &UnixListener) -> (UnixStream, String) {
         stream.read_exact(&mut one).expect("auth bytes");
         first.push(one[0]);
     }
-    stream.write_all(b"OK 00112233445566778899aabbccddeeff\r\n").expect("ok");
+    stream
+        .write_all(b"OK 00112233445566778899aabbccddeeff\r\n")
+        .expect("ok");
     // zbus pipelines `NEGOTIATE_UNIX_FD` and `BEGIN` after the answer; the peer agrees to the first and stops at the second.
     loop {
         let mut line: Vec<u8> = Vec::new();
@@ -260,8 +344,13 @@ fn serial_of(call: &[u8]) -> u32 {
 }
 
 /// A prebuilt answer with its `reply_serial` field set to `serial`.
-fn answering(mut answer: Vec<u8>, serial: u32) -> Vec<u8> {
-    if let Some(at) = answer.windows(4).position(|window| { return window == [5, 1, b'u', 0]; }) {
+fn answering(
+    mut answer: Vec<u8>,
+    serial: u32,
+) -> Vec<u8> {
+    if let Some(at) = answer.windows(4).position(|window| {
+        return window == [5, 1, b'u', 0];
+    }) {
         answer[at + 4..at + 8].copy_from_slice(&serial.to_le_bytes());
     }
     return answer;
@@ -272,7 +361,8 @@ fn read_call(stream: &mut UnixStream) -> Vec<u8> {
     let mut header: Vec<u8> = vec![0; 16];
     stream.read_exact(&mut header).expect("header");
     let body: usize = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
-    let fields: usize = u32::from_le_bytes([header[12], header[13], header[14], header[15]]) as usize;
+    let fields: usize =
+        u32::from_le_bytes([header[12], header[13], header[14], header[15]]) as usize;
     let mut rest: Vec<u8> = vec![0; (16 + fields).div_ceil(8) * 8 + body - 16];
     stream.read_exact(&mut rest).expect("rest");
     header.extend(rest);
@@ -299,43 +389,90 @@ fn name_acquired() -> Vec<u8> {
     );
 }
 
-fn string_return(serial: u32, text: &str) -> Vec<u8> {
+fn string_return(
+    serial: u32,
+    text: &str,
+) -> Vec<u8> {
     let mut body: Vec<u8> = Vec::new();
     body.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
     body.extend(text.as_bytes());
     body.push(0);
-    return hand_message(METHOD_RETURN, serial + 10, &[serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]], &body);
+    return hand_message(
+        METHOD_RETURN,
+        serial + 10,
+        &[
+            serial_field(serial),
+            vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0],
+        ],
+        &body,
+    );
 }
 
 /// A return whose body is one object path.
-fn path_return(serial: u32, text: &str) -> Vec<u8> {
+fn path_return(
+    serial: u32,
+    text: &str,
+) -> Vec<u8> {
     let mut body: Vec<u8> = Vec::new();
     body.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
     body.extend(text.as_bytes());
     body.push(0);
-    return hand_message(METHOD_RETURN, serial + 10, &[serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b'o', 0]], &body);
+    return hand_message(
+        METHOD_RETURN,
+        serial + 10,
+        &[
+            serial_field(serial),
+            vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b'o', 0],
+        ],
+        &body,
+    );
 }
 
 /// A return whose body is one variant holding a string (or,
 /// with `inner` other than `s`,
 /// a value of that type).
-fn variant_return(serial: u32, inner: u8, text: &str) -> Vec<u8> {
+fn variant_return(
+    serial: u32,
+    inner: u8,
+    text: &str,
+) -> Vec<u8> {
     // The variant's own signature (length, type, end), one byte of padding to the four-byte boundary, then the value.
     let mut body: Vec<u8> = vec![1, inner, 0, 0];
     body.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
     body.extend(text.as_bytes());
     body.push(0);
-    return hand_message(METHOD_RETURN, serial + 10, &[serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b'v', 0]], &body);
+    return hand_message(
+        METHOD_RETURN,
+        serial + 10,
+        &[
+            serial_field(serial),
+            vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b'v', 0],
+        ],
+        &body,
+    );
 }
 
 /// An error reply for the call `serial`,
 /// with the manager's error name and a text.
-fn error_return(serial: u32, name: &str, text: &str) -> Vec<u8> {
+fn error_return(
+    serial: u32,
+    name: &str,
+    text: &str,
+) -> Vec<u8> {
     let mut body: Vec<u8> = Vec::new();
     body.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
     body.extend(text.as_bytes());
     body.push(0);
-    return hand_message(ERROR, serial + 10, &[hand_field(FIELD_ERROR_NAME, b's', name), serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]], &body);
+    return hand_message(
+        ERROR,
+        serial + 10,
+        &[
+            hand_field(FIELD_ERROR_NAME, b's', name),
+            serial_field(serial),
+            vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0],
+        ],
+        &body,
+    );
 }
 
 /// What:
@@ -377,10 +514,21 @@ fn addresses_body(addresses: &[&str]) -> Vec<u8> {
 }
 
 /// A return whose body is one variant holding a list of address pairs.
-fn addresses_return(serial: u32, addresses: &[&str]) -> Vec<u8> {
+fn addresses_return(
+    serial: u32,
+    addresses: &[&str],
+) -> Vec<u8> {
     let mut body: Vec<u8> = vec![5, b'a', b'(', b's', b's', b')', 0, 0];
     body.extend(addresses_body(addresses));
-    return hand_message(METHOD_RETURN, serial + 10, &[serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b'v', 0]], &body);
+    return hand_message(
+        METHOD_RETURN,
+        serial + 10,
+        &[
+            serial_field(serial),
+            vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b'v', 0],
+        ],
+        &body,
+    );
 }
 
 /// What:
@@ -399,21 +547,43 @@ fn the_addresses_of_a_unit_are_read_from_its_object_and_an_unloaded_unit_has_non
     let script: Script = Script {
         answers: vec![
             vec![string_return(1, ":1.42")],
-            vec![path_return(2, "/org/freedesktop/systemd1/unit/cli_2dgit_40a_2esocket")],
-            vec![addresses_return(3, &["/run/user/1000/monochromatic-git-policy-cli/a.sock"])],
+            vec![path_return(
+                2,
+                "/org/freedesktop/systemd1/unit/cli_2dgit_40a_2esocket",
+            )],
+            vec![addresses_return(
+                3,
+                &["/run/user/1000/monochromatic-git-policy-cli/a.sock"],
+            )],
             vec![error_return(4, NO_SUCH_UNIT, "not loaded")],
         ],
     };
     serve_bus(listener, script, sender);
     let mut bus: Bus = Bus::connect(socket.as_path(), Duration::from_secs(10)).expect("connected");
-    assert_eq!(bus.listen_addresses("cli-git@a.socket"), Ok(Some(vec![String::from("/run/user/1000/monochromatic-git-policy-cli/a.sock")])));
-    assert_eq!(bus.listen_addresses("cli-git@b.socket"), Ok(None), "a unit the manager does not hold has no address");
+    assert_eq!(
+        bus.listen_addresses("cli-git@a.socket"),
+        Ok(Some(vec![String::from(
+            "/run/user/1000/monochromatic-git-policy-cli/a.sock"
+        )]))
+    );
+    assert_eq!(
+        bus.listen_addresses("cli-git@b.socket"),
+        Ok(None),
+        "a unit the manager does not hold has no address"
+    );
     let (_auth, calls) = receiver.recv().expect("seen");
     // The property asked for is `Listen`, of the socket interface: the one property that says where a service answers.
     let interface: &[u8] = b"org.freedesktop.systemd1.Socket";
-    let asked: bool = calls[2].windows(6).any(|window| { return window == b"Listen"; });
-    let named: bool = calls[2].windows(interface.len()).any(|window| { return window == interface; });
-    assert!(asked && named, "the address question names the socket interface's Listen");
+    let asked: bool = calls[2].windows(6).any(|window| {
+        return window == b"Listen";
+    });
+    let named: bool = calls[2].windows(interface.len()).any(|window| {
+        return window == interface;
+    });
+    assert!(
+        asked && named,
+        "the address question names the socket interface's Listen"
+    );
     remove(root.as_path());
 }
 
@@ -424,10 +594,27 @@ fn the_addresses_of_a_unit_are_read_from_its_object_and_an_unloaded_unit_has_non
 /// is not.
 #[test]
 fn an_object_path_and_a_string_variant_are_read() {
-    assert_eq!(decode_reply(&path_return(4, "/org/freedesktop/systemd1/unit/a_2eservice")).expect("read").first_text.as_deref(), Some("/org/freedesktop/systemd1/unit/a_2eservice"));
+    assert_eq!(
+        decode_reply(&path_return(
+            4,
+            "/org/freedesktop/systemd1/unit/a_2eservice"
+        ))
+        .expect("read")
+        .first_text
+        .as_deref(),
+        Some("/org/freedesktop/systemd1/unit/a_2eservice")
+    );
     let variant: Vec<u8> = variant_return(4, b's', "deactivating");
-    assert_eq!(decode_reply(&variant).expect("read").first_text.as_deref(), Some("deactivating"));
-    assert_eq!(decode_reply(&variant_return(4, b'u', "xxxx")).expect("read").first_text, None);
+    assert_eq!(
+        decode_reply(&variant).expect("read").first_text.as_deref(),
+        Some("deactivating")
+    );
+    assert_eq!(
+        decode_reply(&variant_return(4, b'u', "xxxx"))
+            .expect("read")
+            .first_text,
+        None
+    );
     for length in 0..variant.len() {
         let _ = decode_reply(&variant[..length]);
     }
@@ -472,9 +659,18 @@ fn a_body_string_without_its_end_byte_is_not_read() {
 #[test]
 fn a_body_string_whose_end_byte_lies_outside_the_declared_body_is_not_read() {
     let mut body: Vec<u8> = Vec::new();
-    body.extend(u32::try_from(STATE_TEXT.len()).expect("short").to_le_bytes());
+    body.extend(
+        u32::try_from(STATE_TEXT.len())
+            .expect("short")
+            .to_le_bytes(),
+    );
     body.extend(STATE_TEXT.as_bytes());
-    let mut outside: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), string_signature(0)], &body);
+    let mut outside: Vec<u8> = hand_message(
+        METHOD_RETURN,
+        14,
+        &[serial_field(4), string_signature(0)],
+        &body,
+    );
     outside.push(0);
     assert_eq!(first_text(&outside), None);
 }
@@ -490,25 +686,47 @@ fn a_variant_without_an_end_byte_is_not_read() {
     let mut value_unterminated: Vec<u8> = variant.clone();
     let value_end: usize = value_unterminated.len() - 1;
     value_unterminated[value_end] = b'X';
-    assert_eq!(first_text(&value_unterminated), None, "a variant string whose end byte is another byte");
+    assert_eq!(
+        first_text(&value_unterminated),
+        None,
+        "a variant string whose end byte is another byte"
+    );
     // The variant's own signature is its length, its type and its end byte, at the start of the body.
     let body_length: usize = 4 + 4 + STATE_TEXT.len() + 1;
     let body_start: usize = variant.len() - body_length;
     let mut signature_unterminated: Vec<u8> = variant;
     signature_unterminated[body_start + 2] = b'X';
-    assert_eq!(first_text(&signature_unterminated), None, "a variant signature whose end byte is another byte");
+    assert_eq!(
+        first_text(&signature_unterminated),
+        None,
+        "a variant signature whose end byte is another byte"
+    );
 }
 
 /// A reply whose own signature field lacks its end byte is not interpreted by that signature.
 #[test]
 fn a_signature_field_without_its_end_byte_is_not_obeyed() {
     let mut body: Vec<u8> = Vec::new();
-    body.extend(u32::try_from(STATE_TEXT.len()).expect("short").to_le_bytes());
+    body.extend(
+        u32::try_from(STATE_TEXT.len())
+            .expect("short")
+            .to_le_bytes(),
+    );
     body.extend(STATE_TEXT.as_bytes());
     body.push(0);
-    let ended: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), string_signature(0)], &body);
+    let ended: Vec<u8> = hand_message(
+        METHOD_RETURN,
+        14,
+        &[serial_field(4), string_signature(0)],
+        &body,
+    );
     assert_eq!(first_text(&ended).as_deref(), Some(STATE_TEXT));
-    let unended: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), string_signature(b'X')], &body);
+    let unended: Vec<u8> = hand_message(
+        METHOD_RETURN,
+        14,
+        &[serial_field(4), string_signature(b'X')],
+        &body,
+    );
     assert_eq!(first_text(&unended), None);
 }
 
@@ -525,14 +743,20 @@ fn the_state_of_a_unit_is_read_from_its_object_and_an_unloaded_unit_has_none() {
     let script: Script = Script {
         answers: vec![
             vec![string_return(1, ":1.42")],
-            vec![path_return(2, "/org/freedesktop/systemd1/unit/cli_2dgit_2eservice")],
+            vec![path_return(
+                2,
+                "/org/freedesktop/systemd1/unit/cli_2dgit_2eservice",
+            )],
             vec![variant_return(3, b's', "deactivating")],
             vec![error_return(4, NO_SUCH_UNIT, "not loaded")],
         ],
     };
     serve_bus(listener, script, sender);
     let mut bus: Bus = Bus::connect(socket.as_path(), Duration::from_secs(10)).expect("connected");
-    assert_eq!(bus.active_state("cli-git.service"), Ok(Some(String::from("deactivating"))));
+    assert_eq!(
+        bus.active_state("cli-git.service"),
+        Ok(Some(String::from("deactivating")))
+    );
     assert_eq!(bus.active_state("cli-git.socket"), Ok(None));
     let (_auth, calls) = receiver.recv().expect("seen");
     let property: Target<'_> = Target {
@@ -543,7 +767,19 @@ fn the_state_of_a_unit_is_read_from_its_object_and_an_unloaded_unit_has_none() {
     };
     // Layouts are zbus's own now; the members called, in order, are what the exchange must show.
     let _unused = (&property, &GET_UNIT);
-    let members: Vec<bool> = [b"GetUnit".as_slice(), b"Get".as_slice(), b"GetUnit".as_slice()].iter().enumerate().map(|(at, member)| { return calls[at + 1].windows(member.len()).any(|window| { return window == *member; }); }).collect();
+    let members: Vec<bool> = [
+        b"GetUnit".as_slice(),
+        b"Get".as_slice(),
+        b"GetUnit".as_slice(),
+    ]
+    .iter()
+    .enumerate()
+    .map(|(at, member)| {
+        return calls[at + 1].windows(member.len()).any(|window| {
+            return window == *member;
+        });
+    })
+    .collect();
     assert_eq!(members, vec![true, true, true]);
     remove(root.as_path());
 }
@@ -574,7 +810,13 @@ fn a_session_says_hello_then_forgets_a_failure_and_starts() {
     let (auth, calls) = receiver.recv().expect("seen");
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     let user: u32 = unsafe { libc::geteuid() };
-    let digits: String = user.to_string().bytes().map(|byte| { return format!("{byte:02x}"); }).collect();
+    let digits: String = user
+        .to_string()
+        .bytes()
+        .map(|byte| {
+            return format!("{byte:02x}");
+        })
+        .collect();
     assert_eq!(auth, format!("\0AUTH EXTERNAL {digits}\r\n"));
     // The hand-written layout of each call belonged to the hand client; zbus writes its own (sender, flags, serial).
     assert_eq!(calls.len(), 3);
@@ -586,11 +828,18 @@ fn a_session_says_hello_then_forgets_a_failure_and_starts() {
 /// answers it after `delay` (never,
 /// when it has no `answer`) and then holds the
 ///  connection open for `hold`.
-fn serve_after_hello(listener: UnixListener, delay: Duration, answer: Option<Vec<u8>>, hold: Duration) {
+fn serve_after_hello(
+    listener: UnixListener,
+    delay: Duration,
+    answer: Option<Vec<u8>>,
+    hold: Duration,
+) {
     std::thread::spawn(move || {
         let (mut stream, _) = accept_and_authenticate(&listener);
         let hello = read_call(&mut stream);
-        stream.write_all(&answering(string_return(1, ":1.42"), serial_of(&hello))).expect("the answer to hello");
+        stream
+            .write_all(&answering(string_return(1, ":1.42"), serial_of(&hello)))
+            .expect("the answer to hello");
         let call = read_call(&mut stream);
         std::thread::sleep(delay);
         if let Some(bytes) = answer {
@@ -634,14 +883,28 @@ fn a_new_time_replaces_what_was_left_of_the_connections() {
     //  handshake and `Hello`, and under a loaded suite those two took longer than 200 ms, so the control failed as
     //  "connected: TimedOut" (`a_new_time_replaces_what_was_left_of_the_connections`, the suite of 2026-11-10).
     let control_socket = root.join("control");
-    serve_after_hello(UnixListener::bind(&control_socket).expect("listen"), Duration::ZERO, Some(hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])), Duration::from_secs(1));
+    serve_after_hello(
+        UnixListener::bind(&control_socket).expect("listen"),
+        Duration::ZERO,
+        Some(hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])),
+        Duration::from_secs(1),
+    );
     let mut control: Bus = Bus::connect(control_socket.as_path(), patience).expect("connected");
     control.within(given);
     std::thread::sleep(spent);
-    assert_eq!(control.start_unit("cli-git.socket"), Err(CallError::TimedOut), "the connection's own time is spent");
+    assert_eq!(
+        control.start_unit("cli-git.socket"),
+        Err(CallError::TimedOut),
+        "the connection's own time is spent"
+    );
     // With a new time, the same call after the same delay succeeds.
     let socket = root.join("bus");
-    serve_after_hello(UnixListener::bind(&socket).expect("listen"), Duration::ZERO, Some(hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])), Duration::from_secs(1));
+    serve_after_hello(
+        UnixListener::bind(&socket).expect("listen"),
+        Duration::ZERO,
+        Some(hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])),
+        Duration::from_secs(1),
+    );
     let mut bus: Bus = Bus::connect(socket.as_path(), patience).expect("connected");
     bus.within(given);
     std::thread::sleep(spent);
@@ -663,14 +926,31 @@ fn an_error_reply_names_the_error() {
     let error: Vec<u8> = hand_message(
         ERROR,
         12,
-        &[hand_field(FIELD_ERROR_NAME, b's', "org.freedesktop.systemd1.NoSuchUnit"), serial_field(2), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]],
+        &[
+            hand_field(
+                FIELD_ERROR_NAME,
+                b's',
+                "org.freedesktop.systemd1.NoSuchUnit",
+            ),
+            serial_field(2),
+            vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0],
+        ],
         &body,
     );
-    serve_bus(listener, Script { answers: vec![vec![string_return(1, ":1.42")], vec![error]] }, sender);
+    serve_bus(
+        listener,
+        Script {
+            answers: vec![vec![string_return(1, ":1.42")], vec![error]],
+        },
+        sender,
+    );
     let mut bus: Bus = Bus::connect(socket.as_path(), Duration::from_secs(10)).expect("connected");
     assert_eq!(
         bus.start_unit("x.socket"),
-        Err(CallError::Manager { name: String::from("org.freedesktop.systemd1.NoSuchUnit"), text: String::from("not found") })
+        Err(CallError::Manager {
+            name: String::from("org.freedesktop.systemd1.NoSuchUnit"),
+            text: String::from("not found")
+        })
     );
     remove(root.as_path());
 }
@@ -695,8 +975,14 @@ fn refusals_missing_sockets_and_silence_are_told_apart() {
         }
         stream.write_all(b"REJECTED EXTERNAL\r\n").expect("reject");
     });
-    assert!(matches!(Bus::connect(socket.as_path(), Duration::from_secs(10)), Err(CallError::Authentication(_))));
-    assert!(matches!(Bus::connect(root.join("nobody").as_path(), Duration::from_secs(10)), Err(CallError::Connection(_))));
+    assert!(matches!(
+        Bus::connect(socket.as_path(), Duration::from_secs(10)),
+        Err(CallError::Authentication(_))
+    ));
+    assert!(matches!(
+        Bus::connect(root.join("nobody").as_path(), Duration::from_secs(10)),
+        Err(CallError::Connection(_))
+    ));
     let silent = root.join("silent");
     let quiet_listener = UnixListener::bind(&silent).expect("listen");
     // The silent peer holds its end until the connect has ended, so only the bound of the connect can end it.
@@ -728,15 +1014,33 @@ fn refusals_missing_sockets_and_silence_are_told_apart() {
 #[test]
 #[ignore = "touches the real user service manager; run by hand"]
 fn the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit() {
-    let runtime = std::path::PathBuf::from(std::env::var_os("XDG_RUNTIME_DIR").expect("a runtime directory"));
-    let bus_path = session_bus_path(std::env::var("DBUS_SESSION_BUS_ADDRESS").ok().as_deref(), Some(runtime.as_path())).expect("a session bus");
+    let runtime =
+        std::path::PathBuf::from(std::env::var_os("XDG_RUNTIME_DIR").expect("a runtime directory"));
+    let bus_path = session_bus_path(
+        std::env::var("DBUS_SESSION_BUS_ADDRESS").ok().as_deref(),
+        Some(runtime.as_path()),
+    )
+    .expect("a session bus");
     let name = format!("cli-git-probe-{}", std::process::id());
     let units = runtime.join("systemd").join("user");
     std::fs::create_dir_all(&units).expect("unit directory");
     let socket_path = runtime.join(format!("{name}.sock"));
-    std::fs::write(units.join(format!("{name}.socket")), format!("[Socket]\nListenStream={}\n", socket_path.display())).expect("socket unit");
-    std::fs::write(units.join(format!("{name}.service")), "[Service]\nExecStart=/usr/bin/true\n").expect("service unit");
-    let stop = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StopUnit" };
+    std::fs::write(
+        units.join(format!("{name}.socket")),
+        format!("[Socket]\nListenStream={}\n", socket_path.display()),
+    )
+    .expect("socket unit");
+    std::fs::write(
+        units.join(format!("{name}.service")),
+        "[Service]\nExecStart=/usr/bin/true\n",
+    )
+    .expect("service unit");
+    let stop = Target {
+        destination: MANAGER_NAME,
+        path: MANAGER_PATH,
+        interface: MANAGER_INTERFACE,
+        member: "StopUnit",
+    };
     let outcome = (|| -> Result<(), CallError> {
         let mut bus = Bus::connect(bus_path.as_path(), EXCHANGE_WAIT)?;
         bus.start_unit(format!("{name}.socket").as_str())?;
@@ -778,10 +1082,28 @@ fn a_stop_that_spares_the_dependent_units_names_the_mode_that_ignores_dependenci
     bus.stop_unit_alone("b.socket").expect("stopped alone");
     let (_auth, calls) = receiver.recv().expect("seen");
     // The layout of each call is zbus's own now; what the exchange must show is the member, the unit and the job mode of each call.
-    let shows = |call: &[u8], words: [&str; 3]| -> bool { return words.iter().all(|word| { return call.windows(word.len()).any(|window| { return window == word.as_bytes(); }); }); };
-    assert!(shows(calls[1].as_slice(), ["StopUnit", "a.socket", "replace"]));
-    assert!(shows(calls[2].as_slice(), ["StopUnit", "b.socket", "ignore-dependencies"]));
-    assert!(!shows(calls[1].as_slice(), ["StopUnit", "a.socket", "ignore-dependencies"]), "the plain stop must keep `replace`");
+    let shows = |call: &[u8], words: [&str; 3]| -> bool {
+        return words.iter().all(|word| {
+            return call.windows(word.len()).any(|window| {
+                return window == word.as_bytes();
+            });
+        });
+    };
+    assert!(shows(
+        calls[1].as_slice(),
+        ["StopUnit", "a.socket", "replace"]
+    ));
+    assert!(shows(
+        calls[2].as_slice(),
+        ["StopUnit", "b.socket", "ignore-dependencies"]
+    ));
+    assert!(
+        !shows(
+            calls[1].as_slice(),
+            ["StopUnit", "a.socket", "ignore-dependencies"]
+        ),
+        "the plain stop must keep `replace`"
+    );
     remove(root.as_path());
 }
 
@@ -802,8 +1124,15 @@ fn a_bus_that_accepts_and_never_answers_ends_at_the_deadline() {
     let began = Instant::now();
     let result = Bus::connect(path.as_path(), wait);
     let elapsed = began.elapsed();
-    assert!(matches!(result, Err(CallError::TimedOut)), "expected a timeout, got {:?}", result.as_ref().err());
-    assert!(elapsed >= wait && elapsed < wait + Duration::from_millis(500), "ended after {elapsed:?} for a deadline of {wait:?}");
+    assert!(
+        matches!(result, Err(CallError::TimedOut)),
+        "expected a timeout, got {:?}",
+        result.as_ref().err()
+    );
+    assert!(
+        elapsed >= wait && elapsed < wait + Duration::from_millis(500),
+        "ended after {elapsed:?} for a deadline of {wait:?}"
+    );
     holder.join().expect("holder");
 }
 
@@ -818,9 +1147,18 @@ fn a_bus_that_accepts_and_never_answers_ends_at_the_deadline() {
 #[test]
 fn the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself() {
     let source: &str = include_str!("systemd_dbus.rs");
-    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    let code: String = source
+        .lines()
+        .filter(|line| {
+            return !line.trim_start().starts_with("//");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
     for hand_written in ["UnixStream", "encode_call(", "decode_reply(", "read_exact"] {
-        assert!(!code.contains(hand_written), "the client still writes the wire itself: `{hand_written}`");
+        assert!(
+            !code.contains(hand_written),
+            "the client still writes the wire itself: `{hand_written}`"
+        );
     }
     assert!(code.contains("zbus::"), "the client does not use zbus");
 }

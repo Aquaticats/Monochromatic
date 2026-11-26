@@ -23,17 +23,48 @@ use crate::json_record::quote;
 use crate::plain_file::read_plain_file;
 use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 use crate::worktree_copy_ceiling::CopyCeiling;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
-use crate::worktree_copy_owner::current_copy_owner;
-use crate::worktree_copy_registration_naming::{NamedRegistration, absent_path, registration_naming};
-use crate::worktree_copy_stage_binding::{stage_binding, verify_stage_binding};
-use crate::worktree_copy_stage_claim_reaping::{StageVerdicts, judge_stage_owners, reap_judged_stages};
-use crate::worktree_copy_transaction::{Outcome, SnapshotSource, complete_journal};
-use crate::worktree_copy_journal::{Role, adopt_journal, assert_private_path, journal_owner_is_dead, read_pending_journals};
-use crate::worktree_copy_journal_encoding_and_validation::{PendingJournal, Phase};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+    raw_failure_of,
+};
+use crate::worktree_copy_journal::{
+    Role,
+    adopt_journal,
+    assert_private_path,
+    journal_owner_is_dead,
+    read_pending_journals,
+};
+use crate::worktree_copy_journal_encoding_and_validation::{
+    PendingJournal,
+    Phase,
+};
 use crate::worktree_copy_journal_removal::remove_pending_journal;
+use crate::worktree_copy_owner::current_copy_owner;
+use crate::worktree_copy_registration_naming::{
+    NamedRegistration,
+    absent_path,
+    registration_naming,
+};
+use crate::worktree_copy_stage_binding::{
+    stage_binding,
+    verify_stage_binding,
+};
+use crate::worktree_copy_stage_claim_reaping::{
+    StageVerdicts,
+    judge_stage_owners,
+    reap_judged_stages,
+};
+use crate::worktree_copy_transaction::{
+    Outcome,
+    SnapshotSource,
+    complete_journal,
+};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Which destinations one recovery pass may finish a copy into.
@@ -76,7 +107,10 @@ pub enum RecoveryDestinations<'a> {
 /// ```ts
 /// const finishes = (destinations, destination) => destinations === 'every' || samePath(destinations.onlyWorktree, destination);
 /// ```
-fn same_worktree(left: &Path, right: &Path) -> bool {
+fn same_worktree(
+    left: &Path,
+    right: &Path,
+) -> bool {
     if left == right {
         return true;
     }
@@ -97,7 +131,10 @@ fn same_worktree(left: &Path, right: &Path) -> bool {
 /// ```ts
 /// const finishesHere = (destinations, destination) => destinations === 'every' || (destinations.onlyWorktree !== undefined && sameWorktree(destinations.onlyWorktree, destination));
 /// ```
-pub fn finishes_destination(destinations: &RecoveryDestinations<'_>, destination: &Path) -> bool {
+pub fn finishes_destination(
+    destinations: &RecoveryDestinations<'_>,
+    destination: &Path,
+) -> bool {
     return match destinations {
         RecoveryDestinations::EveryDestination => true,
         RecoveryDestinations::OnlyThisWorktree(root) => same_worktree(root, destination),
@@ -224,7 +261,8 @@ fn pointer_directory(recorded: &[u8]) -> Option<&[u8]> {
 /// ```
 fn pointer_admin(destination: &Path) -> Option<PathBuf> {
     use std::os::unix::ffi::OsStrExt;
-    let recorded: Vec<u8> = read_plain_file(destination.join(".git").as_path(), GIT_FILE_LIMIT).ok()?;
+    let recorded: Vec<u8> =
+        read_plain_file(destination.join(".git").as_path(), GIT_FILE_LIMIT).ok()?;
     let named: &[u8] = pointer_directory(recorded.as_slice())?;
     if named.is_empty() {
         return None;
@@ -258,7 +296,10 @@ fn pointer_admin(destination: &Path) -> Option<PathBuf> {
 /// if (registration === unknown) return 'unproven';
 /// return pointerAdmin(destination) === registration.named ? 'registered' : 'unconfirmed';
 /// ```
-fn read_registration(common_dir: &Path, destination: &Path) -> Registration {
+fn read_registration(
+    common_dir: &Path,
+    destination: &Path,
+) -> Registration {
     // A destination that is gone, or is not a directory, holds nothing a copy could fill: that absence is proven.
     match std::fs::canonicalize(destination) {
         Ok(canonical) if canonical == destination => {}
@@ -289,7 +330,10 @@ fn read_registration(common_dir: &Path, destination: &Path) -> Registration {
 /// ```ts
 /// const registration = destinationRegistration({ commonDir, destinationRoot });
 /// ```
-pub fn destination_registration(common_dir: &Path, destination: &Path) -> Registration {
+pub fn destination_registration(
+    common_dir: &Path,
+    destination: &Path,
+) -> Registration {
     return read_registration(common_dir, destination);
 }
 
@@ -345,10 +389,8 @@ fn recover_transaction(
     ceiling: &CopyCeiling,
 ) -> Result<(bool, Option<String>), WorktreeCopyError> {
     let destination: String = quote(pending.journal.destination_root.to_string_lossy().as_ref());
-    let registration: Registration = destination_registration(
-        common_dir,
-        pending.journal.destination_root.as_path(),
-    );
+    let registration: Registration =
+        destination_registration(common_dir, pending.journal.destination_root.as_path());
     let stage: StagePresence = validate_stage(&pending)?;
     if registration == Registration::Unregistered {
         remove_pending_journal(&pending)?;
@@ -408,11 +450,17 @@ fn recover_transaction(
     }
     let stage_container: PathBuf = journal_for_snapshot.journal.stage_container.clone();
     // `match` on the outcome: a completed installation is recovered; a failed one becomes a notice.
-    let outcome: Outcome = complete_journal(pending, &SnapshotSource::FromJournal(&journal_for_snapshot), ceiling)?;
+    let outcome: Outcome = complete_journal(
+        pending,
+        &SnapshotSource::FromJournal(&journal_for_snapshot),
+        ceiling,
+    )?;
     // The add's claim names the stage this journal filled, and a kill between the journal's creation and the claim's
     // release leaves both; the journal's own end settles the claim, so no copy finished here leaves a claim naming a
     // stage that is gone.
-    if let Some(claim) = crate::worktree_copy_stage_claim::claim_naming_stage(common_dir, stage_container.as_path()) {
+    if let Some(claim) =
+        crate::worktree_copy_stage_claim::claim_naming_stage(common_dir, stage_container.as_path())
+    {
         match outcome {
             // The copy is made, so the add is complete and its records go.
             Outcome::Installed(_) => claim.settle()?,
@@ -457,10 +505,14 @@ fn recover_transaction(
 /// const report = await recoverWorktreeCopyTransactions(commonDir);
 /// ```
 pub fn recover_worktree_copy_transactions(
-    common_dir: &Path,
+    common_dir: &Path
 ) -> Result<RecoveryReport, WorktreeCopyError> {
     let mut verdicts: StageVerdicts = judge_stage_owners(common_dir)?;
-    let mut settled: Vec<String> = crate::worktree_copy_unreadable_records::settle_unreadable_records(common_dir, &mut verdicts)?;
+    let mut settled: Vec<String> =
+        crate::worktree_copy_unreadable_records::settle_unreadable_records(
+            common_dir,
+            &mut verdicts,
+        )?;
     let mut report: RecoveryReport = recover_judged_transactions(
         common_dir,
         &verdicts,
@@ -511,9 +563,11 @@ fn recover_judged_transactions(
             && destination_registration(common_dir, journal.journal.destination_root.as_path())
                 != Registration::Unregistered
         {
-            notices.push(crate::worktree_copy_owed_copy::owed_in_another_worktree_notice(
-                journal.journal.destination_root.as_path(),
-            ));
+            notices.push(
+                crate::worktree_copy_owed_copy::owed_in_another_worktree_notice(
+                    journal.journal.destination_root.as_path(),
+                ),
+            );
             continue;
         }
         // `match` on the take-over: another command already took this journal, and it recovers it.
@@ -532,7 +586,10 @@ fn recover_judged_transactions(
     // A worktree a copy gave up on stays named until it is gone or replaced, so every command says what is missing
     // there and what settles it; a copy still running wrote its record first and is left without a word.
     notices.extend(crate::worktree_copy_unfilled_record::report_unfilled_records(common_dir)?);
-    return Ok(RecoveryReport { recovered, notices });
+    return Ok(RecoveryReport {
+        recovered,
+        notices,
+    });
 }
 
 /// What:
@@ -601,8 +658,13 @@ pub fn recover_pending_worktree_copies(
     let mut verdicts: StageVerdicts = judge_stage_owners(common_dir)?;
     // The records nothing can read are settled before anything reads them, so one record a crash published before its
     // bytes never stops a command of this repository, in this worktree or any other.
-    let mut settled: Vec<String> = crate::worktree_copy_unreadable_records::settle_unreadable_records(common_dir, &mut verdicts)?;
-    let ceiling: CopyCeiling = CopyCeiling::lasting(crate::worktree_copy_ceiling::OWED_COPY_CEILING);
+    let mut settled: Vec<String> =
+        crate::worktree_copy_unreadable_records::settle_unreadable_records(
+            common_dir,
+            &mut verdicts,
+        )?;
+    let ceiling: CopyCeiling =
+        CopyCeiling::lasting(crate::worktree_copy_ceiling::OWED_COPY_CEILING);
     let mut finished: Vec<String> = crate::worktree_copy_owed_copy::finish_owed_worktree_copies(
         common_dir,
         &verdicts,
@@ -611,7 +673,8 @@ pub fn recover_pending_worktree_copies(
         context,
         stderr,
     )?;
-    let mut report: RecoveryReport = recover_judged_transactions(common_dir, &verdicts, &destinations, &ceiling)?;
+    let mut report: RecoveryReport =
+        recover_judged_transactions(common_dir, &verdicts, &destinations, &ceiling)?;
     settled.append(&mut finished);
     settled.append(&mut report.notices);
     report.notices = settled;

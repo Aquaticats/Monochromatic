@@ -86,7 +86,8 @@ fn is_a_priority(answered: &libc::c_int) -> bool {
 /// ```
 fn priority_here() -> Option<libc::c_int> {
     // The call answers the priority itself, or -1 with the reason in `errno`; nothing else is written.
-    let found: libc::c_long = unsafe { libc::syscall(libc::SYS_ioprio_get, WHO_PROCESS, 0 as libc::c_int) };
+    let found: libc::c_long =
+        unsafe { libc::syscall(libc::SYS_ioprio_get, WHO_PROCESS, 0 as libc::c_int) };
     return libc::c_int::try_from(found).ok().filter(is_a_priority);
 }
 
@@ -104,7 +105,8 @@ fn priority_here() -> Option<libc::c_int> {
 /// const lowered = ioprioSet(thread, IDLE) === 0;
 /// ```
 fn set_priority_here(value: libc::c_int) -> bool {
-    let answered: libc::c_long = unsafe { libc::syscall(libc::SYS_ioprio_set, WHO_PROCESS, 0 as libc::c_int, value) };
+    let answered: libc::c_long =
+        unsafe { libc::syscall(libc::SYS_ioprio_set, WHO_PROCESS, 0 as libc::c_int, value) };
     return answered == 0;
 }
 
@@ -168,7 +170,11 @@ impl LoweredIoPriority {
         let before: Option<libc::c_int> = priority_here();
         // The read is what the drop restores, so a thread the kernel will not answer for is never lowered.
         let lowered: bool = before.is_some() && set_priority_here(IDLE);
-        return LoweredIoPriority { before, lowered, stays_on_its_thread: PhantomData };
+        return LoweredIoPriority {
+            before,
+            lowered,
+            stays_on_its_thread: PhantomData,
+        };
     }
 }
 
@@ -208,7 +214,10 @@ impl Drop for LoweredIoPriority {
 /// ```ts
 /// function withIdleIoPriority(state, work) { const lowered = LoweredIoPriority.lower(); try { return work(state); } finally { lowered[Symbol.dispose](); } }
 /// ```
-pub fn with_idle_io_priority<S, T>(state: S, work: fn(S) -> T) -> T {
+pub fn with_idle_io_priority<S, T>(
+    state: S,
+    work: fn(S) -> T,
+) -> T {
     let _lowered: LoweredIoPriority = LoweredIoPriority::lower();
     return work(state);
 }

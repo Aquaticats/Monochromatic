@@ -24,18 +24,35 @@
 //! const action = planKeptReferences(management, globalArguments, environment, inputs);
 //! ```
 
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure};
+use crate::action::{
+    Action,
+    ENGINE_FAILURE_EXIT_CODE,
+    failure,
+};
 use crate::child_environment::child_environment_overlay;
 use crate::kept_reference_limits::limits_from_the_environment;
-use crate::kept_reference_listing::{the_listing, the_pruning_report};
+use crate::kept_reference_listing::{
+    the_listing,
+    the_pruning_report,
+};
 use crate::kept_reference_log::log_path;
 use crate::kept_reference_pass::run_the_pass;
 use crate::lazy_runtime::run_on_runtime;
-use crate::management_service_repository_selection::{Selection, status_git_dir};
-use crate::real_git::{ResolutionInputs, ResolvedGit, resolve_real_git};
+use crate::management_service_repository_selection::{
+    Selection,
+    status_git_dir,
+};
+use crate::real_git::{
+    ResolutionInputs,
+    ResolvedGit,
+    resolve_real_git,
+};
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The action of `git monochromatic-git-policy-cli kept-references [--prune]`.
@@ -47,17 +64,36 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const action = planKeptReferences(prune, globalArguments, environment, inputs);
 /// ```
-pub fn plan_kept_references(prune: bool, global_arguments: &[OsString], environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
-    let ResolvedGit { path: real_git, notice }: ResolvedGit = match resolve_real_git(inputs) {
+pub fn plan_kept_references(
+    prune: bool,
+    global_arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+    inputs: &ResolutionInputs,
+) -> Action {
+    let ResolvedGit {
+        path: real_git,
+        notice,
+    }: ResolvedGit = match resolve_real_git(inputs) {
         Ok(found) => found,
         Err(error) => return failure(error.to_string().as_str()),
     };
-    let git_dir: PathBuf = match status_git_dir(global_arguments, environment, Some(real_git.as_path())) {
-        Selection::Found(found) => found,
-        Selection::Outside => return failure("there is no repository here, so this repository keeps no reference"),
-        Selection::Unresolved(reason) => return failure(format!("this command cannot tell which repository it runs in: {reason}").as_str()),
-    };
-    let common_dir: PathBuf = crate::kept_reference_pass::common_directory_of_this_repository(git_dir.as_path());
+    let git_dir: PathBuf =
+        match status_git_dir(global_arguments, environment, Some(real_git.as_path())) {
+            Selection::Found(found) => found,
+            Selection::Outside => {
+                return failure(
+                    "there is no repository here, so this repository keeps no reference",
+                );
+            }
+            Selection::Unresolved(reason) => {
+                return failure(
+                    format!("this command cannot tell which repository it runs in: {reason}")
+                        .as_str(),
+                );
+            }
+        };
+    let common_dir: PathBuf =
+        crate::kept_reference_pass::common_directory_of_this_repository(git_dir.as_path());
     let context: GitContext = GitContext {
         overlay: child_environment_overlay(environment, real_git.as_path()),
         real_git,
@@ -65,16 +101,25 @@ pub fn plan_kept_references(prune: bool, global_arguments: &[OsString], environm
         common_dir: Some(common_dir.clone()),
     };
     let limits = limits_from_the_environment();
-    let outcome: Result<String, String> = match run_on_runtime(answered_with(&context, common_dir.as_path(), prune, limits)) {
-        Ok(answered) => answered,
-        Err(refusal) => Err(format!("this command has no runtime to ask Git on: {refusal}")),
-    };
+    let outcome: Result<String, String> =
+        match run_on_runtime(answered_with(&context, common_dir.as_path(), prune, limits)) {
+            Ok(answered) => answered,
+            Err(refusal) => Err(format!(
+                "this command has no runtime to ask Git on: {refusal}"
+            )),
+        };
     let action: Action = match outcome {
-        Ok(text) => Action::Exit { code: 0, stdout: text, stderr: String::new() },
+        Ok(text) => Action::Exit {
+            code: 0,
+            stdout: text,
+            stderr: String::new(),
+        },
         Err(reason) => Action::Exit {
             code: ENGINE_FAILURE_EXIT_CODE,
             stdout: String::new(),
-            stderr: format!("monochromatic-git-policy-cli: the kept references could not be read: {reason}\n"),
+            stderr: format!(
+                "monochromatic-git-policy-cli: the kept references could not be read: {reason}\n"
+            ),
         },
     };
     return match notice.as_deref() {
@@ -96,10 +141,19 @@ pub fn plan_kept_references(prune: bool, global_arguments: &[OsString], environm
 /// ```ts
 /// const answeredWith = async (context, commonDir, prune, limits) => prune ? report(await runThePass(context, commonDir, false), limits) : listing(await runThePass(context, commonDir, true), limits);
 /// ```
-async fn answered_with(context: &GitContext, common_dir: &Path, prune: bool, limits: crate::kept_reference_limits::KeptReferenceLimits) -> Result<String, String> {
+async fn answered_with(
+    context: &GitContext,
+    common_dir: &Path,
+    prune: bool,
+    limits: crate::kept_reference_limits::KeptReferenceLimits,
+) -> Result<String, String> {
     let pass = run_the_pass(context, common_dir, !prune).await?;
     if prune {
-        return Ok(the_pruning_report(&pass, limits, log_path(common_dir).as_path()));
+        return Ok(the_pruning_report(
+            &pass,
+            limits,
+            log_path(common_dir).as_path(),
+        ));
     }
     return Ok(the_listing(&pass, limits));
 }

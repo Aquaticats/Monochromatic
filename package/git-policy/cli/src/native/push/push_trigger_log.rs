@@ -15,15 +15,15 @@
 //! await appendFile(join(commonDir, 'monochromatic-git-policy-cli-push-trigger.jsonl'), JSON.stringify({ command, outcome, reason }) + '\n');
 //! ```
 
-use crate::wrapper_names_old_and_new::PUSH_TRIGGER_LOG;
 use crate::diagnostic_log::debug;
-use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
-use crate::log_lines_appended_without_a_lock::append_line;
 use crate::iso_time::now_iso;
 use crate::json_record::ObjectWriter;
 use crate::lfs_output_mask::mask_url_secrets_text;
+use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
+use crate::log_lines_appended_without_a_lock::append_line;
 use crate::service_instance::instance_of;
 use crate::service_protocol::RELEASE;
+use crate::wrapper_names_old_and_new::PUSH_TRIGGER_LOG;
 use std::path::Path;
 
 /// The file inside the common Git directory that collects the trigger records of every worktree of the repository.
@@ -112,7 +112,10 @@ const WARN_REASONS: [&str; 9] = [
 /// The level a line states:
 /// `warn` for a decision the wrapper could not make or a hand-over that failed,
 /// else `info`.
-pub fn level_of(outcome: Outcome, reason: &str) -> &'static str {
+pub fn level_of(
+    outcome: Outcome,
+    reason: &str,
+) -> &'static str {
     if outcome == Outcome::Declined && WARN_REASONS.contains(&reason) {
         return "warn";
     }
@@ -176,12 +179,29 @@ pub fn trigger_line(decision: &Decision<'_>) -> String {
 /// recordDecision({ commonDir, origin, command: 'merge', outcome: 'declined', reason: 'upstream-equals-tip', detail, branch })
 /// ```
 pub fn record_decision(decision: &Decision<'_>) {
-    debug(TAG, &format!("{}: {} ({}) {}", decision.command, decision.outcome.word(), decision.reason, mask_url_secrets_text(decision.detail)));
-    let Some(directory) = decision.common_dir else { return };
+    debug(
+        TAG,
+        &format!(
+            "{}: {} ({}) {}",
+            decision.command,
+            decision.outcome.word(),
+            decision.reason,
+            mask_url_secrets_text(decision.detail)
+        ),
+    );
+    let Some(directory) = decision.common_dir else {
+        return;
+    };
     let target = directory.join(TRIGGER_FILE);
     let line: String = trigger_line(decision);
     if let Err(error) = append_line(target.as_path(), line.as_bytes(), &UNPINNED_LOG) {
-        debug(TAG, &format!("the trigger record could not be written to {}: {error}", target.display()));
+        debug(
+            TAG,
+            &format!(
+                "the trigger record could not be written to {}: {error}",
+                target.display()
+            ),
+        );
     }
 }
 

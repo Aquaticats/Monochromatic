@@ -6,13 +6,32 @@
 //!  a mounted managed clone,
 //!  and each shape no reading proves.
 
-use crate::worktree_clone_slot_state::slot_state_classification::{SlotRouteState, classify_slot};
-use crate::worktree_clone_slot_state::slot_state_mounts::{CloneMount, MountRows, SlotMount};
-use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, IntentFacts, PlanReading, SlotReadings};
-use crate::worktree_clone_slot_state::slot_state_test_records::{CLONE_DATASET, POOL, record_at};
 use crate::worktree_clone_binding_record::binding_words::Phase;
+use crate::worktree_clone_slot_state::slot_state_classification::{
+    SlotRouteState,
+    classify_slot,
+};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    CloneMount,
+    MountRows,
+    SlotMount,
+};
+use crate::worktree_clone_slot_state::slot_state_readings::{
+    BindingReading,
+    IntentFacts,
+    PlanReading,
+    SlotReadings,
+};
+use crate::worktree_clone_slot_state::slot_state_test_records::{
+    CLONE_DATASET,
+    POOL,
+    record_at,
+};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasetInstance;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The fixture's slot name.
 fn slot() -> &'static str {
@@ -26,7 +45,11 @@ fn slot_path() -> PathBuf {
 
 /// One clone row at the slot.
 fn a_clone_row() -> MountedDatasetInstance {
-    return MountedDatasetInstance { dataset: String::from(CLONE_DATASET), mount_point: slot_path(), root: PathBuf::from("/") };
+    return MountedDatasetInstance {
+        dataset: String::from(CLONE_DATASET),
+        mount_point: slot_path(),
+        root: PathBuf::from("/"),
+    };
 }
 
 /// The readings of a record at one phase with nothing mounted,
@@ -58,10 +81,24 @@ fn no_record_and_no_mount_is_not_a_managed_clone() {
 /// Every phase before the clone was mounted is a pending add.
 #[test]
 fn each_unfinished_add_phase_is_a_pending_add() {
-    let phases: [Phase; 5] = [Phase::Claimed, Phase::Slot, Phase::Registered, Phase::Snapshotted, Phase::Cloned];
+    let phases: [Phase; 5] = [
+        Phase::Claimed,
+        Phase::Slot,
+        Phase::Registered,
+        Phase::Snapshotted,
+        Phase::Cloned,
+    ];
     for phase in phases {
         let state: SlotRouteState = classify_slot(&readings_at(phase));
-        assert_eq!(state, SlotRouteState::PendingAdd { phase, clone_dataset: String::from(CLONE_DATASET) }, "phase `{}`", phase.word());
+        assert_eq!(
+            state,
+            SlotRouteState::PendingAdd {
+                phase,
+                clone_dataset: String::from(CLONE_DATASET)
+            },
+            "phase `{}`",
+            phase.word()
+        );
         assert_eq!(state.word(), "pending add");
     }
 }
@@ -70,20 +107,38 @@ fn each_unfinished_add_phase_is_a_pending_add() {
 /// because the add still owns the slot and no plan stands.
 #[test]
 fn a_settling_binding_is_a_pending_add() {
-    assert_eq!(classify_slot(&readings_at(Phase::Settling)), SlotRouteState::PendingAdd { phase: Phase::Settling, clone_dataset: String::from(CLONE_DATASET) });
+    assert_eq!(
+        classify_slot(&readings_at(Phase::Settling)),
+        SlotRouteState::PendingAdd {
+            phase: Phase::Settling,
+            clone_dataset: String::from(CLONE_DATASET)
+        }
+    );
 }
 
 /// A plan that names the clone is a pending removal at any phase,
 /// which is the design's order.
 #[test]
 fn a_plan_that_names_the_clone_is_a_pending_removal() {
-    let plan: PathBuf = PathBuf::from("/repo/.git/monochromatic-git-policy-cli/clone-destruction-plans/4821193048571903102");
+    let plan: PathBuf = PathBuf::from(
+        "/repo/.git/monochromatic-git-policy-cli/clone-destruction-plans/4821193048571903102",
+    );
     for phase in [Phase::Mounted, Phase::Filled, Phase::Settling] {
         let readings: SlotReadings = SlotReadings {
-            plan: PlanReading::NamesTheClone { plan: plan.clone() },
+            plan: PlanReading::NamesTheClone {
+                plan: plan.clone(),
+            },
             ..readings_at(phase)
         };
-        assert_eq!(classify_slot(&readings), SlotRouteState::PendingRemoval { plan: plan.clone(), clone_dataset: String::from(CLONE_DATASET) }, "phase `{}`", phase.word());
+        assert_eq!(
+            classify_slot(&readings),
+            SlotRouteState::PendingRemoval {
+                plan: plan.clone(),
+                clone_dataset: String::from(CLONE_DATASET)
+            },
+            "phase `{}`",
+            phase.word()
+        );
     }
 }
 
@@ -92,7 +147,14 @@ fn a_plan_that_names_the_clone_is_a_pending_removal() {
 fn a_filled_clone_with_no_row_is_a_known_unmounted_clone() {
     for phase in [Phase::Mounted, Phase::Filled] {
         let state: SlotRouteState = classify_slot(&readings_at(phase));
-        assert_eq!(state, SlotRouteState::KnownUnmountedClone { clone_dataset: String::from(CLONE_DATASET) }, "phase `{}`", phase.word());
+        assert_eq!(
+            state,
+            SlotRouteState::KnownUnmountedClone {
+                clone_dataset: String::from(CLONE_DATASET)
+            },
+            "phase `{}`",
+            phase.word()
+        );
         assert_eq!(state.word(), "known unmounted clone");
     }
 }
@@ -102,10 +164,17 @@ fn a_filled_clone_with_no_row_is_a_known_unmounted_clone() {
 fn a_filled_clone_at_its_slot_is_mounted() {
     let readings: SlotReadings = SlotReadings {
         mounts: MountRows::Rows(vec![a_clone_row()]),
-        slot_mount: SlotMount::Something { described: String::from("the clone at the slot") },
+        slot_mount: SlotMount::Something {
+            described: String::from("the clone at the slot"),
+        },
         ..readings_at(Phase::Filled)
     };
-    assert_eq!(classify_slot(&readings), SlotRouteState::MountedManagedClone { clone_dataset: String::from(CLONE_DATASET) });
+    assert_eq!(
+        classify_slot(&readings),
+        SlotRouteState::MountedManagedClone {
+            clone_dataset: String::from(CLONE_DATASET)
+        }
+    );
 }
 
 /// A mount standing at the slot while the record says the add never mounted is a disagreement.
@@ -113,11 +182,18 @@ fn a_filled_clone_at_its_slot_is_mounted() {
 fn a_mount_the_record_never_verified_cannot_be_proved() {
     let readings: SlotReadings = SlotReadings {
         mounts: MountRows::Rows(vec![a_clone_row()]),
-        slot_mount: SlotMount::Something { described: String::from("the clone at the slot") },
+        slot_mount: SlotMount::Something {
+            described: String::from("the clone at the slot"),
+        },
         ..readings_at(Phase::Cloned)
     };
     match classify_slot(&readings) {
-        SlotRouteState::CannotProve { reason } => assert!(reason.contains("phase=cloned") && reason.contains("mounted at the slot"), "{reason}"),
+        SlotRouteState::CannotProve {
+            reason,
+        } => assert!(
+            reason.contains("phase=cloned") && reason.contains("mounted at the slot"),
+            "{reason}"
+        ),
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -125,13 +201,22 @@ fn a_mount_the_record_never_verified_cannot_be_proved() {
 /// A clone mounted at another path cannot be proved to be the one at its slot.
 #[test]
 fn a_clone_mounted_elsewhere_cannot_be_proved() {
-    let other: MountedDatasetInstance = MountedDatasetInstance { dataset: String::from(CLONE_DATASET), mount_point: PathBuf::from("/repo/.claude/worktrees/other"), root: PathBuf::from("/") };
+    let other: MountedDatasetInstance = MountedDatasetInstance {
+        dataset: String::from(CLONE_DATASET),
+        mount_point: PathBuf::from("/repo/.claude/worktrees/other"),
+        root: PathBuf::from("/"),
+    };
     let readings: SlotReadings = SlotReadings {
         mounts: MountRows::Rows(vec![other]),
         ..readings_at(Phase::Filled)
     };
     match classify_slot(&readings) {
-        SlotRouteState::CannotProve { reason } => assert!(reason.contains("elsewhere") || reason.contains("/repo/.claude/worktrees/other"), "{reason}"),
+        SlotRouteState::CannotProve {
+            reason,
+        } => assert!(
+            reason.contains("elsewhere") || reason.contains("/repo/.claude/worktrees/other"),
+            "{reason}"
+        ),
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -140,11 +225,15 @@ fn a_clone_mounted_elsewhere_cannot_be_proved() {
 #[test]
 fn an_unreadable_record_cannot_be_proved() {
     let readings: SlotReadings = SlotReadings {
-        binding: BindingReading::Unreadable { reason: String::from("permission denied") },
+        binding: BindingReading::Unreadable {
+            reason: String::from("permission denied"),
+        },
         ..readings_at(Phase::Filled)
     };
     match classify_slot(&readings) {
-        SlotRouteState::CannotProve { reason } => assert!(reason.contains("permission denied"), "{reason}"),
+        SlotRouteState::CannotProve {
+            reason,
+        } => assert!(reason.contains("permission denied"), "{reason}"),
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -154,11 +243,15 @@ fn an_unreadable_record_cannot_be_proved() {
 fn a_mount_with_no_record_cannot_be_proved() {
     let readings: SlotReadings = SlotReadings {
         binding: BindingReading::Absent,
-        slot_mount: SlotMount::Something { described: String::from("`tank/other` at the slot, mounted as `zfs`") },
+        slot_mount: SlotMount::Something {
+            described: String::from("`tank/other` at the slot, mounted as `zfs`"),
+        },
         ..readings_at(Phase::Claimed)
     };
     match classify_slot(&readings) {
-        SlotRouteState::CannotProve { reason } => assert!(reason.contains("nothing proves"), "{reason}"),
+        SlotRouteState::CannotProve {
+            reason,
+        } => assert!(reason.contains("nothing proves"), "{reason}"),
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -167,11 +260,16 @@ fn a_mount_with_no_record_cannot_be_proved() {
 #[test]
 fn a_record_naming_another_path_cannot_be_proved() {
     let readings: SlotReadings = SlotReadings {
-        binding: BindingReading::Record(Box::new(record_at(Phase::Filled, PathBuf::from("/other/repo/.claude/worktrees/topic").as_path()))),
+        binding: BindingReading::Record(Box::new(record_at(
+            Phase::Filled,
+            PathBuf::from("/other/repo/.claude/worktrees/topic").as_path(),
+        ))),
         ..readings_at(Phase::Filled)
     };
     match classify_slot(&readings) {
-        SlotRouteState::CannotProve { reason } => assert!(reason.contains("not this slot's record"), "{reason}"),
+        SlotRouteState::CannotProve {
+            reason,
+        } => assert!(reason.contains("not this slot's record"), "{reason}"),
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -180,11 +278,16 @@ fn a_record_naming_another_path_cannot_be_proved() {
 #[test]
 fn an_unreadable_plan_cannot_be_proved() {
     let readings: SlotReadings = SlotReadings {
-        plan: PlanReading::Unreadable { plan: PathBuf::from("/repo/.git/plans/1"), reason: String::from("not a plan") },
+        plan: PlanReading::Unreadable {
+            plan: PathBuf::from("/repo/.git/plans/1"),
+            reason: String::from("not a plan"),
+        },
         ..readings_at(Phase::Filled)
     };
     match classify_slot(&readings) {
-        SlotRouteState::CannotProve { reason } => assert!(reason.contains("not a plan"), "{reason}"),
+        SlotRouteState::CannotProve {
+            reason,
+        } => assert!(reason.contains("not a plan"), "{reason}"),
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -193,11 +296,15 @@ fn an_unreadable_plan_cannot_be_proved() {
 #[test]
 fn an_unreadable_mount_table_cannot_be_proved() {
     let readings: SlotReadings = SlotReadings {
-        mounts: MountRows::Unreadable { reason: String::from("the table is too large") },
+        mounts: MountRows::Unreadable {
+            reason: String::from("the table is too large"),
+        },
         ..readings_at(Phase::Filled)
     };
     match classify_slot(&readings) {
-        SlotRouteState::CannotProve { reason } => assert!(reason.contains("the table is too large"), "{reason}"),
+        SlotRouteState::CannotProve {
+            reason,
+        } => assert!(reason.contains("the table is too large"), "{reason}"),
         found => panic!("expected a state nothing proves, got {found:?}"),
     }
 }
@@ -221,9 +328,13 @@ fn the_state_names_the_records_clone_dataset() {
 #[test]
 fn a_paths_slot_name_is_its_last_component() {
     use crate::worktree_clone_slot_state::slot_state_classification::slot_name_of;
-    assert_eq!(slot_name_of(Path::new("/repo/.claude/worktrees/topic")).expect("the slot name reads"), "topic");
+    assert_eq!(
+        slot_name_of(Path::new("/repo/.claude/worktrees/topic")).expect("the slot name reads"),
+        "topic"
+    );
     let root: String = slot_name_of(Path::new("/")).expect_err("a root names no slot");
     assert!(root.contains("names no folder"), "{root}");
-    let spaced: String = slot_name_of(Path::new("/repo/.claude/worktrees/two words")).expect_err("a name with a space is no slot");
+    let spaced: String = slot_name_of(Path::new("/repo/.claude/worktrees/two words"))
+        .expect_err("a name with a space is no slot");
     assert!(spaced.contains("not a plain slot name"), "{spaced}");
 }

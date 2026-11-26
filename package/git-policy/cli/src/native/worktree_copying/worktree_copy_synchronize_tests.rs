@@ -4,7 +4,13 @@
 //! and the registration it is bound to.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::worktree_copy_journal::read_pending_journals;
 use crate::worktree_copy_stage_claim::stage_claims_exist;
 
@@ -105,17 +111,35 @@ fn failed_staging_keeps_the_record_of_the_destination_it_did_not_fill() {
     )
     .expect_err("the stage parent is absent");
     assert!(!failure.0.is_empty());
-    let claims: Vec<String> = crate::worktree_copy_stage_claim::claim_names(crate::worktree_copy_journal::journal_root(common.as_path()).as_path()).expect("claims");
-    assert_eq!(claims.len(), 1, "the record of the destination that was not filled is kept: {claims:?}");
-    let record: PathBuf = crate::worktree_copy_journal::journal_root(common.as_path()).join(claims.first().expect("one").replace(".stage", ".add"));
+    let claims: Vec<String> = crate::worktree_copy_stage_claim::claim_names(
+        crate::worktree_copy_journal::journal_root(common.as_path()).as_path(),
+    )
+    .expect("claims");
+    assert_eq!(
+        claims.len(),
+        1,
+        "the record of the destination that was not filled is kept: {claims:?}"
+    );
+    let record: PathBuf = crate::worktree_copy_journal::journal_root(common.as_path())
+        .join(claims.first().expect("one").replace(".stage", ".add"));
     assert!(
-        crate::worktree_copy_source_still_being_filled::claim_destination(record.as_path()).is_some(),
+        crate::worktree_copy_source_still_being_filled::claim_destination(record.as_path())
+            .is_some(),
         "the record names the destination"
     );
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty()
+    );
     // Cleaning up so the fixture can be removed.
     crate::worktree_copy_journal_removal::remove_file_if_present(record.as_path()).expect("record");
-    crate::worktree_copy_journal_removal::remove_file_if_present(crate::worktree_copy_journal::journal_root(common.as_path()).join(claims.first().expect("one")).as_path()).expect("claim");
+    crate::worktree_copy_journal_removal::remove_file_if_present(
+        crate::worktree_copy_journal::journal_root(common.as_path())
+            .join(claims.first().expect("one"))
+            .as_path(),
+    )
+    .expect("claim");
     remove(root.as_path());
 }
 
@@ -139,9 +163,12 @@ fn a_copy_into_a_replaced_registration_stops_before_the_first_entry() {
             destination.to_str().expect("utf8"),
         ],
     );
-    let destination_canonical: PathBuf = std::fs::canonicalize(&destination).expect("canonical destination");
+    let destination_canonical: PathBuf =
+        std::fs::canonicalize(&destination).expect("canonical destination");
     let common: PathBuf = common_of(source.as_path());
-    let binding = bind_registration(common.as_path(), destination_canonical.as_path()).expect("bound").binding;
+    let binding = bind_registration(common.as_path(), destination_canonical.as_path())
+        .expect("bound")
+        .binding;
     // Another command removes this worktree and registers another one at the same path, without a checkout yet.
     git(
         source.as_path(),
@@ -182,9 +209,20 @@ fn a_copy_into_a_replaced_registration_stops_before_the_first_entry() {
         "the registration the copy was made for is named: {}",
         failure.0
     );
-    assert!(failure.0.contains("Nothing in that worktree was changed"), "{}", failure.0);
-    assert!(!destination_canonical.join("cache").exists(), "the replacement registration received nothing");
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    assert!(
+        failure.0.contains("Nothing in that worktree was changed"),
+        "{}",
+        failure.0
+    );
+    assert!(
+        !destination_canonical.join("cache").exists(),
+        "the replacement registration received nothing"
+    );
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty()
+    );
     assert!(
         stage_claims_exist(common.as_path()).expect("claims"),
         "the record of the destination that was not filled stays"
@@ -200,13 +238,20 @@ fn a_copy_with_no_record_before_real_git_still_records_its_destination() {
     let root: PathBuf = fixture("synchronize-claim-records");
     let (source, _destination) = ignored_source(root.as_path());
     let common: PathBuf = common_of(source.as_path());
-    let destination_canonical: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
-    let claim: StageClaim = claim_for_the_copy(None, common.as_path(), destination_canonical.as_path()).expect("claim");
-    let claim_path: PathBuf = crate::worktree_copy_stage_claim::claim_names(crate::worktree_copy_journal::journal_root(common.as_path()).as_path())
-        .expect("claims")
-        .first()
-        .map(|name| return crate::worktree_copy_journal::journal_root(common.as_path()).join(name.as_str()))
-        .expect("one claim");
+    let destination_canonical: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical root")
+        .join("topic");
+    let claim: StageClaim =
+        claim_for_the_copy(None, common.as_path(), destination_canonical.as_path()).expect("claim");
+    let claim_path: PathBuf = crate::worktree_copy_stage_claim::claim_names(
+        crate::worktree_copy_journal::journal_root(common.as_path()).as_path(),
+    )
+    .expect("claims")
+    .first()
+    .map(|name| {
+        return crate::worktree_copy_journal::journal_root(common.as_path()).join(name.as_str());
+    })
+    .expect("one claim");
     assert_eq!(
         crate::worktree_copy_source_still_being_filled::claim_destination(claim_path.as_path()),
         Some(destination_canonical.clone()),

@@ -70,7 +70,10 @@ pub struct ManualPushProbeError {
 
 impl std::fmt::Display for ManualPushProbeError {
     /// Writes the diagnostic text.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(&self.message);
     }
 }
@@ -83,8 +86,15 @@ impl std::error::Error for ManualPushProbeError {}
 /// ```ts
 /// new ManualPushProbeError(cause, message)
 /// ```
-pub(crate) fn probe_error(cause: ManualPushCause, message: String) -> ManualPushProbeError {
-    return ManualPushProbeError { message, refusal: None, cause };
+pub(crate) fn probe_error(
+    cause: ManualPushCause,
+    message: String,
+) -> ManualPushProbeError {
+    return ManualPushProbeError {
+        message,
+        refusal: None,
+        cause,
+    };
 }
 
 /// What:
@@ -102,7 +112,15 @@ pub(crate) fn probe_error(cause: ManualPushCause, message: String) -> ManualPush
 pub(crate) fn cause_of_query(error: &SingleFlightError) -> ManualPushCause {
     return match error {
         SingleFlightError::Start(_) => ManualPushCause::GitNotStarted,
-        SingleFlightError::TimedOut { .. } | SingleFlightError::Ceiling { .. } => ManualPushCause::SelfExplained,
-        SingleFlightError::Git { .. } | SingleFlightError::Io(_) => ManualPushCause::GitSilent,
+        SingleFlightError::TimedOut {
+            ..
+        }
+        | SingleFlightError::Ceiling {
+            ..
+        } => ManualPushCause::SelfExplained,
+        SingleFlightError::Git {
+            ..
+        }
+        | SingleFlightError::Io(_) => ManualPushCause::GitSilent,
     };
 }

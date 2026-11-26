@@ -22,9 +22,25 @@ use super::*;
 /// ```
 #[test]
 fn a_stop_is_read_back_with_the_sender_it_was_written_with() {
-    assert_eq!(unpacked(packed(libc::SIGTERM, Some(4_242))), Some((libc::SIGTERM, Some(4_242))), "a process's stop keeps both halves");
-    assert_eq!(unpacked(packed(libc::SIGINT, None)), Some((libc::SIGINT, None)), "a terminal's stop names no process");
-    assert_eq!(unpacked(0), None, "a word no stop was written to holds none");
+    assert_eq!(
+        unpacked(packed(libc::SIGTERM, Some(4_242))),
+        Some((libc::SIGTERM, Some(4_242))),
+        "a process's stop keeps both halves"
+    );
+    assert_eq!(
+        unpacked(packed(libc::SIGINT, None)),
+        Some((libc::SIGINT, None)),
+        "a terminal's stop names no process"
+    );
+    assert_eq!(
+        unpacked(0),
+        None,
+        "a word no stop was written to holds none"
+    );
     // A sender alone is no stop: the signal half is what says there is one.
-    assert_eq!(unpacked(packed(0, Some(4_242))), None, "a word with a sender and no signal holds no stop");
+    assert_eq!(
+        unpacked(packed(0, Some(4_242))),
+        None,
+        "a word with a sender and no signal holds no stop"
+    );
 }

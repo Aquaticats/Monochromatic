@@ -9,7 +9,10 @@ const TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const PARENT: &str = "0123456789abcdef0123456789abcdef01234567";
 const OTHER: &str = "89abcdef0123456789abcdef0123456789abcdef";
 
-fn stored(headers: &[&str], message: &str) -> String {
+fn stored(
+    headers: &[&str],
+    message: &str,
+) -> String {
     return format!("{}\n\n{message}", headers.join("\n"));
 }
 
@@ -39,8 +42,20 @@ fn a_plain_commit_is_read_with_its_parents_author_and_message() {
 /// A root commit has no parents.
 #[test]
 fn a_root_commit_has_no_parents() {
-    let raw: String = stored(&[format!("tree {TREE}").as_str(), "author A <a@b> 1 +0000", "committer C <c@d> 2 +0000"], "root\n");
-    assert_eq!(parse_stored_commit(raw.as_str()).map(|read| { return read.parents; }), Some(Vec::new()));
+    let raw: String = stored(
+        &[
+            format!("tree {TREE}").as_str(),
+            "author A <a@b> 1 +0000",
+            "committer C <c@d> 2 +0000",
+        ],
+        "root\n",
+    );
+    assert_eq!(
+        parse_stored_commit(raw.as_str()).map(|read| {
+            return read.parents;
+        }),
+        Some(Vec::new())
+    );
 }
 
 /// The signature and its continuation lines are dropped,
@@ -61,15 +76,34 @@ fn a_signature_is_dropped_with_its_continuation_lines() {
 /// so does a damaged commit.
 #[test]
 fn a_header_that_would_have_to_be_carried_is_not_covered() {
-    for extra in ["encoding ISO-8859-1", "mergetag object abc", "unknown header"] {
+    for extra in [
+        "encoding ISO-8859-1",
+        "mergetag object abc",
+        "unknown header",
+    ] {
         let raw: String = stored(
-            &[format!("tree {TREE}").as_str(), "author A <a@b> 1 +0000", "committer C <c@d> 2 +0000", extra],
+            &[
+                format!("tree {TREE}").as_str(),
+                "author A <a@b> 1 +0000",
+                "committer C <c@d> 2 +0000",
+                extra,
+            ],
             "subject\n",
         );
         assert_eq!(parse_stored_commit(raw.as_str()), None, "{extra}");
     }
-    assert_eq!(parse_stored_commit("author A <a@b> 1 +0000\n\nno tree\n"), None, "no tree");
-    assert_eq!(parse_stored_commit(format!("tree {TREE}\ncommitter C <c@d> 2 +0000\n\nno author\n").as_str()), None, "no author");
+    assert_eq!(
+        parse_stored_commit("author A <a@b> 1 +0000\n\nno tree\n"),
+        None,
+        "no tree"
+    );
+    assert_eq!(
+        parse_stored_commit(
+            format!("tree {TREE}\ncommitter C <c@d> 2 +0000\n\nno author\n").as_str()
+        ),
+        None,
+        "no author"
+    );
     assert_eq!(parse_stored_commit("no blank line"), None);
 }
 
@@ -80,7 +114,11 @@ fn a_header_that_would_have_to_be_carried_is_not_covered() {
 fn an_author_line_splits_into_name_address_and_date() {
     assert_eq!(
         split_author("Name With <angle> Words <a@example.invalid> 1700000000 -0130"),
-        Some((String::from("Name With <angle> Words"), String::from("a@example.invalid"), String::from("1700000000 -0130")))
+        Some((
+            String::from("Name With <angle> Words"),
+            String::from("a@example.invalid"),
+            String::from("1700000000 -0130")
+        ))
     );
     assert_eq!(split_author("no address 1 +0000"), None);
 }

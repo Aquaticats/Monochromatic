@@ -14,13 +14,16 @@
 //! // protocol/types.ts: export type CommitRequest, ClientMessage, ServiceMessage; export function isObjectName(), isPlainPath()
 //! ```
 
-use serde_json::Value;
-use crate::path_bytes as path_bytes;
-use crate::service_review_key::ReviewKey;
 use crate::common_directory_of_a_git_directory::common_directory_of;
+use crate::path_bytes;
 use crate::scratch_location::REPOSITORY_SCRATCH_NAME;
+use crate::service_review_key::ReviewKey;
 use crate::wrapper_names_old_and_new::SERVICE_SCRATCH_PREFIX;
-use std::path::{Path, PathBuf};
+use serde_json::Value;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The protocol version this build speaks;
 /// a service and a client agree when their versions are equal.
@@ -446,7 +449,10 @@ pub enum ClientMessage {
         /// in this message and in the service's memory alone
         /// (`service_push_programs_held_in_memory`).
         /// Empty for a wake about other work.
-        push_programs: Vec<(String, crate::service_push_programs_held_in_memory::PushPrograms)>,
+        push_programs: Vec<(
+            String,
+            crate::service_push_programs_held_in_memory::PushPrograms,
+        )>,
     },
     /// What:
     ///  The push records this command settled or removed can no longer run,
@@ -564,7 +570,10 @@ pub enum ServiceMessage {
     /// Services of
     ///  releases before the field existed send none,
     /// which reads as a release that is not this one.
-    Welcome { version: u32, release: Option<String> },
+    Welcome {
+        version: u32,
+        release: Option<String>,
+    },
     /// A finished shadow the service drew ahead of the asking commit,
     /// which that commit now uses where it stands.
     Drawn {
@@ -582,16 +591,29 @@ pub enum ServiceMessage {
     /// `landing` states what the landing spent and held,
     /// and a service of a release that did not send it leaves it absent,
     /// which the client's record states as no figures rather than as zeros.
-    Landed { id: String, commit: String, already: bool, landing: Option<LandingFigures> },
+    Landed {
+        id: String,
+        commit: String,
+        already: bool,
+        landing: Option<LandingFigures>,
+    },
     /// The commit is written and kept,
     /// and a reference lock keeps its branch where it is:
     /// `words` says so,
     /// names the lock and the branch,
     /// and says that the next command that finds the lock gone moves it.
-    Held { id: String, commit: String, words: String },
+    Held {
+        id: String,
+        commit: String,
+        words: String,
+    },
     /// A named path changed on the branch since the base;
     /// prepare again from `base`.
-    RetryPrepare { id: String, base: String, landed: Vec<LandedCapture> },
+    RetryPrepare {
+        id: String,
+        base: String,
+        landed: Vec<LandedCapture>,
+    },
     /// The request was not landed.
     Failed { id: String, code: FailureCode },
     /// The landing waits for another program that holds the repository's index:
@@ -621,7 +643,10 @@ pub enum ServiceMessage {
     Heartbeat,
 }
 
-pub(crate) fn field<'a>(value: &'a Value, name: &str) -> Result<&'a str, String> {
+pub(crate) fn field<'a>(
+    value: &'a Value,
+    name: &str,
+) -> Result<&'a str, String> {
     return match value.get(name).and_then(Value::as_str) {
         Some(text) => Ok(text),
         None => Err(format!("field {name} is missing or not text")),
@@ -630,7 +655,8 @@ pub(crate) fn field<'a>(value: &'a Value, name: &str) -> Result<&'a str, String>
 
 /// Whether `text` is a full object name in hexadecimal (40 or 64 digits).
 pub fn is_object_name(text: &str) -> bool {
-    return (text.len() == 40 || text.len() == 64) && text.as_bytes().iter().all(u8::is_ascii_hexdigit);
+    return (text.len() == 40 || text.len() == 64)
+        && text.as_bytes().iter().all(u8::is_ascii_hexdigit);
 }
 
 /// What:
@@ -665,7 +691,10 @@ pub(crate) use crate::wrapper_names_old_and_new::is_identity_byte;
 /// const isPlainComponent = (part: string) => part !== '..' && part !== '.';
 /// ```
 fn is_plain_component(part: std::path::Component<'_>) -> bool {
-    return !matches!(part, std::path::Component::ParentDir | std::path::Component::CurDir);
+    return !matches!(
+        part,
+        std::path::Component::ParentDir | std::path::Component::CurDir
+    );
 }
 
 /// Whether a byte separates the parts of a repository-relative path.
@@ -724,8 +753,13 @@ pub fn ends_a_ref_name(byte: &u8) -> bool {
     return [0_u8, b'\n', b' '].contains(byte);
 }
 
-pub fn is_scratch_path(path: &Path, git_dir: &Path) -> bool {
-    let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else { return false };
+pub fn is_scratch_path(
+    path: &Path,
+    git_dir: &Path,
+) -> bool {
+    let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
+        return false;
+    };
     let identity: &str = name.strip_prefix(SCRATCH_PREFIX).unwrap_or("");
     // Where this release makes the tree: the repository scratch directory, which the sweep of a later command also covers.
     let swept: PathBuf = common_directory_of(git_dir).join(REPOSITORY_SCRATCH_NAME);

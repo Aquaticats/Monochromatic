@@ -62,13 +62,19 @@ pub struct IndexEntry {
 }
 
 /// A big-endian `u16` at `at`.
-fn be16(bytes: &[u8], at: usize) -> Option<u16> {
+fn be16(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u16> {
     let pair: &[u8] = bytes.get(at..at.checked_add(2)?)?;
     return Some(u16::from_be_bytes([pair[0], pair[1]]));
 }
 
 /// A big-endian `u32` at `at`.
-fn be32(bytes: &[u8], at: usize) -> Option<u32> {
+fn be32(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u32> {
     let quad: &[u8] = bytes.get(at..at.checked_add(4)?)?;
     return Some(u32::from_be_bytes([quad[0], quad[1], quad[2], quad[3]]));
 }
@@ -84,7 +90,10 @@ fn be32(bytes: &[u8], at: usize) -> Option<u32> {
 /// ```ts
 /// function parseIndex(bytes: Uint8Array, format: ObjectFormat): IndexEntry[] | undefined;
 /// ```
-pub fn parse_index(bytes: &[u8], format: ObjectFormat) -> Option<Vec<IndexEntry>> {
+pub fn parse_index(
+    bytes: &[u8],
+    format: ObjectFormat,
+) -> Option<Vec<IndexEntry>> {
     let parsed = parse_index_with_tree(bytes, format)?;
     return Some(parsed.entries);
 }
@@ -128,7 +137,11 @@ pub struct ParsedIndex {
 /// ```ts
 /// function offsetTableIsSilent(body: Uint8Array, starts: number[], wholePaths: boolean[]): boolean;
 /// ```
-fn offset_table_is_silent(body: &[u8], starts: &[u32], whole_paths: &[bool]) -> Option<()> {
+fn offset_table_is_silent(
+    body: &[u8],
+    starts: &[u32],
+    whole_paths: &[bool],
+) -> Option<()> {
     if be32(body, 0)? != 1 {
         return None;
     }
@@ -167,7 +180,10 @@ fn offset_table_is_silent(body: &[u8], starts: &[u32], whole_paths: &[bool]) -> 
 /// ```ts
 /// function parseIndexWithTree(bytes: Uint8Array, format: ObjectFormat): { entries: IndexEntry[]; tree?: CacheTree } | undefined;
 /// ```
-pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<ParsedIndex> {
+pub fn parse_index_with_tree(
+    bytes: &[u8],
+    format: ObjectFormat,
+) -> Option<ParsedIndex> {
     let hash_length: usize = name_length(format);
     let end: usize = bytes.len().checked_sub(hash_length)?;
     if bytes.get(..4)? != b"DIRC" {
@@ -239,7 +255,13 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
         previous.clone_from(&path);
         whole_paths.push(whole_path);
         let stage: u8 = ((flags >> 12) & 3) as u8;
-        entries.push(IndexEntry { path, mode, id, stage, extended });
+        entries.push(IndexEntry {
+            path,
+            mode,
+            id,
+            stage,
+            extended,
+        });
     }
     for pair in entries.windows(2) {
         if (pair[0].path.as_slice(), pair[0].stage) >= (pair[1].path.as_slice(), pair[1].stage) {
@@ -250,7 +272,11 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
     while at < end {
         let signature: &[u8] = bytes.get(at..at.checked_add(4)?)?;
         let optional: bool = signature[0].is_ascii_uppercase();
-        if !signature.iter().all(u8::is_ascii_alphanumeric) || !optional || signature == b"link" || signature == b"sdir" {
+        if !signature.iter().all(u8::is_ascii_alphanumeric)
+            || !optional
+            || signature == b"link"
+            || signature == b"sdir"
+        {
             return None;
         }
         let size: usize = usize::try_from(be32(bytes, at + 4)?).ok()?;
@@ -286,7 +312,10 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
     if at != end {
         return None;
     }
-    return Some(ParsedIndex { entries, tree });
+    return Some(ParsedIndex {
+        entries,
+        tree,
+    });
 }
 
 #[cfg(test)]

@@ -23,7 +23,12 @@
 //! answer.lines(); // ['finding: section-order: ...', 'correction: move the [a] section below [b]']
 //! ```
 
-use crate::doctor_zfs_route::{CheckOutcome, finding, pass, unknown};
+use crate::doctor_zfs_route::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
 
 /// The configuration carries no section for the recursive ancestor.
 pub const FIELD_ROOT_SECTION: &str = "root-section";
@@ -84,8 +89,16 @@ pub struct CoverageFinding {
 impl CoverageFinding {
     /// One finding,
     /// with the correction that ends it or nothing.
-    pub fn new(field: impl Into<String>, detail: impl Into<String>, correction: Option<String>) -> Self {
-        return CoverageFinding { field: field.into(), detail: detail.into(), correction };
+    pub fn new(
+        field: impl Into<String>,
+        detail: impl Into<String>,
+        correction: Option<String>,
+    ) -> Self {
+        return CoverageFinding {
+            field: field.into(),
+            detail: detail.into(),
+            correction,
+        };
     }
 }
 
@@ -127,16 +140,30 @@ impl CoverageAnswer {
     /// ```ts
     /// coverageAnswer(findings, unproved, passDetail);
     /// ```
-    pub fn new(findings: Vec<CoverageFinding>, unproved: Option<String>, pass_detail: String) -> Self {
+    pub fn new(
+        findings: Vec<CoverageFinding>,
+        unproved: Option<String>,
+        pass_detail: String,
+    ) -> Self {
         let outcome: CheckOutcome = match (&unproved, findings.first()) {
             (Some(reason), _) => unknown(reason.clone()),
             (None, Some(first)) => {
-                let fields: Vec<&str> = findings.iter().map(|entry| return entry.field.as_str()).collect();
-                finding(first.field.clone(), format!("{} finding(s): {}", findings.len(), fields.join(", ")))
+                let fields: Vec<&str> = findings
+                    .iter()
+                    .map(|entry| return entry.field.as_str())
+                    .collect();
+                finding(
+                    first.field.clone(),
+                    format!("{} finding(s): {}", findings.len(), fields.join(", ")),
+                )
             }
             (None, None) => pass(pass_detail),
         };
-        return CoverageAnswer { outcome, findings, unproved };
+        return CoverageAnswer {
+            outcome,
+            findings,
+            unproved,
+        };
     }
 
     /// What:

@@ -32,34 +32,55 @@
 //! ```
 
 /// The decision this command ends in.
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
+use crate::action::{
+    Action,
+    ENGINE_FAILURE_EXIT_CODE,
+};
+/// How the checkout the section describes is laid out.
+use crate::checkout_layout::CheckoutLayout;
 /// Configured external hooks and the retired `hooks` key.
 use crate::discarded_prune::doctor_section;
-use crate::doctor_config::{ConfigFindings, config_findings, render_hook_lines, render_notes};
+use crate::doctor_config::{
+    ConfigFindings,
+    config_findings,
+    render_hook_lines,
+    render_notes,
+};
 /// Whether Git's own fsmonitor is off,
 /// or which setting turns it on.
 use crate::doctor_fsmonitor::fsmonitor_report;
-/// One required Git start with the caller's context.
-use crate::transaction_git::{GitContext, GitRequest};
-/// The same Git start awaited by a task of the runtime.
-use crate::transaction_git_awaiting::run_git_awaiting;
+/// The entries of a hooks directory the report lists,
+/// and the bytes it prints them as.
+pub use crate::doctor_hook_entries::{
+    EntryListing,
+    find_traditional_hooks,
+    is_hook_entry,
+    render_hooks,
+    scan_hooks_directory,
+    scan_hooks_directory_with,
+};
 /// The process's one runtime,
 /// which the doctor's report is built on.
 use crate::lazy_runtime::run_on_runtime;
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
-/// `Duration` is how long a file system read of the report may take.
-use std::time::Duration;
+/// One required Git start with the caller's context.
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+};
+/// The same Git start awaited by a task of the runtime.
+use crate::transaction_git_awaiting::run_git_awaiting;
 /// The ceiling of each file system read of the report.
 use crate::wait_ceilings::REPORT_SCAN_CEILING;
 /// The job of such a read,
 /// run on a thread of its own.
 use crate::work_awaited_within_a_ceiling::work_within;
-/// How the checkout the section describes is laid out.
-use crate::checkout_layout::CheckoutLayout;
-/// The entries of a hooks directory the report lists,
-/// and the bytes it prints them as.
-pub use crate::doctor_hook_entries::{EntryListing, find_traditional_hooks, is_hook_entry, render_hooks, scan_hooks_directory, scan_hooks_directory_with};
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
+use std::path::{
+    Path,
+    PathBuf,
+};
+/// `Duration` is how long a file system read of the report may take.
+use std::time::Duration;
 
 /// Exit status when at least one traditional hook was found.
 pub const HOOKS_FOUND_EXIT_CODE: i32 = 1;
@@ -153,10 +174,19 @@ pub fn hook_directories(location: &HooksLocation) -> Vec<PathBuf> {
 /// ```ts
 /// hookDirectoriesWith(identityByTheFileSystem, REPORT_SCAN_CEILING, location);
 /// ```
-pub fn hook_directories_with(identity: DirectoryIdentity, ceiling: Duration, location: &HooksLocation) -> Vec<PathBuf> {
+pub fn hook_directories_with(
+    identity: DirectoryIdentity,
+    ceiling: Duration,
+    location: &HooksLocation,
+) -> Vec<PathBuf> {
     let mut directories: Vec<PathBuf> = vec![location.common_directory.join("hooks")];
     if let Some(configured) = &location.configured
-        && !directory_is_listed_with(identity, ceiling, directories.as_slice(), configured.as_path())
+        && !directory_is_listed_with(
+            identity,
+            ceiling,
+            directories.as_slice(),
+            configured.as_path(),
+        )
     {
         directories.push(configured.clone());
     }
@@ -183,7 +213,12 @@ pub fn hook_directories_with(identity: DirectoryIdentity, ceiling: Duration, loc
 /// ```ts
 /// const same = (realpath(listed)) === (realpath(candidate));
 /// ```
-fn directory_is_listed_with(identity: DirectoryIdentity, ceiling: Duration, listed: &[PathBuf], candidate: &Path) -> bool {
+fn directory_is_listed_with(
+    identity: DirectoryIdentity,
+    ceiling: Duration,
+    listed: &[PathBuf],
+    candidate: &Path,
+) -> bool {
     // Two spellings of the same bytes are the same directory without asking the file system.
     let mut others: Vec<PathBuf> = Vec::new();
     for existing in listed {
@@ -194,7 +229,9 @@ fn directory_is_listed_with(identity: DirectoryIdentity, ceiling: Duration, list
     }
     let named: PathBuf = candidate.to_path_buf();
     let identified: Option<bool> = work_within(ceiling, move || {
-        let Some(found) = identity(named.as_path()) else { return false };
+        let Some(found) = identity(named.as_path()) else {
+            return false;
+        };
         for existing in &others {
             if identity(existing.as_path()).as_deref() == Some(found.as_path()) {
                 return true;
@@ -204,7 +241,6 @@ fn directory_is_listed_with(identity: DirectoryIdentity, ceiling: Duration, list
     });
     return identified.unwrap_or(false);
 }
-
 
 /// What:
 ///  The explanation printed beside a non-empty report.
@@ -234,17 +270,30 @@ or express what it checked as a policy under policies in monochromatic-git-polic
 /// ```ts
 /// const { stdout } = await git(args, { cwd });
 /// ```
-async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<Vec<u8>>, String> {
+async fn query(
+    context: &GitContext,
+    cwd: &Path,
+    arguments: &[&str],
+) -> Result<Option<Vec<u8>>, String> {
     let request: GitRequest = GitRequest::new(cwd, arguments);
     let output = match run_git_awaiting(context, &request).await {
         Ok(done) => done,
-        Err(error) => return Err(format!("git {} could not start: {error}", arguments.join(" "))),
+        Err(error) => {
+            return Err(format!(
+                "git {} could not start: {error}",
+                arguments.join(" ")
+            ));
+        }
     };
     if output.code == Some(1) && arguments.first() == Some(&"config") {
         return Ok(None);
     }
     if !output.succeeded() {
-        return Err(format!("git {} failed: {}", arguments.join(" "), output.error_text()));
+        return Err(format!(
+            "git {} failed: {}",
+            arguments.join(" "),
+            output.error_text()
+        ));
     }
     return Ok(Some(output.stdout));
 }
@@ -260,7 +309,11 @@ async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<O
 /// ```ts
 /// const answer = await gitQuestion(context, cwd, args);
 /// ```
-async fn path_answer_question(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<PathBuf, String> {
+async fn path_answer_question(
+    context: &GitContext,
+    cwd: &Path,
+    arguments: &[&str],
+) -> Result<PathBuf, String> {
     let answer: Vec<u8> = query(context, cwd, arguments).await?.unwrap_or_default();
     let value: &[u8] = without_the_terminator(answer.as_slice());
     if value.is_empty() {
@@ -284,16 +337,36 @@ async fn path_answer_question(context: &GitContext, cwd: &Path, arguments: &[&st
 /// ```ts
 /// const location = await locateHooks({ context, cwd });
 /// ```
-pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocation, String> {
+pub async fn locate_hooks(
+    context: &GitContext,
+    cwd: &Path,
+) -> Result<HooksLocation, String> {
     // One question per pathname: a pathname may hold the line feed that a shared report is split at.
-    let common: PathBuf = path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--git-common-dir"]).await?;
-    let git_directory: PathBuf = path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]).await?;
+    let common: PathBuf = path_answer_question(
+        context,
+        cwd,
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    )
+    .await?;
+    let git_directory: PathBuf = path_answer_question(
+        context,
+        cwd,
+        &["rev-parse", "--path-format=absolute", "--absolute-git-dir"],
+    )
+    .await?;
     // Every value of the key with its scope, because the wrapper's own command-scope entry is placed last by Git; the
     //  listing is NUL-delimited, so a value holding a line feed stays one value.
     let configured: Option<PathBuf> = match query(
         context,
         cwd,
-        &["config", "--type=path", "--null", "--show-scope", "--get-all", "core.hooksPath"],
+        &[
+            "config",
+            "--type=path",
+            "--null",
+            "--show-scope",
+            "--get-all",
+            "core.hooksPath",
+        ],
     )
     .await?
     {
@@ -315,7 +388,13 @@ pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocat
         });
     }
     // A relative value resolves where Git runs hooks; a repository without a worktree has no top level.
-    let base: PathBuf = match path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--show-toplevel"]).await {
+    let base: PathBuf = match path_answer_question(
+        context,
+        cwd,
+        &["rev-parse", "--path-format=absolute", "--show-toplevel"],
+    )
+    .await
+    {
         Ok(top) => top,
         Err(_) => git_directory.clone(),
     };
@@ -328,10 +407,18 @@ pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocat
 
 /// The bytes Git prints for a pathname,
 /// and the values of `core.hooksPath`.
-use crate::hooks_path_values::{configured_hooks_directory, path_answer, without_the_terminator};
+use crate::hooks_path_values::{
+    configured_hooks_directory,
+    path_answer,
+    without_the_terminator,
+};
 /// The Git LFS shims a repository holds,
 /// recognized by name and by the exact bytes git-lfs writes.
-pub use crate::lfs_shims::{is_lfs_shim, lfs_shim_text, render_lfs_shims};
+pub use crate::lfs_shims::{
+    is_lfs_shim,
+    lfs_shim_text,
+    render_lfs_shims,
+};
 
 /// What:
 ///  Decide what `git monochromatic-git-policy-cli doctor` prints and exits with,
@@ -351,10 +438,20 @@ pub use crate::lfs_shims::{is_lfs_shim, lfs_shim_text, render_lfs_shims};
 /// ```ts
 /// async function doctor({ context, cwd }): Promise<Action>;
 /// ```
-pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
-    return match run_on_runtime(doctor_action_with_section(context, cwd, None, &no_filesystem_section)) {
+pub fn doctor_action(
+    context: &GitContext,
+    cwd: &Path,
+) -> Action {
+    return match run_on_runtime(doctor_action_with_section(
+        context,
+        cwd,
+        None,
+        &no_filesystem_section,
+    )) {
         Ok(action) => action,
-        Err(refusal) => doctor_failure(format!("the runtime could not be entered: {refusal}").as_str()),
+        Err(refusal) => {
+            doctor_failure(format!("the runtime could not be entered: {refusal}").as_str())
+        }
     };
 }
 
@@ -405,13 +502,23 @@ pub struct CheckoutViewpoint<'a> {
 /// ```ts
 /// const { checkout, layout } = await checkoutOf({ context, cwd, location });
 /// ```
-async fn checkout_of(context: &GitContext, cwd: &Path, location: &HooksLocation) -> (Option<PathBuf>, CheckoutLayout) {
+async fn checkout_of(
+    context: &GitContext,
+    cwd: &Path,
+    location: &HooksLocation,
+) -> (Option<PathBuf>, CheckoutLayout) {
     let layout: CheckoutLayout = if location.git_directory == location.common_directory {
         CheckoutLayout::Main
     } else {
         CheckoutLayout::Linked
     };
-    let checkout: Option<PathBuf> = path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--show-toplevel"]).await.ok();
+    let checkout: Option<PathBuf> = path_answer_question(
+        context,
+        cwd,
+        &["rev-parse", "--path-format=absolute", "--show-toplevel"],
+    )
+    .await
+    .ok();
     return (checkout, layout);
 }
 
@@ -511,7 +618,9 @@ pub async fn doctor_action_with_section(
     // answering ends the read instead of the report.
     let found: Vec<PathBuf> = match find_traditional_hooks(hook_directories(&location).as_slice()) {
         Ok(listed) => listed,
-        Err(error) => return doctor_failure(format!("cannot read a hooks directory: {error}").as_str()),
+        Err(error) => {
+            return doctor_failure(format!("cannot read a hooks directory: {error}").as_str());
+        }
     };
     let mut shims: Vec<PathBuf> = Vec::new();
     let mut hooks: Vec<PathBuf> = Vec::new();
@@ -519,37 +628,78 @@ pub async fn doctor_action_with_section(
         match is_lfs_shim(path.as_path()) {
             Ok(true) => shims.push(path),
             Ok(false) => hooks.push(path),
-            Err(error) => return doctor_failure(format!("cannot read a hook file: {error}").as_str()),
+            Err(error) => {
+                return doctor_failure(format!("cannot read a hook file: {error}").as_str());
+            }
         }
     }
     // The shims are named by the bytes of their pathnames, as the list of other hooks is, so the explanation is bytes too.
-    let shim_report: Vec<u8> = if shims.is_empty() { Vec::new() } else { render_lfs_shims(shims.as_slice()) };
+    let shim_report: Vec<u8> = if shims.is_empty() {
+        Vec::new()
+    } else {
+        render_lfs_shims(shims.as_slice())
+    };
     let findings: ConfigFindings = config_findings(context, cwd).await;
-    let notes: String = format!("{}{}", render_notes(&findings), fsmonitor_report(context, cwd).await);
+    let notes: String = format!(
+        "{}{}",
+        render_notes(&findings),
+        fsmonitor_report(context, cwd).await
+    );
     // A report changes nothing, so the earlier release's names in this directory are read where they are and never moved
     // (`SPEC.md`, section Doctor): moving them is left to the commands that write there.
     let discarded: String = doctor_section(location.common_directory.as_path(), findings.discarded);
     // The host facts read `statfs` and the mount table under their own ceiling, for the checkout Git named.
-    let (checkout, layout): (Option<PathBuf>, CheckoutLayout) = checkout_of(context, cwd, &location).await;
-    let viewpoint: CheckoutViewpoint<'_> = CheckoutViewpoint { checkout: checkout.as_deref(), layout, home };
+    let (checkout, layout): (Option<PathBuf>, CheckoutLayout) =
+        checkout_of(context, cwd, &location).await;
+    let viewpoint: CheckoutViewpoint<'_> = CheckoutViewpoint {
+        checkout: checkout.as_deref(),
+        layout,
+        home,
+    };
     let section: String = filesystem_section(&viewpoint);
     if hooks.is_empty() && findings.hooks.is_empty() && shims.is_empty() {
         // No report names a pathname, so the explanation is text and the action keeps its text shape.
-        return Action::Exit { code: 0, stdout: String::new(), stderr: format!("{notes}{discarded}{section}") };
+        return Action::Exit {
+            code: 0,
+            stdout: String::new(),
+            stderr: format!("{notes}{discarded}{section}"),
+        };
     }
     if hooks.is_empty() && findings.hooks.is_empty() {
         // Nothing is listed on standard output, and what explains the shims names their pathnames by their bytes.
-        let explaining: ExplainedReport<'_> = ExplainedReport { shims: shim_report, notes: notes.as_str(), discarded: discarded.as_str(), section: section.as_str() };
-        return Action::ExitBytes { code: 0, stdout: Vec::new(), stderr: explained_shim_report(explaining) };
+        let explaining: ExplainedReport<'_> = ExplainedReport {
+            shims: shim_report,
+            notes: notes.as_str(),
+            discarded: discarded.as_str(),
+            section: section.as_str(),
+        };
+        return Action::ExitBytes {
+            code: 0,
+            stdout: Vec::new(),
+            stderr: explained_shim_report(explaining),
+        };
     }
-    let explanation: &str = if hooks.is_empty() { "" } else { FOUND_EXPLANATION };
+    let explanation: &str = if hooks.is_empty() {
+        ""
+    } else {
+        FOUND_EXPLANATION
+    };
     // The hook pathnames are bytes and the configured hooks are text, so the report is one byte stream.
     let mut report: Vec<u8> = render_hooks(hooks.as_slice());
     report.extend_from_slice(render_hook_lines(&findings).as_bytes());
-    let explaining: ExplainedReport<'_> = ExplainedReport { shims: shim_report, notes: notes.as_str(), discarded: discarded.as_str(), section: section.as_str() };
+    let explaining: ExplainedReport<'_> = ExplainedReport {
+        shims: shim_report,
+        notes: notes.as_str(),
+        discarded: discarded.as_str(),
+        section: section.as_str(),
+    };
     let mut explanation_and_report: Vec<u8> = explanation.as_bytes().to_vec();
     explanation_and_report.extend_from_slice(explained_shim_report(explaining).as_slice());
-    return Action::ExitBytes { code: HOOKS_FOUND_EXIT_CODE, stdout: report, stderr: explanation_and_report };
+    return Action::ExitBytes {
+        code: HOOKS_FOUND_EXIT_CODE,
+        stdout: report,
+        stderr: explanation_and_report,
+    };
 }
 
 /// What:

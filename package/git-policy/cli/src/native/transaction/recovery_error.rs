@@ -42,7 +42,10 @@ pub struct RecoveryError(pub String);
 /// ```
 impl std::fmt::Display for RecoveryError {
     /// Writes the message.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.0.as_str());
     }
 }

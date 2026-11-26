@@ -27,9 +27,20 @@
 use super::add_zfs::OpenedDevice;
 use crate::worktree_clone_binding_record::add_state_commands::ClonePresence;
 use crate::worktree_clone_binding_record::plan_folder_read::APlanThatNamesTheClone;
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ListedChild, MAXIMUM_CHILDREN, ReadFailure};
-use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{CloneAbsence, the_clone_absence};
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, ListedObject};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ListedChild,
+    MAXIMUM_CHILDREN,
+    ReadFailure,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
+    CloneAbsence,
+    the_clone_absence,
+};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    ListedObject,
+};
 
 /// What:
 ///  The pool's answer about the clone a standing plan records,
@@ -46,7 +57,10 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, Listed
 /// ```ts
 /// const presence = thePresenceOfThePlansClone(probe, plan);
 /// ```
-pub fn the_presence_of_the_plans_clone(probe: &dyn DatasetReader, plan: &APlanThatNamesTheClone) -> ClonePresence {
+pub fn the_presence_of_the_plans_clone(
+    probe: &dyn DatasetReader,
+    plan: &APlanThatNamesTheClone,
+) -> ClonePresence {
     // What:     `TheBoundedListing { .. }` builds the walker that counts the
     //           children it hands on, borrowing the caller's pool reads rather
     //           than owning them.
@@ -57,18 +71,31 @@ pub fn the_presence_of_the_plans_clone(probe: &dyn DatasetReader, plan: &APlanTh
     // ```ts
     // const bounded = new BoundedListing(probe);
     // ```
-    let bounded: TheBoundedListing<'_> = TheBoundedListing { probe, handed: std::cell::Cell::new(0) };
-    let answer: Result<CloneAbsence, crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop> =
-        the_clone_absence(&bounded, plan.clone_dataset.as_str(), plan.clone_guid);
+    let bounded: TheBoundedListing<'_> = TheBoundedListing {
+        probe,
+        handed: std::cell::Cell::new(0),
+    };
+    let answer: Result<
+        CloneAbsence,
+        crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop,
+    > = the_clone_absence(&bounded, plan.clone_dataset.as_str(), plan.clone_guid);
     return match answer {
         // The recorded name answered with the recorded GUID,
         // and the plan's clone stands where the plan says it does.
-        Ok(CloneAbsence::There { .. }) => ClonePresence::Stands,
+        Ok(CloneAbsence::There {
+            ..
+        }) => ClonePresence::Stands,
         // The recorded name answers another clone,
         // which is the one state no command of this release settles.
-        Ok(CloneAbsence::Reused { guid }) => ClonePresence::TheNameAnswersAnotherClone { live_guid: guid.file_name() },
+        Ok(CloneAbsence::Reused {
+            guid,
+        }) => ClonePresence::TheNameAnswersAnotherClone {
+            live_guid: guid.file_name(),
+        },
         Ok(CloneAbsence::Gone) => ClonePresence::GoneProved,
-        Err(stop) => ClonePresence::GoneUnprovable { evidence: stop.message() },
+        Err(stop) => ClonePresence::GoneUnprovable {
+            evidence: stop.message(),
+        },
     };
 }
 
@@ -92,11 +119,18 @@ struct TheBoundedListing<'a> {
 }
 
 impl DatasetReader for TheBoundedListing<'_> {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure> {
         return self.probe.identity(dataset);
     }
 
-    fn next_child(&self, parent: &str, cursor: u64) -> Result<Option<ListedChild>, String> {
+    fn next_child(
+        &self,
+        parent: &str,
+        cursor: u64,
+    ) -> Result<Option<ListedChild>, String> {
         let step: Option<ListedChild> = self.probe.next_child(parent, cursor)?;
         let Some(child) = step else { return Ok(None) };
         if self.handed.get() == MAXIMUM_CHILDREN {
@@ -121,12 +155,27 @@ impl DatasetReader for TheBoundedListing<'_> {
 // so the add's walk asks the pool through the handle it already opened
 // behind the start-time gate.
 impl DatasetReader for OpenedDevice {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
-        return self.device.objset_stats(dataset).map_err(|error| return ReadFailure { said: error.to_string(), errno: error.errno() });
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure> {
+        return self.device.objset_stats(dataset).map_err(|error| {
+            return ReadFailure {
+                said: error.to_string(),
+                errno: error.errno(),
+            };
+        });
     }
 
-    fn next_child(&self, parent: &str, cursor: u64) -> Result<Option<ListedChild>, String> {
-        let listed: Option<ListedObject> = self.device.dataset_list_next(parent, cursor).map_err(|error| return error.to_string())?;
+    fn next_child(
+        &self,
+        parent: &str,
+        cursor: u64,
+    ) -> Result<Option<ListedChild>, String> {
+        let listed: Option<ListedObject> = self
+            .device
+            .dataset_list_next(parent, cursor)
+            .map_err(|error| return error.to_string())?;
         // What:     `Ok(listed.map(..))` turns the binding's listed object into
         //           this walk's `ListedChild`, and wraps the option in the
         //           success variant of the read's `Result`.
@@ -137,7 +186,12 @@ impl DatasetReader for OpenedDevice {
         // ```ts
         // return listed === undefined ? undefined : { name: listed.name, cursor: listed.cursor };
         // ```
-        return Ok(listed.map(|object| return ListedChild { name: object.name, cursor: object.cursor }));
+        return Ok(listed.map(|object| {
+            return ListedChild {
+                name: object.name,
+                cursor: object.cursor,
+            };
+        }));
     }
 }
 

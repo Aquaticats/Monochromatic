@@ -37,7 +37,12 @@ use std::ffi::OsString;
 pub(crate) fn branch_commit_question(reference: &RefName) -> [OsString; 4] {
     let mut peeled: OsString = reference.as_os_str().to_os_string();
     peeled.push("^{commit}");
-    return [OsString::from("rev-parse"), OsString::from("--verify"), OsString::from("--quiet"), peeled];
+    return [
+        OsString::from("rev-parse"),
+        OsString::from("--verify"),
+        OsString::from("--quiet"),
+        peeled,
+    ];
 }
 
 /// What:
@@ -55,7 +60,12 @@ pub(crate) fn branch_commit_question(reference: &RefName) -> [OsString; 4] {
 /// ```ts
 /// Buffer.concat([Buffer.from('start\nupdate '), ref, Buffer.from(` ${new} ${old}\n${removal}prepare\ncommit\n`)])
 /// ```
-pub(crate) fn reference_move_transaction(reference: &RefName, new: &str, old: &str, removal: &str) -> Vec<u8> {
+pub(crate) fn reference_move_transaction(
+    reference: &RefName,
+    new: &str,
+    old: &str,
+    removal: &str,
+) -> Vec<u8> {
     let mut text: Vec<u8> = b"start\nupdate ".to_vec();
     text.extend_from_slice(reference.bytes());
     text.extend_from_slice(format!(" {new} {old}\n{removal}prepare\ncommit\n").as_bytes());

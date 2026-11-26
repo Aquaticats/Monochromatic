@@ -22,7 +22,11 @@
 
 use crate::lexical_path::normalized_path;
 use std::ffi::OsString;
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The place one link's text names,
@@ -61,7 +65,11 @@ pub enum Place {
 /// ```ts
 /// function placeOf(target: string, link: string, root: string): Place;
 /// ```
-pub fn place_of(target: &Path, link: &Path, root: &Path) -> Place {
+pub fn place_of(
+    target: &Path,
+    link: &Path,
+    root: &Path,
+) -> Place {
     let parent: &Path = link.parent().unwrap_or(Path::new(""));
     if target.is_absolute() {
         return match target.strip_prefix(root) {
@@ -92,13 +100,19 @@ pub fn place_of(target: &Path, link: &Path, root: &Path) -> Place {
 /// ```ts
 /// const walkedFromTheRoot = (fromRoot, target) => { const parts = [...]; for (const part of segments(target)) { if (part === '..') { if (!parts.pop()) return undefined } else parts.push(part) } return parts };
 /// ```
-fn walked_from_the_root(from_root: &Path, target: &Path) -> Option<Vec<OsString>> {
+fn walked_from_the_root(
+    from_root: &Path,
+    target: &Path,
+) -> Option<Vec<OsString>> {
     let mut parts: Vec<OsString> = Vec::new();
     for component in from_root.components() {
         match component {
             Component::Normal(name) => parts.push(name.to_os_string()),
             // The link's own directory is inside the root, so no other component can appear here.
-            Component::CurDir | Component::ParentDir | Component::RootDir | Component::Prefix(_) => return None,
+            Component::CurDir
+            | Component::ParentDir
+            | Component::RootDir
+            | Component::Prefix(_) => return None,
         }
     }
     for component in target.components() {
@@ -128,8 +142,16 @@ fn walked_from_the_root(from_root: &Path, target: &Path) -> Option<Vec<OsString>
 /// ```ts
 /// function textFromTheLinkTo(inside: string, link: string, root: string): string;
 /// ```
-fn text_from_the_link_to(inside: &Path, link: &Path, root: &Path) -> PathBuf {
-    let from_root: &Path = link.parent().unwrap_or(Path::new("")).strip_prefix(root).unwrap_or(Path::new(""));
+fn text_from_the_link_to(
+    inside: &Path,
+    link: &Path,
+    root: &Path,
+) -> PathBuf {
+    let from_root: &Path = link
+        .parent()
+        .unwrap_or(Path::new(""))
+        .strip_prefix(root)
+        .unwrap_or(Path::new(""));
     let mut from: Vec<Component<'_>> = from_root.components().collect();
     let mut to: Vec<Component<'_>> = inside.components().collect();
     let mut shared: usize = 0;
@@ -163,7 +185,11 @@ fn text_from_the_link_to(inside: &Path, link: &Path, root: &Path) -> PathBuf {
 /// ```ts
 /// function targetForTheNewPlace(target: string, sourceLink: string, sourceRoot: string): string;
 /// ```
-pub fn target_for_the_new_place(target: &Path, source_link: &Path, source_root: &Path) -> PathBuf {
+pub fn target_for_the_new_place(
+    target: &Path,
+    source_link: &Path,
+    source_root: &Path,
+) -> PathBuf {
     return match place_of(target, source_link, source_root) {
         Place::Inside(_inside) if target.is_relative() => target.to_path_buf(),
         Place::Inside(inside) => text_from_the_link_to(inside.as_path(), source_link, source_root),
@@ -184,8 +210,16 @@ pub fn target_for_the_new_place(target: &Path, source_link: &Path, source_root: 
 /// ```ts
 /// const samePlace = (expected, expectedLink, expectedRoot, actual, actualLink, actualRoot) => placeOf(...) === placeOf(...);
 /// ```
-pub fn names_the_same_place(expected: &Path, expected_link: &Path, expected_root: &Path, actual: &Path, actual_link: &Path, actual_root: &Path) -> bool {
-    return place_of(expected, expected_link, expected_root) == place_of(actual, actual_link, actual_root);
+pub fn names_the_same_place(
+    expected: &Path,
+    expected_link: &Path,
+    expected_root: &Path,
+    actual: &Path,
+    actual_link: &Path,
+    actual_root: &Path,
+) -> bool {
+    return place_of(expected, expected_link, expected_root)
+        == place_of(actual, actual_link, actual_root);
 }
 
 /// Target controls stay out of the release executable;

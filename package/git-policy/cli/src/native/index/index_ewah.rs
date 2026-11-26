@@ -61,17 +61,26 @@ fn literal_words(word: u64) -> u64 {
 }
 
 /// The run-length word with its run bit set to `value`.
-fn with_run_bit(word: u64, value: bool) -> u64 {
+fn with_run_bit(
+    word: u64,
+    value: bool,
+) -> u64 {
     return (word & !1) | u64::from(value);
 }
 
 /// The run-length word with its running length set to `value`.
-fn with_running_len(word: u64, value: u64) -> u64 {
+fn with_running_len(
+    word: u64,
+    value: u64,
+) -> u64 {
     return (word & !(LARGEST_RUN << 1)) | (value << 1);
 }
 
 /// The run-length word with its literal count set to `value`.
-fn with_literal_words(word: u64, value: u64) -> u64 {
+fn with_literal_words(
+    word: u64,
+    value: u64,
+) -> u64 {
     return (word & ((1 << 33) - 1)) | (value << 33);
 }
 
@@ -79,17 +88,28 @@ impl Ewah {
     /// An empty bitmap,
     /// as `ewah_new`.
     pub fn new() -> Ewah {
-        return Ewah { bit_size: 0, buffer: vec![0], rlw: 0 };
+        return Ewah {
+            bit_size: 0,
+            buffer: vec![0],
+            rlw: 0,
+        };
     }
 
     /// Append a fresh run-length word and make it the current one (`buffer_push_rlw`).
-    fn push_rlw(&mut self, value: u64) {
+    fn push_rlw(
+        &mut self,
+        value: u64,
+    ) {
         self.buffer.push(value);
         self.rlw = self.buffer.len() - 1;
     }
 
     /// Add `number` empty words of `value` bits (`add_empty_words`).
-    fn add_empty_words(&mut self, value: bool, count: u64) {
+    fn add_empty_words(
+        &mut self,
+        value: bool,
+        count: u64,
+    ) {
         let mut number: u64 = count;
         let current: u64 = self.buffer[self.rlw];
         let size: u64 = running_len(current) + literal_words(current);
@@ -112,7 +132,10 @@ impl Ewah {
     }
 
     /// Add one literal word (`add_literal`).
-    fn add_literal(&mut self, data: u64) {
+    fn add_literal(
+        &mut self,
+        data: u64,
+    ) {
         let current: u64 = literal_words(self.buffer[self.rlw]);
         if current >= LARGEST_LITERAL {
             self.push_rlw(with_literal_words(0, 1));
@@ -123,7 +146,10 @@ impl Ewah {
     }
 
     /// Add one empty word of `value` bits (`add_empty_word`).
-    fn add_empty_word(&mut self, value: bool) {
+    fn add_empty_word(
+        &mut self,
+        value: bool,
+    ) {
         let current: u64 = self.buffer[self.rlw];
         let no_literal: bool = literal_words(current) == 0;
         let run: u64 = running_len(current);
@@ -139,8 +165,14 @@ impl Ewah {
 
     /// Set bit `position`,
     /// which must not be below the bit size (`ewah_set`).
-    pub fn set(&mut self, position: usize) {
-        assert!(position >= self.bit_size, "bits are set in increasing order");
+    pub fn set(
+        &mut self,
+        position: usize,
+    ) {
+        assert!(
+            position >= self.bit_size,
+            "bits are set in increasing order"
+        );
         let dist: usize = (position + 1).div_ceil(WORD_BITS) - self.bit_size.div_ceil(WORD_BITS);
         self.bit_size = position + 1;
         let bit: u64 = 1 << (position % WORD_BITS);
@@ -213,7 +245,10 @@ impl Ewah {
     /// word count,
     /// words,
     /// position of the last run-length word.
-    pub fn serialize(&self, out: &mut Vec<u8>) {
+    pub fn serialize(
+        &self,
+        out: &mut Vec<u8>,
+    ) {
         out.extend_from_slice(&(self.bit_size as u32).to_be_bytes());
         out.extend_from_slice(&(self.buffer.len() as u32).to_be_bytes());
         for word in &self.buffer {
@@ -236,7 +271,10 @@ impl Ewah {
     /// use (the entries of the index,
     /// the directories of the cache),
     /// so the set bits that `bits` lists are bounded by it.
-    pub fn read(bytes: &[u8], max_bits: usize) -> Option<(Ewah, usize)> {
+    pub fn read(
+        bytes: &[u8],
+        max_bits: usize,
+    ) -> Option<(Ewah, usize)> {
         let bit_size: usize = u32::from_be_bytes(bytes.get(0..4)?.try_into().ok()?) as usize;
         let count: usize = u32::from_be_bytes(bytes.get(4..8)?.try_into().ok()?) as usize;
         if bit_size > max_bits {
@@ -251,18 +289,34 @@ impl Ewah {
         for chunk in chunks {
             buffer.push(u64::from_be_bytes(*chunk));
         }
-        let rlw: usize = u32::from_be_bytes(bytes.get(words_end..words_end + 4)?.try_into().ok()?) as usize;
+        let rlw: usize =
+            u32::from_be_bytes(bytes.get(words_end..words_end + 4)?.try_into().ok()?) as usize;
         let (mut at, mut last, mut logical): (usize, usize, u64) = (0, 0, 0);
         while at < buffer.len() {
             last = at;
             let word: u64 = buffer[at];
-            logical = logical.checked_add(running_len(word))?.checked_add(literal_words(word))?;
-            at = at.checked_add(1)?.checked_add(usize::try_from(literal_words(word)).ok()?)?;
+            logical = logical
+                .checked_add(running_len(word))?
+                .checked_add(literal_words(word))?;
+            at = at
+                .checked_add(1)?
+                .checked_add(usize::try_from(literal_words(word)).ok()?)?;
         }
-        if buffer.is_empty() || at != buffer.len() || rlw != last || logical != bit_size.div_ceil(WORD_BITS) as u64 {
+        if buffer.is_empty()
+            || at != buffer.len()
+            || rlw != last
+            || logical != bit_size.div_ceil(WORD_BITS) as u64
+        {
             return None;
         }
-        return Some((Ewah { bit_size, buffer, rlw }, words_end + 4));
+        return Some((
+            Ewah {
+                bit_size,
+                buffer,
+                rlw,
+            },
+            words_end + 4,
+        ));
     }
 }
 

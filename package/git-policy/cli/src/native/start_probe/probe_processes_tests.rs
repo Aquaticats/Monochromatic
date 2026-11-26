@@ -12,9 +12,19 @@
 //! const pid = fork(); if (pid === 0) _exit(7); expect(waitBlocking(pid)).toEqual({ kind: 'exited', status: 7 });
 //! ```
 
-use super::{Exit, fork, pipe_pair, raw, set_process_group, wait_blocking};
 use super::super::probe_child_prelude::exit_now;
-use super::super::probe_pipe_lines::{read_one_blocking, write_all};
+use super::super::probe_pipe_lines::{
+    read_one_blocking,
+    write_all,
+};
+use super::{
+    Exit,
+    fork,
+    pipe_pair,
+    raw,
+    set_process_group,
+    wait_blocking,
+};
 
 /// A child forked here ends with the status it was given,
 /// and its parent reads that status.
@@ -23,7 +33,12 @@ fn a_forked_child_ends_with_its_status() {
     match fork().expect("the fork is made") {
         None => exit_now(7),
         Some(pid) => {
-            assert_eq!(wait_blocking(pid), Ok(Exit::Exited { status: 7 }));
+            assert_eq!(
+                wait_blocking(pid),
+                Ok(Exit::Exited {
+                    status: 7
+                })
+            );
         }
     }
 }
@@ -45,7 +60,13 @@ fn a_process_group_is_made_and_its_kill_is_a_signal() {
         None => {
             let mut buffer: [u8; 1] = [0; 1];
             // SAFETY: the buffer is this call's own and the read waits for the parent's kill.
-            let read: libc::ssize_t = unsafe { libc::read(libc::STDIN_FILENO, buffer.as_mut_ptr().cast::<libc::c_void>(), 1) };
+            let read: libc::ssize_t = unsafe {
+                libc::read(
+                    libc::STDIN_FILENO,
+                    buffer.as_mut_ptr().cast::<libc::c_void>(),
+                    1,
+                )
+            };
             let _ = read;
             exit_now(0);
         }
@@ -53,7 +74,9 @@ fn a_process_group_is_made_and_its_kill_is_a_signal() {
             set_process_group(pid).expect("the group is made");
             assert_eq!(super::kill_process_group(pid), Ok(()));
             match wait_blocking(pid) {
-                Ok(Exit::Signaled { signal }) => assert_eq!(signal, libc::SIGKILL),
+                Ok(Exit::Signaled {
+                    signal,
+                }) => assert_eq!(signal, libc::SIGKILL),
                 other => panic!("{other:?}"),
             }
         }

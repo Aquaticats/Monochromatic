@@ -14,7 +14,13 @@
 
 /// Tokenizer types used by the shared synthetic table and the table oracles.
 use crate::command_options::{
-    Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, parse_options, row,
+    Arity,
+    DEFAULT_MODE,
+    OptionError,
+    OptionSpec,
+    ParsedOptions,
+    parse_options,
+    row,
 };
 /// The real Git path and fixture removal are shared with the wrapper's unit tests unchanged.
 /// The fixture constructor and Git runners stay separate on purpose:
@@ -22,14 +28,24 @@ use crate::command_options::{
 /// keeps command fixtures apart from wrapper fixtures in one test process,
 ///  and the runners
 /// also fix `GIT_EDITOR` and close standard input.
-pub(crate) use crate::test_support::{REAL_GIT, remove};
+pub(crate) use crate::test_support::{
+    REAL_GIT,
+    remove,
+};
 /// Native string,
 ///  path,
 ///  stream and process types used by the fixtures.
 use std::ffi::OsString;
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+    Stdio,
+};
 
 /// Identifiers of the synthetic rows shared by the tokenizer test files.
 pub(crate) const ALL: u16 = 1;
@@ -125,14 +141,23 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
 /// return text.split('\n').slice(0, -1).filter((line) => line !== '').map((line) => JSON.parse(line));
 /// ```
 pub(crate) fn audit_records(common: &Path) -> Vec<serde_json::Value> {
-    let text: String = std::fs::read_to_string(common.join(crate::discard_audit::AUDIT_FILE)).unwrap_or_default();
+    let text: String =
+        std::fs::read_to_string(common.join(crate::discard_audit::AUDIT_FILE)).unwrap_or_default();
     // Only what a newline ended: `split_inclusive` keeps each newline, so a last piece without one is a partial record.
     return text
         .split_inclusive('\n')
-        .filter(|piece| { return piece.ends_with('\n'); })
-        .map(|piece| { return piece.trim_end_matches('\n'); })
-        .filter(|line| { return !line.is_empty(); })
-        .map(|line| { return serde_json::from_str(line).expect("a JSON audit line"); })
+        .filter(|piece| {
+            return piece.ends_with('\n');
+        })
+        .map(|piece| {
+            return piece.trim_end_matches('\n');
+        })
+        .filter(|line| {
+            return !line.is_empty();
+        })
+        .map(|line| {
+            return serde_json::from_str(line).expect("a JSON audit line");
+        })
         .collect();
 }
 
@@ -154,7 +179,10 @@ fn git_command(directory: &Path) -> Command {
 }
 
 /// Run real Git with native arguments and report its status and streams without judging them.
-pub(crate) fn git_output(directory: &Path, arguments: &[OsString]) -> Output {
+pub(crate) fn git_output(
+    directory: &Path,
+    arguments: &[OsString],
+) -> Output {
     return git_command(directory)
         .args(arguments)
         .stdin(Stdio::null())
@@ -163,7 +191,10 @@ pub(crate) fn git_output(directory: &Path, arguments: &[OsString]) -> Output {
 }
 
 /// Run real Git with text arguments and require success.
-pub(crate) fn git(directory: &Path, arguments: &[&str]) -> Output {
+pub(crate) fn git(
+    directory: &Path,
+    arguments: &[&str],
+) -> Output {
     let output: Output = git_output(directory, os_arguments(arguments).as_slice());
     assert!(
         output.status.success(),
@@ -174,17 +205,29 @@ pub(crate) fn git(directory: &Path, arguments: &[&str]) -> Output {
 }
 
 /// Run real Git with text arguments where failure is the observation.
-pub(crate) fn git_status(directory: &Path, arguments: &[&str]) -> Output {
+pub(crate) fn git_status(
+    directory: &Path,
+    arguments: &[&str],
+) -> Output {
     return git_output(directory, os_arguments(arguments).as_slice());
 }
 
 /// Run real Git with bytes on standard input,
 ///  as `git rev-parse --parseopt` needs.
-pub(crate) fn git_with_input(directory: &Path, arguments: &[OsString], input: &[u8]) -> Output {
+pub(crate) fn git_with_input(
+    directory: &Path,
+    arguments: &[OsString],
+    input: &[u8],
+) -> Output {
     let mut command: std::process::Command = git_command(directory);
-    command.args(arguments).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    command
+        .args(arguments)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     // Owned, so a control that fails while it writes the input leaves no Git waiting for it.
-    let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("native Git fixture command");
+    let mut child: std::process::Child =
+        crate::test_support::spawn_owned(&mut command).expect("native Git fixture command");
     child
         .stdin
         .take()

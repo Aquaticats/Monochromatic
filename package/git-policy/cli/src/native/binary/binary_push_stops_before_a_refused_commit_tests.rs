@@ -23,10 +23,24 @@
 //! ```
 
 use super::commit::remove_settled;
-use super::support::{Fixture, FixtureService, Observed, direct, fixture, git, observe, repository, run_wrapped, start_fixture_service};
+use super::support::{
+    Fixture,
+    FixtureService,
+    Observed,
+    direct,
+    fixture,
+    git,
+    observe,
+    repository,
+    run_wrapped,
+    start_fixture_service,
+};
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The longest a control waits for the service to push.
 const PATIENCE: Duration = Duration::from_secs(120);
@@ -51,42 +65,97 @@ fn setup(name: &str) -> Setup {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let remote: PathBuf = fixture.root.join("remote.git");
-    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", remote.to_str().expect("UTF-8")]);
-    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), STRICT_FINAL_NEWLINE).expect("the configuration");
+    git(
+        &fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            remote.to_str().expect("UTF-8"),
+        ],
+    );
+    std::fs::write(
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
+        STRICT_FINAL_NEWLINE,
+    )
+    .expect("the configuration");
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
-    git(&fixture, &repo, &["add", "a.txt", "monochromatic-git-policy-cli.config.jsonc"]);
+    git(
+        &fixture,
+        &repo,
+        &["add", "a.txt", "monochromatic-git-policy-cli.config.jsonc"],
+    );
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
-    git(&fixture, &repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
-    git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(
+        &fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("UTF-8")],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "main"],
+    );
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    return Setup { fixture, repo, remote, service };
+    return Setup {
+        fixture,
+        repo,
+        remote,
+        service,
+    };
 }
 
 /// Commit the worktree's `a.txt` with real Git,
 /// as a person's own Git would,
 /// answering the commit's name.
-fn commit_directly(setup: &Setup, text: &str) -> String {
+fn commit_directly(
+    setup: &Setup,
+    text: &str,
+) -> String {
     std::fs::write(setup.repo.join("a.txt"), text).expect("a");
-    git(&setup.fixture, &setup.repo, &["commit", "--quiet", "--message", text.trim(), "a.txt"]);
+    git(
+        &setup.fixture,
+        &setup.repo,
+        &["commit", "--quiet", "--message", text.trim(), "a.txt"],
+    );
     return local_tip(setup);
 }
 
 /// Commit the worktree's `b.txt` through the wrapper,
 /// answering the command's observation.
-fn commit_b_through(setup: &Setup, text: &str) -> Observed {
+fn commit_b_through(
+    setup: &Setup,
+    text: &str,
+) -> Observed {
     std::fs::write(setup.repo.join("b.txt"), text).expect("b.txt");
-    let mut command: std::process::Command = super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), &["commit", "--quiet", "-m", text.trim(), "--", "b.txt"]);
+    let mut command: std::process::Command = super::commit::wrapped_commit(
+        &setup.fixture,
+        setup.repo.as_path(),
+        &["commit", "--quiet", "-m", text.trim(), "--", "b.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
     return observe(&mut command, b"");
 }
 
 /// The commit `directory` names for `revision`,
 /// as real Git prints it.
-fn named(setup: &Setup, directory: &std::path::Path, revision: &str) -> String {
+fn named(
+    setup: &Setup,
+    directory: &std::path::Path,
+    revision: &str,
+) -> String {
     let output: std::process::Output = git(&setup.fixture, directory, &["rev-parse", revision]);
-    return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    return String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
 }
 
 /// The commit the worktree is on.
@@ -101,7 +170,10 @@ fn remote_main(setup: &Setup) -> String {
 
 /// Wait until `condition` holds,
 /// within the patience.
-fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
+fn wait_until(
+    what: &str,
+    condition: &dyn Fn() -> bool,
+) {
     let began: Instant = Instant::now();
     while !condition() {
         assert!(began.elapsed() < PATIENCE, "never happened: {what}");
@@ -126,15 +198,36 @@ fn a_refused_commit_is_not_published_by_the_next_commit() {
     let before_the_refused: String = commit_directly(&setup, "before\n");
     std::fs::write(setup.repo.join("bad.txt"), "no final newline").expect("bad.txt");
     git(&setup.fixture, &setup.repo, &["add", "bad.txt"]);
-    git(&setup.fixture, &setup.repo, &["commit", "--quiet", "--message=refused content"]);
+    git(
+        &setup.fixture,
+        &setup.repo,
+        &["commit", "--quiet", "--message=refused content"],
+    );
     // The amend lands a commit the gate then refuses: its delta against its parent holds both files, and the one a person's own Git
     //  wrote has no final newline.
     std::fs::write(setup.repo.join("a.txt"), "amended\n").expect("a");
-    let mut amend: std::process::Command = super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), &["commit", "--amend", "--no-edit", "-m", "amended", "--", "a.txt"]);
+    let mut amend: std::process::Command = super::commit::wrapped_commit(
+        &setup.fixture,
+        setup.repo.as_path(),
+        &[
+            "commit",
+            "--amend",
+            "--no-edit",
+            "-m",
+            "amended",
+            "--",
+            "a.txt",
+        ],
+    );
     amend.env("XDG_RUNTIME_DIR", &setup.service.runtime);
     let refused: Observed = observe(&mut amend, b"");
     let refused_commit: String = local_tip(&setup);
-    assert_eq!(refused.code, Some(2), "a landed commit the gate refuses exits 2: {}", String::from_utf8_lossy(refused.stderr.as_slice()));
+    assert_eq!(
+        refused.code,
+        Some(2),
+        "a landed commit the gate refuses exits 2: {}",
+        String::from_utf8_lossy(refused.stderr.as_slice())
+    );
     assert!(
         String::from_utf8_lossy(refused.stderr.as_slice()).contains("remains local"),
         "{}",
@@ -142,29 +235,70 @@ fn a_refused_commit_is_not_published_by_the_next_commit() {
     );
     // A later commit of the same branch: its push is the one that used to publish the refused commit.
     let later: Observed = commit_b_through(&setup, "later\n");
-    assert_eq!(later.code, Some(0), "{}", String::from_utf8_lossy(later.stderr.as_slice()));
+    assert_eq!(
+        later.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(later.stderr.as_slice())
+    );
     // The push runs after the command returns, so the control waits for it: the remote reaches the commit before the refused one,
     //  which no earlier push had delivered.
-    wait_until("the remote reaches the commit before the refused one", &|| return remote_main(&setup) == before_the_refused);
-    assert!(!remote_has(&setup, refused_commit.as_str()), "the refused commit stays local");
+    wait_until(
+        "the remote reaches the commit before the refused one",
+        &|| return remote_main(&setup) == before_the_refused,
+    );
+    assert!(
+        !remote_has(&setup, refused_commit.as_str()),
+        "the refused commit stays local"
+    );
     let later_commit: String = local_tip(&setup);
-    assert!(!remote_has(&setup, later_commit.as_str()), "the commit after it does not drag it along");
+    assert!(
+        !remote_has(&setup, later_commit.as_str()),
+        "the commit after it does not drag it along"
+    );
     // The verdict is on disk and holds the branch back when the same state is read by the library:
     // a command that says nothing is
     //  either a record that is gone or a question that answered nothing.
-    let work: PathBuf = git_policy_cli::service_work::work_directory(setup.repo.join(".git").as_path());
-    let verdicts: Vec<git_policy_cli::work_item_holding::BlockedVerdict> = git_policy_cli::work_item_holding::blocked_verdicts(work.as_path());
-    assert_eq!(verdicts.len(), 1, "the gate kept one verdict on disk: {verdicts:?}");
-    assert_eq!(verdicts.first().map(|verdict| return verdict.commit.as_str()), Some(refused_commit.as_str()), "{verdicts:?}");
+    let work: PathBuf =
+        git_policy_cli::service_work::work_directory(setup.repo.join(".git").as_path());
+    let verdicts: Vec<git_policy_cli::work_item_holding::BlockedVerdict> =
+        git_policy_cli::work_item_holding::blocked_verdicts(work.as_path());
+    assert_eq!(
+        verdicts.len(),
+        1,
+        "the gate kept one verdict on disk: {verdicts:?}"
+    );
+    assert_eq!(
+        verdicts
+            .first()
+            .map(|verdict| return verdict.commit.as_str()),
+        Some(refused_commit.as_str()),
+        "{verdicts:?}"
+    );
     // Every command says which commit holds the branch back and which check refused it, and says it again: the verdict stands while
     //  the commit is on the branch's way out.
     for _attempt in 0..2 {
-        let said: Observed = run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
+        let said: Observed =
+            run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
         let words: String = String::from_utf8_lossy(said.stderr.as_slice()).into_owned();
-        assert!(words.contains("main is held back by the commit"), "{words} / {:?} / {:?}", said.code, String::from_utf8_lossy(said.stdout.as_slice()));
-        assert!(words.contains(refused_commit.as_str()), "the line names the commit: {words}");
-        assert!(words.contains("final-newline"), "the line names the check: {words}");
-        assert!(words.contains("a person's `git push` still sends it"), "the line names the way out: {words}");
+        assert!(
+            words.contains("main is held back by the commit"),
+            "{words} / {:?} / {:?}",
+            said.code,
+            String::from_utf8_lossy(said.stdout.as_slice())
+        );
+        assert!(
+            words.contains(refused_commit.as_str()),
+            "the line names the commit: {words}"
+        );
+        assert!(
+            words.contains("final-newline"),
+            "the line names the check: {words}"
+        );
+        assert!(
+            words.contains("a person's `git push` still sends it"),
+            "the line names the way out: {words}"
+        );
     }
     remove_settled(&setup.fixture);
 }
@@ -172,7 +306,10 @@ fn a_refused_commit_is_not_published_by_the_next_commit() {
 /// Whether the bare remote holds `commit`.
 /// The question is asked of the remote's own object store,
 /// and "no" is an answer.
-fn remote_has(setup: &Setup, commit: &str) -> bool {
+fn remote_has(
+    setup: &Setup,
+    commit: &str,
+) -> bool {
     let asked: std::process::Output = direct(&setup.fixture)
         .current_dir(setup.remote.as_path())
         .args(["cat-file", "-e", format!("{commit}^{{commit}}").as_str()])

@@ -23,7 +23,10 @@
 //! const mount = cloneMountOf(readMountRows(liveMounts), slotMountOf(liveMounts, slotPath), 'pool/clones/topic', slotPath);
 //! ```
 
-use crate::zfs_mounted_dataset::mounted_dataset_instance::{MountedDatasetInstance, MountedDatasets};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{
+    MountedDatasetInstance,
+    MountedDatasets,
+};
 use std::path::Path;
 
 /// What:
@@ -64,7 +67,9 @@ pub enum MountRows {
 pub fn read_mount_rows(mounts: &dyn MountedDatasets) -> MountRows {
     return match mounts.mounted_datasets() {
         Ok(rows) => MountRows::Rows(rows),
-        Err(reason) => MountRows::Unreadable { reason },
+        Err(reason) => MountRows::Unreadable {
+            reason,
+        },
     };
 }
 
@@ -148,25 +153,51 @@ pub enum CloneMount {
 /// ```ts
 /// const mount = cloneMountOf(rows, slotMount, cloneDataset, slotPath);
 /// ```
-pub fn clone_mount_of(rows: &MountRows, slot_mount: &SlotMount, clone_dataset: &str, slot: &Path) -> CloneMount {
+pub fn clone_mount_of(
+    rows: &MountRows,
+    slot_mount: &SlotMount,
+    clone_dataset: &str,
+    slot: &Path,
+) -> CloneMount {
     let found: &[MountedDatasetInstance] = match rows {
-        MountRows::Unreadable { reason } => return CloneMount::Unreadable { reason: reason.clone() },
+        MountRows::Unreadable {
+            reason,
+        } => {
+            return CloneMount::Unreadable {
+                reason: reason.clone(),
+            };
+        }
         MountRows::Rows(found) => found.as_slice(),
     };
-    let at_the_slot: Option<&MountedDatasetInstance> = found.iter().find(|row| return row.dataset == clone_dataset && row.mount_point == slot);
+    let at_the_slot: Option<&MountedDatasetInstance> = found
+        .iter()
+        .find(|row| return row.dataset == clone_dataset && row.mount_point == slot);
     if let Some(row) = at_the_slot {
         if row.shows_the_datasets_own_root() {
             return CloneMount::AtItsSlot;
         }
-        return CloneMount::SomethingElseAtTheSlot { described: row.described() };
+        return CloneMount::SomethingElseAtTheSlot {
+            described: row.described(),
+        };
     }
-    let elsewhere: Option<&MountedDatasetInstance> = found.iter().find(|row| return row.dataset == clone_dataset);
+    let elsewhere: Option<&MountedDatasetInstance> =
+        found.iter().find(|row| return row.dataset == clone_dataset);
     if let Some(row) = elsewhere {
-        return CloneMount::Elsewhere { described: row.described() };
+        return CloneMount::Elsewhere {
+            described: row.described(),
+        };
     }
     return match slot_mount {
-        SlotMount::Something { described } => CloneMount::SomethingElseAtTheSlot { described: described.clone() },
-        SlotMount::Unreadable { reason } => CloneMount::Unreadable { reason: reason.clone() },
+        SlotMount::Something {
+            described,
+        } => CloneMount::SomethingElseAtTheSlot {
+            described: described.clone(),
+        },
+        SlotMount::Unreadable {
+            reason,
+        } => CloneMount::Unreadable {
+            reason: reason.clone(),
+        },
         SlotMount::Nothing => CloneMount::Nowhere,
     };
 }
@@ -183,7 +214,10 @@ pub fn clone_mount_of(rows: &MountRows, slot_mount: &SlotMount, clone_dataset: &
 /// ```ts
 /// const slotMount = slotMountOf(mounts, slotPath);
 /// ```
-pub fn slot_mount_of(mounts: &dyn MountedDatasets, slot: &Path) -> SlotMount {
+pub fn slot_mount_of(
+    mounts: &dyn MountedDatasets,
+    slot: &Path,
+) -> SlotMount {
     let read = match mounts.mount_holding(slot) {
         Ok(read) => read,
         // A slot that does not exist holds no mount, so a failure to resolve it is the empty arm; any other
@@ -191,7 +225,9 @@ pub fn slot_mount_of(mounts: &dyn MountedDatasets, slot: &Path) -> SlotMount {
         Err(reason) => {
             return match std::fs::symlink_metadata(slot) {
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => SlotMount::Nothing,
-                _ => SlotMount::Unreadable { reason },
+                _ => SlotMount::Unreadable {
+                    reason,
+                },
             };
         }
     };
@@ -205,7 +241,12 @@ pub fn slot_mount_of(mounts: &dyn MountedDatasets, slot: &Path) -> SlotMount {
         Some(dataset) => format!("`{dataset}`"),
         None => String::from("a mount that is no ZFS dataset"),
     };
-    return SlotMount::Something { described: format!("{named} at the slot, mounted as `{}`", facts.filesystem_type) };
+    return SlotMount::Something {
+        described: format!(
+            "{named} at the slot, mounted as `{}`",
+            facts.filesystem_type
+        ),
+    };
 }
 
 /// Controls stay out of the release executable.

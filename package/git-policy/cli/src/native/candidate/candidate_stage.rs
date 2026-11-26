@@ -30,13 +30,24 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use crate::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// Import the candidate modes,
 ///  the validated object name and their parsers.
-use crate::candidate_object::{CandidateMode, ObjectId, mode_from_git, parse_object_id};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    mode_from_git,
+    parse_object_id,
+};
 /// Import the candidate record a version is built from,
 ///  and its change kinds.
-use crate::candidate_record::{CandidateChange, CandidateRecord};
+use crate::candidate_record::{
+    CandidateChange,
+    CandidateRecord,
+};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table and `HashSet<T>` a set of keys
 ///       (siblings:
@@ -49,7 +60,10 @@ use crate::candidate_record::{CandidateChange, CandidateRecord};
 /// ```ts
 /// const byPath = new Map<string, StageRecord[]>(); const added = new Set<string>();
 /// ```
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// What:
 ///  One index entry.
@@ -121,7 +135,11 @@ pub struct ChangedPath {
 /// ```ts
 /// function stageFailure(failure: CandidateFailure, position: number, detail: string): CandidateError;
 /// ```
-fn stage_failure(failure: CandidateFailure, position: usize, detail: &str) -> CandidateError {
+fn stage_failure(
+    failure: CandidateFailure,
+    position: usize,
+    detail: &str,
+) -> CandidateError {
     return CandidateError::new(
         failure,
         format!(
@@ -215,7 +233,10 @@ fn stage_number(text: &[u8]) -> Option<u8> {
 /// ```ts
 /// function parseStageRecord(position: number, record: Buffer): StageRecord;
 /// ```
-fn parse_stage_record(position: usize, record: &[u8]) -> Result<StageRecord, CandidateError> {
+fn parse_stage_record(
+    position: usize,
+    record: &[u8],
+) -> Result<StageRecord, CandidateError> {
     // What: `.iter().position(is_tab)` is the index of the first tab, if any.
     // Why:  Without a tab there is no pathname.
     //
@@ -359,7 +380,10 @@ fn group_by_path(records: &[StageRecord]) -> Vec<(&[u8], &[StageRecord])> {
 /// ```ts
 /// function stagedDelta(before: StageRecord[], after: StageRecord[]): ChangedPath[];
 /// ```
-pub fn staged_delta(before: &[StageRecord], after: &[StageRecord]) -> Vec<ChangedPath> {
+pub fn staged_delta(
+    before: &[StageRecord],
+    after: &[StageRecord],
+) -> Vec<ChangedPath> {
     let before_groups: Vec<(&[u8], &[StageRecord])> = group_by_path(before);
     let after_groups: Vec<(&[u8], &[StageRecord])> = group_by_path(after);
     let mut before_by_path: HashMap<&[u8], &[StageRecord]> = HashMap::new();

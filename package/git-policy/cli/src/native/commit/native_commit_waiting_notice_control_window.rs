@@ -19,8 +19,15 @@
 // Limits:
 //  Test-only. A release build reads no atomic and holds no lock here.
 
-use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{
+    AtomicI64,
+    AtomicU32,
+    Ordering,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The ceiling a control planted,
 /// in milliseconds,
@@ -55,7 +62,9 @@ const LOOK_PAUSE: Duration = Duration::from_millis(5);
 /// ```
 pub(crate) fn take_the_window() -> std::sync::MutexGuard<'static, ()> {
     // A poisoned lock means another control panicked while holding it; the counts are still counts.
-    let taken = WINDOW.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let taken = WINDOW
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     CEILING.store(-1, Ordering::SeqCst);
     STALL_CEILING.store(-1, Ordering::SeqCst);
     LOOKS_THAT_FOUND_THE_STEP.store(0, Ordering::SeqCst);
@@ -76,7 +85,10 @@ pub(crate) fn take_the_window() -> std::sync::MutexGuard<'static, ()> {
 /// plantTheStallCeiling(2_000);
 /// ```
 pub(crate) fn plant_the_stall_ceiling(bound: Duration) {
-    STALL_CEILING.store(i64::try_from(bound.as_millis()).unwrap_or(i64::MAX), Ordering::SeqCst);
+    STALL_CEILING.store(
+        i64::try_from(bound.as_millis()).unwrap_or(i64::MAX),
+        Ordering::SeqCst,
+    );
 }
 
 /// The bound a control planted for a step the kernel holds,
@@ -84,13 +96,18 @@ pub(crate) fn plant_the_stall_ceiling(bound: Duration) {
 pub(crate) fn the_stall_ceiling_the_control_planted() -> Option<Duration> {
     return match STALL_CEILING.load(Ordering::SeqCst) {
         -1 => None,
-        planted => Some(Duration::from_millis(u64::try_from(planted).unwrap_or(u64::MAX))),
+        planted => Some(Duration::from_millis(
+            u64::try_from(planted).unwrap_or(u64::MAX),
+        )),
     };
 }
 
 /// Make the ceiling come at the next look.
 pub(crate) fn plant_the_ceiling(ceiling: Duration) {
-    CEILING.store(i64::try_from(ceiling.as_millis()).unwrap_or(i64::MAX), Ordering::SeqCst);
+    CEILING.store(
+        i64::try_from(ceiling.as_millis()).unwrap_or(i64::MAX),
+        Ordering::SeqCst,
+    );
 }
 
 /// The ceiling a control planted,
@@ -98,7 +115,9 @@ pub(crate) fn plant_the_ceiling(ceiling: Duration) {
 pub(crate) fn the_ceiling_the_control_planted() -> Option<Duration> {
     return match CEILING.load(Ordering::SeqCst) {
         -1 => None,
-        planted => Some(Duration::from_millis(u64::try_from(planted).unwrap_or(u64::MAX))),
+        planted => Some(Duration::from_millis(
+            u64::try_from(planted).unwrap_or(u64::MAX),
+        )),
     };
 }
 
@@ -111,12 +130,17 @@ pub(crate) fn noted_a_look_that_found_the_step() {
 /// no longer than `bound`,
 /// for a look to have found the step.
 pub(crate) fn until_a_look_finds_the_step(bound: Duration) -> bool {
-    return until(bound, || { return LOOKS_THAT_FOUND_THE_STEP.load(Ordering::SeqCst) > 0; });
+    return until(bound, || {
+        return LOOKS_THAT_FOUND_THE_STEP.load(Ordering::SeqCst) > 0;
+    });
 }
 
 /// Wait for `reached`,
 /// no longer than `bound`.
-fn until(bound: Duration, reached: impl Fn() -> bool) -> bool {
+fn until(
+    bound: Duration,
+    reached: impl Fn() -> bool,
+) -> bool {
     let deadline: Instant = Instant::now() + bound;
     loop {
         if reached() {

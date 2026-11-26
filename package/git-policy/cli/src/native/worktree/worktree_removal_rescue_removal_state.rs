@@ -15,10 +15,20 @@
 //! removalOf(gitDir, snapshot) // 'done' | 'refused' | 'undecided'
 //! ```
 
-use super::{ATTEMPTS, GITDIR_HEX_PREFIX, TAG, files_of, name_of, path_bytes};
+use super::{
+    ATTEMPTS,
+    GITDIR_HEX_PREFIX,
+    TAG,
+    files_of,
+    name_of,
+    path_bytes,
+};
 use crate::diagnostic_log::warn;
 use crate::process_identity::process_birth_identity;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What a Git directory,
 /// the process that took a snapshot,
 /// and the checkout say about a removal.
@@ -68,11 +78,18 @@ fn attempt_may_be_running(snapshot: &Path) -> bool {
 /// Whether the command that wrote one attempt file may still be running;
 /// a file that cannot be understood counts as running.
 fn attempt_file_may_be_running(path: &Path) -> bool {
-    let Ok(pid) = name_of(path).parse::<i64>() else { return false };
+    let Ok(pid) = name_of(path).parse::<i64>() else {
+        return false;
+    };
     // A plain file, so a name that holds a named pipe counts as a command that may still be running rather than a wait
     //  with no end.
-    let Ok(bytes) = crate::plain_file::read_plain_file(path, crate::plain_file::SMALL_FILE_LIMIT) else { return true };
-    let Ok(recorded) = String::from_utf8(bytes) else { return true };
+    let Ok(bytes) = crate::plain_file::read_plain_file(path, crate::plain_file::SMALL_FILE_LIMIT)
+    else {
+        return true;
+    };
+    let Ok(recorded) = String::from_utf8(bytes) else {
+        return true;
+    };
     if recorded.is_empty() {
         // Being written.
         return true;
@@ -81,7 +98,11 @@ fn attempt_file_may_be_running(path: &Path) -> bool {
         Ok(Some(now)) => now == recorded,
         Ok(None) => false,
         Err(error) => {
-            warn(TAG, format!("the process {pid} of a worktree removal cannot be inspected: {error}").as_str());
+            warn(
+                TAG,
+                format!("the process {pid} of a worktree removal cannot be inspected: {error}")
+                    .as_str(),
+            );
             true
         }
     };
@@ -91,10 +112,16 @@ fn attempt_file_may_be_running(path: &Path) -> bool {
 /// nothing when the Git directory does not say.
 pub(super) fn checkout_present(git_dir: &Path) -> Option<bool> {
     // Git writes this file itself, as the bytes of the checkout's `.git`, so it is read as bytes and never as text.
-    let bytes: Vec<u8> = crate::plain_file::read_plain_file(git_dir.join("gitdir").as_path(), crate::plain_file::SMALL_FILE_LIMIT).ok()?;
+    let bytes: Vec<u8> = crate::plain_file::read_plain_file(
+        git_dir.join("gitdir").as_path(),
+        crate::plain_file::SMALL_FILE_LIMIT,
+    )
+    .ok()?;
     // Git ends the file with one line break, and a checkout's path may hold one of its own:
     //  stopping at the first one examines a directory the path only begins with.
-    let recorded: &[u8] = bytes.strip_suffix(b"\n".as_slice()).unwrap_or(bytes.as_slice());
+    let recorded: &[u8] = bytes
+        .strip_suffix(b"\n".as_slice())
+        .unwrap_or(bytes.as_slice());
     let marker: PathBuf = PathBuf::from(crate::path_bytes::os_from_path_bytes(recorded));
     if marker.as_os_str().is_empty() {
         return None;
@@ -123,11 +150,16 @@ pub(super) fn checkout_present(git_dir: &Path) -> Option<bool> {
 /// ```
 pub(super) fn named_git_dir(text: &str) -> Option<PathBuf> {
     let (bytes, plain): (Option<&str>, Option<&str>) = match text.strip_prefix(GITDIR_HEX_PREFIX) {
-        Some(hexadecimal) => (Some(hexadecimal.strip_suffix('\n').unwrap_or(hexadecimal)), None),
+        Some(hexadecimal) => (
+            Some(hexadecimal.strip_suffix('\n').unwrap_or(hexadecimal)),
+            None,
+        ),
         None if text.is_empty() => (None, None),
         None => (None, Some(text)),
     };
-    let named: PathBuf = path_bytes::path_of_the_two_fields(bytes, plain).ok().flatten()?;
+    let named: PathBuf = path_bytes::path_of_the_two_fields(bytes, plain)
+        .ok()
+        .flatten()?;
     return has_a_name(named.as_path()).then_some(named);
 }
 
@@ -155,7 +187,10 @@ fn has_a_name(path: &Path) -> bool {
 /// ```ts
 /// await removalOf(gitDir, snapshot) // 'done' | 'refused' | 'undecided'
 /// ```
-pub(super) fn removal_of(git_dir: &Path, snapshot: &Path) -> Removal {
+pub(super) fn removal_of(
+    git_dir: &Path,
+    snapshot: &Path,
+) -> Removal {
     match std::fs::symlink_metadata(git_dir) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Removal::Done,
         Err(_) => return Removal::Undecided,

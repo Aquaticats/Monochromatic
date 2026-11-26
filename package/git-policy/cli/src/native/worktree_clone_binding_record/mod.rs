@@ -73,41 +73,128 @@
 //! import { parseBinding, lockWords, findRegistrations, commandFor } from '@monochromatic-dev/git-policy-cli/worktree-clone-binding-record';
 //! ```
 
-pub mod binding_words;
-pub mod binding_encoding;
-pub mod record_refusal;
+pub mod add_state_commands;
 pub mod binding_bound;
-pub mod binding_record;
+pub mod binding_encoding;
 pub mod binding_field_set;
-pub mod binding_parse;
 pub mod binding_inventory;
 pub mod binding_inventory_parse;
+pub mod binding_parse;
+pub mod binding_record;
+pub mod binding_words;
 pub mod lock_words;
-pub mod registration_home;
+pub mod plan_folder_read;
 pub mod record_publication;
+pub mod record_refusal;
 pub mod registration_finder;
-pub mod registration_resume;
+pub mod registration_home;
 pub mod registration_recipe;
 pub mod registration_removals;
-pub mod plan_folder_read;
-pub mod add_state_commands;
+pub mod registration_resume;
 
-pub use add_state_commands::{ClonePresence, NO_REMOVAL_WORDS, NextCommand, PlanHeadWord, StateFacts, command_for};
-pub use binding_bound::{BINDING_MAXIMUM_BYTES, BINDING_MAXIMUM_LINE_BYTES, INVENTORY_ENTRY_LINE_MAXIMUM_BYTES, INVENTORY_FIXED_BYTES};
-pub use binding_encoding::{FolderIdentity, Request, bytes_as_hexadecimal, path_as_hexadecimal};
-pub use binding_inventory::{EntryKind, InventoryEntry, InventoryKind, InventoryRecord};
-pub use binding_inventory_parse::parse_inventory;
-pub use binding_parse::{parse_binding, slot_hexadecimal};
-pub use binding_record::{BindingRecord, required_keys_for};
-pub use binding_words::{BINDING_HEADER, BINDING_KEYS_IN_ORDER, INVENTORY_HEADER, Phase, RequestForm, SettleReason};
-pub use lock_words::{LOCK_WORDS_MAXIMUM_BYTES, LOCK_WORDS_PREFIX, LOCK_WORDS_SUFFIX, LockStanding, lock_file_bytes, lock_words, lock_standing_of};
-pub use plan_folder_read::{PlanUnreadable, APlanThatNamesTheClone, is_canonical_guid_name, the_plan_naming_the_clone};
-pub use record_publication::{RecordRefusalAtTheFile, publish_inventory, read_binding, read_inventory, write_binding};
-pub use record_refusal::RecordRefusal;
-pub use registration_finder::{EntryFacts, EntryRow, candidate_names, git_sanitized_name};
-pub use registration_home::{
-    BINDING_SUFFIX, CLONE_INVENTORY_SUFFIX, GRAMMAR_VERSION_FOLDER, ORIGIN_INVENTORY_SUFFIX, RecordKind, RecordName, WORKTREE_CLONES_FOLDER, binding_name, claim_prefix, clone_inventory_name,
-    home_folder, open_or_create_home, origin_inventory_name, plans_folder, record_name_of, slot_of,
+pub use add_state_commands::{
+    ClonePresence,
+    NO_REMOVAL_WORDS,
+    NextCommand,
+    PlanHeadWord,
+    StateFacts,
+    command_for,
 };
-pub use registration_recipe::{RecipeRefusal, RemovalStep, REMOVAL_STEPS, RecipeSeams, ToClear, clear_registration, complete_a_cut_short_lock};
-pub use registration_resume::{EntryDecision, Finding, ListingDecision, decide, find_registrations};
+pub use binding_bound::{
+    BINDING_MAXIMUM_BYTES,
+    BINDING_MAXIMUM_LINE_BYTES,
+    INVENTORY_ENTRY_LINE_MAXIMUM_BYTES,
+    INVENTORY_FIXED_BYTES,
+};
+pub use binding_encoding::{
+    FolderIdentity,
+    Request,
+    bytes_as_hexadecimal,
+    path_as_hexadecimal,
+};
+pub use binding_inventory::{
+    EntryKind,
+    InventoryEntry,
+    InventoryKind,
+    InventoryRecord,
+};
+pub use binding_inventory_parse::parse_inventory;
+pub use binding_parse::{
+    parse_binding,
+    slot_hexadecimal,
+};
+pub use binding_record::{
+    BindingRecord,
+    required_keys_for,
+};
+pub use binding_words::{
+    BINDING_HEADER,
+    BINDING_KEYS_IN_ORDER,
+    INVENTORY_HEADER,
+    Phase,
+    RequestForm,
+    SettleReason,
+};
+pub use lock_words::{
+    LOCK_WORDS_MAXIMUM_BYTES,
+    LOCK_WORDS_PREFIX,
+    LOCK_WORDS_SUFFIX,
+    LockStanding,
+    lock_file_bytes,
+    lock_standing_of,
+    lock_words,
+};
+pub use plan_folder_read::{
+    APlanThatNamesTheClone,
+    PlanUnreadable,
+    is_canonical_guid_name,
+    the_plan_naming_the_clone,
+};
+pub use record_publication::{
+    RecordRefusalAtTheFile,
+    publish_inventory,
+    read_binding,
+    read_inventory,
+    write_binding,
+};
+pub use record_refusal::RecordRefusal;
+pub use registration_finder::{
+    EntryFacts,
+    EntryRow,
+    candidate_names,
+    git_sanitized_name,
+};
+pub use registration_home::{
+    BINDING_SUFFIX,
+    CLONE_INVENTORY_SUFFIX,
+    GRAMMAR_VERSION_FOLDER,
+    ORIGIN_INVENTORY_SUFFIX,
+    RecordKind,
+    RecordName,
+    WORKTREE_CLONES_FOLDER,
+    binding_name,
+    claim_prefix,
+    clone_inventory_name,
+    home_folder,
+    open_or_create_home,
+    origin_inventory_name,
+    plans_folder,
+    record_name_of,
+    slot_of,
+};
+pub use registration_recipe::{
+    REMOVAL_STEPS,
+    RecipeRefusal,
+    RecipeSeams,
+    RemovalStep,
+    ToClear,
+    clear_registration,
+    complete_a_cut_short_lock,
+};
+pub use registration_resume::{
+    EntryDecision,
+    Finding,
+    ListingDecision,
+    decide,
+    find_registrations,
+};

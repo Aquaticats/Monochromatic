@@ -71,24 +71,40 @@ impl StagedFolderRefusal {
     /// The refusal in words.
     pub fn message(&self) -> String {
         return match self {
-            StagedFolderRefusal::Unreadable { path, reason } => format!(
+            StagedFolderRefusal::Unreadable {
+                path,
+                reason,
+            } => format!(
                 "the staging folder at {path} could not be read: {reason}. Nothing was bound, moved or removed on a folder and record that could not be read."
             ),
-            StagedFolderRefusal::TooLarge { bytes, bound } => format!(
+            StagedFolderRefusal::TooLarge {
+                bytes,
+                bound,
+            } => format!(
                 "the staged-folder record is {bytes} bytes long, and the longest record this route reads is {bound}. It is treated as unrecorded: the handler writes a fresh one before it binds, and a sweep unmounts nothing and reports the folder as unrecorded."
             ),
-            StagedFolderRefusal::Malformed { said } => format!(
+            StagedFolderRefusal::Malformed {
+                said,
+            } => format!(
                 "the staged-folder record is not one this route reads: {said}. It is treated as unrecorded; a sweep unmounts nothing and reports the folder as unrecorded."
             ),
-            StagedFolderRefusal::WrongGuid { wanted, recorded } => format!(
+            StagedFolderRefusal::WrongGuid {
+                wanted,
+                recorded,
+            } => format!(
                 "the staged-folder record beside GUID {} carries GUID `{recorded}`, so it describes another clone's folder. It is treated as unrecorded for {}.",
                 wanted.file_name(),
                 wanted.file_name()
             ),
-            StagedFolderRefusal::Field { field, said } => format!(
+            StagedFolderRefusal::Field {
+                field,
+                said,
+            } => format!(
                 "the staged-folder record's `{field}` field is not one this route writes: {said}. It is treated as unrecorded and nothing is acted on it."
             ),
-            StagedFolderRefusal::Handle { said } => format!(
+            StagedFolderRefusal::Handle {
+                said,
+            } => format!(
                 "the staged-folder record's handle is not one this route writes: {said}. A record without a usable handle is read as unrecorded; the handler writes a fresh one before it binds, and a sweep unmounts nothing."
             ),
         };

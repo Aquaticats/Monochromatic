@@ -16,15 +16,26 @@
 /// The walk,
 /// the plan and their types.
 use super::{
-    PlannedBump, WorkspaceNode, plan_dependent_bumps, transitive_dependent_names, utf16_order,
+    PlannedBump,
+    WorkspaceNode,
+    plan_dependent_bumps,
+    transitive_dependent_names,
+    utf16_order,
 };
-use crate::dependent_version_release::{ReleaseBump, UnsupportedVersion};
+use crate::dependent_version_release::{
+    ReleaseBump,
+    UnsupportedVersion,
+};
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
 /// A node whose directory is derived from its name,
 /// as in the incumbent's fixture.
-fn node(name: &str, version: Option<&str>, edges: &[&str]) -> WorkspaceNode {
+fn node(
+    name: &str,
+    version: Option<&str>,
+    edges: &[&str],
+) -> WorkspaceNode {
     return WorkspaceNode {
         name: String::from(name),
         directory: format!("package/module/{name}").into_bytes(),
@@ -42,7 +53,11 @@ fn owned(values: &[&str]) -> Vec<String> {
 }
 
 /// The bump a planned dependent should receive.
-fn planned(name: &str, from: &str, to: &str) -> PlannedBump {
+fn planned(
+    name: &str,
+    from: &str,
+    to: &str,
+) -> PlannedBump {
     return PlannedBump {
         name: String::from(name),
         directory: format!("package/module/{name}").into_bytes(),

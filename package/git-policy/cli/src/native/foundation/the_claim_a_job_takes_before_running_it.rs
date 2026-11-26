@@ -25,7 +25,10 @@
 //! ```
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{
+    AtomicU8,
+    Ordering,
+};
 
 /// Nothing has taken the claim yet.
 const FREE: u8 = 0;
@@ -56,7 +59,9 @@ pub struct TheClaimOnAJobsWork {
 impl TheClaimOnAJobsWork {
     /// A claim nobody has taken.
     pub fn new() -> Arc<TheClaimOnAJobsWork> {
-        return Arc::new(TheClaimOnAJobsWork { taken_by: AtomicU8::new(FREE) });
+        return Arc::new(TheClaimOnAJobsWork {
+            taken_by: AtomicU8::new(FREE),
+        });
     }
 
     /// What:
@@ -72,7 +77,10 @@ impl TheClaimOnAJobsWork {
     /// if (!claim.theJobTakesIt()) { return withoutDoingAnything(); }
     /// ```
     pub fn the_job_takes_it(&self) -> bool {
-        return self.taken_by.compare_exchange(FREE, THE_JOB, Ordering::SeqCst, Ordering::SeqCst).is_ok();
+        return self
+            .taken_by
+            .compare_exchange(FREE, THE_JOB, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok();
     }
 
     /// What:
@@ -89,7 +97,10 @@ impl TheClaimOnAJobsWork {
     /// const neverStarted = claim.theReporterTakesIt(); // false: say the result is not known instead
     /// ```
     pub fn the_reporter_takes_it(&self) -> bool {
-        return self.taken_by.compare_exchange(FREE, THE_REPORTER, Ordering::SeqCst, Ordering::SeqCst).is_ok();
+        return self
+            .taken_by
+            .compare_exchange(FREE, THE_REPORTER, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok();
     }
 }
 

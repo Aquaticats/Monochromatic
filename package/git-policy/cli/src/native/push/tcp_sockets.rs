@@ -156,7 +156,10 @@ const BYTES_END: usize = BYTES_RECEIVED_OFFSET + 8;
 
 /// How long the kernel may take to answer one read of the diagnostics before the answer is given up (`SO_RCVTIMEO`).
 #[cfg(target_os = "linux")]
-const REPLY_WAIT: libc::timeval = libc::timeval { tv_sec: 2, tv_usec: 0 };
+const REPLY_WAIT: libc::timeval = libc::timeval {
+    tv_sec: 2,
+    tv_usec: 0,
+};
 
 /// How many bytes one read of the reply takes:
 /// a reply is cut into messages of this size or smaller.
@@ -171,15 +174,23 @@ const FAMILIES: [libc::c_int; 2] = [libc::AF_INET, libc::AF_INET6];
 /// Read four bytes at `at` as a native-endian number,
 /// or nothing where the buffer ends first.
 #[cfg(target_os = "linux")]
-fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {
+fn u32_at(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u32> {
     let window: &[u8] = bytes.get(at..at + 4)?;
-    return Some(u32::from_ne_bytes([window[0], window[1], window[2], window[3]]));
+    return Some(u32::from_ne_bytes([
+        window[0], window[1], window[2], window[3],
+    ]));
 }
 
 /// Read two bytes at `at` as a native-endian number,
 /// or nothing where the buffer ends first.
 #[cfg(target_os = "linux")]
-fn u16_at(bytes: &[u8], at: usize) -> Option<u16> {
+fn u16_at(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u16> {
     let window: &[u8] = bytes.get(at..at + 2)?;
     return Some(u16::from_ne_bytes([window[0], window[1]]));
 }
@@ -187,7 +198,10 @@ fn u16_at(bytes: &[u8], at: usize) -> Option<u16> {
 /// Read eight bytes at `at` as a native-endian number,
 /// or nothing where the buffer ends first.
 #[cfg(target_os = "linux")]
-fn u64_at(bytes: &[u8], at: usize) -> Option<u64> {
+fn u64_at(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u64> {
     let window: &[u8] = bytes.get(at..at + 8)?;
     let mut array: [u8; 8] = [0; 8];
     array.copy_from_slice(window);
@@ -207,9 +221,16 @@ fn u64_at(bytes: &[u8], at: usize) -> Option<u64> {
 /// Buffer.concat([netlinkHeader({ type: SOCK_DIAG_BY_FAMILY, flags: REQUEST_AND_DUMP, sequence }), diagRequest({ family, protocol: TCP, ext: 1 << (INET_DIAG_INFO - 1), states: 1 << ESTABLISHED })])
 /// ```
 #[cfg(target_os = "linux")]
-fn dump_request(family: libc::c_int, sequence: u32) -> Vec<u8> {
+fn dump_request(
+    family: libc::c_int,
+    sequence: u32,
+) -> Vec<u8> {
     let mut request: Vec<u8> = Vec::with_capacity(NETLINK_HEADER + REQUEST_BODY);
-    request.extend_from_slice(&u32::try_from(NETLINK_HEADER + REQUEST_BODY).unwrap_or(0).to_ne_bytes());
+    request.extend_from_slice(
+        &u32::try_from(NETLINK_HEADER + REQUEST_BODY)
+            .unwrap_or(0)
+            .to_ne_bytes(),
+    );
     request.extend_from_slice(&SOCK_DIAG_BY_FAMILY.to_ne_bytes());
     request.extend_from_slice(&REQUEST_AND_DUMP.to_ne_bytes());
     request.extend_from_slice(&sequence.to_ne_bytes());
@@ -242,7 +263,10 @@ fn dump_request(family: libc::c_int, sequence: u32) -> Vec<u8> {
 /// const { sockets, ended } = readReply(bytes);
 /// ```
 #[cfg(target_os = "linux")]
-fn read_reply(block: &[u8], into: &mut Vec<TcpSocket>) -> Result<bool, ()> {
+fn read_reply(
+    block: &[u8],
+    into: &mut Vec<TcpSocket>,
+) -> Result<bool, ()> {
     let mut at: usize = 0;
     while at + NETLINK_HEADER <= block.len() {
         let length: usize = u32_at(block, at).ok_or(())? as usize;
@@ -286,18 +310,30 @@ fn read_message(message: &[u8]) -> Option<TcpSocket> {
         if kind == INET_DIAG_INFO {
             let info: &[u8] = &message[at + ATTRIBUTE_HEADER..at + length];
             if info.len() >= BYTES_END {
-                counters = (u64_at(info, BYTES_ACKED_OFFSET)?, u64_at(info, BYTES_RECEIVED_OFFSET)?);
+                counters = (
+                    u64_at(info, BYTES_ACKED_OFFSET)?,
+                    u64_at(info, BYTES_RECEIVED_OFFSET)?,
+                );
             }
         }
         // Each attribute starts on a four-byte boundary (`RTA_ALIGN`).
         at += (length + 3) & !3;
     }
-    return Some(TcpSocket { inode, state, bytes_acked: counters.0, bytes_received: counters.1 });
+    return Some(TcpSocket {
+        inode,
+        state,
+        bytes_acked: counters.0,
+        bytes_received: counters.1,
+    });
 }
 
 /// Ask for the sockets of one family on an open diagnostics socket and read the whole dump.
 #[cfg(target_os = "linux")]
-fn dump_family(descriptor: libc::c_int, family: libc::c_int, sequence: u32) -> Option<Vec<TcpSocket>> {
+fn dump_family(
+    descriptor: libc::c_int,
+    family: libc::c_int,
+    sequence: u32,
+) -> Option<Vec<TcpSocket>> {
     let request: Vec<u8> = dump_request(family, sequence);
     // SAFETY: `send` reads `request.len()` bytes from the buffer, which lives through the call, on a descriptor this module owns.
     let sent: isize = unsafe { libc::send(descriptor, request.as_ptr().cast(), request.len(), 0) };
@@ -308,7 +344,8 @@ fn dump_family(descriptor: libc::c_int, family: libc::c_int, sequence: u32) -> O
     let mut buffer: Vec<u8> = vec![0; READ_BUFFER];
     loop {
         // SAFETY: `recv` writes at most `buffer.len()` bytes into the buffer, which lives through the call.
-        let received: isize = unsafe { libc::recv(descriptor, buffer.as_mut_ptr().cast(), buffer.len(), 0) };
+        let received: isize =
+            unsafe { libc::recv(descriptor, buffer.as_mut_ptr().cast(), buffer.len(), 0) };
         if received <= 0 {
             return None;
         }
@@ -324,7 +361,13 @@ fn dump_family(descriptor: libc::c_int, family: libc::c_int, sequence: u32) -> O
 #[cfg(target_os = "linux")]
 pub fn established_sockets() -> Option<Vec<TcpSocket>> {
     // SAFETY: `socket` takes plain integers and returns a descriptor or -1; the descriptor is closed below on every path.
-    let descriptor: libc::c_int = unsafe { libc::socket(libc::AF_NETLINK, libc::SOCK_RAW | libc::SOCK_CLOEXEC, NETLINK_SOCK_DIAG) };
+    let descriptor: libc::c_int = unsafe {
+        libc::socket(
+            libc::AF_NETLINK,
+            libc::SOCK_RAW | libc::SOCK_CLOEXEC,
+            NETLINK_SOCK_DIAG,
+        )
+    };
     if descriptor < 0 {
         return None;
     }
@@ -332,7 +375,13 @@ pub fn established_sockets() -> Option<Vec<TcpSocket>> {
     let patience: libc::timeval = REPLY_WAIT;
     // SAFETY: `setsockopt` reads `size_of::<timeval>()` bytes from the value, which lives through the call.
     unsafe {
-        libc::setsockopt(descriptor, libc::SOL_SOCKET, libc::SO_RCVTIMEO, (&raw const patience).cast(), std::mem::size_of::<libc::timeval>() as libc::socklen_t);
+        libc::setsockopt(
+            descriptor,
+            libc::SOL_SOCKET,
+            libc::SO_RCVTIMEO,
+            (&raw const patience).cast(),
+            std::mem::size_of::<libc::timeval>() as libc::socklen_t,
+        );
     }
     let mut all: Option<Vec<TcpSocket>> = None;
     for (sequence, family) in (1u32..).zip(FAMILIES) {
@@ -365,7 +414,9 @@ pub fn socket_inodes_of(pid: i32) -> Vec<u64> {
         return inodes;
     };
     for entry in descriptors.flatten() {
-        let Ok(link) = std::fs::read_link(entry.path()) else { continue };
+        let Ok(link) = std::fs::read_link(entry.path()) else {
+            continue;
+        };
         let text: String = link.to_string_lossy().into_owned();
         // A socket's link reads `socket:[<inode>]` (`man 5 proc_pid_fd`).
         if let Some(rest) = text.strip_prefix("socket:[")

@@ -11,14 +11,35 @@
 //!  no process behind;
 //! the ceilings of the clients are seconds too.
 
-use super::tests::{World, land_with_failed_index, request, world};
+use super::tests::{
+    World,
+    land_with_failed_index,
+    request,
+    world,
+};
 use super::*;
-use crate::service_client::{Activation, ClientConfig, Submitted, submit};
+use crate::service_client::{
+    Activation,
+    ClientConfig,
+    Submitted,
+    submit,
+};
 use crate::service_messages::ClientFailure;
-use crate::service_server::{Bind, ServeSettings, serve};
-use crate::test_support::{git_text, remove, while_test_lives};
+use crate::service_server::{
+    Bind,
+    ServeSettings,
+    serve,
+};
+use crate::test_support::{
+    git_text,
+    remove,
+    while_test_lives,
+};
 use std::os::unix::net::UnixListener;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The most a control waits for anything:
 /// far beyond what a healthy run needs,
@@ -65,14 +86,21 @@ fn git_that_holds_the_branch_write(world: &World) -> (PathBuf, PathBuf, PathBuf)
         real = crate::test_support::REAL_GIT
     );
     std::fs::write(&program, script).expect("script");
-    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(
+        &program,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("executable");
     return (program, entered, release);
 }
 
 /// A directory with a path short enough for a socket.
 fn short_directory(name: &str) -> PathBuf {
-    let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the short directory"));
-    let directory: PathBuf = home.join("temp/agent").join(format!("hw-{}-{name}", std::process::id()));
+    let home: PathBuf =
+        PathBuf::from(std::env::var_os("HOME").expect("a home directory for the short directory"));
+    let directory: PathBuf = home
+        .join("temp/agent")
+        .join(format!("hw-{}-{name}", std::process::id()));
     let _stale = std::fs::remove_dir_all(&directory);
     std::fs::create_dir_all(&directory).expect("short directory");
     return directory;
@@ -89,12 +117,19 @@ pub(super) struct Serving {
 }
 
 /// Start the service of `context` with the stuck threshold of the controls.
-fn serve_on_a_thread(context: LandContext, name: &str) -> Serving {
+fn serve_on_a_thread(
+    context: LandContext,
+    name: &str,
+) -> Serving {
     return serve_on_a_thread_stuck_after(context, name, STUCK_AFTER);
 }
 
 /// Start the service of `context` with the given threshold after which a write counts as stuck.
-fn serve_on_a_thread_stuck_after(context: LandContext, name: &str, stuck_after: Duration) -> Serving {
+fn serve_on_a_thread_stuck_after(
+    context: LandContext,
+    name: &str,
+    stuck_after: Duration,
+) -> Serving {
     let mut settings: ServeSettings = ServeSettings::new(PATIENCE);
     settings.stuck_after = stuck_after;
     return serve_on_a_thread_with_settings(context, name, settings);
@@ -102,21 +137,44 @@ fn serve_on_a_thread_stuck_after(context: LandContext, name: &str, stuck_after: 
 
 /// Start the service of `context` with the settings of the run,
 /// which a control shortens so it ends in seconds.
-pub(super) fn serve_on_a_thread_with_settings(context: LandContext, name: &str, settings: ServeSettings) -> Serving {
+pub(super) fn serve_on_a_thread_with_settings(
+    context: LandContext,
+    name: &str,
+    settings: ServeSettings,
+) -> Serving {
     let directory: PathBuf = short_directory(name);
     let socket: PathBuf = directory.join("s");
     let listener: UnixListener = UnixListener::bind(&socket).expect("bind");
-    std::thread::spawn(move || { serve(listener, &context, &settings); });
-    return Serving { directory, socket };
+    std::thread::spawn(move || {
+        serve(listener, &context, &settings);
+    });
+    return Serving {
+        directory,
+        socket,
+    };
 }
 
 /// A client of the service with the given ceilings.
-pub(super) fn client(serving: &Serving, answer_ceiling: Duration, withdraw_ceiling: Duration) -> ClientConfig {
-    return client_with_extra_wait(serving, answer_ceiling, withdraw_ceiling, crate::wait_ceilings::SHORT_EXTRA_WAIT);
+pub(super) fn client(
+    serving: &Serving,
+    answer_ceiling: Duration,
+    withdraw_ceiling: Duration,
+) -> ClientConfig {
+    return client_with_extra_wait(
+        serving,
+        answer_ceiling,
+        withdraw_ceiling,
+        crate::wait_ceilings::SHORT_EXTRA_WAIT,
+    );
 }
 
 /// A client of the service with the given ceilings and the given extra wait for a request inside the branch write.
-fn client_with_extra_wait(serving: &Serving, answer_ceiling: Duration, withdraw_ceiling: Duration, extra_wait: Duration) -> ClientConfig {
+fn client_with_extra_wait(
+    serving: &Serving,
+    answer_ceiling: Duration,
+    withdraw_ceiling: Duration,
+    extra_wait: Duration,
+) -> ClientConfig {
     return ClientConfig {
         address: Bind::Path(serving.socket.clone()),
         activation: Activation::Managed,
@@ -145,26 +203,37 @@ impl Submitting {
     /// What the client ended with and printed,
     /// or an error when it was still waiting after `PATIENCE`.
     pub(super) fn join(self) -> Result<(Result<Submitted, ClientFailure>, String), String> {
-        return self.ended.recv_timeout(PATIENCE).map_err(|_| { return String::from("the client was still waiting after the longest a control waits"); });
+        return self.ended.recv_timeout(PATIENCE).map_err(|_| {
+            return String::from("the client was still waiting after the longest a control waits");
+        });
     }
 }
 
 /// A client that submits `request` on a thread of its own.
-pub(super) fn submit_on_a_thread(config: ClientConfig, request: CommitRequest) -> Submitting {
+pub(super) fn submit_on_a_thread(
+    config: ClientConfig,
+    request: CommitRequest,
+) -> Submitting {
     let (sender, ended) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut notices: Vec<u8> = Vec::new();
         let answered = submit(&config, &request, &mut notices);
         let _sent = sender.send((answered, String::from_utf8(notices).expect("UTF-8")));
     });
-    return Submitting { ended };
+    return Submitting {
+        ended,
+    };
 }
 
 /// Waits until `path` exists.
 fn wait_for(path: &Path) {
     let began: Instant = Instant::now();
     while !path.exists() {
-        assert!(began.elapsed() < PATIENCE, "{} never appeared", path.display());
+        assert!(
+            began.elapsed() < PATIENCE,
+            "{} never appeared",
+            path.display()
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
 }
@@ -180,16 +249,29 @@ fn wait_for(path: &Path) {
 pub(super) fn wait_until_settled(world: &World) {
     let began: Instant = Instant::now();
     loop {
-        let open: usize = crate::service_journal::list_intents(world.context.journal.as_path(), crate::service_journal::OPEN_EXTENSION).len();
+        let open: usize = crate::service_journal::list_intents(
+            world.context.journal.as_path(),
+            crate::service_journal::OPEN_EXTENSION,
+        )
+        .len();
         // The landing thread removes the markers of its group after it has answered.
         // A withdrawal's tombstone stays by design; what must be gone is a request still marked as the landing thread's, and the step.
-        let marked: bool = std::fs::read_dir(world.context.journal.join("busy")).is_ok_and(|entries| {
-            return entries.flatten().any(|entry| { return entry.file_name() == "step" || std::fs::read_to_string(entry.path()).is_ok_and(|content| { return content == "landing"; }); });
-        });
+        let marked: bool =
+            std::fs::read_dir(world.context.journal.join("busy")).is_ok_and(|entries| {
+                return entries.flatten().any(|entry| {
+                    return entry.file_name() == "step"
+                        || std::fs::read_to_string(entry.path()).is_ok_and(|content| {
+                            return content == "landing";
+                        });
+                });
+            });
         if open == 0 && !marked && !world.repo.join(".git/index.lock").exists() {
             break;
         }
-        assert!(began.elapsed() < PATIENCE, "the service never finished with its batches");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the service never finished with its batches"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
     // The after-commit work (push, upkeep) of the last landing starts a moment after the answer.
@@ -198,8 +280,19 @@ pub(super) fn wait_until_settled(world: &World) {
 
 /// The subjects on the branch after `base`,
 /// oldest first.
-fn subjects_since(world: &World, base: &str) -> String {
-    return git_text(world.repo.as_path(), &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]);
+fn subjects_since(
+    world: &World,
+    base: &str,
+) -> String {
+    return git_text(
+        world.repo.as_path(),
+        &[
+            "log",
+            "--reverse",
+            "--format=%s",
+            format!("{base}..HEAD").as_str(),
+        ],
+    );
 }
 
 /// A commit queued behind a branch write that does not return is withdrawn at its own ceiling,
@@ -211,35 +304,81 @@ fn subjects_since(world: &World, base: &str) -> String {
 /// the commit that was in it lands
 /// and the withdrawn one never does.
 #[test]
-fn a_commit_queued_behind_a_branch_write_that_does_not_return_is_withdrawn_at_its_ceiling_naming_the_write() {
+fn a_commit_queued_behind_a_branch_write_that_does_not_return_is_withdrawn_at_its_ceiling_naming_the_write()
+ {
     let world: World = world("service-hung-write-queued");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let (hanging, entered, release) = git_that_holds_the_branch_write(&world);
-    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
+    let mut context: LandContext = LandContext {
+        git: crate::test_support::git_context(),
+        journal: world.context.journal.clone(),
+        on_objects_written: None,
+        lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
+    };
     context.git.real_git = hanging;
     let serving: Serving = serve_on_a_thread(context, "queued");
-    let first = submit_on_a_thread(client(&serving, PATIENCE, PATIENCE), request(&world, "first", "first.txt", "first\n"));
+    let first = submit_on_a_thread(
+        client(&serving, PATIENCE, PATIENCE),
+        request(&world, "first", "first.txt", "first\n"),
+    );
     wait_for(entered.as_path());
     std::thread::sleep(STUCK_AFTER + Duration::from_secs(1));
     let began: Instant = Instant::now();
-    let second = submit_on_a_thread(client(&serving, SECOND_CEILING, SECOND_WITHDRAWAL), request(&world, "second", "second.txt", "second\n"));
+    let second = submit_on_a_thread(
+        client(&serving, SECOND_CEILING, SECOND_WITHDRAWAL),
+        request(&world, "second", "second.txt", "second\n"),
+    );
     let (second_answer, second_notices) = second.join().expect("second client");
     let waited: Duration = began.elapsed();
-    let Err(ClientFailure::StillWithService { blocker, .. }) = &second_answer else { panic!("{second_answer:?} {second_notices}") };
-    let words: &str = blocker.as_deref().expect("the error names what the service was stuck in");
-    assert!(words.contains("git update-ref --stdin") && words.contains("never ends a write"), "{words}");
-    assert!(waited < SECOND_WITHDRAWAL / 2, "withdrawn at its own ceiling, not at the withdrawal ceiling: {waited:?}");
-    assert!(second_notices.contains("git update-ref --stdin"), "the client was told while it waited: {second_notices}");
+    let Err(ClientFailure::StillWithService {
+        blocker,
+        ..
+    }) = &second_answer
+    else {
+        panic!("{second_answer:?} {second_notices}")
+    };
+    let words: &str = blocker
+        .as_deref()
+        .expect("the error names what the service was stuck in");
+    assert!(
+        words.contains("git update-ref --stdin") && words.contains("never ends a write"),
+        "{words}"
+    );
+    assert!(
+        waited < SECOND_WITHDRAWAL / 2,
+        "withdrawn at its own ceiling, not at the withdrawal ceiling: {waited:?}"
+    );
+    assert!(
+        second_notices.contains("git update-ref --stdin"),
+        "the client was told while it waited: {second_notices}"
+    );
     // The write is still held: nothing ended it, and nothing landed.
-    assert_eq!(subjects_since(&world, base.as_str()), "", "the held write has not landed anything");
+    assert_eq!(
+        subjects_since(&world, base.as_str()),
+        "",
+        "the held write has not landed anything"
+    );
     std::fs::write(&release, b"").expect("let the write go");
     let (first_answer, first_notices) = first.join().expect("first client");
-    assert!(matches!(first_answer, Ok(Submitted::Landed { .. })), "{first_answer:?} {first_notices}");
+    assert!(
+        matches!(first_answer, Ok(Submitted::Landed { .. })),
+        "{first_answer:?} {first_notices}"
+    );
     // A third commit lands after the second would have, so the second's absence is the withdrawal and not timing.
-    let third = submit_on_a_thread(client(&serving, PATIENCE, PATIENCE), request(&world, "third", "third.txt", "third\n"));
+    let third = submit_on_a_thread(
+        client(&serving, PATIENCE, PATIENCE),
+        request(&world, "third", "third.txt", "third\n"),
+    );
     let (third_answer, third_notices) = third.join().expect("third client");
-    assert!(matches!(third_answer, Ok(Submitted::Landed { .. })), "{third_answer:?} {third_notices}");
-    assert_eq!(subjects_since(&world, base.as_str()), "message of first\nmessage of third", "the withdrawn commit never landed");
+    assert!(
+        matches!(third_answer, Ok(Submitted::Landed { .. })),
+        "{third_answer:?} {third_notices}"
+    );
+    assert_eq!(
+        subjects_since(&world, base.as_str()),
+        "message of first\nmessage of third",
+        "the withdrawn commit never landed"
+    );
     wait_until_settled(&world);
     remove(serving.directory.as_path());
     remove(world.root.as_path());
@@ -263,15 +402,32 @@ fn a_commit_the_service_takes_is_told_its_place_on_the_wire() {
     let world: World = world("service-place-of-a-commit");
     let mut settings: ServeSettings = ServeSettings::new(PATIENCE);
     settings.place_after = Duration::ZERO;
-    let context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
+    let context: LandContext = LandContext {
+        git: crate::test_support::git_context(),
+        journal: world.context.journal.clone(),
+        on_objects_written: None,
+        lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
+    };
     let serving: Serving = serve_on_a_thread_with_settings(context, "place", settings);
-    let config: ClientConfig = ClientConfig { waiting_notice_after: Duration::ZERO, ..client(&serving, PATIENCE, PATIENCE) };
-    let (answer, notices) = submit_on_a_thread(config, request(&world, "placed", "placed.txt", "placed\n")).join().expect("client");
-    assert!(matches!(answer, Ok(Submitted::Landed { .. })), "{answer:?} {notices}");
+    let config: ClientConfig = ClientConfig {
+        waiting_notice_after: Duration::ZERO,
+        ..client(&serving, PATIENCE, PATIENCE)
+    };
+    let (answer, notices) =
+        submit_on_a_thread(config, request(&world, "placed", "placed.txt", "placed\n"))
+            .join()
+            .expect("client");
+    assert!(
+        matches!(answer, Ok(Submitted::Landed { .. })),
+        "{answer:?} {notices}"
+    );
     let place: String = crate::service_messages::position_notice(1, 1);
     let lines: Vec<&str> = notices.lines().collect();
     assert_eq!(lines.len(), 2, "two lines: {notices:?}");
-    assert!(lines[0].contains("has not said where this commit stands"), "the service not having said where it stands first: {notices:?}");
+    assert!(
+        lines[0].contains("has not said where this commit stands"),
+        "the service not having said where it stands first: {notices:?}"
+    );
     assert_eq!(lines[1], place, "then the place it sent: {notices:?}");
     wait_until_settled(&world);
     remove(serving.directory.as_path());
@@ -288,30 +444,60 @@ fn a_commit_the_service_takes_is_told_its_place_on_the_wire() {
 /// and the commit lands
 /// when the write returns.
 #[test]
-fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_known_and_lands_when_the_write_returns() {
+fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_known_and_lands_when_the_write_returns()
+ {
     let world: World = world("service-hung-write-inside");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let (hanging, entered, release) = git_that_holds_the_branch_write(&world);
-    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
+    let mut context: LandContext = LandContext {
+        git: crate::test_support::git_context(),
+        journal: world.context.journal.clone(),
+        on_objects_written: None,
+        lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
+    };
     context.git.real_git = hanging;
     let serving: Serving = serve_on_a_thread(context, "inside");
     // The withdrawal ceiling is far past the control: a client that was told its request is inside the write does not wait for it.
     let extra_wait: Duration = Duration::from_secs(2);
-    let only = submit_on_a_thread(client_with_extra_wait(&serving, INSIDE_CEILING, SECOND_WITHDRAWAL, extra_wait), request(&world, "only", "only.txt", "only\n"));
+    let only = submit_on_a_thread(
+        client_with_extra_wait(&serving, INSIDE_CEILING, SECOND_WITHDRAWAL, extra_wait),
+        request(&world, "only", "only.txt", "only\n"),
+    );
     wait_for(entered.as_path());
     let began: Instant = Instant::now();
     let (answer, notices) = only.join().expect("client");
     let waited: Duration = began.elapsed();
-    assert!(waited < SECOND_WITHDRAWAL / 3, "returned at its own bound plus the extra wait, not at the withdrawal ceiling: {waited:?}");
-    let Err(ClientFailure::WithdrawalUnconfirmed { blocker }) = &answer else { panic!("{answer:?} {notices}") };
+    assert!(
+        waited < SECOND_WITHDRAWAL / 3,
+        "returned at its own bound plus the extra wait, not at the withdrawal ceiling: {waited:?}"
+    );
+    let Err(ClientFailure::WithdrawalUnconfirmed {
+        blocker,
+    }) = &answer
+    else {
+        panic!("{answer:?} {notices}")
+    };
     let words: &str = blocker.as_deref().expect("the error names the write");
-    assert!(words.contains("git update-ref --stdin") && words.contains("refs/worktree/cli-git-service/"), "{words}");
+    assert!(
+        words.contains("git update-ref --stdin")
+            && words.contains("refs/worktree/cli-git-service/"),
+        "{words}"
+    );
     let text: String = crate::service_messages::render(&answer.clone().expect_err("an error"));
-    assert!(text.contains("git log -1") && text.contains("not known whether the commit was made") && text.contains(words.trim()), "{text}");
+    assert!(
+        text.contains("git log -1")
+            && text.contains("not known whether the commit was made")
+            && text.contains(words.trim()),
+        "{text}"
+    );
     std::fs::write(&release, b"").expect("let the write go");
     let released_at: Instant = Instant::now();
     while subjects_since(&world, base.as_str()) != "message of only" {
-        assert!(released_at.elapsed() < PATIENCE, "the commit never landed: {}", subjects_since(&world, base.as_str()));
+        assert!(
+            released_at.elapsed() < PATIENCE,
+            "the commit never landed: {}",
+            subjects_since(&world, base.as_str())
+        );
         std::thread::sleep(Duration::from_millis(50));
     }
     wait_until_settled(&world);
@@ -323,9 +509,19 @@ fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_know
 /// the way out when the write never returns.
 #[test]
 fn the_error_for_a_commit_behind_a_hung_write_names_the_way_out() {
-    let failure: ClientFailure = ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("monochromatic-git-policy-cli: the commit service has been inside a write for 21 minutes")) };
+    let failure: ClientFailure = ClientFailure::StillWithService {
+        minutes: 20,
+        blocker: Some(String::from(
+            "monochromatic-git-policy-cli: the commit service has been inside a write for 21 minutes",
+        )),
+    };
     let text: String = crate::service_messages::render(&failure);
-    assert!(text.contains("21 minutes") && text.contains(crate::service_messages::RESTART_COMMAND) && text.contains(crate::service_messages::LOG_COMMAND), "{text}");
+    assert!(
+        text.contains("21 minutes")
+            && text.contains(crate::service_messages::RESTART_COMMAND)
+            && text.contains(crate::service_messages::LOG_COMMAND),
+        "{text}"
+    );
 }
 
 /// A request whose commit is on the branch but whose batch is still open (the index update did not install,
@@ -344,13 +540,31 @@ fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_ear
         let world: World = world("service-hung-write-open-batch");
         let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
         land_with_failed_index(&world, 1, &[landed]);
-        let board: std::sync::Arc<crate::service_busy::LandingBoard> = crate::service_busy::LandingBoard::new(world.context.journal.clone(), Duration::ZERO);
-        crate::service_busy_step_record_on_this_thread::use_on_this_thread(std::sync::Arc::clone(&board));
-        assert_eq!(board.begin_group(&[String::from("stuck")]), crate::service_busy::GroupAdmission::default());
-        let _step = crate::service_busy_step_record_on_this_thread::enter_step(String::from("git update-ref --stdin in /repo"));
+        let board: std::sync::Arc<crate::service_busy::LandingBoard> =
+            crate::service_busy::LandingBoard::new(world.context.journal.clone(), Duration::ZERO);
+        crate::service_busy_step_record_on_this_thread::use_on_this_thread(std::sync::Arc::clone(
+            &board,
+        ));
+        assert_eq!(
+            board.begin_group(&[String::from("stuck")]),
+            crate::service_busy::GroupAdmission::default()
+        );
+        let _step = crate::service_busy_step_record_on_this_thread::enter_step(String::from(
+            "git update-ref --stdin in /repo",
+        ));
         std::thread::sleep(Duration::from_millis(20));
-        assert_eq!(board.withdraw_early("landed"), crate::service_busy::EarlyAnswer::Queued, "its commit is on the branch");
-        assert!(matches!(board.withdraw_early("never-seen"), crate::service_busy::EarlyAnswer::Withdrawn(_)), "a request no batch names is withdrawn");
+        assert_eq!(
+            board.withdraw_early("landed"),
+            crate::service_busy::EarlyAnswer::Queued,
+            "its commit is on the branch"
+        );
+        assert!(
+            matches!(
+                board.withdraw_early("never-seen"),
+                crate::service_busy::EarlyAnswer::Withdrawn(_)
+            ),
+            "a request no batch names is withdrawn"
+        );
         remove(world.root.as_path());
     });
 }
@@ -368,16 +582,42 @@ fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_ear
 fn a_client_is_told_it_is_inside_the_write_when_the_write_starts() {
     let world: World = world("service-hung-write-told-at-start");
     let (hanging, entered, release) = git_that_holds_the_branch_write(&world);
-    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
+    let mut context: LandContext = LandContext {
+        git: crate::test_support::git_context(),
+        journal: world.context.journal.clone(),
+        on_objects_written: None,
+        lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
+    };
     context.git.real_git = hanging;
-    let serving: Serving = serve_on_a_thread_stuck_after(context, "told-at-start", Duration::from_secs(3600));
+    let serving: Serving =
+        serve_on_a_thread_stuck_after(context, "told-at-start", Duration::from_secs(3600));
     let extra_wait: Duration = Duration::from_secs(1);
-    let told_once_the_wait_matters: ClientConfig = ClientConfig { waiting_notice_after: STUCK_AFTER, ..client_with_extra_wait(&serving, Duration::from_secs(4), SECOND_WITHDRAWAL, extra_wait) };
-    let only = submit_on_a_thread(told_once_the_wait_matters, request(&world, "only", "only.txt", "only\n"));
+    let told_once_the_wait_matters: ClientConfig = ClientConfig {
+        waiting_notice_after: STUCK_AFTER,
+        ..client_with_extra_wait(
+            &serving,
+            Duration::from_secs(4),
+            SECOND_WITHDRAWAL,
+            extra_wait,
+        )
+    };
+    let only = submit_on_a_thread(
+        told_once_the_wait_matters,
+        request(&world, "only", "only.txt", "only\n"),
+    );
     wait_for(entered.as_path());
     let (answer, notices) = only.join().expect("client");
-    assert!(matches!(answer, Err(ClientFailure::WithdrawalUnconfirmed { .. })), "{answer:?} {notices}");
-    assert_eq!(notices.matches("this commit is inside a write of the commit service").count(), 1, "said once: {notices}");
+    assert!(
+        matches!(answer, Err(ClientFailure::WithdrawalUnconfirmed { .. })),
+        "{answer:?} {notices}"
+    );
+    assert_eq!(
+        notices
+            .matches("this commit is inside a write of the commit service")
+            .count(),
+        1,
+        "said once: {notices}"
+    );
     std::fs::write(&release, b"").expect("let the write go");
     wait_until_settled(&world);
     remove(serving.directory.as_path());
@@ -399,18 +639,40 @@ fn a_client_is_told_it_is_inside_the_write_when_the_write_starts() {
 fn a_commit_inside_a_write_says_nothing_of_it_before_its_wait_has_mattered() {
     let world: World = world("service-hung-write-says-nothing");
     let (hanging, entered, release) = git_that_holds_the_branch_write(&world);
-    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
+    let mut context: LandContext = LandContext {
+        git: crate::test_support::git_context(),
+        journal: world.context.journal.clone(),
+        on_objects_written: None,
+        lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
+    };
     context.git.real_git = hanging;
     let serving: Serving = serve_on_a_thread(context, "says-nothing");
     // The wait for a notice is the longest a control waits, as the package's binary controls give a commit that must
     // print nothing: only a wait that reaches it is worth a line.
     let extra_wait: Duration = Duration::from_secs(1);
-    let only = submit_on_a_thread(client_with_extra_wait(&serving, SECOND_CEILING, SECOND_WITHDRAWAL, extra_wait), request(&world, "only", "only.txt", "only\n"));
+    let only = submit_on_a_thread(
+        client_with_extra_wait(&serving, SECOND_CEILING, SECOND_WITHDRAWAL, extra_wait),
+        request(&world, "only", "only.txt", "only\n"),
+    );
     wait_for(entered.as_path());
     let (answer, notices) = only.join().expect("client");
-    let Err(ClientFailure::WithdrawalUnconfirmed { blocker }) = &answer else { panic!("{answer:?} {notices}") };
-    assert!(blocker.as_deref().is_some_and(|words| { return words.contains("git update-ref --stdin"); }), "the client was told of the write: {answer:?}");
-    assert!(!notices.contains("inside a write of the commit service") && !notices.contains("has been inside a write"), "nothing of it is said this early: {notices}");
+    let Err(ClientFailure::WithdrawalUnconfirmed {
+        blocker,
+    }) = &answer
+    else {
+        panic!("{answer:?} {notices}")
+    };
+    assert!(
+        blocker.as_deref().is_some_and(|words| {
+            return words.contains("git update-ref --stdin");
+        }),
+        "the client was told of the write: {answer:?}"
+    );
+    assert!(
+        !notices.contains("inside a write of the commit service")
+            && !notices.contains("has been inside a write"),
+        "nothing of it is said this early: {notices}"
+    );
     std::fs::write(&release, b"").expect("let the write go");
     wait_until_settled(&world);
     remove(serving.directory.as_path());

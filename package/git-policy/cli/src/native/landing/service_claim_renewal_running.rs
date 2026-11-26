@@ -24,10 +24,20 @@ use crate::claim_time::ClaimTime;
 use crate::lazy_runtime::spawn_on_runtime;
 use crate::service_claim_renewal::Renewer;
 use std::sync::OnceLock;
-use std::sync::mpsc::{SyncSender, sync_channel};
-use tokio::sync::oneshot::{Receiver, channel as oneshot_channel};
+use std::sync::mpsc::{
+    SyncSender,
+    sync_channel,
+};
 use std::time::Duration;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::sync::mpsc::{
+    UnboundedReceiver,
+    UnboundedSender,
+    unbounded_channel,
+};
+use tokio::sync::oneshot::{
+    Receiver,
+    channel as oneshot_channel,
+};
 use tokio::time::Instant;
 
 /// How long dropping a renewal waits for its task to end:
@@ -41,7 +51,8 @@ use tokio::time::Instant;
 /// and the rename it finishes later finds the claim moved on and changes nothing (a renewal renames only from the name it last
 /// wrote).
 /// Its own time is measured in `service_claim_renewal_tests.rs`.
-pub const RENEWAL_STOP_CEILING: Duration = crate::worst_delay_seen_on_this_host::WORST_CASE_WITH_MARGIN;
+pub const RENEWAL_STOP_CEILING: Duration =
+    crate::worst_delay_seen_on_this_host::WORST_CASE_WITH_MARGIN;
 
 /// What a controller tells the renewal task.
 pub(crate) enum Control {
@@ -90,17 +101,28 @@ pub struct DrivenRenewal {
 impl DrivenRenewal {
     /// Register the renewal thread of a drain;
     /// the first drain to register is the one the driver serves.
-    fn attach(&self, control: UnboundedSender<Control>) {
+    fn attach(
+        &self,
+        control: UnboundedSender<Control>,
+    ) {
         let _first: Result<(), UnboundedSender<Control>> = self.ticks.set(control);
     }
 
     /// Renew every claim the registered drain holds at the reading `now`,
     /// and return once that is done;
     /// false when no drain has registered or its thread is gone.
-    pub fn renew(&self, now: &ClaimTime) -> bool {
-        let Some(control) = self.ticks.get() else { return false };
+    pub fn renew(
+        &self,
+        now: &ClaimTime,
+    ) -> bool {
+        let Some(control) = self.ticks.get() else {
+            return false;
+        };
         let (done, finished) = sync_channel::<()>(1);
-        return control.send(Control::Renew(now.clone(), Some(done))).is_ok() && finished.recv().is_ok();
+        return control
+            .send(Control::Renew(now.clone(), Some(done)))
+            .is_ok()
+            && finished.recv().is_ok();
     }
 }
 
@@ -164,7 +186,10 @@ pub struct ClaimRenewal {
 /// The renaming is files of the work directory,
 /// which can wait on storage,
 /// so it runs on the blocking pool and the renewer goes there and back.
-async fn obey(renewer: Renewer, control: Control) -> Option<Renewer> {
+async fn obey(
+    renewer: Renewer,
+    control: Control,
+) -> Option<Renewer> {
     return match control {
         Control::Renew(now, done) => {
             let renewed: Option<Renewer> = renew_off_the_workers(renewer, now).await;
@@ -182,7 +207,10 @@ async fn obey(renewer: Renewer, control: Control) -> Option<Renewer> {
 /// which ends the renewal:
 /// the claims then expire with their lease,
 /// as for a service that died.
-async fn renew_off_the_workers(mut renewer: Renewer, now: ClaimTime) -> Option<Renewer> {
+async fn renew_off_the_workers(
+    mut renewer: Renewer,
+    now: ClaimTime,
+) -> Option<Renewer> {
     return match run_blocking_job(move || {
         renewer.renew(&now);
         return renewer;
@@ -196,7 +224,9 @@ async fn renew_off_the_workers(mut renewer: Renewer, now: ClaimTime) -> Option<R
             Some(renewed)
         }
         Err(error) => {
-            crate::service_error!("claims could not be renewed, so they expire with their lease: {error}");
+            crate::service_error!(
+                "claims could not be renewed, so they expire with their lease: {error}"
+            );
             None
         }
     };
@@ -216,7 +246,11 @@ async fn renew_off_the_workers(mut renewer: Renewer, now: ClaimTime) -> Option<R
 /// ```ts
 /// for (;;) { const request = await Promise.race([requests.next(), timer(every)]); if (request === STOP) return; renew(request ?? clockNow()); }
 /// ```
-async fn renew_until_stopped(mut renewer: Renewer, mut requests: UnboundedReceiver<Control>, every: Option<Duration>) {
+async fn renew_until_stopped(
+    mut renewer: Renewer,
+    mut requests: UnboundedReceiver<Control>,
+    every: Option<Duration>,
+) {
     // The task says it began, which a control waits for before it reads what the renewal costs the process.
     #[cfg(test)]
     TASKS_STARTED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -237,7 +271,8 @@ async fn renew_until_stopped(mut renewer: Renewer, mut requests: UnboundedReceiv
             Some(Some(request)) => obey(renewer, request).await,
             // A claim that was settled is no longer held; one that was taken over is found gone and marked.
             None => {
-                let after: Option<Renewer> = renew_off_the_workers(renewer, ClaimTime::read()).await;
+                let after: Option<Renewer> =
+                    renew_off_the_workers(renewer, ClaimTime::read()).await;
                 due = every.map(due_after);
                 after
             }
@@ -256,7 +291,11 @@ fn due_after(interval: Duration) -> Instant {
 /// nothing back when the runtime has no worker to run it,
 /// where the claims expire with their lease,
 /// as for a service that died.
-fn start_task(renewer: Renewer, requests: UnboundedReceiver<Control>, every: Option<Duration>) -> Option<Receiver<()>> {
+fn start_task(
+    renewer: Renewer,
+    requests: UnboundedReceiver<Control>,
+    every: Option<Duration>,
+) -> Option<Receiver<()>> {
     let (ended_sender, ended) = oneshot_channel::<()>();
     let started = spawn_on_runtime(async move {
         renew_until_stopped(renewer, requests, every).await;
@@ -276,26 +315,44 @@ impl ClaimRenewal {
     /// Start renewing the claims the drain tells `renewer` of,
     /// every `every`,
     /// by the real clock.
-    pub fn start(renewer: Renewer, every: Duration) -> ClaimRenewal {
+    pub fn start(
+        renewer: Renewer,
+        every: Duration,
+    ) -> ClaimRenewal {
         let (control, requests) = unbounded_channel::<Control>();
         let ended: Option<Receiver<()>> = start_task(renewer, requests, Some(every));
-        return ClaimRenewal { control, ended, stop_ceiling: RENEWAL_STOP_CEILING };
+        return ClaimRenewal {
+            control,
+            ended,
+            stop_ceiling: RENEWAL_STOP_CEILING,
+        };
     }
 
     /// Start the task of a driven renewal:
     /// it renews only when `driver` is told to,
     /// and registers with it.
-    pub fn driven(renewer: Renewer, driver: &DrivenRenewal) -> ClaimRenewal {
+    pub fn driven(
+        renewer: Renewer,
+        driver: &DrivenRenewal,
+    ) -> ClaimRenewal {
         let (control, requests) = unbounded_channel::<Control>();
         driver.attach(control.clone());
         let ended: Option<Receiver<()>> = start_task(renewer, requests, None);
-        return ClaimRenewal { control, ended, stop_ceiling: RENEWAL_STOP_CEILING };
+        return ClaimRenewal {
+            control,
+            ended,
+            stop_ceiling: RENEWAL_STOP_CEILING,
+        };
     }
 
     /// `driven` with the wait of the stop set by the control,
     /// so a control shows the wait is bounded in a moment.
     #[cfg(test)]
-    pub(crate) fn driven_with_stop_ceiling(renewer: Renewer, driver: &DrivenRenewal, stop_ceiling: Duration) -> ClaimRenewal {
+    pub(crate) fn driven_with_stop_ceiling(
+        renewer: Renewer,
+        driver: &DrivenRenewal,
+        stop_ceiling: Duration,
+    ) -> ClaimRenewal {
         let mut renewal: ClaimRenewal = ClaimRenewal::driven(renewer, driver);
         renewal.stop_ceiling = stop_ceiling;
         return renewal;
@@ -320,13 +377,18 @@ impl ClaimRenewal {
     /// ```
     pub async fn stop_awaiting(mut self) {
         let _told = self.control.send(Control::Stop);
-        let Some(ended) = self.ended.take() else { return };
+        let Some(ended) = self.ended.take() else {
+            return;
+        };
         match tokio::time::timeout(self.stop_ceiling, ended).await {
             // A task that panicked has nothing left to report (its sender is dropped, which ends this wait): the claims it held
             //  expire with the lease.
             Ok(_answered) => {}
             Err(_elapsed) => {
-                crate::service_warn!("the renewal of claims did not stop within {:?}; it is left behind and the claims expire with their lease", self.stop_ceiling);
+                crate::service_warn!(
+                    "the renewal of claims did not stop within {:?}; it is left behind and the claims expire with their lease",
+                    self.stop_ceiling
+                );
             }
         }
     }
@@ -345,7 +407,10 @@ impl ClaimRenewal {
             //  told to stop and ends on its own, and a rename it finishes later finds the claim moved on and changes nothing. That
             //  caller is a job of the blocking pool today (`landing/service_round.rs`, `DrainEachDirectory::run`), and the round
             //  that awaits this stop is the landing round's own piece, so the line is the log's and not the journal's.
-            Err(refusal) => crate::diagnostic_log::debug("claimRenewal", format!("the renewal of claims was not waited for: {refusal}").as_str()),
+            Err(refusal) => crate::diagnostic_log::debug(
+                "claimRenewal",
+                format!("the renewal of claims was not waited for: {refusal}").as_str(),
+            ),
         }
     }
 }

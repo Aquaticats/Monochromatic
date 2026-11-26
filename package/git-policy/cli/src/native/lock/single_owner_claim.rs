@@ -43,16 +43,35 @@
 //! await claim.release();
 //! ```
 
-use crate::pid_namespace::{ForeignStanding, current_pid_namespace, foreign_owner_standing};
-use crate::process_identity::{current_birth_identity, process_birth_identity};
+use crate::pid_namespace::{
+    ForeignStanding,
+    current_pid_namespace,
+    foreign_owner_standing,
+};
+use crate::process_identity::{
+    current_birth_identity,
+    process_birth_identity,
+};
 use crate::subvolume_error::MigrateError;
-use crate::subvolume_file_write_steps::{sync_directory_to_disk, write_all_then_sync};
+use crate::subvolume_file_write_steps::{
+    sync_directory_to_disk,
+    write_all_then_sync,
+};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// The first line of every claim file.
 const CLAIM_HEADER: &str = "monochromatic-git-policy-cli owner-claim v1";
@@ -167,7 +186,14 @@ pub enum ClaimRecord {
 fn encode(record: &ClaimRecord) -> String {
     return match record {
         ClaimRecord::Released => format!("{CLAIM_HEADER}\n{RELEASED_LINE}\n"),
-        ClaimRecord::Owned { pid, birth, namespace } => format!("{CLAIM_HEADER}\npid={pid}\nbirth={birth}\nnamespace={}\n", namespace.as_deref().unwrap_or("-")),
+        ClaimRecord::Owned {
+            pid,
+            birth,
+            namespace,
+        } => format!(
+            "{CLAIM_HEADER}\npid={pid}\nbirth={birth}\nnamespace={}\n",
+            namespace.as_deref().unwrap_or("-")
+        ),
     };
 }
 
@@ -202,13 +228,27 @@ pub fn decode(text: &str) -> Option<ClaimRecord> {
     if birth.is_empty() {
         return None;
     }
-    return Some(ClaimRecord::Owned { pid, birth, namespace: if namespace == "-" { None } else { Some(namespace) } });
+    return Some(ClaimRecord::Owned {
+        pid,
+        birth,
+        namespace: if namespace == "-" {
+            None
+        } else {
+            Some(namespace)
+        },
+    });
 }
 
 /// The generation a directory entry names under `prefix`,
 /// or nothing for any other name.
-fn generation_of(name: &OsStr, prefix: &OsStr) -> Option<u64> {
-    let digits: &[u8] = name.as_bytes().strip_prefix(prefix.as_bytes())?.strip_prefix(b".")?;
+fn generation_of(
+    name: &OsStr,
+    prefix: &OsStr,
+) -> Option<u64> {
+    let digits: &[u8] = name
+        .as_bytes()
+        .strip_prefix(prefix.as_bytes())?
+        .strip_prefix(b".")?;
     if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
         return None;
     }
@@ -217,7 +257,10 @@ fn generation_of(name: &OsStr, prefix: &OsStr) -> Option<u64> {
 
 /// Every generation of `prefix` in `directory`,
 /// ascending.
-fn generations(directory: &Path, prefix: &OsStr) -> Result<Vec<u64>, MigrateError> {
+fn generations(
+    directory: &Path,
+    prefix: &OsStr,
+) -> Result<Vec<u64>, MigrateError> {
     let entries: std::fs::ReadDir = match std::fs::read_dir(directory) {
         Ok(listing) => listing,
         Err(error) => return Err(MigrateError::io("list the claims in", directory, &error)),
@@ -233,7 +276,11 @@ fn generations(directory: &Path, prefix: &OsStr) -> Result<Vec<u64>, MigrateErro
 }
 
 /// The path of one generation.
-fn path_of(directory: &Path, prefix: &OsStr, generation: u64) -> PathBuf {
+fn path_of(
+    directory: &Path,
+    prefix: &OsStr,
+    generation: u64,
+) -> PathBuf {
     let mut name: OsString = prefix.to_os_string();
     name.push(format!(".{generation}"));
     return directory.join(name);
@@ -242,14 +289,24 @@ fn path_of(directory: &Path, prefix: &OsStr, generation: u64) -> PathBuf {
 /// Write `record` into a new private file beside the claims,
 /// synchronized,
 /// and return its path.
-fn write_private(directory: &Path, record: &ClaimRecord) -> std::io::Result<PathBuf> {
+fn write_private(
+    directory: &Path,
+    record: &ClaimRecord,
+) -> std::io::Result<PathBuf> {
     let unique: u64 = TEMPORARY_COUNTER.fetch_add(1, Ordering::Relaxed);
     let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(elapsed) => elapsed.as_nanos(),
         Err(_) => 0,
     };
-    let path: PathBuf = directory.join(format!(".cli-git-claim.tmp.{}.{nanos}.{unique}", std::process::id()));
-    let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&path)?;
+    let path: PathBuf = directory.join(format!(
+        ".cli-git-claim.tmp.{}.{nanos}.{unique}",
+        std::process::id()
+    ));
+    let mut file: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&path)?;
     // The flush is the shared step's, so a call that keeps its writes in memory (
     // `subvolume_file_write_steps::WritesKeptInMemory`,
     // which a stand-in platform installs for a control that simulates a kill in the process) keeps this one too,
@@ -270,7 +327,11 @@ fn sync_directory(directory: &Path) -> std::io::Result<()> {
 
 /// Publish `record` as `target` without replacing anything:
 /// `AlreadyExists` when the generation exists.
-fn publish_new(directory: &Path, target: &Path, record: &ClaimRecord) -> std::io::Result<()> {
+fn publish_new(
+    directory: &Path,
+    target: &Path,
+    record: &ClaimRecord,
+) -> std::io::Result<()> {
     let private: PathBuf = write_private(directory, record)?;
     let linked: std::io::Result<()> = std::fs::hard_link(&private, target);
     let _removed: std::io::Result<()> = std::fs::remove_file(&private);
@@ -303,15 +364,27 @@ const SMALL_RECORD_LIMIT: u64 = 4096;
 /// nothing when the claim is released or its owner is
 ///  gone,
 /// and an error when that cannot be decided.
-fn live_owner(record: &ClaimRecord, path: &Path) -> Result<Option<i64>, MigrateError> {
-    let ClaimRecord::Owned { pid, birth, namespace } = record else { return Ok(None) };
+fn live_owner(
+    record: &ClaimRecord,
+    path: &Path,
+) -> Result<Option<i64>, MigrateError> {
+    let ClaimRecord::Owned {
+        pid,
+        birth,
+        namespace,
+    } = record
+    else {
+        return Ok(None);
+    };
     match foreign_owner_standing(namespace.as_deref(), path) {
         Some(ForeignStanding::Standing) => return Ok(Some(*pid)),
         // The claim of another namespace that its owner removed is a finished owner's: nothing is held, so nothing is taken
         //  from a live owner either (cross-vendor review of 2026-11-09, finding 3).
         Some(ForeignStanding::Finished) => return Ok(None),
         // Owner, 2026-11-04, "Refuse and name it (Recommended)": an old claim of another namespace is neither taken nor trusted.
-        Some(ForeignStanding::Refused(refused)) => return Err(MigrateError::Journal(refused.describe(*pid))),
+        Some(ForeignStanding::Refused(refused)) => {
+            return Err(MigrateError::Journal(refused.describe(*pid)));
+        }
         None => {}
     }
     return match process_birth_identity(*pid) {
@@ -328,9 +401,17 @@ fn live_owner(record: &ClaimRecord, path: &Path) -> Result<Option<i64>, MigrateE
 fn own_record() -> Result<ClaimRecord, MigrateError> {
     let birth: String = match current_birth_identity() {
         Ok(identity) => identity,
-        Err(error) => return Err(MigrateError::Journal(format!("this process cannot be identified for a claim ({error}); nothing was changed"))),
+        Err(error) => {
+            return Err(MigrateError::Journal(format!(
+                "this process cannot be identified for a claim ({error}); nothing was changed"
+            )));
+        }
     };
-    return Ok(ClaimRecord::Owned { pid: i64::from(std::process::id()), birth, namespace: current_pid_namespace() });
+    return Ok(ClaimRecord::Owned {
+        pid: i64::from(std::process::id()),
+        birth,
+        namespace: current_pid_namespace(),
+    });
 }
 
 /// What:
@@ -348,7 +429,10 @@ fn own_record() -> Result<ClaimRecord, MigrateError> {
 /// ```ts
 /// const outcome = await takeClaim({ directory, prefix });
 /// ```
-pub fn take_claim(directory: &Path, prefix: &OsStr) -> Result<ClaimOutcome, MigrateError> {
+pub fn take_claim(
+    directory: &Path,
+    prefix: &OsStr,
+) -> Result<ClaimOutcome, MigrateError> {
     return take_claim_seamed(directory, prefix, &mut do_nothing);
 }
 
@@ -359,7 +443,11 @@ fn do_nothing() {}
 /// `take_claim` with a call between the listing of the generations and the creation of the next one,
 /// where a control may let
 ///  another command act.
-pub fn take_claim_seamed(directory: &Path, prefix: &OsStr, after_listing: &mut dyn FnMut()) -> Result<ClaimOutcome, MigrateError> {
+pub fn take_claim_seamed(
+    directory: &Path,
+    prefix: &OsStr,
+    after_listing: &mut dyn FnMut(),
+) -> Result<ClaimOutcome, MigrateError> {
     let record: ClaimRecord = own_record()?;
     for _round in 0..MOST_ROUNDS {
         let existing: Vec<u64> = generations(directory, prefix)?;
@@ -368,9 +456,14 @@ pub fn take_claim_seamed(directory: &Path, prefix: &OsStr, after_listing: &mut d
             None => 1,
             Some(newest) => {
                 let newest_path: PathBuf = path_of(directory, prefix, *newest);
-                let Some(found) = read_record(newest_path.as_path())? else { continue };
+                let Some(found) = read_record(newest_path.as_path())? else {
+                    continue;
+                };
                 if let Some(pid) = live_owner(&found, newest_path.as_path())? {
-                    return Ok(ClaimOutcome::Busy(BusyOwner { pid, path: newest_path }));
+                    return Ok(ClaimOutcome::Busy(BusyOwner {
+                        pid,
+                        path: newest_path,
+                    }));
                 }
                 newest + 1
             }
@@ -391,12 +484,20 @@ pub fn take_claim_seamed(directory: &Path, prefix: &OsStr, after_listing: &mut d
         }
         for older in &existing {
             if *older < target {
-                let _removed: std::io::Result<()> = std::fs::remove_file(path_of(directory, prefix, *older));
+                let _removed: std::io::Result<()> =
+                    std::fs::remove_file(path_of(directory, prefix, *older));
             }
         }
-        return Ok(ClaimOutcome::Held(OwnerClaim { path, directory: directory.to_path_buf(), released: false }));
+        return Ok(ClaimOutcome::Held(OwnerClaim {
+            path,
+            directory: directory.to_path_buf(),
+            released: false,
+        }));
     }
-    return Err(MigrateError::Journal(format!("other commands kept taking the claim in {} while this one looked; nothing was changed, run the command again", directory.display())));
+    return Err(MigrateError::Journal(format!(
+        "other commands kept taking the claim in {} while this one looked; nothing was changed, run the command again",
+        directory.display()
+    )));
 }
 
 /// What:
@@ -413,23 +514,36 @@ pub fn take_claim_seamed(directory: &Path, prefix: &OsStr, after_listing: &mut d
 /// ```ts
 /// const owner = await liveOwnerOf({ directory, prefix }); // undefined when nobody owns the item
 /// ```
-pub fn live_owner_of(directory: &Path, prefix: &OsStr) -> Result<Option<BusyOwner>, MigrateError> {
+pub fn live_owner_of(
+    directory: &Path,
+    prefix: &OsStr,
+) -> Result<Option<BusyOwner>, MigrateError> {
     if !directory.is_dir() {
         return Ok(None);
     }
     let existing: Vec<u64> = generations(directory, prefix)?;
-    let Some(newest) = existing.last() else { return Ok(None) };
+    let Some(newest) = existing.last() else {
+        return Ok(None);
+    };
     let path: PathBuf = path_of(directory, prefix, *newest);
-    let Some(found) = read_record(path.as_path())? else { return Ok(None) };
+    let Some(found) = read_record(path.as_path())? else {
+        return Ok(None);
+    };
     return match live_owner(&found, path.as_path())? {
-        Some(pid) => Ok(Some(BusyOwner { pid, path })),
+        Some(pid) => Ok(Some(BusyOwner {
+            pid,
+            path,
+        })),
         None => Ok(None),
     };
 }
 
 /// Replace the claim file at `path` by a released record through a new private file and a rename,
 /// then make it durable.
-fn rewrite_as_released(directory: &Path, path: &Path) -> std::io::Result<()> {
+fn rewrite_as_released(
+    directory: &Path,
+    path: &Path,
+) -> std::io::Result<()> {
     let private: PathBuf = write_private(directory, &ClaimRecord::Released)?;
     if let Err(error) = std::fs::rename(&private, path) {
         let _removed: std::io::Result<()> = std::fs::remove_file(&private);
@@ -449,11 +563,16 @@ impl OwnerClaim {
         if self.released {
             return Ok(());
         }
-        let written: std::io::Result<()> = rewrite_as_released(self.directory.as_path(), self.path.as_path());
+        let written: std::io::Result<()> =
+            rewrite_as_released(self.directory.as_path(), self.path.as_path());
         self.released = true;
         return match written {
             Ok(()) => Ok(()),
-            Err(error) => Err(MigrateError::io("release the claim", self.path.as_path(), &error)),
+            Err(error) => Err(MigrateError::io(
+                "release the claim",
+                self.path.as_path(),
+                &error,
+            )),
         };
     }
 }
@@ -467,8 +586,18 @@ impl Drop for OwnerClaim {
 
 /// Plant a claim file as another process would have left it.
 #[cfg(test)]
-pub(crate) fn plant_claim_for_tests(directory: &Path, prefix: &OsStr, generation: u64, pid: i64, birth: &str) {
-    let record: ClaimRecord = ClaimRecord::Owned { pid, birth: birth.to_string(), namespace: current_pid_namespace() };
+pub(crate) fn plant_claim_for_tests(
+    directory: &Path,
+    prefix: &OsStr,
+    generation: u64,
+    pid: i64,
+    birth: &str,
+) {
+    let record: ClaimRecord = ClaimRecord::Owned {
+        pid,
+        birth: birth.to_string(),
+        namespace: current_pid_namespace(),
+    };
     std::fs::write(path_of(directory, prefix, generation), encode(&record)).expect("planted claim");
 }
 

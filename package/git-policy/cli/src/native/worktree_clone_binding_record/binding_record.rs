@@ -19,10 +19,24 @@
 //! const bytes = new TextEncoder().encode([HEADER, `claim=${r.claim}`, ...].join('\n') + '\n');
 //! ```
 
-use super::binding_encoding::{FolderIdentity, Request};
-use super::binding_words::{BINDING_HEADER, BINDING_KEYS_IN_ORDER, Phase, SettleReason};
-use crate::worktree_clone_mount_protocol::{DatasetGuid, RequestNonce};
-use std::path::{Path, PathBuf};
+use super::binding_encoding::{
+    FolderIdentity,
+    Request,
+};
+use super::binding_words::{
+    BINDING_HEADER,
+    BINDING_KEYS_IN_ORDER,
+    Phase,
+    SettleReason,
+};
+use crate::worktree_clone_mount_protocol::{
+    DatasetGuid,
+    RequestNonce,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One add's durable binding,
@@ -99,7 +113,9 @@ impl BindingRecord {
     /// which is the record's own key.
     pub fn slot_name(&self) -> Option<String> {
         let path: PathBuf = super::binding_encoding::path_from_bytes(&self.slot)?;
-        return path.file_name().map(|name| return name.to_string_lossy().into_owned());
+        return path
+            .file_name()
+            .map(|name| return name.to_string_lossy().into_owned());
     }
 
     /// The slot's whole path.
@@ -137,32 +153,47 @@ impl BindingRecord {
 
     /// One field's value,
     /// or nothing when the phase has not proved it.
-    fn value_of(&self, key: &str) -> Option<String> {
+    fn value_of(
+        &self,
+        key: &str,
+    ) -> Option<String> {
         return match key {
             "claim" => Some(self.claim.to_string()),
             "nonce" => Some(String::from(self.nonce.as_str())),
             "request" => Some(self.request.encode()),
             "phase" => Some(String::from(self.phase.word())),
-            "settleReason" => self.settle_reason.map(|reason| return String::from(reason.word())),
+            "settleReason" => self
+                .settle_reason
+                .map(|reason| return String::from(reason.word())),
             "checkoutDataset" => Some(self.checkout_dataset.clone()),
             "checkoutDatasetGuid" => Some(self.checkout_dataset_guid.file_name()),
-            "repository" => Some(super::binding_encoding::bytes_as_hexadecimal(&self.repository)),
+            "repository" => Some(super::binding_encoding::bytes_as_hexadecimal(
+                &self.repository,
+            )),
             "repositoryIdentity" => Some(self.repository_identity.encode()),
             "slot" => Some(super::binding_encoding::bytes_as_hexadecimal(&self.slot)),
             "slotIdentity" => self.slot_identity.map(FolderIdentity::encode),
-            "registration" => self.registration.as_deref().map(super::binding_encoding::bytes_as_hexadecimal),
+            "registration" => self
+                .registration
+                .as_deref()
+                .map(super::binding_encoding::bytes_as_hexadecimal),
             "registrationIdentity" => self.registration_identity.map(FolderIdentity::encode),
             "pool" => Some(self.pool.clone()),
             "poolGuid" => Some(self.pool_guid.file_name()),
             "originSnapshot" => Some(self.origin_snapshot.clone()),
             "originSnapshotGuid" => self.origin_snapshot_guid.map(DatasetGuid::file_name),
-            "originSnapshotCreatetxg" => self.origin_snapshot_createtxg.map(|txg| return txg.to_string()),
+            "originSnapshotCreatetxg" => self
+                .origin_snapshot_createtxg
+                .map(|txg| return txg.to_string()),
             "originDataset" => self.origin_dataset.clone(),
             "originDatasetGuid" => self.origin_dataset_guid.map(DatasetGuid::file_name),
             "cloneDataset" => Some(self.clone_dataset.clone()),
             "cloneGuid" => self.clone_guid.map(DatasetGuid::file_name),
             "cloneCreatetxg" => self.clone_createtxg.map(|txg| return txg.to_string()),
-            "pointer" => self.pointer.as_deref().map(super::binding_encoding::bytes_as_hexadecimal),
+            "pointer" => self
+                .pointer
+                .as_deref()
+                .map(super::binding_encoding::bytes_as_hexadecimal),
             _ => None,
         };
     }
@@ -201,13 +232,32 @@ pub fn required_keys_for(phase: Phase) -> Vec<&'static str> {
     if phase != Phase::Claimed {
         keys.push("slotIdentity");
     }
-    if matches!(phase, Phase::Registered | Phase::Snapshotted | Phase::Cloned | Phase::Mounted | Phase::Filled | Phase::Settling) {
+    if matches!(
+        phase,
+        Phase::Registered
+            | Phase::Snapshotted
+            | Phase::Cloned
+            | Phase::Mounted
+            | Phase::Filled
+            | Phase::Settling
+    ) {
         keys.extend(["registration", "registrationIdentity", "pointer"]);
     }
-    if matches!(phase, Phase::Snapshotted | Phase::Cloned | Phase::Mounted | Phase::Filled | Phase::Settling) {
-        keys.extend(["originSnapshotGuid", "originSnapshotCreatetxg", "originDataset", "originDatasetGuid"]);
+    if matches!(
+        phase,
+        Phase::Snapshotted | Phase::Cloned | Phase::Mounted | Phase::Filled | Phase::Settling
+    ) {
+        keys.extend([
+            "originSnapshotGuid",
+            "originSnapshotCreatetxg",
+            "originDataset",
+            "originDatasetGuid",
+        ]);
     }
-    if matches!(phase, Phase::Cloned | Phase::Mounted | Phase::Filled | Phase::Settling) {
+    if matches!(
+        phase,
+        Phase::Cloned | Phase::Mounted | Phase::Filled | Phase::Settling
+    ) {
         keys.extend(["cloneGuid", "cloneCreatetxg"]);
     }
     return keys;
@@ -219,7 +269,10 @@ pub fn phase_that_proves(key: &str) -> Option<Phase> {
     return match key {
         "slotIdentity" => Some(Phase::Slot),
         "registration" | "registrationIdentity" | "pointer" => Some(Phase::Registered),
-        "originSnapshotGuid" | "originSnapshotCreatetxg" | "originDataset" | "originDatasetGuid" => Some(Phase::Snapshotted),
+        "originSnapshotGuid"
+        | "originSnapshotCreatetxg"
+        | "originDataset"
+        | "originDatasetGuid" => Some(Phase::Snapshotted),
         "cloneGuid" | "cloneCreatetxg" => Some(Phase::Cloned),
         _ => None,
     };

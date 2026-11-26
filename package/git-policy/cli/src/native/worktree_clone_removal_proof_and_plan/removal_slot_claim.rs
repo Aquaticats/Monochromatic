@@ -40,10 +40,21 @@
 //! const end = releaseAtTheLastStep(claim);
 //! ```
 
-use crate::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
-use crate::worktree_clone_binding_record::registration_home::{claim_prefix, home_folder, open_or_create_home};
+use crate::single_owner_claim::{
+    ClaimOutcome,
+    OwnerClaim,
+    take_claim,
+};
+use crate::worktree_clone_binding_record::registration_home::{
+    claim_prefix,
+    home_folder,
+    open_or_create_home,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The claim one removal holds on one slot for as long as its order runs.
@@ -116,15 +127,34 @@ pub enum ClaimEnd {
 /// ```ts
 /// const claim = takeTheRemovalsClaim(commonDir, slot);
 /// ```
-pub fn take_the_removals_claim(common_dir: &Path, slot: &str) -> Result<RemovalClaim, RemovalStop> {
+pub fn take_the_removals_claim(
+    common_dir: &Path,
+    slot: &str,
+) -> Result<RemovalClaim, RemovalStop> {
     let home: PathBuf = home_folder(common_dir);
     open_or_create_home(common_dir).map_err(|error| {
-        return RemovalStop::TheClaimCannotBeTaken { slot: String::from(slot), said: format!("the wrapper's record folder {} cannot be opened ({error})", home.display()) };
+        return RemovalStop::TheClaimCannotBeTaken {
+            slot: String::from(slot),
+            said: format!(
+                "the wrapper's record folder {} cannot be opened ({error})",
+                home.display()
+            ),
+        };
     })?;
     return match take_claim(home.as_path(), claim_prefix(slot).as_os_str()) {
-        Ok(ClaimOutcome::Held(claim)) => Ok(RemovalClaim { claim, slot: String::from(slot) }),
-        Ok(ClaimOutcome::Busy(owner)) => Err(RemovalStop::TheSlotIsClaimed { slot: String::from(slot), pid: owner.pid, path: owner.path }),
-        Err(error) => Err(RemovalStop::TheClaimCannotBeTaken { slot: String::from(slot), said: format!("{error}") }),
+        Ok(ClaimOutcome::Held(claim)) => Ok(RemovalClaim {
+            claim,
+            slot: String::from(slot),
+        }),
+        Ok(ClaimOutcome::Busy(owner)) => Err(RemovalStop::TheSlotIsClaimed {
+            slot: String::from(slot),
+            pid: owner.pid,
+            path: owner.path,
+        }),
+        Err(error) => Err(RemovalStop::TheClaimCannotBeTaken {
+            slot: String::from(slot),
+            said: format!("{error}"),
+        }),
     };
 }
 
@@ -145,7 +175,12 @@ pub fn take_the_removals_claim(common_dir: &Path, slot: &str) -> Result<RemovalC
 pub fn release_at_the_last_step(claim: &mut RemovalClaim) -> ClaimEnd {
     return match claim.claim.release() {
         Ok(()) => ClaimEnd::Released,
-        Err(error) => ClaimEnd::RefusedToRelease { said: format!("the claim on the slot {} could not be released ({error})", claim.slot) },
+        Err(error) => ClaimEnd::RefusedToRelease {
+            said: format!(
+                "the claim on the slot {} could not be released ({error})",
+                claim.slot
+            ),
+        },
     };
 }
 

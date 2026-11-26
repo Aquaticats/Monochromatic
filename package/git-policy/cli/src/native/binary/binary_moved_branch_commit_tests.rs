@@ -22,10 +22,34 @@
 //! expect(await held).toLandOnTheNewTip();
 //! ```
 
-use super::commit::{git_text, remove_settled};
-use super::hold_at_prepare::{Ended, Hold, Held, author_of, held_commit, marker_directory, parents, release, wait_held, write};
-use super::service_commit::{Running, start, through_service};
-use super::support::{Fixture, executable, fixture, git, repository};
+use super::commit::{
+    git_text,
+    remove_settled,
+};
+use super::hold_at_prepare::{
+    Ended,
+    Held,
+    Hold,
+    author_of,
+    held_commit,
+    marker_directory,
+    parents,
+    release,
+    wait_held,
+    write,
+};
+use super::service_commit::{
+    Running,
+    start,
+    through_service,
+};
+use super::support::{
+    Fixture,
+    executable,
+    fixture,
+    git,
+    repository,
+};
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
@@ -44,8 +68,16 @@ use std::path::PathBuf;
 fn unborn_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = fixture.root.join("repo");
     std::fs::create_dir(&repo).expect("repository directory");
-    git(fixture, repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
-    git(fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["config", "maintenance.autoDetach", "false"],
+    );
     return repo;
 }
 
@@ -78,20 +110,60 @@ fn a_first_commit_lands_on_a_branch_another_session_created_meanwhile() {
         &repo,
         name.as_str(),
         markers.as_path(),
-        &Hold { arguments: &["commit", "--message=first", "--", "x.txt"], stdin: None, environment: &[] },
+        &Hold {
+            arguments: &["commit", "--message=first", "--", "x.txt"],
+            stdin: None,
+            environment: &[],
+        },
     );
     wait_held(&mut held);
     write(&repo, "y.txt", "landed by another session\n");
-    let landed = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "y.txt"]);
-    assert_eq!(landed.status.code(), Some(0), "{}", String::from_utf8_lossy(&landed.stderr));
-    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    let landed = through_service(
+        &fixture,
+        &repo,
+        name.as_str(),
+        &["commit", "--message=unrelated", "--", "y.txt"],
+    );
+    assert_eq!(
+        landed.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
     let ended: Ended = release(held);
     assert_eq!(ended.code, Some(0), "{}", ended.stderr);
-    assert_eq!(parents(&fixture, &repo), vec![moved.clone()], "the first commit sits on the branch as it is now");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:x.txt"]), "mine\n", "the file this commit captured");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:y.txt"]), "landed by another session\n", "nothing the other commit landed is lost");
-    assert_eq!(git_text(&fixture, &repo, &["rev-list", "--count", "HEAD"]), "2\n", "the other commit, then this one");
-    assert_eq!(git_text(&fixture, &repo, &["status", "--porcelain=v1", "--untracked-files=all"]), "", "the index and worktree agree with the commit");
+    assert_eq!(
+        parents(&fixture, &repo),
+        vec![moved.clone()],
+        "the first commit sits on the branch as it is now"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:x.txt"]),
+        "mine\n",
+        "the file this commit captured"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:y.txt"]),
+        "landed by another session\n",
+        "nothing the other commit landed is lost"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-list", "--count", "HEAD"]),
+        "2\n",
+        "the other commit, then this one"
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            &repo,
+            &["status", "--porcelain=v1", "--untracked-files=all"]
+        ),
+        "",
+        "the index and worktree agree with the commit"
+    );
     git(&fixture, &repo, &["fsck", "--strict", "--no-dangling"]);
     let _killed = service.kill();
     let _waited = service.wait();
@@ -112,11 +184,19 @@ fn a_first_commit_lands_on_a_branch_another_session_created_meanwhile() {
 /// ```
 fn repository_for_a_patch_commit(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
-    git(fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    git(
+        fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
     for file in ["picked.txt", "left.txt", "x.txt"] {
         write(&repo, file, "base\n");
     }
-    git(fixture, &repo, &["add", "--", "picked.txt", "left.txt", "x.txt"]);
+    git(
+        fixture,
+        &repo,
+        &["add", "--", "picked.txt", "left.txt", "x.txt"],
+    );
     git(fixture, &repo, &["commit", "--quiet", "--message=base"]);
     write(&repo, "picked.txt", "picked\n");
     write(&repo, "left.txt", "left\n");
@@ -163,22 +243,61 @@ fn a_patch_commit_lands_the_selection_and_the_message_it_captured_on_a_branch_th
         &Hold {
             arguments: &["commit", "--patch"],
             stdin: Some(PATCH_ANSWERS),
-            environment: &[("GIT_EDITOR", editor.to_str().expect("the editor's path is text"))],
+            environment: &[(
+                "GIT_EDITOR",
+                editor.to_str().expect("the editor's path is text"),
+            )],
         },
     );
     wait_held(&mut held);
     write(&repo, "x.txt", "landed by another session\n");
-    let landed = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "x.txt"]);
-    assert_eq!(landed.status.code(), Some(0), "{}", String::from_utf8_lossy(&landed.stderr));
-    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    let landed = through_service(
+        &fixture,
+        &repo,
+        name.as_str(),
+        &["commit", "--message=unrelated", "--", "x.txt"],
+    );
+    assert_eq!(
+        landed.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
     let ended: Ended = release(held);
     assert_eq!(ended.code, Some(0), "{}", ended.stderr);
-    assert_eq!(parents(&fixture, &repo), vec![moved], "the commit sits on the branch as it is now");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:picked.txt"]), "picked\n", "the hunk the person took");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:left.txt"]), "base\n", "the hunk the person left out");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:x.txt"]), "landed by another session\n", "nothing the other commit landed is lost");
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]), "written in the editor\n", "the message the editor settled");
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%b"]).trim_end(), "", "and nothing after it");
+    assert_eq!(
+        parents(&fixture, &repo),
+        vec![moved],
+        "the commit sits on the branch as it is now"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:picked.txt"]),
+        "picked\n",
+        "the hunk the person took"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:left.txt"]),
+        "base\n",
+        "the hunk the person left out"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:x.txt"]),
+        "landed by another session\n",
+        "nothing the other commit landed is lost"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%s"]),
+        "written in the editor\n",
+        "the message the editor settled"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%b"]).trim_end(),
+        "",
+        "and nothing after it"
+    );
     git(&fixture, &repo, &["fsck", "--strict", "--no-dangling"]);
     let _killed = service.kill();
     let _waited = service.wait();
@@ -219,16 +338,48 @@ fn a_patch_commit_git_builds_lands_its_selection_on_a_branch_that_moved() {
     );
     wait_held(&mut held);
     write(&repo, "x.txt", "landed by another session\n");
-    let landed = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "x.txt"]);
-    assert_eq!(landed.status.code(), Some(0), "{}", String::from_utf8_lossy(&landed.stderr));
-    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    let landed = through_service(
+        &fixture,
+        &repo,
+        name.as_str(),
+        &["commit", "--message=unrelated", "--", "x.txt"],
+    );
+    assert_eq!(
+        landed.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
     let ended: Ended = release(held);
     assert_eq!(ended.code, Some(0), "{}", ended.stderr);
-    assert_eq!(parents(&fixture, &repo), vec![moved], "the commit sits on the branch as it is now");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:picked.txt"]), "picked\n", "the hunk the person took");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:left.txt"]), "base\n", "the hunk the person left out");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:x.txt"]), "landed by another session\n", "nothing the other commit landed is lost");
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]), "chosen\n", "the message the command line named");
+    assert_eq!(
+        parents(&fixture, &repo),
+        vec![moved],
+        "the commit sits on the branch as it is now"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:picked.txt"]),
+        "picked\n",
+        "the hunk the person took"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:left.txt"]),
+        "base\n",
+        "the hunk the person left out"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:x.txt"]),
+        "landed by another session\n",
+        "nothing the other commit landed is lost"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%s"]),
+        "chosen\n",
+        "the message the command line named"
+    );
     git(&fixture, &repo, &["fsck", "--strict", "--no-dangling"]);
     let _killed = service.kill();
     let _waited = service.wait();
@@ -252,7 +403,11 @@ const EDITOR_SCRIPT: &[u8] = b"#!/bin/sh\nprintf '\\nwritten in the editor\\n' >
 /// ```
 fn repository_for_a_reused_message(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
-    git(fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    git(
+        fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
     for file in ["a.txt", "b.txt", "c.txt"] {
         write(&repo, file, "base\n");
     }
@@ -298,7 +453,9 @@ fn repository_for_a_reused_message(fixture: &Fixture) -> PathBuf {
 fn a_commit_that_reuses_another_commit_lands_on_a_branch_that_moved() {
     let fixture: Fixture = fixture("reused-message-on-a-moved-branch");
     let repo: PathBuf = repository_for_a_reused_message(&fixture);
-    let reused: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    let reused: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
     let editor: PathBuf = fixture.root.join("editing-editor");
     executable(editor.as_path(), EDITOR_SCRIPT);
     let name: String = format!("rms-{}", std::process::id());
@@ -312,24 +469,66 @@ fn a_commit_that_reuses_another_commit_lands_on_a_branch_that_moved() {
         &Hold {
             arguments: &["commit", "--edit", "-C", reused.as_str(), "--", "a.txt"],
             stdin: None,
-            environment: &[("GIT_EDITOR", editor.to_str().expect("the editor's path is text"))],
+            environment: &[(
+                "GIT_EDITOR",
+                editor.to_str().expect("the editor's path is text"),
+            )],
         },
     );
     wait_held(&mut held);
     write(&repo, "b.txt", "landed by another session\n");
-    let landed = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "b.txt"]);
-    assert_eq!(landed.status.code(), Some(0), "{}", String::from_utf8_lossy(&landed.stderr));
-    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    let landed = through_service(
+        &fixture,
+        &repo,
+        name.as_str(),
+        &["commit", "--message=unrelated", "--", "b.txt"],
+    );
+    assert_eq!(
+        landed.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
     let ended: Ended = release(held);
     assert_eq!(ended.code, Some(0), "{}", ended.stderr);
-    assert_eq!(parents(&fixture, &repo), vec![moved], "the commit sits on the branch as it is now");
+    assert_eq!(
+        parents(&fixture, &repo),
+        vec![moved],
+        "the commit sits on the branch as it is now"
+    );
     let reused_author: String = author_of(&fixture, &repo, reused.as_str());
-    assert!(reused_author.starts_with("Reused Author <reused@example.com>|"), "the control gave the reused commit its own author: {reused_author}");
-    assert_eq!(author_of(&fixture, &repo, "HEAD"), reused_author, "the author and author date the reuse took");
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]), "reused message\n", "the reused message");
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%b"]).trim_end(), "written in the editor", "the line the person added");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:a.txt"]), "one\ntwo\n", "the change this commit captured");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:b.txt"]), "landed by another session\n", "nothing the other commit landed is lost");
+    assert!(
+        reused_author.starts_with("Reused Author <reused@example.com>|"),
+        "the control gave the reused commit its own author: {reused_author}"
+    );
+    assert_eq!(
+        author_of(&fixture, &repo, "HEAD"),
+        reused_author,
+        "the author and author date the reuse took"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%s"]),
+        "reused message\n",
+        "the reused message"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%b"]).trim_end(),
+        "written in the editor",
+        "the line the person added"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:a.txt"]),
+        "one\ntwo\n",
+        "the change this commit captured"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:b.txt"]),
+        "landed by another session\n",
+        "nothing the other commit landed is lost"
+    );
     git(&fixture, &repo, &["fsck", "--strict", "--no-dangling"]);
     let _killed = service.kill();
     let _waited = service.wait();
@@ -366,14 +565,24 @@ fn a_reword_fixup_lands_on_a_branch_that_moved_with_the_branchs_own_tree() {
     let fixture: Fixture = fixture("reword-fixup-on-a-moved-branch");
     let repo: PathBuf = fixture.root.join("repo");
     std::fs::create_dir(&repo).expect("repository directory");
-    git(&fixture, &repo, &["init", "--quiet", "--initial-branch=main"]);
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    git(
+        &fixture,
+        &repo,
+        &["init", "--quiet", "--initial-branch=main"],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
     for file in ["a.txt", "x.txt"] {
         write(&repo, file, "base\n");
     }
     git(&fixture, &repo, &["add", "--", "a.txt", "x.txt"]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=target"]);
-    let target: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    let target: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
     write(&repo, "a.txt", "staged by the person\n");
     git(&fixture, &repo, &["add", "--", "a.txt"]);
     // The target is named by the option itself: `--fixup=reword:<commit>` is one token.
@@ -391,34 +600,81 @@ fn a_reword_fixup_lands_on_a_branch_that_moved_with_the_branchs_own_tree() {
         &Hold {
             arguments: &["commit", reword.as_str(), "--no-enforce-only"],
             stdin: None,
-            environment: &[("GIT_EDITOR", editor.to_str().expect("the editor's path is text"))],
+            environment: &[(
+                "GIT_EDITOR",
+                editor.to_str().expect("the editor's path is text"),
+            )],
         },
     );
     wait_held(&mut held);
     write(&repo, "x.txt", "landed by another session\n");
-    let landed = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "x.txt"]);
-    assert_eq!(landed.status.code(), Some(0), "{}", String::from_utf8_lossy(&landed.stderr));
-    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    let landed = through_service(
+        &fixture,
+        &repo,
+        name.as_str(),
+        &["commit", "--message=unrelated", "--", "x.txt"],
+    );
+    assert_eq!(
+        landed.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
     let ended: Ended = release(held);
     assert_eq!(ended.code, Some(0), "{}", ended.stderr);
-    assert_eq!(parents(&fixture, &repo), vec![moved], "the commit sits on the branch as it is now");
+    assert_eq!(
+        parents(&fixture, &repo),
+        vec![moved],
+        "the commit sits on the branch as it is now"
+    );
     assert_eq!(
         git_text(&fixture, &repo, &["rev-parse", "HEAD^{tree}"]).trim(),
         git_text(&fixture, &repo, &["rev-parse", "HEAD^^{tree}"]).trim(),
         "the commit carries the branch's own tree"
     );
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]), "amend! target\n", "the message the editor settled");
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%s"]),
+        "amend! target\n",
+        "the message the editor settled"
+    );
     assert_eq!(
         git_text(&fixture, &repo, &["log", "-1", "--format=%b"]).trim_end(),
         "target\n\nwritten in the editor",
         "the target's own message, and the line the person added"
     );
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:a.txt"]), "base\n", "the person's staged change is not in the commit");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:x.txt"]), "landed by another session\n", "nothing the other commit landed is lost");
-    assert_eq!(git_text(&fixture, &repo, &["diff", "--cached", "--name-only"]), "a.txt\n", "the staged change is still staged for its owner");
-    assert_eq!(git_text(&fixture, &repo, &["rev-list", "--count", "HEAD"]), "3\n", "the target commit, the other session's, and this one");
-    assert!(!ended.stderr.contains("while this amend was being prepared"), "no amendment is named: {}", ended.stderr);
-    assert!(ended.stderr.contains("did not land"), "the build Git printed before the branch moved is named as lost: {}", ended.stderr);
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:a.txt"]),
+        "base\n",
+        "the person's staged change is not in the commit"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:x.txt"]),
+        "landed by another session\n",
+        "nothing the other commit landed is lost"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["diff", "--cached", "--name-only"]),
+        "a.txt\n",
+        "the staged change is still staged for its owner"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-list", "--count", "HEAD"]),
+        "3\n",
+        "the target commit, the other session's, and this one"
+    );
+    assert!(
+        !ended.stderr.contains("while this amend was being prepared"),
+        "no amendment is named: {}",
+        ended.stderr
+    );
+    assert!(
+        ended.stderr.contains("did not land"),
+        "the build Git printed before the branch moved is named as lost: {}",
+        ended.stderr
+    );
     git(&fixture, &repo, &["fsck", "--strict", "--no-dangling"]);
     let _killed = service.kill();
     let _waited = service.wait();

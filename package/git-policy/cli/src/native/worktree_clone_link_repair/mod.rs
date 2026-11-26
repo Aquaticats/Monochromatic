@@ -41,5 +41,17 @@ pub mod repair_report;
 /// The report read from the record and the machine.
 pub mod live_link_report;
 
-pub use live_link_report::{SlotAtTheCommand, repair_paths, the_links_report, the_slot_at, the_slot_at_with};
-pub use repair_report::{LinkRepair, LinkRepairReport, class_of, link_report_lines, link_report_of};
+pub use live_link_report::{
+    SlotAtTheCommand,
+    repair_paths,
+    the_links_report,
+    the_slot_at,
+    the_slot_at_with,
+};
+pub use repair_report::{
+    LinkRepair,
+    LinkRepairReport,
+    class_of,
+    link_report_lines,
+    link_report_of,
+};

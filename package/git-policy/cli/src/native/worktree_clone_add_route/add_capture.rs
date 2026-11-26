@@ -251,60 +251,90 @@ pub type CaptureRefusal = String;
 /// a path is not a plain name,
 /// or one read of the source failed.
 pub fn capture_the_source(input: &CaptureInput<'_>) -> Result<Capture, CaptureRefusal> {
-    let Some(entries): Option<Vec<crate::worktree_clean_stat_verdicts::StatEntry>> = stored_stats(input.index_bytes, input.hash_length) else {
-        return Err(String::from("the source's index is not one this reader knows, so the clone cannot be proven against it"));
+    let Some(entries): Option<Vec<crate::worktree_clean_stat_verdicts::StatEntry>> =
+        stored_stats(input.index_bytes, input.hash_length)
+    else {
+        return Err(String::from(
+            "the source's index is not one this reader knows, so the clone cannot be proven against it",
+        ));
     };
     let tick: Option<u64> = coarse_tick_nanos();
     let mut captured: Vec<CapturedEntry> = Vec::with_capacity(entries.len());
     let mut digests: Vec<CapturedDigest> = Vec::new();
-    super::add_capture_tree::walk_paths(input.source_root, entries.iter(), |entry| return entry.path.as_slice(), |entry, path, found, parent, name| {
-        let kind_bits: u32 = entry.mode & TYPE_MASK;
-        if kind_bits != REGULAR_MODE && kind_bits != LINK_MODE {
-            return Err(format!(
-                "the tracked path {} is a folder or a submodule, which the clone route cannot prove (mode {:o}); Ways forward: remove it from the checkout or make the worktree with Git's own checkout",
-                path.display(),
-                entry.mode
-            ));
-        }
-        if (kind_bits == LINK_MODE) != (found.kind == super::add_capture_tree::FoundKind::Link) {
-            return Err(format!("the tracked path {} is {} in the index and {} on disk; Ways forward: check the source out again", path.display(), if kind_bits == LINK_MODE { "a link" } else { "a regular file" }, found.kind.word()));
-        }
-        let captured_entry: CapturedEntry = CapturedEntry {
-            path: entry.path.clone(),
-            kind: match found.kind {
-                super::add_capture_tree::FoundKind::Link => CapturedKind::Link,
-                super::add_capture_tree::FoundKind::Absent => CapturedKind::Absent,
-                super::add_capture_tree::FoundKind::Regular => CapturedKind::Regular,
-            },
-            size: found.size,
-            mtime: found.mtime,
-            ctime: found.ctime,
-            executable: found.executable,
-            link_target: found.link_target.clone(),
-        };
-        let kind: CapturedKind = captured_entry.kind;
-        captured.push(captured_entry);
-        if kind == CapturedKind::Absent {
+    super::add_capture_tree::walk_paths(
+        input.source_root,
+        entries.iter(),
+        |entry| return entry.path.as_slice(),
+        |entry, path, found, parent, name| {
+            let kind_bits: u32 = entry.mode & TYPE_MASK;
+            if kind_bits != REGULAR_MODE && kind_bits != LINK_MODE {
+                return Err(format!(
+                    "the tracked path {} is a folder or a submodule, which the clone route cannot prove (mode {:o}); Ways forward: remove it from the checkout or make the worktree with Git's own checkout",
+                    path.display(),
+                    entry.mode
+                ));
+            }
+            if (kind_bits == LINK_MODE) != (found.kind == super::add_capture_tree::FoundKind::Link)
+            {
+                return Err(format!(
+                    "the tracked path {} is {} in the index and {} on disk; Ways forward: check the source out again",
+                    path.display(),
+                    if kind_bits == LINK_MODE {
+                        "a link"
+                    } else {
+                        "a regular file"
+                    },
+                    found.kind.word()
+                ));
+            }
+            let captured_entry: CapturedEntry = CapturedEntry {
+                path: entry.path.clone(),
+                kind: match found.kind {
+                    super::add_capture_tree::FoundKind::Link => CapturedKind::Link,
+                    super::add_capture_tree::FoundKind::Absent => CapturedKind::Absent,
+                    super::add_capture_tree::FoundKind::Regular => CapturedKind::Regular,
+                },
+                size: found.size,
+                mtime: found.mtime,
+                ctime: found.ctime,
+                executable: found.executable,
+                link_target: found.link_target.clone(),
+            };
+            let kind: CapturedKind = captured_entry.kind;
+            captured.push(captured_entry);
+            if kind == CapturedKind::Absent {
+                return Ok(());
+            }
+            let vouched: bool = found
+                .fields
+                .as_ref()
+                .map(|fields| return matches_stored_exactly(fields, &entry.stored))
+                .unwrap_or(false);
+            if vouched && !is_racy(&entry.stored, input.index_mtime, tick) {
+                return Ok(());
+            }
+            let digest: [u8; 32] = match kind {
+                CapturedKind::Regular => digest_the_file(parent, name, path)?,
+                CapturedKind::Link => sha256(found.link_target.as_deref().unwrap_or_default()),
+                CapturedKind::Absent => return Ok(()),
+            };
+            digests.push(CapturedDigest {
+                path: entry.path.clone(),
+                digest,
+            });
             return Ok(());
-        }
-        let vouched: bool = found.fields.as_ref().map(|fields| return matches_stored_exactly(fields, &entry.stored)).unwrap_or(false);
-        if vouched && !is_racy(&entry.stored, input.index_mtime, tick) {
-            return Ok(());
-        }
-        let digest: [u8; 32] = match kind {
-            CapturedKind::Regular => digest_the_file(parent, name, path)?,
-            CapturedKind::Link => sha256(found.link_target.as_deref().unwrap_or_default()),
-            CapturedKind::Absent => return Ok(()),
-        };
-        digests.push(CapturedDigest { path: entry.path.clone(), digest });
-        return Ok(());
-    })?;
+        },
+    )?;
     return Ok(Capture {
         nonce: input.nonce.clone(),
         repository: input.repository.as_os_str().as_bytes().to_vec(),
         source: input.source_root.as_os_str().as_bytes().to_vec(),
         checkout_guid: input.checkout_guid,
-        index: CapturedIndex { size: input.index_bytes.len() as u64, mtime: input.index_mtime, digest: sha256(input.index_bytes) },
+        index: CapturedIndex {
+            size: input.index_bytes.len() as u64,
+            mtime: input.index_mtime,
+            digest: sha256(input.index_bytes),
+        },
         head: input.head.clone(),
         source_head: input.source_head.clone(),
         entries: captured,
@@ -325,13 +355,20 @@ pub fn capture_the_source(input: &CaptureInput<'_>) -> Result<Capture, CaptureRe
 /// const tick = clockGetres(CLOCK_REALTIME_COARSE) ?? Number.POSITIVE_INFINITY;
 /// ```
 fn coarse_tick_nanos() -> Option<u64> {
-    let mut resolution: libc::timespec = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    let mut resolution: libc::timespec = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
     // SAFETY: `clock_getres` writes the resolution into the pointer it is given, which is this stack value.
-    let answered: libc::c_int = unsafe { libc::clock_getres(libc::CLOCK_REALTIME_COARSE, &mut resolution) };
+    let answered: libc::c_int =
+        unsafe { libc::clock_getres(libc::CLOCK_REALTIME_COARSE, &mut resolution) };
     if answered != 0 {
         return None;
     }
-    let nanos: u64 = u64::try_from(resolution.tv_sec).unwrap_or(u64::MAX).saturating_mul(1_000_000_000).saturating_add(u64::try_from(resolution.tv_nsec).unwrap_or(u64::MAX));
+    let nanos: u64 = u64::try_from(resolution.tv_sec)
+        .unwrap_or(u64::MAX)
+        .saturating_mul(1_000_000_000)
+        .saturating_add(u64::try_from(resolution.tv_nsec).unwrap_or(u64::MAX));
     return Some(nanos.max(1));
 }
 
@@ -348,14 +385,21 @@ fn coarse_tick_nanos() -> Option<u64> {
 /// ```ts
 /// const racy = (stored, indexMtime, tick) => Math.max(stored.mtime, stored.ctime) + tick > indexMtime;
 /// ```
-fn is_racy(stored: &StoredStat, index_mtime: (i64, u32), tick: Option<u64>) -> bool {
+fn is_racy(
+    stored: &StoredStat,
+    index_mtime: (i64, u32),
+    tick: Option<u64>,
+) -> bool {
     let Some(known) = tick else { return true };
     let index_nanos: i128 = i128::from(index_mtime.0) * 1_000_000_000 + i128::from(index_mtime.1);
-    let newest: i128 = [(stored.mtime_seconds, stored.mtime_nanos), (stored.ctime_seconds, stored.ctime_nanos)]
-        .into_iter()
-        .map(|(seconds, nanos)| return i128::from(seconds) * 1_000_000_000 + i128::from(nanos))
-        .max()
-        .unwrap_or(0);
+    let newest: i128 = [
+        (stored.mtime_seconds, stored.mtime_nanos),
+        (stored.ctime_seconds, stored.ctime_nanos),
+    ]
+    .into_iter()
+    .map(|(seconds, nanos)| return i128::from(seconds) * 1_000_000_000 + i128::from(nanos))
+    .max()
+    .unwrap_or(0);
     return newest + i128::from(known) > index_nanos;
 }
 
@@ -369,13 +413,21 @@ fn is_racy(stored: &StoredStat, index_mtime: (i64, u32), tick: Option<u64>) -> b
 /// # Errors
 /// The file cannot be opened without a link,
 /// or reading it was refused.
-fn digest_the_file(parent: &std::fs::File, name: &OsStr, path: &Path) -> Result<[u8; 32], CaptureRefusal> {
-    let file: std::fs::File = open_file_at(parent, name).map_err(|error| return format!("{} cannot be read for its digest ({error})", path.display()))?;
+fn digest_the_file(
+    parent: &std::fs::File,
+    name: &OsStr,
+    path: &Path,
+) -> Result<[u8; 32], CaptureRefusal> {
+    let file: std::fs::File = open_file_at(parent, name).map_err(|error| {
+        return format!("{} cannot be read for its digest ({error})", path.display());
+    })?;
     let mut hasher: sha2::Sha256 = sha2::Sha256::new();
     let mut buffer: [u8; 64 * 1024] = [0; 64 * 1024];
     let mut reader: std::io::BufReader<std::fs::File> = std::io::BufReader::new(file);
     loop {
-        let read: usize = reader.read(&mut buffer).map_err(|error| return format!("{} cannot be read for its digest ({error})", path.display()))?;
+        let read: usize = reader.read(&mut buffer).map_err(|error| {
+            return format!("{} cannot be read for its digest ({error})", path.display());
+        })?;
         if read == 0 {
             break;
         }
@@ -413,7 +465,11 @@ pub fn entry_words(entry: &CapturedEntry) -> String {
 ///  The record is the durable half of the capture, so the writer and the reader
 ///  share one spelling.
 pub fn digest_words(digest: &CapturedDigest) -> String {
-    return format!("{} {}", bytes_as_hexadecimal(digest.path.as_slice()), bytes_as_hexadecimal(digest.digest.as_slice()));
+    return format!(
+        "{} {}",
+        bytes_as_hexadecimal(digest.path.as_slice()),
+        bytes_as_hexadecimal(digest.digest.as_slice())
+    );
 }
 
 /// Controls stay out of the release executable.

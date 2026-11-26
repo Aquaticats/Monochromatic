@@ -4,10 +4,26 @@
 
 use super::*;
 use crate::capture_invocation::resolve_conclusion_kind;
-use crate::recording_git::{recorded_starts, recording_context};
-use crate::ref_files::tests::{Probe, probe};
-use crate::test_support::{fixture, git, git_output, git_text, remove, repository};
-use crate::transaction_git::{GitContext, GitFailure};
+use crate::recording_git::{
+    recorded_starts,
+    recording_context,
+};
+use crate::ref_files::tests::{
+    Probe,
+    probe,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_output,
+    git_text,
+    remove,
+    repository,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+};
 use crate::transaction_journal::Conclusion;
 
 /// The three markers in the order the commit path asks.
@@ -24,17 +40,28 @@ fn layout_of(found: &Probe) -> RefFilesLayout<'_> {
 }
 
 /// Whether real Git resolves `name` in the repository at `directory`.
-fn git_resolves(directory: &Path, name: &str) -> bool {
-    return git_output(directory, &["rev-parse", "--verify", "--quiet", name]).status.success();
+fn git_resolves(
+    directory: &Path,
+    name: &str,
+) -> bool {
+    return git_output(directory, &["rev-parse", "--verify", "--quiet", name])
+        .status
+        .success();
 }
 
 /// The proof's answers for the three markers,
 ///  after requiring that every "absent" answer agrees with real Git.
-fn proven(directory: &Path, found: &Probe) -> Vec<bool> {
+fn proven(
+    directory: &Path,
+    found: &Probe,
+) -> Vec<bool> {
     let maybe: Vec<bool> = markers_maybe_present(&layout_of(found), &NAMES);
     for (name, maybe_present) in NAMES.iter().zip(maybe.iter()) {
         if !maybe_present {
-            assert!(!git_resolves(directory, name), "{name} is reported absent but Git resolves it");
+            assert!(
+                !git_resolves(directory, name),
+                "{name} is reported absent but Git resolves it"
+            );
         }
     }
     return maybe;
@@ -55,7 +82,12 @@ fn conclusion_with_starts(
 
 /// The starts that asked Git about a marker.
 fn marker_starts(starts: &[String]) -> Vec<&String> {
-    return starts.iter().filter(|start| { return start.starts_with("rev-parse --verify --quiet"); }).collect();
+    return starts
+        .iter()
+        .filter(|start| {
+            return start.starts_with("rev-parse --verify --quiet");
+        })
+        .collect();
 }
 
 /// With no marker anywhere every marker is absent,
@@ -100,7 +132,11 @@ fn a_dangling_marker_is_resolved_by_git() {
     let root: PathBuf = fixture("marker-dangling");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let found: Probe = probe(repo.as_path());
-    std::fs::write(found.git_dir.join("MERGE_HEAD"), format!("{}\n", "a".repeat(40))).expect("fixture");
+    std::fs::write(
+        found.git_dir.join("MERGE_HEAD"),
+        format!("{}\n", "a".repeat(40)),
+    )
+    .expect("fixture");
     assert_eq!(proven(repo.as_path(), &found), vec![true, false, false]);
     assert!(git_resolves(repo.as_path(), "MERGE_HEAD"));
     let (result, _starts): (Result<Conclusion, GitFailure>, Vec<String>) =
@@ -167,12 +203,23 @@ fn each_lookup_spelling_is_a_hit() {
         "refs/remotes/MERGE_HEAD/HEAD",
     ];
     for spelling in spellings {
-        let base: PathBuf = if spelling == "MERGE_HEAD" { found.git_dir.clone() } else { found.common_dir.clone() };
+        let base: PathBuf = if spelling == "MERGE_HEAD" {
+            found.git_dir.clone()
+        } else {
+            found.common_dir.clone()
+        };
         let path: PathBuf = base.join(spelling);
         std::fs::create_dir_all(path.parent().expect("fixture")).expect("fixture");
         std::fs::write(&path, format!("{head}\n")).expect("fixture");
-        assert_eq!(proven(repo.as_path(), &found), vec![true, false, false], "{spelling}");
-        assert!(git_resolves(repo.as_path(), "MERGE_HEAD"), "Git resolves {spelling}");
+        assert_eq!(
+            proven(repo.as_path(), &found),
+            vec![true, false, false],
+            "{spelling}"
+        );
+        assert!(
+            git_resolves(repo.as_path(), "MERGE_HEAD"),
+            "Git resolves {spelling}"
+        );
         std::fs::remove_file(&path).expect("fixture");
         if spelling.ends_with("/HEAD") {
             std::fs::remove_dir(found.common_dir.join("refs/remotes/MERGE_HEAD")).expect("fixture");
@@ -193,7 +240,8 @@ fn any_kind_of_entry_is_a_hit() {
     assert_eq!(proven(repo.as_path(), &found), vec![true, false, false]);
     #[cfg(unix)]
     {
-        std::os::unix::fs::symlink("nowhere", found.git_dir.join("CHERRY_PICK_HEAD")).expect("fixture");
+        std::os::unix::fs::symlink("nowhere", found.git_dir.join("CHERRY_PICK_HEAD"))
+            .expect("fixture");
         assert_eq!(proven(repo.as_path(), &found), vec![true, true, false]);
     }
     std::fs::write(found.git_dir.join("REVERT_HEAD"), b"").expect("fixture");
@@ -210,7 +258,11 @@ fn a_marker_only_in_packed_refs_is_a_hit() {
     let found: Probe = probe(repo.as_path());
     git(repo.as_path(), &["pack-refs", "--all", "--prune"]);
     assert!(found.common_dir.join("packed-refs").is_file());
-    assert_eq!(proven(repo.as_path(), &found), vec![false, false, false], "only main is packed");
+    assert_eq!(
+        proven(repo.as_path(), &found),
+        vec![false, false, false],
+        "only main is packed"
+    );
     git(repo.as_path(), &["tag", "REVERT_HEAD"]);
     git(repo.as_path(), &["pack-refs", "--all", "--prune"]);
     assert!(!found.common_dir.join("refs/tags/REVERT_HEAD").exists());
@@ -230,18 +282,44 @@ fn a_linked_worktree_uses_its_own_git_directory() {
     let root: PathBuf = fixture("marker-linked");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("fixture")]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            linked.to_str().expect("fixture"),
+        ],
+    );
     let main_found: Probe = probe(repo.as_path());
     let linked_found: Probe = probe(linked.as_path());
     assert_ne!(main_found.git_dir, linked_found.git_dir);
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     std::fs::write(main_found.git_dir.join("MERGE_HEAD"), format!("{head}\n")).expect("fixture");
-    assert_eq!(proven(repo.as_path(), &main_found), vec![true, false, false]);
-    assert_eq!(proven(linked.as_path(), &linked_found), vec![false, false, false]);
+    assert_eq!(
+        proven(repo.as_path(), &main_found),
+        vec![true, false, false]
+    );
+    assert_eq!(
+        proven(linked.as_path(), &linked_found),
+        vec![false, false, false]
+    );
     assert!(!git_resolves(linked.as_path(), "MERGE_HEAD"));
-    std::fs::write(linked_found.git_dir.join("CHERRY_PICK_HEAD"), format!("{head}\n")).expect("fixture");
-    assert_eq!(proven(linked.as_path(), &linked_found), vec![false, true, false]);
-    assert_eq!(proven(repo.as_path(), &main_found), vec![true, false, false]);
+    std::fs::write(
+        linked_found.git_dir.join("CHERRY_PICK_HEAD"),
+        format!("{head}\n"),
+    )
+    .expect("fixture");
+    assert_eq!(
+        proven(linked.as_path(), &linked_found),
+        vec![false, true, false]
+    );
+    assert_eq!(
+        proven(repo.as_path(), &main_found),
+        vec![true, false, false]
+    );
     assert!(git_resolves(linked.as_path(), "CHERRY_PICK_HEAD"));
     assert!(!git_resolves(repo.as_path(), "CHERRY_PICK_HEAD"));
     let (result, _starts): (Result<Conclusion, GitFailure>, Vec<String>) =
@@ -258,8 +336,19 @@ fn a_reftable_repository_is_left_to_git() {
     let root: PathBuf = fixture("marker-reftable");
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("fixture");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", "--ref-format=reftable"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            "--ref-format=reftable",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let found: Probe = probe(repo.as_path());
     assert_eq!(proven(repo.as_path(), &found), vec![true, true, true]);
     let (none, starts): (Result<Conclusion, GitFailure>, Vec<String>) =
@@ -283,9 +372,18 @@ fn the_backend_check_refuses_when_every_place_is_empty() {
     let root: PathBuf = fixture("marker-backend");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let found: Probe = probe(repo.as_path());
-    let layout: RefFilesLayout<'_> = RefFilesLayout { ref_format: RefFormat::Reftable, ..layout_of(&found) };
-    assert_eq!(markers_maybe_present(&layout, &NAMES), vec![true, true, true]);
-    assert_eq!(markers_maybe_present(&layout_of(&found), &NAMES), vec![false, false, false]);
+    let layout: RefFilesLayout<'_> = RefFilesLayout {
+        ref_format: RefFormat::Reftable,
+        ..layout_of(&found)
+    };
+    assert_eq!(
+        markers_maybe_present(&layout, &NAMES),
+        vec![true, true, true]
+    );
+    assert_eq!(
+        markers_maybe_present(&layout_of(&found), &NAMES),
+        vec![false, false, false]
+    );
     remove(root.as_path());
 }
 
@@ -296,7 +394,10 @@ fn an_unreadable_packed_refs_is_a_hit() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let found: Probe = probe(repo.as_path());
     std::fs::create_dir(found.common_dir.join("packed-refs")).expect("fixture");
-    assert_eq!(markers_maybe_present(&layout_of(&found), &NAMES), vec![true, true, true]);
+    assert_eq!(
+        markers_maybe_present(&layout_of(&found), &NAMES),
+        vec![true, true, true]
+    );
     remove(root.as_path());
 }
 

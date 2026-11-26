@@ -26,7 +26,10 @@ use std::ffi::OsStr;
 /// `Write` is the sink a notice goes to.
 use std::io::Write;
 /// Time spans and the monotonic clock.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Environment variable that sets,
 /// in whole seconds,
@@ -177,7 +180,10 @@ impl Ticker {
     }
 
     /// How many notices are due after `waited`.
-    fn due_count(&self, waited: Duration) -> u32 {
+    fn due_count(
+        &self,
+        waited: Duration,
+    ) -> u32 {
         if waited < self.first_at {
             return 0;
         }
@@ -192,7 +198,10 @@ impl Ticker {
     /// ```ts
     /// ticker.due(elapsedMs)
     /// ```
-    pub fn due(&mut self, waited: Duration) -> bool {
+    pub fn due(
+        &mut self,
+        waited: Duration,
+    ) -> bool {
         let count: u32 = self.due_count(waited);
         if count <= self.printed {
             return false;
@@ -208,9 +217,14 @@ impl Ticker {
     /// ```ts
     /// ticker.nextInMs(elapsedMs)
     /// ```
-    pub fn next_in(&self, waited: Duration) -> Duration {
+    pub fn next_in(
+        &self,
+        waited: Duration,
+    ) -> Duration {
         // The notice after the `printed`th one is due `printed` intervals after the first.
-        let due_at: Duration = self.first_at.saturating_add(self.interval.saturating_mul(self.printed));
+        let due_at: Duration = self
+            .first_at
+            .saturating_add(self.interval.saturating_mul(self.printed));
         return due_at.saturating_sub(waited);
     }
 }
@@ -353,7 +367,10 @@ pub struct WaitReporter<'sink> {
 
 impl<'sink> WaitReporter<'sink> {
     /// A reporter whose clock starts now and whose first notice follows the cadence's grace.
-    pub fn start(cadence: Cadence, sink: &'sink mut dyn Write) -> Self {
+    pub fn start(
+        cadence: Cadence,
+        sink: &'sink mut dyn Write,
+    ) -> Self {
         return Self {
             started: Instant::now(),
             ticker: Ticker::new(cadence),
@@ -373,12 +390,18 @@ impl<'sink> WaitReporter<'sink> {
         if !self.ticker.due(waited) {
             return None;
         }
-        return Some(DueNotice { waited, repeat: self.printed > 0 });
+        return Some(DueNotice {
+            waited,
+            repeat: self.printed > 0,
+        });
     }
 
     /// Print the line the caller built for the notice that `notice_due` reported,
     /// and count it.
-    pub fn print_notice(&mut self, text: &str) {
+    pub fn print_notice(
+        &mut self,
+        text: &str,
+    ) {
         self.printed += 1;
         // Terminal output error: a notice is advisory; a failed write must not stop the wait.
         let _written = writeln!(self.sink, "{text}");

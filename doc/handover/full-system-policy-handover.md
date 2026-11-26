@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-25T17:32:08-05:00
+## Status at 2026-11-26T02:10:24-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -195,9 +195,33 @@ Unprofiled development processes remain a residual risk.
   and three custom profiles:
   `ivpn` enforcing,
   `ivpn-ui` as a named `flags=(unconfined)` Electron profile,
-  and `ivpn-service` in complain mode as a documented exception.
+  and `ivpn-service`, enforcing since the owner's WireGuard and OpenVPN connect runs
+  (its built-in firewall ran under it only in namespace probes).
+  `local/ip`, `ps`, `nft`, `resolvectl`, `sysctl` and `sync` allow `network netlink dgram`,
+  the socket the IVPN daemon leaks into its children;
+  `local/firefox` and a new `local/firefox-crashreporter` cover Firefox ESR in `/opt/firefox-esr`;
+  `local/aa-install` reads `cpu.max` under the user manager's `app.slice`.
+  On the owner's "Grant tor", `local/torbrowser-tor` runs `lyrebird` in its own enforcing child profile
+  (`priority=1` over the stock pluggable-transport rule) with sockets and name lookups,
+  and accepts the browser's stop signals;
+  `local/torbrowser` may lock its shader cache and create its PulseAudio folder.
+  Snowflake connected afterwards (`check.torproject.org` reported `IsTor: true`).
   `local/apparmor_parser` gained DAC capabilities and read access to `~/temp/agent` for drafts.
   See `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`, "Thirteenth batch".
+- Separately on 2026-11-26, an AppArmor test-created `~/.mozilla/firefox` directory made all three
+  Firefox channels select fresh legacy profiles after restart.
+  Their real XDG profiles under `~/.config/mozilla/firefox` were intact.
+  The test/new directory was preserved under a backup name, the original index hashes stayed equal,
+  and the owner confirmed all three channels were back.
+  This was not an AVC and required no policy or cache change; see
+  `doc/troubleshooting/firefox-xdg-profiles-legacy-test-directory.md`.
+- Firefox Backup in both channels then failed on `rename_dest` and `unlink` in
+  `~/Documents/Restore Firefox`.
+  `/etc/apparmor.d/local/firefox` now grants `rwl` only to `FirefoxBackup_*` there,
+  with directory metadata access.
+  The confined rename-readback-delete probe passed, an unrelated filename remained denied,
+  and the owner completed real backups in regular Firefox and ESR.
+  See `doc/troubleshooting/firefox-backup-documents-archive-replacement.md`.
 
 ## Current-boot evidence
 
@@ -403,18 +427,18 @@ custom
 and `setpci` changes.
 `build-verify-and-select-tuned-early-policy-cache.ts` compiled source
 without reading old cache,
-checked all 809 expected profile artifacts and live feature bytes,
+checked every expected profile artifact and the live feature bytes,
 verified cache hits,
 preserved prior runtime policy,
 and reloaded the real loader.
-The latest such report is `verified-selected-dolphin-plain-drag-fix-2026-11-25T17-30-36-0500.json`.
+The latest such report is `verified-selected-firefox-backup-fix-2026-11-26T02-09-04-0500.json`.
 
 Original recovery cache:
 `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-25T17-32-08-0500`.
-All 23
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-26T02-09-04-0500`.
+All 25
 copied objects compared equal.
 The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.
@@ -453,11 +477,7 @@ pressure writes,
 and fresh profile-sync-daemon mount operations remain explicitly unexercised.
 Unprofiled development and repo processes remain unconfined by design and are disclosed in the
 inventory rather than misreported as universally enforcing.
-`ivpn-service` stays in complain mode until connect,
-disconnect,
-the firewall and split tunneling have run under it with an IVPN account logged in;
-then read its `ALLOWED` lines from `/var/log/audit/audit.log`,
-add them,
-and switch it with `aa-mode --enforce ivpn-service` or by dropping `complain` from its flags.
+IVPN's built-in firewall has not run under the enforcing `ivpn-service` profile on the host,
+only in namespace probes; the owner does not use it.
 
 This handover is not final and not owner-approved.

@@ -72,7 +72,11 @@ pub(crate) enum DestinationOwnership {
 /// ```ts
 /// function ownershipOf(reserved: Reservation, destination: string): DestinationOwnership;
 /// ```
-pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool, destination: &Path) -> DestinationOwnership {
+pub(crate) fn ownership_of(
+    reserved: &Reservation,
+    git_succeeded: bool,
+    destination: &Path,
+) -> DestinationOwnership {
     // Only a Git that returned success registered the worktree this command asked for: a refusal means another command's
     // registration stands at the path, and a failure after registering means the checkout may be half done, so neither is
     // one this command fills.
@@ -84,7 +88,10 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool, destinat
         // destination it did not reserve is this command's only because its own Git filled it, which the success above
         // establishes.
         Reservation::Mine(made) => match made.identity {
-            Some(identity) if crate::worktree_add_binding::path_identity(made.path.as_path()) == Some(identity) => {
+            Some(identity)
+                if crate::worktree_add_binding::path_identity(made.path.as_path())
+                    == Some(identity) =>
+            {
                 DestinationOwnership::Mine
             }
             _ => DestinationOwnership::MadeAgain,
@@ -93,7 +100,9 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool, destinat
         // establishes: the object that stood at the path before the reservation must still be the one the binding names.
         // A different object is another command's replacement, which this command's ignored state is not written into.
         Reservation::Anothers(identity) => match identity {
-            Some(seen) if crate::worktree_add_binding::path_identity(destination) != Some(*seen) => {
+            Some(seen)
+                if crate::worktree_add_binding::path_identity(destination) != Some(*seen) =>
+            {
                 DestinationOwnership::MadeAgain
             }
             _ => DestinationOwnership::Mine,
@@ -101,7 +110,6 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool, destinat
         Reservation::NotAttempted => DestinationOwnership::Mine,
     };
 }
-
 
 /// What:
 ///  The line for a destination this command will not copy into,
@@ -122,12 +130,22 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool, destinat
 /// ```ts
 /// `monochromatic-git-policy-cli: ${quote(destination)} received no ignored-state copy: ...`
 /// ```
-pub(crate) fn not_this_commands_destination_notice(destination: &Path, ownership: DestinationOwnership, record_stays: bool) -> String {
+pub(crate) fn not_this_commands_destination_notice(
+    destination: &Path,
+    ownership: DestinationOwnership,
+    record_stays: bool,
+) -> String {
     let shown: String = quote(destination.to_string_lossy().as_ref());
     let why: &str = match ownership {
-        DestinationOwnership::MadeAgain => "the worktree this command registered is no longer at that path, so the ignored state was not copied into it and the record of this add stays; `git worktree list` shows where it is now",
-        DestinationOwnership::GitFailed if record_stays => "this command's own `git worktree add` did not succeed, so the ignored state was not copied into the worktree it may have registered; the record of this add stays and a later command reports it",
-        DestinationOwnership::GitFailed => "this command's own `git worktree add` did not succeed, and the worktree at that path was made by another command, so nothing was copied into it and this command keeps no record of it",
+        DestinationOwnership::MadeAgain => {
+            "the worktree this command registered is no longer at that path, so the ignored state was not copied into it and the record of this add stays; `git worktree list` shows where it is now"
+        }
+        DestinationOwnership::GitFailed if record_stays => {
+            "this command's own `git worktree add` did not succeed, so the ignored state was not copied into the worktree it may have registered; the record of this add stays and a later command reports it"
+        }
+        DestinationOwnership::GitFailed => {
+            "this command's own `git worktree add` did not succeed, and the worktree at that path was made by another command, so nothing was copied into it and this command keeps no record of it"
+        }
         DestinationOwnership::Mine => "it is not this command's to fill",
     };
     return format!(
@@ -199,7 +217,10 @@ pub(crate) fn nothing_but_a_reservation(destination: &Path) -> bool {
 /// ```ts
 /// new WorktreeCopyError(`monochromatic-git-policy-cli: the ignored state for ${destination} was not copied: ${reason}. ...`)
 /// ```
-pub(crate) fn registration_changed(destination: &Path, reason: &str) -> WorktreeCopyError {
+pub(crate) fn registration_changed(
+    destination: &Path,
+    reason: &str,
+) -> WorktreeCopyError {
     let shown: String = quote(destination.to_string_lossy().as_ref());
     let message: String = format!(
         "monochromatic-git-policy-cli: the ignored state for {shown} was not copied: {reason}. Nothing in that worktree was changed; `git worktree list` shows what is registered there now, and a `git worktree add` into the same path copies the ignored state afresh."
@@ -232,14 +253,25 @@ const NOTICE_PATHS: usize = 3;
 /// ```ts
 /// `monochromatic-git-policy-cli: left out ${count} unreadable ignored entries from ${source}: ${first.join(', ')}${more}.\n`
 /// ```
-pub(crate) fn unreadable_notice(source_root: &Path, unreadable: &[Vec<u8>]) -> String {
+pub(crate) fn unreadable_notice(
+    source_root: &Path,
+    unreadable: &[Vec<u8>],
+) -> String {
     let mut named: Vec<String> = Vec::new();
     for path in unreadable.iter().take(NOTICE_PATHS) {
         named.push(quote(shown_repository_path(path.as_slice()).as_str()));
     }
     let rest: usize = unreadable.len().saturating_sub(NOTICE_PATHS);
-    let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
-    let noun: &str = if unreadable.len() == 1 { "entry" } else { "entries" };
+    let more: String = if rest == 0 {
+        String::new()
+    } else {
+        format!(" and {rest} more")
+    };
+    let noun: &str = if unreadable.len() == 1 {
+        "entry"
+    } else {
+        "entries"
+    };
     return format!(
         "monochromatic-git-policy-cli: left out {} unreadable ignored {noun} from {}: {}{more}.\n",
         unreadable.len(),
@@ -262,14 +294,25 @@ pub(crate) fn unreadable_notice(source_root: &Path, unreadable: &[Vec<u8>]) -> S
 /// ```ts
 /// `monochromatic-git-policy-cli: left out ${count} ignored ${noun} that kept changing while they were copied, from ${source}: ${first.join(', ')}${more}. They stay in the source worktree, unchanged.\n`
 /// ```
-pub(crate) fn unsettled_notice(source_root: &Path, unsettled: &[Vec<u8>]) -> String {
+pub(crate) fn unsettled_notice(
+    source_root: &Path,
+    unsettled: &[Vec<u8>],
+) -> String {
     let mut named: Vec<String> = Vec::new();
     for path in unsettled.iter().take(NOTICE_PATHS) {
         named.push(quote(shown_repository_path(path.as_slice()).as_str()));
     }
     let rest: usize = unsettled.len().saturating_sub(NOTICE_PATHS);
-    let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
-    let noun: &str = if unsettled.len() == 1 { "entry" } else { "entries" };
+    let more: String = if rest == 0 {
+        String::new()
+    } else {
+        format!(" and {rest} more")
+    };
+    let noun: &str = if unsettled.len() == 1 {
+        "entry"
+    } else {
+        "entries"
+    };
     return format!(
         "monochromatic-git-policy-cli: left {} ignored {noun} out of the new worktree because they kept changing while they were copied, from {}: {}{more}; they stay in that worktree, unchanged.\n",
         unsettled.len(),
@@ -296,14 +339,25 @@ pub const UNKNOWN_DESTINATION_NOTICE: &str = "monochromatic-git-policy-cli: this
 /// ```ts
 /// `monochromatic-git-policy-cli: left out ${count} ignored ${noun} that cannot be copied into a worktree from ${source}: ${first.join(', ')}${more}. A socket, a named pipe or a device node belongs to one running system, so the rest of the ignored state was copied without it.\n`
 /// ```
-pub(crate) fn uncopiable_notice(source_root: &Path, uncopiable: &[Vec<u8>]) -> String {
+pub(crate) fn uncopiable_notice(
+    source_root: &Path,
+    uncopiable: &[Vec<u8>],
+) -> String {
     let mut named: Vec<String> = Vec::new();
     for path in uncopiable.iter().take(NOTICE_PATHS) {
         named.push(quote(shown_repository_path(path.as_slice()).as_str()));
     }
     let rest: usize = uncopiable.len().saturating_sub(NOTICE_PATHS);
-    let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
-    let noun: &str = if uncopiable.len() == 1 { "entry" } else { "entries" };
+    let more: String = if rest == 0 {
+        String::new()
+    } else {
+        format!(" and {rest} more")
+    };
+    let noun: &str = if uncopiable.len() == 1 {
+        "entry"
+    } else {
+        "entries"
+    };
     return format!(
         "monochromatic-git-policy-cli: left out {} ignored {noun} that cannot be copied into a worktree from {}: {}{more}. A socket, a named pipe or a device node belongs to one running system and means nothing in a copy, so the rest of the ignored state was copied without it.\n",
         uncopiable.len(),
@@ -331,8 +385,6 @@ pub(crate) fn unconfirmed_destination_notice(destination: &Path) -> String {
     );
 }
 
-
-
 /// What:
 ///  The line for a destination another command registered while this one's real Git ran.
 /// Why:
@@ -345,7 +397,10 @@ pub(crate) fn unconfirmed_destination_notice(destination: &Path) -> String {
 /// ```ts
 /// `monochromatic-git-policy-cli: ${quote(destination)} was registered by another git worktree add (process ${pid}) ...`
 /// ```
-pub(crate) fn registered_by_another_notice(destination: &Path, other: &str) -> String {
+pub(crate) fn registered_by_another_notice(
+    destination: &Path,
+    other: &str,
+) -> String {
     let shown: String = quote(destination.to_string_lossy().as_ref());
     let owner: String = match crate::worktree_copy_owner::CopyOwner::from_token(other) {
         Some(found) => format!("process {}", found.pid),

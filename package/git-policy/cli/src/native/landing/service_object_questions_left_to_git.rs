@@ -19,7 +19,12 @@
 //! const bytes = await commitBytes(git, repo, name); const gone = await objectsMissing(git, repo, names); const one = await objectMissing(git, repo, name);
 //! ```
 
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use std::path::Path;
 
 /// Tag used for diagnostics from this module.
@@ -39,7 +44,11 @@ const TAG: &str = "monochromatic-git-policy-cli-service";
 /// ```ts
 /// const commitBytes = (git, repo, name) => git(['cat-file', 'commit', name]).stdout;
 /// ```
-pub(crate) fn commit_bytes(git: &GitContext, repository: &Path, name: &str) -> Option<Vec<u8>> {
+pub(crate) fn commit_bytes(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+) -> Option<Vec<u8>> {
     // A landing reads one commit for its objects and again for the reflog row of a one-commit batch, and the bytes do not
     //  change between the two questions, so the second is answered from what the first read. A failed start is never
     //  remembered: the next question may start Git where this one could not.
@@ -78,23 +87,51 @@ pub(crate) fn commit_bytes(git: &GitContext, repository: &Path, name: &str) -> O
 /// ```ts
 /// const gone = (git: GitContext, repo: string, inputDir: string, names: string[]) => git(['rev-list', '--objects', '--no-object-names', '--missing=print', '--stdin'], names.join('\n')).stdout.some((line) => line.startsWith('?'));
 /// ```
-pub(crate) fn objects_missing(git: &GitContext, repository: &Path, input_directory: &Path, names: &[&str]) -> Option<bool> {
+pub(crate) fn objects_missing(
+    git: &GitContext,
+    repository: &Path,
+    input_directory: &Path,
+    names: &[&str],
+) -> Option<bool> {
     if names.is_empty() {
         return Some(false);
     }
-    let length: usize = names.iter().map(|name| { return name.len() + 1; }).sum();
+    let length: usize = names
+        .iter()
+        .map(|name| {
+            return name.len() + 1;
+        })
+        .sum();
     let mut input: String = String::with_capacity(length);
     for name in names {
         input.push_str(name);
         input.push('\n');
     }
-    let arguments: [&str; 5] = ["rev-list", "--objects", "--no-object-names", "--missing=print", "--stdin"];
+    let arguments: [&str; 5] = [
+        "rev-list",
+        "--objects",
+        "--no-object-names",
+        "--missing=print",
+        "--stdin",
+    ];
     let mut request: GitRequest = GitRequest::new(repository, &arguments);
     request.input = Some(input.into_bytes());
     // The request's input file is made in the repository's own scratch directory, never the system temporary directory.
-    let scoped: GitContext = GitContext { common_dir: Some(input_directory.to_path_buf()), ..git.clone() };
+    let scoped: GitContext = GitContext {
+        common_dir: Some(input_directory.to_path_buf()),
+        ..git.clone()
+    };
     let output: GitOutput = asked_or_logged(run_git(&scoped, &request))?;
-    return Some(output.stdout.split(|byte| { return *byte == b'\n'; }).any(|line| { return line.starts_with(b"?"); }));
+    return Some(
+        output
+            .stdout
+            .split(|byte| {
+                return *byte == b'\n';
+            })
+            .any(|line| {
+                return line.starts_with(b"?");
+            }),
+    );
 }
 
 /// What:
@@ -109,7 +146,11 @@ pub(crate) fn objects_missing(git: &GitContext, repository: &Path, input_directo
 /// ```ts
 /// const gone = (git, repo, name) => git(['cat-file', '-e', name]).code === 1;
 /// ```
-pub(crate) fn object_missing(git: &GitContext, repository: &Path, name: &str) -> bool {
+pub(crate) fn object_missing(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+) -> bool {
     return matches!(run(git, repository, &["cat-file", "-e", name]), Some(output) if output.code == Some(1));
 }
 
@@ -124,7 +165,11 @@ pub(crate) fn object_missing(git: &GitContext, repository: &Path, name: &str) ->
 /// ```ts
 /// const gone = (git, repo, requests) => requests.some((r) => r.commit && objectMissing(git, repo, r.commit));
 /// ```
-pub(crate) fn built_commits_missing(git: &GitContext, repository: &Path, commits: &[&str]) -> bool {
+pub(crate) fn built_commits_missing(
+    git: &GitContext,
+    repository: &Path,
+    commits: &[&str],
+) -> bool {
     for commit in commits {
         if object_missing(git, repository, commit) {
             return true;
@@ -136,7 +181,11 @@ pub(crate) fn built_commits_missing(git: &GitContext, repository: &Path, commits
 /// One Git start,
 /// or `None` when Git could not be started:
 /// the question is then unanswered rather than answered with a guess.
-fn run(git: &GitContext, repository: &Path, arguments: &[&str]) -> Option<GitOutput> {
+fn run(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[&str],
+) -> Option<GitOutput> {
     return run_git(git, &GitRequest::new(repository, arguments)).ok();
 }
 

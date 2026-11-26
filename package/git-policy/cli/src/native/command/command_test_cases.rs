@@ -13,7 +13,10 @@
 /// Paths of the fixture trees.
 use std::path::Path;
 /// Hand out the next unclaimed case to whichever worker asks.
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// The most worker threads one test starts;
 ///  the cases are short,
@@ -30,13 +33,20 @@ const WORKER_CAP: usize = 8;
 /// ```ts
 /// await cp(from, to, { recursive: true });
 /// ```
-pub(crate) fn copy_tree(from: &Path, to: &Path) {
+pub(crate) fn copy_tree(
+    from: &Path,
+    to: &Path,
+) {
     std::fs::create_dir_all(to).expect("copy target directory");
     for found in std::fs::read_dir(from).expect("copy source directory") {
         let entry: std::fs::DirEntry = found.expect("copy source entry");
         let target = to.join(entry.file_name());
         let kind: std::fs::FileType = entry.file_type().expect("copy source entry type");
-        assert!(!kind.is_symlink(), "a fixture holds no links: {}", entry.path().display());
+        assert!(
+            !kind.is_symlink(),
+            "a fixture holds no links: {}",
+            entry.path().display()
+        );
         if kind.is_dir() {
             copy_tree(entry.path().as_path(), target.as_path());
         } else {

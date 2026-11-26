@@ -7,7 +7,14 @@
 
 use super::*;
 use crate::commit_index_selection::IndexSelection;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use crate::transaction_journal::TransactionMode;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -32,7 +39,11 @@ fn ignored_repository(name: &str) -> (PathBuf, PathBuf, String) {
 
 /// The ending of an explicit-path commit of these elements,
 /// asked the way the preparation asks it.
-fn named_ending(repo: &Path, base: &str, pathspecs: &[&str]) -> Option<TransactionResult> {
+fn named_ending(
+    repo: &Path,
+    base: &str,
+    pathspecs: &[&str],
+) -> Option<TransactionResult> {
     let specs: Vec<OsString> = pathspecs.iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = IndexSelection {
         mode: TransactionMode::ExplicitPath,
@@ -43,14 +54,25 @@ fn named_ending(repo: &Path, base: &str, pathspecs: &[&str]) -> Option<Transacti
         stage_tracked_changes: false,
         base_revision: base,
     };
-    return named_ignored_ending(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), &choice)
-        .expect("the question is answered");
+    return named_ignored_ending(
+        &git_context(),
+        repo,
+        repo,
+        repo.join(".git").join("index").as_path(),
+        &choice,
+    )
+    .expect("the question is answered");
 }
 
 /// The ending of an explicit-path commit of these elements,
 /// asked for a staged deletion,
 /// from the command line or from the pathspec file the selection names.
-fn deletion_ending(repo: &Path, base: &str, pathspecs: &[&str], pathspec_file: Option<&Path>) -> Option<TransactionResult> {
+fn deletion_ending(
+    repo: &Path,
+    base: &str,
+    pathspecs: &[&str],
+    pathspec_file: Option<&Path>,
+) -> Option<TransactionResult> {
     let specs: Vec<OsString> = pathspecs.iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = IndexSelection {
         mode: TransactionMode::ExplicitPath,
@@ -61,8 +83,15 @@ fn deletion_ending(repo: &Path, base: &str, pathspecs: &[&str], pathspec_file: O
         stage_tracked_changes: false,
         base_revision: base,
     };
-    return staged_deletion_ending(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), base, &choice)
-        .expect("the question is answered");
+    return staged_deletion_ending(
+        &git_context(),
+        repo,
+        repo,
+        repo.join(".git").join("index").as_path(),
+        base,
+        &choice,
+    )
+    .expect("the question is answered");
 }
 
 /// The one core finding an ending carries,
@@ -72,8 +101,16 @@ fn finding(ending: &TransactionResult) -> String {
     assert_eq!(ending.landed_oid, None, "a selection refusal lands nothing");
     assert!(!ending.uses_lfs, "nothing landed, so nothing is pushed");
     assert_eq!(ending.events.len(), 1, "one finding explains the refusal");
-    let PolicyEvent::CoreFinding { core_id, code, message } = &ending.events[0] else {
-        panic!("a selection refusal is a core finding, not {:?}", ending.events[0]);
+    let PolicyEvent::CoreFinding {
+        core_id,
+        code,
+        message,
+    } = &ending.events[0]
+    else {
+        panic!(
+            "a selection refusal is a core finding, not {:?}",
+            ending.events[0]
+        );
     };
     assert!(!message.is_empty(), "the finding says why");
     return format!("{core_id}/{code}");
@@ -84,9 +121,14 @@ fn finding(ending: &TransactionResult) -> String {
 #[test]
 fn a_named_ignored_file_ends_the_preparation_with_its_finding() {
     let (root, repo, base) = ignored_repository("selection-refusal-ignored");
-    let ending: TransactionResult = named_ending(repo.as_path(), base.as_str(), &["lib/_c.js"]).expect("the refusal");
+    let ending: TransactionResult =
+        named_ending(repo.as_path(), base.as_str(), &["lib/_c.js"]).expect("the refusal");
     assert_eq!(finding(&ending), "explicit-path-commit/named-path-ignored");
-    let PolicyEvent::CoreFinding { message, .. } = &ending.events[0] else {
+    let PolicyEvent::CoreFinding {
+        message,
+        ..
+    } = &ending.events[0]
+    else {
         panic!("a core finding");
     };
     assert!(message.contains("lib/_c.js"), "{message}");
@@ -106,9 +148,16 @@ fn a_selection_an_ignore_rule_leaves_alone_has_no_ending() {
 #[test]
 fn a_staged_deletion_whose_path_stays_on_disk_ends_the_preparation() {
     let (root, repo, base) = ignored_repository("selection-refusal-deletion");
-    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "a.txt"]);
-    let ending: TransactionResult = deletion_ending(repo.as_path(), base.as_str(), &["a.txt"], None).expect("the refusal");
-    assert_eq!(finding(&ending), "commit-only/staged-deletion-worktree-present");
+    git(
+        repo.as_path(),
+        &["rm", "--quiet", "--cached", "--", "a.txt"],
+    );
+    let ending: TransactionResult =
+        deletion_ending(repo.as_path(), base.as_str(), &["a.txt"], None).expect("the refusal");
+    assert_eq!(
+        finding(&ending),
+        "commit-only/staged-deletion-worktree-present"
+    );
     remove(root.as_path());
 }
 
@@ -118,13 +167,21 @@ fn a_staged_deletion_whose_path_stays_on_disk_ends_the_preparation() {
 #[test]
 fn a_pathspec_file_of_a_staged_deletion_ends_the_preparation() {
     let (root, repo, base) = ignored_repository("selection-refusal-deletion-file");
-    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "a.txt"]);
+    git(
+        repo.as_path(),
+        &["rm", "--quiet", "--cached", "--", "a.txt"],
+    );
     let deleted: PathBuf = root.join("deleted.txt");
     std::fs::write(&deleted, "a.txt\n").expect("list of the deleted path");
     let other: PathBuf = root.join("other.txt");
     std::fs::write(&other, ".gitignore\n").expect("list of another path");
-    let ending: TransactionResult = deletion_ending(repo.as_path(), base.as_str(), &[], Some(deleted.as_path())).expect("the refusal");
-    assert_eq!(finding(&ending), "commit-only/staged-deletion-worktree-present");
+    let ending: TransactionResult =
+        deletion_ending(repo.as_path(), base.as_str(), &[], Some(deleted.as_path()))
+            .expect("the refusal");
+    assert_eq!(
+        finding(&ending),
+        "commit-only/staged-deletion-worktree-present"
+    );
     assert!(deletion_ending(repo.as_path(), base.as_str(), &[], Some(other.as_path())).is_none());
     remove(root.as_path());
 }
@@ -144,10 +201,20 @@ fn a_selection_without_a_staged_deletion_has_no_ending() {
 #[test]
 fn a_pathspec_that_matches_nothing_ends_the_preparation_with_its_finding() {
     let ending: TransactionResult = pathspec_matching_nothing_ending(&[b"nope.txt".to_vec()]);
-    assert_eq!(finding(&ending), "explicit-path-commit/pathspec-matches-nothing");
-    let PolicyEvent::CoreFinding { message, .. } = &ending.events[0] else {
+    assert_eq!(
+        finding(&ending),
+        "explicit-path-commit/pathspec-matches-nothing"
+    );
+    let PolicyEvent::CoreFinding {
+        message,
+        ..
+    } = &ending.events[0]
+    else {
         panic!("a core finding");
     };
-    assert!(message.contains("pathspec 'nope.txt' did not match any files"), "{message}");
+    assert!(
+        message.contains("pathspec 'nope.txt' did not match any files"),
+        "{message}"
+    );
     assert!(!message.contains("options belong before"), "{message}");
 }

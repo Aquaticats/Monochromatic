@@ -30,17 +30,32 @@
 //! const code = await runPush(args); if (code !== 0) code = (await stackFailedPush({ args })) ?? code;
 //! ```
 
-/// The reconcile loop that auto-push shares,
-/// and what it needs.
-use crate::auto_push_reconcile::{Destination, Integrated, MergePusher, Reconcile, integrate_and_push, run_line_prefix};
-/// The words the loop puts before every line it adds,
-/// so a stop of an explicit push speaks as the loop does.
-use crate::auto_push_reconcile_plan::{Wording, wording_of};
-/// The coordinator's Git,
-/// its read-only query runner and its error type.
-use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
 /// The action data of a stacked push.
 use crate::action::PushForward;
+/// The reconcile loop that auto-push shares,
+/// and what it needs.
+use crate::auto_push_reconcile::{
+    Destination,
+    Integrated,
+    MergePusher,
+    Reconcile,
+    integrate_and_push,
+    run_line_prefix,
+};
+/// The words the loop puts before every line it adds,
+/// so a stop of an explicit push speaks as the loop does.
+use crate::auto_push_reconcile_plan::{
+    Wording,
+    wording_of,
+};
+/// The coordinator's Git,
+/// its read-only query runner and its error type.
+use crate::auto_push_single_flight::{
+    PushAttempt,
+    PushGit,
+    SingleFlightError,
+    run_query,
+};
 /// The environment of a Git child.
 use crate::child_environment::environment_with_overlay;
 /// The table-driven read of a push's options.
@@ -50,14 +65,23 @@ use crate::diagnostic_log::debug;
 /// The check that the upload can start,
 /// what the upload sends,
 /// and its run.
-use crate::lfs_interactive::{InteractiveUpload, upload_first};
+use crate::lfs_interactive::{
+    InteractiveUpload,
+    upload_first,
+};
+/// The destination and object names the push would send.
+use crate::manual_push_probe::{
+    PushUpdate,
+    probe_manual_push_updates,
+};
 /// The merge push,
 /// planned and run inside this process.
 use crate::stacked_merge_push::gated_merge_push;
-/// The destination and object names the push would send.
-use crate::manual_push_probe::{PushUpdate, probe_manual_push_updates};
 /// The settled or plain run of the forwarded command.
-use crate::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
+use crate::worktree_copy_forward::{
+    ForwardedRun,
+    run_forwarded_git,
+};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 /// Standard error as a writable stream.
@@ -74,8 +98,11 @@ pub const STACKED_PUSH_MARKER: &str = "CLI_GIT_STACKED_PUSH";
 ///  It carries the send and the sharing of a planner that travels to the thread which runs the
 ///  reconcile's merge push,
 /// which is the thread a command outside the runtime supplies.
-pub type MergePush<'a> =
-    &'a (dyn Fn(&PushGit, &[OsString], &[OsString], &[String]) -> Result<i32, SingleFlightError> + Send + Sync);
+pub type MergePush<'a> = &'a (
+        dyn Fn(&PushGit, &[OsString], &[OsString], &[String]) -> Result<i32, SingleFlightError>
+            + Send
+            + Sync
+    );
 
 /// What a failed explicit push needs to be integrated.
 ///
@@ -180,7 +207,10 @@ pub fn stack_failed_push(
         Err(error) => {
             debug(
                 TAG,
-                &format!("the failed push's updates could not be read: {}", error.message),
+                &format!(
+                    "the failed push's updates could not be read: {}",
+                    error.message
+                ),
             );
             return None;
         }
@@ -190,7 +220,10 @@ pub fn stack_failed_push(
     //       that push for an expectation only the auto-push outran (`cannot lock ref ...: is at X but expected Y`); native
     //       Git answers "Everything up-to-date" with status zero for the same state, so this push ends that way and says why.
     if updates.iter().all(already_holds_its_object) {
-        debug(TAG, "every destination of the failed push already holds the object it sends, so nothing is left to push");
+        debug(
+            TAG,
+            "every destination of the failed push already holds the object it sends, so nothing is left to push",
+        );
         // Terminal output error: the report is advisory; the exit status already carries the result.
         let _written = writeln!(
             err,
@@ -219,7 +252,11 @@ pub fn stack_failed_push(
         explicit: true,
     };
     // The loop takes its push as a value so controls can stand in for it; this one carries the request, the Git context and the tokens.
-    let mut push_merge: StackedMergePush<'_> = StackedMergePush { request, git, tokens: tokens.as_slice() };
+    let mut push_merge: StackedMergePush<'_> = StackedMergePush {
+        request,
+        git,
+        tokens: tokens.as_slice(),
+    };
     let rejected = PushAttempt {
         exit_code: failed_code,
         signal: None,
@@ -279,12 +316,19 @@ struct StackedMergePush<'a> {
 }
 
 impl MergePusher for StackedMergePush<'_> {
-    fn push_merge(&mut self, destination: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError> {
+    fn push_merge(
+        &mut self,
+        destination: &Destination,
+        merge_oid: &str,
+    ) -> Result<PushAttempt, SingleFlightError> {
         let code: i32 = (self.request.merge_push)(
             self.git,
             self.request.global_prefix,
             self.tokens,
-            &[destination.remote.clone(), format!("{merge_oid}:{}", destination.merge_ref)],
+            &[
+                destination.remote.clone(),
+                format!("{merge_oid}:{}", destination.merge_ref),
+            ],
         )?;
         return Ok(PushAttempt {
             exit_code: i64::from(code),
@@ -346,7 +390,10 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
             signalled = Some(signal);
             crate::forwarding::SIGNAL_EXIT_BASE + signal
         }
-        ForwardedRun::Failed { stderr, code } => {
+        ForwardedRun::Failed {
+            stderr,
+            code,
+        } => {
             // Terminal output error: there is nowhere left to report a failure to write a diagnostic.
             let _written = std::io::stderr().write_all(stderr.as_bytes());
             return code;
@@ -368,7 +415,10 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
     let git = PushGit {
         real_git: forward.real_git.clone(),
         cwd,
-        environment: environment_with_overlay(forward.environment.as_slice(), forward.overlay.as_slice()),
+        environment: environment_with_overlay(
+            forward.environment.as_slice(),
+            forward.overlay.as_slice(),
+        ),
         lfs: false,
     };
     let request = StackRequest {

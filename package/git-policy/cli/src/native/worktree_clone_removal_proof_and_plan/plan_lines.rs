@@ -12,12 +12,18 @@
 //! const [line, rest] = takeLine(region, 'ends-early');
 //! ```
 
-use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{PlanRefusal, PlanRefusalCause};
+use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{
+    PlanRefusal,
+    PlanRefusalCause,
+};
 
 /// One line of the region,
 /// without its newline,
 /// and the region after it.
-pub fn take_line<'a>(region: &mut &'a str, cause: PlanRefusalCause) -> Result<&'a str, PlanRefusal> {
+pub fn take_line<'a>(
+    region: &mut &'a str,
+    cause: PlanRefusalCause,
+) -> Result<&'a str, PlanRefusal> {
     let Some(end) = region.find('\n') else {
         return Err(PlanRefusal::of(cause, *region));
     };

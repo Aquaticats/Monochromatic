@@ -47,7 +47,10 @@ use std::ffi::OsString;
 /// ```
 pub trait GitQuery {
     /// Ask Git one question and read its answer.
-    fn ask(&mut self, arguments: &[&str]) -> Result<String, String>;
+    fn ask(
+        &mut self,
+        arguments: &[&str],
+    ) -> Result<String, String>;
 }
 
 /// What:
@@ -63,7 +66,10 @@ pub trait GitQuery {
 /// const asQuery = (answer: (args: string[]) => string): GitQuery => ({ ask: answer });
 /// ```
 impl<Answer: FnMut(&[&str]) -> Result<String, String>> GitQuery for Answer {
-    fn ask(&mut self, arguments: &[&str]) -> Result<String, String> {
+    fn ask(
+        &mut self,
+        arguments: &[&str],
+    ) -> Result<String, String> {
         return self(arguments);
     }
 }
@@ -88,7 +94,10 @@ pub type Query<'a> = &'a mut dyn GitQuery;
 /// ```
 pub trait GitQueryAwaiting {
     /// Ask Git one question and await its answer.
-    fn ask<'a>(&'a mut self, arguments: &'a [&'a str]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send + 'a>>;
+    fn ask<'a>(
+        &'a mut self,
+        arguments: &'a [&'a str],
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send + 'a>>;
 }
 
 /// A borrowed awaited query that the plan functions share.
@@ -115,8 +124,7 @@ pub struct PlanError(pub String);
 /// `lfsapi/endpoint_finder.go:99` and `:128`),
 /// and `url.<base>.insteadOf` and `url.<base>.pushInsteadOf` rewrite that endpoint before it is read
 /// (`:234-235` and `:345-357`).
-pub const SETTINGS_REGEXP: &str =
-    "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url|lfsurl|lfspushurl)|push\\.default|url\\..*\\.(pushinsteadof|insteadof)|lfs\\.(url|pushurl))$";
+pub const SETTINGS_REGEXP: &str = "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url|lfsurl|lfspushurl)|push\\.default|url\\..*\\.(pushinsteadof|insteadof)|lfs\\.(url|pushurl))$";
 
 /// What:
 ///  The last dotted word of a key after a prefix:
@@ -131,7 +139,10 @@ pub const SETTINGS_REGEXP: &str =
 /// ```ts
 /// const lastVariable = (key: string, prefix: string) => key.startsWith(prefix) ? key.slice(prefix.length).split('.').at(-1) : undefined;
 /// ```
-fn last_variable<'a>(key: &'a str, prefix: &str) -> Option<&'a str> {
+fn last_variable<'a>(
+    key: &'a str,
+    prefix: &str,
+) -> Option<&'a str> {
     let rest: &str = key.strip_prefix(prefix)?;
     let (_name, variable) = rest.rsplit_once('.')?;
     return Some(variable);
@@ -140,7 +151,9 @@ fn last_variable<'a>(key: &'a str, prefix: &str) -> Option<&'a str> {
 /// Whether the plan reads this configuration key (Git's normalised spelling).
 pub(crate) fn wanted_key(key: &str) -> bool {
     let remote_variable: bool = match last_variable(key, "remote.") {
-        Some(variable) => ["push", "pushurl", "mirror", "url", "lfsurl", "lfspushurl"].contains(&variable),
+        Some(variable) => {
+            ["push", "pushurl", "mirror", "url", "lfsurl", "lfspushurl"].contains(&variable)
+        }
         None => false,
     };
     let branch_variable: bool = match last_variable(key, "branch.") {
@@ -216,7 +229,10 @@ pub fn read_settings(query: Query<'_>) -> Result<Settings, PlanError> {
 /// await git(['config', '--get-regexp', SETTINGS_REGEXP])
 /// ```
 pub async fn read_settings_awaiting(query: QueryAwaiting<'_>) -> Result<Settings, PlanError> {
-    let listing: String = match query.ask(&["config", "--get-regexp", SETTINGS_REGEXP]).await {
+    let listing: String = match query
+        .ask(&["config", "--get-regexp", SETTINGS_REGEXP])
+        .await
+    {
         Ok(text) => text,
         Err(why) => return Err(PlanError(format!("git config --get-regexp: {why}"))),
     };
@@ -245,7 +261,10 @@ fn settings_of(listing: &str) -> Settings {
 
 /// The last value of a setting,
 /// the last one written winning as in Git.
-pub(crate) fn setting<'a>(all: &'a [(String, String)], key: &str) -> Option<&'a str> {
+pub(crate) fn setting<'a>(
+    all: &'a [(String, String)],
+    key: &str,
+) -> Option<&'a str> {
     for (name, value) in all.iter().rev() {
         if name == key {
             return Some(value.as_str());
@@ -256,7 +275,10 @@ pub(crate) fn setting<'a>(all: &'a [(String, String)], key: &str) -> Option<&'a 
 
 /// Every value of a setting,
 /// in the order written.
-pub(crate) fn values<'a>(all: &'a [(String, String)], key: &str) -> Vec<&'a str> {
+pub(crate) fn values<'a>(
+    all: &'a [(String, String)],
+    key: &str,
+) -> Vec<&'a str> {
     let mut found: Vec<&'a str> = Vec::new();
     for (name, value) in all {
         if name == key {
@@ -286,7 +308,9 @@ pub(crate) fn current_branch(query: Query<'_>) -> Result<Option<String>, PlanErr
 /// ```ts
 /// await git(['symbolic-ref', '--quiet', 'HEAD'])
 /// ```
-pub(crate) async fn current_branch_awaiting(query: QueryAwaiting<'_>) -> Result<Option<String>, PlanError> {
+pub(crate) async fn current_branch_awaiting(
+    query: QueryAwaiting<'_>
+) -> Result<Option<String>, PlanError> {
     let full: String = match query.ask(&["symbolic-ref", "--quiet", "HEAD"]).await {
         Ok(text) => text,
         Err(why) => return Err(PlanError(format!("git symbolic-ref HEAD: {why}"))),
@@ -311,7 +335,11 @@ fn branch_of(full: &str) -> Option<String> {
 
 /// The value of one `branch.<name>.<variable>` setting of the current branch;
 /// nothing when there is no branch.
-fn branch_setting(branch: Option<&str>, all: &[(String, String)], variable: &str) -> Option<String> {
+fn branch_setting(
+    branch: Option<&str>,
+    all: &[(String, String)],
+    variable: &str,
+) -> Option<String> {
     let name: &str = branch?;
     return setting(all, &format!("branch.{name}.{variable}")).map(str::to_owned);
 }
@@ -323,7 +351,10 @@ fn branch_setting(branch: Option<&str>, all: &[(String, String)], variable: &str
 ///  branch's remote,
 /// then `origin`.
 /// Each later source is read only when the earlier ones gave nothing.
-pub(crate) fn default_remote(branch: Option<&str>, all: &[(String, String)]) -> String {
+pub(crate) fn default_remote(
+    branch: Option<&str>,
+    all: &[(String, String)],
+) -> String {
     if let Some(found) = branch_setting(branch, all, "pushremote") {
         return found;
     }
@@ -348,13 +379,19 @@ pub(crate) fn default_remote(branch: Option<&str>, all: &[(String, String)]) -> 
 /// ```ts
 /// named ?? defaultRemote(branch, settings)
 /// ```
-pub fn resolve_push_remote(named: Option<OsString>, query: Query<'_>) -> Result<OsString, PlanError> {
+pub fn resolve_push_remote(
+    named: Option<OsString>,
+    query: Query<'_>,
+) -> Result<OsString, PlanError> {
     if let Some(found) = named {
         return Ok(found);
     }
     let branch: Option<String> = current_branch(query)?;
     let all: Settings = read_settings(query)?;
-    return Ok(OsString::from(default_remote(branch.as_deref(), all.as_slice())));
+    return Ok(OsString::from(default_remote(
+        branch.as_deref(),
+        all.as_slice(),
+    )));
 }
 
 /// What:
@@ -379,7 +416,11 @@ pub fn resolve_push_remote(named: Option<OsString>, query: Query<'_>) -> Result<
 /// ```ts
 /// setting(all, key) === undefined ? false : query(['config', '--type=bool', '--get', key]) === 'true'
 /// ```
-pub(crate) fn git_says_true(all: &[(String, String)], key: &str, query: Query<'_>) -> Result<bool, PlanError> {
+pub(crate) fn git_says_true(
+    all: &[(String, String)],
+    key: &str,
+    query: Query<'_>,
+) -> Result<bool, PlanError> {
     if setting(all, key).is_none() {
         return Ok(false);
     }
@@ -401,11 +442,18 @@ pub(crate) fn git_says_true(all: &[(String, String)], key: &str, query: Query<'_
 /// ```ts
 /// await gitSaysTrue(all, key, query)
 /// ```
-pub(crate) async fn git_says_true_awaiting(all: &[(String, String)], key: &str, query: QueryAwaiting<'_>) -> Result<bool, PlanError> {
+pub(crate) async fn git_says_true_awaiting(
+    all: &[(String, String)],
+    key: &str,
+    query: QueryAwaiting<'_>,
+) -> Result<bool, PlanError> {
     if setting(all, key).is_none() {
         return Ok(false);
     }
-    return boolean_of(key, query.ask(&["config", "--type=bool", "--get", key]).await);
+    return boolean_of(
+        key,
+        query.ask(&["config", "--type=bool", "--get", key]).await,
+    );
 }
 
 /// What:
@@ -422,11 +470,16 @@ pub(crate) async fn git_says_true_awaiting(all: &[(String, String)], key: &str, 
 /// ```ts
 /// answer === 'true' ? true : answer === 'false' || answer === '' ? false : throw new PlanError(key)
 /// ```
-fn boolean_of(key: &str, answer: Result<String, String>) -> Result<bool, PlanError> {
+fn boolean_of(
+    key: &str,
+    answer: Result<String, String>,
+) -> Result<bool, PlanError> {
     return match answer {
         Ok(text) if text == "true" => Ok(true),
         Ok(text) if text == "false" || text.is_empty() => Ok(false),
-        Ok(text) => Err(PlanError(format!("git config --type=bool {key}: Git answered {text:?}"))),
+        Ok(text) => Err(PlanError(format!(
+            "git config --type=bool {key}: Git answered {text:?}"
+        ))),
         Err(why) => Err(PlanError(format!("git config --type=bool {key}: {why}"))),
     };
 }

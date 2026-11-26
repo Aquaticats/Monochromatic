@@ -1,18 +1,24 @@
 //! Entry comparison and source-stability checks on real filesystem trees.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// A file length that spans two comparison chunks with a short last chunk.
 const LARGE_LENGTH: usize = 64 * 1_024 + 17;
 
 /// One manifest entry for a path and kind,
 /// with the mode the path currently has.
-fn entry_of(root: &Path, kind: EntryKind, relative_path: &[u8]) -> WorktreeCopyEntry {
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(
-        root.join(crate::path_bytes::os_from_path_bytes(relative_path)),
-    )
-    .expect("metadata");
+fn entry_of(
+    root: &Path,
+    kind: EntryKind,
+    relative_path: &[u8],
+) -> WorktreeCopyEntry {
+    let metadata: std::fs::Metadata =
+        std::fs::symlink_metadata(root.join(crate::path_bytes::os_from_path_bytes(relative_path)))
+            .expect("metadata");
     return WorktreeCopyEntry {
         kind,
         mode: retained_mode(&metadata),
@@ -156,9 +162,13 @@ fn unchanged_source_passes_final_check() {
 /// which a walk on a thread of its own never does.
 #[test]
 fn the_source_walk_takes_a_place_of_the_processs_bound() {
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{
+        AtomicBool,
+        Ordering,
+    };
     use std::sync::mpsc::RecvTimeoutError;
-    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) = crate::parallel_test_support::hold_the_only_place();
+    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) =
+        crate::parallel_test_support::hold_the_only_place();
     let root: PathBuf = fixture("compare-the-bound");
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("cache")).expect("cache");
@@ -181,11 +191,20 @@ fn the_source_walk_takes_a_place_of_the_processs_bound() {
     //  source's walk reached the process's bound instead of starting at once.
     match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
         Ok(true) => {}
-        Ok(false) => panic!("the job that holds the only place saw no ask, so the source's walk took no place of the process's bound"),
-        Err(RecvTimeoutError::Timeout) => panic!("the source's walk asked for no place of the process's bound within the patience, so it did not run as a job of the blocking pool"),
-        Err(RecvTimeoutError::Disconnected) => panic!("the job that holds the only place ended without answering"),
+        Ok(false) => panic!(
+            "the job that holds the only place saw no ask, so the source's walk took no place of the process's bound"
+        ),
+        Err(RecvTimeoutError::Timeout) => panic!(
+            "the source's walk asked for no place of the process's bound within the patience, so it did not run as a job of the blocking pool"
+        ),
+        Err(RecvTimeoutError::Disconnected) => {
+            panic!("the job that holds the only place ended without answering")
+        }
     }
-    assert!(given_back.load(Ordering::SeqCst), "the place of the process's bound was never given back to the source's walk");
+    assert!(
+        given_back.load(Ordering::SeqCst),
+        "the place of the process's bound was never given back to the source's walk"
+    );
     remove(root.as_path());
 }
 
@@ -251,7 +270,11 @@ fn added_source_entry_fails_final_check_by_count() {
 /// the manifest of the source,
 /// and the stamp of the source file.
 #[cfg(unix)]
-fn stamped_pair(name: &str, source_bytes: &[u8], stage_bytes: &[u8]) -> (PathBuf, PathBuf, PathBuf, Vec<WorktreeCopyEntry>, FileStamp) {
+fn stamped_pair(
+    name: &str,
+    source_bytes: &[u8],
+    stage_bytes: &[u8],
+) -> (PathBuf, PathBuf, PathBuf, Vec<WorktreeCopyEntry>, FileStamp) {
     let root: PathBuf = fixture(name);
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("cache")).expect("cache");
@@ -261,21 +284,31 @@ fn stamped_pair(name: &str, source_bytes: &[u8], stage_bytes: &[u8]) -> (PathBuf
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(stage.join("cache")).expect("stage cache");
     std::fs::write(stage.join("cache/file"), stage_bytes).expect("stage file");
-    let stamp: FileStamp = stamp_of(&std::fs::symlink_metadata(source.join("cache/file")).expect("metadata")).expect("stamp");
+    let stamp: FileStamp =
+        stamp_of(&std::fs::symlink_metadata(source.join("cache/file")).expect("metadata"))
+            .expect("stamp");
     return (root, source, stage, entries, stamp);
 }
 
 /// The final check for a cached file,
 /// given the stamps recorded around its clone.
 #[cfg(unix)]
-fn final_check(source: &Path, stage: &Path, entries: &[WorktreeCopyEntry], stamps: &[Option<FileStamp>]) -> Result<(), WorktreeCopyError> {
+fn final_check(
+    source: &Path,
+    stage: &Path,
+    entries: &[WorktreeCopyEntry],
+    stamps: &[Option<FileStamp>],
+) -> Result<(), WorktreeCopyError> {
     return assert_final_source_equivalence_pruned(
         source,
         stage,
         &[b"cache".to_vec()],
         &[],
         entries,
-        &FinalCheck { prune: Prune::Never, stamps },
+        &FinalCheck {
+            prune: Prune::Never,
+            stamps,
+        },
     );
 }
 
@@ -287,12 +320,37 @@ fn final_check(source: &Path, stage: &Path, entries: &[WorktreeCopyEntry], stamp
 #[cfg(unix)]
 #[test]
 fn an_unchanged_stamp_stands_in_for_reading_the_bytes() {
-    let (root, source, stage, entries, stamp) = stamped_pair("compare-stamp-trusted", b"same", b"diff");
-    let stamps: Vec<Option<FileStamp>> = entries.iter().map(|entry| return if entry.kind == EntryKind::File { Some(stamp) } else { None }).collect();
-    final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).expect("the stamp is unchanged");
+    let (root, source, stage, entries, stamp) =
+        stamped_pair("compare-stamp-trusted", b"same", b"diff");
+    let stamps: Vec<Option<FileStamp>> = entries
+        .iter()
+        .map(|entry| {
+            return if entry.kind == EntryKind::File {
+                Some(stamp)
+            } else {
+                None
+            };
+        })
+        .collect();
+    final_check(
+        source.as_path(),
+        stage.as_path(),
+        entries.as_slice(),
+        stamps.as_slice(),
+    )
+    .expect("the stamp is unchanged");
     let unstamped: Vec<Option<FileStamp>> = vec![None; entries.len()];
-    let failure: WorktreeCopyError = final_check(source.as_path(), stage.as_path(), entries.as_slice(), unstamped.as_slice()).expect_err("bytes differ");
-    assert_eq!(failure.0, "monochromatic-git-policy-cli: ignored source entry changed while copying: \"cache/file\".");
+    let failure: WorktreeCopyError = final_check(
+        source.as_path(),
+        stage.as_path(),
+        entries.as_slice(),
+        unstamped.as_slice(),
+    )
+    .expect_err("bytes differ");
+    assert_eq!(
+        failure.0,
+        "monochromatic-git-policy-cli: ignored source entry changed while copying: \"cache/file\"."
+    );
     remove(root.as_path());
 }
 
@@ -301,13 +359,38 @@ fn an_unchanged_stamp_stands_in_for_reading_the_bytes() {
 #[cfg(unix)]
 #[test]
 fn a_source_written_after_the_stamp_fails_the_final_check() {
-    let (root, source, stage, entries, stamp) = stamped_pair("compare-stamp-written", b"first", b"first");
-    let stamps: Vec<Option<FileStamp>> = entries.iter().map(|entry| return if entry.kind == EntryKind::File { Some(stamp) } else { None }).collect();
-    final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).expect("unchanged before the write");
+    let (root, source, stage, entries, stamp) =
+        stamped_pair("compare-stamp-written", b"first", b"first");
+    let stamps: Vec<Option<FileStamp>> = entries
+        .iter()
+        .map(|entry| {
+            return if entry.kind == EntryKind::File {
+                Some(stamp)
+            } else {
+                None
+            };
+        })
+        .collect();
+    final_check(
+        source.as_path(),
+        stage.as_path(),
+        entries.as_slice(),
+        stamps.as_slice(),
+    )
+    .expect("unchanged before the write");
     // Same size, so only the times can tell; the change time moves on every write.
     std::fs::write(source.join("cache/file"), b"other").expect("write");
-    let failure: WorktreeCopyError = final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).expect_err("written");
-    assert_eq!(failure.0, "monochromatic-git-policy-cli: ignored source entry changed while copying: \"cache/file\".");
+    let failure: WorktreeCopyError = final_check(
+        source.as_path(),
+        stage.as_path(),
+        entries.as_slice(),
+        stamps.as_slice(),
+    )
+    .expect_err("written");
+    assert_eq!(
+        failure.0,
+        "monochromatic-git-policy-cli: ignored source entry changed while copying: \"cache/file\"."
+    );
     remove(root.as_path());
 }
 
@@ -316,11 +399,30 @@ fn a_source_written_after_the_stamp_fails_the_final_check() {
 #[cfg(unix)]
 #[test]
 fn a_replaced_source_file_fails_the_final_check() {
-    let (root, source, stage, entries, stamp) = stamped_pair("compare-stamp-replaced", b"first", b"first");
-    let stamps: Vec<Option<FileStamp>> = entries.iter().map(|entry| return if entry.kind == EntryKind::File { Some(stamp) } else { None }).collect();
+    let (root, source, stage, entries, stamp) =
+        stamped_pair("compare-stamp-replaced", b"first", b"first");
+    let stamps: Vec<Option<FileStamp>> = entries
+        .iter()
+        .map(|entry| {
+            return if entry.kind == EntryKind::File {
+                Some(stamp)
+            } else {
+                None
+            };
+        })
+        .collect();
     std::fs::write(source.join("cache/replacement"), b"first").expect("replacement");
-    std::fs::rename(source.join("cache/replacement"), source.join("cache/file")).expect("rename over");
-    assert!(final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).is_err());
+    std::fs::rename(source.join("cache/replacement"), source.join("cache/file"))
+        .expect("rename over");
+    assert!(
+        final_check(
+            source.as_path(),
+            stage.as_path(),
+            entries.as_slice(),
+            stamps.as_slice()
+        )
+        .is_err()
+    );
     remove(root.as_path());
 }
 
@@ -329,7 +431,10 @@ fn a_replaced_source_file_fails_the_final_check() {
 /// a child that is refused every thread.
 #[test]
 fn the_final_check_where_no_thread_can_start_walks_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "the_final_check_where_no_thread_can_start_walks_in_turn") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "the_final_check_where_no_thread_can_start_walks_in_turn",
+    ) {
         return;
     }
     unchanged_source_passes_final_check();
@@ -349,10 +454,17 @@ fn the_final_check_where_no_thread_can_start_walks_in_turn() {
 #[cfg(unix)]
 fn make_pipe(path: &Path) {
     use std::os::unix::ffi::OsStrExt;
-    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path");
+    let name: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path");
     // SAFETY: `name` is a NUL-terminated string that outlives the call, and the call makes one new name at it.
     let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
-    assert_eq!(made, 0, "making the pipe at {}: {}", path.display(), std::io::Error::last_os_error());
+    assert_eq!(
+        made,
+        0,
+        "making the pipe at {}: {}",
+        path.display(),
+        std::io::Error::last_os_error()
+    );
 }
 
 /// What:
@@ -387,15 +499,25 @@ fn a_pipe_that_replaces_a_source_file_is_a_difference_not_a_wait() {
     let compared_source: PathBuf = source.clone();
     let compared_stage: PathBuf = stage.clone();
     let compared_entry: WorktreeCopyEntry = staged.clone();
-    let answered: Option<Result<bool, WorktreeCopyError>> = crate::parallel_test_support::finished_within_at(
-        crate::parallel_test_support::PATIENCE,
-        move || {
-            return entry_matches(compared_source.as_path(), compared_stage.as_path(), &compared_entry);
-        },
-    );
+    let answered: Option<Result<bool, WorktreeCopyError>> =
+        crate::parallel_test_support::finished_within_at(
+            crate::parallel_test_support::PATIENCE,
+            move || {
+                return entry_matches(
+                    compared_source.as_path(),
+                    compared_stage.as_path(),
+                    &compared_entry,
+                );
+            },
+        );
     let Some(compared) = answered else {
-        panic!("the comparison of the source's entry waited for a writer of the named pipe that replaced it and never came");
+        panic!(
+            "the comparison of the source's entry waited for a writer of the named pipe that replaced it and never came"
+        );
     };
-    assert!(!compared.expect("a pipe is a difference, not a failure"), "a pipe holds none of the staged bytes, so the entry differs");
+    assert!(
+        !compared.expect("a pipe is a difference, not a failure"),
+        "a pipe holds none of the staged bytes, so the entry differs"
+    );
     remove(root.as_path());
 }

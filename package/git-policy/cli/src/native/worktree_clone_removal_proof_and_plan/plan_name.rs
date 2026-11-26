@@ -57,7 +57,10 @@ fn is_dataset_component(component: &str) -> bool {
 /// const isDatasetName = (text) => text.split('/').every(isComponent);
 /// ```
 pub fn is_dataset_name(text: &str) -> bool {
-    if text.is_empty() || text.len() > crate::worktree_clone_removal_proof_and_plan::plan_bounds::ZFS_NAME_MAXIMUM_BYTES {
+    if text.is_empty()
+        || text.len()
+            > crate::worktree_clone_removal_proof_and_plan::plan_bounds::ZFS_NAME_MAXIMUM_BYTES
+    {
         return false;
     }
     return text.split('/').all(is_dataset_component);
@@ -90,7 +93,10 @@ pub fn is_snapshot_name(text: &str) -> bool {
 
 /// Whether a snapshot name belongs to the dataset a plan names,
 /// which is the only dataset its attempt lines record.
-pub fn is_a_snapshot_of(dataset: &str, snapshot_name: &str) -> bool {
+pub fn is_a_snapshot_of(
+    dataset: &str,
+    snapshot_name: &str,
+) -> bool {
     return match snapshot_name.split_once('@') {
         Some((owner, _)) => owner == dataset,
         None => false,

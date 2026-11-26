@@ -1,11 +1,21 @@
 //! Entry creation checks on real filesystem trees.
 
 use super::*;
-use crate::test_support::{fixture, remove};
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
 
 /// A manifest entry shorthand.
-fn entry(kind: EntryKind, mode: u32, relative_path: &[u8]) -> WorktreeCopyEntry {
+fn entry(
+    kind: EntryKind,
+    mode: u32,
+    relative_path: &[u8],
+) -> WorktreeCopyEntry {
     return WorktreeCopyEntry {
         kind,
         mode,
@@ -47,7 +57,10 @@ fn missing_parents_are_created_and_recorded() {
         .iter()
         .map(|installed| return (installed.relative_path.as_slice(), installed.selected))
         .collect();
-    assert_eq!(paths, vec![(b"a/b".as_slice(), false), (b"a/b/c".as_slice(), false)]);
+    assert_eq!(
+        paths,
+        vec![(b"a/b".as_slice(), false), (b"a/b/c".as_slice(), false)]
+    );
     assert!(root.join("a/b/c").is_dir());
     remove(root.as_path());
 }
@@ -191,16 +204,26 @@ fn a_linked_file_never_shows_a_wider_mode_than_its_source() {
     std::fs::create_dir_all(destination.as_path()).expect("destination");
     std::fs::write(stage.join("key.pem"), b"KEY=credential\n").expect("staged");
     // The staged copy was made with the process's umask, as a copy of a file is, and holds a credential.
-    std::fs::set_permissions(stage.join("key.pem"), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("umask mode");
+    std::fs::set_permissions(
+        stage.join("key.pem"),
+        std::os::unix::fs::PermissionsExt::from_mode(0o644),
+    )
+    .expect("umask mode");
     create_selected_entry(
         stage.as_path(),
         destination.as_path(),
         &entry(EntryKind::File, 0o600, b"key.pem"),
     )
     .expect("installed");
-    let staged: std::fs::Metadata = std::fs::symlink_metadata(stage.join("key.pem")).expect("staged");
-    let installed: std::fs::Metadata = std::fs::symlink_metadata(destination.join("key.pem")).expect("installed");
-    assert_eq!(staged.ino(), installed.ino(), "this control takes the link path");
+    let staged: std::fs::Metadata =
+        std::fs::symlink_metadata(stage.join("key.pem")).expect("staged");
+    let installed: std::fs::Metadata =
+        std::fs::symlink_metadata(destination.join("key.pem")).expect("installed");
+    assert_eq!(
+        staged.ino(),
+        installed.ino(),
+        "this control takes the link path"
+    );
     assert_eq!(
         installed.permissions().mode() & 0o777,
         0o600,
@@ -220,7 +243,10 @@ fn a_linked_file_never_shows_a_wider_mode_than_its_source() {
 fn a_copied_file_on_another_device_keeps_its_mode() {
     let shared_memory: &Path = Path::new("/dev/shm");
     let stage: PathBuf = fixture("install-entry-other-device-stage");
-    let on_other_device: bool = match (std::fs::metadata(shared_memory), std::fs::metadata(stage.as_path())) {
+    let on_other_device: bool = match (
+        std::fs::metadata(shared_memory),
+        std::fs::metadata(stage.as_path()),
+    ) {
         (Ok(inside), Ok(outside)) => {
             use std::os::unix::fs::MetadataExt as _;
             inside.dev() != outside.dev()
@@ -228,35 +254,52 @@ fn a_copied_file_on_another_device_keeps_its_mode() {
         _ => false,
     };
     if !on_other_device {
-        eprintln!("DEVICE CONTROL NOT RUN: /dev/shm is not a separate device here, so the copy fallback of the install had no destination on another device");
+        eprintln!(
+            "DEVICE CONTROL NOT RUN: /dev/shm is not a separate device here, so the copy fallback of the install had no destination on another device"
+        );
         remove(stage.as_path());
         return;
     }
-    let destination: PathBuf = shared_memory.join(format!("monochromatic-install-entry-{}", std::process::id()));
+    let destination: PathBuf = shared_memory.join(format!(
+        "monochromatic-install-entry-{}",
+        std::process::id()
+    ));
     let _ = std::fs::remove_dir_all(destination.as_path());
     std::fs::create_dir_all(destination.as_path()).expect("destination");
     std::fs::write(stage.join("key.pem"), b"KEY=credential\n").expect("staged");
-    std::fs::set_permissions(stage.join("key.pem"), std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("stage mode");
+    std::fs::set_permissions(
+        stage.join("key.pem"),
+        std::os::unix::fs::PermissionsExt::from_mode(0o600),
+    )
+    .expect("stage mode");
     create_selected_entry(
         stage.as_path(),
         destination.as_path(),
         &entry(EntryKind::File, 0o600, b"key.pem"),
     )
     .expect("copied");
-    let installed: std::fs::Metadata = std::fs::symlink_metadata(destination.join("key.pem")).expect("installed");
+    let installed: std::fs::Metadata =
+        std::fs::symlink_metadata(destination.join("key.pem")).expect("installed");
     assert_eq!(
         installed.permissions().mode() & 0o777,
         0o600,
         "a copied credential carries its source's mode"
     );
-    assert_eq!(std::fs::read(destination.join("key.pem")).expect("bytes"), b"KEY=credential\n");
+    assert_eq!(
+        std::fs::read(destination.join("key.pem")).expect("bytes"),
+        b"KEY=credential\n"
+    );
     let left: Vec<String> = std::fs::read_dir(destination.as_path())
         .expect("destination")
         .flatten()
         .map(|listed| return listed.file_name().to_string_lossy().into_owned())
         .filter(|name| return name.starts_with(".monochromatic-git-policy-cli-partial-"))
         .collect();
-    assert_eq!(left, Vec::<String>::new(), "no private name of the copy stays beside the entry");
+    assert_eq!(
+        left,
+        Vec::<String>::new(),
+        "no private name of the copy stays beside the entry"
+    );
     remove(stage.as_path());
     let _ = std::fs::remove_dir_all(destination.as_path());
 }

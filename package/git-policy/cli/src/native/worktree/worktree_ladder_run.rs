@@ -29,20 +29,54 @@
 //! const result = await ladder.finish(git, runGit);
 //! ```
 
-use crate::add_timing::{begin_step, end_step, note as note_timing};
-use crate::diagnostic_log::{debug, warn};
+use crate::add_timing::{
+    begin_step,
+    end_step,
+    note as note_timing,
+};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::fs_btrfs_ioctl::subvolume_destroy_at;
 use crate::transaction_git::GitContext;
-use crate::worktree_copy::{GitStatus, GitStep};
-use crate::worktree_subvolume::{CreatedSubvolume, prepare_subvolume_destination};
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add};
-use crate::worktree_identity::WorktreeIdentity;
-use crate::worktree_slow_route::{SlowRoute, explain_cheap_refusal, explain_decline, explain_refusal, explain_unsupported};
-use crate::worktree_snapshot_source::{SnapshotSource, clone_refusal, snapshot_blocker, snapshot_refusal, source_or_dirty};
 use crate::worktree_clone_conversion_beside_the_clone::CloneFence;
-use crate::worktree_clone_conversion_fence::{AttributeFence, Fence};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_conversion_fence::{
+    AttributeFence,
+    Fence,
+};
+use crate::worktree_copy::{
+    GitStatus,
+    GitStep,
+};
+use crate::worktree_copy_stage_claim::{
+    StageClaim,
+    claim_stage_for_add,
+};
+use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_slow_route::{
+    SlowRoute,
+    explain_cheap_refusal,
+    explain_decline,
+    explain_refusal,
+    explain_unsupported,
+};
+use crate::worktree_snapshot_source::{
+    SnapshotSource,
+    clone_refusal,
+    snapshot_blocker,
+    snapshot_refusal,
+    source_or_dirty,
+};
+use crate::worktree_subvolume::{
+    CreatedSubvolume,
+    prepare_subvolume_destination,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeLadder";
@@ -80,7 +114,13 @@ pub(crate) enum Rung {
     /// The index entries the limits already read are shared with the copies,
     /// so neither parses the index twice,
     /// and nothing there is an index the rung reads again.
-    Clone(Box<SnapshotSource>, Option<CreatedSubvolume>, StageClaim, CloneFence, Option<Vec<crate::worktree_clean::StatEntry>>),
+    Clone(
+        Box<SnapshotSource>,
+        Option<CreatedSubvolume>,
+        StageClaim,
+        CloneFence,
+        Option<Vec<crate::worktree_clean::StatEntry>>,
+    ),
     /// A snapshot of the source,
     /// Git running without a checkout first,
     ///  with the conversion fence decided before the snapshot.
@@ -111,7 +151,8 @@ pub struct Ladder {
     /// Why:
     ///  It is this add's own value and never a process-wide slot,
     ///  so no other command and no other record can carry its answer or its failure.
-    pub(crate) sizes_beside: Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>,
+    pub(crate) sizes_beside:
+        Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>,
 }
 
 /// What:
@@ -173,7 +214,12 @@ pub struct LadderResult {
 /// ```ts
 /// debug(`${plan.destination}: Git checks the worktree out (${reason}; snapshot: ${snapshotRefusal}; clone: ${cloneRefusal})`)
 /// ```
-fn log_git_checkout(plan: &AddPlan, reason: &str, snapshot_refusal: &Option<String>, clone_refusal: &Option<String>) {
+fn log_git_checkout(
+    plan: &AddPlan,
+    reason: &str,
+    snapshot_refusal: &Option<String>,
+    clone_refusal: &Option<String>,
+) {
     debug(TAG, format!("{}: Git checks the worktree out ({reason}; snapshot: {snapshot_refusal:?}; clone: {clone_refusal:?})", plan.destination.display()).as_str());
 }
 
@@ -206,7 +252,9 @@ fn identity_of_stage_name(stage: &Path) -> Option<crate::fs_beneath::ObjectId> {
 /// ```ts
 /// const abandon = (started) => started?.abandon();
 /// ```
-fn abandon_the_read_beside_the_check(sizes_beside: &mut Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>) {
+fn abandon_the_read_beside_the_check(
+    sizes_beside: &mut Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>
+) {
     let abandon_entered: bool = begin_step("abandonRead");
     let abandoned = sizes_beside.take();
     if let Some(read) = abandoned {
@@ -240,7 +288,13 @@ fn abandon_the_read_beside_the_check(sizes_beside: &mut Option<crate::worktree_c
 /// ```ts
 /// function chooseRung(plan: AddPlan, context: GitContext, identity: WorktreeIdentity): { rung: Rung; slow?: SlowRoute };
 /// ```
-fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity, held: &mut Option<StageClaim>, sizes_beside: &mut Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>) -> (Rung, Option<SlowRoute>) {
+fn choose_rung(
+    plan: &AddPlan,
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+    held: &mut Option<StageClaim>,
+    sizes_beside: &mut Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>,
+) -> (Rung, Option<SlowRoute>) {
     let refusals_entered: bool = begin_step("refusals");
     let snapshot_refusal: Option<String> = snapshot_refusal(identity, plan);
     end_step(refusals_entered);
@@ -253,7 +307,12 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         None => None,
     };
     if snapshot_refusal.is_some() && clone_refusal.is_some() {
-        log_git_checkout(plan, "neither a snapshot nor clones apply", &snapshot_refusal, &clone_refusal);
+        log_git_checkout(
+            plan,
+            "neither a snapshot nor clones apply",
+            &snapshot_refusal,
+            &clone_refusal,
+        );
         return (Rung::Git(prepare_subvolume_destination(plan)), cheap);
     }
     // What:
@@ -273,7 +332,8 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     // ```
     if snapshot_refusal.is_none() {
         let start_entered: bool = begin_step("startBesideTheCheck");
-        *sizes_beside = crate::worktree_clone_conversion_size_read::start_beside_the_check(context, identity);
+        *sizes_beside =
+            crate::worktree_clone_conversion_size_read::start_beside_the_check(context, identity);
         end_step(start_entered);
     }
     let check_source_entered: bool = begin_step("checkSource");
@@ -283,7 +343,12 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         Ok(found) => found,
         Err(refusal) => {
             abandon_the_read_beside_the_check(sizes_beside);
-            log_git_checkout(plan, refusal.reason.as_str(), &snapshot_refusal, &clone_refusal);
+            log_git_checkout(
+                plan,
+                refusal.reason.as_str(),
+                &snapshot_refusal,
+                &clone_refusal,
+            );
             // The explanation is made only when no cheap one was found, as `or_else` did.
             let slow: Option<SlowRoute> = match cheap {
                 Some(structural) => Some(structural),
@@ -343,40 +408,70 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
                 // ```
                 let skip_entered: bool = begin_step("targetTreeDifference");
                 let skip: Option<String> = match source.dirty.is_none() {
-                    true => crate::worktree_ladder_target_tree_skip::skip_reason_for_the_target_tree(&source, context, plan, !fence.git_writes.is_empty(), &|changed: &[Vec<u8>]| {
-                        return crate::worktree_clone_conversion_fence::first_written_change(&fence, changed);
-                    }),
+                    true => {
+                        crate::worktree_ladder_target_tree_skip::skip_reason_for_the_target_tree(
+                            &source,
+                            context,
+                            plan,
+                            !fence.git_writes.is_empty(),
+                            &|changed: &[Vec<u8>]| {
+                                return crate::worktree_clone_conversion_fence::first_written_change(&fence, changed);
+                            },
+                        )
+                    }
                     false => None,
                 };
                 end_step(skip_entered);
                 if let Some(reason) = skip {
                     abandon_the_read_beside_the_check(sizes_beside);
                     log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
-                    return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+                    return (
+                        Rung::Git(prepare_subvolume_destination(plan)),
+                        Some(explain_decline(reason.as_str())),
+                    );
                 }
                 // A claim the caller recorded before Git names this add's stage already, so the rung reuses it.
                 let claim_stage_entered: bool = begin_step("claimStage");
                 let claim_stage_outcome = match held.take() {
                     Some(recorded) => Ok(recorded),
-                    None => claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()),
+                    None => {
+                        claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path())
+                    }
                 };
                 end_step(claim_stage_entered);
                 match claim_stage_outcome {
                     Ok(claim) => return (Rung::Snapshot(Box::new(source), claim, fence), None),
                     Err(error) => {
-                        debug(TAG, format!("the stage cannot be claimed ({}); no snapshot", error.0).as_str());
-                        slow = Some(explain_unsupported(format!("the add could not be recorded durably ({})", error.0).as_str()));
+                        debug(
+                            TAG,
+                            format!("the stage cannot be claimed ({}); no snapshot", error.0)
+                                .as_str(),
+                        );
+                        slow = Some(explain_unsupported(
+                            format!("the add could not be recorded durably ({})", error.0).as_str(),
+                        ));
                     }
                 }
             }
             Err(reason) => {
                 abandon_the_read_beside_the_check(sizes_beside);
                 log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
-                return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+                return (
+                    Rung::Git(prepare_subvolume_destination(plan)),
+                    Some(explain_decline(reason.as_str())),
+                );
             }
         }
     } else {
-        debug(TAG, format!("no snapshot for {} ({:?})", plan.destination.display(), snapshot_blocked).as_str());
+        debug(
+            TAG,
+            format!(
+                "no snapshot for {} ({:?})",
+                plan.destination.display(),
+                snapshot_blocked
+            )
+            .as_str(),
+        );
     }
     // Clones copy the tracked files of a source the checks proved: every path of a clean source, and of a source with
     //  uncommitted changes every path the proof still settles, with Git writing the rest (the partial clone rung).
@@ -404,14 +499,18 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         // const attributes = fenceTheAttributes(source, context); // throws the reason the rung cannot be proven
         // ```
         let conversion_fence_entered: bool = begin_step("conversionFence");
-        let attributes_outcome: Result<AttributeFence, String> = crate::worktree_clone_conversion_fence::fence_the_attributes(&source, context);
+        let attributes_outcome: Result<AttributeFence, String> =
+            crate::worktree_clone_conversion_fence::fence_the_attributes(&source, context);
         end_step(conversion_fence_entered);
         let attributes: AttributeFence = match attributes_outcome {
             Ok(read) => read,
             Err(reason) => {
                 abandon_the_read_beside_the_check(sizes_beside);
                 log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
-                return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+                return (
+                    Rung::Git(prepare_subvolume_destination(plan)),
+                    Some(explain_decline(reason.as_str())),
+                );
             }
         };
         // What:
@@ -437,12 +536,22 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         // if (limit) return { rung: git, slow: explainDecline(limit) };
         // ```
         let entries_entered: bool = begin_step("trackedEntries");
-        let entries: Option<Vec<crate::worktree_clean::StatEntry>> = crate::worktree_clone_rung_limits::tracked_entries(&source);
+        let entries: Option<Vec<crate::worktree_clean::StatEntry>> =
+            crate::worktree_clone_rung_limits::tracked_entries(&source);
         end_step(entries_entered);
-        let limit: Option<String> = entries.as_deref().and_then(|read| { return crate::worktree_clone_rung_limits::decline_before_cloning(&source, read, attributes.bytes_the_clones_carry()); });
+        let limit: Option<String> = entries.as_deref().and_then(|read| {
+            return crate::worktree_clone_rung_limits::decline_before_cloning(
+                &source,
+                read,
+                attributes.bytes_the_clones_carry(),
+            );
+        });
         if let Some(reason) = limit {
             log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
-            return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+            return (
+                Rung::Git(prepare_subvolume_destination(plan)),
+                Some(explain_decline(reason.as_str())),
+            );
         }
         // What:
         //  The fence's remaining shape is chosen here,
@@ -455,13 +564,19 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         // ```ts
         // const fence = theFenceOfThisBuild(source, context, attributes); // throws the reason the rung cannot be proven
         // ```
-        let fence_outcome: Result<CloneFence, String> = crate::worktree_clone_conversion_beside_the_clone::the_fence_of_this_build(&source, context, attributes);
+        let fence_outcome: Result<CloneFence, String> =
+            crate::worktree_clone_conversion_beside_the_clone::the_fence_of_this_build(
+                &source, context, attributes,
+            );
         let fence: CloneFence = match fence_outcome {
             Ok(chosen) => chosen,
             Err(reason) => {
                 abandon_the_read_beside_the_check(sizes_beside);
                 log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
-                return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+                return (
+                    Rung::Git(prepare_subvolume_destination(plan)),
+                    Some(explain_decline(reason.as_str())),
+                );
             }
         };
         // What:
@@ -487,18 +602,32 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
             CloneFence::BeforeTheClone(decided) => !decided.git_writes.is_empty(),
         };
         let skip_entered: bool = begin_step("targetTreeDifference");
-        let skip: Option<String> = crate::worktree_ladder_target_tree_skip::skip_reason_for_the_target_tree(&source, context, plan, a_changed_path_could_matter, &|changed: &[Vec<u8>]| {
-            return match &fence {
-                CloneFence::Beside(read) => read.first_change_it_cannot_serve(changed),
-                #[cfg(feature = "measurement-routes")]
-                CloneFence::BeforeTheClone(decided) => crate::worktree_clone_conversion_fence::first_written_change(decided, changed),
-            };
-        });
+        let skip: Option<String> =
+            crate::worktree_ladder_target_tree_skip::skip_reason_for_the_target_tree(
+                &source,
+                context,
+                plan,
+                a_changed_path_could_matter,
+                &|changed: &[Vec<u8>]| {
+                    return match &fence {
+                        CloneFence::Beside(read) => read.first_change_it_cannot_serve(changed),
+                        #[cfg(feature = "measurement-routes")]
+                        CloneFence::BeforeTheClone(decided) => {
+                            crate::worktree_clone_conversion_fence::first_written_change(
+                                decided, changed,
+                            )
+                        }
+                    };
+                },
+            );
         end_step(skip_entered);
         if let Some(reason) = skip {
             abandon_the_read_beside_the_check(sizes_beside);
             log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
-            return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+            return (
+                Rung::Git(prepare_subvolume_destination(plan)),
+                Some(explain_decline(reason.as_str())),
+            );
         }
         // The record comes first: without it a killed add could not be removed, so the rung is not tried.
         let claim_stage_again_entered: bool = begin_step("claimStage");
@@ -508,8 +637,22 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         };
         end_step(claim_stage_again_entered);
         match claim_stage_again_outcome {
-            Ok(claim) => return (Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim, fence, entries), slow),
-            Err(error) => debug(TAG, format!("the add cannot be recorded ({}); no clones", error.0).as_str()),
+            Ok(claim) => {
+                return (
+                    Rung::Clone(
+                        Box::new(source),
+                        prepare_subvolume_destination(plan),
+                        claim,
+                        fence,
+                        entries,
+                    ),
+                    slow,
+                );
+            }
+            Err(error) => debug(
+                TAG,
+                format!("the add cannot be recorded ({}); no clones", error.0).as_str(),
+            ),
         }
     }
     abandon_the_read_beside_the_check(sizes_beside);
@@ -540,24 +683,56 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
 /// ```ts
 /// function beginLadder(plan: AddPlan | undefined, held: StageClaim | undefined, context: GitContext, identity: WorktreeIdentity): Ladder;
 /// ```
-pub fn begin_ladder_holding(plan: Option<&AddPlan>, held: &mut Option<StageClaim>, context: &GitContext, identity: &WorktreeIdentity) -> Ladder {
-    let Some(planned) = plan else { return Ladder { plan: None, rung: Rung::Git(None), slow: None, sizes_beside: None } };
+pub fn begin_ladder_holding(
+    plan: Option<&AddPlan>,
+    held: &mut Option<StageClaim>,
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+) -> Ladder {
+    let Some(planned) = plan else {
+        return Ladder {
+            plan: None,
+            rung: Rung::Git(None),
+            slow: None,
+            sizes_beside: None,
+        };
+    };
     let began: std::time::Instant = std::time::Instant::now();
-    let mut sizes_beside: Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck> = None;
+    let mut sizes_beside: Option<
+        crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck,
+    > = None;
     let (rung, slow) = choose_rung(planned, context, identity, held, &mut sizes_beside);
     let chosen: &str = match &rung {
         Rung::Git(_) => "Git's checkout",
         Rung::Clone(source, ..) if source.dirty.is_some() => "a partial clone",
         Rung::Clone(..) => "clones",
-        Rung::Snapshot(source, _claim, _fence) if source.dirty.is_some() => "a snapshot with a restore",
+        Rung::Snapshot(source, _claim, _fence) if source.dirty.is_some() => {
+            "a snapshot with a restore"
+        }
         Rung::Snapshot(..) => "a snapshot",
     };
-    debug(TAG, format!("{}: {chosen} chosen in {} ms", planned.destination.display(), began.elapsed().as_millis()).as_str());
+    debug(
+        TAG,
+        format!(
+            "{}: {chosen} chosen in {} ms",
+            planned.destination.display(),
+            began.elapsed().as_millis()
+        )
+        .as_str(),
+    );
     note_timing("route", chosen);
     if let Some(route) = slow.as_ref() {
-        note_timing("slowRoute", format!("{}: {}", route.word(), route.detail()).as_str());
+        note_timing(
+            "slowRoute",
+            format!("{}: {}", route.word(), route.detail()).as_str(),
+        );
     }
-    return Ladder { plan: Some(planned.clone()), rung, slow, sizes_beside };
+    return Ladder {
+        plan: Some(planned.clone()),
+        rung,
+        slow,
+        sizes_beside,
+    };
 }
 
 /// What:
@@ -570,7 +745,11 @@ pub fn begin_ladder_holding(plan: Option<&AddPlan>, held: &mut Option<StageClaim
 /// ```ts
 /// function beginLadder(plan: AddPlan | undefined, context: GitContext, identity: WorktreeIdentity): Ladder;
 /// ```
-pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &WorktreeIdentity) -> Ladder {
+pub fn begin_ladder(
+    plan: Option<&AddPlan>,
+    context: &GitContext,
+    identity: &WorktreeIdentity,
+) -> Ladder {
     let mut held: Option<StageClaim> = None;
     return begin_ladder_holding(plan, &mut held, context, identity);
 }
@@ -616,9 +795,19 @@ fn path_text(path: &Path) -> String {
 /// ```ts
 /// await discardStage(stage, made);
 /// ```
-pub(crate) fn discard_stage(stage: &Path, made: Option<crate::fs_beneath::ObjectId>) {
+pub(crate) fn discard_stage(
+    stage: &Path,
+    made: Option<crate::fs_beneath::ObjectId>,
+) {
     let Some(expected) = made else {
-        warn(TAG, format!("the stage {} was not identified and is left in place", stage.display()).as_str());
+        warn(
+            TAG,
+            format!(
+                "the stage {} was not identified and is left in place",
+                stage.display()
+            )
+            .as_str(),
+        );
         return;
     };
     let current = identity_of_stage_name(stage);
@@ -626,7 +815,14 @@ pub(crate) fn discard_stage(stage: &Path, made: Option<crate::fs_beneath::Object
         return;
     }
     if current != Some(expected) {
-        warn(TAG, format!("the stage {} is not the directory this add made and is left in place", stage.display()).as_str());
+        warn(
+            TAG,
+            format!(
+                "the stage {} is not the directory this add made and is left in place",
+                stage.display()
+            )
+            .as_str(),
+        );
         return;
     }
     let kept: Vec<PathBuf> = crate::worktree_kept_folders::kept_folders(stage);
@@ -647,7 +843,14 @@ pub(crate) fn discard_stage(stage: &Path, made: Option<crate::fs_beneath::Object
         return;
     }
     if let Err(error) = crate::subvolume_remove::remove_tree(stage) {
-        warn(TAG, format!("the stage {} could not be removed ({error}); it stays for the person to remove", stage.display()).as_str());
+        warn(
+            TAG,
+            format!(
+                "the stage {} could not be removed ({error}); it stays for the person to remove",
+                stage.display()
+            )
+            .as_str(),
+        );
     }
 }
 
@@ -687,7 +890,9 @@ impl Ladder {
     /// ```
     pub fn first_step(&self) -> GitStep<'static> {
         return match (&self.rung, &self.plan) {
-            (Rung::Snapshot(..) | Rung::Clone(..), Some(plan)) => GitStep::WithoutCheckout(plan.insert_at),
+            (Rung::Snapshot(..) | Rung::Clone(..), Some(plan)) => {
+                GitStep::WithoutCheckout(plan.insert_at)
+            }
             _ => GitStep::Person,
         };
     }

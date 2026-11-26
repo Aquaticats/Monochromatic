@@ -14,9 +14,16 @@
 //! await emptyAndRemove(parent, 'logs', 'HEAD'); await removeOneBelow(parent, name);
 //! ```
 
-use super::registration_recipe::{RecipeRefusal, ToClear};
+use super::registration_recipe::{
+    RecipeRefusal,
+    ToClear,
+};
 use crate::entries_of_one_open_folder::entry_names;
-use crate::fs_beneath::{entry_metadata_at, open_directory_at, remove_at};
+use crate::fs_beneath::{
+    entry_metadata_at,
+    open_directory_at,
+    remove_at,
+};
 use std::ffi::OsStr;
 use std::io::Read as _;
 use std::path::Path;
@@ -31,37 +38,61 @@ pub(super) fn done_if_missing(result: std::io::Result<()>) -> std::io::Result<()
 }
 
 /// Whether the bytes of a slot's `.git` name `registration`.
-pub(super) fn pointer_names(bytes: &[u8], registration: &Path) -> bool {
-    let text: String = String::from_utf8_lossy(bytes).trim_end_matches('\n').to_string();
-    let Some(target) = text.strip_prefix("gitdir: ") else { return false };
+pub(super) fn pointer_names(
+    bytes: &[u8],
+    registration: &Path,
+) -> bool {
+    let text: String = String::from_utf8_lossy(bytes)
+        .trim_end_matches('\n')
+        .to_string();
+    let Some(target) = text.strip_prefix("gitdir: ") else {
+        return false;
+    };
     return Path::new(target) == registration;
 }
 
 /// The slot's pointer,
 /// removed only when its bytes name this registration.
 pub(super) fn remove_the_slot_pointer(to: &ToClear) -> Result<(), RecipeRefusal> {
-    let Some(slot_name) = to.slot.file_name() else { return Ok(()) };
+    let Some(slot_name) = to.slot.file_name() else {
+        return Ok(());
+    };
     let slot: std::fs::File = match open_directory_at(to.slot_parent, slot_name) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(RecipeRefusal::Io(error)),
     };
-    let mut pointer: std::fs::File = match crate::entries_of_one_open_folder::open_entry_for_reading(&slot, OsStr::new(".git")) {
+    let mut pointer: std::fs::File = match crate::entries_of_one_open_folder::open_entry_for_reading(
+        &slot,
+        OsStr::new(".git"),
+    ) {
         Ok(opened) => opened,
         Err(crate::private_storage::ReadRefusal::Missing) => return Ok(()),
-        Err(refusal) => return Err(RecipeRefusal::Io(std::io::Error::other(format!("the slot's `.git` could not be read ({refusal:?})")))),
+        Err(refusal) => {
+            return Err(RecipeRefusal::Io(std::io::Error::other(format!(
+                "the slot's `.git` could not be read ({refusal:?})"
+            ))));
+        }
     };
     let mut bytes: Vec<u8> = Vec::new();
     pointer.read_to_end(&mut bytes).map_err(RecipeRefusal::Io)?;
     if !pointer_names(&bytes, to.registration) {
-        return Err(RecipeRefusal::PointerNamesAnother { found: String::from_utf8_lossy(&bytes).trim_end_matches('\n').to_string() });
+        return Err(RecipeRefusal::PointerNamesAnother {
+            found: String::from_utf8_lossy(&bytes)
+                .trim_end_matches('\n')
+                .to_string(),
+        });
     }
     return done_if_missing(remove_at(&slot, OsStr::new(".git"), false)).map_err(RecipeRefusal::Io);
 }
 
 /// Remove one directory's whole contents below a descriptor,
 /// then the directory itself.
-pub(super) fn empty_and_remove(parent: &std::fs::File, name: &OsStr, first: Option<&OsStr>) -> std::io::Result<()> {
+pub(super) fn empty_and_remove(
+    parent: &std::fs::File,
+    name: &OsStr,
+    first: Option<&OsStr>,
+) -> std::io::Result<()> {
     let folder: std::fs::File = match open_directory_at(parent, name) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -78,7 +109,10 @@ pub(super) fn empty_and_remove(parent: &std::fs::File, name: &OsStr, first: Opti
 
 /// Remove one entry below a descriptor,
 /// a directory's whole tree when it is one.
-pub(super) fn remove_one_below(folder: &std::fs::File, name: &OsStr) -> std::io::Result<()> {
+pub(super) fn remove_one_below(
+    folder: &std::fs::File,
+    name: &OsStr,
+) -> std::io::Result<()> {
     let metadata: std::fs::Metadata = match entry_metadata_at(folder, name) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),

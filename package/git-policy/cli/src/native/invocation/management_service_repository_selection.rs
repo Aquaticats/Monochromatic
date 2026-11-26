@@ -17,7 +17,10 @@
 use crate::git_system_config::with_real_git;
 /// One pathname from the bytes Git printed for it,
 ///  and one answer without its terminating line feed.
-use crate::hooks_path_values::{path_answer, without_the_terminator};
+use crate::hooks_path_values::{
+    path_answer,
+    without_the_terminator,
+};
 use crate::repo_read_layout::read_layout_after_success_for;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
@@ -31,7 +34,10 @@ use crate::repo_read_layout::read_layout_after_success_for;
 /// ```
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  The global options of an invocation that choose the directory it runs in (`-C <path>`,
 /// in order),
@@ -100,7 +106,11 @@ pub(crate) enum Selection {
 /// ```ts
 /// function statusGitDir(globalArguments, environment, realGit): string | undefined;
 /// ```
-pub(crate) fn status_git_dir(global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Selection {
+pub(crate) fn status_git_dir(
+    global_arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+    real_git: Option<&Path>,
+) -> Selection {
     // The real Git is added to the environment only when one was found.
     let named: Vec<(OsString, OsString)> = match real_git {
         Some(found) => with_real_git(environment, found),
@@ -115,7 +125,11 @@ pub(crate) fn status_git_dir(global_arguments: &[OsString], environment: &[(OsSt
         return Selection::Unresolved(String::from("no real Git was found to ask"));
     };
     let mut asking = std::process::Command::new(real);
-    asking.args(global_arguments).args(["rev-parse", "--path-format=absolute", "--absolute-git-dir"]);
+    asking.args(global_arguments).args([
+        "rev-parse",
+        "--path-format=absolute",
+        "--absolute-git-dir",
+    ]);
     // One `env` call per entry, in order, as `envs` made; `LC_ALL` is set after them so it wins.
     for (name, value) in environment {
         asking.env(name, value);
@@ -123,8 +137,14 @@ pub(crate) fn status_git_dir(global_arguments: &[OsString], environment: &[(OsSt
     asking.env("LC_ALL", "C").stdin(std::process::Stdio::null());
     // This start of the real Git says so too, like every other (`started_as_git.rs`), and it is a start of the wrapper's own
     //  reading: nothing of the person's runs under it.
-    crate::started_as_git::mark_real_git_start(&mut asking, crate::started_as_git::StartMode::Query);
-    let asked = crate::captured_child_run_to_its_end::output_of_within_bound(&mut asking, crate::wait_ceilings::PLUMBING_STEP_CEILING);
+    crate::started_as_git::mark_real_git_start(
+        &mut asking,
+        crate::started_as_git::StartMode::Query,
+    );
+    let asked = crate::captured_child_run_to_its_end::output_of_within_bound(
+        &mut asking,
+        crate::wait_ceilings::PLUMBING_STEP_CEILING,
+    );
     let output = match asked {
         Ok(found) => found,
         Err(error) => return Selection::Unresolved(format!("Git could not be started: {error}")),
@@ -138,8 +158,12 @@ pub(crate) fn status_git_dir(global_arguments: &[OsString], environment: &[(OsSt
     if output.status.success() && !said.is_empty() {
         return Selection::Found(path_answer(said));
     }
-    let complaint: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned();
-    if output.status.code() == Some(NOT_A_REPOSITORY_EXIT_CODE) && complaint.contains("not a git repository") {
+    let complaint: String = String::from_utf8_lossy(output.stderr.as_slice())
+        .trim()
+        .to_owned();
+    if output.status.code() == Some(NOT_A_REPOSITORY_EXIT_CODE)
+        && complaint.contains("not a git repository")
+    {
         return Selection::Outside;
     }
     return Selection::Unresolved(format!("Git said: {complaint}"));

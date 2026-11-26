@@ -40,19 +40,52 @@
 //! const layout: RepoLayout | undefined = readLayout({ globalPrefix, overlay }); // undefined: ask Git
 //! ```
 
-use crate::private_storage::read_regular_file;
-use crate::repo_read_hook::enabled;
-use crate::repo_read_config_scan::{ScopeEnvironment, discovery_key, entries_avoid_keys, outer_scopes_avoid_keys, read_following};
-use crate::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, last_entry, parse_bool, parse_config_text};
-use crate::repo_read_config_typed::{entries_are_accepted, environment_is_accepted, outer_scopes_are_accepted};
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-pub use crate::repo_read_layout_environment_rules::{WRAPPER_ENVIRONMENT_PREFIX, env_config_avoids};
-pub(crate) use crate::repo_read_layout_environment_rules::{effective_environment, environment_is_plain};
-pub(crate) use crate::repo_read_layout_disk_and_directory_facts::start_directory;
-use crate::repo_read_layout_disk_and_directory_facts::{device_of, has_git_directory_entries, has_git_directory_entries_split, is_hex_byte, owned_by_current_user, small_file, small_file_bytes};
 /// A pathname from the bytes a `gitdir:` line holds.
 use crate::hooks_path_values::path_answer;
+use crate::private_storage::read_regular_file;
+use crate::repo_read_config_scan::{
+    ScopeEnvironment,
+    discovery_key,
+    entries_avoid_keys,
+    outer_scopes_avoid_keys,
+    read_following,
+};
+use crate::repo_read_config_text::{
+    CONFIG_TEXT_LIMIT,
+    ConfigEntry,
+    last_entry,
+    parse_bool,
+    parse_config_text,
+};
+use crate::repo_read_config_typed::{
+    entries_are_accepted,
+    environment_is_accepted,
+    outer_scopes_are_accepted,
+};
+use crate::repo_read_hook::enabled;
+pub(crate) use crate::repo_read_layout_disk_and_directory_facts::start_directory;
+use crate::repo_read_layout_disk_and_directory_facts::{
+    device_of,
+    has_git_directory_entries,
+    has_git_directory_entries_split,
+    is_hex_byte,
+    owned_by_current_user,
+    small_file,
+    small_file_bytes,
+};
+pub use crate::repo_read_layout_environment_rules::{
+    WRAPPER_ENVIRONMENT_PREFIX,
+    env_config_avoids,
+};
+pub(crate) use crate::repo_read_layout_environment_rules::{
+    effective_environment,
+    environment_is_plain,
+};
+use std::ffi::OsString;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The per-worktree configuration file in a worktree's own Git directory.
 const WORKTREE_CONFIG_NAME: &str = "config.worktree";
@@ -114,7 +147,10 @@ pub struct RepoLayout {
 }
 
 /// Whether the `HEAD` text is one of the two spellings Git accepts that this reader knows.
-fn head_is_valid(text: &str, format: ObjectFormat) -> bool {
+fn head_is_valid(
+    text: &str,
+    format: ObjectFormat,
+) -> bool {
     let Some(line) = text.strip_suffix('\n') else {
         return false;
     };
@@ -237,7 +273,10 @@ fn format_of(entries: &[ConfigEntry]) -> Option<(ObjectFormat, bool)> {
 /// ```ts
 /// const entries = enabled ? parse(await readIfExists(join(gitDir, 'config.worktree'))) : []; // undefined: ask Git
 /// ```
-fn worktree_entries(git_dir: &Path, enabled: bool) -> Option<Vec<ConfigEntry>> {
+fn worktree_entries(
+    git_dir: &Path,
+    enabled: bool,
+) -> Option<Vec<ConfigEntry>> {
     if !enabled {
         return Some(Vec::new());
     }
@@ -297,7 +336,13 @@ fn without_bare(entries: &[ConfigEntry]) -> Vec<ConfigEntry> {
 /// ```ts
 /// function finish(start: string, worktree: string, gitDir: string, fromFile: boolean): RepoLayout | undefined;
 /// ```
-fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
+fn finish(
+    start: &Path,
+    worktree: &Path,
+    entry: (PathBuf, bool),
+    scope: &ScopeEnvironment,
+    typed: bool,
+) -> Option<RepoLayout> {
     let (target, from_file) = entry;
     let git_dir: PathBuf = std::fs::canonicalize(target).ok()?;
     let dot_git: PathBuf = worktree.join(".git");
@@ -307,19 +352,34 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
     if !owners_ok {
         return None;
     }
-    let common_dir: PathBuf = match crate::common_directory_of_a_git_directory::bytes_named(git_dir.as_path()) {
-        // Git strips every trailing carriage return and line feed here too (`get_common_dir_noenv` in `path.c`).
-        Ok(Some(bytes)) => std::fs::canonicalize(git_dir.join(String::from_utf8(bytes).ok()?.trim_end_matches(['\r', '\n']))).ok()?,
-        // No `commondir` file leaves the Git directory its own common directory.
-        Ok(None) => git_dir.clone(),
-        // The name holds something this command cannot read as a plain file, so nothing here decides what the repository is
-        //  and the caller asks Git.
-        Err(_refused) => return None,
-    };
-    if git_dir.join("reftable").exists() || common_dir.join("reftable").exists() || !has_git_directory_entries_split(&git_dir, &common_dir) {
+    let common_dir: PathBuf =
+        match crate::common_directory_of_a_git_directory::bytes_named(git_dir.as_path()) {
+            // Git strips every trailing carriage return and line feed here too (`get_common_dir_noenv` in `path.c`).
+            Ok(Some(bytes)) => std::fs::canonicalize(
+                git_dir.join(
+                    String::from_utf8(bytes)
+                        .ok()?
+                        .trim_end_matches(['\r', '\n']),
+                ),
+            )
+            .ok()?,
+            // No `commondir` file leaves the Git directory its own common directory.
+            Ok(None) => git_dir.clone(),
+            // The name holds something this command cannot read as a plain file, so nothing here decides what the repository is
+            //  and the caller asks Git.
+            Err(_refused) => return None,
+        };
+    if git_dir.join("reftable").exists()
+        || common_dir.join("reftable").exists()
+        || !has_git_directory_entries_split(&git_dir, &common_dir)
+    {
         return None;
     }
-    let config_bytes: Vec<u8> = read_regular_file(common_dir.join("config").as_path(), CONFIG_TEXT_LIMIT as u64).ok()?;
+    let config_bytes: Vec<u8> = read_regular_file(
+        common_dir.join("config").as_path(),
+        CONFIG_TEXT_LIMIT as u64,
+    )
+    .ok()?;
     let entries: Vec<ConfigEntry> = parse_config_text(config_bytes.as_slice())?;
     let (object_format, worktree_config): (ObjectFormat, bool) = format_of(entries.as_slice())?;
     let worktree_path: PathBuf = git_dir.join(WORKTREE_CONFIG_NAME);
@@ -327,9 +387,21 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
 
     // The repository's own file carries `bare = false` after `init`; that spelling is the plain layout. With the
     // per-worktree file on, the last `core.bare` of the two files decides, and a `true` there is a bare repository.
-    let [discoverable, worktree_discoverable] = without_false_bare([entries.as_slice(), per_worktree.as_slice()])?;
-    let local_ok: bool = entries_avoid_keys(discoverable.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0, &discovery_key)?
-        && entries_avoid_keys(worktree_discoverable.as_slice(), worktree_path.as_path(), scope.home.as_deref(), 0, &discovery_key)?;
+    let [discoverable, worktree_discoverable] =
+        without_false_bare([entries.as_slice(), per_worktree.as_slice()])?;
+    let local_ok: bool = entries_avoid_keys(
+        discoverable.as_slice(),
+        common_dir.join("config").as_path(),
+        scope.home.as_deref(),
+        0,
+        &discovery_key,
+    )? && entries_avoid_keys(
+        worktree_discoverable.as_slice(),
+        worktree_path.as_path(),
+        scope.home.as_deref(),
+        0,
+        &discovery_key,
+    )?;
     if !local_ok || !outer_scopes_avoid_keys(scope, &discovery_key)? {
         return None;
     }
@@ -338,9 +410,17 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
     // The callers that ask for no typed proof need the structure of the layout and no diagnostic about values:
     //  they do not rely on an earlier command having validated every value (see `read_layout_after_success`).
     let typed_ok: bool = !typed
-        || (entries_are_accepted(entries.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0)?
-            && entries_are_accepted(per_worktree.as_slice(), worktree_path.as_path(), scope.home.as_deref(), 0)?
-            && outer_scopes_are_accepted(scope)?);
+        || (entries_are_accepted(
+            entries.as_slice(),
+            common_dir.join("config").as_path(),
+            scope.home.as_deref(),
+            0,
+        )? && entries_are_accepted(
+            per_worktree.as_slice(),
+            worktree_path.as_path(),
+            scope.home.as_deref(),
+            0,
+        )? && outer_scopes_are_accepted(scope)?);
     if !typed_ok {
         return None;
     }
@@ -354,7 +434,13 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
         prefix.extend_from_slice(component.as_os_str().as_encoded_bytes());
         prefix.push(b'/');
     }
-    return Some(RepoLayout { git_dir, common_dir, worktree_root: worktree.to_path_buf(), prefix, object_format });
+    return Some(RepoLayout {
+        git_dir,
+        common_dir,
+        worktree_root: worktree.to_path_buf(),
+        prefix,
+        object_format,
+    });
 }
 
 /// What:
@@ -371,16 +457,24 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
 /// ```ts
 /// const layout = readLayout(globalPrefix, overlay); // undefined: ask Git
 /// ```
-pub fn read_layout(global_prefix: &[OsString], overlay: &[(OsString, OsString)]) -> Option<RepoLayout> {
+pub fn read_layout(
+    global_prefix: &[OsString],
+    overlay: &[(OsString, OsString)],
+) -> Option<RepoLayout> {
     if !enabled(overlay) {
         return None;
     }
     let variables: Vec<(OsString, OsString)> = effective_environment(overlay);
-    if !environment_is_plain(variables.as_slice()) || !environment_is_accepted(variables.as_slice()) {
+    if !environment_is_plain(variables.as_slice()) || !environment_is_accepted(variables.as_slice())
+    {
         return None;
     }
     let start: PathBuf = start_directory(global_prefix)?;
-    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()), true);
+    return walk_up(
+        start.as_path(),
+        &ScopeEnvironment::from_variables(variables.as_slice()),
+        true,
+    );
 }
 
 /// What:
@@ -393,7 +487,11 @@ pub fn read_layout(global_prefix: &[OsString], overlay: &[(OsString, OsString)])
 /// ```ts
 /// const layout = readLayoutWith(start, variables, scope); // undefined: ask Git
 /// ```
-pub fn read_layout_with(start: &Path, variables: &[(OsString, OsString)], scope: &ScopeEnvironment) -> Option<RepoLayout> {
+pub fn read_layout_with(
+    start: &Path,
+    variables: &[(OsString, OsString)],
+    scope: &ScopeEnvironment,
+) -> Option<RepoLayout> {
     if !environment_is_plain(variables) || !environment_is_accepted(variables) {
         return None;
     }
@@ -409,12 +507,19 @@ pub fn read_layout_with(start: &Path, variables: &[(OsString, OsString)], scope:
 /// ```ts
 /// const layout = readLayoutIn(directory, overlay); // undefined: ask Git
 /// ```
-pub fn read_layout_in(directory: &Path, overlay: &[(OsString, OsString)]) -> Option<RepoLayout> {
+pub fn read_layout_in(
+    directory: &Path,
+    overlay: &[(OsString, OsString)],
+) -> Option<RepoLayout> {
     if !enabled(overlay) {
         return None;
     }
     let variables: Vec<(OsString, OsString)> = effective_environment(overlay);
-    return read_layout_with(directory, variables.as_slice(), &ScopeEnvironment::from_variables(variables.as_slice()));
+    return read_layout_with(
+        directory,
+        variables.as_slice(),
+        &ScopeEnvironment::from_variables(variables.as_slice()),
+    );
 }
 
 /// What:
@@ -443,7 +548,10 @@ pub fn read_layout_in(directory: &Path, overlay: &[(OsString, OsString)]) -> Opt
 /// ```ts
 /// const layout = readLayoutAfterSuccess(directory, overlay); // undefined: the files are not a plain layout
 /// ```
-pub fn read_layout_after_success(directory: &Path, overlay: &[(OsString, OsString)]) -> Option<RepoLayout> {
+pub fn read_layout_after_success(
+    directory: &Path,
+    overlay: &[(OsString, OsString)],
+) -> Option<RepoLayout> {
     if !enabled(overlay) {
         return None;
     }
@@ -451,7 +559,11 @@ pub fn read_layout_after_success(directory: &Path, overlay: &[(OsString, OsStrin
     if !environment_is_plain(variables.as_slice()) {
         return None;
     }
-    return walk_up(std::fs::canonicalize(directory).ok()?.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()), false);
+    return walk_up(
+        std::fs::canonicalize(directory).ok()?.as_path(),
+        &ScopeEnvironment::from_variables(variables.as_slice()),
+        false,
+    );
 }
 
 /// What:
@@ -466,7 +578,11 @@ pub fn read_layout_after_success(directory: &Path, overlay: &[(OsString, OsStrin
 /// ```ts
 /// const layout = readLayoutAfterSuccessWith(start, variables, scope); // undefined: ask Git
 /// ```
-pub fn read_layout_after_success_with(start: &Path, variables: &[(OsString, OsString)], scope: &ScopeEnvironment) -> Option<RepoLayout> {
+pub fn read_layout_after_success_with(
+    start: &Path,
+    variables: &[(OsString, OsString)],
+    scope: &ScopeEnvironment,
+) -> Option<RepoLayout> {
     if !environment_is_plain(variables) {
         return None;
     }
@@ -489,7 +605,10 @@ pub fn read_layout_after_success_with(start: &Path, variables: &[(OsString, OsSt
 /// ```ts
 /// const layout = readLayoutAfterSuccessFor(globalPrefix, overlay); // undefined: the files are not a plain layout
 /// ```
-pub fn read_layout_after_success_for(global_prefix: &[OsString], overlay: &[(OsString, OsString)]) -> Option<RepoLayout> {
+pub fn read_layout_after_success_for(
+    global_prefix: &[OsString],
+    overlay: &[(OsString, OsString)],
+) -> Option<RepoLayout> {
     if !enabled(overlay) {
         return None;
     }
@@ -498,13 +617,21 @@ pub fn read_layout_after_success_for(global_prefix: &[OsString], overlay: &[(OsS
         return None;
     }
     let start: PathBuf = start_directory(global_prefix)?;
-    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()), false);
+    return walk_up(
+        start.as_path(),
+        &ScopeEnvironment::from_variables(variables.as_slice()),
+        false,
+    );
 }
 
 /// Walk from `start` to the root looking for the first `.git`,
 /// as Git does,
 /// and build the layout there.
-pub(crate) fn walk_up(start: &Path, scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
+pub(crate) fn walk_up(
+    start: &Path,
+    scope: &ScopeEnvironment,
+    typed: bool,
+) -> Option<RepoLayout> {
     let mut directory: PathBuf = start.to_path_buf();
     loop {
         if let Some(entry) = dot_git_target(directory.as_path())? {
@@ -532,7 +659,10 @@ pub(crate) fn walk_up(start: &Path, scope: &ScopeEnvironment, typed: bool) -> Op
 /// ```ts
 /// const gitPath = (layout, name) => layout.gitDir === layout.commonDir && KNOWN.has(name) ? join(layout.gitDir, name) : undefined;
 /// ```
-pub fn git_path(layout: &RepoLayout, name: &str) -> Option<PathBuf> {
+pub fn git_path(
+    layout: &RepoLayout,
+    name: &str,
+) -> Option<PathBuf> {
     const KNOWN: [&str; 9] = [
         "index",
         "objects",

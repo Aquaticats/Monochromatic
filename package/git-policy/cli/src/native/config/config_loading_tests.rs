@@ -10,7 +10,11 @@
 
 /// Import actual classification,
 ///  the private mutation list and native argument ownership.
-use super::{ConfigLoading, classify_config_loading, mutating_long};
+use super::{
+    ConfigLoading,
+    classify_config_loading,
+    mutating_long,
+};
 use std::ffi::OsString;
 
 /// Build one exact argv vector and classify it without side effects.
@@ -103,7 +107,10 @@ fn mutation_flags_and_positionals_never_become_false_inspection() {
 
 /// Run real Git only inside a newly created fixture,
 ///  with no global/system configuration.
-fn git(directory: &std::path::Path, arguments: &[&str]) -> std::process::Output {
+fn git(
+    directory: &std::path::Path,
+    arguments: &[&str],
+) -> std::process::Output {
     let output = std::process::Command::new("/usr/bin/git")
         .current_dir(directory)
         .env("GIT_CONFIG_NOSYSTEM", "1")

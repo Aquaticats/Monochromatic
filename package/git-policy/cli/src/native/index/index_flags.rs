@@ -102,13 +102,19 @@ struct Marks {
 }
 
 /// Big-endian 16-bit value at `at`.
-fn be16(bytes: &[u8], at: usize) -> Option<u16> {
+fn be16(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u16> {
     let pair: &[u8] = bytes.get(at..at.checked_add(2)?)?;
     return Some(u16::from_be_bytes([pair[0], pair[1]]));
 }
 
 /// Big-endian 32-bit value at `at`.
-fn be32(bytes: &[u8], at: usize) -> Option<u32> {
+fn be32(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u32> {
     let quad: &[u8] = bytes.get(at..at.checked_add(4)?)?;
     return Some(u32::from_be_bytes([quad[0], quad[1], quad[2], quad[3]]));
 }
@@ -125,14 +131,21 @@ fn be32(bytes: &[u8], at: usize) -> Option<u32> {
 /// ```ts
 /// compressedName(bytesAfterFlags, earlier) // [name, bytesUsed] | undefined
 /// ```
-fn compressed_name(bytes_after_flags: &[u8], earlier: &[u8]) -> Option<(Vec<u8>, usize)> {
+fn compressed_name(
+    bytes_after_flags: &[u8],
+    earlier: &[u8],
+) -> Option<(Vec<u8>, usize)> {
     let (strip_count, rest) = decode_varint(bytes_after_flags)?;
     let strip: usize = usize::try_from(strip_count).ok()?;
     let terminator: usize = first_index_of_byte(rest, 0)?;
     let kept: usize = earlier.len().checked_sub(strip)?;
     let mut name: Vec<u8> = earlier.get(..kept)?.to_vec();
     name.extend_from_slice(rest.get(..terminator)?);
-    let used: usize = bytes_after_flags.len().checked_sub(rest.len())?.checked_add(terminator)?.checked_add(1)?;
+    let used: usize = bytes_after_flags
+        .len()
+        .checked_sub(rest.len())?
+        .checked_add(terminator)?
+        .checked_add(1)?;
     return Some((name, used));
 }
 
@@ -147,7 +160,10 @@ fn compressed_name(bytes_after_flags: &[u8], earlier: &[u8]) -> Option<(Vec<u8>,
 /// ```ts
 /// scanEntries(bytes, nameLength) // marks, or undefined when the layout is not understood
 /// ```
-fn scan_entries(bytes: &[u8], name_length: usize) -> Option<Marks> {
+fn scan_entries(
+    bytes: &[u8],
+    name_length: usize,
+) -> Option<Marks> {
     let end: usize = bytes.len().checked_sub(name_length)?;
     if bytes.get(..4)? != b"DIRC" {
         return None;
@@ -157,12 +173,18 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<Marks> {
         return None;
     }
     let count: u32 = be32(bytes, 8)?;
-    let mut marks: Marks = Marks { hidden: false, intent_to_add: Vec::new() };
+    let mut marks: Marks = Marks {
+        hidden: false,
+        intent_to_add: Vec::new(),
+    };
     let mut at: usize = HEADER_LENGTH;
     // The name of the entry before, which a version 4 entry is written against.
     let mut earlier: Vec<u8> = Vec::new();
     for _entry in 0..count {
-        let flags: u16 = be16(bytes, at.checked_add(STAT_LENGTH)?.checked_add(name_length)?)?;
+        let flags: u16 = be16(
+            bytes,
+            at.checked_add(STAT_LENGTH)?.checked_add(name_length)?,
+        )?;
         // The bytes of the entry before its name: the stat fields, the object name, the 16-bit flags and, when it
         // carries them, the extended flags. The padding below is counted from the entry's own start, so every one of
         // those bytes is part of it.
@@ -184,7 +206,8 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<Marks> {
         let wants_name: bool = extended & INTENT_TO_ADD != 0;
         let name_start: usize = at.checked_add(head)?;
         if version == 4 {
-            let (name, used): (Vec<u8>, usize) = compressed_name(bytes.get(name_start..end)?, earlier.as_slice())?;
+            let (name, used): (Vec<u8>, usize) =
+                compressed_name(bytes.get(name_start..end)?, earlier.as_slice())?;
             at = name_start.checked_add(used)?;
             if wants_name {
                 marks.intent_to_add.push(name.clone());
@@ -193,7 +216,11 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<Marks> {
         } else {
             let terminator: usize = first_index_of_byte(bytes.get(name_start..end)?, 0)?;
             if wants_name {
-                marks.intent_to_add.push(bytes.get(name_start..name_start.checked_add(terminator)?)?.to_vec());
+                marks.intent_to_add.push(
+                    bytes
+                        .get(name_start..name_start.checked_add(terminator)?)?
+                        .to_vec(),
+                );
             }
             // An entry is padded with one to eight NULs to a multiple of eight bytes from its own start.
             at = at.checked_add((head + terminator + 8) & !7)?;
@@ -234,7 +261,9 @@ pub fn read_index_flags(bytes: &[u8]) -> IndexFlags {
         match scan_entries(bytes, name_length) {
             // A hidden entry sends the whole commit to the slower build, so its paths are not needed.
             Some(marks) if marks.hidden => return IndexFlags::Marked,
-            Some(marks) if !marks.intent_to_add.is_empty() => return IndexFlags::IntentToAdd(marks.intent_to_add),
+            Some(marks) if !marks.intent_to_add.is_empty() => {
+                return IndexFlags::IntentToAdd(marks.intent_to_add);
+            }
             Some(_) => return IndexFlags::Plain,
             None => {}
         }

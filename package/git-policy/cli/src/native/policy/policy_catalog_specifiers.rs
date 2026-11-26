@@ -28,22 +28,35 @@ use crate::candidate_object::CandidateMode;
 /// Import the candidate change kinds.
 use crate::candidate_record::CandidateChange;
 /// Import the candidate and version types.
-use crate::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{
+    Candidate,
+    CandidateVersion,
+};
 /// Import the event form of a pathname.
 use crate::event_path::EventPath;
 /// Import the lossy text of a pathname for the library's messages.
 use crate::path_bytes::path_message_text;
 /// Import the lifecycle's candidates.
-use crate::policy_content::{ContentState, LifecycleContent};
+use crate::policy_content::{
+    ContentState,
+    LifecycleContent,
+};
 /// Import the finding and outcome types of a check.
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyOutcome,
+};
 /// Import the facts interface that prepares candidates.
 use crate::repository_facts::RepositoryFacts;
 /// The shared rule:
 ///  its entry for a manifest's bytes,
 ///  its entry for a file name alone,
 ///  and its finding.
-use monochromatic_catalog_specifier::{Finding, check_manifest, check_manifest_path};
+use monochromatic_catalog_specifier::{
+    Finding,
+    check_manifest,
+    check_manifest_path,
+};
 /// `Rc<T>` is a shared,
 ///  read-only handle.
 use std::rc::Rc;
@@ -116,7 +129,10 @@ fn is_looked_at(candidate: &Candidate) -> bool {
 /// ```ts
 /// const policyFinding = (f, candidate) => ({ code: f.kind, message: String(f), path: candidate.path });
 /// ```
-fn policy_finding(finding: &Finding, candidate: &Candidate) -> PolicyFinding {
+fn policy_finding(
+    finding: &Finding,
+    candidate: &Candidate,
+) -> PolicyFinding {
     return PolicyFinding {
         code: finding.kind.as_str(),
         message: finding.to_string(),

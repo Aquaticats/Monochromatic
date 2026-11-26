@@ -18,35 +18,70 @@
 //! ```
 
 /// Import the log tag and the names one filling works in.
-use super::names::{TAG, TheNames};
+use super::names::{
+    TAG,
+    TheNames,
+};
 /// Import how one workspace's names are taken and given back.
-use super::names::{give_back, give_back_what_a_killed_filling_left, make_the_destinations_own_directory, names_for, remove_if_any};
+use super::names::{
+    give_back,
+    give_back_what_a_killed_filling_left,
+    make_the_destinations_own_directory,
+    names_for,
+    remove_if_any,
+};
 /// Import the names of the worktree's own staged state,
 /// when the add moved it.
 use super::staged_state::staged_names;
 /// Import the one diagnostic log this crate writes.
 use crate::diagnostic_log::debug;
 /// Import the clean arguments and the command a person runs instead.
-use crate::package_repair_cargo::{locked_clean_arguments, manual_command};
-/// Import the lock file's name and the read of it.
-use crate::package_repair_cargo_lock::{LOCK_FILE, read_lock};
+use crate::package_repair_cargo::{
+    locked_clean_arguments,
+    manual_command,
+};
 /// Import the restore of only the clean's own bytes over the checked-out lock.
 use crate::package_repair_cargo_lock::restore_only_the_cleans_own;
+/// Import the lock file's name and the read of it.
+use crate::package_repair_cargo_lock::{
+    LOCK_FILE,
+    read_lock,
+};
 /// Import the command and the bounds of one tool.
-use crate::package_repair_command::{ToolCommand, ToolLimits};
+use crate::package_repair_command::{
+    ToolCommand,
+    ToolLimits,
+};
 /// Import the end of a run and the awaited run of one tool.
-use crate::package_repair_command::{ToolEnd, ToolRun, run_tool_awaiting};
+use crate::package_repair_command::{
+    ToolEnd,
+    ToolRun,
+    run_tool_awaiting,
+};
 /// Import the two variables a clean is given and the record's entry.
-use crate::package_repair_prewarm::{BUILD_DIRECTORY_VARIABLE, PrewarmEntry, TARGET_DIRECTORY_VARIABLE};
+use crate::package_repair_prewarm::{
+    BUILD_DIRECTORY_VARIABLE,
+    PrewarmEntry,
+    TARGET_DIRECTORY_VARIABLE,
+};
 /// Import the clone of a directory tree with its modes,
 /// times and links.
-use crate::package_repair_tree_clone::{Cloned, clone_tree_awaiting};
+use crate::package_repair_tree_clone::{
+    Cloned,
+    clone_tree_awaiting,
+};
 /// Import the rename that never replaces.
-use crate::rename_that_never_replaces::{rename_noreplace, rename_unsupported};
+use crate::rename_that_never_replaces::{
+    rename_noreplace,
+    rename_unsupported,
+};
 /// Import the owned argument a command is started with.
 use std::ffi::OsString;
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  What every workspace of one record needs before it copies anything.
 /// Why:
@@ -93,8 +128,13 @@ fn end_reason(end: &ToolEnd) -> String {
     return match end {
         ToolEnd::Succeeded => String::from("it succeeded"),
         ToolEnd::Failed(reason) => reason.clone(),
-        ToolEnd::TimedOut => String::from("it showed no sign of work for its quiet window and was stopped"),
-        ToolEnd::CeilingReached(ceiling) => crate::package_repair_report::ceiling_reason(crate::package_repair_report::Tool::Cargo, *ceiling),
+        ToolEnd::TimedOut => {
+            String::from("it showed no sign of work for its quiet window and was stopped")
+        }
+        ToolEnd::CeilingReached(ceiling) => crate::package_repair_report::ceiling_reason(
+            crate::package_repair_report::Tool::Cargo,
+            *ceiling,
+        ),
     };
 }
 
@@ -108,9 +148,14 @@ fn end_reason(end: &ToolEnd) -> String {
 /// and the tool's own words name it.
 /// A person is told where their bytes went either way,
 /// so a stopped filling never leaves them guessing whether the worktree was written.
-pub(crate) fn what_to_do_next(entry: &PrewarmEntry, reason: &str) -> String {
+pub(crate) fn what_to_do_next(
+    entry: &PrewarmEntry,
+    reason: &str,
+) -> String {
     if !reason.contains(LOCK_FILE) {
-        return String::from("The reason above names what to fix, and the next add fills the copy.");
+        return String::from(
+            "The reason above names what to fix, and the next add fills the copy.",
+        );
     }
     return format!(
         "Update the lock in {} (for example `cargo update --offline --workspace` there) and the next add fills the copy, or clean the worktree's \
@@ -135,13 +180,23 @@ pub(crate) fn what_to_do_next(entry: &PrewarmEntry, reason: &str) -> String {
 /// ```ts
 /// await cleanTheCopy({ fill, entry, names }): ToolRun
 /// ```
-async fn clean_the_copy(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -> ToolRun {
+async fn clean_the_copy(
+    fill: &Fill,
+    entry: &PrewarmEntry,
+    names: &TheNames,
+) -> ToolRun {
     let command: ToolCommand = ToolCommand {
         arguments: locked_clean_arguments(entry.members.as_slice()),
         directory: entry.root.clone(),
         set: vec![
-            (OsString::from(BUILD_DIRECTORY_VARIABLE), names.staging.as_os_str().to_os_string()),
-            (OsString::from(TARGET_DIRECTORY_VARIABLE), names.target.as_os_str().to_os_string()),
+            (
+                OsString::from(BUILD_DIRECTORY_VARIABLE),
+                names.staging.as_os_str().to_os_string(),
+            ),
+            (
+                OsString::from(TARGET_DIRECTORY_VARIABLE),
+                names.target.as_os_str().to_os_string(),
+            ),
         ],
     };
     return run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
@@ -163,9 +218,19 @@ async fn clean_the_copy(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -> 
 /// ```ts
 /// await runTool(cargo, { arguments: ['metadata', '--offline', '--format-version', '1'], directory: entry.root });
 /// ```
-async fn resolve_the_lock(fill: &Fill, entry: &PrewarmEntry) -> ToolRun {
-    let arguments: Vec<OsString> = ["metadata", "--offline", "--format-version", "1"].iter().map(OsString::from).collect();
-    let command: ToolCommand = ToolCommand { arguments, directory: entry.root.clone(), set: Vec::new() };
+async fn resolve_the_lock(
+    fill: &Fill,
+    entry: &PrewarmEntry,
+) -> ToolRun {
+    let arguments: Vec<OsString> = ["metadata", "--offline", "--format-version", "1"]
+        .iter()
+        .map(OsString::from)
+        .collect();
+    let command: ToolCommand = ToolCommand {
+        arguments,
+        directory: entry.root.clone(),
+        set: Vec::new(),
+    };
     return run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
 }
 
@@ -181,12 +246,21 @@ async fn resolve_the_lock(fill: &Fill, entry: &PrewarmEntry) -> ToolRun {
 /// ```ts
 /// const publish = (staging, destination) => renameNoReplace(staging, destination);
 /// ```
-pub(crate) fn publish(staging: &Path, destination: &Path) -> Result<bool, String> {
+pub(crate) fn publish(
+    staging: &Path,
+    destination: &Path,
+) -> Result<bool, String> {
     return match rename_noreplace(staging, destination) {
         Ok(()) => Ok(true),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
-        Err(error) if rename_unsupported(&error) => Err(format!("{} cannot be published, because this filesystem cannot rename without replacing ({error})", destination.display())),
-        Err(error) => Err(format!("{} could not be published ({error})", destination.display())),
+        Err(error) if rename_unsupported(&error) => Err(format!(
+            "{} cannot be published, because this filesystem cannot rename without replacing ({error})",
+            destination.display()
+        )),
+        Err(error) => Err(format!(
+            "{} could not be published ({error})",
+            destination.display()
+        )),
     };
 }
 
@@ -219,7 +293,10 @@ pub(crate) enum Filled {
 /// ```ts
 /// async function fillOne({ fill, entry }): Promise<Filled>;
 /// ```
-pub(super) async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
+pub(super) async fn fill_one(
+    fill: &Fill,
+    entry: &PrewarmEntry,
+) -> Result<Filled, String> {
     // A destination that exists is a build that got there first: the worktree keeps everything it made. A filling of this
     //  workspace that was killed after it published left its marker and an empty staging copy beside that directory, and
     //  this job's marker is the proof those names are its own, so the next filling gives them back.
@@ -256,15 +333,25 @@ pub(super) async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled
 /// ```ts
 /// async function fillTheStaging({ fill, entry, names }): Promise<Filled>;
 /// ```
-async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -> Result<Filled, String> {
+async fn fill_the_staging(
+    fill: &Fill,
+    entry: &PrewarmEntry,
+    names: &TheNames,
+) -> Result<Filled, String> {
     if entry.staged_in.is_none() {
         let Some(from) = entry.from.as_ref() else {
-            return Err(String::from("a filling that clones was handed no source build directory, so nothing was cleaned"));
+            return Err(String::from(
+                "a filling that clones was handed no source build directory, so nothing was cleaned",
+            ));
         };
-        let made: Result<Cloned, String> = clone_tree_awaiting(from.as_path(), names.staging.as_path(), 1).await;
+        let made: Result<Cloned, String> =
+            clone_tree_awaiting(from.as_path(), names.staging.as_path(), 1).await;
         if let Err(reason) = made {
             let _removed = remove_if_any(names.staging.as_path());
-            return Err(format!("the build state of {} could not be cloned ({reason})", from.display()));
+            return Err(format!(
+                "the build state of {} could not be cloned ({reason})",
+                from.display()
+            ));
         }
     }
     // A build that started during the clone owns the destination now, and this job touches nothing of it.
@@ -285,7 +372,12 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
             let the_cleans_own: Option<Vec<u8>> = read_lock(entry.root.as_path());
             run = clean_the_copy(fill, entry, names).await;
             if let Some(written) = the_cleans_own.as_deref() {
-                match restore_only_the_cleans_own(entry.root.as_path(), lock_before.as_deref(), fill.kept_in.as_deref(), written) {
+                match restore_only_the_cleans_own(
+                    entry.root.as_path(),
+                    lock_before.as_deref(),
+                    fill.kept_in.as_deref(),
+                    written,
+                ) {
                     None => {}
                     Some(said) => debug(TAG, format!("{}: {said}", entry.root.display()).as_str()),
                 }
@@ -299,7 +391,11 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
             "the copy of {} could not be cleaned ({reason}), so nothing was published and everything staged for it was removed. The clean itself \
              never writes the worktree's {LOCK_FILE} (`{LOCK_FLAG}`): a lock it refuses is resolved by Cargo first, and the checked-out bytes go \
              back over bytes only that resolution wrote, so a write of yours stays yours. {}",
-            entry.from.as_deref().unwrap_or(names.staging.as_path()).display(),
+            entry
+                .from
+                .as_deref()
+                .unwrap_or(names.staging.as_path())
+                .display(),
             what_to_do_next(entry, reason.as_str()),
         ));
     }

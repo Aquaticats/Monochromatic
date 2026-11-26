@@ -24,40 +24,107 @@
 //! for await (const batch of queue.batches()) { const outcomes = await landBatch(batch); for (...) reply(outcome); }
 //! ```
 
-pub use crate::service_server_work_loop::work_loop;
-pub use crate::service_server_work_loop_awaiting::work_loop_awaiting;
-pub use crate::service_server_socket_binding::{Bind, INHERITED_DESCRIPTOR, address_text, bind, socket_passed_in};
+use crate::push_retry::{
+    PLAN_DIRECTORY,
+    PushRetries,
+};
+use crate::service_busy::{
+    GroupAdmission,
+    LandingBoard,
+};
+use crate::service_captures::CaptureMemory;
+use crate::service_claim_watch::{
+    ClaimWatch,
+    WATCH_DIRECTORY,
+};
+use crate::service_index_lock::unsettled_locks;
+use crate::service_index_prestage::{
+    PrestageGuard,
+    start as start_prestage,
+};
+use crate::service_journal::{
+    DONE_RETAINED,
+    landed_commits,
+    prune_done,
+};
+use crate::service_land::LandContext;
+use crate::service_protocol::{
+    FailureCode,
+    RELEASE,
+    ServiceMessage,
+};
+use crate::service_queue_received_on_the_runtime::{
+    Received,
+    receive_for_at_most,
+};
+use crate::service_runtime_build_report::{
+    EXIT_NO_WORKER,
+    no_worker_words,
+    start_what_the_service_cannot_serve_without,
+};
+use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
+use crate::service_server_connection_handling::ConnectionShared;
+use crate::service_server_land_group::{
+    land_group,
+    settle_open_batches,
+};
+use crate::service_server_own_worktree_question::own_worktree_gone_now;
+use crate::service_server_queue_types_and_send::{
+    GroupKey,
+    Job,
+    Queued,
+    id_of_queued,
+    index_of_queued,
+    place_in_groups,
+};
 #[cfg(test)]
 use crate::service_server_socket_binding::ensure_socket_passed_in;
-use crate::service_server_queue_types_and_send::{GroupKey, Job, Queued, id_of_queued, index_of_queued, place_in_groups};
-use crate::service_server_land_group::{land_group, settle_open_batches};
-use crate::service_server_connection_handling::ConnectionShared;
-use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most};
-use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
-use crate::service_runtime_build_report::{EXIT_NO_WORKER, no_worker_words, start_what_the_service_cannot_serve_without};
-use crate::stop_of_the_service_noticed_by_its_children::{begin_unfinished_work, is_stopping};
-use crate::service_journal::{DONE_RETAINED, landed_commits, prune_done};
-use crate::service_index_lock::unsettled_locks;
-use crate::service_index_prestage::{PrestageGuard, start as start_prestage};
-use crate::service_captures::CaptureMemory;
-use crate::service_land::LandContext;
-use crate::service_timing::{ExitReason, exit_line, log};
-use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
-use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
-use crate::service_server_own_worktree_question::own_worktree_gone_now;
-use crate::service_work::{GitHandlers, Wake};
-use crate::service_busy::{GroupAdmission, LandingBoard};
-use crate::wait_ceilings::{NEVER_ENDED_STEP_SLOW_AFTER, START_CEILING};
-use crate::service_protocol::{
-    FailureCode, RELEASE, ServiceMessage,
+pub use crate::service_server_socket_binding::{
+    Bind,
+    INHERITED_DESCRIPTOR,
+    address_text,
+    bind,
+    socket_passed_in,
+};
+pub use crate::service_server_work_loop::work_loop;
+pub use crate::service_server_work_loop_awaiting::work_loop_awaiting;
+use crate::service_timing::{
+    ExitReason,
+    exit_line,
+    log,
+};
+use crate::service_work::{
+    GitHandlers,
+    Wake,
+};
+use crate::stop_of_the_service_noticed_by_its_children::{
+    begin_unfinished_work,
+    is_stopping,
+};
+use crate::wait_ceilings::{
+    NEVER_ENDED_STEP_SLOW_AFTER,
+    START_CEILING,
 };
 use std::collections::HashMap;
 use std::os::unix::net::UnixListener;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
+use tokio::sync::mpsc::{
+    UnboundedReceiver,
+    UnboundedSender,
+    unbounded_channel,
+};
 
 /// The largest batch whose landing still costs about what its size predicts: 256.
 /// Measured with the service binary on throwaway
@@ -218,7 +285,8 @@ impl ServeSettings {
             own_git_dir: None,
             own_worktree_check: OWN_WORKTREE_CHECK,
             journal_restore_ceiling: START_CEILING,
-            own_units_stop: crate::service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone,
+            own_units_stop:
+                crate::service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone,
         };
     }
 }
@@ -235,7 +303,13 @@ impl ServeSettings {
 ///  by a thread of their own (`service_journal_restored_at_start.rs`),
 /// so the task starts with what the service that stopped last left and no storage wait of
 ///  that reading holds a worker.
-fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, push_retries: PushRetries, watch: ClaimWatch) {
+fn start_the_after_commit_work_or_exit(
+    receiver: UnboundedReceiver<Wake>,
+    handlers: GitHandlers,
+    busy: Arc<AtomicUsize>,
+    push_retries: PushRetries,
+    watch: ClaimWatch,
+) {
     let work = async move {
         let mut wakes: UnboundedReceiver<Wake> = receiver;
         work_loop_awaiting(&mut wakes, &handlers, &busy, push_retries, watch).await;
@@ -272,10 +346,17 @@ const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
 /// ```ts
 /// await serve(listener, context)
 /// ```
-pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSettings) {
+pub fn serve(
+    listener: UnixListener,
+    context: &LandContext,
+    settings: &ServeSettings,
+) {
     // The loop is the one landing: what a landing remembers (its board, its queued syncs, its unsettled locks) belongs to this
     //  scope and ends with it, and no other thread of the service reads it (`landing_state_carried_by_its_task.rs`).
-    crate::landing_state_carried_by_its_task::in_a_landing_with((listener, context, settings), serve_in_a_landing);
+    crate::landing_state_carried_by_its_task::in_a_landing_with(
+        (listener, context, settings),
+        serve_in_a_landing,
+    );
 }
 
 /// `serve`,
@@ -287,16 +368,19 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     let mut withdrawn: std::collections::HashSet<String> = std::collections::HashSet::new();
     // What the landed commits were captured at: owned by this loop, the only thread that lands and answers.
     let mut captures: CaptureMemory = CaptureMemory::default();
-    let (sender, mut receiver): (UnboundedSender<Job>, UnboundedReceiver<Job>) = unbounded_channel();
+    let (sender, mut receiver): (UnboundedSender<Job>, UnboundedReceiver<Job>) =
+        unbounded_channel();
     let acceptor_queue: UnboundedSender<Job> = sender.clone();
     // After-commit work (push, upkeep) runs as a task of its own, so a slow network never delays a landing.
-    let (work_sender, work_receiver): (UnboundedSender<Wake>, UnboundedReceiver<Wake>) = unbounded_channel();
+    let (work_sender, work_receiver): (UnboundedSender<Wake>, UnboundedReceiver<Wake>) =
+        unbounded_channel();
     let handlers: GitHandlers = GitHandlers::new(context.git.clone());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     // The finished shadows this service drew ahead of the commits that ask for one, and the answers that take them: memory of
     //  this run only, so a restarted service hands out nothing it did not draw (`service_shadow_draw.rs`).
-    let drawn: Arc<crate::service_shadow_draw::DrawnShadows> = crate::service_shadow_draw::DrawnShadows::none_yet();
+    let drawn: Arc<crate::service_shadow_draw::DrawnShadows> =
+        crate::service_shadow_draw::DrawnShadows::none_yet();
     // What this landing thread is inside, for the threads that talk to clients (`service_busy.rs`).
     let board: Arc<LandingBoard> = LandingBoard::new(context.journal.clone(), settings.stuck_after);
     crate::service_busy_step_record_on_this_thread::use_on_this_thread(Arc::clone(&board));
@@ -347,7 +431,12 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     // The plan and the watch are read here, after the acceptor started and before the task that runs the loop starts, so the
     //  loop's task begins with what a service that stopped last left and neither reading delays a client's greeting.
     let (started_retries, mut started_watch): (PushRetries, ClaimWatch) =
-        crate::service_journal_restored_at_start::restored_within(settings.journal_restore_ceiling, plan_directory, watch_directory, watch_instance);
+        crate::service_journal_restored_at_start::restored_within(
+            settings.journal_restore_ceiling,
+            plan_directory,
+            watch_directory,
+            watch_instance,
+        );
     // What: The worktree this service serves is one of the repositories the loop looks at by itself.
     // Why:  Every record a client leaves for this instance is written under this worktree's own Git directory, so a record whose
     //       wake was lost is found by the look even when no landing of this process wrote a note for it and no client ever woke
@@ -355,18 +444,36 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     if let Some(own) = settings.own_git_dir.as_deref() {
         started_watch.remember(own);
     }
-    start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, started_retries, started_watch);
+    start_the_after_commit_work_or_exit(
+        work_receiver,
+        handlers,
+        worker_busy,
+        started_retries,
+        started_watch,
+    );
     let _reports = settle_open_batches(context, settings.instance.as_deref());
     // The memory of landed requests is bounded: a finished record goes only when no client of it may still read it,
     //  and only past the newest `DONE_RETAINED` of the journal, before the rest are read into that memory.
-    let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED, &crate::claim_time::ClaimTime::read());
+    let pruned: usize = prune_done(
+        context.journal.as_path(),
+        DONE_RETAINED,
+        &crate::claim_time::ClaimTime::read(),
+    );
     if pruned > 0 {
-        crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
+        crate::service_log!(
+            "removed the records of {pruned} old finished batches from {}",
+            context.journal.display()
+        );
     }
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
     // What the earlier release's helper of this worktree finished counts as landed too: a client it never answered asks again.
     if let Some(instance) = settings.instance.as_deref() {
-        landed.extend(crate::earlier_service_journal_adopted::earlier_commits_landed(context.journal.as_path(), instance));
+        landed.extend(
+            crate::earlier_service_journal_adopted::earlier_commits_landed(
+                context.journal.as_path(),
+                instance,
+            ),
+        );
     }
     // The service's own shutdown: a stop is recorded by the handler and ended here, after the Gits the service waits on are ended.
     crate::service_server_shutdown_after_a_stop::start_shutdown_after_a_stop_or_exit();
@@ -391,7 +498,11 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         // A service whose worktree is known wakes at least every `own_worktree_check`: nothing else asks whether that worktree
         //  is still there, and the removal that takes it may happen while this service runs.
         let until_idle: Duration = idle.saturating_sub(last_work.elapsed());
-        let wait: Duration = if settings.own_git_dir.is_some() { until_idle.min(settings.own_worktree_check) } else { idle };
+        let wait: Duration = if settings.own_git_dir.is_some() {
+            until_idle.min(settings.own_worktree_check)
+        } else {
+            idle
+        };
         let first: Job = match receive_for_at_most(&mut receiver, Some(wait)) {
             Received::Item(job) => job,
             // Work: The worktree whose units are this service's may have been removed while the service runs, and that
@@ -415,7 +526,11 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 continue;
             }
             // The interval of a service whose worktree is known, and that worktree is still there: serve on.
-            Received::Timeout if settings.own_git_dir.is_some() && until_idle > settings.own_worktree_check => continue,
+            Received::Timeout
+                if settings.own_git_dir.is_some() && until_idle > settings.own_worktree_check =>
+            {
+                continue;
+            }
             Received::Timeout => {
                 // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
                 crate::service_durable::drain();
@@ -451,10 +566,17 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         for job in &jobs {
             if let Job::Withdraw(id, reply) = job {
                 match landed.get(id) {
-                    Some(commit) => reply.send(&ServiceMessage::Landed { id: id.clone(), commit: commit.clone(), already: true, landing: None }),
+                    Some(commit) => reply.send(&ServiceMessage::Landed {
+                        id: id.clone(),
+                        commit: commit.clone(),
+                        already: true,
+                        landing: None,
+                    }),
                     None => {
                         withdrawn.insert(id.clone());
-                        reply.send(&ServiceMessage::Withdrawn { id: id.clone() });
+                        reply.send(&ServiceMessage::Withdrawn {
+                            id: id.clone(),
+                        });
                     }
                 }
             }
@@ -468,7 +590,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                     // The client took its request back, so nothing lands on the tree it named and its tree goes back
                     //  to the age rule with it (`service_scratch_trees_of_queued_requests.rs`).
                     crate::service_scratch_trees_of_queued_requests::release(request.id.as_str());
-                    crate::service_log!("dropped the request {} that its client withdrew", request.id);
+                    crate::service_log!(
+                        "dropped the request {} that its client withdrew",
+                        request.id
+                    );
                 }
                 Job::Retire => retiring = true,
                 Job::Activity => {}
@@ -483,7 +608,11 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                     } else {
                         request.reference.hex()
                     };
-                    let key: GroupKey = (request.common_dir.clone(), queue_reference, request.lands_alone());
+                    let key: GroupKey = (
+                        request.common_dir.clone(),
+                        queue_reference,
+                        request.lands_alone(),
+                    );
                     place_in_groups(&mut groups, key, (request, stream, arrival));
                 }
             }
@@ -494,14 +623,21 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             //  A request the service did not land keeps its tree in its client's hands instead (see `remove_the_trees`).
             let mut trees: Vec<(String, std::path::PathBuf)> = Vec::new();
             for queued in &queued_group {
-                if let Some(tree) = crate::service_scratch_release_removal::the_tree_of(queued.0.scratch.as_path(), queued.0.git_dir.as_path()) {
+                if let Some(tree) = crate::service_scratch_release_removal::the_tree_of(
+                    queued.0.scratch.as_path(),
+                    queued.0.git_dir.as_path(),
+                ) {
                     trees.push((queued.0.id.clone(), tree));
                 }
                 // The finished shadow the service drew ahead of this commit, when it was handed one: it is a tree of the
                 //  wrapper's own in this worktree's drawn folder, and the landing that read it is the only place that says
                 //  when the commit is done with it.
                 if let Some(handed) = queued.0.shadow.as_deref()
-                    && crate::shadow_drawn::is_a_drawn_tree(handed, queued.0.common_dir.as_path(), queued.0.git_dir.as_path())
+                    && crate::shadow_drawn::is_a_drawn_tree(
+                        handed,
+                        queued.0.common_dir.as_path(),
+                        queued.0.git_dir.as_path(),
+                    )
                 {
                     trees.push((queued.0.id.clone(), handed.to_path_buf()));
                 }
@@ -516,10 +652,14 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             let ids: Vec<String> = queued_group.iter().map(id_of_queued).collect();
             let admission: GroupAdmission = board.begin_group(ids.as_slice());
             for id in &admission.dropped {
-                crate::service_log!("dropped the request {id} that its client withdrew while the service was stuck in a write");
+                crate::service_log!(
+                    "dropped the request {id} that its client withdrew while the service was stuck in a write"
+                );
             }
             for id in &admission.unavailable {
-                crate::service_error!("the request {id} could not be admitted to its group (the record of the landing thread cannot be written), so it is answered with a failure and not landed");
+                crate::service_error!(
+                    "the request {id} could not be admitted to its group (the record of the landing thread cannot be written), so it is answered with a failure and not landed"
+                );
             }
             // A dropped request is not answered here; an unavailable one is answered with a failure; the rest are landed.
             let mut unavailable: Vec<Queued> = Vec::new();
@@ -535,7 +675,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 }
             }
             for (request, stream, _) in &unavailable {
-                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable });
+                stream.send(&ServiceMessage::Failed {
+                    id: request.id.clone(),
+                    code: FailureCode::Unavailable,
+                });
             }
             let group: Vec<Queued> = admitted;
             if group.is_empty() {
@@ -543,8 +686,20 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 remove_the_trees(trees.as_slice(), &std::collections::HashSet::new());
                 continue;
             }
-            let mut handed_back: std::collections::HashSet<String> = std::collections::HashSet::new();
-            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after, settings.note_ceiling, &mut handed_back, &drawn);
+            let mut handed_back: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
+            land_group(
+                context,
+                settings.instance.as_deref(),
+                &mut seq,
+                group,
+                &mut landed,
+                &mut captures,
+                settings.place_after,
+                settings.note_ceiling,
+                &mut handed_back,
+                &drawn,
+            );
             board.end_group(ids.as_slice());
             // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
             //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
@@ -557,7 +712,9 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         }
         // A lock this thread could not settle names this process: the restart reclaims it once this process is gone.
         if unsettled_locks() > 0 {
-            crate::service_error!("ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
+            crate::service_error!(
+                "ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock"
+            );
             return;
         }
     }
@@ -611,7 +768,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 /// ```ts
 /// trees.filter(([id]) => !handedBack.has(id)).forEach(startTheRemovalBesideTheLoop);
 /// ```
-fn remove_the_trees(trees: &[(String, std::path::PathBuf)], handed_back: &std::collections::HashSet<String>) {
+fn remove_the_trees(
+    trees: &[(String, std::path::PathBuf)],
+    handed_back: &std::collections::HashSet<String>,
+) {
     for (id, _) in trees {
         crate::service_scratch_trees_of_queued_requests::release(id.as_str());
     }

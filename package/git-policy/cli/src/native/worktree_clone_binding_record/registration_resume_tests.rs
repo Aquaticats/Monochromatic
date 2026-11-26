@@ -8,13 +8,22 @@
 
 use crate::worktree_clone_binding_record::lock_words::lock_file_bytes;
 use crate::worktree_clone_binding_record::registration_finder::EntryFacts;
-use crate::worktree_clone_binding_record::registration_resume::{EntryDecision, ListingDecision, decide, find_registrations};
+use crate::worktree_clone_binding_record::registration_resume::{
+    EntryDecision,
+    ListingDecision,
+    decide,
+    find_registrations,
+};
 use crate::worktree_clone_mount_protocol::RequestNonce;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The fixture's nonce.
 fn nonce() -> RequestNonce {
-    return RequestNonce::parse("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f").expect("the fixture nonce reads");
+    return RequestNonce::parse("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f")
+        .expect("the fixture nonce reads");
 }
 
 /// The fixture's slot path and its pointer's target.
@@ -56,22 +65,52 @@ fn each_incomplete_shape_is_cleared_with_its_row() {
     let slot_path_buf: PathBuf = slot_path();
     let path: &Path = slot_path_buf.as_path();
     let bare: EntryDecision = decide(&entry(slot), slot, path, &nonce(), &[]);
-    assert_eq!(bare, EntryDecision::Clear { row: crate::worktree_clone_binding_record::registration_finder::EntryRow::Bare });
+    assert_eq!(
+        bare,
+        EntryDecision::Clear {
+            row: crate::worktree_clone_binding_record::registration_finder::EntryRow::Bare
+        }
+    );
     let mut lock_only: EntryFacts = entry(slot);
     lock_only.locked = Some(lock_file_bytes(&nonce()));
-    assert_eq!(decide(&lock_only, slot, path, &nonce(), &[]), EntryDecision::Clear { row: crate::worktree_clone_binding_record::registration_finder::EntryRow::LockOnly });
+    assert_eq!(
+        decide(&lock_only, slot, path, &nonce(), &[]),
+        EntryDecision::Clear {
+            row: crate::worktree_clone_binding_record::registration_finder::EntryRow::LockOnly
+        }
+    );
     let mut empty_lock: EntryFacts = entry(slot);
     empty_lock.locked = Some(Vec::new());
-    assert_eq!(decide(&empty_lock, slot, path, &nonce(), &[]), EntryDecision::Clear { row: crate::worktree_clone_binding_record::registration_finder::EntryRow::LockOnly });
+    assert_eq!(
+        decide(&empty_lock, slot, path, &nonce(), &[]),
+        EntryDecision::Clear {
+            row: crate::worktree_clone_binding_record::registration_finder::EntryRow::LockOnly
+        }
+    );
     let mut gitdir_only: EntryFacts = entry(slot);
     gitdir_only.gitdir = Some(path.join(".git"));
-    assert_eq!(decide(&gitdir_only, slot, path, &nonce(), &[]), EntryDecision::Clear { row: crate::worktree_clone_binding_record::registration_finder::EntryRow::GitdirOnly });
+    assert_eq!(
+        decide(&gitdir_only, slot, path, &nonce(), &[]),
+        EntryDecision::Clear {
+            row: crate::worktree_clone_binding_record::registration_finder::EntryRow::GitdirOnly
+        }
+    );
     let mut pointer: EntryFacts = gitdir_only.clone();
     pointer.slot_git_pointer = Some(b"gitdir: /repo/.git/worktrees/add-cache-layer\n".to_vec());
-    assert_eq!(decide(&pointer, slot, path, &nonce(), &[]), EntryDecision::Clear { row: crate::worktree_clone_binding_record::registration_finder::EntryRow::PointerOnly });
+    assert_eq!(
+        decide(&pointer, slot, path, &nonce(), &[]),
+        EntryDecision::Clear {
+            row: crate::worktree_clone_binding_record::registration_finder::EntryRow::PointerOnly
+        }
+    );
     let mut commondir: EntryFacts = pointer.clone();
     commondir.commondir = true;
-    assert_eq!(decide(&commondir, slot, path, &nonce(), &[]), EntryDecision::Clear { row: crate::worktree_clone_binding_record::registration_finder::EntryRow::Commondir });
+    assert_eq!(
+        decide(&commondir, slot, path, &nonce(), &[]),
+        EntryDecision::Clear {
+            row: crate::worktree_clone_binding_record::registration_finder::EntryRow::Commondir
+        }
+    );
 }
 
 /// A complete registration is adopted whatever its lock holds,
@@ -84,17 +123,32 @@ fn a_complete_registration_is_adopted_whatever_its_lock() {
     let slot: &str = "add-cache-layer";
     let slot_path_buf: PathBuf = slot_path();
     let path: &Path = slot_path_buf.as_path();
-    assert_eq!(decide(&complete(), slot, path, &nonce(), &[]), EntryDecision::Adopt);
+    assert_eq!(
+        decide(&complete(), slot, path, &nonce(), &[]),
+        EntryDecision::Adopt
+    );
     let mut cut: EntryFacts = complete();
     let bytes: Vec<u8> = lock_file_bytes(&nonce());
-    cut.locked = Some(bytes[..crate::worktree_clone_binding_record::lock_words::LOCK_WORDS_PREFIX.len() + 40].to_vec());
-    assert_eq!(decide(&cut, slot, path, &nonce(), &[]), EntryDecision::Adopt);
+    cut.locked = Some(
+        bytes[..crate::worktree_clone_binding_record::lock_words::LOCK_WORDS_PREFIX.len() + 40]
+            .to_vec(),
+    );
+    assert_eq!(
+        decide(&cut, slot, path, &nonce(), &[]),
+        EntryDecision::Adopt
+    );
     let mut unlocked: EntryFacts = complete();
     unlocked.locked = None;
-    assert_eq!(decide(&unlocked, slot, path, &nonce(), &[]), EntryDecision::Adopt);
+    assert_eq!(
+        decide(&unlocked, slot, path, &nonce(), &[]),
+        EntryDecision::Adopt
+    );
     let mut foreign: EntryFacts = complete();
     foreign.locked = Some(b"held by a person\n".to_vec());
-    assert_eq!(decide(&foreign, slot, path, &nonce(), &[]), EntryDecision::Adopt);
+    assert_eq!(
+        decide(&foreign, slot, path, &nonce(), &[]),
+        EntryDecision::Adopt
+    );
 }
 
 /// An incomplete registration holding words this add did not write refuses with its first line,
@@ -107,7 +161,17 @@ fn an_incomplete_registration_holding_a_persons_words_refuses() {
     let mut foreign: EntryFacts = entry(slot);
     foreign.locked = Some(b"held by a person\n".to_vec());
     let refusal: EntryDecision = decide(&foreign, slot, path, &nonce(), &[]);
-    assert!(matches!(refusal, EntryDecision::Refuse { row: crate::worktree_clone_binding_record::registration_finder::EntryRow::ForeignLock, .. }), "{refusal:?}");
+    assert!(
+        matches!(
+            refusal,
+            EntryDecision::Refuse {
+                row:
+                    crate::worktree_clone_binding_record::registration_finder::EntryRow::ForeignLock,
+                ..
+            }
+        ),
+        "{refusal:?}"
+    );
 }
 
 /// Another slot's entry and another path's registration are left alone.
@@ -134,10 +198,21 @@ fn a_whole_listing_decides_the_states_no_entry_holds() {
     let first: EntryFacts = complete();
     let mut second: EntryFacts = complete();
     second.name = String::from("add-cache-layer1");
-    let both: crate::worktree_clone_binding_record::registration_resume::Finding = find_registrations(&[first, second], slot, path, &nonce(), &[], true);
-    assert!(matches!(both.decision, ListingDecision::Refuse { .. }), "{:?}", both.decision);
-    let empty: crate::worktree_clone_binding_record::registration_resume::Finding = find_registrations(&[], slot, path, &nonce(), &[], false);
+    let both: crate::worktree_clone_binding_record::registration_resume::Finding =
+        find_registrations(&[first, second], slot, path, &nonce(), &[], true);
+    assert!(
+        matches!(both.decision, ListingDecision::Refuse { .. }),
+        "{:?}",
+        both.decision
+    );
+    let empty: crate::worktree_clone_binding_record::registration_resume::Finding =
+        find_registrations(&[], slot, path, &nonce(), &[], false);
     assert_eq!(empty.decision, ListingDecision::RerunTheGitAdd);
-    let pointer: crate::worktree_clone_binding_record::registration_resume::Finding = find_registrations(&[], slot, path, &nonce(), &[], true);
-    assert!(matches!(pointer.decision, ListingDecision::Refuse { .. }), "{:?}", pointer.decision);
+    let pointer: crate::worktree_clone_binding_record::registration_resume::Finding =
+        find_registrations(&[], slot, path, &nonce(), &[], true);
+    assert!(
+        matches!(pointer.decision, ListingDecision::Refuse { .. }),
+        "{:?}",
+        pointer.decision
+    );
 }

@@ -24,7 +24,12 @@
 //! ```
 
 use crate::single_owner_claim::BusyOwner;
-use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{ClaimEnd, RemovalClaim, release_at_the_last_step, take_the_removals_claim};
+use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{
+    ClaimEnd,
+    RemovalClaim,
+    release_at_the_last_step,
+    take_the_removals_claim,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use std::path::Path;
 
@@ -64,11 +69,23 @@ pub enum TheClaim {
 /// ```ts
 /// const claim = takeTheSlotsClaim(commonDir, slot);
 /// ```
-pub fn take_the_slots_claim(common_dir: &Path, slot: &str) -> TheClaim {
+pub fn take_the_slots_claim(
+    common_dir: &Path,
+    slot: &str,
+) -> TheClaim {
     return match take_the_removals_claim(common_dir, slot) {
         Ok(claim) => TheClaim::Held(claim),
-        Err(RemovalStop::TheSlotIsClaimed { pid, path, .. }) => TheClaim::Busy(BusyOwner { pid, path }),
-        Err(stop) => TheClaim::Refused { said: stop.message() },
+        Err(RemovalStop::TheSlotIsClaimed {
+            pid,
+            path,
+            ..
+        }) => TheClaim::Busy(BusyOwner {
+            pid,
+            path,
+        }),
+        Err(stop) => TheClaim::Refused {
+            said: stop.message(),
+        },
     };
 }
 
@@ -87,7 +104,9 @@ pub fn take_the_slots_claim(common_dir: &Path, slot: &str) -> TheClaim {
 pub fn give_the_claim_back(claim: &mut RemovalClaim) -> Result<(), String> {
     return match release_at_the_last_step(claim) {
         ClaimEnd::Released | ClaimEnd::Held => Ok(()),
-        ClaimEnd::RefusedToRelease { said } => Err(said),
+        ClaimEnd::RefusedToRelease {
+            said,
+        } => Err(said),
     };
 }
 

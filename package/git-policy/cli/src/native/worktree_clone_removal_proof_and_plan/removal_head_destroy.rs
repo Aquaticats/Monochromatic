@@ -30,14 +30,29 @@
 //! const head = destroyTheHead({ plan, probe, device, ... });
 //! ```
 
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ListedChild};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ListedChild,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
-use crate::worktree_clone_removal_proof_and_plan::plan_record::{DestructionPlan, PlanAttempt, PlanSnapshot};
-use crate::worktree_clone_removal_proof_and_plan::plan_words::{HeadWord, SnapshotOutcome};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+    DestructionPlan,
+    PlanAttempt,
+    PlanSnapshot,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+    HeadWord,
+    SnapshotOutcome,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DeviceError, NvList, ZfsDevice};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    DeviceError,
+    NvList,
+    ZfsDevice,
+};
 use std::path::Path;
 
 /// What:
@@ -58,14 +73,20 @@ pub trait DatasetDestroyDevice {
     /// # Throws
     ///
     /// What the binding's own `destroy` throws.
-    fn destroy_the_dataset(&self, name: &str) -> Result<Option<NvList>, DeviceError>;
+    fn destroy_the_dataset(
+        &self,
+        name: &str,
+    ) -> Result<Option<NvList>, DeviceError>;
 }
 
 /// The open device is the production answer.
 impl DatasetDestroyDevice for ZfsDevice {
     /// Sends the binding's own dataset destroy,
     /// which never carries a defer mark.
-    fn destroy_the_dataset(&self, name: &str) -> Result<Option<NvList>, DeviceError> {
+    fn destroy_the_dataset(
+        &self,
+        name: &str,
+    ) -> Result<Option<NvList>, DeviceError> {
         return ZfsDevice::destroy(self, name, false);
     }
 }
@@ -78,7 +99,10 @@ impl DatasetDestroyDevice for ZfsDevice {
 /// which the add's layout never makes.
 pub fn the_pinned_parent(clone_dataset: &str) -> Result<String, RemovalStop> {
     let Some((parent, _)) = clone_dataset.rsplit_once('/') else {
-        return Err(RemovalStop::DoesNotAnswer { object: String::from(clone_dataset), reason: String::from("the clone's name has no parent dataset, so nothing pins it") });
+        return Err(RemovalStop::DoesNotAnswer {
+            object: String::from(clone_dataset),
+            reason: String::from("the clone's name has no parent dataset, so nothing pins it"),
+        });
     };
     return Ok(String::from(parent));
 }
@@ -129,26 +153,46 @@ pub enum CloneAbsence {
 /// ```ts
 /// const absence = theCloneAbsence(probe, clone, guid);
 /// ```
-pub fn the_clone_absence(probe: &dyn DatasetReader, clone_dataset: &str, clone_guid: DatasetGuid) -> Result<CloneAbsence, RemovalStop> {
+pub fn the_clone_absence(
+    probe: &dyn DatasetReader,
+    clone_dataset: &str,
+    clone_guid: DatasetGuid,
+) -> Result<CloneAbsence, RemovalStop> {
     let mut reused: Option<DatasetGuid> = None;
     match probe.identity(clone_dataset) {
         Ok(identity) => {
             let live: DatasetGuid = guid_of_reply(&identity, clone_dataset)?;
             if live == clone_guid {
-                return Ok(CloneAbsence::There { name: String::from(clone_dataset), guid: live });
+                return Ok(CloneAbsence::There {
+                    name: String::from(clone_dataset),
+                    guid: live,
+                });
             }
             reused = Some(live);
         }
         Err(failure) if failure.errno == Some(libc::ENOENT) => {}
-        Err(failure) => return Err(RemovalStop::DoesNotAnswer { object: String::from(clone_dataset), reason: failure.message() }),
+        Err(failure) => {
+            return Err(RemovalStop::DoesNotAnswer {
+                object: String::from(clone_dataset),
+                reason: failure.message(),
+            });
+        }
     }
     let parent: String = the_pinned_parent(clone_dataset)?;
     let mut cursor: u64 = 0;
     loop {
-        let next: Option<ListedChild> = probe.next_child(parent.as_str(), cursor).map_err(|said| return RemovalStop::DoesNotAnswer { object: parent.clone(), reason: said })?;
+        let next: Option<ListedChild> =
+            probe.next_child(parent.as_str(), cursor).map_err(|said| {
+                return RemovalStop::DoesNotAnswer {
+                    object: parent.clone(),
+                    reason: said,
+                };
+            })?;
         let Some(child) = next else {
             return match reused {
-                Some(guid) => Ok(CloneAbsence::Reused { guid }),
+                Some(guid) => Ok(CloneAbsence::Reused {
+                    guid,
+                }),
                 None => Ok(CloneAbsence::Gone),
             };
         };
@@ -156,19 +200,35 @@ pub fn the_clone_absence(probe: &dyn DatasetReader, clone_dataset: &str, clone_g
         match probe.identity(child.name.as_str()) {
             Ok(identity) => {
                 if guid_of_reply(&identity, child.name.as_str())? == clone_guid {
-                    return Ok(CloneAbsence::There { name: child.name, guid: clone_guid });
+                    return Ok(CloneAbsence::There {
+                        name: child.name,
+                        guid: clone_guid,
+                    });
                 }
             }
             Err(failure) if failure.errno == Some(libc::ENOENT) => {}
-            Err(failure) => return Err(RemovalStop::DoesNotAnswer { object: child.name, reason: failure.message() }),
+            Err(failure) => {
+                return Err(RemovalStop::DoesNotAnswer {
+                    object: child.name,
+                    reason: failure.message(),
+                });
+            }
         }
     }
 }
 
 /// The GUID one reply carries,
 /// refused when the pool reports none.
-fn guid_of_reply(identity: &DatasetIdentity, name: &str) -> Result<DatasetGuid, RemovalStop> {
-    return DatasetGuid::parse(identity.stats.dds_guid.to_string().as_str()).map_err(|_| return RemovalStop::DoesNotAnswer { object: String::from(name), reason: String::from("the reply carries no GUID") });
+fn guid_of_reply(
+    identity: &DatasetIdentity,
+    name: &str,
+) -> Result<DatasetGuid, RemovalStop> {
+    return DatasetGuid::parse(identity.stats.dds_guid.to_string().as_str()).map_err(|_| {
+        return RemovalStop::DoesNotAnswer {
+            object: String::from(name),
+            reason: String::from("the reply carries no GUID"),
+        };
+    });
 }
 
 /// What:
@@ -191,19 +251,32 @@ fn guid_of_reply(identity: &DatasetIdentity, name: &str) -> Result<DatasetGuid, 
 /// ```ts
 /// const settled = settleTheRecordedNames(plan, live);
 /// ```
-pub fn settle_the_recorded_names(plan: &mut DestructionPlan, live: &[LiveObject]) -> Result<Vec<String>, RemovalStop> {
+pub fn settle_the_recorded_names(
+    plan: &mut DestructionPlan,
+    live: &[LiveObject],
+) -> Result<Vec<String>, RemovalStop> {
     let named: Vec<PlanSnapshot> = plan.named_snapshots();
     let mut settled: Vec<String> = Vec::new();
     for snapshot in named {
-        if plan.current_state(snapshot.name.as_str()).map(|held| return held.outcome == SnapshotOutcome::Destroyed).unwrap_or(false) {
+        if plan
+            .current_state(snapshot.name.as_str())
+            .map(|held| return held.outcome == SnapshotOutcome::Destroyed)
+            .unwrap_or(false)
+        {
             continue;
         }
-        let Some(found) = live.iter().find(|object| return object.guid == snapshot.guid) else {
+        let Some(found) = live
+            .iter()
+            .find(|object| return object.guid == snapshot.guid)
+        else {
             push_a_line(plan, &snapshot, SnapshotOutcome::Destroyed, None)?;
             settled.push(snapshot.name.clone());
             continue;
         };
-        let own_name: &str = snapshot.name.rsplit_once('@').map_or(snapshot.name.as_str(), |pair| return pair.1);
+        let own_name: &str = snapshot
+            .name
+            .rsplit_once('@')
+            .map_or(snapshot.name.as_str(), |pair| return pair.1);
         if found.createtxg != snapshot.createtxg || found.name != own_name {
             return Err(RemovalStop::ASnapshotIsNotTheRecordedOne {
                 snapshot: snapshot.name.clone(),
@@ -236,13 +309,23 @@ pub fn settle_the_recorded_names(plan: &mut DestructionPlan, live: &[LiveObject]
 /// ```ts
 /// const added = theNewOwnSnapshots(plan, live);
 /// ```
-pub fn the_new_own_snapshots(plan: &DestructionPlan, live: &[LiveObject]) -> Result<Vec<PlanSnapshot>, RemovalStop> {
+pub fn the_new_own_snapshots(
+    plan: &DestructionPlan,
+    live: &[LiveObject],
+) -> Result<Vec<PlanSnapshot>, RemovalStop> {
     let mut added: Vec<PlanSnapshot> = Vec::new();
     for object in live {
-        if plan.current_state(&format!("{}@{}", object.owning_dataset, object.name)).is_some() {
+        if plan
+            .current_state(&format!("{}@{}", object.owning_dataset, object.name))
+            .is_some()
+        {
             continue;
         }
-        if plan.named_snapshots().iter().any(|held| return held.guid == object.guid) {
+        if plan
+            .named_snapshots()
+            .iter()
+            .any(|held| return held.guid == object.guid)
+        {
             continue;
         }
         if object.createtxg <= plan.facts.clone_createtxg {
@@ -253,7 +336,11 @@ pub fn the_new_own_snapshots(plan: &DestructionPlan, live: &[LiveObject]) -> Res
                 clone_createtxg: plan.facts.clone_createtxg,
             });
         }
-        added.push(PlanSnapshot { name: object.full_name(), guid: object.guid, createtxg: object.createtxg });
+        added.push(PlanSnapshot {
+            name: object.full_name(),
+            guid: object.guid,
+            createtxg: object.createtxg,
+        });
     }
     return Ok(added);
 }
@@ -272,11 +359,28 @@ pub fn the_new_own_snapshots(plan: &DestructionPlan, live: &[LiveObject]) -> Res
 /// ```ts
 /// amendThePlan(plan, added);
 /// ```
-pub fn amend_the_plan(plan: &mut DestructionPlan, added: &[PlanSnapshot]) -> Result<(), RemovalStop> {
+pub fn amend_the_plan(
+    plan: &mut DestructionPlan,
+    added: &[PlanSnapshot],
+) -> Result<(), RemovalStop> {
     for snapshot in added {
-        let Some(existing) = plan.attempts.iter().find(|line| return line.snapshot.guid == snapshot.guid) else {
-            let line: PlanAttempt = PlanAttempt { snapshot: snapshot.clone(), attempt: 0, outcome: SnapshotOutcome::Planned, errno: None };
-            plan.record_line(line).map_err(|refusal| return RemovalStop::ThePlanCouldNotHoldTheAnswer { path: std::path::PathBuf::new(), said: refusal.message(Path::new("the plan")) })?;
+        let Some(existing) = plan
+            .attempts
+            .iter()
+            .find(|line| return line.snapshot.guid == snapshot.guid)
+        else {
+            let line: PlanAttempt = PlanAttempt {
+                snapshot: snapshot.clone(),
+                attempt: 0,
+                outcome: SnapshotOutcome::Planned,
+                errno: None,
+            };
+            plan.record_line(line).map_err(|refusal| {
+                return RemovalStop::ThePlanCouldNotHoldTheAnswer {
+                    path: std::path::PathBuf::new(),
+                    said: refusal.message(Path::new("the plan")),
+                };
+            })?;
             continue;
         };
         if existing.snapshot.name != snapshot.name {
@@ -305,10 +409,27 @@ pub fn amend_the_plan(plan: &mut DestructionPlan, added: &[PlanSnapshot]) -> Res
 /// ```ts
 /// plan.recordLine({ snapshot, attempt: next(name), outcome });
 /// ```
-pub fn push_a_line(plan: &mut DestructionPlan, snapshot: &PlanSnapshot, outcome: SnapshotOutcome, errno: Option<u32>) -> Result<(), RemovalStop> {
-    let attempt: u64 = plan.current_state(snapshot.name.as_str()).map_or(1, |held| return held.attempt + 1);
-    let line: PlanAttempt = PlanAttempt { snapshot: snapshot.clone(), attempt, outcome, errno };
-    return plan.record_line(line).map_err(|refusal| return RemovalStop::ThePlanCouldNotHoldTheAnswer { path: std::path::PathBuf::new(), said: refusal.message(Path::new("the plan")) });
+pub fn push_a_line(
+    plan: &mut DestructionPlan,
+    snapshot: &PlanSnapshot,
+    outcome: SnapshotOutcome,
+    errno: Option<u32>,
+) -> Result<(), RemovalStop> {
+    let attempt: u64 = plan
+        .current_state(snapshot.name.as_str())
+        .map_or(1, |held| return held.attempt + 1);
+    let line: PlanAttempt = PlanAttempt {
+        snapshot: snapshot.clone(),
+        attempt,
+        outcome,
+        errno,
+    };
+    return plan.record_line(line).map_err(|refusal| {
+        return RemovalStop::ThePlanCouldNotHoldTheAnswer {
+            path: std::path::PathBuf::new(),
+            said: refusal.message(Path::new("the plan")),
+        };
+    });
 }
 
 /// What:
@@ -380,23 +501,36 @@ pub struct HeadDestroyed {
 /// ```ts
 /// const head = destroyTheHead({ plan, folder, probe, device });
 /// ```
-pub fn destroy_the_head(request: &mut HeadDestroyRequest<'_>) -> Result<HeadDestroyed, RemovalStop> {
+pub fn destroy_the_head(
+    request: &mut HeadDestroyRequest<'_>
+) -> Result<HeadDestroyed, RemovalStop> {
     let clone: String = request.plan.facts.clone_dataset.clone();
     let clone_guid: DatasetGuid = request.plan.facts.clone_guid;
     request.plan.head = HeadWord::Requested;
     publish(request)?;
-    let answer: Result<Option<NvList>, DeviceError> = request.device.destroy_the_dataset(clone.as_str());
+    let answer: Result<Option<NvList>, DeviceError> =
+        request.device.destroy_the_dataset(clone.as_str());
     let errno: Option<u32> = match &answer {
         Ok(_) => None,
-        Err(error) => error.errno().and_then(|held| return u32::try_from(held).ok()),
+        Err(error) => error
+            .errno()
+            .and_then(|held| return u32::try_from(held).ok()),
     };
     return match the_clone_absence(request.probe, clone.as_str(), clone_guid) {
         Ok(CloneAbsence::Gone) => settle_the_head(request, HeadWord::Gone, None),
-        Ok(CloneAbsence::There { .. }) => settle_the_head(request, HeadWord::Refused, errno),
-        Ok(CloneAbsence::Reused { guid }) => {
+        Ok(CloneAbsence::There {
+            ..
+        }) => settle_the_head(request, HeadWord::Refused, errno),
+        Ok(CloneAbsence::Reused {
+            guid,
+        }) => {
             request.plan.head = HeadWord::Unknown;
             publish(request)?;
-            Err(RemovalStop::TheCloneNameWasReused { name: clone, recorded_guid: clone_guid.file_name(), live_guid: guid.file_name() })
+            Err(RemovalStop::TheCloneNameWasReused {
+                name: clone,
+                recorded_guid: clone_guid.file_name(),
+                live_guid: guid.file_name(),
+            })
         }
         Err(stop) => {
             request.plan.head = HeadWord::Unknown;
@@ -408,12 +542,21 @@ pub fn destroy_the_head(request: &mut HeadDestroyRequest<'_>) -> Result<HeadDest
 
 /// The head's word written after its proof,
 /// with every remaining name settled by that proof when the head is gone.
-fn settle_the_head(request: &mut HeadDestroyRequest<'_>, head: HeadWord, errno: Option<u32>) -> Result<HeadDestroyed, RemovalStop> {
+fn settle_the_head(
+    request: &mut HeadDestroyRequest<'_>,
+    head: HeadWord,
+    errno: Option<u32>,
+) -> Result<HeadDestroyed, RemovalStop> {
     request.plan.head = head;
     let mut settled: Vec<String> = Vec::new();
     if head == HeadWord::Gone {
         for snapshot in request.plan.named_snapshots() {
-            if request.plan.current_state(snapshot.name.as_str()).map(|held| return held.outcome == SnapshotOutcome::Destroyed).unwrap_or(false) {
+            if request
+                .plan
+                .current_state(snapshot.name.as_str())
+                .map(|held| return held.outcome == SnapshotOutcome::Destroyed)
+                .unwrap_or(false)
+            {
                 continue;
             }
             push_a_line(request.plan, &snapshot, SnapshotOutcome::Destroyed, None)?;
@@ -421,14 +564,24 @@ fn settle_the_head(request: &mut HeadDestroyRequest<'_>, head: HeadWord, errno: 
         }
     }
     publish(request)?;
-    return Ok(HeadDestroyed { head, settled, errno });
+    return Ok(HeadDestroyed {
+        head,
+        settled,
+        errno,
+    });
 }
 
 /// One plan write through the folder that publishes it whole.
 fn publish(request: &HeadDestroyRequest<'_>) -> Result<(), RemovalStop> {
     return match request.folder.publish(request.plan) {
         Ok(_path) => Ok(()),
-        Err(refusal) => Err(RemovalStop::ThePlanCouldNotHoldTheAnswer { path: request.folder.path().join(request.plan.facts.clone_guid.file_name()), said: refusal.message(request.folder.path()) }),
+        Err(refusal) => Err(RemovalStop::ThePlanCouldNotHoldTheAnswer {
+            path: request
+                .folder
+                .path()
+                .join(request.plan.facts.clone_guid.file_name()),
+            said: refusal.message(request.folder.path()),
+        }),
     };
 }
 

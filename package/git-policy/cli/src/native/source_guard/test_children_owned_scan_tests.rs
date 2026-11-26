@@ -57,7 +57,10 @@ const NAMES_THIS_PROCESS: &[&str] = &["getpid()", "getpgrp()", "process::id()"];
 /// ```ts
 /// function occurrences(text: string, needle: string): number[]
 /// ```
-fn occurrences(text: &str, needle: &str) -> Vec<usize> {
+fn occurrences(
+    text: &str,
+    needle: &str,
+) -> Vec<usize> {
     // `mut` allows the list to grow; `Vec::new()` is an empty list.
     let mut found: Vec<usize> = Vec::new();
     let mut from: usize = 0;
@@ -81,7 +84,10 @@ fn occurrences(text: &str, needle: &str) -> Vec<usize> {
 /// ```ts
 /// function lineNumber(text: string, index: number): number
 /// ```
-fn line_number(text: &str, index: usize) -> usize {
+fn line_number(
+    text: &str,
+    index: usize,
+) -> usize {
     return text[..index].matches('\n').count() + 1;
 }
 
@@ -98,7 +104,11 @@ fn line_number(text: &str, index: usize) -> usize {
 /// ```ts
 /// function ownsTheGroupBelow(text: string, line: number, code: boolean[]): boolean
 /// ```
-fn owns_the_group_below(text: &str, line: usize, code: &[bool]) -> bool {
+fn owns_the_group_below(
+    text: &str,
+    line: usize,
+    code: &[bool],
+) -> bool {
     let mut offset: usize = 0;
     // `enumerate` numbers the lines, so only the window the start opened is read and the offset stays exact.
     for (number, each) in text.split_inclusive('\n').enumerate() {
@@ -130,7 +140,10 @@ fn owns_the_group_below(text: &str, line: usize, code: &[bool]) -> bool {
 /// ```ts
 /// function firstArgument(text: string, from: number): string
 /// ```
-fn first_argument(text: &str, from: usize) -> &str {
+fn first_argument(
+    text: &str,
+    from: usize,
+) -> &str {
     // The call's own `(` was stepped over before this, so the first argument is one level deep.
     let mut depth: usize = 1;
     // `char_indices` gives the byte offset of each character, which is how the slice is cut.
@@ -170,7 +183,9 @@ fn names_this_process(target: &str) -> bool {
         return true;
     }
     // `iter().any` stops at the first name that appears.
-    return NAMES_THIS_PROCESS.iter().any(|name| return squeezed_target.contains(name));
+    return NAMES_THIS_PROCESS
+        .iter()
+        .any(|name| return squeezed_target.contains(name));
 }
 
 /// What:

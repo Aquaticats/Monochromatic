@@ -12,7 +12,10 @@
 //! ```
 
 /// The carrier and the encoder under test.
-use super::{EventPath, base64_standard};
+use super::{
+    EventPath,
+    base64_standard,
+};
 
 /// What:
 ///  Decode standard padded base64,

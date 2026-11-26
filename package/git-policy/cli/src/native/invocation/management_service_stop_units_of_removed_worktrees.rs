@@ -45,11 +45,24 @@ use crate::child_environment::environment_value;
 use crate::management_service_settle_earlier_batches::state_dir_of;
 use crate::service_provision_host_and_manager::Manager;
 use crate::service_units_of_removed_worktrees::{
-    SweepOutcome, UnitFolders, UnitWorktree, journals_folder_in_words, stop_units_of_gone_worktrees, survey, worktree_of,
+    SweepOutcome,
+    UnitFolders,
+    UnitWorktree,
+    journals_folder_in_words,
+    stop_units_of_gone_worktrees,
+    survey,
+    worktree_of,
 };
-use crate::systemd_dbus::{Bus, EXCHANGE_WAIT, session_bus_path};
+use crate::systemd_dbus::{
+    Bus,
+    EXCHANGE_WAIT,
+    session_bus_path,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The command as a person types it,
 /// named in every message about it.
@@ -67,7 +80,10 @@ fn runtime_dir_of(environment: &[(OsString, OsString)]) -> Option<PathBuf> {
 
 /// The worktree an instance belongs to,
 /// as a path for a line of output.
-fn path_of(folders: &UnitFolders<'_>, instance: &str) -> String {
+fn path_of(
+    folders: &UnitFolders<'_>,
+    instance: &str,
+) -> String {
     return match worktree_of(folders, instance) {
         UnitWorktree::Known(git_dir) => git_dir.display().to_string(),
         UnitWorktree::Unmapped => String::from(UNKNOWN_WORKTREE),
@@ -80,7 +96,10 @@ const UNKNOWN_WORKTREE: &str = "an unknown worktree";
 /// The count with its noun,
 /// as "1 removed worktree" or "3 removed worktrees".
 fn worktrees(count: usize) -> String {
-    return format!("{count} removed {}", if count == 1 { "worktree" } else { "worktrees" });
+    return format!(
+        "{count} removed {}",
+        if count == 1 { "worktree" } else { "worktrees" }
+    );
 }
 
 /// What:
@@ -104,13 +123,24 @@ pub(crate) fn units_note(environment: &[(OsString, OsString)]) -> String {
         return String::new();
     };
     let state: Option<PathBuf> = state_dir_of(environment);
-    let found = survey(&UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() });
-    return note_of(found.gone.len(), found.unmapped.len(), found.journals_without_units.len());
+    let found = survey(&UnitFolders {
+        runtime_dir: runtime_dir.as_path(),
+        state_dir: state.as_deref(),
+    });
+    return note_of(
+        found.gone.len(),
+        found.unmapped.len(),
+        found.journals_without_units.len(),
+    );
 }
 
 /// The note for the counts,
 /// empty when the worktrees' units are all in order.
-fn note_of(gone: usize, unmapped: usize, journals_without_units: usize) -> String {
+fn note_of(
+    gone: usize,
+    unmapped: usize,
+    journals_without_units: usize,
+) -> String {
     let mut parts: Vec<String> = Vec::new();
     if gone > 0 {
         parts.push(format!(
@@ -121,7 +151,11 @@ fn note_of(gone: usize, unmapped: usize, journals_without_units: usize) -> Strin
     if unmapped > 0 {
         parts.push(format!(
             "{unmapped} commit service {} cannot be matched to a worktree, so none is touched",
-            if unmapped == 1 { "instance" } else { "instances" }
+            if unmapped == 1 {
+                "instance"
+            } else {
+                "instances"
+            }
         ));
     }
     if journals_without_units > 0 {
@@ -130,7 +164,10 @@ fn note_of(gone: usize, unmapped: usize, journals_without_units: usize) -> Strin
     if parts.is_empty() {
         return String::new();
     }
-    return format!("git monochromatic-git-policy-cli doctor: {}; nothing was changed.\n", parts.join(", and "));
+    return format!(
+        "git monochromatic-git-policy-cli doctor: {}; nothing was changed.\n",
+        parts.join(", and ")
+    );
 }
 
 /// What:
@@ -150,16 +187,24 @@ fn note_of(gone: usize, unmapped: usize, journals_without_units: usize) -> Strin
 /// ```
 fn journals_without_units_note(count: usize) -> String {
     return if count == 1 {
-        String::from("1 commit service journal names no worktree and has no unit beside it, so it can be removed by hand after looking")
+        String::from(
+            "1 commit service journal names no worktree and has no unit beside it, so it can be removed by hand after looking",
+        )
     } else {
-        format!("{count} commit service journals name no worktree and have no unit beside them, so they can be removed by hand after looking")
+        format!(
+            "{count} commit service journals name no worktree and have no unit beside them, so they can be removed by hand after looking"
+        )
     };
 }
 
 /// An exit that stopped nothing,
 /// with the reason on standard error.
 fn refused(reason: &str) -> Action {
-    return Action::Exit { code: 1, stdout: String::new(), stderr: format!("{COMMAND}: {reason}\n") };
+    return Action::Exit {
+        code: 1,
+        stdout: String::new(),
+        stderr: format!("{COMMAND}: {reason}\n"),
+    };
 }
 
 /// What:
@@ -177,7 +222,10 @@ fn refused(reason: &str) -> Action {
 /// ```ts
 /// journalsWithoutUnitsLine(1, stateDir) // '<command>: 1 commit service journal names no worktree ... look in <folder> and remove it by hand'
 /// ```
-fn journals_without_units_line(count: usize, state_dir: Option<&Path>) -> String {
+fn journals_without_units_line(
+    count: usize,
+    state_dir: Option<&Path>,
+) -> String {
     let folder: String = journals_folder_in_words(state_dir);
     return if count == 1 {
         format!(
@@ -206,7 +254,10 @@ fn journals_without_units_line(count: usize, state_dir: Option<&Path>) -> String
 /// ```ts
 /// stopUnitsAction(folders, manager) // { code, stdout, stderr }
 /// ```
-pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Manager) -> Action {
+pub(crate) fn stop_units_action(
+    folders: &UnitFolders<'_>,
+    manager: &mut dyn Manager,
+) -> Action {
     // Named before the stop, which removes a note the name may come from.
     let mut named: Vec<(String, String)> = Vec::new();
     for instance in survey(folders).gone {
@@ -224,7 +275,11 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
         }
         stdout.push_str(format!("stopped the commit service units of the removed worktree {path} (instance {instance})\n").as_str());
     }
-    if outcome.stopped.is_empty() && outcome.failed.is_empty() && outcome.journals_removed.is_empty() && outcome.journals_kept.is_empty() {
+    if outcome.stopped.is_empty()
+        && outcome.failed.is_empty()
+        && outcome.journals_removed.is_empty()
+        && outcome.journals_kept.is_empty()
+    {
         stdout.push_str("no commit service unit or journal belongs to a removed worktree\n");
     }
     // A journal that went with its units is named where it was: the person ran this to clear what an earlier
@@ -279,7 +334,13 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
     // A journal that no socket file and no note stands beside names no worktree and has no unit:
     //  the folder is all that is left, and only a person can decide to remove it.
     if !outcome.survey.journals_without_units.is_empty() {
-        stderr.push_str(journals_without_units_line(outcome.survey.journals_without_units.len(), folders.state_dir).as_str());
+        stderr.push_str(
+            journals_without_units_line(
+                outcome.survey.journals_without_units.len(),
+                folders.state_dir,
+            )
+            .as_str(),
+        );
     }
     // A journal that holds work is kept and named with where it is and what kept it, never discarded, and the command's
     // own status stays 0: the units it was asked about were stopped.
@@ -294,7 +355,11 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
             .as_str(),
         );
     }
-    return Action::Exit { code: i32::from(!outcome.failed.is_empty()), stdout, stderr };
+    return Action::Exit {
+        code: i32::from(!outcome.failed.is_empty()),
+        stdout,
+        stderr,
+    };
 }
 
 /// What:
@@ -311,10 +376,15 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
 /// ```
 pub(crate) fn plan_stop_units_of_removed_worktrees(environment: &[(OsString, OsString)]) -> Action {
     let Some(runtime_dir) = runtime_dir_of(environment) else {
-        return refused("XDG_RUNTIME_DIR is not set, so there is no user runtime directory whose units could be looked at; run it from a login session");
+        return refused(
+            "XDG_RUNTIME_DIR is not set, so there is no user runtime directory whose units could be looked at; run it from a login session",
+        );
     };
     let state: Option<PathBuf> = state_dir_of(environment);
-    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };
+    let folders: UnitFolders<'_> = UnitFolders {
+        runtime_dir: runtime_dir.as_path(),
+        state_dir: state.as_deref(),
+    };
     let address: Option<OsString> = environment_value(environment, "DBUS_SESSION_BUS_ADDRESS");
     let address_text: Option<&str> = match &address {
         Some(value) => value.to_str(),
@@ -322,11 +392,17 @@ pub(crate) fn plan_stop_units_of_removed_worktrees(environment: &[(OsString, OsS
     };
     let socket: PathBuf = match session_bus_path(address_text, Some(runtime_dir.as_path())) {
         Some(path) if path.exists() => path,
-        _ => return refused("the user's session bus was not found, so the units cannot be stopped through the manager; run it from a login session"),
+        _ => {
+            return refused(
+                "the user's session bus was not found, so the units cannot be stopped through the manager; run it from a login session",
+            );
+        }
     };
     return match Bus::connect(socket.as_path(), EXCHANGE_WAIT) {
         Ok(mut bus) => stop_units_action(&folders, &mut bus),
-        Err(error) => refused(format!("the user's session bus could not be reached ({error:?})").as_str()),
+        Err(error) => {
+            refused(format!("the user's session bus could not be reached ({error:?})").as_str())
+        }
     };
 }
 

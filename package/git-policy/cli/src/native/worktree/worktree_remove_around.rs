@@ -20,16 +20,31 @@
 //! const outcome = goAround({ request, held, registration }); // RemovedAround | Removed | Incomplete
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::fs_beneath::remove_at;
-use crate::subvolume_remove_around::{empty_directory_around, look_for_boundaries};
-use crate::worktree_removal_goes_around_a_foreign_volume::around_incomplete_report;
-use crate::worktree_removal_interrupted_destroy::forget_destroy;
+use crate::subvolume_remove_around::{
+    empty_directory_around,
+    look_for_boundaries,
+};
 use crate::subvolume_remove_walk::Boundary;
 use crate::worktree_removal_around_begun::WhichRemoval;
+use crate::worktree_removal_goes_around_a_foreign_volume::around_incomplete_report;
+use crate::worktree_removal_goes_around_a_foreign_volume::{
+    stopped_around_report,
+    volumes_below,
+};
+use crate::worktree_removal_interrupted_destroy::forget_destroy;
 use crate::worktree_removal_only_deletions::Reported;
-use crate::worktree_removal_goes_around_a_foreign_volume::{stopped_around_report, volumes_below};
-use crate::worktree_remove::{Held, RemoveOutcome, RemoveRequest, TAG, finish};
+use crate::worktree_remove::{
+    Held,
+    RemoveOutcome,
+    RemoveRequest,
+    TAG,
+    finish,
+};
 use crate::worktree_remove_registry::Registration;
 use std::path::Path;
 
@@ -75,9 +90,20 @@ pub(crate) struct Continuation {
 /// ```ts
 /// const answer = continuationOf(request, target, registration, foreign, begun);
 /// ```
-pub(crate) fn continuation_of(request: &RemoveRequest<'_>, target: &Path, registration: &Registration, held: &Held, foreign: &[Boundary]) -> Continuation {
+pub(crate) fn continuation_of(
+    request: &RemoveRequest<'_>,
+    target: &Path,
+    registration: &Registration,
+    held: &Held,
+    foreign: &[Boundary],
+) -> Continuation {
     crate::worktree_removal_around_begun::prune_around_begun(request.common_dir);
-    let which: WhichRemoval<'_> = WhichRemoval { id: registration.id.as_os_str(), admin: held.admin_identity, worktree: held.identity, target };
+    let which: WhichRemoval<'_> = WhichRemoval {
+        id: registration.id.as_os_str(),
+        admin: held.admin_identity,
+        worktree: held.identity,
+        target,
+    };
     if !crate::worktree_removal_around_begun::around_begun_by(request.common_dir, which) {
         return Continuation::default();
     }
@@ -88,7 +114,11 @@ pub(crate) fn continuation_of(request: &RemoveRequest<'_>, target: &Path, regist
     if resuming {
         debug(TAG, format!("a removal of {} began in an earlier command and was cut short; this one finishes it", target.display()).as_str());
     }
-    return Continuation { begun: true, resuming, reported };
+    return Continuation {
+        begun: true,
+        resuming,
+        reported,
+    };
 }
 
 /// What:
@@ -109,18 +139,30 @@ pub(crate) fn continuation_of(request: &RemoveRequest<'_>, target: &Path, regist
 /// ```ts
 /// return refusalBesideAVolume({ request, target, registration, foreign, continuation, reason });
 /// ```
-pub(crate) fn refusal_beside_a_volume(request: &RemoveRequest<'_>, target: &Path, registration: &Registration, foreign: &[Boundary], continuation: Continuation, reason: &str) -> RemoveOutcome {
+pub(crate) fn refusal_beside_a_volume(
+    request: &RemoveRequest<'_>,
+    target: &Path,
+    registration: &Registration,
+    foreign: &[Boundary],
+    continuation: Continuation,
+    reason: &str,
+) -> RemoveOutcome {
     let begun: bool = continuation.begun;
     let reported: Reported = match begun {
         true => continuation.reported,
         false => reported_beside(request, target, registration, foreign),
     };
-    let report: String = crate::worktree_removal_goes_around_a_foreign_volume::refused_beside_a_volume_report(
-        target,
-        request.plan.operand.to_string_lossy().as_ref(),
-        foreign,
-        crate::worktree_removal_goes_around_a_foreign_volume::BesideAVolume { reason, begun, reported },
-    );
+    let report: String =
+        crate::worktree_removal_goes_around_a_foreign_volume::refused_beside_a_volume_report(
+            target,
+            request.plan.operand.to_string_lossy().as_ref(),
+            foreign,
+            crate::worktree_removal_goes_around_a_foreign_volume::BesideAVolume {
+                reason,
+                begun,
+                reported,
+            },
+        );
     warn(TAG, report.as_str());
     return RemoveOutcome::Refused(report);
 }
@@ -139,13 +181,23 @@ pub(crate) fn refusal_beside_a_volume(request: &RemoveRequest<'_>, target: &Path
 /// ```ts
 /// const onlyDeletions = onlyDeletionsBeside({ request, target, registration, foreign });
 /// ```
-pub(crate) fn reported_beside(request: &RemoveRequest<'_>, target: &Path, registration: &Registration, foreign: &[Boundary]) -> Reported {
+pub(crate) fn reported_beside(
+    request: &RemoveRequest<'_>,
+    target: &Path,
+    registration: &Registration,
+    foreign: &[Boundary],
+) -> Reported {
     let seen: Vec<Boundary> = match foreign.is_empty() {
         true => volumes_below(target),
         false => foreign.to_vec(),
     };
     let volumes: Vec<&Path> = seen.iter().map(|one| return one.path.as_path()).collect();
-    return crate::worktree_removal_only_deletions::reported_outside(request.context, target, registration.admin.as_path(), volumes.as_slice());
+    return crate::worktree_removal_only_deletions::reported_outside(
+        request.context,
+        target,
+        registration.admin.as_path(),
+        volumes.as_slice(),
+    );
 }
 
 /// What:
@@ -172,7 +224,11 @@ pub(crate) fn reported_beside(request: &RemoveRequest<'_>, target: &Path, regist
 /// ```ts
 /// const outcome = goAround({ request, held, registration }); // RemovedAround | Removed | Incomplete
 /// ```
-pub(crate) fn go_around(request: &RemoveRequest<'_>, held: &Held, registration: &Registration) -> RemoveOutcome {
+pub(crate) fn go_around(
+    request: &RemoveRequest<'_>,
+    held: &Held,
+    registration: &Registration,
+) -> RemoveOutcome {
     let target: &Path = request.plan.target.as_path();
     // The pass deletes the worktree's own entries before the registration goes, so a command killed in it leaves a tree Git
     // reports as changed and a state only `--force` clears. What is written here is the proof that those deletions are this
@@ -180,7 +236,12 @@ pub(crate) fn go_around(request: &RemoveRequest<'_>, held: &Held, registration: 
     // nothing else: the removal goes on, and the words of a refusal name what then finishes the state.
     if let Err(reason) = crate::worktree_removal_around_begun::record_around_begun(
         request.common_dir,
-        crate::worktree_removal_around_begun::WhichRemoval { id: registration.id.as_os_str(), admin: held.admin_identity, worktree: held.identity, target },
+        crate::worktree_removal_around_begun::WhichRemoval {
+            id: registration.id.as_os_str(),
+            admin: held.admin_identity,
+            worktree: held.identity,
+            target,
+        },
     ) {
         warn(TAG, format!("the pass that goes around the volume of {} is not recorded, so a command killed in it leaves a worktree only `--force` finishes: {reason}", target.display()).as_str());
     }
@@ -196,14 +257,20 @@ pub(crate) fn go_around(request: &RemoveRequest<'_>, held: &Held, registration: 
     let left: Vec<Boundary> = look_for_boundaries(&held.target, target).found;
     if left.is_empty() {
         if let Err(error) = remove_at(&held.parent, held.name.as_os_str(), true) {
-            let report: String = stopped_around_report(target, format!("{} cannot be removed ({error})", target.display()).as_str());
+            let report: String = stopped_around_report(
+                target,
+                format!("{} cannot be removed ({error})", target.display()).as_str(),
+            );
             warn(TAG, report.as_str());
             return RemoveOutcome::Incomplete(report);
         }
         let outcome: RemoveOutcome = finish(held, registration, request);
         if outcome == RemoveOutcome::Removed {
             forget_destroy(request.common_dir, registration.id.as_os_str());
-            crate::worktree_removal_around_begun::forget_around_begun(request.common_dir, registration.id.as_os_str());
+            crate::worktree_removal_around_begun::forget_around_begun(
+                request.common_dir,
+                registration.id.as_os_str(),
+            );
             // The files went one by one in this command and the empty root went with one `rmdir`, so the ending is the around
             // route's and not the destroy's: nothing was destroyed in one step and nothing waits for the commit service.
             debug(TAG, format!("the volume of {} went away while the pass ran, so the emptied root went with one rmdir", target.display()).as_str());
@@ -216,8 +283,19 @@ pub(crate) fn go_around(request: &RemoveRequest<'_>, held: &Held, registration: 
         return finished_around(outcome, target, registration, left.as_slice(), request);
     }
     forget_destroy(request.common_dir, registration.id.as_os_str());
-    crate::worktree_removal_around_begun::forget_around_begun(request.common_dir, registration.id.as_os_str());
-    debug(TAG, format!("removed the worktree {} around {} volume(s) it did not make", target.display(), left.len()).as_str());
+    crate::worktree_removal_around_begun::forget_around_begun(
+        request.common_dir,
+        registration.id.as_os_str(),
+    );
+    debug(
+        TAG,
+        format!(
+            "removed the worktree {} around {} volume(s) it did not make",
+            target.display(),
+            left.len()
+        )
+        .as_str(),
+    );
     return RemoveOutcome::RemovedAround(left);
 }
 
@@ -237,11 +315,23 @@ pub(crate) fn go_around(request: &RemoveRequest<'_>, held: &Held, registration: 
 /// ```ts
 /// const outcome = finishedAround(ended, target, registration, left, request);
 /// ```
-pub(crate) fn finished_around(outcome: RemoveOutcome, target: &Path, registration: &Registration, left: &[Boundary], request: &RemoveRequest<'_>) -> RemoveOutcome {
+pub(crate) fn finished_around(
+    outcome: RemoveOutcome,
+    target: &Path,
+    registration: &Registration,
+    left: &[Boundary],
+    request: &RemoveRequest<'_>,
+) -> RemoveOutcome {
     return match outcome {
         RemoveOutcome::Incomplete(said) => {
             let reason: &str = said.lines().next().unwrap_or(said.as_str());
-            let around: String = around_incomplete_report(target, registration.admin.as_path(), request.common_dir, left, reason);
+            let around: String = around_incomplete_report(
+                target,
+                registration.admin.as_path(),
+                request.common_dir,
+                left,
+                reason,
+            );
             warn(TAG, around.as_str());
             RemoveOutcome::Incomplete(around)
         }

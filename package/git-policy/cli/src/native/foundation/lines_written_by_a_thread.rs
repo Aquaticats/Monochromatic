@@ -32,15 +32,18 @@
 //! const queue = startTheQueue(policy); hand(queue, line); writeWhatWaits(queue, 250);
 //! ```
 
+/// The lines waiting for the stream.
+use std::collections::VecDeque;
 /// Writing one line into a stream,
 /// and the error it may give.
 use std::io::Write;
 /// The queue,
 /// the condition the thread waits on,
 /// and the type both owners keep their one queue in.
-use std::sync::{Condvar, Mutex};
-/// The lines waiting for the stream.
-use std::collections::VecDeque;
+use std::sync::{
+    Condvar,
+    Mutex,
+};
 
 /// What:
 ///  The queue of one process,
@@ -183,7 +186,8 @@ pub(crate) struct Queue {
 /// ```ts
 /// const THE_END_ASKS_AGAIN_EVERY = 5
 /// ```
-pub(crate) const THE_END_ASKS_AGAIN_EVERY: std::time::Duration = std::time::Duration::from_millis(5);
+pub(crate) const THE_END_ASKS_AGAIN_EVERY: std::time::Duration =
+    std::time::Duration::from_millis(5);
 
 /// What:
 ///  The queue of one process,
@@ -266,7 +270,10 @@ pub(crate) fn start_the_queue(policy: &'static QueuePolicy) -> SharedQueue {
              process says is lost while this limit stands.\n",
             crate::scoped_start::refused_thread_sentence(purpose, &refusal)
         );
-        let mut held = started.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut held = started
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         held.thread_refused = true;
         held.thread_refusal = Some(said);
     }
@@ -308,7 +315,10 @@ fn write_every_line(started: SharedQueue) {
     // ```ts
     // const policy = queue.policy;
     // ```
-    let policy: &'static QueuePolicy = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner).policy;
+    let policy: &'static QueuePolicy = queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .policy;
     loop {
         // What:     `(line, dropped)` is the next line and the count of lines dropped before it,
         //           read under the one lock that takes the line.
@@ -358,7 +368,8 @@ fn write_every_line(started: SharedQueue) {
         // ```ts
         // const failed = writeWhole(writer, line.line);
         // ```
-        let written: std::io::Result<()> = write_whole(&mut writer, line.line.as_slice(), queue, ready);
+        let written: std::io::Result<()> =
+            write_whole(&mut writer, line.line.as_slice(), queue, ready);
         // What:     `writer.flush()` pushes what the stream buffers, and the failure of a flush is not the line's.
         // Why:      A line already in the stream is written; a flush that fails changes nothing about what was taken.
         //
@@ -392,8 +403,13 @@ fn write_every_line(started: SharedQueue) {
 /// ```ts
 /// const takeALine = () => { lock(); for (;;) { const line = lines.shift(); if (line) { writing = true; return { line, dropped: take(dropped) } } wait(); } }
 /// ```
-fn take_a_line(queue: &'static Mutex<Queue>, ready: &'static Condvar) -> (Pending, u64) {
-    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+fn take_a_line(
+    queue: &'static Mutex<Queue>,
+    ready: &'static Condvar,
+) -> (Pending, u64) {
+    let mut held = queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     loop {
         // What:     `pop_front()` takes the oldest line, which is the order the callers handed them over in.
         // Why:      The lines are written in the order they were said, and the queue is what keeps that order.
@@ -455,7 +471,9 @@ fn take_a_line(queue: &'static Mutex<Queue>, ready: &'static Condvar) -> (Pendin
 /// const takeTheStream = () => held.writer ?? policy.defaultStream();
 /// ```
 fn take_the_stream(queue: &'static Mutex<Queue>) -> Box<dyn Write + Send> {
-    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut held = queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     // What:     `held.writer.take()` gives this line the control's stream and leaves none behind, so it is handed back below.
     // Why:      One writer travels with one line, which is what lets a control replace it between lines.
     //
@@ -489,8 +507,16 @@ fn take_the_stream(queue: &'static Mutex<Queue>) -> Box<dyn Write + Send> {
 /// ```ts
 /// const giveBack = (writer, ticket, gone) => { lock(); queue.writer ??= writer; queue.written = ticket; queue.writing = false; if (gone) queue.stream_is_gone = true; unlock(); notifyAll() }
 /// ```
-fn give_back(queue: &'static Mutex<Queue>, ready: &'static Condvar, writer: Box<dyn Write + Send>, ticket: u64, stream_is_gone: bool) {
-    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+fn give_back(
+    queue: &'static Mutex<Queue>,
+    ready: &'static Condvar,
+    writer: Box<dyn Write + Send>,
+    ticket: u64,
+    stream_is_gone: bool,
+) {
+    let mut held = queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if held.writer.is_none() {
         held.writer = Some(writer);
     }
@@ -535,7 +561,9 @@ fn write_whole(
             // A signal ended the call and nothing about the stream changed.
             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
             // A stream with no room now takes the rest of the line when the reader makes room.
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => wait_to_be_asked_again(queue, ready),
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                wait_to_be_asked_again(queue, ready)
+            }
             Err(error) => return Err(error),
         }
     }
@@ -555,8 +583,13 @@ fn write_whole(
 /// ```ts
 /// await policy.retriesOnATick ? sleep(THE_END_ASKS_AGAIN_EVERY) : nextAsk()
 /// ```
-fn wait_to_be_asked_again(queue: &'static Mutex<Queue>, ready: &'static Condvar) {
-    let held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+fn wait_to_be_asked_again(
+    queue: &'static Mutex<Queue>,
+    ready: &'static Condvar,
+) {
+    let held = queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let retries_on_a_tick: bool = held.policy.retries_on_a_tick;
     let _woken = match retries_on_a_tick {
         true => match ready.wait_timeout(held, THE_END_ASKS_AGAIN_EVERY) {
@@ -591,7 +624,10 @@ fn wait_to_be_asked_again(queue: &'static Mutex<Queue>, ready: &'static Condvar)
 /// ```ts
 /// const writeWhereItIsSaid = (line) => { const [writer, fromAControl] = takeTheStream(); if (!fromAControl && !roomNow()) { dropped++; return undefined } writer.write(line); writer.flush(); giveBack(writer); const ticket = next++; written = ticket; return ticket }
 /// ```
-fn write_where_it_is_said(queue: SharedQueue, line: &[u8]) -> Option<u64> {
+fn write_where_it_is_said(
+    queue: SharedQueue,
+    line: &[u8],
+) -> Option<u64> {
     let (held_queue, _ready) = queue;
     // What:     `from_a_control` says the stream came from a control rather than from this queue's policy,
     //           and a control's stream is memory that takes every byte at once.
@@ -602,7 +638,9 @@ fn write_where_it_is_said(queue: SharedQueue, line: &[u8]) -> Option<u64> {
     // const [writer, fromAControl] = held.writer ? [held.writer, true] : [(held.policy.defaultStream)(), false];
     // ```
     let (mut writer, from_a_control): (Box<dyn Write + Send>, bool) = {
-        let mut held = held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut held = held_queue
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         match held.writer.take() {
             Some(control) => (control, true),
             None => ((held.policy.default_stream)(), false),
@@ -617,7 +655,9 @@ fn write_where_it_is_said(queue: SharedQueue, line: &[u8]) -> Option<u64> {
     // if (!fromAControl && !roomNow()) { lock(); dropped++; return undefined }
     // ```
     if !from_a_control && !the_stream_has_room_now() {
-        let mut held = held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut held = held_queue
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         held.dropped = held.dropped.saturating_add(1);
         return None;
     }
@@ -631,7 +671,9 @@ fn write_where_it_is_said(queue: SharedQueue, line: &[u8]) -> Option<u64> {
     // ```
     let _took: std::io::Result<usize> = writer.write(line);
     let _flushed: std::io::Result<()> = writer.flush();
-    let mut held = held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut held = held_queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if held.writer.is_none() {
         held.writer = Some(writer);
     }
@@ -666,7 +708,11 @@ fn write_where_it_is_said(queue: SharedQueue, line: &[u8]) -> Option<u64> {
 #[cfg(unix)]
 fn the_stream_has_room_now() -> bool {
     // What: one descriptor watched for room to write in it, and for no time at all.
-    let mut watched: libc::pollfd = libc::pollfd { fd: libc::STDERR_FILENO, events: libc::POLLOUT, revents: 0 };
+    let mut watched: libc::pollfd = libc::pollfd {
+        fd: libc::STDERR_FILENO,
+        events: libc::POLLOUT,
+        revents: 0,
+    };
     // SAFETY: `poll` reads and writes only the one structure given to it here, and waits for no time.
     let answered: libc::c_int = unsafe { libc::poll(&mut watched, 1, 0) };
     // What: whether the stream reported room, and not an error or a hang-up instead.
@@ -705,9 +751,15 @@ fn the_stream_has_room_now() -> bool {
 /// ```ts
 /// const hand = (line) => { lock(); if (refused) { const said = refusal.shift(); unlock(); if (said) writeWhereItIsSaid(said); return writeWhereItIsSaid(line) } if (queue.length >= bound) { dropped++; return undefined } queue.push({ ticket: next++, line }); unlock(); notify(); return ticket }
 /// ```
-pub(crate) fn hand(queue: SharedQueue, line: Vec<u8>, bound: usize) -> Option<u64> {
+pub(crate) fn hand(
+    queue: SharedQueue,
+    line: Vec<u8>,
+    bound: usize,
+) -> Option<u64> {
     let (held_queue, ready) = queue;
-    let mut held = held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut held = held_queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     // What:     `if held.thread_refused` is the queue of a process whose limit refused the thread that writes it,
     //           where `held.thread_refusal.take()` takes the one sentence about that refusal.
     // Why:      Nothing will ever take a line from this queue, so the line is written where it is said,
@@ -745,7 +797,10 @@ pub(crate) fn hand(queue: SharedQueue, line: Vec<u8>, bound: usize) -> Option<u6
     // ```
     let ticket: u64 = held.next_ticket;
     held.next_ticket = held.next_ticket.saturating_add(1);
-    held.lines.push_back(Pending { ticket, line });
+    held.lines.push_back(Pending {
+        ticket,
+        line,
+    });
     drop(held);
     ready.notify_one();
     // What:     `Some(ticket)` tells the caller the queue took the line, and which one.
@@ -774,7 +829,11 @@ pub(crate) fn hand(queue: SharedQueue, line: Vec<u8>, bound: usize) -> Option<u6
 /// ```ts
 /// const waitUntilWritten = (ticket, within) => { for (;;) { if (written >= ticket) return; if (deadlinePassed()) { readerStopped = true; return } waitUntil(deadline) } }
 /// ```
-pub(crate) fn wait_until_written(queue: SharedQueue, ticket: u64, within: std::time::Duration) {
+pub(crate) fn wait_until_written(
+    queue: SharedQueue,
+    ticket: u64,
+    within: std::time::Duration,
+) {
     let (held_queue, ready) = queue;
     // What:     `Instant::now() + within` is the moment the caller stops waiting for the reader.
     // Why:      A reader that was not taking the line by then is not taking lines at all.
@@ -784,7 +843,9 @@ pub(crate) fn wait_until_written(queue: SharedQueue, ticket: u64, within: std::t
     // const deadline = Date.now() + within;
     // ```
     let deadline: std::time::Instant = std::time::Instant::now() + within;
-    let mut held = held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut held = held_queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     // What:     `if !held.policy.callers_wait_for_their_line` leaves at once for a queue whose callers hand a line and go on.
     // Why:      The wait is a promise only the diagnostics' queue makes; the service's log never holds its callers.
     //
@@ -845,10 +906,15 @@ pub(crate) fn wait_until_written(queue: SharedQueue, ticket: u64, within: std::t
 /// ```ts
 /// const writeWhatWaits = (within) => (queueEmpty && !writing) || waitedAsLongAs(within)
 /// ```
-pub(crate) fn write_what_waits(queue: SharedQueue, within: std::time::Duration) -> bool {
+pub(crate) fn write_what_waits(
+    queue: SharedQueue,
+    within: std::time::Duration,
+) -> bool {
     let (held_queue, ready) = queue;
     let deadline: std::time::Instant = std::time::Instant::now() + within;
-    let mut held = held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut held = held_queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     loop {
         // A stream that is gone takes nothing more, so no wait brings a reader back and the answer is owed now.
         if held.stream_is_gone {
@@ -875,7 +941,11 @@ pub(crate) fn write_what_waits(queue: SharedQueue, within: std::time::Duration) 
 #[cfg(test)]
 pub(crate) fn queued(queue: SharedQueue) -> usize {
     let (held_queue, _ready) = queue;
-    return held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner).lines.len();
+    return held_queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .lines
+        .len();
 }
 
 /// How many lines have been dropped since the last one that got through,
@@ -883,7 +953,10 @@ pub(crate) fn queued(queue: SharedQueue) -> usize {
 #[cfg(test)]
 pub(crate) fn dropped_so_far(queue: SharedQueue) -> u64 {
     let (held_queue, _ready) = queue;
-    return held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner).dropped;
+    return held_queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .dropped;
 }
 
 /// What:
@@ -897,9 +970,14 @@ pub(crate) fn dropped_so_far(queue: SharedQueue) -> u64 {
 /// giveTheThread(testWriter)
 /// ```
 #[cfg(test)]
-pub(crate) fn give_the_thread(queue: SharedQueue, writer: Box<dyn Write + Send>) {
+pub(crate) fn give_the_thread(
+    queue: SharedQueue,
+    writer: Box<dyn Write + Send>,
+) {
     let (held_queue, _ready) = queue;
-    let mut held = held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut held = held_queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     held.writer = Some(writer);
     // What:     `held.reader_stopped = false` puts back the wait a caller gives a reader, for a control that gives a fresh
     //           stream after the reader that had stopped was replaced.
@@ -917,5 +995,8 @@ pub(crate) fn give_the_thread(queue: SharedQueue, writer: Box<dyn Write + Send>)
 #[cfg(test)]
 pub(crate) fn the_reader_stopped(queue: SharedQueue) -> bool {
     let (held_queue, _ready) = queue;
-    return held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner).reader_stopped;
+    return held_queue
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .reader_stopped;
 }

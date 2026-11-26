@@ -36,9 +36,15 @@
 use crate::command_add::ADD_ESCAPE_HATCH;
 use crate::command_options_query::without_tokens;
 use crate::escape_hatch::{
-    BRANCH_WORKTREE_ESCAPE_HATCH, WORKTREE_COPY_ESCAPE_HATCH, WORKTREE_ENFORCEMENT_ESCAPE_HATCH,
+    BRANCH_WORKTREE_ESCAPE_HATCH,
+    WORKTREE_COPY_ESCAPE_HATCH,
+    WORKTREE_ENFORCEMENT_ESCAPE_HATCH,
 };
-use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+    global_layout,
+};
 use crate::policy_registry::PolicyId;
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
@@ -318,7 +324,10 @@ pub fn control_flags() -> Vec<&'static [u8]> {
 /// ```ts
 /// function recordControl(controls: Controls, meaning: ControlMeaning): void;
 /// ```
-pub fn record_control(controls: &mut Controls, meaning: ControlMeaning) {
+pub fn record_control(
+    controls: &mut Controls,
+    meaning: ControlMeaning,
+) {
     // `match` picks one arm per variant and unpacks the policy an `Escape` carries; the
     // compiler refuses the code if a variant is forgotten.
     match meaning {
@@ -342,7 +351,10 @@ pub fn record_control(controls: &mut Controls, meaning: ControlMeaning) {
 /// ```ts
 /// const escaped = controls.escaped.includes(policy);
 /// ```
-pub fn is_escaped(controls: &Controls, policy: PolicyId) -> bool {
+pub fn is_escaped(
+    controls: &Controls,
+    policy: PolicyId,
+) -> bool {
     return controls.escaped.contains(&policy);
 }
 
@@ -372,7 +384,10 @@ pub fn is_escaped(controls: &Controls, policy: PolicyId) -> bool {
 /// ```ts
 /// function stripGlobalControls(args: string[], controls: Controls): string[];
 /// ```
-pub fn strip_global_controls(arguments: &[OsString], controls: &mut Controls) -> Vec<OsString> {
+pub fn strip_global_controls(
+    arguments: &[OsString],
+    controls: &mut Controls,
+) -> Vec<OsString> {
     // `.to_vec()` copies the borrowed list into an owned one that later rounds replace.
     let mut current: Vec<OsString> = arguments.to_vec();
     // `0..arguments.len()` counts the rounds; `_round` is unused because only the count matters.

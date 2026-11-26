@@ -1,7 +1,10 @@
 //! Controls for the file operations recovery shares.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// Existence probes tell missing from present and report other failures.
 #[cfg(unix)]
@@ -38,9 +41,20 @@ fn an_optional_read_tells_missing_from_unreadable() {
     let root: PathBuf = fixture("recovery-files-optional");
     let file: PathBuf = root.join("entry");
     std::fs::write(&file, b"bytes").expect("file");
-    assert_eq!(read_optional(file.as_path()).expect("read"), Some(b"bytes".to_vec()));
-    assert_eq!(read_optional(root.join("missing").as_path()).expect("read"), None);
-    assert!(read_optional(file.join("child").as_path()).expect_err("not a directory").0.starts_with("reading "));
+    assert_eq!(
+        read_optional(file.as_path()).expect("read"),
+        Some(b"bytes".to_vec())
+    );
+    assert_eq!(
+        read_optional(root.join("missing").as_path()).expect("read"),
+        None
+    );
+    assert!(
+        read_optional(file.join("child").as_path())
+            .expect_err("not a directory")
+            .0
+            .starts_with("reading ")
+    );
     remove(root.as_path());
 }
 
@@ -54,7 +68,12 @@ fn removal_of_a_missing_file_is_a_success() {
     remove_file_if_present(file.as_path()).expect("remove");
     assert!(!file.exists());
     remove_file_if_present(file.as_path()).expect("a missing file is removed");
-    assert!(remove_file_if_present(root.as_path()).expect_err("a directory is not a file").0.starts_with("removing "));
+    assert!(
+        remove_file_if_present(root.as_path())
+            .expect_err("a directory is not a file")
+            .0
+            .starts_with("removing ")
+    );
     remove(root.as_path());
 }
 

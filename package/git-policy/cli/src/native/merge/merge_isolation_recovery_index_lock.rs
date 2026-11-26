@@ -18,12 +18,22 @@
 //! ```
 
 use crate::index_holder_wait::{
-    CLEARS_A_DEAD_OWNERS_LOCK, IndexLook, IndexWait, look_at_the_index_lock_once, wait_for_index_release_while_finishing_a_merge,
+    CLEARS_A_DEAD_OWNERS_LOCK,
+    IndexLook,
+    IndexWait,
+    look_at_the_index_lock_once,
+    wait_for_index_release_while_finishing_a_merge,
 };
-use crate::index_lock_evidence::{THE_ENDING_SAYS_IT, dead_owner_diagnostic};
+use crate::index_lock_evidence::{
+    THE_ENDING_SAYS_IT,
+    dead_owner_diagnostic,
+};
 use crate::index_lock_holders::scan_platform_holders_bounded;
 use crate::service_index_placement::SYSTEM;
-use crate::service_index_unheld_removal::{Unheld, remove_if_the_owner_is_gone};
+use crate::service_index_unheld_removal::{
+    Unheld,
+    remove_if_the_owner_is_gone,
+};
 use std::io::Write;
 use std::path::Path;
 
@@ -56,11 +66,22 @@ use std::path::Path;
 /// ```ts
 /// const mayWrite = (gitDir, installedBefore, stderr) => installedBefore ? mayInstall(gitDir, wait(gitDir, stderr)) : lockOfANothingInstalledMergeStands(gitDir, stderr) === false;
 /// ```
-pub fn may_write<W: Write + ?Sized>(git_dir: &Path, installed_before: bool, out: &mut W) -> bool {
+pub fn may_write<W: Write + ?Sized>(
+    git_dir: &Path,
+    installed_before: bool,
+    out: &mut W,
+) -> bool {
     let index: std::path::PathBuf = git_dir.join("index");
     return match installed_before {
-        true => may_install(git_dir, wait_for_index_release_while_finishing_a_merge(index.as_path(), out)),
-        false => !the_lock_of_a_merge_that_installed_nothing_stands_in_the_way(git_dir, index.as_path(), out),
+        true => may_install(
+            git_dir,
+            wait_for_index_release_while_finishing_a_merge(index.as_path(), out),
+        ),
+        false => !the_lock_of_a_merge_that_installed_nothing_stands_in_the_way(
+            git_dir,
+            index.as_path(),
+            out,
+        ),
     };
 }
 
@@ -83,7 +104,10 @@ pub fn may_write<W: Write + ?Sized>(git_dir: &Path, installed_before: bool, out:
 /// ```ts
 /// const mayInstall = (gitDir, waited) => waited.kind === 'not-held' || waited.kind === 'released' || (waited.kind === 'owner-gone' && clearTheLockAGoneOwnerLeft(gitDir));
 /// ```
-pub fn may_install(git_dir: &Path, waited: IndexWait) -> bool {
+pub fn may_install(
+    git_dir: &Path,
+    waited: IndexWait,
+) -> bool {
     return match waited {
         IndexWait::NotHeld | IndexWait::Released(_) => true,
         IndexWait::GaveUp(_) | IndexWait::HeldByAnotherCommand(_) => false,
@@ -112,7 +136,11 @@ pub fn may_install(git_dir: &Path, waited: IndexWait) -> bool {
 ///   case 'held': return true;
 /// };
 /// ```
-fn the_lock_of_a_merge_that_installed_nothing_stands_in_the_way<W: Write + ?Sized>(git_dir: &Path, index: &Path, out: &mut W) -> bool {
+fn the_lock_of_a_merge_that_installed_nothing_stands_in_the_way<W: Write + ?Sized>(
+    git_dir: &Path,
+    index: &Path,
+    out: &mut W,
+) -> bool {
     return match look_at_the_index_lock_once(index) {
         IndexLook::Free => false,
         IndexLook::LeftByAGoneProcess(pid) => {
@@ -145,7 +173,11 @@ fn the_lock_of_a_merge_that_installed_nothing_stands_in_the_way<W: Write + ?Size
 /// ```
 fn clear_the_lock_a_gone_owner_left(git_dir: &Path) -> bool {
     return matches!(
-        remove_if_the_owner_is_gone(&SYSTEM, git_dir.join("index").as_path(), &scan_platform_holders_bounded),
+        remove_if_the_owner_is_gone(
+            &SYSTEM,
+            git_dir.join("index").as_path(),
+            &scan_platform_holders_bounded
+        ),
         Unheld::Removed(_)
     );
 }

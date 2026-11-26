@@ -80,7 +80,9 @@ impl Switch {
     /// where it asks for one.
     pub fn fixture(self) -> Option<Fixture> {
         return match self {
-            Switch::Fixture { fixture } => Some(fixture),
+            Switch::Fixture {
+                fixture,
+            } => Some(fixture),
             _other => None,
         };
     }
@@ -89,7 +91,9 @@ impl Switch {
     /// where the switch names one.
     pub fn hold(self) -> Option<CompanionStep> {
         return match self {
-            Switch::Hold { step } => Some(step),
+            Switch::Hold {
+                step,
+            } => Some(step),
             _other => None,
         };
     }
@@ -110,11 +114,21 @@ pub fn parse(value: Option<&str>) -> Switch {
     if word == "no-status" {
         return Switch::NoStatus;
     }
-    if let Some(number) = word.strip_prefix("signal-").and_then(|text| return text.parse::<i32>().ok()) {
-        return Switch::Signal { number };
+    if let Some(number) = word
+        .strip_prefix("signal-")
+        .and_then(|text| return text.parse::<i32>().ok())
+    {
+        return Switch::Signal {
+            number,
+        };
     }
-    if let Some(step_name) = word.strip_prefix("hold-").and_then(|text| return CompanionStep::from_name(text)) {
-        return Switch::Hold { step: step_name };
+    if let Some(step_name) = word
+        .strip_prefix("hold-")
+        .and_then(|text| return CompanionStep::from_name(text))
+    {
+        return Switch::Hold {
+            step: step_name,
+        };
     }
     if let Some(rest) = word.strip_prefix("answer-") {
         return parse_fixture(rest);
@@ -132,10 +146,18 @@ fn parse_fixture(rest: &str) -> Switch {
     let Some((step_part, errno_part)) = rest.rsplit_once('-') else {
         return Switch::None;
     };
-    let (Some(step), Some(errno)) = (CompanionStep::from_name(step_part), errno_number(errno_part)) else {
+    let (Some(step), Some(errno)) = (
+        CompanionStep::from_name(step_part),
+        errno_number(errno_part),
+    ) else {
         return Switch::None;
     };
-    return Switch::Fixture { fixture: Fixture { step, errno } };
+    return Switch::Fixture {
+        fixture: Fixture {
+            step,
+            errno,
+        },
+    };
 }
 
 /// What:

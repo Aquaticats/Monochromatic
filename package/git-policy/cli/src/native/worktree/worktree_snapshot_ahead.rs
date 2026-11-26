@@ -49,28 +49,62 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::fs_beneath::{ObjectId, handle_path, open_root};
+use crate::fs_beneath::{
+    ObjectId,
+    handle_path,
+    open_root,
+};
 use crate::hexadecimal_of_bytes::hexadecimal_of_bytes;
 use crate::iso_time::now_iso;
 use crate::path_bytes::path_bytes_of;
 use crate::random_id::random_uuid;
-use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for, wake};
+use crate::service_client::{
+    Activation,
+    ClientConfig,
+    START_WAIT,
+    manager_watch_for,
+    wake,
+};
 use crate::service_messages::render;
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_provision::provision;
-use crate::service_route::{Route, route_from_environment};
+use crate::service_route::{
+    Route,
+    route_from_environment,
+};
 use crate::service_work::work_directory;
 use crate::subvolume_sha::sha256;
 use crate::transaction_git::GitContext;
-use crate::wait_ceilings::{ANSWER_CEILING, SHORT_EXTRA_WAIT, START_CEILING, WITHDRAW_CEILING, waiting_notice_after};
-use crate::work_item::{Enqueued, WorkItem, WorkKind, enqueue, requeue_after_giving_up};
+use crate::wait_ceilings::{
+    ANSWER_CEILING,
+    SHORT_EXTRA_WAIT,
+    START_CEILING,
+    WITHDRAW_CEILING,
+    waiting_notice_after,
+};
+use crate::work_item::{
+    Enqueued,
+    WorkItem,
+    WorkKind,
+    enqueue,
+    requeue_after_giving_up,
+};
 use crate::worktree_remove_hand_over::DELETE_REFERENCE;
 use crate::worktree_snapshot_index_step::Proof;
 use crate::worktree_snapshot_source::SnapshotSource;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeSnapshotAhead";
@@ -198,7 +232,9 @@ pub struct AheadService<'a> {
 /// const cannotAsk = () => err('this add asks no commit service for a snapshot ahead');
 /// ```
 fn cannot_ask() -> Result<Option<String>, String> {
-    return Err(String::from("this add asks no commit service for a snapshot ahead"));
+    return Err(String::from(
+        "this add asks no commit service for a snapshot ahead",
+    ));
 }
 
 /// What:
@@ -213,7 +249,10 @@ fn cannot_ask() -> Result<Option<String>, String> {
 /// const cannotHandOver = (stale) => err(`this add hands ${stale.length} name(s) to no commit service`);
 /// ```
 fn cannot_hand_over(stale: &[OsString]) -> Result<(), String> {
-    return Err(format!("this add hands {} name(s) to no commit service", stale.len()));
+    return Err(format!(
+        "this add hands {} name(s) to no commit service",
+        stale.len()
+    ));
 }
 
 impl AheadService<'_> {
@@ -231,7 +270,11 @@ impl AheadService<'_> {
     /// AheadService.nothing() // { handOver: cannotAsk, ceiling: 0 }
     /// ```
     pub fn nothing() -> AheadService<'static> {
-        return AheadService { ask: &cannot_ask, hand_over: &cannot_hand_over, ceiling: Duration::ZERO };
+        return AheadService {
+            ask: &cannot_ask,
+            hand_over: &cannot_hand_over,
+            ceiling: Duration::ZERO,
+        };
     }
 }
 
@@ -302,13 +345,27 @@ pub(crate) fn ahead_key(root: &Path) -> String {
 /// ```ts
 /// const name = (root: string, at: number) => `${AHEAD_PREFIX}${key(root)}-${at.toString(16)}-${randomUUID().replaceAll('-', '')}`;
 /// ```
-pub fn ahead_name(source_root: &Path, at: SystemTime) -> Result<OsString, String> {
+pub fn ahead_name(
+    source_root: &Path,
+    at: SystemTime,
+) -> Result<OsString, String> {
     let unique: String = match random_uuid() {
         Ok(made) => made.replace('-', ""),
-        Err(error) => return Err(format!("no name can be made for a snapshot ahead ({})", error.0)),
+        Err(error) => {
+            return Err(format!(
+                "no name can be made for a snapshot ahead ({})",
+                error.0
+            ));
+        }
     };
-    let milliseconds: u128 = at.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis();
-    return Ok(OsString::from(format!("{AHEAD_PREFIX}{}-{milliseconds:016x}-{unique}", ahead_key(source_root))));
+    let milliseconds: u128 = at
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    return Ok(OsString::from(format!(
+        "{AHEAD_PREFIX}{}-{milliseconds:016x}-{unique}",
+        ahead_key(source_root)
+    )));
 }
 
 /// What:
@@ -343,10 +400,19 @@ pub(crate) fn made_at(name: &OsStr) -> Option<u128> {
 /// ```ts
 /// const isOfThisSource = (name: string, key: string) => name.startsWith(`${AHEAD_PREFIX}${key}-`) && madeAt(name) !== undefined;
 /// ```
-fn is_of_this_source(name: &OsStr, key: &str) -> bool {
-    let Some(text) = name.to_str() else { return false };
-    let Some(rest) = text.strip_prefix(AHEAD_PREFIX) else { return false };
-    let Some((found, _rest)) = rest.split_once('-') else { return false };
+fn is_of_this_source(
+    name: &OsStr,
+    key: &str,
+) -> bool {
+    let Some(text) = name.to_str() else {
+        return false;
+    };
+    let Some(rest) = text.strip_prefix(AHEAD_PREFIX) else {
+        return false;
+    };
+    let Some((found, _rest)) = rest.split_once('-') else {
+        return false;
+    };
     return found == key && made_at(name).is_some();
 }
 
@@ -361,7 +427,10 @@ fn is_of_this_source(name: &OsStr, key: &str) -> bool {
 /// ```ts
 /// const newestFirst = (left, right) => right.made - left.made;
 /// ```
-fn newest_first(left: &(u128, OsString), right: &(u128, OsString)) -> std::cmp::Ordering {
+fn newest_first(
+    left: &(u128, OsString),
+    right: &(u128, OsString),
+) -> std::cmp::Ordering {
     return right.0.cmp(&left.0);
 }
 
@@ -378,15 +447,22 @@ fn newest_first(left: &(u128, OsString), right: &(u128, OsString)) -> std::cmp::
 /// ```ts
 /// const candidates = (dir, key) => readdirSync(handlePath(dir)).filter((name) => isOfThisSource(name, key)).sort((left, right) => madeAt(right) - madeAt(left));
 /// ```
-pub(crate) fn candidates(folder: &File, key: &str) -> Vec<OsString> {
-    let Ok(listing) = std::fs::read_dir(handle_path(folder)) else { return Vec::new() };
+pub(crate) fn candidates(
+    folder: &File,
+    key: &str,
+) -> Vec<OsString> {
+    let Ok(listing) = std::fs::read_dir(handle_path(folder)) else {
+        return Vec::new();
+    };
     let mut found: Vec<(u128, OsString)> = Vec::new();
     for entry in listing.flatten() {
         let name: OsString = entry.file_name();
         if !is_of_this_source(name.as_os_str(), key) {
             continue;
         }
-        let Some(at) = made_at(name.as_os_str()) else { continue };
+        let Some(at) = made_at(name.as_os_str()) else {
+            continue;
+        };
         found.push((at, name));
     }
     found.sort_by(newest_first);
@@ -427,7 +503,9 @@ pub const POOL_FOLDER: &str = "ahead";
 /// const pool = (gitDir: string) => join(gitDir, 'monochromatic-git-policy-cli', 'ahead');
 /// ```
 pub fn pool_folder(git_dir: &Path) -> PathBuf {
-    return git_dir.join("monochromatic-git-policy-cli").join(POOL_FOLDER);
+    return git_dir
+        .join("monochromatic-git-policy-cli")
+        .join(POOL_FOLDER);
 }
 
 /// What:
@@ -445,7 +523,10 @@ pub fn pool_folder(git_dir: &Path) -> PathBuf {
 /// ```ts
 /// const overKept = (names, now) => names.filter((name, index) => index >= AHEAD_KEPT || now - madeAt(name) > AHEAD_OLDEST);
 /// ```
-pub(crate) fn over_kept(names: &[OsString], now: u128) -> Vec<OsString> {
+pub(crate) fn over_kept(
+    names: &[OsString],
+    now: u128,
+) -> Vec<OsString> {
     let mut over: Vec<OsString> = Vec::new();
     for (index, name) in names.iter().enumerate() {
         let too_old: bool = match made_at(name.as_os_str()) {
@@ -470,7 +551,10 @@ pub(crate) fn over_kept(names: &[OsString], now: u128) -> Vec<OsString> {
 /// ```ts
 /// const olderThanKept = (made, now) => now - made > AHEAD_OLDEST;
 /// ```
-fn older_than_kept(made: u128, now: u128) -> bool {
+fn older_than_kept(
+    made: u128,
+    now: u128,
+) -> bool {
     return now.saturating_sub(made) > AHEAD_OLDEST.as_millis();
 }
 
@@ -485,8 +569,13 @@ fn older_than_kept(made: u128, now: u128) -> bool {
 /// ```ts
 /// const kept = (folder, root) => candidates(folder, key(root));
 /// ```
-pub fn kept_in(folder: &Path, source_root: &Path) -> Vec<OsString> {
-    let Ok(held) = open_root(folder) else { return Vec::new() };
+pub fn kept_in(
+    folder: &Path,
+    source_root: &Path,
+) -> Vec<OsString> {
+    let Ok(held) = open_root(folder) else {
+        return Vec::new();
+    };
     return candidates(&held, ahead_key(source_root).as_str());
 }
 
@@ -507,10 +596,19 @@ pub fn kept_in(folder: &Path, source_root: &Path) -> Vec<OsString> {
 /// ```ts
 /// const request = (commonDir, root, pool) => ({ kind: 'snapshot-ahead', repository: root, gitDir: commonDir, ref: AHEAD_REFERENCE, oid: sha256(random()), parent: pool, created: now, tries: 0 });
 /// ```
-pub fn request_item(git_dir: &Path, source_root: &Path, pool: &Path) -> Result<WorkItem, String> {
+pub fn request_item(
+    git_dir: &Path,
+    source_root: &Path,
+    pool: &Path,
+) -> Result<WorkItem, String> {
     let unique: String = match random_uuid() {
         Ok(made) => made.replace('-', ""),
-        Err(error) => return Err(format!("no identity can be made for a request of a snapshot ahead ({})", error.0)),
+        Err(error) => {
+            return Err(format!(
+                "no identity can be made for a request of a snapshot ahead ({})",
+                error.0
+            ));
+        }
     };
     let digest: String = hexadecimal_of_bytes(&sha256(unique.as_bytes()));
     return Ok(WorkItem {
@@ -542,7 +640,11 @@ pub fn request_item(git_dir: &Path, source_root: &Path, pool: &Path) -> Result<W
 /// ```ts
 /// const deletion = (commonDir, pool, name) => ({ kind: 'subvolume-delete', repository: pool, gitDir: commonDir, ref: DELETE_REFERENCE, oid: sha256(name), parent: join(pool, name), created: now, tries: 0 });
 /// ```
-pub fn deletion_item(git_dir: &Path, pool: &Path, name: &OsStr) -> WorkItem {
+pub fn deletion_item(
+    git_dir: &Path,
+    pool: &Path,
+    name: &OsStr,
+) -> WorkItem {
     let entry: PathBuf = pool.join(name);
     return WorkItem {
         kind: WorkKind::SubvolumeDelete,
@@ -576,9 +678,18 @@ pub fn deletion_item(git_dir: &Path, pool: &Path, name: &OsStr) -> WorkItem {
 /// ```ts
 /// wakeService({ context, commonDir });
 /// ```
-fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), String> {
-    let Some(Route { address, provision: host }) = route_from_environment(context.real_git.as_path(), git_dir) else {
-        return Err(String::from("no commit service can be started from this session"));
+fn wake_the_service(
+    context: &GitContext,
+    git_dir: &Path,
+) -> Result<(), String> {
+    let Some(Route {
+        address,
+        provision: host,
+    }) = route_from_environment(context.real_git.as_path(), git_dir)
+    else {
+        return Err(String::from(
+            "no commit service can be started from this session",
+        ));
     };
     if let Some(setup) = host.as_ref()
         && let Err(failure) = provision(setup)
@@ -617,12 +728,26 @@ fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), String> 
 /// ```ts
 /// askWith(gitDir, root, pool) // the record only; the caller wakes the service
 /// ```
-pub fn ask_with(git_dir: &Path, source_root: &Path, pool: &Path) -> Result<WorkItem, String> {
+pub fn ask_with(
+    git_dir: &Path,
+    source_root: &Path,
+    pool: &Path,
+) -> Result<WorkItem, String> {
     let request: WorkItem = request_item(git_dir, source_root, pool)?;
     if let Err(reason) = enqueue(work_directory(git_dir).as_path(), &request) {
-        return Err(format!("the request of a snapshot ahead could not be written: {reason}"));
+        return Err(format!(
+            "the request of a snapshot ahead could not be written: {reason}"
+        ));
     }
-    debug(TAG, format!("{}: asked for a snapshot ahead in {}", source_root.display(), pool.display()).as_str());
+    debug(
+        TAG,
+        format!(
+            "{}: asked for a snapshot ahead in {}",
+            source_root.display(),
+            pool.display()
+        )
+        .as_str(),
+    );
     return Ok(request);
 }
 
@@ -644,7 +769,11 @@ pub fn ask_with(git_dir: &Path, source_root: &Path, pool: &Path) -> Result<WorkI
 /// ```ts
 /// handOverToTheService({ context, source, stale }) // enqueue(deletion) for each; wake(commonDir)
 /// ```
-pub fn hand_over_to_the_service(context: &GitContext, source: &SnapshotSource, stale: &[OsString]) -> Result<(), String> {
+pub fn hand_over_to_the_service(
+    context: &GitContext,
+    source: &SnapshotSource,
+    stale: &[OsString],
+) -> Result<(), String> {
     let pool: PathBuf = pool_folder(source.git_dir.as_path());
     hand_over_with(source.git_dir.as_path(), pool.as_path(), stale)?;
     return wake_the_service(context, source.git_dir.as_path());
@@ -669,7 +798,11 @@ pub fn hand_over_to_the_service(context: &GitContext, source: &SnapshotSource, s
 /// ```ts
 /// handOverWith(gitDir, pool, stale) // the records only; the caller wakes the service
 /// ```
-pub fn hand_over_with(git_dir: &Path, pool: &Path, stale: &[OsString]) -> Result<(), String> {
+pub fn hand_over_with(
+    git_dir: &Path,
+    pool: &Path,
+    stale: &[OsString],
+) -> Result<(), String> {
     let work: PathBuf = work_directory(git_dir);
     for name in stale {
         let record: WorkItem = deletion_item(git_dir, pool, name.as_os_str());
@@ -677,13 +810,35 @@ pub fn hand_over_with(git_dir: &Path, pool: &Path, stale: &[OsString]) -> Result
             Ok(Enqueued::Added) => {}
             Ok(Enqueued::Known) => {
                 if requeue_after_giving_up(work.as_path(), record.id().as_str()) {
-                    debug(TAG, format!("the delete of {} was given up on and is queued again", pool.join(name).display()).as_str());
+                    debug(
+                        TAG,
+                        format!(
+                            "the delete of {} was given up on and is queued again",
+                            pool.join(name).display()
+                        )
+                        .as_str(),
+                    );
                 }
             }
-            Err(reason) => debug(TAG, format!("the delete of {} could not be recorded: {reason}", pool.join(name).display()).as_str()),
+            Err(reason) => debug(
+                TAG,
+                format!(
+                    "the delete of {} could not be recorded: {reason}",
+                    pool.join(name).display()
+                )
+                .as_str(),
+            ),
         }
     }
-    debug(TAG, format!("{} name(s) of snapshots ahead are handed to the service in {}", stale.len(), pool.display()).as_str());
+    debug(
+        TAG,
+        format!(
+            "{} name(s) of snapshots ahead are handed to the service in {}",
+            stale.len(),
+            pool.display()
+        )
+        .as_str(),
+    );
     return Ok(());
 }
 

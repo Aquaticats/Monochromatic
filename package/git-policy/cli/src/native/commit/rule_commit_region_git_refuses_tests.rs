@@ -12,8 +12,14 @@
 //! expect(formGitRefuses(region(['--include', '--only', '--message=x', '--', 'a.txt']))).toBe('selection-conflict');
 //! ```
 
-use super::{GitRefusedForm, form_git_refuses};
-use crate::command_commit::{CommitRegion, FixupKind};
+use super::{
+    GitRefusedForm,
+    form_git_refuses,
+};
+use crate::command_commit::{
+    CommitRegion,
+    FixupKind,
+};
 
 /// A region in which nothing is stated,
 ///  so each control states only what it is about.
@@ -31,7 +37,10 @@ fn quiet() -> CommitRegion {
         pathspec_from_file: None,
         pathspec_file_nul: false,
         pathspecs: Vec::new(),
-        wrapper: crate::command_options_query::WrapperFlags { escape: Vec::new(), other: Vec::new() },
+        wrapper: crate::command_options_query::WrapperFlags {
+            escape: Vec::new(),
+            other: Vec::new(),
+        },
     };
 }
 
@@ -56,12 +65,18 @@ fn two_or_more_selection_options_are_refused_and_one_is_not() {
     let mut include_and_only: CommitRegion = naming_a_path();
     include_and_only.include = true;
     include_and_only.only = Some(true);
-    assert_eq!(form_git_refuses(&include_and_only), Some(GitRefusedForm::SelectionConflict));
+    assert_eq!(
+        form_git_refuses(&include_and_only),
+        Some(GitRefusedForm::SelectionConflict)
+    );
 
     let mut all_and_patch: CommitRegion = naming_a_path();
     all_and_patch.all = true;
     all_and_patch.patch = true;
-    assert_eq!(form_git_refuses(&all_and_patch), Some(GitRefusedForm::SelectionConflict));
+    assert_eq!(
+        form_git_refuses(&all_and_patch),
+        Some(GitRefusedForm::SelectionConflict)
+    );
 
     // `--patch` and `--interactive` are one option to Git, so both together are still one.
     let mut both_spellings: CommitRegion = quiet();
@@ -91,12 +106,18 @@ fn two_or_more_selection_options_are_refused_and_one_is_not() {
 fn rewording_refuses_a_path_or_a_selection_and_the_other_fixups_do_not() {
     let mut with_path: CommitRegion = naming_a_path();
     with_path.fixup = Some(FixupKind::Reword);
-    assert_eq!(form_git_refuses(&with_path), Some(GitRefusedForm::RewordWithPath));
+    assert_eq!(
+        form_git_refuses(&with_path),
+        Some(GitRefusedForm::RewordWithPath)
+    );
 
     let mut with_include: CommitRegion = quiet();
     with_include.fixup = Some(FixupKind::Reword);
     with_include.include = true;
-    assert_eq!(form_git_refuses(&with_include), Some(GitRefusedForm::RewordWithSelection));
+    assert_eq!(
+        form_git_refuses(&with_include),
+        Some(GitRefusedForm::RewordWithSelection)
+    );
 
     let mut amend_fixup: CommitRegion = naming_a_path();
     amend_fixup.fixup = Some(FixupKind::Amend);
@@ -119,21 +140,38 @@ fn rewording_refuses_a_path_or_a_selection_and_the_other_fixups_do_not() {
 #[test]
 fn a_pathspec_file_refuses_paths_all_and_interactive_and_accepts_itself() {
     let mut with_paths: CommitRegion = naming_a_path();
-    with_paths.pathspec_from_file = Some(crate::command_options::OptionValue::Detached { token: 1 });
-    assert_eq!(form_git_refuses(&with_paths), Some(GitRefusedForm::PathspecFromFileWithPaths));
+    with_paths.pathspec_from_file = Some(crate::command_options::OptionValue::Detached {
+        token: 1,
+    });
+    assert_eq!(
+        form_git_refuses(&with_paths),
+        Some(GitRefusedForm::PathspecFromFileWithPaths)
+    );
 
     let mut with_all: CommitRegion = quiet();
-    with_all.pathspec_from_file = Some(crate::command_options::OptionValue::Detached { token: 1 });
+    with_all.pathspec_from_file = Some(crate::command_options::OptionValue::Detached {
+        token: 1,
+    });
     with_all.all = true;
-    assert_eq!(form_git_refuses(&with_all), Some(GitRefusedForm::PathspecFromFileWithAll));
+    assert_eq!(
+        form_git_refuses(&with_all),
+        Some(GitRefusedForm::PathspecFromFileWithAll)
+    );
 
     let mut with_interactive: CommitRegion = quiet();
-    with_interactive.pathspec_from_file = Some(crate::command_options::OptionValue::Detached { token: 1 });
+    with_interactive.pathspec_from_file = Some(crate::command_options::OptionValue::Detached {
+        token: 1,
+    });
     with_interactive.interactive = true;
-    assert_eq!(form_git_refuses(&with_interactive), Some(GitRefusedForm::PathspecFromFileWithInteractive));
+    assert_eq!(
+        form_git_refuses(&with_interactive),
+        Some(GitRefusedForm::PathspecFromFileWithInteractive)
+    );
 
     let mut alone: CommitRegion = quiet();
-    alone.pathspec_from_file = Some(crate::command_options::OptionValue::Detached { token: 1 });
+    alone.pathspec_from_file = Some(crate::command_options::OptionValue::Detached {
+        token: 1,
+    });
     assert_eq!(form_git_refuses(&alone), None);
 }
 
@@ -147,15 +185,23 @@ fn a_pathspec_file_refuses_paths_all_and_interactive_and_accepts_itself() {
 fn all_with_a_path_and_a_nul_file_alone_are_refused() {
     let mut all_with_path: CommitRegion = naming_a_path();
     all_with_path.all = true;
-    assert_eq!(form_git_refuses(&all_with_path), Some(GitRefusedForm::AllWithPaths));
+    assert_eq!(
+        form_git_refuses(&all_with_path),
+        Some(GitRefusedForm::AllWithPaths)
+    );
 
     let mut nul_alone: CommitRegion = quiet();
     nul_alone.pathspec_file_nul = true;
-    assert_eq!(form_git_refuses(&nul_alone), Some(GitRefusedForm::PathspecFileNulWithoutFromFile));
+    assert_eq!(
+        form_git_refuses(&nul_alone),
+        Some(GitRefusedForm::PathspecFileNulWithoutFromFile)
+    );
 
     let mut nul_with_file: CommitRegion = quiet();
     nul_with_file.pathspec_file_nul = true;
-    nul_with_file.pathspec_from_file = Some(crate::command_options::OptionValue::Detached { token: 1 });
+    nul_with_file.pathspec_from_file = Some(crate::command_options::OptionValue::Detached {
+        token: 1,
+    });
     assert_eq!(form_git_refuses(&nul_with_file), None);
 }
 
@@ -172,11 +218,17 @@ fn all_with_a_path_and_a_nul_file_alone_are_refused() {
 fn a_pathless_selection_is_refused_except_where_git_allows_an_empty_change() {
     let mut include: CommitRegion = quiet();
     include.include = true;
-    assert_eq!(form_git_refuses(&include), Some(GitRefusedForm::NoPathsWithSelection));
+    assert_eq!(
+        form_git_refuses(&include),
+        Some(GitRefusedForm::NoPathsWithSelection)
+    );
 
     let mut only: CommitRegion = quiet();
     only.only = Some(true);
-    assert_eq!(form_git_refuses(&only), Some(GitRefusedForm::NoPathsWithSelection));
+    assert_eq!(
+        form_git_refuses(&only),
+        Some(GitRefusedForm::NoPathsWithSelection)
+    );
 
     let mut allowed_empty: CommitRegion = quiet();
     allowed_empty.only = Some(true);
@@ -192,12 +244,17 @@ fn a_pathless_selection_is_refused_except_where_git_allows_an_empty_change() {
     rewording_amend.only = Some(true);
     rewording_amend.amend = true;
     rewording_amend.fixup = Some(FixupKind::Reword);
-    assert_eq!(form_git_refuses(&rewording_amend), Some(GitRefusedForm::RewordWithSelection));
+    assert_eq!(
+        form_git_refuses(&rewording_amend),
+        Some(GitRefusedForm::RewordWithSelection)
+    );
 
     // With a pathspec file the count of paths is Git's to read, so this file stays silent.
     let mut from_file: CommitRegion = quiet();
     from_file.only = Some(true);
-    from_file.pathspec_from_file = Some(crate::command_options::OptionValue::Detached { token: 1 });
+    from_file.pathspec_from_file = Some(crate::command_options::OptionValue::Detached {
+        token: 1,
+    });
     assert_eq!(form_git_refuses(&from_file), None);
 }
 
@@ -214,5 +271,8 @@ fn a_plain_commit_is_no_form() {
     let mut amended: CommitRegion = quiet();
     amended.amend = true;
     assert_eq!(form_git_refuses(&amended), None);
-    assert_eq!(GitRefusedForm::SelectionConflict.name(), "selection-conflict");
+    assert_eq!(
+        GitRefusedForm::SelectionConflict.name(),
+        "selection-conflict"
+    );
 }

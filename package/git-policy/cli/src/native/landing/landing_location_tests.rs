@@ -6,7 +6,14 @@
 //!  and with an alternate index.
 
 use super::*;
-use crate::test_support::{REAL_GIT, fixture, git_context, isolated_overlay, remove, repository};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git_context,
+    isolated_overlay,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// Each answer is one pathname with its own terminating line feed.
@@ -29,10 +36,23 @@ fn the_two_answers_are_read_in_order() {
 ///  so the lock and the transaction registry pointed at names that do not exist.
 #[test]
 fn a_line_feed_inside_an_answer_is_part_of_the_path() {
-    let location: LandingLocation = landing_location_of(b"/r/a\nb/.git\n", b"/r/a\nb/.git/index\n").expect("two complete answers parse");
-    assert_eq!(location.git_dir, PathBuf::from("/r/a\nb/.git"), "the Git directory keeps its line feed");
-    assert_eq!(location.index_path, PathBuf::from("/r/a\nb/.git/index"), "the index keeps its line feed");
-    assert_eq!(location.real_index_path, PathBuf::from("/r/a\nb/.git/index"), "the real index sits beside it");
+    let location: LandingLocation = landing_location_of(b"/r/a\nb/.git\n", b"/r/a\nb/.git/index\n")
+        .expect("two complete answers parse");
+    assert_eq!(
+        location.git_dir,
+        PathBuf::from("/r/a\nb/.git"),
+        "the Git directory keeps its line feed"
+    );
+    assert_eq!(
+        location.index_path,
+        PathBuf::from("/r/a\nb/.git/index"),
+        "the index keeps its line feed"
+    );
+    assert_eq!(
+        location.real_index_path,
+        PathBuf::from("/r/a\nb/.git/index"),
+        "the real index sits beside it"
+    );
 }
 
 /// An empty answer would point the lock somewhere else,
@@ -42,8 +62,13 @@ fn an_empty_answer_is_refused_and_a_name_ending_in_a_line_feed_is_one() {
     assert!(landing_location_of(b"", b"/r/.git/index\n").is_err());
     assert!(landing_location_of(b"/r/.git\n", b"").is_err());
     // The one line feed removed is the terminator, so the second one belongs to the directory's own name.
-    let location: LandingLocation = landing_location_of(b"/r/.git\n\n", b"/r/.git/index\n").expect("a name ending in a line feed parses");
-    assert_eq!(location.git_dir, PathBuf::from("/r/.git\n"), "the name keeps the line feed it ends with");
+    let location: LandingLocation = landing_location_of(b"/r/.git\n\n", b"/r/.git/index\n")
+        .expect("a name ending in a line feed parses");
+    assert_eq!(
+        location.git_dir,
+        PathBuf::from("/r/.git\n"),
+        "the name keeps the line feed it ends with"
+    );
 }
 
 /// Inside a repository the query answers with the git directory,
@@ -81,7 +106,10 @@ fn an_alternate_index_is_reported_apart_from_the_real_one() {
     let root: PathBuf = fixture("landing-location-alternate");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let mut overlay: Vec<(OsString, OsString)> = isolated_overlay();
-    overlay.push((OsString::from("GIT_INDEX_FILE"), repo.join("alternate").into_os_string()));
+    overlay.push((
+        OsString::from("GIT_INDEX_FILE"),
+        repo.join("alternate").into_os_string(),
+    ));
     let context: crate::transaction_git::GitContext = crate::transaction_git::GitContext {
         real_git: PathBuf::from(REAL_GIT),
         overlay,
@@ -125,9 +153,21 @@ fn a_line_feed_in_the_repository_name_keeps_its_own_paths() {
     let location: LandingLocation = resolve_landing_location(&context, arguments.as_slice())
         .expect("the query runs")
         .expect("a repository answers");
-    assert_eq!(location.git_dir, repo.join(".git"), "the Git directory is the one Git named");
-    assert_eq!(location.index_path, repo.join(".git/index"), "the index is where Git writes it");
-    assert_eq!(location.real_index_path, repo.join(".git/index"), "the real index sits beside the Git directory's HEAD");
+    assert_eq!(
+        location.git_dir,
+        repo.join(".git"),
+        "the Git directory is the one Git named"
+    );
+    assert_eq!(
+        location.index_path,
+        repo.join(".git/index"),
+        "the index is where Git writes it"
+    );
+    assert_eq!(
+        location.real_index_path,
+        repo.join(".git/index"),
+        "the real index sits beside the Git directory's HEAD"
+    );
     remove(root.as_path());
 }
 
@@ -143,7 +183,10 @@ fn a_line_feed_in_the_repository_name_keeps_its_own_paths() {
 ///  the lease directory and the index-lock proof at names that do not exist.
 #[test]
 fn a_layout_keeps_the_path_bytes_git_printed() {
-    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+    use std::os::unix::ffi::{
+        OsStrExt,
+        OsStringExt,
+    };
     // 0xEF opens a three-byte sequence and is not a name on its own, so this is not UTF-8 text.
     let git_dir: &[u8] = b"/repos/na\xefve/.git";
     let index: &[u8] = b"/repos/na\xefve/.git/index";
@@ -151,10 +194,21 @@ fn a_layout_keeps_the_path_bytes_git_printed() {
     git_dir_answer.push(b'\n');
     let mut index_answer: Vec<u8> = index.to_vec();
     index_answer.push(b'\n');
-    let location: LandingLocation = landing_location_of(git_dir_answer.as_slice(), index_answer.as_slice()).expect("two complete answers parse");
-    assert_eq!(location.git_dir.as_os_str().as_bytes(), git_dir, "the git directory keeps its bytes");
-    assert_eq!(location.index_path.as_os_str().as_bytes(), index, "the index keeps its bytes");
-    let expected_real_index: PathBuf = PathBuf::from(std::ffi::OsString::from_vec(git_dir.to_vec())).join("index");
+    let location: LandingLocation =
+        landing_location_of(git_dir_answer.as_slice(), index_answer.as_slice())
+            .expect("two complete answers parse");
+    assert_eq!(
+        location.git_dir.as_os_str().as_bytes(),
+        git_dir,
+        "the git directory keeps its bytes"
+    );
+    assert_eq!(
+        location.index_path.as_os_str().as_bytes(),
+        index,
+        "the index keeps its bytes"
+    );
+    let expected_real_index: PathBuf =
+        PathBuf::from(std::ffi::OsString::from_vec(git_dir.to_vec())).join("index");
     assert_eq!(
         location.real_index_path.as_os_str().as_bytes(),
         expected_real_index.as_os_str().as_bytes(),
@@ -171,7 +225,9 @@ fn a_layout_keeps_the_path_bytes_git_printed() {
 ///  which is the input the parser receives.
 #[test]
 fn the_query_answers_for_a_repository_whose_name_is_not_utf8() {
-    if !in_a_fixture_root_taking_any_name("landing::landing_location::tests::the_query_answers_for_a_repository_whose_name_is_not_utf8") {
+    if !in_a_fixture_root_taking_any_name(
+        "landing::landing_location::tests::the_query_answers_for_a_repository_whose_name_is_not_utf8",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStringExt;

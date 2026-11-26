@@ -12,8 +12,15 @@
 /// Native string,
 ///  path and process types used by the fixtures.
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Output,
+};
 
 /// The real Git 2.56.0 executable installed in the verification image.
 pub(crate) const REAL_GIT: &str = "/usr/bin/git";
@@ -69,8 +76,15 @@ mod fixture_support_shared_by_both_test_targets;
 
 /// The shared helpers, named here so every `crate::test_support::name` path stays the same.
 pub(crate) use self::fixture_support_shared_by_both_test_targets::{
-    FIXTURE_ROOT_VARIABLE, KEEP_FIXTURES_VARIABLE, forbid_core_dumps, fixture_root, made_fixture_folder, restore_owner_access,
-    settle_fixture, system_temporary_directories, this_test_binary,
+    FIXTURE_ROOT_VARIABLE,
+    KEEP_FIXTURES_VARIABLE,
+    fixture_root,
+    forbid_core_dumps,
+    made_fixture_folder,
+    restore_owner_access,
+    settle_fixture,
+    system_temporary_directories,
+    this_test_binary,
 };
 /// The fixtures one test thread created,
 /// removed when the thread ends however the test ended.
@@ -132,7 +146,10 @@ pub(crate) use super::test_process_owner::spawn_owned;
 /// const child = spawnOwned(command, { stdio: 'ignore' });
 /// ```
 pub(crate) fn spawn_owned_quiet(command: &mut Command) -> std::io::Result<Child> {
-    command.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
     return spawn_owned(command);
 }
 
@@ -147,11 +164,16 @@ pub(crate) fn spawn_owned_quiet(command: &mut Command) -> std::io::Result<Child>
 /// and the name the test writes.
 /// A folder of a run that was killed may carry this process's number and this call's number,
 ///  so one that exists is removed first.
-pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
+pub(crate) fn fixture_with_prefix(
+    prefix: &str,
+    name: &str,
+) -> PathBuf {
     arm_watchdog();
     forbid_core_dumps();
     let root: PathBuf = made_fixture_folder(fixture_root().as_path(), prefix, name);
-    THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(root.clone()); });
+    THREAD_FIXTURES.with(|fixtures| {
+        fixtures.roots.borrow_mut().push(root.clone());
+    });
     return root;
 }
 
@@ -195,7 +217,9 @@ pub(crate) fn an_empty_process_table(root: &Path) -> PathBuf {
 /// trackForThisThread(runtimeDirectory) // removed with the thread's fixtures
 /// ```
 pub(crate) fn track_for_this_thread(root: &Path) {
-    THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(root.to_path_buf()); });
+    THREAD_FIXTURES.with(|fixtures| {
+        fixtures.roots.borrow_mut().push(root.to_path_buf());
+    });
 }
 
 /// The folder chooser and the runtime directory built to a length inside it,
@@ -211,14 +235,31 @@ pub(crate) use crate::runtime_directory_folders::*;
 /// and one that needs an entry the index cannot vouch for ages the index file instead.
 pub(crate) fn age(path: &Path) {
     use std::os::unix::ffi::OsStrExt as _;
-    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    let name: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
     let past: libc::time_t = (std::time::SystemTime::now() - std::time::Duration::from_secs(120))
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .expect("after the epoch")
         .as_secs() as libc::time_t;
-    let times: [libc::timespec; 2] = [libc::timespec { tv_sec: past, tv_nsec: 0 }, libc::timespec { tv_sec: past, tv_nsec: 0 }];
+    let times: [libc::timespec; 2] = [
+        libc::timespec {
+            tv_sec: past,
+            tv_nsec: 0,
+        },
+        libc::timespec {
+            tv_sec: past,
+            tv_nsec: 0,
+        },
+    ];
     // SAFETY: `name` is a NUL-terminated string that outlives the call and `times` holds the two timestamps the call reads.
-    let result: libc::c_int = unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), libc::AT_SYMLINK_NOFOLLOW) };
+    let result: libc::c_int = unsafe {
+        libc::utimensat(
+            libc::AT_FDCWD,
+            name.as_ptr(),
+            times.as_ptr(),
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
     assert_eq!(result, 0, "age {}", path.display());
 }
 
@@ -255,7 +296,10 @@ pub(crate) fn shown_notices(notices: Vec<crate::push_failure_notice::Notice>) ->
 }
 
 /// Create a repository with one empty commit on `main` inside a fixture directory.
-pub(crate) fn repository(parent: &Path, name: &str) -> PathBuf {
+pub(crate) fn repository(
+    parent: &Path,
+    name: &str,
+) -> PathBuf {
     let root: PathBuf = parent.join(name);
     std::fs::create_dir(&root).expect("repository directory");
     git(
@@ -276,7 +320,14 @@ pub(crate) fn repository(parent: &Path, name: &str) -> PathBuf {
 pub(crate) mod fixture_git_commands;
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
-pub(crate) use fixture_git_commands::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, git, git_output, real_git_within};
+pub(crate) use fixture_git_commands::{
+    FIXTURE_GIT_BOUND,
+    QueryAnswer,
+    QueryEnding,
+    git,
+    git_output,
+    real_git_within,
+};
 
 #[path = "fixture_executable.rs"]
 mod fixture_executable;
@@ -298,7 +349,10 @@ pub(crate) use fixture_inode::renew_inode;
 #[path = "fixture_notice_sinks.rs"]
 mod fixture_notice_sinks;
 
-pub(crate) use self::fixture_notice_sinks::{ActionSink, SharedSink};
+pub(crate) use self::fixture_notice_sinks::{
+    ActionSink,
+    SharedSink,
+};
 
 /// The shell condition that holds while the test that started a fixture script is still there.
 #[cfg(unix)]
@@ -306,14 +360,25 @@ pub(crate) use self::fixture_notice_sinks::{ActionSink, SharedSink};
 mod test_alive;
 
 #[cfg(unix)]
-pub(crate) use test_alive::{end_processes_working_in, while_test_lives};
+pub(crate) use test_alive::{
+    end_processes_working_in,
+    while_test_lives,
+};
 
 /// The bounds a control's wait and its timed step give up under,
 /// in a file of their own.
 #[path = "test_support_wait_bounds.rs"]
 mod test_support_wait_bounds;
 
-pub(crate) use test_support_wait_bounds::{STILL_WORKING_WINDOW, WAIT_LOOK_EVERY, WaitingFor, finished_within, finished_within_at, wait_until, wait_until_for};
+pub(crate) use test_support_wait_bounds::{
+    STILL_WORKING_WINDOW,
+    WAIT_LOOK_EVERY,
+    WaitingFor,
+    finished_within,
+    finished_within_at,
+    wait_until,
+    wait_until_for,
+};
 
 /// What:
 ///  Variables that isolate a Git child started through the production runners from the
@@ -395,7 +460,10 @@ pub(crate) fn scratch_environment() -> Vec<(std::ffi::OsString, std::ffi::OsStri
 /// ```ts
 /// git(directory, args).stdout.toString().trimEnd()
 /// ```
-pub(crate) fn git_text<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> String {
+pub(crate) fn git_text<S: AsRef<OsStr>>(
+    directory: &Path,
+    arguments: &[S],
+) -> String {
     let output: Output = git(directory, arguments);
     let text: String = String::from_utf8(output.stdout).expect("UTF-8 Git output");
     return String::from(text.strip_suffix('\n').unwrap_or(text.as_str()));
@@ -429,31 +497,51 @@ pub(crate) fn strip_hint_fields(text: &str) -> String {
 /// const openDescriptors = () => readdirSync('/proc/self/fd').length - 1;
 /// ```
 pub(crate) fn open_descriptors() -> usize {
-    let listed: usize = std::fs::read_dir("/proc/self/fd").expect("the descriptor listing").count();
+    let listed: usize = std::fs::read_dir("/proc/self/fd")
+        .expect("the descriptor listing")
+        .count();
     return listed - 1;
 }
 
 /// What:
-///  Sets the soft descriptor limit and answers the one it replaced,
+///  Sets the soft descriptor limit, in the child of a control's own where a test may,
+///  and answers the one it replaced,
 ///  so the caller restores it.
 /// Why:
 ///   A descriptor limit is the privilege-free way to make an open fail at `EMFILE`,
 ///  which is how a control makes the reads of `/proc` a look needs fail.
+///   The limit belongs to the whole process, and `cargo test` runs a crate's tests as threads of one process,
+///  so a lowering here reaches every other test of the run (issue 6492):
+///  the refusal turns that into a failure of the control that asked, every time it runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const before = getrlimit('nofile'); setrlimit('nofile', { soft }); return before;
+/// assert(thisProcessIsTheChild()); const before = getrlimit('nofile'); setrlimit('nofile', { soft }); return before;
 /// ```
 pub(crate) fn set_soft_limit(soft: u64) -> rustix::process::Rlimit {
-    let before: rustix::process::Rlimit = rustix::process::getrlimit(rustix::process::Resource::Nofile);
-    let lowered: rustix::process::Rlimit = rustix::process::Rlimit { current: Some(soft), maximum: before.maximum };
-    rustix::process::setrlimit(rustix::process::Resource::Nofile, lowered).expect("a soft limit below the hard one can be set");
+    assert!(
+        crate::descriptor_limit_child_test_support::this_process_is_the_child(),
+        "the soft descriptor limit belongs to the whole process, and `cargo test` runs a crate's tests as threads of \
+         one process, so lowering it here fails every other test of this run with `EMFILE`: lower it in a child of \
+         the control's own, which `crate::descriptor_limit_child_test_support::started_this_test_in_a_child` \
+         starts"
+    );
+    let before: rustix::process::Rlimit =
+        rustix::process::getrlimit(rustix::process::Resource::Nofile);
+    let lowered: rustix::process::Rlimit = rustix::process::Rlimit {
+        current: Some(soft),
+        maximum: before.maximum,
+    };
+    rustix::process::setrlimit(rustix::process::Resource::Nofile, lowered)
+        .expect("a soft limit below the hard one can be set");
     return before;
 }
 
-/// Puts a soft descriptor limit back to the value `set_soft_limit` answered.
+/// Puts a soft descriptor limit back to the value `set_soft_limit` answered,
+/// which only the child that lowered it calls.
 pub(crate) fn restore_limit(before: rustix::process::Rlimit) {
-    rustix::process::setrlimit(rustix::process::Resource::Nofile, before).expect("the limit can be raised back to the hard one");
+    rustix::process::setrlimit(rustix::process::Resource::Nofile, before)
+        .expect("the limit can be raised back to the hard one");
 }
 
 /// What:
@@ -473,7 +561,11 @@ pub(crate) fn leave_free(free: usize) -> Vec<std::fs::File> {
         match std::fs::File::open("/dev/null") {
             Ok(file) => held.push(file),
             Err(error) => {
-                assert_eq!(error.raw_os_error(), Some(libc::EMFILE), "only the limit stops the opens: {error}");
+                assert_eq!(
+                    error.raw_os_error(),
+                    Some(libc::EMFILE),
+                    "only the limit stops the opens: {error}"
+                );
                 break;
             }
         }
@@ -487,10 +579,17 @@ pub(crate) fn leave_free(free: usize) -> Vec<std::fs::File> {
     // so a limit that was set from a stale count is reported here and not as a look that answered.
     let mut probes: Vec<std::fs::File> = Vec::new();
     for _ in 0..free {
-        probes.push(std::fs::File::open("/dev/null").expect("the room that was given back is usable"));
+        probes.push(
+            std::fs::File::open("/dev/null").expect("the room that was given back is usable"),
+        );
     }
-    let refused: std::io::Error = std::fs::File::open("/dev/null").expect_err("the limit refuses the open after the room it leaves");
-    assert_eq!(refused.raw_os_error(), Some(libc::EMFILE), "only the limit stops the open after the room it leaves: {refused}");
+    let refused: std::io::Error = std::fs::File::open("/dev/null")
+        .expect_err("the limit refuses the open after the room it leaves");
+    assert_eq!(
+        refused.raw_os_error(),
+        Some(libc::EMFILE),
+        "only the limit stops the open after the room it leaves: {refused}"
+    );
     drop(probes);
     return held;
 }

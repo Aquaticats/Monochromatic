@@ -15,11 +15,28 @@
 
 use crate::json_record::quote;
 use crate::random_id::random_uuid;
-use crate::rename_that_never_replaces::{rename_noreplace, rename_unsupported};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
-use crate::worktree_copy_journal::{ensure_journal_root, ensure_private_directory, journal_root};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use crate::rename_that_never_replaces::{
+    rename_noreplace,
+    rename_unsupported,
+};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+    raw_failure,
+};
+use crate::worktree_copy_journal::{
+    ensure_journal_root,
+    ensure_private_directory,
+    journal_root,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The folder under the journal root that keeps the records this release cannot read.
@@ -79,7 +96,11 @@ fn unreadable_folder(common_dir: &Path) -> Result<PathBuf, WorktreeCopyError> {
 /// ```ts
 /// const moved = await moveAside({ commonDir, record, movedName }); // undefined when the record vanished
 /// ```
-pub fn move_aside(common_dir: &Path, record: &Path, moved_name: &OsStr) -> Result<Option<PathBuf>, WorktreeCopyError> {
+pub fn move_aside(
+    common_dir: &Path,
+    record: &Path,
+    moved_name: &OsStr,
+) -> Result<Option<PathBuf>, WorktreeCopyError> {
     let folder: PathBuf = unreadable_folder(common_dir)?;
     let mut target: PathBuf = folder.join(moved_name);
     for attempt in 0..MOVE_ASIDE_TRIES {
@@ -87,7 +108,10 @@ pub fn move_aside(common_dir: &Path, record: &Path, moved_name: &OsStr) -> Resul
         match rename_noreplace(record, target.as_path()) {
             Ok(()) => return Ok(Some(target)),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists || (rename_unsupported(&error) && target.exists()) => {
+            Err(error)
+                if error.kind() == std::io::ErrorKind::AlreadyExists
+                    || (rename_unsupported(&error) && target.exists()) =>
+            {
                 target = folder.join(suffixed(moved_name, attempt));
             }
             // A filesystem that cannot rename without replacing is served by one checked rename: the folder is private,
@@ -142,7 +166,10 @@ pub fn move_aside(common_dir: &Path, record: &Path, moved_name: &OsStr) -> Resul
 /// ```ts
 /// const suffixed = (name, attempt) => attempt === 0 ? name : `${name}.${randomUUID()}`;
 /// ```
-fn suffixed(moved_name: &OsStr, attempt: usize) -> PathBuf {
+fn suffixed(
+    moved_name: &OsStr,
+    attempt: usize,
+) -> PathBuf {
     if attempt == 0 {
         return PathBuf::from(moved_name);
     }
@@ -167,8 +194,13 @@ fn suffixed(moved_name: &OsStr, attempt: usize) -> PathBuf {
 /// ```ts
 /// join(journalRoot(commonDir), UNREADABLE_FOLDER, movedName)
 /// ```
-pub fn moved_record_path(common_dir: &Path, moved_name: &OsStr) -> PathBuf {
-    return journal_root(common_dir).join(UNREADABLE_FOLDER).join(moved_name);
+pub fn moved_record_path(
+    common_dir: &Path,
+    moved_name: &OsStr,
+) -> PathBuf {
+    return journal_root(common_dir)
+        .join(UNREADABLE_FOLDER)
+        .join(moved_name);
 }
 
 /// What:
@@ -206,7 +238,15 @@ pub fn unreadable_record_names(common_dir: &Path) -> Result<Vec<String>, Worktre
     };
     let mut names: Vec<String> = Vec::new();
     for listed in listing {
-        names.push(listed.map_err(|error| { return raw_failure(&error); })?.file_name().to_string_lossy().into_owned());
+        names.push(
+            listed
+                .map_err(|error| {
+                    return raw_failure(&error);
+                })?
+                .file_name()
+                .to_string_lossy()
+                .into_owned(),
+        );
     }
     names.sort_by(crate::worktree_copy_selection::by_js_order);
     return Ok(names);

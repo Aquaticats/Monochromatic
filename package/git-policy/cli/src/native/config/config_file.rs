@@ -51,7 +51,10 @@ use std::io::Read;
 /// ```ts
 /// import { join } from 'node:path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The configuration file the native wrapper reads.
 pub const CONFIG_FILE_NAME: &str = SETTINGS_FILE.current;
@@ -213,7 +216,10 @@ fn both_files_notice() -> String {
 /// ```ts
 /// function migrationRequired(legacy: string, target: string): ConfigError;
 /// ```
-fn migration_required(legacy: &Path, target: &Path) -> ConfigError {
+fn migration_required(
+    legacy: &Path,
+    target: &Path,
+) -> ConfigError {
     return ConfigError::new(
         format!(
             "Legacy configuration {} is not executed or read by the native monochromatic-git-policy-cli. \
@@ -237,7 +243,10 @@ fn migration_required(legacy: &Path, target: &Path) -> ConfigError {
 /// ```ts
 /// function ignoredLegacyNotice(legacy: string, source: string): string;
 /// ```
-pub fn ignored_legacy_notice(legacy: &Path, source: &Path) -> String {
+pub fn ignored_legacy_notice(
+    legacy: &Path,
+    source: &Path,
+) -> String {
     return format!(
         "Legacy configuration {} is ignored: {} is authoritative for the native monochromatic-git-policy-cli. \
          Remove the legacy file once no TypeScript monochromatic-git-policy-cli reads it.",
@@ -398,7 +407,8 @@ pub fn load_repository_config(repository_root: &Path) -> Result<LoadedConfig, Co
     // ```ts
     // const [source, notice] = currentThere ? [current, earlierThere ? bothNotice : undefined] : [earlier, earlierOnlyNotice];
     // ```
-    let (source, earlier_name_notice): (PathBuf, Option<String>) = if current_there && earlier_there {
+    let (source, earlier_name_notice): (PathBuf, Option<String>) = if current_there && earlier_there
+    {
         (current, Some(both_files_notice()))
     } else if current_there {
         (current, None)

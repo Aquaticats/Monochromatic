@@ -33,11 +33,17 @@
 use crate::merge_isolation_run_types::IN_PROGRESS_MARKERS;
 use crate::transaction_git::GitContext;
 use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
-use crate::worktree_landed_registrations::{Registration, registrations_of};
+use crate::worktree_landed_registrations::{
+    Registration,
+    registrations_of,
+};
 use crate::worktree_process_inside::process_working_inside;
 use crate::worktree_removal_rescue::snapshot_one;
 use std::path::Path;
-use std::time::{Duration, SystemTime};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// The start of every name Git gives a file an unfinished bisect keeps in a worktree's Git directory.
 /// Why:
@@ -112,32 +118,47 @@ pub(crate) struct SecondLook<'a> {
 /// ```ts
 /// const why = whyTheWorktreeStays(look, worktree, admin);
 /// ```
-pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, admin: &Path) -> Option<String> {
+pub(crate) fn why_the_worktree_stays(
+    look: &SecondLook<'_>,
+    worktree: &Path,
+    admin: &Path,
+) -> Option<String> {
     // A worktree a command added inside this one is in the registrations only once that command has finished, so the
     // list any earlier reading answered with proves nothing about it: a removal of the outer one takes the nested
     // worktree's changed files and its own record with it (a cross-vendor review of the landed sweep, round 208).
     let registered: Vec<Registration> = match registrations_of(look.common_dir) {
         Ok(found) => found,
-        Err(reason) => return Some(format!("nothing proves no other worktree lies inside this one, so nothing is removed: {reason}")),
+        Err(reason) => {
+            return Some(format!(
+                "nothing proves no other worktree lies inside this one, so nothing is removed: {reason}"
+            ));
+        }
     };
     let inside: Vec<&Registration> = worktrees_inside(worktree, registered.as_slice());
     if !inside.is_empty() {
         return Some(nested_worktree_reason(inside.as_slice()));
     }
     if admin.join("locked").exists() {
-        return Some(String::from("it is locked, and a lock is a promise to keep it"));
+        return Some(String::from(
+            "it is locked, and a lock is a promise to keep it",
+        ));
     }
     for marker in IN_PROGRESS_MARKERS {
         if admin.join(marker).exists() {
-            return Some(format!("a {marker} stands in it, so an operation there is unfinished"));
+            return Some(format!(
+                "a {marker} stands in it, so an operation there is unfinished"
+            ));
         }
     }
     if let Some(mark) = bisect_mark_in(admin) {
-        return Some(format!("a bisect is unfinished there, and its {mark} is still in the worktree"));
+        return Some(format!(
+            "a bisect is unfinished there, and its {mark} is still in the worktree"
+        ));
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
     // inside at all: a process older than the directory cannot have changed into it.
-    if let Some(working) = process_working_inside(worktree, admin, look.proc_root, age_of(worktree)) {
+    if let Some(working) = process_working_inside(worktree, admin, look.proc_root, age_of(worktree))
+    {
         return Some(working.why());
     }
     let Some(source) = look.source else {
@@ -154,7 +175,11 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
                 alone.list()
             ));
         }
-        Err(reason) => return Some(format!("nothing proves the ignored files there are not yours, so nothing is removed: {reason}")),
+        Err(reason) => {
+            return Some(format!(
+                "nothing proves the ignored files there are not yours, so nothing is removed: {reason}"
+            ));
+        }
     }
     // The unshown push failures and the unfinished pushes of this worktree live in its own Git directory, which the
     // removal deletes, so they are copied into a removal snapshot before anything is deleted. A record that cannot be
@@ -191,7 +216,10 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
 /// ```ts
 /// worktreesInside(worktree, registered) // the registrations whose worktree starts with worktree
 /// ```
-pub(crate) fn worktrees_inside<'a>(worktree: &Path, registered: &'a [Registration]) -> Vec<&'a Registration> {
+pub(crate) fn worktrees_inside<'a>(
+    worktree: &Path,
+    registered: &'a [Registration],
+) -> Vec<&'a Registration> {
     let mut inside: Vec<&Registration> = Vec::new();
     for other in registered {
         if other.worktree != worktree && other.worktree.starts_with(worktree) {
@@ -296,7 +324,15 @@ pub(crate) fn age_of(directory: &Path) -> Option<Duration> {
     // SAFETY: an all-zero `statx` is a valid value for the call to fill.
     let mut found: libc::statx = unsafe { std::mem::zeroed() };
     // SAFETY: `name` outlives the call, `found` is a live `statx`, and `AT_FDCWD` with an absolute path names the directory.
-    let called: libc::c_int = unsafe { libc::statx(libc::AT_FDCWD, name.as_ptr(), 0, libc::STATX_BTIME, &mut found) };
+    let called: libc::c_int = unsafe {
+        libc::statx(
+            libc::AT_FDCWD,
+            name.as_ptr(),
+            0,
+            libc::STATX_BTIME,
+            &mut found,
+        )
+    };
     if called != 0 || found.stx_mask & libc::STATX_BTIME == 0 {
         return None;
     }

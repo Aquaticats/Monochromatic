@@ -22,10 +22,18 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use crate::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// Import the candidate modes,
 /// the validated object name and their parsers.
-use crate::candidate_object::{CandidateMode, ObjectId, mode_from_git, parse_object_id};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    mode_from_git,
+    parse_object_id,
+};
 
 /// What:
 /// One file of a commit's tree.
@@ -67,7 +75,11 @@ pub struct TreeRecord {
 /// ```ts
 /// function treeFailure(failure: CandidateFailure, position: number, detail: string): CandidateError;
 /// ```
-fn tree_failure(failure: CandidateFailure, position: usize, detail: &str) -> CandidateError {
+fn tree_failure(
+    failure: CandidateFailure,
+    position: usize,
+    detail: &str,
+) -> CandidateError {
     return CandidateError::new(
         failure,
         format!(
@@ -159,7 +171,10 @@ fn expected_type(mode: CandidateMode) -> &'static [u8] {
 /// ```ts
 /// function parseTreeRecord(position: number, record: Buffer): TreeRecord;
 /// ```
-fn parse_tree_record(position: usize, record: &[u8]) -> Result<TreeRecord, CandidateError> {
+fn parse_tree_record(
+    position: usize,
+    record: &[u8],
+) -> Result<TreeRecord, CandidateError> {
     let Some(tab) = record.iter().position(is_tab) else {
         return Err(tree_failure(
             CandidateFailure::ListingMalformed,

@@ -79,12 +79,18 @@ impl StaleResult {
     /// naming both values and the way forward.
     pub fn message(&self) -> String {
         return match self {
-            StaleResult::ForeignDataset { expected, found } => format!(
+            StaleResult::ForeignDataset {
+                expected,
+                found,
+            } => format!(
                 "this holder scan's result is about dataset GUID {} and the request at hand is about GUID {}. Nothing was read from it. Ways forward: scan the dataset the request names, and read only the result that carries that dataset's GUID.",
                 found.file_name(),
                 expected.file_name()
             ),
-            StaleResult::AnotherNonce { expected, found } => format!(
+            StaleResult::AnotherNonce {
+                expected,
+                found,
+            } => format!(
                 "this holder scan's result answers the request with nonce {found}, and the request at hand carries {expected}. Nothing was read from it. Ways forward: scan again under the request at hand; a result is one request's answer and no earlier scan answers a later request."
             ),
         };
@@ -102,12 +108,21 @@ impl HolderScan {
     /// ```ts
     /// scan.accept({ dataset, nonce });
     /// ```
-    pub fn accept(&self, expectation: &ScanExpectation<'_>) -> Result<(), StaleResult> {
+    pub fn accept(
+        &self,
+        expectation: &ScanExpectation<'_>,
+    ) -> Result<(), StaleResult> {
         if self.dataset != expectation.dataset {
-            return Err(StaleResult::ForeignDataset { expected: expectation.dataset, found: self.dataset });
+            return Err(StaleResult::ForeignDataset {
+                expected: expectation.dataset,
+                found: self.dataset,
+            });
         }
         if self.nonce.as_str() != expectation.nonce.as_str() {
-            return Err(StaleResult::AnotherNonce { expected: String::from(expectation.nonce.as_str()), found: String::from(self.nonce.as_str()) });
+            return Err(StaleResult::AnotherNonce {
+                expected: String::from(expectation.nonce.as_str()),
+                found: String::from(self.nonce.as_str()),
+            });
         }
         return Ok(());
     }

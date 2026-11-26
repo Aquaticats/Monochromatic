@@ -15,11 +15,24 @@
 
 /// The functions under test,
 ///  the oracles and the real-Git fixture helpers.
-use super::{STATUS_TABLE, StatusRegion, has_status_hints_override, parse_status_region};
+use super::{
+    STATUS_TABLE,
+    StatusRegion,
+    has_status_hints_override,
+    parse_status_region,
+};
 use crate::command_options::OptionErrorKind;
-use crate::command_test_completion::{git_completion, render_completion};
+use crate::command_test_completion::{
+    git_completion,
+    render_completion,
+};
 use crate::command_test_support::{
-    assert_table_invariants, git, git_status, os_arguments, output_text, remove,
+    assert_table_invariants,
+    git,
+    git_status,
+    os_arguments,
+    output_text,
+    remove,
     repository_with_tracked_file,
 };
 use std::ffi::OsString;

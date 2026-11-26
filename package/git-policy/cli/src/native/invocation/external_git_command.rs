@@ -32,10 +32,10 @@
 //! //   => true when `git-audit-external` is executable on Git's search path
 //! ```
 
-/// Debug diagnostics.
-use crate::diagnostic_log::debug;
 /// The environment overlay reader the wrapper uses for every variable it consults.
 use crate::child_environment::environment_value;
+/// Debug diagnostics.
+use crate::diagnostic_log::debug;
 /// The directories a caller's `-C` options move Git through.
 use crate::global_arguments::directory_changes;
 /// The directory a `--exec-path=` global names,
@@ -43,11 +43,21 @@ use crate::global_arguments::directory_changes;
 use crate::global_arguments::exec_path_option;
 /// Running real Git,
 ///  for the exec path only Git knows.
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
 /// `OsStr`/`OsString` hold raw native text.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `Path`/`PathBuf` hold raw native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The mode bit Git's `is_executable` tests,
 ///  the owner's execute bit,
@@ -95,7 +105,14 @@ pub fn dashed_external_selected(
     //  unchecked there rather than guessing at `PATHEXT` and the extension Git would run.
     #[cfg(not(unix))]
     {
-        let _ = (context, environment, globals, current_directory, run_directory, word);
+        let _ = (
+            context,
+            environment,
+            globals,
+            current_directory,
+            run_directory,
+            word,
+        );
         return true;
     }
     #[cfg(unix)]
@@ -106,10 +123,20 @@ pub fn dashed_external_selected(
         if candidate.as_encoded_bytes().contains(&b'/') {
             return is_executable_file(Path::new(candidate.as_os_str()));
         }
-        let Some(directories) = search_directories(context, environment, globals, current_directory, run_directory) else {
+        let Some(directories) = search_directories(
+            context,
+            environment,
+            globals,
+            current_directory,
+            run_directory,
+        ) else {
             debug(
                 "dashedExternalSelected",
-                format!("cannot read the search directories, so {}", candidate.to_string_lossy()).as_str(),
+                format!(
+                    "cannot read the search directories, so {}",
+                    candidate.to_string_lossy()
+                )
+                .as_str(),
             );
             return true;
         };
@@ -117,7 +144,11 @@ pub fn dashed_external_selected(
             if is_executable_file(directory.join(candidate.as_os_str()).as_path()) {
                 debug(
                     "dashedExternalSelected",
-                    format!("{} is executable, so Git runs it", candidate.to_string_lossy()).as_str(),
+                    format!(
+                        "{} is executable, so Git runs it",
+                        candidate.to_string_lossy()
+                    )
+                    .as_str(),
                 );
                 return true;
             }
@@ -213,7 +244,10 @@ fn search_directories(
 /// const effectiveDirectory = (start: string, globals: string[]) =>
 ///   directoryChanges(globals).reduce((at, change) => join(at, change), start);
 /// ```
-pub fn effective_directory(start: &Path, globals: &[OsString]) -> PathBuf {
+pub fn effective_directory(
+    start: &Path,
+    globals: &[OsString],
+) -> PathBuf {
     let mut directory: PathBuf = start.to_path_buf();
     for change in directory_changes(globals) {
         directory = directory.join(change);
@@ -265,7 +299,10 @@ pub fn alias_run_directory(
     let mut request: GitRequest = GitRequest::new(start, arguments.as_slice());
     request.without_prefix = true;
     let Ok(output) = run_git(context, &request) else {
-        debug("aliasRunDirectory", "Git could not be asked where an alias runs");
+        debug(
+            "aliasRunDirectory",
+            "Git could not be asked where an alias runs",
+        );
         return None;
     };
     // A bare repository, and a repository Git could not read at all, have no top to change to, so Git runs the alias
@@ -368,7 +405,10 @@ fn exec_path(
     {
         return Some(usable_exec_path(configured, directory));
     }
-    return Some(usable_exec_path(printed_exec_path(context, globals, start)?, directory));
+    return Some(usable_exec_path(
+        printed_exec_path(context, globals, start)?,
+        directory,
+    ));
 }
 
 /// What:
@@ -384,7 +424,10 @@ fn exec_path(
 /// const usableExecPath = (configured: string, directory: string) =>
 ///   configured === '' ? '' : isAbsolute(configured) ? configured : join(directory, configured);
 /// ```
-fn usable_exec_path(configured: OsString, directory: &Path) -> PathBuf {
+fn usable_exec_path(
+    configured: OsString,
+    directory: &Path,
+) -> PathBuf {
     let path: PathBuf = PathBuf::from(configured);
     if path.as_os_str().is_empty() || path.is_absolute() {
         return path;
@@ -409,7 +452,11 @@ fn usable_exec_path(configured: OsString, directory: &Path) -> PathBuf {
 /// ```ts
 /// function printedExecPath({ context, globals, start }): string | undefined;
 /// ```
-fn printed_exec_path(context: &GitContext, globals: &[OsString], start: &Path) -> Option<OsString> {
+fn printed_exec_path(
+    context: &GitContext,
+    globals: &[OsString],
+    start: &Path,
+) -> Option<OsString> {
     let mut arguments: Vec<OsString> = globals.to_vec();
     arguments.push(OsString::from("--exec-path"));
     // Git answers from the directory it was started in, where its own `-C` options apply; asking from any other
@@ -417,7 +464,9 @@ fn printed_exec_path(context: &GitContext, globals: &[OsString], start: &Path) -
     let mut request: GitRequest = GitRequest::new(start, arguments.as_slice());
     request.without_prefix = true;
     match run_git(context, &request) {
-        Ok(output) if output.succeeded() => return Some(without_record_terminator(output.stdout.as_slice())),
+        Ok(output) if output.succeeded() => {
+            return Some(without_record_terminator(output.stdout.as_slice()));
+        }
         Ok(_) | Err(_) => {
             debug("printedExecPath", "Git did not report its exec path");
             return None;

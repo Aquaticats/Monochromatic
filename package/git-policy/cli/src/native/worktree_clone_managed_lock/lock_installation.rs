@@ -26,7 +26,10 @@ use crate::worktree_clone_binding_record::lock_words::lock_file_bytes;
 use crate::worktree_clone_mount_protocol::RequestNonce;
 use std::io::Write as _;
 use std::os::unix::fs::OpenOptionsExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Git's name for a registration's lock file.
 pub const LOCK_FILE_NAME: &str = "locked";
@@ -72,8 +75,14 @@ pub enum InstallAnswer {
 ///  The design fixes these words,
 ///  and the line is the only report the command owes,
 ///  because a kill between the write and the line loses nothing but the report.
-pub fn line_of_an_installed_lock(slot: &str, nonce: &RequestNonce) -> String {
-    return format!("the clone slot {slot} had lost its managed Git lock, so this command wrote it again for add nonce {}", nonce.as_str());
+pub fn line_of_an_installed_lock(
+    slot: &str,
+    nonce: &RequestNonce,
+) -> String {
+    return format!(
+        "the clone slot {slot} had lost its managed Git lock, so this command wrote it again for add nonce {}",
+        nonce.as_str()
+    );
 }
 
 /// What:
@@ -92,18 +101,36 @@ pub fn line_of_an_installed_lock(slot: &str, nonce: &RequestNonce) -> String {
 /// ```ts
 /// const file = open(join(registration, 'locked'), 'wx', 0o644); await file.write(lockFileBytes(nonce));
 /// ```
-pub fn write_the_lost_lock(registration: &Path, slot: &str, nonce: &RequestNonce) -> InstallAnswer {
+pub fn write_the_lost_lock(
+    registration: &Path,
+    slot: &str,
+    nonce: &RequestNonce,
+) -> InstallAnswer {
     let path: PathBuf = registration.join(LOCK_FILE_NAME);
     let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
-    options.write(true).create_new(true).mode(LOCK_FILE_MODE).custom_flags(libc::O_NOFOLLOW);
+    options
+        .write(true)
+        .create_new(true)
+        .mode(LOCK_FILE_MODE)
+        .custom_flags(libc::O_NOFOLLOW);
     let mut file: std::fs::File = match options.open(path.as_path()) {
         Ok(opened) => opened,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return InstallAnswer::ALockStands,
-        Err(error) => return InstallAnswer::Refused { reason: error.to_string() },
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return InstallAnswer::ALockStands;
+        }
+        Err(error) => {
+            return InstallAnswer::Refused {
+                reason: error.to_string(),
+            };
+        }
     };
     return match file.write_all(lock_file_bytes(nonce).as_slice()) {
-        Ok(()) => InstallAnswer::Wrote { line: line_of_an_installed_lock(slot, nonce) },
-        Err(error) => InstallAnswer::Refused { reason: error.to_string() },
+        Ok(()) => InstallAnswer::Wrote {
+            line: line_of_an_installed_lock(slot, nonce),
+        },
+        Err(error) => InstallAnswer::Refused {
+            reason: error.to_string(),
+        },
     };
 }
 

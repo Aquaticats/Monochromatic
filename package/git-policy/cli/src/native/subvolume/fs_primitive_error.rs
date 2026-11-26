@@ -21,7 +21,10 @@
 use std::ffi::CString;
 use std::fmt;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One failed primitive call.
@@ -61,9 +64,16 @@ impl PrimitiveError {
     /// ```ts
     /// const fail = (operation: string, path: string) => new PrimitiveError(operation, path, lastErrno());
     /// ```
-    pub fn last_os_error(operation: &'static str, path: &Path) -> PrimitiveError {
+    pub fn last_os_error(
+        operation: &'static str,
+        path: &Path,
+    ) -> PrimitiveError {
         let errno: i32 = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
-        return PrimitiveError { operation, path: path.to_path_buf(), errno };
+        return PrimitiveError {
+            operation,
+            path: path.to_path_buf(),
+            errno,
+        };
     }
 
     /// What:
@@ -84,14 +94,24 @@ impl PrimitiveError {
     /// const lacksFeature = (e: PrimitiveError) => [ENOTTY, EOPNOTSUPP, EINVAL, EXDEV, ENOSYS].includes(e.errno);
     /// ```
     pub fn means_feature_missing(&self) -> bool {
-        return [libc::ENOTTY, libc::EOPNOTSUPP, libc::EINVAL, libc::EXDEV, libc::ENOSYS].contains(&self.errno);
+        return [
+            libc::ENOTTY,
+            libc::EOPNOTSUPP,
+            libc::EINVAL,
+            libc::EXDEV,
+            libc::ENOSYS,
+        ]
+        .contains(&self.errno);
     }
 }
 
 /// Prints the call,
 /// the path and the system's own words for the error number.
 impl fmt::Display for PrimitiveError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(
             formatter,
             "{} on {} failed: {} (errno {})",
@@ -118,10 +138,17 @@ impl std::error::Error for PrimitiveError {}
 /// ```ts
 /// function cPath(operation: string, path: string): Buffer { if (path.includes('\0')) throw new PrimitiveError(operation, path, EINVAL); return Buffer.from(path + '\0'); }
 /// ```
-pub fn c_path(operation: &'static str, path: &Path) -> Result<CString, PrimitiveError> {
+pub fn c_path(
+    operation: &'static str,
+    path: &Path,
+) -> Result<CString, PrimitiveError> {
     return match CString::new(path.as_os_str().as_bytes()) {
         Ok(text) => Ok(text),
-        Err(_) => Err(PrimitiveError { operation, path: path.to_path_buf(), errno: libc::EINVAL }),
+        Err(_) => Err(PrimitiveError {
+            operation,
+            path: path.to_path_buf(),
+            errno: libc::EINVAL,
+        }),
     };
 }
 

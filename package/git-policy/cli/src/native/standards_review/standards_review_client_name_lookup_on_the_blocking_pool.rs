@@ -18,9 +18,15 @@
 use crate::blocking_job::run_blocking_job;
 use hyper_util::client::legacy::connect::dns::Name;
 use std::future::Future;
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::net::{
+    SocketAddr,
+    ToSocketAddrs,
+};
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{
+    Context,
+    Poll,
+};
 
 /// A resolver for `HttpConnector` that looks a name up on the blocking pool.
 #[derive(Clone, Copy, Debug, Default)]
@@ -31,14 +37,24 @@ impl tower_service::Service<Name> for PoolResolver {
     type Error = std::io::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(
+        &mut self,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Result<(), Self::Error>> {
         return Poll::Ready(Ok(()));
     }
 
-    fn call(&mut self, name: Name) -> Self::Future {
+    fn call(
+        &mut self,
+        name: Name,
+    ) -> Self::Future {
         let host: String = name.as_str().to_string();
         return Box::pin(async move {
-            return match run_blocking_job(move || { return (host.as_str(), 0).to_socket_addrs(); }).await {
+            return match run_blocking_job(move || {
+                return (host.as_str(), 0).to_socket_addrs();
+            })
+            .await
+            {
                 Ok(looked_up) => looked_up,
                 Err(error) => Err(std::io::Error::other(error.to_string())),
             };

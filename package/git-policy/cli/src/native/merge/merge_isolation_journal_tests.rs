@@ -3,10 +3,16 @@
 use super::*;
 use crate::merge_isolation_carry_parts as carry_parts;
 use crate::private_storage::take_file_syncs;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// The intent every control uses.
-fn intent(namespace: Option<&str>, target: Option<&str>) -> MergeIntent {
+fn intent(
+    namespace: Option<&str>,
+    target: Option<&str>,
+) -> MergeIntent {
     return MergeIntent {
         owner: TransactionOwner {
             transaction_id: String::from("0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10"),
@@ -51,7 +57,10 @@ fn an_intent_round_trips() {
 fn a_record_keeps_the_bytes_of_a_root_that_is_not_text() {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
-    let original: MergeIntent = MergeIntent { repository_root: PathBuf::from(OsStr::from_bytes(b"/work/tr\xffee")), ..intent(None, Some("refs/heads/main")) };
+    let original: MergeIntent = MergeIntent {
+        repository_root: PathBuf::from(OsStr::from_bytes(b"/work/tr\xffee")),
+        ..intent(None, Some("refs/heads/main"))
+    };
     let text: String = encode_merge_intent(&original);
     assert_eq!(parse_merge_intent(text.as_bytes()), Some(original));
 }
@@ -65,7 +74,8 @@ fn a_record_keeps_the_bytes_of_a_root_that_is_not_text() {
 #[test]
 fn a_record_of_a_plain_text_root_is_still_read() {
     let earlier: &str = "{\"schemaVersion\":1,\"state\":\"merge-intent\",\"transactionId\":\"0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10\",\"ownerPid\":4242,\"ownerIdentity\":\"linux:7\",\"createdAt\":\"2026-10-29T00:00:00.000Z\",\"repositoryRoot\":\"/work/tree\",\"targetRef\":\"refs/heads/main\",\"oldOid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"newOid\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}\n";
-    let read: MergeIntent = parse_merge_intent(earlier.as_bytes()).expect("an earlier record still reads");
+    let read: MergeIntent =
+        parse_merge_intent(earlier.as_bytes()).expect("an earlier record still reads");
     assert_eq!(read.repository_root, PathBuf::from("/work/tree"));
 }
 
@@ -74,7 +84,8 @@ fn a_record_of_a_plain_text_root_is_still_read() {
 fn a_malformed_intent_is_refused() {
     let good: String = encode_merge_intent(&intent(None, Some("refs/heads/main")));
     // The bytes of the root the record holds beside its plain text.
-    let bytes: String = crate::path_bytes_in_records::hex_of_path(Path::new("/work/tree \"quoted\""));
+    let bytes: String =
+        crate::path_bytes_in_records::hex_of_path(Path::new("/work/tree \"quoted\""));
     for broken in [
         String::new(),
         String::from("[]"),
@@ -121,14 +132,19 @@ fn a_record_that_ended_is_removed_without_flushing_its_directory() {
     let root: PathBuf = fixture("merge-intent-removal-syncs");
     let git_dir: PathBuf = root.join("git-dir");
     std::fs::create_dir(git_dir.as_path()).expect("git dir");
-    let path: PathBuf = write_merge_intent(git_dir.as_path(), &intent(None, Some("refs/heads/main"))).expect("the record");
+    let path: PathBuf =
+        write_merge_intent(git_dir.as_path(), &intent(None, Some("refs/heads/main")))
+            .expect("the record");
     // The write's own flushes are the price of "the record survives a crash before Git starts".
     let _written: Vec<PathBuf> = crate::private_storage::take_directory_syncs();
     take_file_syncs();
     remove_merge_intent(path.as_path()).expect("removed");
     assert!(!path.exists(), "the record is gone from the directory");
     let flushed: Vec<PathBuf> = crate::private_storage::take_directory_syncs();
-    assert!(flushed.is_empty(), "the removal is not flushed: a record that comes back after a power loss is settled by the next command, so nothing waits on this flush: {flushed:?}");
+    assert!(
+        flushed.is_empty(),
+        "the removal is not flushed: a record that comes back after a power loss is settled by the next command, so nothing waits on this flush: {flushed:?}"
+    );
     remove(&root);
 }
 
@@ -141,23 +157,42 @@ fn a_record_is_written_listed_and_removed() {
     let root: PathBuf = fixture("merge-intent-files");
     let git_dir: PathBuf = root.join("git-dir");
     std::fs::create_dir(git_dir.as_path()).expect("git dir");
-    assert_eq!(list_merge_intents(git_dir.as_path()).expect("absent directory"), Vec::<PathBuf>::new());
+    assert_eq!(
+        list_merge_intents(git_dir.as_path()).expect("absent directory"),
+        Vec::<PathBuf>::new()
+    );
     let first: MergeIntent = intent(None, Some("refs/heads/main"));
     let path: PathBuf = write_merge_intent(git_dir.as_path(), &first).expect("first write");
-    assert_eq!(path, intent_path(git_dir.as_path(), first.owner.transaction_id.as_str()));
+    assert_eq!(
+        path,
+        intent_path(git_dir.as_path(), first.owner.transaction_id.as_str())
+    );
     assert_eq!(
         parse_merge_intent(std::fs::read(path.as_path()).expect("read").as_slice()),
         Some(first.clone())
     );
-    assert!(write_merge_intent(git_dir.as_path(), &first).is_err(), "records are never rewritten");
+    assert!(
+        write_merge_intent(git_dir.as_path(), &first).is_err(),
+        "records are never rewritten"
+    );
     let mut second: MergeIntent = intent(None, None);
     second.owner.transaction_id = String::from("11111111-6f5b-4d0e-9a55-3f5d8e2f6a10");
     let other: PathBuf = write_merge_intent(git_dir.as_path(), &second).expect("second write");
-    std::fs::write(intent_directory(git_dir.as_path()).join("notes.txt"), b"not a record").expect("stray file");
-    assert_eq!(list_merge_intents(git_dir.as_path()).expect("listing"), vec![path.clone(), other.clone()]);
+    std::fs::write(
+        intent_directory(git_dir.as_path()).join("notes.txt"),
+        b"not a record",
+    )
+    .expect("stray file");
+    assert_eq!(
+        list_merge_intents(git_dir.as_path()).expect("listing"),
+        vec![path.clone(), other.clone()]
+    );
     remove_merge_intent(path.as_path()).expect("remove");
     remove_merge_intent(path.as_path()).expect("removing twice is not an error");
-    assert_eq!(list_merge_intents(git_dir.as_path()).expect("listing"), vec![other]);
+    assert_eq!(
+        list_merge_intents(git_dir.as_path()).expect("listing"),
+        vec![other]
+    );
     remove(&root);
 }
 
@@ -184,19 +219,31 @@ fn a_capture_round_trips() {
                     blob: String::from("e".repeat(40)),
                     permissions: Some(0o755),
                 }),
-                index: Some(carry_parts::CapturedIndex { mode: String::from("100644"), oid: String::from("f".repeat(40)) }),
+                index: Some(carry_parts::CapturedIndex {
+                    mode: String::from("100644"),
+                    oid: String::from("f".repeat(40)),
+                }),
             },
             carry_parts::CapturedPath {
                 path: OsStr::from_bytes(b"not text \xff").as_bytes().to_vec(),
                 worktree: None,
-                index: Some(carry_parts::CapturedIndex { mode: String::from("100644"), oid: String::from("a".repeat(40)) }),
+                index: Some(carry_parts::CapturedIndex {
+                    mode: String::from("100644"),
+                    oid: String::from("a".repeat(40)),
+                }),
             },
         ],
     };
-    let original: MergeIntent = MergeIntent { carried: Some(capture.clone()), ..intent(None, Some("refs/heads/main")) };
+    let original: MergeIntent = MergeIntent {
+        carried: Some(capture.clone()),
+        ..intent(None, Some("refs/heads/main"))
+    };
     let text: String = encode_merge_intent(&original);
     assert_eq!(parse_merge_intent(text.as_bytes()), Some(original));
-    assert!(text.contains("\"carried\""), "the record names the capture: {text}");
+    assert!(
+        text.contains("\"carried\""),
+        "the record names the capture: {text}"
+    );
 }
 
 /// What:
@@ -221,13 +268,19 @@ fn a_damaged_capture_is_refused() {
             index: None,
         }],
     };
-    let text: String = encode_merge_intent(&MergeIntent { carried: Some(capture), ..intent(None, Some("refs/heads/main")) });
+    let text: String = encode_merge_intent(&MergeIntent {
+        carried: Some(capture),
+        ..intent(None, Some("refs/heads/main"))
+    });
     assert!(parse_merge_intent(text.as_bytes()).is_some());
     for broken in [
         text.replace("100644", ""),
         text.replace("\"raw\"", "\"other\""),
         text.replace("612e747874", ""),
-        text.replace("\"paths\":[", "\"paths\":[{\"index\":{\"mode\":\"100644\",\"oid\":\"ff\"}},"),
+        text.replace(
+            "\"paths\":[",
+            "\"paths\":[{\"index\":{\"mode\":\"100644\",\"oid\":\"ff\"}},",
+        ),
     ] {
         assert_eq!(parse_merge_intent(broken.as_bytes()), None, "{broken}");
     }

@@ -7,14 +7,32 @@
 //! and the guarantee that nothing foreign is deleted.
 
 use super::*;
-use crate::subvolume_test_support::{Hooked, PlainPlatform, backdate, checkout_moved_behind_a_link, checkout_with_worktree, index_inode};
-use crate::test_support::{git, git_text, remove};
+use crate::subvolume_test_support::{
+    Hooked,
+    PlainPlatform,
+    backdate,
+    checkout_moved_behind_a_link,
+    checkout_with_worktree,
+    index_inode,
+};
+use crate::test_support::{
+    git,
+    git_text,
+    remove,
+};
 use crate::worktree_copy_owner::current_copy_owner;
-use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add_as};
+use crate::worktree_copy_stage_claim::{
+    StageClaim,
+    claim_stage_for_add_as,
+};
 use std::os::unix::fs::MetadataExt;
 
 /// The options of a real run.
-const RUN: ConvertOptions = ConvertOptions { dry_run: false, abandon: false, command_line_attributes: false };
+const RUN: ConvertOptions = ConvertOptions {
+    dry_run: false,
+    abandon: false,
+    command_line_attributes: false,
+};
 
 /// A checkout with one linked worktree whose tracked files are old and whose index is fresh,
 /// so it is quiet.
@@ -23,18 +41,34 @@ fn quiet_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     let worktree: PathBuf = root.join("wt");
     backdate(worktree.as_path());
     git(worktree.as_path(), &["update-index", "--refresh"]);
-    return (parent, root, std::fs::canonicalize(worktree).expect("canonical worktree"));
+    return (
+        parent,
+        root,
+        std::fs::canonicalize(worktree).expect("canonical worktree"),
+    );
 }
 
 /// Run one conversion and collect its lines.
-fn run(platform: &dyn Platform, worktree: &Path, options: ConvertOptions, interrupt: &Interrupt) -> (Result<Verdict, MigrateError>, Vec<String>) {
+fn run(
+    platform: &dyn Platform,
+    worktree: &Path,
+    options: ConvertOptions,
+    interrupt: &Interrupt,
+) -> (Result<Verdict, MigrateError>, Vec<String>) {
     let mut lines: Vec<String> = Vec::new();
-    let verdict = convert_worktree(platform, worktree, options, interrupt, &mut |text: &str| { lines.push(String::from(text)); });
+    let verdict = convert_worktree(platform, worktree, options, interrupt, &mut |text: &str| {
+        lines.push(String::from(text));
+    });
     return (verdict, lines);
 }
 
 /// Run one conversion and ignore its lines.
-fn run_quiet(platform: &dyn Platform, worktree: &Path, options: ConvertOptions, interrupt: &Interrupt) -> Result<Verdict, MigrateError> {
+fn run_quiet(
+    platform: &dyn Platform,
+    worktree: &Path,
+    options: ConvertOptions,
+    interrupt: &Interrupt,
+) -> Result<Verdict, MigrateError> {
     return run(platform, worktree, options, interrupt).0;
 }
 
@@ -48,7 +82,10 @@ fn admin_of(worktree: &Path) -> PathBuf {
 /// no journal,
 /// no lock of its token.
 fn assert_nothing_left(worktree: &Path) {
-    assert!(std::fs::symlink_metadata(converting_path(worktree)).is_err(), "the converting directory is gone");
+    assert!(
+        std::fs::symlink_metadata(converting_path(worktree)).is_err(),
+        "the converting directory is gone"
+    );
     let admin: PathBuf = admin_of(worktree);
     assert!(!admin.join(JOURNAL_NAME).exists(), "the journal is gone");
     assert!(!admin.join("index.lock").exists(), "the lock is released");
@@ -60,16 +97,56 @@ fn assert_nothing_left(worktree: &Path) {
 /// a
 ///  registration Git still lists,
 /// and an index that describes the new files.
-fn assert_converted(platform: &PlainPlatform, root: &Path, worktree: &Path, git_file: &[u8]) {
+fn assert_converted(
+    platform: &PlainPlatform,
+    root: &Path,
+    worktree: &Path,
+    git_file: &[u8],
+) {
     assert!(platform.is_subvolume_root(worktree).expect("examined"));
-    assert_eq!(std::fs::read(worktree.join(".git")).expect(".git"), git_file, "the .git file is byte for byte the same");
-    assert_eq!(std::fs::read(worktree.join("README.md")).expect("readme"), b"readme\n");
-    assert_eq!(std::fs::read(worktree.join("src/deep/er/leaf.txt")).expect("leaf").len(), 70_000);
-    assert_eq!(std::fs::read_link(worktree.join("link")).expect("link"), PathBuf::from("src/main.rs"));
-    assert_eq!(std::fs::metadata(worktree.join("script.sh")).expect("script").mode() & 0o777, 0o755);
-    assert_eq!(git_text(worktree, &["status", "--porcelain"]), "", "Git sees a clean worktree");
-    assert!(git_text(root, &["worktree", "list", "--porcelain"]).contains(worktree.to_string_lossy().as_ref()), "still registered");
-    assert_eq!(index_inode(worktree, "src/main.rs"), std::fs::metadata(worktree.join("src/main.rs")).expect("main").ino(), "the index describes the new file");
+    assert_eq!(
+        std::fs::read(worktree.join(".git")).expect(".git"),
+        git_file,
+        "the .git file is byte for byte the same"
+    );
+    assert_eq!(
+        std::fs::read(worktree.join("README.md")).expect("readme"),
+        b"readme\n"
+    );
+    assert_eq!(
+        std::fs::read(worktree.join("src/deep/er/leaf.txt"))
+            .expect("leaf")
+            .len(),
+        70_000
+    );
+    assert_eq!(
+        std::fs::read_link(worktree.join("link")).expect("link"),
+        PathBuf::from("src/main.rs")
+    );
+    assert_eq!(
+        std::fs::metadata(worktree.join("script.sh"))
+            .expect("script")
+            .mode()
+            & 0o777,
+        0o755
+    );
+    assert_eq!(
+        git_text(worktree, &["status", "--porcelain"]),
+        "",
+        "Git sees a clean worktree"
+    );
+    assert!(
+        git_text(root, &["worktree", "list", "--porcelain"])
+            .contains(worktree.to_string_lossy().as_ref()),
+        "still registered"
+    );
+    assert_eq!(
+        index_inode(worktree, "src/main.rs"),
+        std::fs::metadata(worktree.join("src/main.rs"))
+            .expect("main")
+            .ino(),
+        "the index describes the new file"
+    );
     assert_nothing_left(worktree);
 }
 
@@ -83,10 +160,27 @@ fn a_worktree_is_converted_in_place() {
     let old_inode: u64 = std::fs::metadata(&worktree).expect("old").ino();
     std::fs::write(parent.join("foreign"), b"keep").expect("foreign file");
     let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
-    assert_eq!(verdict.expect("converted"), Verdict::Converted, "{lines:#?}");
-    assert_converted(&platform, root.as_path(), worktree.as_path(), git_file.as_slice());
-    assert_ne!(std::fs::metadata(&worktree).expect("new").ino(), old_inode, "the path names a new directory");
-    assert_eq!(std::fs::read(parent.join("foreign")).expect("foreign"), b"keep", "nothing foreign was touched");
+    assert_eq!(
+        verdict.expect("converted"),
+        Verdict::Converted,
+        "{lines:#?}"
+    );
+    assert_converted(
+        &platform,
+        root.as_path(),
+        worktree.as_path(),
+        git_file.as_slice(),
+    );
+    assert_ne!(
+        std::fs::metadata(&worktree).expect("new").ino(),
+        old_inode,
+        "the path names a new directory"
+    );
+    assert_eq!(
+        std::fs::read(parent.join("foreign")).expect("foreign"),
+        b"keep",
+        "nothing foreign was touched"
+    );
     // A second run finds the subvolume and does nothing.
     let again = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(again.expect("skipped"), Verdict::AlreadySubvolume);
@@ -99,9 +193,22 @@ fn a_worktree_is_converted_in_place() {
 fn a_dry_run_changes_nothing() {
     let (parent, _root, worktree) = quiet_worktree("convert-dry");
     let platform: PlainPlatform = PlainPlatform::new();
-    let verdict = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: true, abandon: false, command_line_attributes: false }, &Interrupt::never());
+    let verdict = run_quiet(
+        &platform,
+        worktree.as_path(),
+        ConvertOptions {
+            dry_run: true,
+            abandon: false,
+            command_line_attributes: false,
+        },
+        &Interrupt::never(),
+    );
     assert_eq!(verdict.expect("dry"), Verdict::WouldConvert);
-    assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"));
+    assert!(
+        !platform
+            .is_subvolume_root(worktree.as_path())
+            .expect("examined")
+    );
     assert!(!admin_of(worktree.as_path()).join(JOURNAL_NAME).exists());
     assert!(!admin_of(worktree.as_path()).join("index.lock").exists());
     assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_err());
@@ -119,11 +226,29 @@ fn a_registration_spelled_through_a_link_is_the_same_worktree() {
     let candidate: Candidate = inspect(worktree.as_path()).expect("the two spellings are one file");
     assert_eq!(candidate.path, worktree);
     let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
-    assert_eq!(verdict.expect("converted"), Verdict::Converted, "{lines:#?}");
-    assert!(platform.is_subvolume_root(worktree.as_path()).expect("examined"));
-    assert_eq!(std::fs::read(worktree.join("README.md")).expect("readme"), b"readme\n");
-    assert_eq!(git_text(worktree.as_path(), &["status", "--porcelain"]), "", "Git still sees a clean worktree");
-    assert!(!admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(), "the journal is gone");
+    assert_eq!(
+        verdict.expect("converted"),
+        Verdict::Converted,
+        "{lines:#?}"
+    );
+    assert!(
+        platform
+            .is_subvolume_root(worktree.as_path())
+            .expect("examined")
+    );
+    assert_eq!(
+        std::fs::read(worktree.join("README.md")).expect("readme"),
+        b"readme\n"
+    );
+    assert_eq!(
+        git_text(worktree.as_path(), &["status", "--porcelain"]),
+        "",
+        "Git still sees a clean worktree"
+    );
+    assert!(
+        !admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(),
+        "the journal is gone"
+    );
     remove(parent.as_path());
 }
 
@@ -132,15 +257,37 @@ fn a_registration_spelled_through_a_link_is_the_same_worktree() {
 #[test]
 fn a_registration_that_names_another_worktree_is_refused() {
     let (parent, root) = checkout_with_worktree("convert-elsewhere");
-    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "second"]);
+    git(
+        root.as_path(),
+        &["worktree", "add", "--quiet", "--detach", "second"],
+    );
     let admin: PathBuf = root.join(".git/worktrees/wt");
     let elsewhere: String = format!("{}/.git\n", root.join("second").display());
-    std::fs::write(admin.join("gitdir"), elsewhere.as_str()).expect("a registration of another worktree");
-    let reason: String = inspect(root.join("wt").as_path()).expect_err("the registration names another worktree");
-    assert!(reason.contains("does not name") && reason.contains("points elsewhere"), "{reason}");
+    std::fs::write(admin.join("gitdir"), elsewhere.as_str())
+        .expect("a registration of another worktree");
+    let reason: String =
+        inspect(root.join("wt").as_path()).expect_err("the registration names another worktree");
+    assert!(
+        reason.contains("does not name") && reason.contains("points elsewhere"),
+        "{reason}"
+    );
     let platform: PlainPlatform = PlainPlatform::new();
-    skipped_with(run(&platform, root.join("wt").as_path(), RUN, &Interrupt::never()).0, "points elsewhere");
-    assert!(!platform.is_subvolume_root(root.join("wt").as_path()).expect("examined"), "nothing was converted");
+    skipped_with(
+        run(
+            &platform,
+            root.join("wt").as_path(),
+            RUN,
+            &Interrupt::never(),
+        )
+        .0,
+        "points elsewhere",
+    );
+    assert!(
+        !platform
+            .is_subvolume_root(root.join("wt").as_path())
+            .expect("examined"),
+        "nothing was converted"
+    );
     remove(parent.as_path());
 }
 
@@ -152,19 +299,45 @@ fn a_dangling_registration_is_refused() {
     let admin: PathBuf = root.join(".git/worktrees/wt");
     let dangling: String = format!("{}/.git\n", root.join("gone").display());
     std::fs::write(admin.join("gitdir"), dangling.as_str()).expect("a dangling registration");
-    let reason: String = inspect(root.join("wt").as_path()).expect_err("the registration is dangling");
-    assert!(reason.contains("does not name") && reason.contains("points elsewhere"), "{reason}");
+    let reason: String =
+        inspect(root.join("wt").as_path()).expect_err("the registration is dangling");
+    assert!(
+        reason.contains("does not name") && reason.contains("points elsewhere"),
+        "{reason}"
+    );
     let platform: PlainPlatform = PlainPlatform::new();
-    skipped_with(run(&platform, root.join("wt").as_path(), RUN, &Interrupt::never()).0, "points elsewhere");
-    assert!(!platform.is_subvolume_root(root.join("wt").as_path()).expect("examined"), "nothing was converted");
+    skipped_with(
+        run(
+            &platform,
+            root.join("wt").as_path(),
+            RUN,
+            &Interrupt::never(),
+        )
+        .0,
+        "points elsewhere",
+    );
+    assert!(
+        !platform
+            .is_subvolume_root(root.join("wt").as_path())
+            .expect("examined"),
+        "nothing was converted"
+    );
     remove(parent.as_path());
 }
 
 /// The reasons the verdict lists when something stands in the way,
 /// and the worktree is untouched.
-fn skipped_with(verdict: Result<Verdict, MigrateError>, fragment: &str) {
+fn skipped_with(
+    verdict: Result<Verdict, MigrateError>,
+    fragment: &str,
+) {
     match verdict.expect("no failure") {
-        Verdict::Skipped(reasons) => assert!(reasons.iter().any(|reason: &String| { return reason.contains(fragment); }), "{reasons:?} should mention {fragment}"),
+        Verdict::Skipped(reasons) => assert!(
+            reasons.iter().any(|reason: &String| {
+                return reason.contains(fragment);
+            }),
+            "{reasons:?} should mention {fragment}"
+        ),
         other => panic!("expected a skip mentioning {fragment}, got {other:?}"),
     }
 }
@@ -184,40 +357,83 @@ fn each_refusal_leaves_the_worktree_untouched() {
     let platform: PlainPlatform = PlainPlatform::new();
     let admin: PathBuf = admin_of(worktree.as_path());
     let untouched = |checked: &PlainPlatform| {
-        assert!(!checked.is_subvolume_root(worktree.as_path()).expect("examined"));
+        assert!(
+            !checked
+                .is_subvolume_root(worktree.as_path())
+                .expect("examined")
+        );
         assert!(!admin.join(JOURNAL_NAME).exists(), "no journal was written");
     };
     // Locked.
-    git(root.as_path(), &["worktree", "lock", worktree.to_str().expect("utf8")]);
-    skipped_with(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0, "locked");
-    git(root.as_path(), &["worktree", "unlock", worktree.to_str().expect("utf8")]);
+    git(
+        root.as_path(),
+        &["worktree", "lock", worktree.to_str().expect("utf8")],
+    );
+    skipped_with(
+        run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0,
+        "locked",
+    );
+    git(
+        root.as_path(),
+        &["worktree", "unlock", worktree.to_str().expect("utf8")],
+    );
     untouched(&platform);
     // A foreign index lock.
     std::fs::write(admin.join("index.lock"), b"another git").expect("lock");
-    skipped_with(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0, "index.lock");
-    assert_eq!(std::fs::read(admin.join("index.lock")).expect("lock"), b"another git", "the foreign lock is not removed");
+    skipped_with(
+        run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0,
+        "index.lock",
+    );
+    assert_eq!(
+        std::fs::read(admin.join("index.lock")).expect("lock"),
+        b"another git",
+        "the foreign lock is not removed"
+    );
     std::fs::remove_file(admin.join("index.lock")).expect("remove lock");
     // A foreign converting directory.
     std::fs::create_dir(converting_path(worktree.as_path())).expect("foreign directory");
     std::fs::write(converting_path(worktree.as_path()).join("theirs"), b"x").expect("theirs");
-    skipped_with(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0, CONVERTING_SUFFIX);
-    assert!(converting_path(worktree.as_path()).join("theirs").exists(), "the foreign directory is left alone");
+    skipped_with(
+        run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0,
+        CONVERTING_SUFFIX,
+    );
+    assert!(
+        converting_path(worktree.as_path()).join("theirs").exists(),
+        "the foreign directory is left alone"
+    );
     std::fs::remove_dir_all(converting_path(worktree.as_path())).expect("remove foreign");
     // A process with its working directory inside.
-    let mut child: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30").current_dir(&worktree)).expect("sleep");
-    skipped_with(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0, "working directory or an open file");
+    let mut child: std::process::Child = crate::test_support::spawn_owned(
+        std::process::Command::new("sleep")
+            .arg("30")
+            .current_dir(&worktree),
+    )
+    .expect("sleep");
+    skipped_with(
+        run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0,
+        "working directory or an open file",
+    );
     child.kill().expect("kill");
     child.wait().expect("wait");
     // A modified tracked file.
     std::fs::write(worktree.join("README.md"), b"changed\n").expect("modify");
-    skipped_with(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0, "not quiet and unmodified");
+    skipped_with(
+        run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0,
+        "not quiet and unmodified",
+    );
     untouched(&platform);
     // A worktree registered inside it.
     std::fs::write(worktree.join("README.md"), b"readme\n").expect("restore");
     backdate(worktree.as_path());
     git(worktree.as_path(), &["update-index", "--refresh"]);
-    git(worktree.as_path(), &["worktree", "add", "--quiet", "--detach", "inner"]);
-    skipped_with(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0, "registered inside it");
+    git(
+        worktree.as_path(),
+        &["worktree", "add", "--quiet", "--detach", "inner"],
+    );
+    skipped_with(
+        run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0,
+        "registered inside it",
+    );
     untouched(&platform);
     remove(parent.as_path());
 }
@@ -231,13 +447,32 @@ fn a_stage_created_but_not_recorded_is_adopted_by_the_next_run() {
     let (parent, root, worktree) = quiet_worktree("convert-stage-unrecorded");
     let platform: PlainPlatform = PlainPlatform::new();
     let git_file: Vec<u8> = std::fs::read(worktree.join(".git")).expect(".git");
-    let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("stage-unrecorded", 0));
-    assert!(killed.is_err(), "the run was killed between creating the stage and recording it");
+    let killed = run_quiet(
+        &platform,
+        worktree.as_path(),
+        RUN,
+        &Interrupt::at("stage-unrecorded", 0),
+    );
+    assert!(
+        killed.is_err(),
+        "the run was killed between creating the stage and recording it"
+    );
     let converting: PathBuf = converting_path(worktree.as_path());
-    assert_eq!(std::fs::read_dir(converting.as_path()).expect("listing").count(), 0, "the stage the kill left holds nothing");
+    assert_eq!(
+        std::fs::read_dir(converting.as_path())
+            .expect("listing")
+            .count(),
+        0,
+        "the stage the kill left holds nothing"
+    );
     let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(verdict.expect("resumed"), Verdict::Resumed, "{lines:#?}");
-    assert_converted(&platform, root.as_path(), worktree.as_path(), git_file.as_slice());
+    assert_converted(
+        &platform,
+        root.as_path(),
+        worktree.as_path(),
+        git_file.as_slice(),
+    );
     remove(parent.as_path());
 }
 
@@ -247,12 +482,35 @@ fn a_stage_created_but_not_recorded_is_adopted_by_the_next_run() {
 fn abandon_destroys_the_unrecorded_empty_stage() {
     let (parent, _root, worktree) = quiet_worktree("convert-stage-unrecorded-abandon");
     let platform: PlainPlatform = PlainPlatform::new();
-    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("stage-unrecorded", 0)).is_err());
+    assert!(
+        run_quiet(
+            &platform,
+            worktree.as_path(),
+            RUN,
+            &Interrupt::at("stage-unrecorded", 0)
+        )
+        .is_err()
+    );
     let converting: PathBuf = converting_path(worktree.as_path());
-    let undone = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false }, &Interrupt::never());
+    let undone = run_quiet(
+        &platform,
+        worktree.as_path(),
+        ConvertOptions {
+            dry_run: false,
+            abandon: true,
+            command_line_attributes: false,
+        },
+        &Interrupt::never(),
+    );
     assert_eq!(undone.expect("abandoned"), Verdict::Abandoned);
-    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the empty stage this conversion made is gone");
-    assert_eq!(std::fs::read(worktree.join("README.md")).expect("original intact"), b"readme\n");
+    assert!(
+        std::fs::symlink_metadata(converting.as_path()).is_err(),
+        "the empty stage this conversion made is gone"
+    );
+    assert_eq!(
+        std::fs::read(worktree.join("README.md")).expect("original intact"),
+        b"readme\n"
+    );
     remove(parent.as_path());
 }
 
@@ -260,17 +518,41 @@ fn abandon_destroys_the_unrecorded_empty_stage() {
 /// with the same final state and nothing foreign deleted.
 #[test]
 fn a_kill_at_every_phase_is_finished_by_a_rerun() {
-    for point in ["journaled", "created", "verified", "exchanged", "refreshed", "removed"] {
+    for point in [
+        "journaled",
+        "created",
+        "verified",
+        "exchanged",
+        "refreshed",
+        "removed",
+    ] {
         let (parent, root, worktree) = quiet_worktree(format!("convert-kill-{point}").as_str());
         let platform: PlainPlatform = PlainPlatform::new();
         let git_file: Vec<u8> = std::fs::read(worktree.join(".git")).expect(".git");
         std::fs::write(parent.join("foreign"), b"keep").expect("foreign file");
         let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at(point, 0));
-        assert_eq!(killed.expect_err("killed"), MigrateError::Interrupted(String::from(point)), "{point}");
+        assert_eq!(
+            killed.expect_err("killed"),
+            MigrateError::Interrupted(String::from(point)),
+            "{point}"
+        );
         let (resumed, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
-        assert_eq!(resumed.expect("finished"), Verdict::Resumed, "{point}: {lines:#?}");
-        assert_converted(&platform, root.as_path(), worktree.as_path(), git_file.as_slice());
-        assert_eq!(std::fs::read(parent.join("foreign")).expect("foreign"), b"keep", "{point}");
+        assert_eq!(
+            resumed.expect("finished"),
+            Verdict::Resumed,
+            "{point}: {lines:#?}"
+        );
+        assert_converted(
+            &platform,
+            root.as_path(),
+            worktree.as_path(),
+            git_file.as_slice(),
+        );
+        assert_eq!(
+            std::fs::read(parent.join("foreign")).expect("foreign"),
+            b"keep",
+            "{point}"
+        );
         remove(parent.as_path());
     }
 }
@@ -283,23 +565,73 @@ fn a_kill_at_every_phase_is_finished_by_a_rerun() {
 fn abandon_undoes_before_the_swap_and_refuses_after() {
     let (parent, _root, worktree) = quiet_worktree("convert-abandon");
     let platform: PlainPlatform = PlainPlatform::new();
-    let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0));
+    let killed = run_quiet(
+        &platform,
+        worktree.as_path(),
+        RUN,
+        &Interrupt::at("verified", 0),
+    );
     assert!(killed.is_err());
-    assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_ok(), "the copy exists");
-    let undone = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false }, &Interrupt::never());
+    assert!(
+        std::fs::symlink_metadata(converting_path(worktree.as_path())).is_ok(),
+        "the copy exists"
+    );
+    let undone = run_quiet(
+        &platform,
+        worktree.as_path(),
+        ConvertOptions {
+            dry_run: false,
+            abandon: true,
+            command_line_attributes: false,
+        },
+        &Interrupt::never(),
+    );
     assert_eq!(undone.expect("abandoned"), Verdict::Abandoned);
     assert_nothing_left(worktree.as_path());
-    assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"));
-    assert_eq!(std::fs::read(worktree.join("README.md")).expect("original intact"), b"readme\n");
+    assert!(
+        !platform
+            .is_subvolume_root(worktree.as_path())
+            .expect("examined")
+    );
+    assert_eq!(
+        std::fs::read(worktree.join("README.md")).expect("original intact"),
+        b"readme\n"
+    );
     // Nothing to abandon without a journal.
-    let nothing = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false }, &Interrupt::never());
+    let nothing = run_quiet(
+        &platform,
+        worktree.as_path(),
+        ConvertOptions {
+            dry_run: false,
+            abandon: true,
+            command_line_attributes: false,
+        },
+        &Interrupt::never(),
+    );
     skipped_with(nothing, "nothing to abandon");
     // Past the swap the abandon refuses and deletes nothing.
-    let past = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0));
+    let past = run_quiet(
+        &platform,
+        worktree.as_path(),
+        RUN,
+        &Interrupt::at("exchanged", 0),
+    );
     assert!(past.is_err());
-    let refused = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false }, &Interrupt::never());
+    let refused = run_quiet(
+        &platform,
+        worktree.as_path(),
+        ConvertOptions {
+            dry_run: false,
+            abandon: true,
+            command_line_attributes: false,
+        },
+        &Interrupt::never(),
+    );
     skipped_with(refused, "past the swap");
-    assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_ok(), "the old tree is still there");
+    assert!(
+        std::fs::symlink_metadata(converting_path(worktree.as_path())).is_ok(),
+        "the old tree is still there"
+    );
     let finished = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(finished.expect("finished"), Verdict::Resumed);
     remove(parent.as_path());
@@ -318,21 +650,51 @@ fn abandon_undoes_before_the_swap_and_refuses_after() {
 fn a_process_that_enters_the_stage_after_the_scan_keeps_it() {
     let (parent, _root, worktree) = quiet_worktree("convert-abandon-late-holder");
     let platform: PlainPlatform = PlainPlatform::new();
-    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0)).is_err());
+    assert!(
+        run_quiet(
+            &platform,
+            worktree.as_path(),
+            RUN,
+            &Interrupt::at("verified", 0)
+        )
+        .is_err()
+    );
     let converting: PathBuf = converting_path(worktree.as_path());
     let candidate: Candidate = inspect(worktree.as_path()).expect("candidate");
-    let journal: Journal = Journal::load(candidate.admin.as_path()).expect("the journal loads").expect("a journal of the interrupted conversion");
+    let journal: Journal = Journal::load(candidate.admin.as_path())
+        .expect("the journal loads")
+        .expect("a journal of the interrupted conversion");
     let mut say: Vec<String> = Vec::new();
     let late: std::cell::RefCell<Option<Sleeper>> = std::cell::RefCell::new(None);
     let mut enter = || {
         *late.borrow_mut() = Some(Sleeper::start(converting.as_path()));
     };
-    let verdict = abandon_seamed(&platform, &candidate, journal, &mut |text: &str| { say.push(String::from(text)); }, &mut enter);
-    let pid: i64 = late.borrow().as_ref().expect("the sleeper entered the stage").pid();
-    let Verdict::Skipped(reasons) = verdict.expect("no failure") else { panic!("the abandon keeps the stage a process entered: {say:?}") };
+    let verdict = abandon_seamed(
+        &platform,
+        &candidate,
+        journal,
+        &mut |text: &str| {
+            say.push(String::from(text));
+        },
+        &mut enter,
+    );
+    let pid: i64 = late
+        .borrow()
+        .as_ref()
+        .expect("the sleeper entered the stage")
+        .pid();
+    let Verdict::Skipped(reasons) = verdict.expect("no failure") else {
+        panic!("the abandon keeps the stage a process entered: {say:?}")
+    };
     let named: String = reasons.join("; ");
-    assert!(named.contains(format!("process {pid}").as_str()), "the refusal names the process that entered: {named}");
-    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the stage is kept");
+    assert!(
+        named.contains(format!("process {pid}").as_str()),
+        "the refusal names the process that entered: {named}"
+    );
+    assert!(
+        std::fs::symlink_metadata(converting.as_path()).is_ok(),
+        "the stage is kept"
+    );
     drop(late);
     remove(parent.as_path());
 }
@@ -352,7 +714,15 @@ fn a_process_that_enters_the_stage_after_the_scan_keeps_it() {
 fn a_replacement_that_arrives_after_the_scan_of_a_leftover_stage_is_kept() {
     let (parent, _root, worktree) = quiet_worktree("convert-leftover-late-replacement");
     let platform: PlainPlatform = PlainPlatform::new();
-    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err());
+    assert!(
+        run_quiet(
+            &platform,
+            worktree.as_path(),
+            RUN,
+            &Interrupt::at("exchanged", 0)
+        )
+        .is_err()
+    );
     let converting: PathBuf = converting_path(worktree.as_path());
     let admin: PathBuf = admin_of(worktree.as_path());
     remove(worktree.as_path());
@@ -366,11 +736,32 @@ fn a_replacement_that_arrives_after_the_scan_of_a_leftover_stage_is_kept() {
         std::fs::write(at.join("d/precious"), b"somebody else's file\n").expect("a file of theirs");
     };
     let reason: &str = "the worktree is gone";
-    let verdict = abandon_leftover_stage_seamed(&platform, worktree.as_path(), reason, &mut |text: &str| { say.push(String::from(text)); }, replace);
-    let Some(Verdict::Skipped(reasons)) = verdict.expect("no failure") else { panic!("the replacement is kept: {say:?}") };
-    assert!(reasons.join("; ").contains("changed while the command was about to destroy it"), "{reasons:?}");
-    assert_eq!(std::fs::read(converting.join("d/precious")).expect("the replacement is kept"), b"somebody else's file\n");
-    assert!(moved.exists(), "the recorded stage is still where the other process moved it");
+    let verdict = abandon_leftover_stage_seamed(
+        &platform,
+        worktree.as_path(),
+        reason,
+        &mut |text: &str| {
+            say.push(String::from(text));
+        },
+        replace,
+    );
+    let Some(Verdict::Skipped(reasons)) = verdict.expect("no failure") else {
+        panic!("the replacement is kept: {say:?}")
+    };
+    assert!(
+        reasons
+            .join("; ")
+            .contains("changed while the command was about to destroy it"),
+        "{reasons:?}"
+    );
+    assert_eq!(
+        std::fs::read(converting.join("d/precious")).expect("the replacement is kept"),
+        b"somebody else's file\n"
+    );
+    assert!(
+        moved.exists(),
+        "the recorded stage is still where the other process moved it"
+    );
     remove(parent.as_path());
 }
 
@@ -385,7 +776,15 @@ fn a_replacement_that_arrives_after_the_scan_of_a_leftover_stage_is_kept() {
 fn an_abandon_keeps_a_replacement_that_took_the_leftover_stage_name() {
     let (parent, _root, worktree) = quiet_worktree("convert-abandon-replaced-stage");
     let platform: PlainPlatform = PlainPlatform::new();
-    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err());
+    assert!(
+        run_quiet(
+            &platform,
+            worktree.as_path(),
+            RUN,
+            &Interrupt::at("exchanged", 0)
+        )
+        .is_err()
+    );
     let converting: PathBuf = converting_path(worktree.as_path());
     let admin: PathBuf = admin_of(worktree.as_path());
     // The worktree and its registration go, as a removal leaves them, and the stage stays beside them.
@@ -394,14 +793,30 @@ fn an_abandon_keeps_a_replacement_that_took_the_leftover_stage_name() {
     let moved: PathBuf = parent.join("stage.kept");
     std::fs::rename(converting.as_path(), moved.as_path()).expect("move the stage aside");
     std::fs::create_dir_all(converting.join("d")).expect("a directory at the stage's name");
-    std::fs::write(converting.join("d/precious"), b"somebody else's file\n").expect("a file of theirs");
-    let abandon: ConvertOptions = ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false };
+    std::fs::write(converting.join("d/precious"), b"somebody else's file\n")
+        .expect("a file of theirs");
+    let abandon: ConvertOptions = ConvertOptions {
+        dry_run: false,
+        abandon: true,
+        command_line_attributes: false,
+    };
     let (verdict, lines) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
-    let Verdict::Skipped(reasons) = verdict.expect("no failure") else { panic!("the abandon keeps what it cannot prove: {lines:?}") };
+    let Verdict::Skipped(reasons) = verdict.expect("no failure") else {
+        panic!("the abandon keeps what it cannot prove: {lines:?}")
+    };
     let named: String = reasons.join("; ");
-    assert!(named.contains("not the stage this conversion recorded"), "the refusal says why: {named}");
-    assert_eq!(std::fs::read(converting.join("d/precious")).expect("the replacement is kept"), b"somebody else's file\n");
-    assert!(moved.exists(), "the stage itself is still where the person moved it");
+    assert!(
+        named.contains("not the stage this conversion recorded"),
+        "the refusal says why: {named}"
+    );
+    assert_eq!(
+        std::fs::read(converting.join("d/precious")).expect("the replacement is kept"),
+        b"somebody else's file\n"
+    );
+    assert!(
+        moved.exists(),
+        "the stage itself is still where the person moved it"
+    );
     remove(parent.as_path());
 }
 
@@ -413,7 +828,12 @@ impl Sleeper {
     /// Start `sleep` inside `directory`.
     fn start(directory: &Path) -> Sleeper {
         let mut command: std::process::Command = std::process::Command::new("sleep");
-        command.arg("120").current_dir(directory).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        command
+            .arg("120")
+            .current_dir(directory)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
         return Sleeper(command.spawn().expect("the sleeper starts"));
     }
 
@@ -439,19 +859,42 @@ impl Drop for Sleeper {
 fn an_abandon_keeps_the_stage_while_a_process_is_inside_it() {
     let (parent, _root, worktree) = quiet_worktree("convert-abandon-holder");
     let platform: PlainPlatform = PlainPlatform::new();
-    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0)).is_err());
+    assert!(
+        run_quiet(
+            &platform,
+            worktree.as_path(),
+            RUN,
+            &Interrupt::at("verified", 0)
+        )
+        .is_err()
+    );
     let converting: PathBuf = converting_path(worktree.as_path());
-    let abandon: ConvertOptions = ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false };
+    let abandon: ConvertOptions = ConvertOptions {
+        dry_run: false,
+        abandon: true,
+        command_line_attributes: false,
+    };
     let holder: Sleeper = Sleeper::start(converting.as_path());
     let (refused, lines) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
-    let Verdict::Skipped(reasons) = refused.expect("no failure") else { panic!("the abandon refuses while a process is inside the stage: {lines:?}") };
+    let Verdict::Skipped(reasons) = refused.expect("no failure") else {
+        panic!("the abandon refuses while a process is inside the stage: {lines:?}")
+    };
     let named: String = reasons.join("; ");
-    assert!(named.contains(format!("process {}", holder.pid()).as_str()), "the refusal names the process: {named} {lines:?}");
-    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the stage is kept while a process is in it");
+    assert!(
+        named.contains(format!("process {}", holder.pid()).as_str()),
+        "the refusal names the process: {named} {lines:?}"
+    );
+    assert!(
+        std::fs::symlink_metadata(converting.as_path()).is_ok(),
+        "the stage is kept while a process is in it"
+    );
     drop(holder);
     let (undone, lines2) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
     assert_eq!(undone.expect("abandoned"), Verdict::Abandoned, "{lines2:?}");
-    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the stage goes once nothing is inside it");
+    assert!(
+        std::fs::symlink_metadata(converting.as_path()).is_err(),
+        "the stage goes once nothing is inside it"
+    );
     remove(parent.as_path());
 }
 
@@ -466,18 +909,45 @@ fn an_abandon_reaches_the_stage_that_a_removal_left_behind() {
     let (parent, _root, worktree) = quiet_worktree("convert-abandon-leftover");
     let platform: PlainPlatform = PlainPlatform::new();
     // Past the swap: the checkout is the new subvolume and the original tree waits at the converting name.
-    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err());
+    assert!(
+        run_quiet(
+            &platform,
+            worktree.as_path(),
+            RUN,
+            &Interrupt::at("exchanged", 0)
+        )
+        .is_err()
+    );
     let converting: PathBuf = converting_path(worktree.as_path());
     let admin: PathBuf = admin_of(worktree.as_path());
     // What the removal of the worktree does: its directory and its registration go, and the journal goes with them.
     remove(worktree.as_path());
     remove(admin.as_path());
-    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the full copy stays beside where the worktree was");
-    let abandon: ConvertOptions = ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false };
+    assert!(
+        std::fs::symlink_metadata(converting.as_path()).is_ok(),
+        "the full copy stays beside where the worktree was"
+    );
+    let abandon: ConvertOptions = ConvertOptions {
+        dry_run: false,
+        abandon: true,
+        command_line_attributes: false,
+    };
     let (verdict, lines) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
-    assert_eq!(verdict.expect("abandoned"), Verdict::Abandoned, "{lines:#?}");
-    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the stage is gone after the abandon");
-    assert!(lines.iter().any(|line: &String| { return line.contains("leftover"); }), "the abandon says what it destroyed: {lines:#?}");
+    assert_eq!(
+        verdict.expect("abandoned"),
+        Verdict::Abandoned,
+        "{lines:#?}"
+    );
+    assert!(
+        std::fs::symlink_metadata(converting.as_path()).is_err(),
+        "the stage is gone after the abandon"
+    );
+    assert!(
+        lines.iter().any(|line: &String| {
+            return line.contains("leftover");
+        }),
+        "the abandon says what it destroyed: {lines:#?}"
+    );
     remove(parent.as_path());
 }
 
@@ -490,7 +960,12 @@ fn an_abandon_reaches_the_stage_that_a_removal_left_behind() {
 fn a_directory_that_is_not_the_recorded_old_tree_is_never_removed() {
     let (parent, _root, worktree) = quiet_worktree("convert-foreign-old");
     let platform: PlainPlatform = PlainPlatform::new();
-    let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("refreshed", 0));
+    let killed = run_quiet(
+        &platform,
+        worktree.as_path(),
+        RUN,
+        &Interrupt::at("refreshed", 0),
+    );
     assert!(killed.is_err());
     let converting: PathBuf = converting_path(worktree.as_path());
     let kept: PathBuf = parent.join("old-tree-kept");
@@ -498,15 +973,30 @@ fn a_directory_that_is_not_the_recorded_old_tree_is_never_removed() {
     std::fs::create_dir(&converting).expect("foreign directory at the name");
     std::fs::write(converting.join("theirs"), b"x").expect("theirs");
     let (finished, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
-    let message: String = finished.expect_err("the conversion is not finished").to_string();
-    assert!(message.contains("not the old tree") && message.contains("journal"), "{message}: {lines:#?}");
-    assert!(converting.join("theirs").exists(), "the foreign directory is untouched");
+    let message: String = finished
+        .expect_err("the conversion is not finished")
+        .to_string();
+    assert!(
+        message.contains("not the old tree") && message.contains("journal"),
+        "{message}: {lines:#?}"
+    );
+    assert!(
+        converting.join("theirs").exists(),
+        "the foreign directory is untouched"
+    );
     assert!(kept.join("README.md").exists(), "the old tree is untouched");
-    assert!(admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(), "the journal stays");
+    assert!(
+        admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(),
+        "the journal stays"
+    );
     std::fs::remove_dir_all(&converting).expect("the person clears the name");
     std::fs::rename(&kept, &converting).expect("and puts the old tree back");
     let (completed, completed_lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
-    assert_eq!(completed.expect("finished"), Verdict::Resumed, "{completed_lines:#?}");
+    assert_eq!(
+        completed.expect("finished"),
+        Verdict::Resumed,
+        "{completed_lines:#?}"
+    );
     remove(parent.as_path());
 }
 
@@ -516,11 +1006,29 @@ fn a_directory_that_is_not_the_recorded_old_tree_is_never_removed() {
 fn a_process_inside_stops_the_swap_of_a_resumed_conversion() {
     let (parent, _root, worktree) = quiet_worktree("convert-process");
     let platform: PlainPlatform = PlainPlatform::new();
-    let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0));
+    let killed = run_quiet(
+        &platform,
+        worktree.as_path(),
+        RUN,
+        &Interrupt::at("verified", 0),
+    );
     assert!(killed.is_err());
-    let mut child: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30").current_dir(&worktree)).expect("sleep");
-    skipped_with(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0, "working directory or an open file");
-    assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "nothing was swapped");
+    let mut child: std::process::Child = crate::test_support::spawn_owned(
+        std::process::Command::new("sleep")
+            .arg("30")
+            .current_dir(&worktree),
+    )
+    .expect("sleep");
+    skipped_with(
+        run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0,
+        "working directory or an open file",
+    );
+    assert!(
+        !platform
+            .is_subvolume_root(worktree.as_path())
+            .expect("examined"),
+        "nothing was swapped"
+    );
     child.kill().expect("kill");
     child.wait().expect("wait");
     let finished = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::never());
@@ -545,7 +1053,12 @@ fn a_change_during_the_copy_is_caught_before_the_swap() {
     let verdict = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::never());
     let message: String = verdict.expect_err("the proving pass refuses").to_string();
     assert!(message.contains("changed while it was copied"), "{message}");
-    assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "nothing was swapped");
+    assert!(
+        !platform
+            .is_subvolume_root(worktree.as_path())
+            .expect("examined"),
+        "nothing was swapped"
+    );
     remove(parent.as_path());
 }
 
@@ -563,13 +1076,22 @@ fn a_change_during_the_copy_is_caught_before_the_swap() {
 /// ```ts
 /// const listener = bindSocketIn(directory, 'agent.sock');
 /// ```
-fn bind_socket_in(directory: &Path, name: &str) -> std::os::unix::net::UnixListener {
+fn bind_socket_in(
+    directory: &Path,
+    name: &str,
+) -> std::os::unix::net::UnixListener {
     use std::os::fd::AsRawFd as _;
     use std::os::unix::fs::FileTypeExt as _;
     let handle: std::fs::File = std::fs::File::open(directory).expect("directory handle");
     let short: PathBuf = PathBuf::from(format!("/proc/self/fd/{}/{name}", handle.as_raw_fd()));
-    let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind(short).expect("socket");
-    assert!(std::fs::symlink_metadata(directory.join(name)).expect("the socket file").file_type().is_socket());
+    let listener: std::os::unix::net::UnixListener =
+        std::os::unix::net::UnixListener::bind(short).expect("socket");
+    assert!(
+        std::fs::symlink_metadata(directory.join(name))
+            .expect("the socket file")
+            .file_type()
+            .is_socket()
+    );
     return listener;
 }
 
@@ -579,12 +1101,16 @@ fn bind_socket_in(directory: &Path, name: &str) -> std::os::unix::net::UnixListe
 #[test]
 fn a_copy_that_leaves_a_socket_out_says_so() {
     let (parent, _root, worktree) = quiet_worktree("convert-socket");
-    let listener: std::os::unix::net::UnixListener = bind_socket_in(worktree.as_path(), "agent.sock");
+    let listener: std::os::unix::net::UnixListener =
+        bind_socket_in(worktree.as_path(), "agent.sock");
     drop(listener);
     let platform: PlainPlatform = PlainPlatform::new();
     let (_verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
     let said: String = lines.join("\n");
-    assert!(said.contains("not recreated (a socket or device node): agent.sock"), "{said}");
+    assert!(
+        said.contains("not recreated (a socket or device node): agent.sock"),
+        "{said}"
+    );
     remove(parent.as_path());
 }
 
@@ -595,18 +1121,38 @@ fn a_copy_that_leaves_a_socket_out_says_so() {
 #[test]
 fn a_socket_stops_a_conversion_before_the_swap_and_deleting_it_finishes() {
     let (parent, _root, worktree) = quiet_worktree("convert-socket-stop");
-    let listener: std::os::unix::net::UnixListener = bind_socket_in(worktree.as_path(), "agent.sock");
+    let listener: std::os::unix::net::UnixListener =
+        bind_socket_in(worktree.as_path(), "agent.sock");
     drop(listener);
     let platform: PlainPlatform = PlainPlatform::new();
-    let message: String = run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect_err("the conversion refuses").to_string();
-    assert!(message.contains("agent.sock") && message.contains("does not recreate"), "{message}");
+    let message: String = run(&platform, worktree.as_path(), RUN, &Interrupt::never())
+        .0
+        .expect_err("the conversion refuses")
+        .to_string();
+    assert!(
+        message.contains("agent.sock") && message.contains("does not recreate"),
+        "{message}"
+    );
     assert!(message.contains("nothing was swapped"), "{message}");
-    assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "nothing was swapped");
-    assert!(worktree.join("agent.sock").exists(), "the socket is still in the worktree");
+    assert!(
+        !platform
+            .is_subvolume_root(worktree.as_path())
+            .expect("examined"),
+        "nothing was swapped"
+    );
+    assert!(
+        worktree.join("agent.sock").exists(),
+        "the socket is still in the worktree"
+    );
     std::fs::remove_file(worktree.join("agent.sock")).expect("the person removes the socket");
     let (finished, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(finished.expect("converted"), Verdict::Resumed, "{lines:#?}");
-    assert!(platform.is_subvolume_root(worktree.as_path()).expect("examined"), "the conversion finished");
+    assert!(
+        platform
+            .is_subvolume_root(worktree.as_path())
+            .expect("examined"),
+        "the conversion finished"
+    );
     remove(parent.as_path());
 }
 
@@ -625,20 +1171,49 @@ fn a_socket_stops_a_conversion_before_the_swap_and_deleting_it_finishes() {
 #[test]
 fn a_conversion_refused_over_a_socket_can_still_be_abandoned() {
     let (parent, _root, worktree) = quiet_worktree("convert-socket-abandon");
-    let listener: std::os::unix::net::UnixListener = bind_socket_in(worktree.as_path(), "agent.sock");
+    let listener: std::os::unix::net::UnixListener =
+        bind_socket_in(worktree.as_path(), "agent.sock");
     drop(listener);
     let platform: PlainPlatform = PlainPlatform::new();
     let converting: PathBuf = converting_path(worktree.as_path());
-    let message: String = run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect_err("the conversion refuses").to_string();
+    let message: String = run(&platform, worktree.as_path(), RUN, &Interrupt::never())
+        .0
+        .expect_err("the conversion refuses")
+        .to_string();
     assert!(message.contains("nothing was swapped"), "{message}");
-    assert!(converting.exists(), "the refusal leaves the stage it copied");
-    let abandon: ConvertOptions = ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false };
+    assert!(
+        converting.exists(),
+        "the refusal leaves the stage it copied"
+    );
+    let abandon: ConvertOptions = ConvertOptions {
+        dry_run: false,
+        abandon: true,
+        command_line_attributes: false,
+    };
     let (abandoned, lines) = run(&platform, worktree.as_path(), abandon, &Interrupt::never());
-    assert_eq!(abandoned.expect("abandoned"), Verdict::Abandoned, "{lines:#?}");
-    assert!(std::fs::symlink_metadata(&converting).is_err(), "the stage is gone");
-    assert!(!admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(), "the journal is gone");
-    assert!(worktree.join("agent.sock").exists(), "the worktree keeps its socket");
-    assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "the worktree is not a subvolume");
+    assert_eq!(
+        abandoned.expect("abandoned"),
+        Verdict::Abandoned,
+        "{lines:#?}"
+    );
+    assert!(
+        std::fs::symlink_metadata(&converting).is_err(),
+        "the stage is gone"
+    );
+    assert!(
+        !admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(),
+        "the journal is gone"
+    );
+    assert!(
+        worktree.join("agent.sock").exists(),
+        "the worktree keeps its socket"
+    );
+    assert!(
+        !platform
+            .is_subvolume_root(worktree.as_path())
+            .expect("examined"),
+        "the worktree is not a subvolume"
+    );
     remove(parent.as_path());
 }
 
@@ -651,16 +1226,38 @@ fn a_socket_left_in_the_old_tree_names_the_entry_to_delete() {
     let (parent, _root, worktree) = quiet_worktree("convert-socket-past");
     let platform: PlainPlatform = PlainPlatform::new();
     let converting: PathBuf = converting_path(worktree.as_path());
-    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
-    let listener: std::os::unix::net::UnixListener = bind_socket_in(converting.as_path(), "agent.sock");
+    assert!(
+        run(
+            &platform,
+            worktree.as_path(),
+            RUN,
+            &Interrupt::at("exchanged", 0)
+        )
+        .0
+        .is_err()
+    );
+    let listener: std::os::unix::net::UnixListener =
+        bind_socket_in(converting.as_path(), "agent.sock");
     drop(listener);
-    let message: String = run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect_err("the conversion refuses").to_string();
-    assert!(message.contains("agent.sock") && message.contains("delete it from"), "{message}");
-    assert!(converting.join("agent.sock").exists(), "the old tree is kept whole");
+    let message: String = run(&platform, worktree.as_path(), RUN, &Interrupt::never())
+        .0
+        .expect_err("the conversion refuses")
+        .to_string();
+    assert!(
+        message.contains("agent.sock") && message.contains("delete it from"),
+        "{message}"
+    );
+    assert!(
+        converting.join("agent.sock").exists(),
+        "the old tree is kept whole"
+    );
     std::fs::remove_file(converting.join("agent.sock")).expect("the person deletes the socket");
     let (finished, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(finished.expect("converted"), Verdict::Resumed, "{lines:#?}");
-    assert!(std::fs::symlink_metadata(&converting).is_err(), "the old tree is gone");
+    assert!(
+        std::fs::symlink_metadata(&converting).is_err(),
+        "the old tree is gone"
+    );
     remove(parent.as_path());
 }
 
@@ -678,14 +1275,29 @@ fn a_stage_container_left_in_the_old_tree_does_not_keep_it() {
     let (parent, _root, worktree) = quiet_worktree("convert-stage-past");
     let platform: PlainPlatform = PlainPlatform::new();
     let converting: PathBuf = converting_path(worktree.as_path());
-    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err());
-    let container: PathBuf = converting.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload");
+    assert!(
+        run_quiet(
+            &platform,
+            worktree.as_path(),
+            RUN,
+            &Interrupt::at("exchanged", 0)
+        )
+        .is_err()
+    );
+    let container: PathBuf = converting
+        .join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload");
     std::fs::create_dir_all(&container).expect("the stage container");
     std::fs::write(container.join("credentials"), b"token\n").expect("its payload");
     let (finished, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(finished.expect("finished"), Verdict::Resumed, "{lines:#?}");
-    assert!(std::fs::symlink_metadata(&converting).is_err(), "the old tree is gone");
-    assert!(!worktree.join(".claude").exists(), "the container is in neither tree");
+    assert!(
+        std::fs::symlink_metadata(&converting).is_err(),
+        "the old tree is gone"
+    );
+    assert!(
+        !worktree.join(".claude").exists(),
+        "the container is in neither tree"
+    );
     remove(parent.as_path());
 }
 
@@ -698,18 +1310,46 @@ fn a_stage_container_left_in_the_old_tree_does_not_keep_it() {
 fn btrfs_a_real_conversion_makes_a_subvolume_and_clones_file_data() {
     use crate::fs_btrfs_test_support::btrfs_fixture;
     use crate::subvolume_platform::LinuxPlatform;
-    let Some(probe) = btrfs_fixture("convert-real") else { return };
+    let Some(probe) = btrfs_fixture("convert-real") else {
+        return;
+    };
     remove(probe.as_path());
     let (parent, root, worktree) = quiet_worktree("convert-real");
     let git_file: Vec<u8> = std::fs::read(worktree.join(".git")).expect(".git");
-    let (verdict, lines) = run(&LinuxPlatform::default(), worktree.as_path(), RUN, &Interrupt::never());
-    assert_eq!(verdict.expect("converted"), Verdict::Converted, "{lines:#?}");
-    assert_eq!(std::fs::metadata(&worktree).expect("new").ino(), crate::fs_kind::BTRFS_SUBVOLUME_ROOT_INODE);
-    let copied: &String = lines.iter().find(|line: &&String| { return line.contains("copied "); }).expect("the copy line");
-    assert!(!copied.contains(", 0 cloned"), "file data was cloned: {copied}");
-    assert_eq!(std::fs::read(worktree.join(".git")).expect(".git"), git_file);
+    let (verdict, lines) = run(
+        &LinuxPlatform::default(),
+        worktree.as_path(),
+        RUN,
+        &Interrupt::never(),
+    );
+    assert_eq!(
+        verdict.expect("converted"),
+        Verdict::Converted,
+        "{lines:#?}"
+    );
+    assert_eq!(
+        std::fs::metadata(&worktree).expect("new").ino(),
+        crate::fs_kind::BTRFS_SUBVOLUME_ROOT_INODE
+    );
+    let copied: &String = lines
+        .iter()
+        .find(|line: &&String| {
+            return line.contains("copied ");
+        })
+        .expect("the copy line");
+    assert!(
+        !copied.contains(", 0 cloned"),
+        "file data was cloned: {copied}"
+    );
+    assert_eq!(
+        std::fs::read(worktree.join(".git")).expect(".git"),
+        git_file
+    );
     assert_eq!(git_text(worktree.as_path(), &["status", "--porcelain"]), "");
-    assert!(git_text(root.as_path(), &["worktree", "list", "--porcelain"]).contains(worktree.to_string_lossy().as_ref()));
+    assert!(
+        git_text(root.as_path(), &["worktree", "list", "--porcelain"])
+            .contains(worktree.to_string_lossy().as_ref())
+    );
     assert_nothing_left(worktree.as_path());
     remove(parent.as_path());
 }
@@ -730,17 +1370,39 @@ fn btrfs_a_real_conversion_makes_a_subvolume_and_clones_file_data() {
 fn btrfs_a_stage_container_is_left_out_of_the_new_subvolume() {
     use crate::fs_btrfs_test_support::btrfs_fixture;
     use crate::subvolume_platform::LinuxPlatform;
-    let Some(probe) = btrfs_fixture("convert-stage-container") else { return };
+    let Some(probe) = btrfs_fixture("convert-stage-container") else {
+        return;
+    };
     remove(probe.as_path());
     let (parent, _root, worktree) = quiet_worktree("convert-stage-container");
-    let container: PathBuf = worktree.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543");
+    let container: PathBuf =
+        worktree.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543");
     std::fs::create_dir_all(container.join("payload")).expect("the stage container");
     std::fs::write(container.join("payload/credentials"), b"token\n").expect("its payload");
-    std::fs::set_permissions(container.join("payload/credentials"), std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("a credential's mode");
-    let (verdict, lines) = run(&LinuxPlatform::default(), worktree.as_path(), RUN, &Interrupt::never());
-    assert_eq!(verdict.expect("converted"), Verdict::Converted, "{lines:#?}");
-    assert!(!worktree.join(".claude").exists(), "no part of the stage container reaches the new subvolume");
-    assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_err(), "the old tree is gone");
+    std::fs::set_permissions(
+        container.join("payload/credentials"),
+        std::os::unix::fs::PermissionsExt::from_mode(0o600),
+    )
+    .expect("a credential's mode");
+    let (verdict, lines) = run(
+        &LinuxPlatform::default(),
+        worktree.as_path(),
+        RUN,
+        &Interrupt::never(),
+    );
+    assert_eq!(
+        verdict.expect("converted"),
+        Verdict::Converted,
+        "{lines:#?}"
+    );
+    assert!(
+        !worktree.join(".claude").exists(),
+        "no part of the stage container reaches the new subvolume"
+    );
+    assert!(
+        std::fs::symlink_metadata(converting_path(worktree.as_path())).is_err(),
+        "the old tree is gone"
+    );
     assert_nothing_left(worktree.as_path());
     remove(parent.as_path());
 }
@@ -762,14 +1424,37 @@ fn a_tracked_file_named_with_the_stage_prefix_survives_conversion() {
     let bytes: &[u8] = b"the person's only copy of these notes\n";
     std::fs::write(worktree.join(name), bytes).expect("write the tracked file");
     git(worktree.as_path(), &["add", "--", name]);
-    git(worktree.as_path(), &["commit", "--quiet", "--message", "keep the person's notes"]);
+    git(
+        worktree.as_path(),
+        &["commit", "--quiet", "--message", "keep the person's notes"],
+    );
     git(worktree.as_path(), &["update-index", "--refresh"]);
-    let (verdict, lines) = run(&PlainPlatform::new(), worktree.as_path(), RUN, &Interrupt::never());
+    let (verdict, lines) = run(
+        &PlainPlatform::new(),
+        worktree.as_path(),
+        RUN,
+        &Interrupt::never(),
+    );
     let survived: bool = worktree.join(name).exists();
-    assert!(survived, "conversion verdict: {verdict:?}; tracked user file survived: {survived}; git status: {:?}; output: {lines:#?}", git_text(worktree.as_path(), &["status", "--porcelain"]));
-    assert_eq!(std::fs::read(worktree.join(name)).expect("the tracked file"), bytes, "the installed worktree holds its bytes");
-    assert_eq!(git_text(worktree.as_path(), &["status", "--porcelain"]), "", "Git sees no change");
-    assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_err(), "the old tree is gone");
+    assert!(
+        survived,
+        "conversion verdict: {verdict:?}; tracked user file survived: {survived}; git status: {:?}; output: {lines:#?}",
+        git_text(worktree.as_path(), &["status", "--porcelain"])
+    );
+    assert_eq!(
+        std::fs::read(worktree.join(name)).expect("the tracked file"),
+        bytes,
+        "the installed worktree holds its bytes"
+    );
+    assert_eq!(
+        git_text(worktree.as_path(), &["status", "--porcelain"]),
+        "",
+        "Git sees no change"
+    );
+    assert!(
+        std::fs::symlink_metadata(converting_path(worktree.as_path())).is_err(),
+        "the old tree is gone"
+    );
     remove(parent.as_path());
 }
 
@@ -784,14 +1469,33 @@ fn a_stage_folder_another_command_emptied_does_not_block_the_removal() {
     let (parent, _root, worktree) = quiet_worktree("convert-emptied-stage-folder");
     let platform: PlainPlatform = PlainPlatform::new();
     let converting: PathBuf = converting_path(worktree.as_path());
-    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err(), "the run stopped after the exchange");
-    let container: PathBuf = converting.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543");
+    assert!(
+        run_quiet(
+            &platform,
+            worktree.as_path(),
+            RUN,
+            &Interrupt::at("exchanged", 0)
+        )
+        .is_err(),
+        "the run stopped after the exchange"
+    );
+    let container: PathBuf = converting
+        .join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543");
     std::fs::create_dir_all(container.join("payload")).expect("create another command's stage");
-    std::fs::write(container.join("payload/credentials"), b"copied state\n").expect("fill the stage");
-    std::fs::remove_dir_all(container.as_path()).expect("the other command finishes and removes its stage");
+    std::fs::write(container.join("payload/credentials"), b"copied state\n")
+        .expect("fill the stage");
+    std::fs::remove_dir_all(container.as_path())
+        .expect("the other command finishes and removes its stage");
     let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
-    assert_eq!(verdict.expect("the conversion finished"), Verdict::Resumed, "{lines:#?}");
-    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the old tree is gone");
+    assert_eq!(
+        verdict.expect("the conversion finished"),
+        Verdict::Resumed,
+        "{lines:#?}"
+    );
+    assert!(
+        std::fs::symlink_metadata(converting.as_path()).is_err(),
+        "the old tree is gone"
+    );
     assert_nothing_left(worktree.as_path());
     remove(parent.as_path());
 }
@@ -815,11 +1519,33 @@ fn a_live_stage_inside_the_old_tree_keeps_it() {
     let platform: PlainPlatform = PlainPlatform::new();
     let candidate: Candidate = inspect(worktree.as_path()).expect("registered");
     let converting: PathBuf = converting_path(worktree.as_path());
-    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err(), "the run stopped after the exchange");
-    let claim: StageClaim = claim_stage_for_add_as(candidate.common.as_path(), worktree.join("inside/wt").as_path(), &current_copy_owner().expect("this process")).expect("claim a stage beside a destination in the worktree");
-    let name: std::ffi::OsString = claim.container().file_name().expect("the container's name").to_os_string();
-    let payload: PathBuf = converting.join("inside").join(name.as_os_str()).join("payload/credentials");
-    std::fs::create_dir_all(payload.parent().expect("the payload's folder")).expect("the stage container the exchange moved aside");
+    assert!(
+        run_quiet(
+            &platform,
+            worktree.as_path(),
+            RUN,
+            &Interrupt::at("exchanged", 0)
+        )
+        .is_err(),
+        "the run stopped after the exchange"
+    );
+    let claim: StageClaim = claim_stage_for_add_as(
+        candidate.common.as_path(),
+        worktree.join("inside/wt").as_path(),
+        &current_copy_owner().expect("this process"),
+    )
+    .expect("claim a stage beside a destination in the worktree");
+    let name: std::ffi::OsString = claim
+        .container()
+        .file_name()
+        .expect("the container's name")
+        .to_os_string();
+    let payload: PathBuf = converting
+        .join("inside")
+        .join(name.as_os_str())
+        .join("payload/credentials");
+    std::fs::create_dir_all(payload.parent().expect("the payload's folder"))
+        .expect("the stage container the exchange moved aside");
     std::fs::write(payload.as_path(), b"state still being staged\n").expect("fill the stage");
     let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
     let survived: bool = payload.exists();
@@ -827,9 +1553,18 @@ fn a_live_stage_inside_the_old_tree_keeps_it() {
         Ok(found) => format!("{found:?}"),
         Err(error) => format!("{error}"),
     };
-    assert!(survived, "conversion verdict: {said}; stage payload survived: {survived}; output: {lines:#?}");
-    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the old tree is kept: {said}");
-    assert!(said.contains("stage") && said.contains(name.to_string_lossy().as_ref()), "the run says which stage holds the old tree: {said}");
+    assert!(
+        survived,
+        "conversion verdict: {said}; stage payload survived: {survived}; output: {lines:#?}"
+    );
+    assert!(
+        std::fs::symlink_metadata(converting.as_path()).is_ok(),
+        "the old tree is kept: {said}"
+    );
+    assert!(
+        said.contains("stage") && said.contains(name.to_string_lossy().as_ref()),
+        "the run says which stage holds the old tree: {said}"
+    );
     remove(parent.as_path());
 }
 
@@ -849,24 +1584,53 @@ fn a_live_stage_inside_the_worktree_stops_the_conversion_before_the_swap() {
     let platform: PlainPlatform = PlainPlatform::new();
     let candidate: Candidate = inspect(worktree.as_path()).expect("registered");
     let converting: PathBuf = converting_path(worktree.as_path());
-    let claim: StageClaim = claim_stage_for_add_as(candidate.common.as_path(), worktree.join("inside/wt").as_path(), &current_copy_owner().expect("this process")).expect("claim a stage beside a destination in the worktree");
-    let name: std::ffi::OsString = claim.container().file_name().expect("the container's name").to_os_string();
+    let claim: StageClaim = claim_stage_for_add_as(
+        candidate.common.as_path(),
+        worktree.join("inside/wt").as_path(),
+        &current_copy_owner().expect("this process"),
+    )
+    .expect("claim a stage beside a destination in the worktree");
+    let name: std::ffi::OsString = claim
+        .container()
+        .file_name()
+        .expect("the container's name")
+        .to_os_string();
     let payload: PathBuf = claim.container().join("payload/credentials");
-    std::fs::create_dir_all(payload.parent().expect("the payload's folder")).expect("the stage container");
+    std::fs::create_dir_all(payload.parent().expect("the payload's folder"))
+        .expect("the stage container");
     std::fs::write(payload.as_path(), b"state still being staged\n").expect("fill the stage");
     let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
     let said: String = match &verdict {
         Ok(found) => format!("{found:?}"),
         Err(error) => format!("{error}"),
     };
-    assert!(payload.exists(), "conversion verdict: {said}; the live stage payload survived: {}; output: {lines:#?}", payload.exists());
-    assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "nothing was swapped: {said}");
-    assert!(said.contains("stage") && said.contains(name.to_string_lossy().as_ref()), "the run says which stage holds the worktree: {said}");
+    assert!(
+        payload.exists(),
+        "conversion verdict: {said}; the live stage payload survived: {}; output: {lines:#?}",
+        payload.exists()
+    );
+    assert!(
+        !platform
+            .is_subvolume_root(worktree.as_path())
+            .expect("examined"),
+        "nothing was swapped: {said}"
+    );
+    assert!(
+        said.contains("stage") && said.contains(name.to_string_lossy().as_ref()),
+        "the run says which stage holds the worktree: {said}"
+    );
     // The command filling the container finishes and removes it; its claim outlives the container for a moment, and the rerun
     // says nothing about a claim whose container is gone.
     std::fs::remove_dir_all(claim.container()).expect("the other command removes its container");
     let (again, again_lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
-    assert_eq!(again.expect("the unfinished conversion finishes"), Verdict::Resumed, "{again_lines:#?}");
-    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the old tree is gone");
+    assert_eq!(
+        again.expect("the unfinished conversion finishes"),
+        Verdict::Resumed,
+        "{again_lines:#?}"
+    );
+    assert!(
+        std::fs::symlink_metadata(converting.as_path()).is_err(),
+        "the old tree is gone"
+    );
     remove(parent.as_path());
 }

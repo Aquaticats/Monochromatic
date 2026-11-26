@@ -9,18 +9,32 @@
 //! so these controls need a repository on any filesystem.
 
 use super::*;
-use crate::subvolume_index_files::fields_of;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
-use crate::worktree_clone_conversion_fence::fence_the_attributes;
-use crate::worktree_clean::stored_stats;
-use crate::worktree_ladder_test_support::{commit_all, main_identity, tracked};
-use crate::worktree_snapshot_source::common_source;
 use crate::fs_beneath::open_root;
+use crate::subvolume_index_files::fields_of;
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
+use crate::worktree_clean::stored_stats;
+use crate::worktree_clone_conversion_fence::fence_the_attributes;
+use crate::worktree_clone_index::PendingIndex;
+use crate::worktree_ladder_test_support::{
+    commit_all,
+    main_identity,
+    tracked,
+};
+use crate::worktree_snapshot_source::common_source;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use crate::worktree_clone_index::PendingIndex;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A repository whose `*.txt` paths Git's checkout writes with carriage returns,
@@ -61,16 +75,37 @@ fn the_seed_zeroes_the_stat_data_of_the_path_the_fence_leaves_to_git() {
     let (root, repo) = converting_fixture("fence-seed-zeroed");
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     let fence: Fence = fence_the_clone(&source, &git_context()).expect("a fence");
-    assert_eq!(fence.git_writes, vec![b"notes.txt".to_vec()], "the carriage-return rule leaves one path to Git");
+    assert_eq!(
+        fence.git_writes,
+        vec![b"notes.txt".to_vec()],
+        "the carriage-return rule leaves one path to Git"
+    );
     let size_of = |seed: &[u8], path: &str| -> u32 {
         let entries = stored_stats(seed, source.clean.hash_length).expect("entries");
-        return entries.iter().find(|entry| return entry.path == path.as_bytes()).expect("a tracked path").stored.size;
+        return entries
+            .iter()
+            .find(|entry| return entry.path == path.as_bytes())
+            .expect("a tracked path")
+            .stored
+            .size;
     };
     let plain: u32 = size_of(source.clean.index_bytes.as_slice(), "plain.dat");
-    assert_ne!(size_of(source.clean.index_bytes.as_slice(), "notes.txt"), 0, "the source's index records the file's size");
+    assert_ne!(
+        size_of(source.clean.index_bytes.as_slice(), "notes.txt"),
+        0,
+        "the source's index records the file's size"
+    );
     let seed: Vec<u8> = seed_without_stat(&source, &fence).expect("a seed");
-    assert_eq!(size_of(seed.as_slice(), "notes.txt"), 0, "the written path's stat data is gone, so nothing vouches for its bytes until Git writes them");
-    assert_eq!(size_of(seed.as_slice(), "plain.dat"), plain, "the carried path keeps the stat data the clone's file matches");
+    assert_eq!(
+        size_of(seed.as_slice(), "notes.txt"),
+        0,
+        "the written path's stat data is gone, so nothing vouches for its bytes until Git writes them"
+    );
+    assert_eq!(
+        size_of(seed.as_slice(), "plain.dat"),
+        plain,
+        "the carried path keeps the stat data the clone's file matches"
+    );
     remove(root.as_path());
 }
 
@@ -80,13 +115,18 @@ fn the_fence_beside_the_clone_answers_what_the_fence_before_it_answers() {
     let (root, repo) = converting_fixture("fence-beside-answers");
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     let before: Fence = fence_the_clone(&source, &git_context()).expect("a fence");
-    let held: AttributeFence = fence_the_attributes(&source, &git_context()).expect("the attributes");
-    let (state, work): AJob<(SnapshotSource, GitContext, AttributeFence), Result<Fence, String>> = fence_beside_the_clone(&source, &git_context(), held);
+    let held: AttributeFence =
+        fence_the_attributes(&source, &git_context()).expect("the attributes");
+    let (state, work): AJob<(SnapshotSource, GitContext, AttributeFence), Result<Fence, String>> =
+        fence_beside_the_clone(&source, &git_context(), held);
     let beside: Fence = work(state).expect("a fence beside the clone");
     assert_eq!(beside.git_writes, before.git_writes);
     assert_eq!(beside.carried, before.carried);
     // The seed is a function of the answer, so the same answer gives the same bytes.
-    assert_eq!(seed_without_stat(&source, &beside).expect("a seed"), seed_without_stat(&source, &before).expect("a seed"));
+    assert_eq!(
+        seed_without_stat(&source, &beside).expect("a seed"),
+        seed_without_stat(&source, &before).expect("a seed")
+    );
     remove(root.as_path());
 }
 
@@ -96,11 +136,19 @@ fn the_fence_beside_the_clone_answers_what_the_fence_before_it_answers() {
 fn a_seed_declines_an_index_it_cannot_walk() {
     let (root, repo) = converting_fixture("fence-seed-unwalkable");
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
-    let fence: Fence = run_the_fence((source.clone(), git_context(), fence_the_attributes(&source, &git_context()).expect("the attributes"))).expect("a fence");
+    let fence: Fence = run_the_fence((
+        source.clone(),
+        git_context(),
+        fence_the_attributes(&source, &git_context()).expect("the attributes"),
+    ))
+    .expect("a fence");
     let mut broken = source.clone();
     broken.clean.index_bytes = b"DIRC".to_vec();
     let reason: String = seed_without_stat(&broken, &fence).expect_err("refused");
-    assert!(reason.contains("a layout the reader does not know"), "{reason}");
+    assert!(
+        reason.contains("a layout the reader does not know"),
+        "{reason}"
+    );
     remove(root.as_path());
 }
 
@@ -117,17 +165,35 @@ fn a_seed_declines_an_index_it_cannot_walk() {
 /// ```ts
 /// for (const entry of entries) { copyFileSync(source, destination); utimesSync(destination, mtime, mtime); }
 /// ```
-fn copy_the_source_files(source: &SnapshotSource, destination: &Path) -> HashMap<Vec<u8>, StatFields> {
-    let entries = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("entries");
+fn copy_the_source_files(
+    source: &SnapshotSource,
+    destination: &Path,
+) -> HashMap<Vec<u8>, StatFields> {
+    let entries = stored_stats(
+        source.clean.index_bytes.as_slice(),
+        source.clean.hash_length,
+    )
+    .expect("entries");
     let mut stats: HashMap<Vec<u8>, StatFields> = HashMap::new();
     for entry in entries.iter() {
         let from: PathBuf = source.root.join(OsStr::from_bytes(entry.path.as_slice()));
         let to: PathBuf = destination.join(OsStr::from_bytes(entry.path.as_slice()));
         std::fs::create_dir_all(to.parent().expect("parent")).expect("directories");
         std::fs::copy(from.as_path(), to.as_path()).expect("the copy");
-        let modified = std::fs::metadata(from.as_path()).expect("the source's fields").modified().expect("a modification time");
-        std::fs::File::options().write(true).open(to.as_path()).expect("the copy").set_modified(modified).expect("the source's time");
-        stats.insert(entry.path.clone(), fields_of(&std::fs::metadata(to.as_path()).expect("the copy's fields")));
+        let modified = std::fs::metadata(from.as_path())
+            .expect("the source's fields")
+            .modified()
+            .expect("a modification time");
+        std::fs::File::options()
+            .write(true)
+            .open(to.as_path())
+            .expect("the copy")
+            .set_modified(modified)
+            .expect("the source's time");
+        stats.insert(
+            entry.path.clone(),
+            fields_of(&std::fs::metadata(to.as_path()).expect("the copy's fields")),
+        );
     }
     return stats;
 }
@@ -160,31 +226,150 @@ fn copy_the_source_files(source: &SnapshotSource, destination: &Path) -> HashMap
 fn the_installed_index_vouches_for_no_path_git_still_has_to_write() {
     let (root, repo) = converting_fixture("fence-install-order");
     let destination: PathBuf = repo.parent().expect("the fixture root").join("topic");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "reference", "../reference"]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "-b",
+            "topic",
+            "../topic",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "reference",
+            "../reference",
+        ],
+    );
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
-    let fence: Fence = run_the_fence((source.clone(), git_context(), fence_the_attributes(&source, &git_context()).expect("the attributes"))).expect("a fence");
-    assert_eq!(fence.git_writes, vec![b"notes.txt".to_vec()], "the rule leaves one path to Git");
+    let fence: Fence = run_the_fence((
+        source.clone(),
+        git_context(),
+        fence_the_attributes(&source, &git_context()).expect("the attributes"),
+    ))
+    .expect("a fence");
+    assert_eq!(
+        fence.git_writes,
+        vec![b"notes.txt".to_vec()],
+        "the rule leaves one path to Git"
+    );
     let stats: HashMap<Vec<u8>, StatFields> = copy_the_source_files(&source, destination.as_path());
     let admin: PathBuf = repo.join(".git/worktrees/topic");
     let held: std::fs::File = open_root(admin.as_path()).expect("the administrative directory");
-    let pending: PendingIndex = install_beside_the_clone((&held, admin.as_path()), &source, &fence, &stats).expect("the index");
-    assert!(!admin.join("index").exists(), "the worktree holds no index while a path Git must write has none of Git's bytes");
-    assert!(!crate::worktree_copy_interrupted_add_settlement::add_is_finished(destination.as_path(), admin.as_path()), "so the recovery reads the worktree as unfinished, which is the safe direction");
-    let entries = stored_stats(std::fs::read(admin.join("index.pending")).expect("the written index").as_slice(), source.clean.hash_length).expect("entries");
-    let stored_of = |path: &str| -> u32 { return entries.iter().find(|entry| return entry.path == path.as_bytes()).expect("a tracked path").stored.size; };
-    let gits_size: u64 = std::fs::metadata(repo.parent().expect("the fixture root").join("reference/notes.txt")).expect("Git's checkout").len();
-    assert_eq!(stored_of("notes.txt"), 0, "the entry the fence left to Git records no stat data, so no status can skip the file: it records {} and Git writes {gits_size} bytes", stored_of("notes.txt"));
-    assert_ne!(stored_of("plain.dat"), 0, "the carried path keeps the stat data of the file the clone made");
-    assert_ne!(std::fs::metadata(destination.join("notes.txt")).expect("the copy").len(), gits_size, "the bytes on disk at this moment are not the ones Git's checkout writes, so a stat that vouched for them would have been a lie");
-    crate::worktree_clone_conversion_fence::checkout_index_through_the_index_at((admin.as_path(), destination.as_path(), &git_context()), pending.path_in(), fence.git_writes.as_slice(), source.clean.hash_length).expect("the written path");
-    assert!(!admin.join("index").exists(), "the write through Git leaves the worktree's own name still untaken");
-    pending.publish(&held).expect("the index takes the worktree's name");
-    let written = stored_stats(std::fs::read(admin.join("index")).expect("the published index").as_slice(), source.clean.hash_length).expect("entries");
-    let written_size = |path: &str| -> u32 { return written.iter().find(|entry| return entry.path == path.as_bytes()).expect("a tracked path").stored.size; };
-    assert_eq!(written_size("notes.txt"), u32::try_from(gits_size).expect("the file's size fits"), "the published entry records the bytes Git wrote, not the source's");
-    assert_eq!(std::fs::metadata(destination.join("notes.txt")).expect("the written path").len(), gits_size, "Git wrote its own conversion");
-    assert!(crate::worktree_copy_interrupted_add_settlement::add_is_finished(destination.as_path(), admin.as_path()), "and the finished add is whole once the index has its name");
-    assert_eq!(git_text(destination.as_path(), &["status", "--porcelain=v1"]), "", "the worktree is clean once Git has written its paths");
+    let pending: PendingIndex =
+        install_beside_the_clone((&held, admin.as_path()), &source, &fence, &stats)
+            .expect("the index");
+    assert!(
+        !admin.join("index").exists(),
+        "the worktree holds no index while a path Git must write has none of Git's bytes"
+    );
+    assert!(
+        !crate::worktree_copy_interrupted_add_settlement::add_is_finished(
+            destination.as_path(),
+            admin.as_path()
+        ),
+        "so the recovery reads the worktree as unfinished, which is the safe direction"
+    );
+    let entries = stored_stats(
+        std::fs::read(admin.join("index.pending"))
+            .expect("the written index")
+            .as_slice(),
+        source.clean.hash_length,
+    )
+    .expect("entries");
+    let stored_of = |path: &str| -> u32 {
+        return entries
+            .iter()
+            .find(|entry| return entry.path == path.as_bytes())
+            .expect("a tracked path")
+            .stored
+            .size;
+    };
+    let gits_size: u64 = std::fs::metadata(
+        repo.parent()
+            .expect("the fixture root")
+            .join("reference/notes.txt"),
+    )
+    .expect("Git's checkout")
+    .len();
+    assert_eq!(
+        stored_of("notes.txt"),
+        0,
+        "the entry the fence left to Git records no stat data, so no status can skip the file: it records {} and Git writes {gits_size} bytes",
+        stored_of("notes.txt")
+    );
+    assert_ne!(
+        stored_of("plain.dat"),
+        0,
+        "the carried path keeps the stat data of the file the clone made"
+    );
+    assert_ne!(
+        std::fs::metadata(destination.join("notes.txt"))
+            .expect("the copy")
+            .len(),
+        gits_size,
+        "the bytes on disk at this moment are not the ones Git's checkout writes, so a stat that vouched for them would have been a lie"
+    );
+    crate::worktree_clone_conversion_fence::checkout_index_through_the_index_at(
+        (admin.as_path(), destination.as_path(), &git_context()),
+        pending.path_in(),
+        fence.git_writes.as_slice(),
+        source.clean.hash_length,
+    )
+    .expect("the written path");
+    assert!(
+        !admin.join("index").exists(),
+        "the write through Git leaves the worktree's own name still untaken"
+    );
+    pending
+        .publish(&held)
+        .expect("the index takes the worktree's name");
+    let written = stored_stats(
+        std::fs::read(admin.join("index"))
+            .expect("the published index")
+            .as_slice(),
+        source.clean.hash_length,
+    )
+    .expect("entries");
+    let written_size = |path: &str| -> u32 {
+        return written
+            .iter()
+            .find(|entry| return entry.path == path.as_bytes())
+            .expect("a tracked path")
+            .stored
+            .size;
+    };
+    assert_eq!(
+        written_size("notes.txt"),
+        u32::try_from(gits_size).expect("the file's size fits"),
+        "the published entry records the bytes Git wrote, not the source's"
+    );
+    assert_eq!(
+        std::fs::metadata(destination.join("notes.txt"))
+            .expect("the written path")
+            .len(),
+        gits_size,
+        "Git wrote its own conversion"
+    );
+    assert!(
+        crate::worktree_copy_interrupted_add_settlement::add_is_finished(
+            destination.as_path(),
+            admin.as_path()
+        ),
+        "and the finished add is whole once the index has its name"
+    );
+    assert_eq!(
+        git_text(destination.as_path(), &["status", "--porcelain=v1"]),
+        "",
+        "the worktree is clean once Git has written its paths"
+    );
     remove(root.as_path());
 }

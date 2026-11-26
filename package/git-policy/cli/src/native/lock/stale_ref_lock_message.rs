@@ -18,11 +18,21 @@
 //! ```
 
 use crate::iso_time::format_iso_milliseconds;
-use crate::stale_ref_lock_found::{Found, Outcome, PidFile};
-use crate::stale_ref_lock_judge::{Proof, Verdict};
+use crate::stale_ref_lock_found::{
+    Found,
+    Outcome,
+    PidFile,
+};
+use crate::stale_ref_lock_judge::{
+    Proof,
+    Verdict,
+};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
-use std::time::{Duration, SystemTime};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// The start of every line the wrapper prints.
 const LINE_PREFIX: &str = "monochromatic-git-policy-cli: ";
@@ -55,7 +65,10 @@ pub fn shell_quote(path: &Path) -> String {
         Err(_) => false,
     };
     if printable {
-        return format!("'{}'", String::from_utf8_lossy(bytes).replace('\'', "'\\''"));
+        return format!(
+            "'{}'",
+            String::from_utf8_lossy(bytes).replace('\'', "'\\''")
+        );
     }
     let mut quoted: String = String::from("$'");
     for byte in bytes {
@@ -63,7 +76,13 @@ pub fn shell_quote(path: &Path) -> String {
             b'\'' => quoted.push_str("\\'"),
             b'\\' => quoted.push_str("\\\\"),
             0x20..=0x7e => quoted.push(char::from(*byte)),
-            other => quoted.push_str(format!("\\x{}", crate::hexadecimal_of_bytes::hexadecimal_of_byte(other)).as_str()),
+            other => quoted.push_str(
+                format!(
+                    "\\x{}",
+                    crate::hexadecimal_of_bytes::hexadecimal_of_byte(other)
+                )
+                .as_str(),
+            ),
         }
     }
     quoted.push('\'');
@@ -94,13 +113,19 @@ fn born_text(born: Option<SystemTime>) -> String {
         Err(_) => 0,
     };
     let age: Duration = SystemTime::now().duration_since(at).unwrap_or_default();
-    return format!(", made {} ({} ago)", format_iso_milliseconds(milliseconds), age_text(age));
+    return format!(
+        ", made {} ({} ago)",
+        format_iso_milliseconds(milliseconds),
+        age_text(age)
+    );
 }
 
 /// Why a lock was removed.
 fn proof_text(proof: &Proof) -> String {
     return match proof {
-        Proof::OrphanStaging => String::from("Git makes this staging file only while it holds `packed-refs.lock`, and that lock is gone"),
+        Proof::OrphanStaging => String::from(
+            "Git makes this staging file only while it holds `packed-refs.lock`, and that lock is gone",
+        ),
     };
 }
 
@@ -128,16 +153,30 @@ impl Outcome {
         let mut lines: Vec<String> = Vec::new();
         for found in &self.cleared {
             if let Verdict::Stale(proof) = &found.verdict {
-                let what: &str = if matches!(proof, Proof::OrphanStaging) { "the packed-references staging file" } else { "the reference lock" };
-                lines.push(format!("{LINE_PREFIX}removed {what} {}, left by a Git that is gone: {}.", shell_quote(found.lock.as_path()), proof_text(proof)));
+                let what: &str = if matches!(proof, Proof::OrphanStaging) {
+                    "the packed-references staging file"
+                } else {
+                    "the reference lock"
+                };
+                lines.push(format!(
+                    "{LINE_PREFIX}removed {what} {}, left by a Git that is gone: {}.",
+                    shell_quote(found.lock.as_path()),
+                    proof_text(proof)
+                ));
             }
         }
         let mut hint: bool = false;
         for found in &self.left {
             match &found.verdict {
-                Verdict::Held(text) => lines.push(format!("{LINE_PREFIX}the reference lock {} is in use: {text}; it was left alone.", shell_quote(found.lock.as_path()))),
+                Verdict::Held(text) => lines.push(format!(
+                    "{LINE_PREFIX}the reference lock {} is in use: {text}; it was left alone.",
+                    shell_quote(found.lock.as_path())
+                )),
                 Verdict::Unproven(reason) => {
-                    lines.push(format!("{LINE_PREFIX}left the reference lock {} alone: {reason}.", shell_quote(found.lock.as_path())));
+                    lines.push(format!(
+                        "{LINE_PREFIX}left the reference lock {} alone: {reason}.",
+                        shell_quote(found.lock.as_path())
+                    ));
                     lines.push(format!("{LINE_PREFIX}it is {} bytes{}. If no Git process is running in this repository, clear it with:", found.size, born_text(found.born)));
                     lines.push(format!("{LINE_PREFIX}  rm -- {}", clearing_words(found)));
                     hint = hint || found.pid_file == PidFile::Absent;

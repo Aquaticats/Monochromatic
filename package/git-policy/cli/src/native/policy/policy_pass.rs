@@ -30,11 +30,25 @@
 /// import { runPolicyStage } from './policy_engine.ts';
 /// ```
 use crate::guarded_forwarded_command::GuardedForwarded;
-use crate::policy_checks::{ShippedChecks, guarded_forwarded};
-use crate::policy_engine::{StageEnd, StageRequest, StageResult, run_policy_stage};
+use crate::policy_checks::{
+    ShippedChecks,
+    guarded_forwarded,
+};
+use crate::policy_engine::{
+    StageEnd,
+    StageRequest,
+    StageResult,
+    run_policy_stage,
+};
 use crate::policy_events::PolicyEvent;
-use crate::policy_registry::{POLICY_REGISTRY, PolicyId};
-use crate::policy_transforms::{TransformResult, apply_fixed_transforms};
+use crate::policy_registry::{
+    POLICY_REGISTRY,
+    PolicyId,
+};
+use crate::policy_transforms::{
+    TransformResult,
+    apply_fixed_transforms,
+};
 use crate::policy_trigger::Trigger;
 use crate::repository_facts::RepositoryFacts;
 /// What:
@@ -163,7 +177,10 @@ pub fn run_policy_pass<F: RepositoryFacts>(
         let transformed: TransformResult = apply_fixed_transforms(
             arguments.as_slice(),
             request.controls.commit_only_escaped,
-            request.controls.escaped.contains(&PolicyId::LinkedWorktreeOnly),
+            request
+                .controls
+                .escaped
+                .contains(&PolicyId::LinkedWorktreeOnly),
             &mut checks.facts,
         );
         // A transform that kept or changed something says so before Git runs (`checks.notices`).

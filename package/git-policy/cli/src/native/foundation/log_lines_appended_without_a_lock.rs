@@ -31,9 +31,16 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::log_generations_kept_to_a_bound::{LogRetention, install_generation, schedule_trim};
+use crate::log_generations_kept_to_a_bound::{
+    LogRetention,
+    install_generation,
+    schedule_trim,
+};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Module tag for diagnostics.
 const TAG: &str = "appendedLogLine";
@@ -79,8 +86,18 @@ type OpenLogFile = fn(&Path) -> std::io::Result<std::fs::File>;
 ///
 /// # Errors
 /// The system's error when the file cannot be opened or the write is short.
-pub fn append_line(target: &Path, bytes: &[u8], retention: &LogRetention) -> std::io::Result<()> {
-    return append_block(target, bytes, retention, open_beside_the_git_directory, true);
+pub fn append_line(
+    target: &Path,
+    bytes: &[u8],
+    retention: &LogRetention,
+) -> std::io::Result<()> {
+    return append_block(
+        target,
+        bytes,
+        retention,
+        open_beside_the_git_directory,
+        true,
+    );
 }
 
 /// What:
@@ -103,7 +120,11 @@ pub fn append_line(target: &Path, bytes: &[u8], retention: &LogRetention) -> std
 /// # Errors
 /// The system's error when the directory or the file cannot be created,
 /// or the write is short.
-pub fn append_entry(target: &Path, block: &[u8], retention: &LogRetention) -> std::io::Result<()> {
+pub fn append_entry(
+    target: &Path,
+    block: &[u8],
+    retention: &LogRetention,
+) -> std::io::Result<()> {
     if let Some(directory) = target.parent() {
         crate::private_storage::create_private_directory_all(directory)?;
     }
@@ -115,11 +136,23 @@ pub fn append_entry(target: &Path, block: &[u8], retention: &LogRetention) -> st
 /// with one `write` of `block` after the rotation below.
 /// A line's log is readable so that the check of its last byte can be made;
 /// an entry's log is opened private and never followed through a link.
-fn append_block(target: &Path, block: &[u8], retention: &LogRetention, open: OpenLogFile, starts_on_a_fresh_line: bool) -> std::io::Result<()> {
+fn append_block(
+    target: &Path,
+    block: &[u8],
+    retention: &LogRetention,
+    open: OpenLogFile,
+    starts_on_a_fresh_line: bool,
+) -> std::io::Result<()> {
     let mut file: std::fs::File = open(target)?;
     if file.metadata()?.len() >= ROTATE_AT_BYTES {
         if let Err(error) = move_aside_if_still_named(target, &file) {
-            debug(TAG, &format!("the log {} could not be moved aside: {error}", target.display()));
+            debug(
+                TAG,
+                &format!(
+                    "the log {} could not be moved aside: {error}",
+                    target.display()
+                ),
+            );
         } else {
             // Best effort as well, and on a thread of its own: a pass that cannot run leaves the generations as they are, which is more
             // history, not less, and the generation it reads costs a command nothing.
@@ -153,11 +186,19 @@ fn append_block(target: &Path, block: &[u8], retention: &LogRetention, open: Ope
 /// ```ts
 /// const written = await handle.write(line); if (written !== line.length) throw new Error('short write')
 /// ```
-fn write_once(file: &mut std::fs::File, line: &[u8]) -> std::io::Result<()> {
+fn write_once(
+    file: &mut std::fs::File,
+    line: &[u8],
+) -> std::io::Result<()> {
     loop {
         match file.write(line) {
             Ok(count) if count == line.len() => return Ok(()),
-            Ok(count) => return Err(std::io::Error::new(std::io::ErrorKind::WriteZero, format!("the system took {count} of {} bytes", line.len()))),
+            Ok(count) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::WriteZero,
+                    format!("the system took {count} of {} bytes", line.len()),
+                ));
+            }
             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
             Err(error) => return Err(error),
         }
@@ -192,8 +233,18 @@ pub fn check_appendable(target: &Path) -> std::io::Result<()> {
 /// the check of the last byte is then skipped,
 /// never a record.
 fn open_beside_the_git_directory(target: &Path) -> std::io::Result<std::fs::File> {
-    return match std::fs::OpenOptions::new().read(true).append(true).create(true).open(target) {
-        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => std::fs::OpenOptions::new().append(true).create(true).open(target),
+    return match std::fs::OpenOptions::new()
+        .read(true)
+        .append(true)
+        .create(true)
+        .open(target)
+    {
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            std::fs::OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(target)
+        }
         other => other,
     };
 }
@@ -209,7 +260,9 @@ fn open_private_log_file(target: &Path) -> std::io::Result<std::fs::File> {
     {
         // The trait adds `.mode` and `.custom_flags` to open options on Unix.
         use std::os::unix::fs::OpenOptionsExt;
-        options.mode(crate::private_storage::PRIVATE_FILE_MODE).custom_flags(libc::O_NOFOLLOW);
+        options
+            .mode(crate::private_storage::PRIVATE_FILE_MODE)
+            .custom_flags(libc::O_NOFOLLOW);
     }
     return options.open(target);
 }
@@ -220,7 +273,10 @@ fn open_private_log_file(target: &Path) -> std::io::Result<std::fs::File> {
 /// a byte that cannot be read counts as one,
 /// so a read
 /// failure never adds a line.
-fn ends_with_newline(file: &std::fs::File, length: u64) -> bool {
+fn ends_with_newline(
+    file: &std::fs::File,
+    length: u64,
+) -> bool {
     use std::os::unix::fs::FileExt;
     let mut last: [u8; 1] = *b"\n";
     return file.read_exact_at(&mut last, length - 1).is_err() || last[0] == b'\n';
@@ -241,7 +297,10 @@ fn ends_with_newline(file: &std::fs::File, length: u64) -> bool {
 /// ```ts
 /// if (sameFile(await stat(target), await opened.stat())) await rotate(target)
 /// ```
-fn move_aside_if_still_named(target: &Path, opened: &std::fs::File) -> std::io::Result<()> {
+fn move_aside_if_still_named(
+    target: &Path,
+    opened: &std::fs::File,
+) -> std::io::Result<()> {
     return move_aside_between(target, opened, &mut NoObserver);
 }
 
@@ -285,13 +344,19 @@ pub enum RotationStep {
 /// ```
 pub trait RotationObserver {
     /// Called at one instant of the rotation.
-    fn at(&mut self, step: RotationStep);
+    fn at(
+        &mut self,
+        step: RotationStep,
+    );
 }
 
 /// Every function-like value with the right shape is an observer:
 /// `at` just calls it.
 impl<Act: FnMut(RotationStep)> RotationObserver for Act {
-    fn at(&mut self, step: RotationStep) {
+    fn at(
+        &mut self,
+        step: RotationStep,
+    ) {
         self(step);
     }
 }
@@ -301,7 +366,11 @@ impl<Act: FnMut(RotationStep)> RotationObserver for Act {
 struct NoObserver;
 
 impl RotationObserver for NoObserver {
-    fn at(&mut self, _step: RotationStep) {}
+    fn at(
+        &mut self,
+        _step: RotationStep,
+    ) {
+    }
 }
 
 /// What:
@@ -340,16 +409,33 @@ fn private_name(target: &Path) -> PathBuf {
 /// ```ts
 /// try { await link(taken, target); await unlink(taken); } catch (error) { if (error.code !== 'EEXIST') throw error; }
 /// ```
-fn give_back(taken: &Path, target: &Path) -> std::io::Result<()> {
+fn give_back(
+    taken: &Path,
+    target: &Path,
+) -> std::io::Result<()> {
     match std::fs::hard_link(taken, target) {
         Ok(()) => {
             if let Err(error) = std::fs::remove_file(taken) {
-                debug(TAG, &format!("{} is back at its name but its second name {} stays: {error}", target.display(), taken.display()));
+                debug(
+                    TAG,
+                    &format!(
+                        "{} is back at its name but its second name {} stays: {error}",
+                        target.display(),
+                        taken.display()
+                    ),
+                );
             }
             return Ok(());
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            debug(TAG, &format!("a newer log is at {}, so the file taken from it stays at {}", target.display(), taken.display()));
+            debug(
+                TAG,
+                &format!(
+                    "a newer log is at {}, so the file taken from it stays at {}",
+                    target.display(),
+                    taken.display()
+                ),
+            );
             return Ok(());
         }
         Err(error) => return Err(error),
@@ -385,7 +471,11 @@ fn give_back(taken: &Path, target: &Path) -> std::io::Result<()> {
 ///
 /// # Errors
 /// The system's error when the file cannot be taken off its name or given a generation number.
-pub fn move_aside_between(target: &Path, opened: &std::fs::File, at_step: &mut dyn RotationObserver) -> std::io::Result<()> {
+pub fn move_aside_between(
+    target: &Path,
+    opened: &std::fs::File,
+    at_step: &mut dyn RotationObserver,
+) -> std::io::Result<()> {
     use std::os::unix::fs::MetadataExt;
     let Ok(named) = std::fs::metadata(target) else {
         return Ok(());

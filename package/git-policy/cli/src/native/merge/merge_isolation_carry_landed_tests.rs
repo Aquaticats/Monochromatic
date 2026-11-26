@@ -3,19 +3,39 @@
 //! the words a record is made of,
 //! and what a record that cannot be read proves.
 
-use super::{LANDED_RECORD_SCHEMA_VERSION, LandedFile, encode_landed_record, parse_landed_record};
+use super::{
+    LANDED_RECORD_SCHEMA_VERSION,
+    LandedFile,
+    encode_landed_record,
+    parse_landed_record,
+};
 use crate::merge_isolation_changes::FileIdentity;
 
 /// One entry a merge wrote,
 /// as the command that moved the checkout read it.
-fn landed(path: &[u8], identity: Option<FileIdentity>) -> LandedFile {
-    return LandedFile { path: path.to_vec(), identity, changed_seconds: 1_760_000_000, changed_nanos: 123_456_789 };
+fn landed(
+    path: &[u8],
+    identity: Option<FileIdentity>,
+) -> LandedFile {
+    return LandedFile {
+        path: path.to_vec(),
+        identity,
+        changed_seconds: 1_760_000_000,
+        changed_nanos: 123_456_789,
+    };
 }
 
 /// The identity of one file,
 /// with every part a rename or a write changes.
 fn an_identity() -> FileIdentity {
-    return FileIdentity { device: 20_481, inode: 9_007_199_254_740_993, size: 12, mode: 33_188, modified_seconds: 1_760_000_000, modified_nanos: 5 };
+    return FileIdentity {
+        device: 20_481,
+        inode: 9_007_199_254_740_993,
+        size: 12,
+        mode: 33_188,
+        modified_seconds: 1_760_000_000,
+        modified_nanos: 5,
+    };
 }
 
 /// What:
@@ -37,9 +57,18 @@ fn a_record_comes_back_with_every_entry_whole() {
         landed(b"a.txt", Some(an_identity())),
         landed(b"dir/a name with \xff bytes", None),
     ];
-    let text: String = encode_landed_record("0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10", entries.as_slice());
-    assert!(text.contains(&format!("\"schemaVersion\":{LANDED_RECORD_SCHEMA_VERSION}")) || text.starts_with("{\"schemaVersion\":"), "the record names its version: {text}");
-    assert_eq!(parse_landed_record(text.as_bytes()), Some(entries), "every entry comes back whole");
+    let text: String =
+        encode_landed_record("0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10", entries.as_slice());
+    assert!(
+        text.contains(&format!("\"schemaVersion\":{LANDED_RECORD_SCHEMA_VERSION}"))
+            || text.starts_with("{\"schemaVersion\":"),
+        "the record names its version: {text}"
+    );
+    assert_eq!(
+        parse_landed_record(text.as_bytes()),
+        Some(entries),
+        "every entry comes back whole"
+    );
 }
 
 /// What:
@@ -59,7 +88,10 @@ fn a_record_comes_back_with_every_entry_whole() {
 #[test]
 fn a_record_that_is_not_one_proves_nothing() {
     let good: String = encode_landed_record("id", &[landed(b"a.txt", Some(an_identity()))]);
-    assert!(parse_landed_record(good.as_bytes()).is_some(), "the control's own record is one");
+    assert!(
+        parse_landed_record(good.as_bytes()).is_some(),
+        "the control's own record is one"
+    );
     for broken in [
         String::from(""),
         String::from("{not a record}"),
@@ -70,7 +102,10 @@ fn a_record_that_is_not_one_proves_nothing() {
         good.replace("\"holds\":\"file\"", "\"holds\":\"half\""),
         good.replace("\"pathHex\":\"612e747874\"", "\"pathHex\":\"612e74787\""),
     ] {
-        assert!(parse_landed_record(broken.as_bytes()).is_none(), "{broken:?} proves nothing");
+        assert!(
+            parse_landed_record(broken.as_bytes()).is_none(),
+            "{broken:?} proves nothing"
+        );
     }
 }
 
@@ -89,5 +124,9 @@ fn a_record_that_is_not_one_proves_nothing() {
 #[test]
 fn a_record_of_no_entries_names_nothing() {
     let text: String = encode_landed_record("id", &[]);
-    assert_eq!(parse_landed_record(text.as_bytes()), Some(Vec::new()), "an empty reading is a reading");
+    assert_eq!(
+        parse_landed_record(text.as_bytes()),
+        Some(Vec::new()),
+        "an empty reading is a reading"
+    );
 }

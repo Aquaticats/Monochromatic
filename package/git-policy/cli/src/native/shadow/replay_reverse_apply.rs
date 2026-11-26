@@ -17,7 +17,11 @@
 //! ```
 
 /// Hunks and lines from `replay_patch`.
-use crate::replay_patch::{PatchHunk, PatchLine, split_keeping_newlines};
+use crate::replay_patch::{
+    PatchHunk,
+    PatchLine,
+    split_keeping_newlines,
+};
 
 /// One image line:
 ///       its bytes and whether an earlier hunk wrote it,
@@ -52,7 +56,13 @@ fn is_change_line(line: &PatchLine) -> bool {
 
 /// The position `at` as a start in the image when the preimage matches there;
 /// nothing for a negative position or a mismatch.
-fn position_that_matches(image: &[ImageLine], preimage: &[Vec<u8>], at: i64, match_beginning: bool, match_end: bool) -> Option<usize> {
+fn position_that_matches(
+    image: &[ImageLine],
+    preimage: &[Vec<u8>],
+    at: i64,
+    match_beginning: bool,
+    match_end: bool,
+) -> Option<usize> {
     // A negative position has no `usize`, and `matches_at` rejects a position whose preimage runs past the image.
     let index: usize = usize::try_from(at).ok()?;
     if matches_at(image, preimage, index, match_beginning, match_end) {
@@ -96,7 +106,12 @@ fn hash_key(text: &[u8]) -> Vec<u8> {
 /// ```ts
 /// lineMatches({ line, wanted, incompleteLast, matchEnd });
 /// ```
-fn line_matches(line: &ImageLine, wanted: &[u8], incomplete_last: bool, match_end: bool) -> bool {
+fn line_matches(
+    line: &ImageLine,
+    wanted: &[u8],
+    incomplete_last: bool,
+    match_end: bool,
+) -> bool {
     if line.patched {
         return false;
     }
@@ -172,10 +187,22 @@ fn find_position(
     // `mut` lets the search widen by one line per side until it passes both ends of the image.
     let mut distance: i64 = 1;
     while first + distance <= length || first - distance >= 0 {
-        if let Some(found) = position_that_matches(image, preimage, first + distance, match_beginning, match_end) {
+        if let Some(found) = position_that_matches(
+            image,
+            preimage,
+            first + distance,
+            match_beginning,
+            match_end,
+        ) {
             return Some(found);
         }
-        if let Some(found) = position_that_matches(image, preimage, first - distance, match_beginning, match_end) {
+        if let Some(found) = position_that_matches(
+            image,
+            preimage,
+            first - distance,
+            match_beginning,
+            match_end,
+        ) {
             return Some(found);
         }
         distance += 1;
@@ -195,7 +222,10 @@ fn find_position(
 /// ```ts
 /// reverseHunk({ image, hunk }); // image or HUNK_REJECTED
 /// ```
-fn reverse_hunk(image: &[ImageLine], hunk: &PatchHunk) -> Option<Vec<ImageLine>> {
+fn reverse_hunk(
+    image: &[ImageLine],
+    hunk: &PatchHunk,
+) -> Option<Vec<ImageLine>> {
     let mut preimage: Vec<Vec<u8>> = Vec::new();
     let mut postimage: Vec<ImageLine> = Vec::new();
     for line in &hunk.lines {
@@ -213,14 +243,12 @@ fn reverse_hunk(image: &[ImageLine], hunk: &PatchHunk) -> Option<Vec<ImageLine>>
         Some(last_change) => hunk.lines.len() - 1 - last_change,
         None => hunk.lines.len(),
     };
-    let line: i64 = if hunk.old_start == 0 { 0 } else { hunk.old_start - 1 };
-    let at: usize = find_position(
-        image,
-        &preimage,
-        line,
-        hunk.new_start <= 1,
-        trailing == 0,
-    )?;
+    let line: i64 = if hunk.old_start == 0 {
+        0
+    } else {
+        hunk.old_start - 1
+    };
+    let at: usize = find_position(image, &preimage, line, hunk.new_start <= 1, trailing == 0)?;
     // `mut` lets the reversed image be built in order.
     let mut rebuilt: Vec<ImageLine> = image[..at].to_vec();
     rebuilt.extend(postimage);
@@ -240,7 +268,10 @@ fn reverse_hunk(image: &[ImageLine], hunk: &PatchHunk) -> Option<Vec<ImageLine>>
 /// ```ts
 /// reverseApplies({ hunks, prepared: 'a\nB\nc\nd\n' });
 /// ```
-pub fn reverse_applies(hunks: &[PatchHunk], prepared: &[u8]) -> bool {
+pub fn reverse_applies(
+    hunks: &[PatchHunk],
+    prepared: &[u8],
+) -> bool {
     // `mut` lets the image be replaced by each hunk's result.
     let mut image: Vec<ImageLine> = Vec::new();
     for text in split_keeping_newlines(prepared) {

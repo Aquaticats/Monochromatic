@@ -29,9 +29,15 @@
 
 use crate::index_byte_search::first_index_of_byte;
 use crate::index_cache_tree::CacheTree;
-use crate::index_fsmonitor::{Fsmonitor, read_fsmonitor};
+use crate::index_fsmonitor::{
+    Fsmonitor,
+    read_fsmonitor,
+};
 use crate::index_resolve_undo::ResolveUndo;
-use crate::index_stat::{StatData, be32};
+use crate::index_stat::{
+    StatData,
+    be32,
+};
 use crate::index_untracked::Untracked;
 use crate::index_untracked_io::read_untracked;
 
@@ -110,7 +116,10 @@ pub struct FullIndex {
 }
 
 /// A big-endian `u16` at `at`.
-fn be16(bytes: &[u8], at: usize) -> Option<u16> {
+fn be16(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u16> {
     let pair: &[u8] = bytes.get(at..at.checked_add(2)?)?;
     return Some(u16::from_be_bytes([pair[0], pair[1]]));
 }
@@ -118,7 +127,14 @@ fn be16(bytes: &[u8], at: usize) -> Option<u16> {
 /// One entry at `at`:
 /// the entry and the offset after it.
 /// `previous` is the path before it (version 4 only).
-fn read_entry(bytes: &[u8], at: usize, end: usize, version: u32, hash_length: usize, previous: &[u8]) -> Option<(FullEntry, usize)> {
+fn read_entry(
+    bytes: &[u8],
+    at: usize,
+    end: usize,
+    version: u32,
+    hash_length: usize,
+    previous: &[u8],
+) -> Option<(FullEntry, usize)> {
     let stat: StatData = StatData {
         ctime_sec: be32(bytes, at)?,
         ctime_nsec: be32(bytes, at + 4)?,
@@ -155,7 +171,10 @@ fn read_entry(bytes: &[u8], at: usize, end: usize, version: u32, hash_length: us
         (joined, cursor + terminator + 1)
     } else {
         let terminator: usize = first_index_of_byte(bytes.get(name_start..end)?, 0)?;
-        (bytes[name_start..name_start + terminator].to_vec(), at.checked_add((head + terminator + 8) & !7)?)
+        (
+            bytes[name_start..name_start + terminator].to_vec(),
+            at.checked_add((head + terminator + 8) & !7)?,
+        )
     };
     // Only the intent-to-add and skip-worktree bits are defined, and Git canonicalizes other modes.
     let defined: bool = extended & !(INTENT_TO_ADD | SKIP_WORKTREE) == 0;
@@ -163,7 +182,15 @@ fn read_entry(bytes: &[u8], at: usize, end: usize, version: u32, hash_length: us
     if next > end || path.is_empty() || !defined || !canonical {
         return None;
     }
-    let entry: FullEntry = FullEntry { stat, mode, id, flags: raw_flags & (ASSUME_VALID | STAGE_MASK), extended, path, monitor_valid: false };
+    let entry: FullEntry = FullEntry {
+        stat,
+        mode,
+        id,
+        flags: raw_flags & (ASSUME_VALID | STAGE_MASK),
+        extended,
+        path,
+        monitor_valid: false,
+    };
     return Some((entry, next));
 }
 
@@ -173,7 +200,10 @@ fn read_entry(bytes: &[u8], at: usize, end: usize, version: u32, hash_length: us
 /// Git
 /// does,
 /// and writers install a finished file by rename.
-pub fn parse_full_index(bytes: &[u8], hash_length: usize) -> Option<FullIndex> {
+pub fn parse_full_index(
+    bytes: &[u8],
+    hash_length: usize,
+) -> Option<FullIndex> {
     let end: usize = bytes.len().checked_sub(hash_length)?;
     if bytes.get(..4)? != b"DIRC" {
         return None;
@@ -195,11 +225,19 @@ pub fn parse_full_index(bytes: &[u8], hash_length: usize) -> Option<FullIndex> {
         at = next;
     }
     for pair in entries.windows(2) {
-        if (pair[0].path.as_slice(), pair[0].stage()) >= (pair[1].path.as_slice(), pair[1].stage()) {
+        if (pair[0].path.as_slice(), pair[0].stage()) >= (pair[1].path.as_slice(), pair[1].stage())
+        {
             return None;
         }
     }
-    let mut index: FullIndex = FullIndex { version, entries, cache_tree: None, resolve_undo: None, untracked: None, fsmonitor: None };
+    let mut index: FullIndex = FullIndex {
+        version,
+        entries,
+        cache_tree: None,
+        resolve_undo: None,
+        untracked: None,
+        fsmonitor: None,
+    };
     while at < end {
         let signature: &[u8] = bytes.get(at..at + 4)?;
         let size: usize = usize::try_from(be32(bytes, at + 4)?).ok()?;

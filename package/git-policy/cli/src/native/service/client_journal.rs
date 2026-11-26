@@ -22,7 +22,13 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::journald_native::{CLIENT_IDENTIFIER, Priority, TEST_SOCKET_VARIABLE, Target, datagram_as};
+use crate::journald_native::{
+    CLIENT_IDENTIFIER,
+    Priority,
+    TEST_SOCKET_VARIABLE,
+    Target,
+    datagram_as,
+};
 use std::os::unix::net::UnixDatagram;
 
 /// Tag used for diagnostics from this module.
@@ -64,7 +70,11 @@ pub(crate) fn target() -> Option<Target> {
 /// ```ts
 /// const sent = recordEntry({ priority: 'warning', message, fields: [['CLI_GIT_WORKTREE', path]] });
 /// ```
-pub fn record_entry(priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
+pub fn record_entry(
+    priority: Priority,
+    message: &str,
+    fields: &[(&str, String)],
+) -> bool {
     return record_entry_as(CLIENT_IDENTIFIER, priority, message, fields);
 }
 
@@ -79,7 +89,12 @@ pub fn record_entry(priority: Priority, message: &str, fields: &[(&str, String)]
 /// ```ts
 /// const sent = recordEntryAs('cli-git-service', { priority: 'warning', message, fields });
 /// ```
-pub fn record_entry_as(identifier: &str, priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
+pub fn record_entry_as(
+    identifier: &str,
+    priority: Priority,
+    message: &str,
+    fields: &[(&str, String)],
+) -> bool {
     let Some(found) = target() else { return false };
     return send_entry_as(&found, identifier, priority, message, fields);
 }
@@ -94,7 +109,12 @@ pub fn record_entry_as(identifier: &str, priority: Priority, message: &str, fiel
 /// ```ts
 /// const sent = sendEntry(target, 'warning', message, fields);
 /// ```
-pub fn send_entry(target: &Target, priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
+pub fn send_entry(
+    target: &Target,
+    priority: Priority,
+    message: &str,
+    fields: &[(&str, String)],
+) -> bool {
     return send_entry_as(target, CLIENT_IDENTIFIER, priority, message, fields);
 }
 
@@ -108,23 +128,43 @@ pub fn send_entry(target: &Target, priority: Priority, message: &str, fields: &[
 /// ```ts
 /// const sent = sendEntryAs(target, 'cli-git-service', 'warning', message, fields);
 /// ```
-pub fn send_entry_as(target: &Target, identifier: &str, priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
+pub fn send_entry_as(
+    target: &Target,
+    identifier: &str,
+    priority: Priority,
+    message: &str,
+    fields: &[(&str, String)],
+) -> bool {
     let Some(address) = target.address() else {
-        debug(TAG, format!("the journal address {target:?} does not fit a socket name; no entry is sent").as_str());
+        debug(
+            TAG,
+            format!("the journal address {target:?} does not fit a socket name; no entry is sent")
+                .as_str(),
+        );
         return false;
     };
     let socket: UnixDatagram = match UnixDatagram::unbound() {
         Ok(opened) => opened,
         Err(error) => {
-            debug(TAG, format!("no socket for the journal entry ({error})").as_str());
+            debug(
+                TAG,
+                format!("no socket for the journal entry ({error})").as_str(),
+            );
             return false;
         }
     };
     if let Err(error) = socket.set_nonblocking(true) {
-        debug(TAG, format!("the journal socket cannot be made non-blocking ({error}); no entry is sent").as_str());
+        debug(
+            TAG,
+            format!("the journal socket cannot be made non-blocking ({error}); no entry is sent")
+                .as_str(),
+        );
         return false;
     }
-    return match socket.send_to_addr(datagram_as(identifier, priority, message, fields).as_slice(), &address) {
+    return match socket.send_to_addr(
+        datagram_as(identifier, priority, message, fields).as_slice(),
+        &address,
+    ) {
         Ok(_) => true,
         Err(error) => {
             debug(TAG, format!("the journal took no entry ({error})").as_str());

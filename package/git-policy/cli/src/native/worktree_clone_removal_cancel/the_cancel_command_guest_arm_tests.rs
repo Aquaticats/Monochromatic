@@ -22,30 +22,58 @@
 //! test('the cancel command guest arms', () => { /* pool, destroy, prove, plan */ });
 //! ```
 
+use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::ZfsDatasetReader;
+use crate::worktree_clone_mount_protocol::clone_mount_intent::MountIntent;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::intent_text;
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::DESIRED_STATE_PROPERTY;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
-use crate::worktree_clone_binding_record::registration_home::plans_folder;
-use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{RemovalEntry, TheLiveClock, enter_the_removal};
-use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{LivePoolFixture, PoolVariables, SLOT};
-use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use crate::worktree_clone_removal_proof_and_plan::unmount_request::{RemovalUnmount, UnmountAnswer};
-use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
-use crate::worktree_clone_removal_cancel::cancel_arguments::CancelRequest;
-use crate::worktree_clone_removal_cancel::the_cancel_command::{TheCancelCommand, TheCancellation, cancel_the_removal};
-use crate::worktree_clone_removal_cancel::the_removal_claim::{HeldClaim, TheRemovalClaim};
-use crate::worktree_clone_removal_cancel::the_reversing_request::{MountAnswer, MountIdentity, TheMountRequest};
-use crate::worktree_clone_removal_cancel::the_slot_mount::TheSlotMount;
-use crate::worktree_clone_removal_cancel::the_staged_state::{StagedSettlement, TheStagedFolder};
-use crate::worktree_clone_mount_protocol::clone_mount_intent::MountIntent;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
+use crate::worktree_clone_removal_cancel::cancel_arguments::CancelRequest;
+use crate::worktree_clone_removal_cancel::the_cancel_command::{
+    TheCancelCommand,
+    TheCancellation,
+    cancel_the_removal,
+};
+use crate::worktree_clone_removal_cancel::the_removal_claim::{
+    HeldClaim,
+    TheRemovalClaim,
+};
+use crate::worktree_clone_removal_cancel::the_reversing_request::{
+    MountAnswer,
+    MountIdentity,
+    TheMountRequest,
+};
+use crate::worktree_clone_removal_cancel::the_slot_mount::TheSlotMount;
+use crate::worktree_clone_removal_cancel::the_staged_state::{
+    StagedSettlement,
+    TheStagedFolder,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
+    RemovalEntry,
+    TheLiveClock,
+    enter_the_removal,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{
+    LivePoolFixture,
+    PoolVariables,
+    SLOT,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
+use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
+use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
+    RemovalUnmount,
+    UnmountAnswer,
+};
 use crate::worktree_clone_slot_state::slot_state_mounts::CloneMount;
 use std::cell::RefCell;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The variable naming the guest this arm may run in.
 const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_CANCEL_GUEST";
@@ -104,14 +132,24 @@ struct RecordingRequest {
 }
 
 impl TheMountRequest for RecordingRequest {
-    fn request_the_mount(&self, intent: &MountIntent) -> Result<MountAnswer, crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal> {
-        self.asked.borrow_mut().push(intent_text(intent.operation, &intent.nonce));
+    fn request_the_mount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<MountAnswer, crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal>
+    {
+        self.asked
+            .borrow_mut()
+            .push(intent_text(intent.operation, &intent.nonce));
         return Ok(MountAnswer {
             dataset: self.clone_guid,
             operation: intent.operation,
             nonce: intent.nonce.clone(),
             outcome: ReceiptOutcome::Done,
-            mount: Some(MountIdentity { mount_id: 1, source: self.clone.clone(), canonical_path: self.slot_path.display().to_string() }),
+            mount: Some(MountIdentity {
+                mount_id: 1,
+                source: self.clone.clone(),
+                canonical_path: self.slot_path.display().to_string(),
+            }),
             failed_step: None,
             errno: None,
         });
@@ -123,7 +161,10 @@ impl TheMountRequest for RecordingRequest {
 struct NoStagedFolder;
 
 impl TheStagedFolder for NoStagedFolder {
-    fn settle(&self, _clone_guid: DatasetGuid) -> StagedSettlement {
+    fn settle(
+        &self,
+        _clone_guid: DatasetGuid,
+    ) -> StagedSettlement {
         return StagedSettlement::NoStagedFolder;
     }
 }
@@ -133,7 +174,11 @@ impl TheStagedFolder for NoStagedFolder {
 struct AClaimTheArmHolds;
 
 impl TheRemovalClaim for AClaimTheArmHolds {
-    fn take(&self, _slot: &str) -> Result<HeldClaim, crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal> {
+    fn take(
+        &self,
+        _slot: &str,
+    ) -> Result<HeldClaim, crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal>
+    {
         return Ok(HeldClaim::AControl);
     }
 }
@@ -146,7 +191,11 @@ struct ATable {
 }
 
 impl TheSlotMount for ATable {
-    fn where_the_clone_stands(&self, _clone_dataset: &str, _slot_path: &Path) -> CloneMount {
+    fn where_the_clone_stands(
+        &self,
+        _clone_dataset: &str,
+        _slot_path: &Path,
+    ) -> CloneMount {
         if self.at_the_slot {
             return CloneMount::AtItsSlot;
         }
@@ -166,8 +215,19 @@ struct ADoneUnmount {
 }
 
 impl RemovalUnmount for ADoneUnmount {
-    fn request_the_unmount(&self, intent: &MountIntent) -> Result<UnmountAnswer, RemovalStop> {
-        return Ok(UnmountAnswer { dataset: self.clone_guid, operation: intent.operation, nonce: intent.nonce.clone(), outcome: ReceiptOutcome::Done, mount_id: None, failed_step: None, errno: None });
+    fn request_the_unmount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<UnmountAnswer, RemovalStop> {
+        return Ok(UnmountAnswer {
+            dataset: self.clone_guid,
+            operation: intent.operation,
+            nonce: intent.nonce.clone(),
+            outcome: ReceiptOutcome::Done,
+            mount_id: None,
+            failed_step: None,
+            errno: None,
+        });
     }
 }
 
@@ -190,20 +250,35 @@ const A_PID_NO_PROCESS_CAN_HAVE: i64 = 9_000_001;
 /// ```ts
 /// thePlanADeadRemovalLeft(common, recorded);
 /// ```
-fn the_plan_a_dead_removal_left(common: &Path, recorded: &crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding) {
-    let mut plan: DestructionPlan = crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan(common, recorded.clone_guid)
+fn the_plan_a_dead_removal_left(
+    common: &Path,
+    recorded: &crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding,
+) {
+    let mut plan: DestructionPlan =
+        crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan(
+            common,
+            recorded.clone_guid,
+        )
         .expect("the entry's plan reads")
         .expect("the entry wrote a plan");
     plan.facts.owner = format!("{A_PID_NO_PROCESS_CAN_HAVE}:linux:0");
     let folder: PathBuf = plans_folder(common);
-    std::fs::write(folder.join(recorded.clone_guid.file_name()), plan.encode().expect("the plan encodes")).expect("the plan file");
+    std::fs::write(
+        folder.join(recorded.clone_guid.file_name()),
+        plan.encode().expect("the plan encodes"),
+    )
+    .expect("the plan file");
 }
 
 /// The slot's `.git` pointer,
 /// which the proof reads and which the fixture's add would have written.
 fn write_the_pointer(fixture: &LivePoolFixture) {
     let registration: PathBuf = fixture.common().join("worktrees").join(SLOT);
-    std::fs::write(fixture.slot_path().join(".git"), format!("gitdir: {}\n", registration.display())).expect("the slot's pointer");
+    std::fs::write(
+        fixture.slot_path().join(".git"),
+        format!("gitdir: {}\n", registration.display()),
+    )
+    .expect("the slot's pointer");
 }
 
 /// What:
@@ -211,7 +286,10 @@ fn write_the_pointer(fixture: &LivePoolFixture) {
 /// Why:
 ///  The removal's own entry writes the records the command proves,
 ///  so the arm measures the command and never a record this arm built by hand.
-fn the_arm(fixture: &LivePoolFixture, already_cancelled: bool) {
+fn the_arm(
+    fixture: &LivePoolFixture,
+    already_cancelled: bool,
+) {
     fixture.build(&[FIRST_SNAPSHOT, SECOND_SNAPSHOT]);
     let recorded = fixture.recorded();
     fixture.write_the_adds_records(&recorded);
@@ -219,28 +297,66 @@ fn the_arm(fixture: &LivePoolFixture, already_cancelled: bool) {
     let clone: String = fixture.clone();
     let first: String = format!("{clone}@{FIRST_SNAPSHOT}");
     let common: PathBuf = fixture.common();
-    let entry: RemovalEntry<'_> = RemovalEntry { common_dir: common.as_path(), slot: SLOT };
+    let entry: RemovalEntry<'_> = RemovalEntry {
+        common_dir: common.as_path(),
+        slot: SLOT,
+    };
     let reads: LiveRemovalReads = LiveRemovalReads::open().expect("the guest has /dev/zfs");
-    let unmount: ADoneUnmount = ADoneUnmount { clone_guid: recorded.clone_guid };
-    enter_the_removal(&entry, &reads, &unmount, &TheLiveClock).expect("the removal's own entry writes its plan");
+    let unmount: ADoneUnmount = ADoneUnmount {
+        clone_guid: recorded.clone_guid,
+    };
+    enter_the_removal(&entry, &reads, &unmount, &TheLiveClock)
+        .expect("the removal's own entry writes its plan");
     the_plan_a_dead_removal_left(common.as_path(), &recorded);
     let plan_path: PathBuf = plans_folder(common.as_path()).join(recorded.clone_guid.file_name());
-    assert!(plan_path.exists(), "positive control: the removal's entry wrote a plan the command can prove");
+    assert!(
+        plan_path.exists(),
+        "positive control: the removal's entry wrote a plan the command can prove"
+    );
     // The request the clone carries is the state a killed removal leaves:
     // an `unmount` request, or the `mount` one a cancellation's first act writes.
-    let operation: MountOperation = if already_cancelled { MountOperation::Mount } else { MountOperation::Unmount };
-    let intent: MountIntent = MountIntent { operation, nonce: a_nonce() };
-    fixture.run("zfs", &["set", format!("{DESIRED_STATE_PROPERTY}={}", intent_text(intent.operation, &intent.nonce)).as_str(), clone.as_str()]);
+    let operation: MountOperation = if already_cancelled {
+        MountOperation::Mount
+    } else {
+        MountOperation::Unmount
+    };
+    let intent: MountIntent = MountIntent {
+        operation,
+        nonce: a_nonce(),
+    };
+    fixture.run(
+        "zfs",
+        &[
+            "set",
+            format!(
+                "{DESIRED_STATE_PROPERTY}={}",
+                intent_text(intent.operation, &intent.nonce)
+            )
+            .as_str(),
+            clone.as_str(),
+        ],
+    );
     if !already_cancelled {
         // The removal destroyed one snapshot before a holder outlasted it, which the plan still calls planned.
         fixture.run("zfs", &["destroy", first.as_str()]);
     }
     let absence: ZfsDatasetReader = ZfsDatasetReader::open().expect("the guest has /dev/zfs");
-    let checkout: PathBuf = common.parent().expect("the common directory is inside the fixture's checkout").to_path_buf();
-    let request: RecordingRequest =
-        RecordingRequest { clone: clone.clone(), slot_path: fixture.slot_path(), clone_guid: recorded.clone_guid, asked: RefCell::new(Vec::new()) };
-    let table: ATable = ATable { at_the_slot: true };
-    let slot: CancelRequest = CancelRequest { slot: String::from(SLOT) };
+    let checkout: PathBuf = common
+        .parent()
+        .expect("the common directory is inside the fixture's checkout")
+        .to_path_buf();
+    let request: RecordingRequest = RecordingRequest {
+        clone: clone.clone(),
+        slot_path: fixture.slot_path(),
+        clone_guid: recorded.clone_guid,
+        asked: RefCell::new(Vec::new()),
+    };
+    let table: ATable = ATable {
+        at_the_slot: true,
+    };
+    let slot: CancelRequest = CancelRequest {
+        slot: String::from(SLOT),
+    };
     let input: TheCancelCommand<'_> = TheCancelCommand {
         checkout: checkout.as_path(),
         common_dir: common.as_path(),
@@ -253,19 +369,44 @@ fn the_arm(fixture: &LivePoolFixture, already_cancelled: bool) {
         mount_request: &request,
         staged: &NoStagedFolder,
     };
-    let outcome: TheCancellation = cancel_the_removal(&input).expect("the command proves and reverses the removal");
+    let outcome: TheCancellation =
+        cancel_the_removal(&input).expect("the command proves and reverses the removal");
     let report = outcome.report();
     assert_eq!(report.exit_code(), 0);
     if already_cancelled {
-        assert!(report.already_cancelled, "a `mount` request beside a clone at its slot is an already-cancelled removal");
-        assert!(request.asked.borrow().is_empty(), "no second request is written");
-        assert!(!plan_path.exists(), "the plan that witnessed nothing leaves");
+        assert!(
+            report.already_cancelled,
+            "a `mount` request beside a clone at its slot is an already-cancelled removal"
+        );
+        assert!(
+            request.asked.borrow().is_empty(),
+            "no second request is written"
+        );
+        assert!(
+            !plan_path.exists(),
+            "the plan that witnessed nothing leaves"
+        );
         println!("CANCEL already-cancelled=reported plan=removed requests=0");
     } else {
-        assert_eq!(report.destroyed, vec![first.clone()], "the pool proves exactly the snapshot the arm destroyed");
-        assert!(!report.already_cancelled, "an `unmount` request is not an already-cancelled removal");
-        assert_eq!(request.asked.borrow().len(), 1, "one mount request is written");
-        assert!(request.asked.borrow()[0].ends_with(":mount"), "{:?}", request.asked.borrow());
+        assert_eq!(
+            report.destroyed,
+            vec![first.clone()],
+            "the pool proves exactly the snapshot the arm destroyed"
+        );
+        assert!(
+            !report.already_cancelled,
+            "an `unmount` request is not an already-cancelled removal"
+        );
+        assert_eq!(
+            request.asked.borrow().len(),
+            1,
+            "one mount request is written"
+        );
+        assert!(
+            request.asked.borrow()[0].ends_with(":mount"),
+            "{:?}",
+            request.asked.borrow()
+        );
         assert!(plan_path.exists(), "the plan records a loss and stays");
         let text: String = report.lines().join("\n");
         assert!(text.contains("do not come back"), "{text}");
@@ -277,8 +418,12 @@ fn the_arm(fixture: &LivePoolFixture, already_cancelled: bool) {
 
 #[test]
 fn the_cancel_command_guest_arms() {
-    let Some(fixture): Option<LivePoolFixture> = LivePoolFixture::from_environment("cancel", &variables()) else {
-        println!("SKIPPED: {GUEST_VARIABLE} is not set, so this arm runs only in the throwaway guest");
+    let Some(fixture): Option<LivePoolFixture> =
+        LivePoolFixture::from_environment("cancel", &variables())
+    else {
+        println!(
+            "SKIPPED: {GUEST_VARIABLE} is not set, so this arm runs only in the throwaway guest"
+        );
         return;
     };
     the_arm(&fixture, false);

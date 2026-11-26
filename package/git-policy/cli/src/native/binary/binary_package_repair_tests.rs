@@ -28,11 +28,37 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::commit::remove_settled;
-use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, a_filling_that_did_not_run_to_its_end, bounded, end_the_fills_clean, executable, fixture, git, link_real_git, observe, observe_without_waiting_for_the_after_commit_work, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
 use super::support::on_btrfs_or_acknowledged;
-use super::worktree_snapshot::{commit_all, subvolume_repository};
+use super::support::{
+    Fixture,
+    Observed,
+    SERVICE_WORK_PATIENCE,
+    a_filling_that_did_not_run_to_its_end,
+    bounded,
+    end_the_fills_clean,
+    executable,
+    fixture,
+    git,
+    link_real_git,
+    observe,
+    observe_without_waiting_for_the_after_commit_work,
+    remove,
+    repository,
+    run_wrapped,
+    settle_service_work,
+    stderr_of,
+    while_test_lives,
+    wrapped,
+};
+use super::worktree_snapshot::{
+    commit_all,
+    subvolume_repository,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 use std::time::Duration;
 
@@ -44,13 +70,25 @@ const ABSENT_ACKNOWLEDGED: &str = "CLI_GIT_REAL_TOOLS_ABSENT_ACKNOWLEDGED";
 /// where it is not,
 /// the run must have said so,
 /// and one loud line names the control.
-fn available_or_acknowledged(found: Option<&Path>, tool: &str, control: &str) -> bool {
+fn available_or_acknowledged(
+    found: Option<&Path>,
+    tool: &str,
+    control: &str,
+) -> bool {
     if found.is_some() {
         return true;
     }
-    let acknowledged: bool = std::env::var_os(ABSENT_ACKNOWLEDGED).is_some_and(|value| { return !value.is_empty(); });
-    assert!(acknowledged, "the control {control} needs a real {tool}, which is not on PATH; install it, or set {ABSENT_ACKNOWLEDGED}=1");
-    eprintln!("REAL {} CONTROL NOT RUN: {control} (no {tool} on PATH)", tool.to_uppercase());
+    let acknowledged: bool = std::env::var_os(ABSENT_ACKNOWLEDGED).is_some_and(|value| {
+        return !value.is_empty();
+    });
+    assert!(
+        acknowledged,
+        "the control {control} needs a real {tool}, which is not on PATH; install it, or set {ABSENT_ACKNOWLEDGED}=1"
+    );
+    eprintln!(
+        "REAL {} CONTROL NOT RUN: {control} (no {tool} on PATH)",
+        tool.to_uppercase()
+    );
     return false;
 }
 
@@ -67,11 +105,18 @@ fn bin(fixture: &Fixture) -> PathBuf {
 }
 
 /// A fixture `pnpm` that appends `arguments | directory` to a record and exits with `status`.
-fn fake_pnpm(fixture: &Fixture, status: i32) -> PathBuf {
+fn fake_pnpm(
+    fixture: &Fixture,
+    status: i32,
+) -> PathBuf {
     let record: PathBuf = fixture.root.join("pnpm-record");
     executable(
         bin(fixture).join("pnpm").as_path(),
-        format!("#!/bin/sh\necho \"$* | $(pwd -P)\" >> '{}'\nexit {status}\n", record.display()).as_bytes(),
+        format!(
+            "#!/bin/sh\necho \"$* | $(pwd -P)\" >> '{}'\nexit {status}\n",
+            record.display()
+        )
+        .as_bytes(),
     );
     return record;
 }
@@ -81,10 +126,22 @@ fn repository_with_node_modules(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(repo.join(".gitignore"), b"node_modules/\n").expect("gitignore");
     std::fs::write(repo.join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'\n").expect("lockfile");
-    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "pnpm-lock.yaml"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=lockfile"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["add", "--", ".gitignore", "pnpm-lock.yaml"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=lockfile"],
+    );
     std::fs::create_dir_all(repo.join("node_modules/dep")).expect("node_modules");
-    std::fs::write(repo.join("node_modules/dep/index.js"), b"module.exports = 1;\n").expect("dependency");
+    std::fs::write(
+        repo.join("node_modules/dep/index.js"),
+        b"module.exports = 1;\n",
+    )
+    .expect("dependency");
     return repo;
 }
 
@@ -105,14 +162,29 @@ fn repository_with_node_modules(fixture: &Fixture) -> PathBuf {
 fn repository_with_launcher_records(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(repo.join(".gitignore"), b".cache/\n").expect("gitignore");
-    std::fs::write(repo.join("toolchain.lock.json"), b"{\"schemaVersion\":1,\"tools\":{\"cargo:own\":{\"bins\":[\"own\"]}}}\n").expect("lock");
-    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "toolchain.lock.json"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=lock"]);
+    std::fs::write(
+        repo.join("toolchain.lock.json"),
+        b"{\"schemaVersion\":1,\"tools\":{\"cargo:own\":{\"bins\":[\"own\"]}}}\n",
+    )
+    .expect("lock");
+    git(
+        fixture,
+        repo.as_path(),
+        &["add", "--", ".gitignore", "toolchain.lock.json"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=lock"],
+    );
     let launchers: PathBuf = repo.join(".cache/toolchain-launchers");
     std::fs::create_dir_all(launchers.as_path()).expect("launchers");
     for name in ["own", "legacy"] {
         std::fs::write(launchers.join(name), b"#!/bin/sh\nexit 0\n").expect("launcher");
-        let record: String = format!("{{\"toolId\":\"cargo:{name}\",\"lockFile\":\"{}\",\"real\":\"/tools/{name}\",\"scope\":\"repo\"}}\n", repo.join("toolchain.lock.json").display());
+        let record: String = format!(
+            "{{\"toolId\":\"cargo:{name}\",\"lockFile\":\"{}\",\"real\":\"/tools/{name}\",\"scope\":\"repo\"}}\n",
+            repo.join("toolchain.lock.json").display()
+        );
         std::fs::write(launchers.join(format!("{name}.launch")), record).expect("record");
     }
     return repo;
@@ -155,11 +227,25 @@ fn a_launcher_record_the_lock_declares_nowhere_is_removed_and_never_fails_the_re
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     settle_service_work(repo.as_path());
     let launchers: PathBuf = fixture.root.join("one/.cache/toolchain-launchers");
-    assert!(!launchers.join("legacy.launch").exists(), "the record no install rewrites is left in the new worktree");
-    assert!(!launchers.join("legacy").exists(), "the launcher beside that record is left in the new worktree");
-    let rewritten: String = std::fs::read_to_string(launchers.join("own.launch")).expect("the record the install rewrote");
-    assert!(rewritten.contains(fixture.root.join("one").to_str().expect("utf8")), "the install did not rewrite its own record: {rewritten}");
-    assert!(repo.join(".cache/toolchain-launchers/legacy.launch").exists(), "the source keeps its own records");
+    assert!(
+        !launchers.join("legacy.launch").exists(),
+        "the record no install rewrites is left in the new worktree"
+    );
+    assert!(
+        !launchers.join("legacy").exists(),
+        "the launcher beside that record is left in the new worktree"
+    );
+    let rewritten: String = std::fs::read_to_string(launchers.join("own.launch"))
+        .expect("the record the install rewrote");
+    assert!(
+        rewritten.contains(fixture.root.join("one").to_str().expect("utf8")),
+        "the install did not rewrite its own record: {rewritten}"
+    );
+    assert!(
+        repo.join(".cache/toolchain-launchers/legacy.launch")
+            .exists(),
+        "the source keeps its own records"
+    );
     remove(&fixture);
 }
 
@@ -172,7 +258,11 @@ fn a_launcher_record_the_lock_declares_nowhere_is_removed_and_never_fails_the_re
 /// an add returns after the record and the wake,
 /// and the line the tool wrote is there once that wait ends.
 fn recorded(record: &Path) -> Vec<String> {
-    return std::fs::read_to_string(record).map(|text: String| { return text.lines().map(str::to_owned).collect(); }).unwrap_or_default();
+    return std::fs::read_to_string(record)
+        .map(|text: String| {
+            return text.lines().map(str::to_owned).collect();
+        })
+        .unwrap_or_default();
 }
 
 /// How long a control waits for the commit service's first attempt at a repair to have run the tool.
@@ -196,7 +286,10 @@ const PNPM_ATTEMPT_PATIENCE: Duration = Duration::from_secs(30);
 /// # Panics
 ///
 /// When the tool ran fewer times than `count` within `PNPM_ATTEMPT_PATIENCE`.
-fn wait_for_pnpm_runs(record: &Path, count: usize) {
+fn wait_for_pnpm_runs(
+    record: &Path,
+    count: usize,
+) {
     let began: std::time::Instant = std::time::Instant::now();
     while recorded(record).len() < count {
         assert!(
@@ -210,7 +303,13 @@ fn wait_for_pnpm_runs(record: &Path, count: usize) {
 }
 
 /// Add a worktree from the repository and require success.
-fn add(fixture: &Fixture, repo: &Path, options: &[&str], branch: &str, destination: &str) -> Observed {
+fn add(
+    fixture: &Fixture,
+    repo: &Path,
+    options: &[&str],
+    branch: &str,
+    destination: &str,
+) -> Observed {
     let mut arguments: Vec<&str> = vec!["worktree", "add"];
     arguments.extend_from_slice(options);
     arguments.extend_from_slice(&["-b", branch, destination]);
@@ -230,11 +329,22 @@ fn add(fixture: &Fixture, repo: &Path, options: &[&str], branch: &str, destinati
 /// so the service tries it again only when that claim's lease ends (120 seconds),
 /// up to `MAX_TRIES` tries,
 /// and a control about the add's own hand-over would read the retries instead.
-fn add_without_waiting_for_the_after_commit_work(fixture: &Fixture, repo: &Path, options: &[&str], branch: &str, destination: &str) -> Observed {
+fn add_without_waiting_for_the_after_commit_work(
+    fixture: &Fixture,
+    repo: &Path,
+    options: &[&str],
+    branch: &str,
+    destination: &str,
+) -> Observed {
     let mut arguments: Vec<&str> = vec!["worktree", "add"];
     arguments.extend_from_slice(options);
     arguments.extend_from_slice(&["-b", branch, destination]);
-    let created: Observed = observe_without_waiting_for_the_after_commit_work(wrapped(fixture).current_dir(repo).args(arguments.as_slice()), b"");
+    let created: Observed = observe_without_waiting_for_the_after_commit_work(
+        wrapped(fixture)
+            .current_dir(repo)
+            .args(arguments.as_slice()),
+        b"",
+    );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     return created;
 }
@@ -255,9 +365,19 @@ fn pnpm_runs_in_the_new_worktree_only() {
     let lines: Vec<String> = recorded(record.as_path());
     assert_eq!(lines.len(), 1, "{lines:?} {}", stderr_of(&created));
     let one: PathBuf = fixture.root.join("one");
-    assert!(lines[0].ends_with(format!("| {}", one.display()).as_str()), "{lines:?}");
-    assert!(lines[0].contains("--offline") && lines[0].contains("--frozen-lockfile"), "{lines:?}");
-    assert!(stderr_of(&created).contains(REPAIRED_WORDS), "{}", stderr_of(&created));
+    assert!(
+        lines[0].ends_with(format!("| {}", one.display()).as_str()),
+        "{lines:?}"
+    );
+    assert!(
+        lines[0].contains("--offline") && lines[0].contains("--frozen-lockfile"),
+        "{lines:?}"
+    );
+    assert!(
+        stderr_of(&created).contains(REPAIRED_WORDS),
+        "{}",
+        stderr_of(&created)
+    );
     remove(&fixture);
 }
 
@@ -276,13 +396,23 @@ fn pnpm_runs_after_the_snapshot_rung() {
     std::fs::write(repo.join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'\n").expect("lockfile");
     commit_all(&fixture, repo.as_path(), "lockfile");
     std::fs::create_dir_all(repo.join("node_modules/dep")).expect("node_modules");
-    std::fs::write(repo.join("node_modules/dep/index.js"), b"module.exports = 1;\n").expect("dependency");
+    std::fs::write(
+        repo.join("node_modules/dep/index.js"),
+        b"module.exports = 1;\n",
+    )
+    .expect("dependency");
     let record: PathBuf = fake_pnpm(&fixture, 0);
     add(&fixture, repo.as_path(), &[], "one", "../one");
     let lines: Vec<String> = recorded(record.as_path());
     assert_eq!(lines.len(), 1, "{lines:?}");
-    assert!(lines[0].ends_with(format!("| {}", fixture.root.join("one").display()).as_str()), "{lines:?}");
-    assert!(fixture.root.join("one/node_modules/dep/index.js").exists(), "the snapshot carried the dependency");
+    assert!(
+        lines[0].ends_with(format!("| {}", fixture.root.join("one").display()).as_str()),
+        "{lines:?}"
+    );
+    assert!(
+        fixture.root.join("one/node_modules/dep/index.js").exists(),
+        "the snapshot carried the dependency"
+    );
     remove(&fixture);
 }
 
@@ -292,11 +422,30 @@ fn no_checkout_and_the_opt_out_start_nothing() {
     let fixture: Fixture = fixture("repair-pnpm-skipped");
     let repo: PathBuf = repository_with_node_modules(&fixture);
     let record: PathBuf = fake_pnpm(&fixture, 0);
-    let bare: Observed = add(&fixture, repo.as_path(), &["--no-checkout"], "one", "../one");
-    let opted_out: Observed = add(&fixture, repo.as_path(), &["--no-worktree-copy"], "two", "../two");
-    assert!(recorded(record.as_path()).is_empty(), "a tool was started: {:?}", recorded(record.as_path()));
+    let bare: Observed = add(
+        &fixture,
+        repo.as_path(),
+        &["--no-checkout"],
+        "one",
+        "../one",
+    );
+    let opted_out: Observed = add(
+        &fixture,
+        repo.as_path(),
+        &["--no-worktree-copy"],
+        "two",
+        "../two",
+    );
+    assert!(
+        recorded(record.as_path()).is_empty(),
+        "a tool was started: {:?}",
+        recorded(record.as_path())
+    );
     for printed in [stderr_of(&bare), stderr_of(&opted_out)] {
-        assert!(!printed.contains(REPAIRED_WORDS) && !printed.contains(PENDING_WORDS), "{printed}");
+        assert!(
+            !printed.contains(REPAIRED_WORDS) && !printed.contains(PENDING_WORDS),
+            "{printed}"
+        );
     }
     remove(&fixture);
 }
@@ -309,7 +458,11 @@ fn quiet_runs_the_repair_and_says_nothing_about_success() {
     let record: PathBuf = fake_pnpm(&fixture, 0);
     let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "one", "../one");
     assert_eq!(recorded(record.as_path()).len(), 1);
-    assert!(!stderr_of(&created).contains(REPAIRED_WORDS), "{}", stderr_of(&created));
+    assert!(
+        !stderr_of(&created).contains(REPAIRED_WORDS),
+        "{}",
+        stderr_of(&created)
+    );
     remove(&fixture);
 }
 
@@ -332,17 +485,40 @@ fn a_failing_pnpm_never_fails_the_add() {
     let fixture: Fixture = fixture("repair-pnpm-fails");
     let repo: PathBuf = repository_with_node_modules(&fixture);
     let record: PathBuf = fake_pnpm(&fixture, 1);
-    let created: Observed = add_without_waiting_for_the_after_commit_work(&fixture, repo.as_path(), &[], "one", "../one");
+    let created: Observed = add_without_waiting_for_the_after_commit_work(
+        &fixture,
+        repo.as_path(),
+        &[],
+        "one",
+        "../one",
+    );
     let printed: String = stderr_of(&created);
-    let line: &str = printed.lines().find(|line: &&str| { return line.contains(REPAIRED_WORDS); }).expect("one line about the repair");
+    let line: &str = printed
+        .lines()
+        .find(|line: &&str| {
+            return line.contains(REPAIRED_WORDS);
+        })
+        .expect("one line about the repair");
     assert!(line.contains("pnpm"), "{line}");
-    assert!(line.contains(fixture.root.join("one").to_str().expect("utf8")), "{line}");
-    assert!(fixture.root.join("one/node_modules/dep/index.js").exists(), "the copy is kept");
+    assert!(
+        line.contains(fixture.root.join("one").to_str().expect("utf8")),
+        "{line}"
+    );
+    assert!(
+        fixture.root.join("one/node_modules/dep/index.js").exists(),
+        "the copy is kept"
+    );
     wait_for_pnpm_runs(record.as_path(), 1);
     let ran: Vec<String> = recorded(record.as_path());
     assert_eq!(ran.len(), 1, "pnpm ran once, in the new worktree: {ran:?}");
-    assert!(ran[0].contains("--offline") && ran[0].contains("--frozen-lockfile"), "{ran:?}");
-    assert!(ran[0].ends_with(format!("| {}", fixture.root.join("one").display()).as_str()), "{ran:?}");
+    assert!(
+        ran[0].contains("--offline") && ran[0].contains("--frozen-lockfile"),
+        "{ran:?}"
+    );
+    assert!(
+        ran[0].ends_with(format!("| {}", fixture.root.join("one").display()).as_str()),
+        "{ran:?}"
+    );
     remove_settled(&fixture);
 }
 
@@ -357,16 +533,27 @@ fn a_missing_pnpm_never_fails_the_add() {
     let fixture: Fixture = fixture("repair-pnpm-missing");
     let repo: PathBuf = repository_with_node_modules(&fixture);
     link_real_git(&fixture);
-    let path: String = format!("{}:{}", bin(&fixture).display(), fixture.root.join("real").display());
+    let path: String = format!(
+        "{}:{}",
+        bin(&fixture).display(),
+        fixture.root.join("real").display()
+    );
     let created: Observed = observe(
-        bounded(&fixture, bin(&fixture).join("git").as_path(), OsStr::new(path.as_str()))
-            .current_dir(&repo)
-            .args(["worktree", "add", "-b", "one", "../one"]),
+        bounded(
+            &fixture,
+            bin(&fixture).join("git").as_path(),
+            OsStr::new(path.as_str()),
+        )
+        .current_dir(&repo)
+        .args(["worktree", "add", "-b", "one", "../one"]),
         b"",
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let printed: String = stderr_of(&created);
-    assert!(printed.contains("pnpm was not found") && printed.contains("--frozen-lockfile"), "{printed}");
+    assert!(
+        printed.contains("pnpm was not found") && printed.contains("--frozen-lockfile"),
+        "{printed}"
+    );
     remove(&fixture);
 }
 
@@ -418,8 +605,17 @@ fn a_running_repair_does_not_hold_another_add() {
         )
         .as_bytes(),
     );
-    let first: std::process::Output = wrapped(&fixture).current_dir(&repo).args(["worktree", "add", "--quiet", "-b", "one", "../one"]).output().expect("the first add runs");
-    assert_eq!(first.status.code(), Some(0), "{}", String::from_utf8_lossy(first.stderr.as_slice()));
+    let first: std::process::Output = wrapped(&fixture)
+        .current_dir(&repo)
+        .args(["worktree", "add", "--quiet", "-b", "one", "../one"])
+        .output()
+        .expect("the first add runs");
+    assert_eq!(
+        first.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(first.stderr.as_slice())
+    );
     let began: std::time::Instant = std::time::Instant::now();
     while !started.exists() {
         assert!(
@@ -431,26 +627,56 @@ fn a_running_repair_does_not_hold_another_add() {
         std::thread::sleep(START_PAUSE);
     }
     assert!(!release.exists());
-    let second: std::process::Output = wrapped(&fixture).current_dir(&repo).args(["worktree", "add", "--quiet", "-b", "two", "../two"]).output().expect("the second add runs");
-    assert_eq!(second.status.code(), Some(0), "{}", String::from_utf8_lossy(second.stderr.as_slice()));
-    assert!(!release.exists(), "the first repair ended while the second add ran, so the control held nothing");
-    assert!(fixture.root.join("two/node_modules/dep/index.js").exists(), "the second worktree is whole");
+    let second: std::process::Output = wrapped(&fixture)
+        .current_dir(&repo)
+        .args(["worktree", "add", "--quiet", "-b", "two", "../two"])
+        .output()
+        .expect("the second add runs");
+    assert_eq!(
+        second.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(second.stderr.as_slice())
+    );
+    assert!(
+        !release.exists(),
+        "the first repair ended while the second add ran, so the control held nothing"
+    );
+    assert!(
+        fixture.root.join("two/node_modules/dep/index.js").exists(),
+        "the second worktree is whole"
+    );
     std::fs::write(&release, b"go").expect("release the first repair");
     settle_service_work(repo.as_path());
-    assert_eq!(recorded(record.as_path()).len(), 2, "each add was repaired in its own worktree: {:?}", recorded(record.as_path()));
+    assert_eq!(
+        recorded(record.as_path()).len(),
+        2,
+        "each add was repaired in its own worktree: {:?}",
+        recorded(record.as_path())
+    );
     remove_settled(&fixture);
 }
 
 /// A real `pnpm` found by the test process,
 /// linked into the fixture's PATH directory.
-fn link_real(fixture: &Fixture, name: &str, target: &Path) {
+fn link_real(
+    fixture: &Fixture,
+    name: &str,
+    target: &Path,
+) {
     std::os::unix::fs::symlink(target, bin(fixture).join(name)).expect("link a real tool");
 }
 
 /// The first executable named `name` on the test process's PATH.
 fn on_path(name: &str) -> Option<PathBuf> {
     let search: std::ffi::OsString = std::env::var_os("PATH")?;
-    return std::env::split_paths(&search).map(|directory: PathBuf| { return directory.join(name); }).find(|candidate: &PathBuf| { return candidate.is_file(); });
+    return std::env::split_paths(&search)
+        .map(|directory: PathBuf| {
+            return directory.join(name);
+        })
+        .find(|candidate: &PathBuf| {
+            return candidate.is_file();
+        });
 }
 
 /// The first `pnpm` on the test process's PATH that is pnpm itself and not the repository's shadow of it,
@@ -459,17 +685,32 @@ fn on_path(name: &str) -> Option<PathBuf> {
 fn real_pnpm() -> Option<PathBuf> {
     let search: std::ffi::OsString = std::env::var_os("PATH")?;
     return std::env::split_paths(&search)
-        .map(|directory: PathBuf| { return directory.join("pnpm"); })
-        .filter(|candidate: &PathBuf| { return candidate.is_file(); })
+        .map(|directory: PathBuf| {
+            return directory.join("pnpm");
+        })
+        .filter(|candidate: &PathBuf| {
+            return candidate.is_file();
+        })
         .find(|candidate: &PathBuf| {
-            let version = Command::new(candidate).arg("--version").stdin(std::process::Stdio::null()).output();
-            return version.is_ok_and(|output: std::process::Output| { return output.status.success() && !String::from_utf8_lossy(&output.stdout).contains("shadow"); });
+            let version = Command::new(candidate)
+                .arg("--version")
+                .stdin(std::process::Stdio::null())
+                .output();
+            return version.is_ok_and(|output: std::process::Output| {
+                return output.status.success()
+                    && !String::from_utf8_lossy(&output.stdout).contains("shadow");
+            });
         });
 }
 
 /// Run a linked tool in a directory with the hermetic environment the wrapped runs use,
 /// and require success.
-fn run_tool(fixture: &Fixture, program: &str, directory: &Path, arguments: &[&str]) -> String {
+fn run_tool(
+    fixture: &Fixture,
+    program: &str,
+    directory: &Path,
+    arguments: &[&str],
+) -> String {
     let output = Command::new(bin(fixture).join(program))
         .env_clear()
         .env("PATH", format!("{}:/usr/bin:/bin", bin(fixture).display()))
@@ -478,7 +719,12 @@ fn run_tool(fixture: &Fixture, program: &str, directory: &Path, arguments: &[&st
         .args(arguments)
         .output()
         .expect("run the tool");
-    assert!(output.status.success(), "{program} {arguments:?} failed in {}: {}", directory.display(), String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{program} {arguments:?} failed in {}: {}",
+        directory.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
     return String::from_utf8_lossy(&output.stdout).into_owned();
 }
 
@@ -491,16 +737,52 @@ fn pnpm_repository(fixture: &Fixture) -> PathBuf {
     std::fs::create_dir_all(fixture.root.join("home")).expect("home");
     let packed: PathBuf = fixture.root.join("leaf-source");
     std::fs::create_dir_all(packed.join("package")).expect("package directory");
-    std::fs::write(packed.join("package/package.json"), b"{\"name\":\"leaf\",\"version\":\"1.0.0\"}\n").expect("leaf manifest");
+    std::fs::write(
+        packed.join("package/package.json"),
+        b"{\"name\":\"leaf\",\"version\":\"1.0.0\"}\n",
+    )
+    .expect("leaf manifest");
     std::fs::create_dir_all(repo.join("vendor")).expect("vendor");
-    let tar = Command::new("/usr/bin/tar").arg("--create").arg("--gzip").arg("--file").arg(repo.join("vendor/leaf.tgz")).arg("--directory").arg(&packed).arg("package").status().expect("tar");
+    let tar = Command::new("/usr/bin/tar")
+        .arg("--create")
+        .arg("--gzip")
+        .arg("--file")
+        .arg(repo.join("vendor/leaf.tgz"))
+        .arg("--directory")
+        .arg(&packed)
+        .arg("package")
+        .status()
+        .expect("tar");
     assert!(tar.success());
     std::fs::write(repo.join("package.json"), b"{\"name\":\"root\",\"private\":true,\"dependencies\":{\"leaf\":\"file:./vendor/leaf.tgz\"}}\n").expect("manifest");
-    std::fs::write(repo.join("pnpm-workspace.yaml"), format!("storeDir: {}\nvirtualStoreType: global\n", fixture.root.join("store").display())).expect("workspace");
+    std::fs::write(
+        repo.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: {}\nvirtualStoreType: global\n",
+            fixture.root.join("store").display()
+        ),
+    )
+    .expect("workspace");
     std::fs::write(repo.join(".gitignore"), b"node_modules/\n.claude/\n").expect("gitignore");
     run_tool(fixture, "pnpm", repo.as_path(), &["install"]);
-    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "vendor/leaf.tgz"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=workspace"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &[
+            "add",
+            "--",
+            ".gitignore",
+            "package.json",
+            "pnpm-workspace.yaml",
+            "pnpm-lock.yaml",
+            "vendor/leaf.tgz",
+        ],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=workspace"],
+    );
     return repo;
 }
 
@@ -514,32 +796,89 @@ fn pnpm_repository(fixture: &Fixture) -> PathBuf {
 fn real_pnpm_relinks_a_global_virtual_store_install() {
     let fixture: Fixture = fixture("repair-real-pnpm");
     let real: Option<PathBuf> = real_pnpm();
-    if !available_or_acknowledged(real.as_deref(), "pnpm", "real_pnpm_relinks_a_global_virtual_store_install") {
+    if !available_or_acknowledged(
+        real.as_deref(),
+        "pnpm",
+        "real_pnpm_relinks_a_global_virtual_store_install",
+    ) {
         remove(&fixture);
         return;
     }
     link_real(&fixture, "pnpm", real.as_deref().expect("checked above"));
     let repo: PathBuf = pnpm_repository(&fixture);
-    let entry = |root: &Path| -> PathBuf { return root.join("node_modules/leaf/package.json"); };
+    let entry = |root: &Path| -> PathBuf {
+        return root.join("node_modules/leaf/package.json");
+    };
     assert!(entry(repo.as_path()).exists(), "the source install works");
-    let before: Vec<PathBuf> = std::fs::read_dir(repo.join("node_modules")).expect("source modules").flatten().map(|item| { return item.path(); }).collect();
+    let before: Vec<PathBuf> = std::fs::read_dir(repo.join("node_modules"))
+        .expect("source modules")
+        .flatten()
+        .map(|item| {
+            return item.path();
+        })
+        .collect();
     // Positive control: the same tree copied verbatim to another depth has a dead entry, so the fixture reproduces the hazard.
     std::fs::create_dir_all(fixture.root.join("deeper/more")).expect("deeper");
     let control: PathBuf = fixture.root.join("deeper/more/control");
     std::fs::create_dir_all(&control).expect("control");
-    let copied = Command::new("/usr/bin/cp").arg("--archive").arg(repo.join("node_modules")).arg(&control).status().expect("cp");
+    let copied = Command::new("/usr/bin/cp")
+        .arg("--archive")
+        .arg(repo.join("node_modules"))
+        .arg(&control)
+        .status()
+        .expect("cp");
     assert!(copied.success());
-    assert!(!entry(control.as_path()).exists(), "the verbatim copy should hold a dead link");
-    let outside: Observed = add(&fixture, repo.as_path(), &["--quiet"], "outside", "../deeper/more/outside");
-    let nested: Observed = add(&fixture, repo.as_path(), &["--quiet"], "nested", ".claude/worktrees/nested");
-    for (label, root) in [("outside", fixture.root.join("deeper/more/outside")), ("nested", repo.join(".claude/worktrees/nested"))] {
-        assert!(entry(root.as_path()).exists(), "{label}: the entry is dead after the add: {} {}", stderr_of(&outside), stderr_of(&nested));
+    assert!(
+        !entry(control.as_path()).exists(),
+        "the verbatim copy should hold a dead link"
+    );
+    let outside: Observed = add(
+        &fixture,
+        repo.as_path(),
+        &["--quiet"],
+        "outside",
+        "../deeper/more/outside",
+    );
+    let nested: Observed = add(
+        &fixture,
+        repo.as_path(),
+        &["--quiet"],
+        "nested",
+        ".claude/worktrees/nested",
+    );
+    for (label, root) in [
+        ("outside", fixture.root.join("deeper/more/outside")),
+        ("nested", repo.join(".claude/worktrees/nested")),
+    ] {
+        assert!(
+            entry(root.as_path()).exists(),
+            "{label}: the entry is dead after the add: {} {}",
+            stderr_of(&outside),
+            stderr_of(&nested)
+        );
         let resolved: PathBuf = std::fs::canonicalize(entry(root.as_path())).expect("resolved");
-        assert!(!resolved.starts_with(repo.join("node_modules")), "{label}: resolves into the source's modules: {}", resolved.display());
+        assert!(
+            !resolved.starts_with(repo.join("node_modules")),
+            "{label}: resolves into the source's modules: {}",
+            resolved.display()
+        );
     }
-    let after: Vec<PathBuf> = std::fs::read_dir(repo.join("node_modules")).expect("source modules").flatten().map(|item| { return item.path(); }).collect();
-    assert_eq!(before.len(), after.len(), "the source's node_modules changed");
-    assert!(entry(repo.as_path()).exists(), "the source install still works");
+    let after: Vec<PathBuf> = std::fs::read_dir(repo.join("node_modules"))
+        .expect("source modules")
+        .flatten()
+        .map(|item| {
+            return item.path();
+        })
+        .collect();
+    assert_eq!(
+        before.len(),
+        after.len(),
+        "the source's node_modules changed"
+    );
+    assert!(
+        entry(repo.as_path()).exists(),
+        "the source install still works"
+    );
     remove(&fixture);
 }
 
@@ -551,9 +890,20 @@ const REGISTRY_CRATE: &str = "itoa-1.0.18";
 /// which lets a fixture depend on a registry crate
 ///  without the network.
 fn cargo_home_with_registry_crate() -> Option<PathBuf> {
-    let home: PathBuf = std::env::var_os("CARGO_HOME").map(PathBuf::from).or_else(|| { return std::env::var_os("HOME").map(|home: std::ffi::OsString| { return PathBuf::from(home).join(".cargo"); }); })?;
+    let home: PathBuf = std::env::var_os("CARGO_HOME")
+        .map(PathBuf::from)
+        .or_else(|| {
+            return std::env::var_os("HOME").map(|home: std::ffi::OsString| {
+                return PathBuf::from(home).join(".cargo");
+            });
+        })?;
     let indexes = std::fs::read_dir(home.join("registry/cache")).ok()?;
-    let found: bool = indexes.flatten().any(|index| { return index.path().join(format!("{REGISTRY_CRATE}.crate")).is_file(); });
+    let found: bool = indexes.flatten().any(|index| {
+        return index
+            .path()
+            .join(format!("{REGISTRY_CRATE}.crate"))
+            .is_file();
+    });
     return found.then_some(home);
 }
 
@@ -563,38 +913,105 @@ fn cargo_home_with_registry_crate() -> Option<PathBuf> {
 ///  path outside the tree,
 /// as the person's `~/.cargo/config.toml` does;
 /// otherwise Cargo's default layout applies.
-fn cargo_repository(fixture: &Fixture, external: bool) -> PathBuf {
+fn cargo_repository(
+    fixture: &Fixture,
+    external: bool,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::create_dir_all(fixture.root.join("home")).expect("home");
     for directory in ["lib/src", "app/src", ".cargo"] {
         std::fs::create_dir_all(repo.join(directory)).expect("directory");
     }
-    std::fs::write(repo.join("Cargo.toml"), b"[workspace]\nmembers = [\"app\", \"lib\"]\nresolver = \"3\"\n").expect("workspace");
+    std::fs::write(
+        repo.join("Cargo.toml"),
+        b"[workspace]\nmembers = [\"app\", \"lib\"]\nresolver = \"3\"\n",
+    )
+    .expect("workspace");
     let registry: bool = cargo_home_with_registry_crate().is_some();
-    let dependency: &str = if registry { "\n[dependencies]\nitoa = \"=1.0.18\"\n" } else { "" };
-    std::fs::write(repo.join("lib/Cargo.toml"), format!("[package]\nname = \"lib\"\nversion = \"0.1.0\"\nedition = \"2024\"\n{dependency}")).expect("lib manifest");
-    let uses: &str = if registry { "pub fn render(number: u32) -> String { return itoa::Buffer::new().format(number).to_owned(); }\n" } else { "" };
-    std::fs::write(repo.join("lib/src/lib.rs"), format!("pub const MANIFEST: &str = env!(\"CARGO_MANIFEST_DIR\");\n{uses}")).expect("lib source");
+    let dependency: &str = if registry {
+        "\n[dependencies]\nitoa = \"=1.0.18\"\n"
+    } else {
+        ""
+    };
+    std::fs::write(
+        repo.join("lib/Cargo.toml"),
+        format!("[package]\nname = \"lib\"\nversion = \"0.1.0\"\nedition = \"2024\"\n{dependency}"),
+    )
+    .expect("lib manifest");
+    let uses: &str = if registry {
+        "pub fn render(number: u32) -> String { return itoa::Buffer::new().format(number).to_owned(); }\n"
+    } else {
+        ""
+    };
+    std::fs::write(
+        repo.join("lib/src/lib.rs"),
+        format!("pub const MANIFEST: &str = env!(\"CARGO_MANIFEST_DIR\");\n{uses}"),
+    )
+    .expect("lib source");
     std::fs::write(repo.join("app/Cargo.toml"), b"[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nlib = { path = \"../lib\" }\n").expect("app manifest");
-    std::fs::write(repo.join("app/src/main.rs"), b"fn main() { println!(\"{}\", lib::MANIFEST); }\n").expect("app source");
-    let layout: String = if external { format!("[build]\nbuild-dir = \"{}/{{workspace-path-hash}}\"\n", fixture.root.join("cargo-build").display()) } else { String::new() };
+    std::fs::write(
+        repo.join("app/src/main.rs"),
+        b"fn main() { println!(\"{}\", lib::MANIFEST); }\n",
+    )
+    .expect("app source");
+    let layout: String = if external {
+        format!(
+            "[build]\nbuild-dir = \"{}/{{workspace-path-hash}}\"\n",
+            fixture.root.join("cargo-build").display()
+        )
+    } else {
+        String::new()
+    };
     std::fs::write(repo.join(".cargo/config.toml"), layout).expect("cargo config");
     std::fs::write(repo.join(".gitignore"), b"target/\n.claude/\n").expect("gitignore");
     run_tool(fixture, "cargo", repo.as_path(), &["build", "--offline"]);
-    git(fixture, repo.as_path(), &["add", "--", ".gitignore", ".cargo/config.toml", "Cargo.toml", "Cargo.lock", "lib", "app"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=workspace"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &[
+            "add",
+            "--",
+            ".gitignore",
+            ".cargo/config.toml",
+            "Cargo.toml",
+            "Cargo.lock",
+            "lib",
+            "app",
+        ],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=workspace"],
+    );
     return repo;
 }
 
 /// The crates Cargo compiled (not found fresh) in one build of a workspace.
-fn compiled(fixture: &Fixture, root: &Path) -> Vec<String> {
-    let output: String = run_tool(fixture, "cargo", root, &["build", "--offline", "--message-format=json"]);
+fn compiled(
+    fixture: &Fixture,
+    root: &Path,
+) -> Vec<String> {
+    let output: String = run_tool(
+        fixture,
+        "cargo",
+        root,
+        &["build", "--offline", "--message-format=json"],
+    );
     let mut names: Vec<String> = output
         .lines()
-        .filter(|line: &&str| { return line.starts_with("{\"reason\":\"compiler-artifact\""); })
-        .filter_map(|line: &str| { return serde_json::from_str::<serde_json::Value>(line).ok(); })
-        .filter(|artifact: &serde_json::Value| { return artifact["fresh"] == false; })
-        .filter_map(|artifact: serde_json::Value| { return artifact["target"]["name"].as_str().map(str::to_owned); })
+        .filter(|line: &&str| {
+            return line.starts_with("{\"reason\":\"compiler-artifact\"");
+        })
+        .filter_map(|line: &str| {
+            return serde_json::from_str::<serde_json::Value>(line).ok();
+        })
+        .filter(|artifact: &serde_json::Value| {
+            return artifact["fresh"] == false;
+        })
+        .filter_map(|artifact: serde_json::Value| {
+            return artifact["target"]["name"].as_str().map(str::to_owned);
+        })
         .collect();
     names.sort();
     return names;
@@ -603,22 +1020,44 @@ fn compiled(fixture: &Fixture, root: &Path) -> Vec<String> {
 /// Link the person's Rust toolchain into the fixture's PATH directory and share only the registry of their Cargo home,
 /// or say
 ///  loudly why the controls cannot run.
-fn prepare_cargo(fixture: &Fixture, name: &str) -> bool {
+fn prepare_cargo(
+    fixture: &Fixture,
+    name: &str,
+) -> bool {
     let compiler: Option<PathBuf> = on_path("rustc");
     if !available_or_acknowledged(compiler.as_deref(), "cargo", name) {
         return false;
     }
-    let sysroot: String = String::from_utf8_lossy(&Command::new("rustc").arg("--print").arg("sysroot").output().expect("rustc").stdout).trim().to_owned();
+    let sysroot: String = String::from_utf8_lossy(
+        &Command::new("rustc")
+            .arg("--print")
+            .arg("sysroot")
+            .output()
+            .expect("rustc")
+            .stdout,
+    )
+    .trim()
+    .to_owned();
     for tool in ["cargo", "rustc", "rustdoc"] {
-        link_real(fixture, tool, Path::new(sysroot.as_str()).join("bin").join(tool).as_path());
+        link_real(
+            fixture,
+            tool,
+            Path::new(sysroot.as_str()).join("bin").join(tool).as_path(),
+        );
     }
     // The registry crate comes from the person's offline cache, reached through the fixture's home.
     if let Some(home) = cargo_home_with_registry_crate() {
         // Only the registry is shared: the person's Cargo configuration (which keys the build directory) must not apply.
         std::fs::create_dir_all(fixture.root.join("home/.cargo")).expect("fixture cargo home");
-        std::os::unix::fs::symlink(home.join("registry"), fixture.root.join("home/.cargo/registry")).expect("link the registry");
+        std::os::unix::fs::symlink(
+            home.join("registry"),
+            fixture.root.join("home/.cargo/registry"),
+        )
+        .expect("link the registry");
     } else {
-        eprintln!("REGISTRY REUSE NOT EXERCISED: {name} (no {REGISTRY_CRATE} in the offline Cargo cache)");
+        eprintln!(
+            "REGISTRY REUSE NOT EXERCISED: {name} (no {REGISTRY_CRATE} in the offline Cargo cache)"
+        );
     }
     return true;
 }
@@ -630,39 +1069,96 @@ fn prepare_cargo(fixture: &Fixture, name: &str) -> bool {
 /// a second build compiles nothing,
 /// an edit in the worktree rebuilds,
 /// and the source is untouched.
-fn cargo_control(name: &str, external: bool) {
+fn cargo_control(
+    name: &str,
+    external: bool,
+) {
     let fixture: Fixture = fixture(name);
     if !prepare_cargo(&fixture, name) {
         remove(&fixture);
         return;
     }
     let repo: PathBuf = cargo_repository(&fixture, external);
-    let source_output: String = run_tool(&fixture, "cargo", repo.as_path(), &["run", "--offline", "--quiet"]);
-    assert_eq!(source_output.trim(), repo.join("lib").to_str().expect("utf8"));
+    let source_output: String = run_tool(
+        &fixture,
+        "cargo",
+        repo.as_path(),
+        &["run", "--offline", "--quiet"],
+    );
+    assert_eq!(
+        source_output.trim(),
+        repo.join("lib").to_str().expect("utf8")
+    );
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
-    let outside: Observed = add(&fixture, repo.as_path(), &["--quiet"], "outside", "../deeper/outside");
-    let nested: Observed = add(&fixture, repo.as_path(), &["--quiet"], "nested", ".claude/worktrees/nested");
+    let outside: Observed = add(
+        &fixture,
+        repo.as_path(),
+        &["--quiet"],
+        "outside",
+        "../deeper/outside",
+    );
+    let nested: Observed = add(
+        &fixture,
+        repo.as_path(),
+        &["--quiet"],
+        "nested",
+        ".claude/worktrees/nested",
+    );
     if !external {
         // Under the default layout the add answers before the filling cleans the state the copy carried, and a build that
         //  starts in that window compiles everything itself. This control is about what the repair leaves: once the filling
         //  has run, the dependency builds are reused and the worktree's own crates were cleaned out of them.
         settle_service_work(repo.as_path());
     }
-    for (label, root) in [("outside", fixture.root.join("deeper/outside")), ("nested", repo.join(".claude/worktrees/nested"))] {
+    for (label, root) in [
+        ("outside", fixture.root.join("deeper/outside")),
+        ("nested", repo.join(".claude/worktrees/nested")),
+    ] {
         let reported: String = format!("{} {}", stderr_of(&outside), stderr_of(&nested));
         assert!(!reported.contains(PENDING_WORDS), "{label}: {reported}");
         // Dependencies from the registry are reused (not compiled again); the worktree's own crates rebuild.
         let first: Vec<String> = compiled(&fixture, root.as_path());
-        assert_eq!(first, vec![String::from("app"), String::from("lib")], "{label}: only the worktree's own crates rebuild: {reported}");
-        let ran: String = run_tool(&fixture, "cargo", root.as_path(), &["run", "--offline", "--quiet"]);
-        assert_eq!(ran.trim(), root.join("lib").to_str().expect("utf8"), "{label}: the build names the worktree's own paths");
-        assert!(compiled(&fixture, root.as_path()).is_empty(), "{label}: a second build compiles nothing");
+        assert_eq!(
+            first,
+            vec![String::from("app"), String::from("lib")],
+            "{label}: only the worktree's own crates rebuild: {reported}"
+        );
+        let ran: String = run_tool(
+            &fixture,
+            "cargo",
+            root.as_path(),
+            &["run", "--offline", "--quiet"],
+        );
+        assert_eq!(
+            ran.trim(),
+            root.join("lib").to_str().expect("utf8"),
+            "{label}: the build names the worktree's own paths"
+        );
+        assert!(
+            compiled(&fixture, root.as_path()).is_empty(),
+            "{label}: a second build compiles nothing"
+        );
         std::fs::write(root.join("lib/src/lib.rs"), b"pub const MANIFEST: &str = env!(\"CARGO_MANIFEST_DIR\");\npub const EDITED: u8 = 1;\n").expect("edit in the worktree");
-        assert!(compiled(&fixture, root.as_path()).contains(&String::from("lib")), "{label}: an edit in the worktree rebuilds");
+        assert!(
+            compiled(&fixture, root.as_path()).contains(&String::from("lib")),
+            "{label}: an edit in the worktree rebuilds"
+        );
     }
-    assert!(compiled(&fixture, repo.as_path()).is_empty(), "the source build is still fresh");
-    let still: String = run_tool(&fixture, "cargo", repo.as_path(), &["run", "--offline", "--quiet"]);
-    assert_eq!(still.trim(), repo.join("lib").to_str().expect("utf8"), "the source still names its own paths");
+    assert!(
+        compiled(&fixture, repo.as_path()).is_empty(),
+        "the source build is still fresh"
+    );
+    let still: String = run_tool(
+        &fixture,
+        "cargo",
+        repo.as_path(),
+        &["run", "--offline", "--quiet"],
+    );
+    assert_eq!(
+        still.trim(),
+        repo.join("lib").to_str().expect("utf8"),
+        "the source still names its own paths"
+    );
     remove(&fixture);
 }
 
@@ -704,27 +1200,61 @@ fn a_build_started_at_once_is_correct_and_the_add_starts_no_clean() {
     std::fs::rename(bin(&fixture).join("cargo"), real.as_path()).expect("the real Cargo aside");
     executable(
         bin(&fixture).join("cargo").as_path(),
-        format!("#!/bin/sh\nprintf '%s\\n' \"$* | $(pwd -P)\" >> '{}'\nexec '{}' \"$@\"\n", record.display(), real.display()).as_bytes(),
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$* | $(pwd -P)\" >> '{}'\nexec '{}' \"$@\"\n",
+            record.display(),
+            real.display()
+        )
+        .as_bytes(),
     );
     let repo: PathBuf = cargo_repository(&fixture, true);
     // A second workspace of the repository that nothing has ever built, whose `target/` a developer's copy carries:
     //  the workspace the add used to clean for nothing.
     let other: PathBuf = repo.join("other");
     std::fs::create_dir_all(other.join("src")).expect("the second workspace's source directory");
-    std::fs::write(other.join("Cargo.toml"), b"[package]\nname = \"other\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n").expect("the second manifest");
-    std::fs::write(other.join("src/main.rs"), b"fn main() { println!(\"{}\", env!(\"CARGO_MANIFEST_DIR\")); }\n").expect("the second crate");
+    std::fs::write(
+        other.join("Cargo.toml"),
+        b"[package]\nname = \"other\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n",
+    )
+    .expect("the second manifest");
+    std::fs::write(
+        other.join("src/main.rs"),
+        b"fn main() { println!(\"{}\", env!(\"CARGO_MANIFEST_DIR\")); }\n",
+    )
+    .expect("the second crate");
     std::fs::create_dir_all(other.join("target/debug")).expect("a leftover of the developer's");
     std::fs::write(other.join("target/debug/leftover"), b"not a build\n").expect("the leftover");
-    git(&fixture, repo.as_path(), &["add", "--", "other/Cargo.toml", "other/src/main.rs"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=the second workspace"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", "other/Cargo.toml", "other/src/main.rs"],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=the second workspace"],
+    );
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
-    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "at-once", "../deeper/at-once");
+    let created: Observed = add(
+        &fixture,
+        repo.as_path(),
+        &["--quiet"],
+        "at-once",
+        "../deeper/at-once",
+    );
     let worktree: PathBuf = fixture.root.join("deeper/at-once");
-    assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));
+    assert!(
+        !stderr_of(&created).contains(PENDING_WORDS),
+        "{}",
+        stderr_of(&created)
+    );
     let recorded: String = std::fs::read_to_string(record.as_path()).unwrap_or_default();
     // The add's own clean never passes `--locked` (the worktree was just made and nobody has it); the filling's clean of its
     //  staging copy always does, so a locked line is the service's work and not the add's wait.
-    let cleaned: Vec<&str> = recorded.lines().filter(|line: &&str| return line.starts_with("clean ") && !line.contains("--locked")).collect();
+    let cleaned: Vec<&str> = recorded
+        .lines()
+        .filter(|line: &&str| return line.starts_with("clean ") && !line.contains("--locked"))
+        .collect();
     assert!(
         cleaned.is_empty(),
         "the add starts no clean for a workspace whose build directory the worktree does not have; it ran:\n{recorded}"
@@ -735,10 +1265,23 @@ fn a_build_started_at_once_is_correct_and_the_add_starts_no_clean() {
         first.contains(&String::from("app")) && first.contains(&String::from("lib")),
         "the worktree's own crates are compiled by the first build, whether or not the filling got there before it: {first:?}"
     );
-    let ran: String = run_tool(&fixture, "cargo", worktree.as_path(), &["run", "--offline", "--quiet"]);
-    assert_eq!(ran.trim(), worktree.join("lib").to_str().expect("utf8"), "the build at once names the worktree's own paths");
+    let ran: String = run_tool(
+        &fixture,
+        "cargo",
+        worktree.as_path(),
+        &["run", "--offline", "--quiet"],
+    );
+    assert_eq!(
+        ran.trim(),
+        worktree.join("lib").to_str().expect("utf8"),
+        "the build at once names the worktree's own paths"
+    );
     let copy: PathBuf = worktree.join("other/target/debug/leftover");
-    assert!(copy.exists(), "the copy's own leftover is left where the copy put it: {}", copy.display());
+    assert!(
+        copy.exists(),
+        "the copy's own leftover is left where the copy put it: {}",
+        copy.display()
+    );
     remove(&fixture);
 }
 
@@ -761,14 +1304,20 @@ fn the_line_for_work_left_behind_names_the_queue_and_the_journal() {
     let repo: PathBuf = cargo_repository(&fixture, true);
     // The source's build directory exists once the source is built, so what the add leaves behind is a `prewarm` record it
     //  hands over instead of doing that work itself.
-    let built: String = run_tool(&fixture, "cargo", repo.as_path(), &["run", "--offline", "--quiet"]);
+    let built: String = run_tool(
+        &fixture,
+        "cargo",
+        repo.as_path(),
+        &["run", "--offline", "--quiet"],
+    );
     assert_eq!(built.trim(), repo.join("lib").to_str().expect("utf8"));
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
     // Not `--quiet`: the line this control is about is the one `--quiet` suppresses.
     let created: Observed = add(&fixture, repo.as_path(), &[], "named", "../deeper/named");
     let line: String = stderr_of(&created);
     assert!(
-        line.contains("work/{pending,claimed,done,failed}") && line.contains("the service's journal"),
+        line.contains("work/{pending,claimed,done,failed}")
+            && line.contains("the service's journal"),
         "the line for work left behind names where its progress shows: {line}"
     );
     remove(&fixture);
@@ -788,7 +1337,9 @@ const SHARED_TARGET_PACKAGE: &str = "shared-target-demo";
 ///  so the crate must be a workspace root wherever it is placed
 ///  (`doc/troubleshooting/cargo-fixture-crate-joins-the-wrapper-workspace.md`).
 fn shared_target_manifest() -> String {
-    return format!("[package]\nname = \"{SHARED_TARGET_PACKAGE}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n");
+    return format!(
+        "[package]\nname = \"{SHARED_TARGET_PACKAGE}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n"
+    );
 }
 
 /// What:
@@ -813,13 +1364,31 @@ fn shared_target_repository(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
     std::fs::write(repo.join(".gitignore"), b"/target\n").expect("gitignore");
     std::fs::write(repo.join("Cargo.toml"), shared_target_manifest()).expect("the manifest");
     std::fs::write(repo.join("src/main.rs"), b"fn main() {}\n").expect("the crate");
-    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "Cargo.toml", "src/main.rs"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=the shared target"]);
-    std::os::unix::fs::symlink(shared.as_path(), repo.join("target")).expect("the person's link to one build directory");
+    git(
+        fixture,
+        repo.as_path(),
+        &["add", "--", ".gitignore", "Cargo.toml", "src/main.rs"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=the shared target"],
+    );
+    std::os::unix::fs::symlink(shared.as_path(), repo.join("target"))
+        .expect("the person's link to one build directory");
     // `run_tool` ends the control when the build fails, so the artifact below is the only thing checked here.
-    let _built: String = run_tool(fixture, "cargo", repo.as_path(), &["build", "--offline", "--quiet"]);
+    let _built: String = run_tool(
+        fixture,
+        "cargo",
+        repo.as_path(),
+        &["build", "--offline", "--quiet"],
+    );
     let artifact: PathBuf = shared.join("debug").join(SHARED_TARGET_PACKAGE);
-    assert!(artifact.exists(), "the source's build artifact is there before the add: {}", artifact.display());
+    assert!(
+        artifact.exists(),
+        "the source's build artifact is there before the add: {}",
+        artifact.display()
+    );
     return (repo, shared, artifact);
 }
 
@@ -834,22 +1403,57 @@ fn shared_target_repository(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
 #[test]
 fn a_shared_target_a_link_carries_out_of_the_worktree_is_left_built() {
     let fixture: Fixture = fixture("repair-shared-target");
-    if !prepare_cargo(&fixture, "a_shared_target_a_link_carries_out_of_the_worktree_is_left_built") {
+    if !prepare_cargo(
+        &fixture,
+        "a_shared_target_a_link_carries_out_of_the_worktree_is_left_built",
+    ) {
         remove(&fixture);
         return;
     }
     let (repo, shared, artifact): (PathBuf, PathBuf, PathBuf) = shared_target_repository(&fixture);
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
-    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "linked", "../deeper/linked");
+    let created: Observed = add(
+        &fixture,
+        repo.as_path(),
+        &["--quiet"],
+        "linked",
+        "../deeper/linked",
+    );
     let worktree: PathBuf = fixture.root.join("deeper/linked");
-    assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));
-    assert!(std::fs::symlink_metadata(worktree.join("target")).expect("the copied link").file_type().is_symlink(), "the copy carried the person's link");
-    assert!(artifact.exists(), "the source's build artifact was deleted through the copied link: {}", artifact.display());
+    assert!(
+        !stderr_of(&created).contains(PENDING_WORDS),
+        "{}",
+        stderr_of(&created)
+    );
+    assert!(
+        std::fs::symlink_metadata(worktree.join("target"))
+            .expect("the copied link")
+            .file_type()
+            .is_symlink(),
+        "the copy carried the person's link"
+    );
+    assert!(
+        artifact.exists(),
+        "the source's build artifact was deleted through the copied link: {}",
+        artifact.display()
+    );
     // The control that proves this fixture is the hazard: the very clean the repair would have run, by hand in the
     //  worktree, deletes the source's artifact through the link.
-    let _cleaned: String = run_tool(&fixture, "cargo", worktree.as_path(), &["clean", "--offline", "--package", SHARED_TARGET_PACKAGE]);
-    assert!(!artifact.exists(), "a clean in the worktree reaches the source's build output through the copied link: {}", artifact.display());
-    assert!(shared.join("debug").is_dir(), "the shared build directory is the one the clean deleted from");
+    let _cleaned: String = run_tool(
+        &fixture,
+        "cargo",
+        worktree.as_path(),
+        &["clean", "--offline", "--package", SHARED_TARGET_PACKAGE],
+    );
+    assert!(
+        !artifact.exists(),
+        "a clean in the worktree reaches the source's build output through the copied link: {}",
+        artifact.display()
+    );
+    assert!(
+        shared.join("debug").is_dir(),
+        "the shared build directory is the one the clean deleted from"
+    );
 }
 
 /// What:
@@ -870,26 +1474,52 @@ fn a_shared_target_a_link_carries_out_of_the_worktree_is_left_built() {
 #[test]
 fn an_external_build_directory_never_cleans_through_a_linked_target() {
     let fixture: Fixture = fixture("repair-external-build-linked-target");
-    if !prepare_cargo(&fixture, "an_external_build_directory_never_cleans_through_a_linked_target") {
+    if !prepare_cargo(
+        &fixture,
+        "an_external_build_directory_never_cleans_through_a_linked_target",
+    ) {
         remove(&fixture);
         return;
     }
     let (repo, _shared, artifact): (PathBuf, PathBuf, PathBuf) = shared_target_repository(&fixture);
     // Build the shared target before enabling external intermediates: the source's external build directory is absent
     //  while its copied target link still holds a real artifact.
-    let layout: String = format!("[build]\nbuild-dir = \"{}/{{workspace-path-hash}}\"\n", fixture.root.join("cargo-build").display());
+    let layout: String = format!(
+        "[build]\nbuild-dir = \"{}/{{workspace-path-hash}}\"\n",
+        fixture.root.join("cargo-build").display()
+    );
     std::fs::create_dir_all(repo.join(".cargo")).expect("Cargo config directory");
     std::fs::write(repo.join(".cargo/config.toml"), layout).expect("external build-dir config");
-    git(&fixture, repo.as_path(), &["add", "--", ".cargo/config.toml"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=external build dir"]);
-    assert!(artifact.exists(), "positive control: the source artifact exists before the add");
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", ".cargo/config.toml"],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=external build dir"],
+    );
+    assert!(
+        artifact.exists(),
+        "positive control: the source artifact exists before the add"
+    );
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
-    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "linked", "../deeper/linked");
+    let created: Observed = add(
+        &fixture,
+        repo.as_path(),
+        &["--quiet"],
+        "linked",
+        "../deeper/linked",
+    );
     let survived: bool = artifact.exists();
     let reported: String = stderr_of(&created);
     assert!(!reported.contains(PENDING_WORDS), "{reported}");
     remove(&fixture);
-    assert!(survived, "the add's Cargo repair deleted the source artifact through the copied target link: {reported}");
+    assert!(
+        survived,
+        "the add's Cargo repair deleted the source artifact through the copied target link: {reported}"
+    );
 }
 
 /// Cargo's default layout,
@@ -917,9 +1547,14 @@ const LATE_MEMBER: &str = "extra";
 /// ```
 fn kept_lock_copies(repo: &Path) -> Vec<Vec<u8>> {
     let mut found: Vec<Vec<u8>> = Vec::new();
-    let mut pending: Vec<PathBuf> = vec![repo.join(".git").join(git_policy_cli::package_repair_cargo_lock::DISPLACED_DIRECTORY)];
+    let mut pending: Vec<PathBuf> = vec![
+        repo.join(".git")
+            .join(git_policy_cli::package_repair_cargo_lock::DISPLACED_DIRECTORY),
+    ];
     while let Some(directory) = pending.pop() {
-        let Ok(entries) = std::fs::read_dir(directory) else { continue };
+        let Ok(entries) = std::fs::read_dir(directory) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path: PathBuf = entry.path();
             if path.is_dir() {
@@ -943,45 +1578,106 @@ fn kept_lock_copies(repo: &Path) -> Vec<Vec<u8>> {
 #[test]
 fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     let fixture: Fixture = fixture("repair-real-cargo-stale-lock");
-    if !prepare_cargo(&fixture, "real_cargo_leaves_a_stale_lockfile_as_checked_out") {
+    if !prepare_cargo(
+        &fixture,
+        "real_cargo_leaves_a_stale_lockfile_as_checked_out",
+    ) {
         remove(&fixture);
         return;
     }
     let repo: PathBuf = cargo_repository(&fixture, false);
     // A new member that `app` now depends on, committed without regenerating the lock.
     std::fs::create_dir_all(repo.join(LATE_MEMBER).join("src")).expect("the late member");
-    std::fs::write(repo.join(LATE_MEMBER).join("Cargo.toml"), format!("[package]\nname = \"{LATE_MEMBER}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")).expect("the late member's manifest");
-    std::fs::write(repo.join(LATE_MEMBER).join("src/lib.rs"), format!("pub const {}: u8 = 1;\n", LATE_MEMBER.to_uppercase())).expect("the late member's source");
-    std::fs::write(repo.join("Cargo.toml"), format!("[workspace]\nmembers = [\"app\", \"lib\", \"{LATE_MEMBER}\"]\nresolver = \"3\"\n")).expect("workspace");
+    std::fs::write(
+        repo.join(LATE_MEMBER).join("Cargo.toml"),
+        format!("[package]\nname = \"{LATE_MEMBER}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
+    )
+    .expect("the late member's manifest");
+    std::fs::write(
+        repo.join(LATE_MEMBER).join("src/lib.rs"),
+        format!("pub const {}: u8 = 1;\n", LATE_MEMBER.to_uppercase()),
+    )
+    .expect("the late member's source");
+    std::fs::write(
+        repo.join("Cargo.toml"),
+        format!("[workspace]\nmembers = [\"app\", \"lib\", \"{LATE_MEMBER}\"]\nresolver = \"3\"\n"),
+    )
+    .expect("workspace");
     let app: String = std::fs::read_to_string(repo.join("app/Cargo.toml")).expect("app manifest");
-    std::fs::write(repo.join("app/Cargo.toml"), format!("{app}{LATE_MEMBER} = {{ path = \"../{LATE_MEMBER}\" }}\n")).expect("app manifest with the late member");
-    git(&fixture, repo.as_path(), &["add", "--", "Cargo.toml", "app/Cargo.toml", LATE_MEMBER]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=a member the lock lacks"]);
+    std::fs::write(
+        repo.join("app/Cargo.toml"),
+        format!("{app}{LATE_MEMBER} = {{ path = \"../{LATE_MEMBER}\" }}\n"),
+    )
+    .expect("app manifest with the late member");
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", "Cargo.toml", "app/Cargo.toml", LATE_MEMBER],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=a member the lock lacks"],
+    );
     let before: Vec<u8> = std::fs::read(repo.join("Cargo.lock")).expect("lock");
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
     // A run may ask for the ending the gate of 2026-11-15T06:00-05:00 met: the filling's own clean ended by a signal from
     //  outside the runner's ceiling and quiet window, and the resolution after it refused.
     end_the_fills_clean(&fixture);
-    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "stale", "../deeper/stale");
+    let created: Observed = add(
+        &fixture,
+        repo.as_path(),
+        &["--quiet"],
+        "stale",
+        "../deeper/stale",
+    );
     let worktree: PathBuf = fixture.root.join("deeper/stale");
-    assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));
-    assert_eq!(std::fs::read(worktree.join("Cargo.lock")).expect("worktree lock"), before, "the worktree's lock was rewritten");
+    assert!(
+        !stderr_of(&created).contains(PENDING_WORDS),
+        "{}",
+        stderr_of(&created)
+    );
+    assert_eq!(
+        std::fs::read(worktree.join("Cargo.lock")).expect("worktree lock"),
+        before,
+        "the worktree's lock was rewritten"
+    );
     let status = git(&fixture, worktree.as_path(), &["status", "--porcelain"]);
-    assert!(status.stdout.is_empty(), "the new worktree is dirty: {}", String::from_utf8_lossy(&status.stdout));
-    assert_eq!(std::fs::read(repo.join("Cargo.lock")).expect("source lock"), before, "the source's lock changed");
+    assert!(
+        status.stdout.is_empty(),
+        "the new worktree is dirty: {}",
+        String::from_utf8_lossy(&status.stdout)
+    );
+    assert_eq!(
+        std::fs::read(repo.join("Cargo.lock")).expect("source lock"),
+        before,
+        "the source's lock changed"
+    );
     // A filling that did not run to its end displaced nothing, so a failure names the filling's own reason rather than an
     //  empty folder: at the gate of 2026-11-15T06:00-05:00 the machine ended this filling's clean and the control reported
     //  only that the bytes were not kept, which sent a reader after a clean that never took a byte.
-    if let Some(said) = a_filling_that_did_not_run_to_its_end(&fixture, repo.join(".git").as_path(), worktree.as_path()) {
+    if let Some(said) = a_filling_that_did_not_run_to_its_end(
+        &fixture,
+        repo.join(".git").as_path(),
+        worktree.as_path(),
+    ) {
         panic!("{said}");
     }
     // The bytes the clean displaced are kept rather than dropped: they are the only record of what stood in the worktree,
     // and nothing read after a clean can tell Cargo's rewrite from a newer write of the person's
     // (`package_repair_cargo_lock.rs`).
     let kept: Vec<Vec<u8>> = kept_lock_copies(repo.as_path());
-    assert_eq!(kept.len(), 1, "the bytes the clean displaced were not kept: {kept:?}");
+    assert_eq!(
+        kept.len(),
+        1,
+        "the bytes the clean displaced were not kept: {kept:?}"
+    );
     let written: &[u8] = kept[0].as_slice();
-    assert_ne!(written, before.as_slice(), "the kept copy is the checked-out lock itself, so no rewrite was kept");
+    assert_ne!(
+        written,
+        before.as_slice(),
+        "the kept copy is the checked-out lock itself, so no rewrite was kept"
+    );
     let late_member_line: String = format!("name = \"{LATE_MEMBER}\"");
     assert!(
         String::from_utf8_lossy(written).contains(late_member_line.as_str()),

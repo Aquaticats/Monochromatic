@@ -29,13 +29,34 @@
 //! ```
 
 use crate::service_land_follow::classify;
-use crate::service_land_side_reference_write::{StepAnswer, answering, answering_awaiting, keep_an_unlanded_commit, take_ceiling_step};
-use crate::service_protocol::{CommitRequest, FailureCode};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest};
-use std::collections::{BTreeSet, HashMap};
+use crate::service_land_side_reference_write::{
+    StepAnswer,
+    answering,
+    answering_awaiting,
+    keep_an_unlanded_commit,
+    take_ceiling_step,
+};
+use crate::service_protocol::{
+    CommitRequest,
+    FailureCode,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+};
 use std::path::Path;
 
-pub(crate) fn run<S: AsRef<std::ffi::OsStr>>(git: &GitContext, repository: &Path, arguments: &[S], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
+pub(crate) fn run<S: AsRef<std::ffi::OsStr>>(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[S],
+    input: Option<Vec<u8>>,
+) -> Result<GitOutput, FailureCode> {
     return run_words(git, repository, owned_words(arguments).as_slice(), input);
 }
 
@@ -72,8 +93,19 @@ fn owned_words<S: AsRef<std::ffi::OsStr>>(arguments: &[S]) -> Vec<std::ffi::OsSt
 /// ```ts
 /// const output = await runAwaiting(git, repository, args, input);
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn run_awaiting(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn run_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[&str],
+    input: Option<Vec<u8>>,
+) -> Result<GitOutput, FailureCode> {
     let words: Vec<std::ffi::OsString> = arguments.iter().map(std::ffi::OsString::from).collect();
     return run_words_awaiting(git, repository, words.as_slice(), input).await;
 }
@@ -89,7 +121,12 @@ pub(crate) async fn run_awaiting(git: &GitContext, repository: &Path, arguments:
 /// ```ts
 /// git(['update-ref', '-m', message, '--stdin'], { input: transaction })
 /// ```
-pub(crate) fn run_words(git: &GitContext, repository: &Path, arguments: &[std::ffi::OsString], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
+pub(crate) fn run_words(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[std::ffi::OsString],
+    input: Option<Vec<u8>>,
+) -> Result<GitOutput, FailureCode> {
     return answered_step(answering(git, words_request(repository, arguments, input)));
 }
 
@@ -105,18 +142,30 @@ pub(crate) fn run_words(git: &GitContext, repository: &Path, arguments: &[std::f
 /// ```ts
 /// const output = await runWordsAwaiting(git, repository, arguments, input);
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
 pub(crate) async fn run_words_awaiting(
     git: &GitContext,
     repository: &Path,
     arguments: &[std::ffi::OsString],
     input: Option<Vec<u8>>,
 ) -> Result<GitOutput, FailureCode> {
-    return answered_step(answering_awaiting(git, words_request(repository, arguments, input)).await);
+    return answered_step(
+        answering_awaiting(git, words_request(repository, arguments, input)).await,
+    );
 }
 
 /// The question both faces of `run_words` ask Git.
-fn words_request(repository: &Path, arguments: &[std::ffi::OsString], input: Option<Vec<u8>>) -> GitRequest {
+fn words_request(
+    repository: &Path,
+    arguments: &[std::ffi::OsString],
+    input: Option<Vec<u8>>,
+) -> GitRequest {
     let mut request: GitRequest = GitRequest::new(repository, arguments);
     request.input = input;
     return request;
@@ -149,7 +198,12 @@ fn answered_step(answer: StepAnswer) -> Result<GitOutput, FailureCode> {
     };
 }
 
-pub(crate) fn checked<S: AsRef<std::ffi::OsStr>>(git: &GitContext, repository: &Path, arguments: &[S], input: Option<Vec<u8>>) -> Result<String, FailureCode> {
+pub(crate) fn checked<S: AsRef<std::ffi::OsStr>>(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[S],
+    input: Option<Vec<u8>>,
+) -> Result<String, FailureCode> {
     return checked_text(run(git, repository, arguments, input)?);
 }
 
@@ -167,8 +221,19 @@ pub(crate) fn checked<S: AsRef<std::ffi::OsStr>>(git: &GitContext, repository: &
 /// ```ts
 /// const text = await checkedAwaiting(git, repository, args, input);
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn checked_awaiting(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<String, FailureCode> {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn checked_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[&str],
+    input: Option<Vec<u8>>,
+) -> Result<String, FailureCode> {
     return checked_text(run_awaiting(git, repository, arguments, input).await?);
 }
 
@@ -188,7 +253,9 @@ fn checked_text(output: GitOutput) -> Result<String, FailureCode> {
     if !output.succeeded() {
         return Err(classify(&output));
     }
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+    return Ok(String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_string());
 }
 
 /// What:
@@ -198,7 +265,12 @@ fn checked_text(output: GitOutput) -> Result<String, FailureCode> {
 ///   `checked` answers with trimmed text,
 /// which is right for an object name and wrong for a listing of paths:
 /// a listing with a name that is not text has to reach the caller as the name Git wrote.
-pub(crate) fn checked_bytes<S: AsRef<std::ffi::OsStr>>(git: &GitContext, repository: &Path, arguments: &[S], input: Option<Vec<u8>>) -> Result<Vec<u8>, FailureCode> {
+pub(crate) fn checked_bytes<S: AsRef<std::ffi::OsStr>>(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[S],
+    input: Option<Vec<u8>>,
+) -> Result<Vec<u8>, FailureCode> {
     return checked_stdout(run(git, repository, arguments, input)?);
 }
 
@@ -216,8 +288,19 @@ pub(crate) fn checked_bytes<S: AsRef<std::ffi::OsStr>>(git: &GitContext, reposit
 /// ```ts
 /// const listing = await checkedBytesAwaiting(git, repository, args, input);
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn checked_bytes_awaiting(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<Vec<u8>, FailureCode> {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn checked_bytes_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[&str],
+    input: Option<Vec<u8>>,
+) -> Result<Vec<u8>, FailureCode> {
     return checked_stdout(run_awaiting(git, repository, arguments, input).await?);
 }
 
@@ -243,11 +326,21 @@ fn checked_stdout(output: GitOutput) -> Result<Vec<u8>, FailureCode> {
 /// kept in a file of their own to stay under the file-size limit.
 #[path = "service_land_batch_import_stream_and_overlaps.rs"]
 mod batch_text;
-pub(crate) use self::batch_text::{commits_from_marks, ids_of, import_stream};
+pub(crate) use self::batch_text::{
+    commits_from_marks,
+    ids_of,
+    import_stream,
+};
+use self::batch_text::{
+    ends_a_field,
+    landing_of,
+};
 /// The forms a control of the batch's paths reads the stream and the comparisons by.
 #[cfg(test)]
-pub(crate) use self::batch_text::{overlaps, quoted};
-use self::batch_text::{ends_a_field, landing_of};
+pub(crate) use self::batch_text::{
+    overlaps,
+    quoted,
+};
 
 /// What:
 ///  The command each request of a batch says will decide its commit's post-commit checks,
@@ -289,11 +382,12 @@ pub(crate) fn holders_of(batch: &[&CommitRequest]) -> Vec<String> {
 pub(crate) fn transports_of(batch: &[&CommitRequest]) -> Vec<bool> {
     let mut transports: Vec<bool> = Vec::new();
     for request in batch {
-        transports.push(request.programs.as_ref().is_some_and(|programs| { return programs.transport; }));
+        transports.push(request.programs.as_ref().is_some_and(|programs| {
+            return programs.transport;
+        }));
     }
     return transports;
 }
-
 
 /// What:
 ///  The requests of a batch that land against the tip `old`,
@@ -308,11 +402,21 @@ pub(crate) fn transports_of(batch: &[&CommitRequest]) -> Vec<bool> {
 /// ```ts
 /// requests.map((r, i) => [i, r]).filter(([, r]) => !conflictsSince(r, old) && !shadowedByEarlier(r))
 /// ```
-pub(crate) fn requests_that_land<'a>(git: &GitContext, repository: &Path, requests: &'a [CommitRequest], old: &str) -> Result<Vec<(usize, &'a CommitRequest)>, FailureCode> {
+pub(crate) fn requests_that_land<'a>(
+    git: &GitContext,
+    repository: &Path,
+    requests: &'a [CommitRequest],
+    old: &str,
+) -> Result<Vec<(usize, &'a CommitRequest)>, FailureCode> {
     let mut changed_since: HashMap<&str, BTreeSet<Vec<u8>>> = HashMap::new();
     for request in requests {
         if request.base != old && !changed_since.contains_key(request.base.as_str()) {
-            let listing: Vec<u8> = checked_bytes(git, repository, &names_since_request(request.base.as_str(), old), None)?;
+            let listing: Vec<u8> = checked_bytes(
+                git,
+                repository,
+                &names_since_request(request.base.as_str(), old),
+                None,
+            )?;
             changed_since.insert(request.base.as_str(), names_of(listing.as_slice()));
         }
     }
@@ -334,7 +438,13 @@ pub(crate) fn requests_that_land<'a>(git: &GitContext, repository: &Path, reques
 /// ```ts
 /// const landing = await requestsThatLandAwaiting(git, repository, requests, old);
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
 pub(crate) async fn requests_that_land_awaiting<'a>(
     git: &GitContext,
     repository: &Path,
@@ -344,7 +454,13 @@ pub(crate) async fn requests_that_land_awaiting<'a>(
     let mut changed_since: HashMap<&str, BTreeSet<Vec<u8>>> = HashMap::new();
     for request in requests {
         if request.base != old && !changed_since.contains_key(request.base.as_str()) {
-            let listing: Vec<u8> = checked_bytes_awaiting(git, repository, &names_since_request(request.base.as_str(), old), None).await?;
+            let listing: Vec<u8> = checked_bytes_awaiting(
+                git,
+                repository,
+                &names_since_request(request.base.as_str(), old),
+                None,
+            )
+            .await?;
             changed_since.insert(request.base.as_str(), names_of(listing.as_slice()));
         }
     }
@@ -352,7 +468,10 @@ pub(crate) async fn requests_that_land_awaiting<'a>(
 }
 
 /// The question that lists the paths a request's base changed since `old`.
-fn names_since_request<'a>(base: &'a str, old: &'a str) -> Vec<&'a str> {
+fn names_since_request<'a>(
+    base: &'a str,
+    old: &'a str,
+) -> Vec<&'a str> {
     return vec!["diff-tree", "-r", "--name-only", "-z", base, old];
 }
 
@@ -388,14 +507,42 @@ fn names_of(listing: &[u8]) -> BTreeSet<Vec<u8>> {
 /// ```ts
 /// keepWhatAnEndedStepBuilt(context, announce, requests, seq)
 /// ```
-pub fn keep_what_an_ended_step_built(context: &crate::service_land_context::LandContext, announce: &dyn crate::service_index_lock::Announcer, requests: &[CommitRequest], seq: u64) {
-    let Some(step) = take_ceiling_step() else { return };
-    let Some(first) = requests.first() else { return };
-    announce.announce(crate::service_index_lock::Announce::Waiting(format!("monochromatic-git-policy-cli: {step}, so this commit was not made.\n")));
-    let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
+pub fn keep_what_an_ended_step_built(
+    context: &crate::service_land_context::LandContext,
+    announce: &dyn crate::service_index_lock::Announcer,
+    requests: &[CommitRequest],
+    seq: u64,
+) {
+    let Some(step) = take_ceiling_step() else {
+        return;
+    };
+    let Some(first) = requests.first() else {
+        return;
+    };
+    announce.announce(crate::service_index_lock::Announce::Waiting(format!(
+        "monochromatic-git-policy-cli: {step}, so this commit was not made.\n"
+    )));
+    let git: GitContext = GitContext {
+        common_dir: Some(first.common_dir.clone()),
+        ..context.git.clone()
+    };
     let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(seq);
-    let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) else { return };
-    let _kept = keep_an_unlanded_commit(&git, first.repository.as_path(), seq, scratch.as_str(), tip.as_str(), announce);
+    let Ok(tip) = checked(
+        &git,
+        first.repository.as_path(),
+        &["rev-parse", "--verify", "--quiet", scratch.as_str()],
+        None,
+    ) else {
+        return;
+    };
+    let _kept = keep_an_unlanded_commit(
+        &git,
+        first.repository.as_path(),
+        seq,
+        scratch.as_str(),
+        tip.as_str(),
+        announce,
+    );
 }
 
 /// Controls for the awaited Git steps of a landing stay out of the release executable.

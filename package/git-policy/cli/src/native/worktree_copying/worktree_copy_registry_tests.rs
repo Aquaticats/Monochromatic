@@ -1,11 +1,20 @@
 //! Consumer checks of linked-worktree registration observation against real Git.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::worktree_copy_prune::Prune;
 
 /// A bare repository with no worktree.
-fn bare(parent: &Path, name: &str) -> PathBuf {
+fn bare(
+    parent: &Path,
+    name: &str,
+) -> PathBuf {
     let root: PathBuf = parent.join(name);
     git(parent, &["init", "--quiet", "--bare", name]);
     return std::fs::canonicalize(root).expect("canonical bare repository");
@@ -17,7 +26,10 @@ fn common_dir_of(root: &Path) -> PathBuf {
 }
 
 /// A linked worktree's identity as the native identity query reports it.
-fn linked(common_dir: &Path, worktree_root: &Path) -> WorktreeIdentity {
+fn linked(
+    common_dir: &Path,
+    worktree_root: &Path,
+) -> WorktreeIdentity {
     return WorktreeIdentity::LinkedWorktree {
         common_dir: common_dir.to_path_buf(),
         git_dir: common_dir.join("worktrees").join("unused"),
@@ -79,7 +91,14 @@ fn linked_and_bare_observations_keep_the_standard_selection() {
     let topic: PathBuf = root.join("topic");
     git(
         main.as_path(),
-        &["worktree", "add", "--quiet", "-b", "topic", topic.to_str().expect("utf8")],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            topic.to_str().expect("utf8"),
+        ],
     );
     let topic_root: PathBuf = std::fs::canonicalize(topic.as_path()).expect("canonical topic");
     let linked_observation: WorktreeCopyObservation = observe_copy_source(
@@ -147,7 +166,10 @@ fn bare_and_linked_repositories_are_observed() {
 }
 
 /// The observation of the main checkout used by the finds below.
-fn main_observation(main: &Path, common: &Path) -> WorktreeCopyObservation {
+fn main_observation(
+    main: &Path,
+    common: &Path,
+) -> WorktreeCopyObservation {
     return WorktreeCopyObservation {
         common_dir: common.to_path_buf(),
         effective_cwd: main.to_path_buf(),
@@ -157,9 +179,23 @@ fn main_observation(main: &Path, common: &Path) -> WorktreeCopyObservation {
 }
 
 /// Adds the worktree `name` beside the repository with real Git and returns its canonical destination.
-fn add_worktree(root: &Path, main: &Path, name: &str) -> PathBuf {
+fn add_worktree(
+    root: &Path,
+    main: &Path,
+    name: &str,
+) -> PathBuf {
     let destination: PathBuf = root.join(name);
-    git(main, &["worktree", "add", "--quiet", "-b", name, destination.to_str().expect("utf8")]);
+    git(
+        main,
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            name,
+            destination.to_str().expect("utf8"),
+        ],
+    );
     return std::fs::canonicalize(destination).expect("canonical destination");
 }
 
@@ -170,10 +206,22 @@ fn an_unregistered_destination_creates_nothing() {
     let root: PathBuf = fixture("registry-find-none");
     let main: PathBuf = repository(root.as_path(), "main");
     let common: PathBuf = common_dir_of(main.as_path());
-    let absent: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("absent");
-    assert!(!destination_is_registered(common.as_path(), absent.as_path()));
-    let found: CreatedWorktrees =
-        find_created_worktree(&git_context(), &main_observation(main.as_path(), common.as_path()), absent.as_path(), false, "test-command", None).expect("found");
+    let absent: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical root")
+        .join("absent");
+    assert!(!destination_is_registered(
+        common.as_path(),
+        absent.as_path()
+    ));
+    let found: CreatedWorktrees = find_created_worktree(
+        &git_context(),
+        &main_observation(main.as_path(), common.as_path()),
+        absent.as_path(),
+        false,
+        "test-command",
+        None,
+    )
+    .expect("found");
     assert_eq!(
         found,
         CreatedWorktrees {
@@ -192,16 +240,35 @@ fn added_worktree_is_found_with_its_root() {
     let main: PathBuf = repository(root.as_path(), "main");
     let common: PathBuf = common_dir_of(main.as_path());
     let observation: WorktreeCopyObservation = main_observation(main.as_path(), common.as_path());
-    let future: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let future: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical root")
+        .join("topic");
     let registered_before: bool = destination_is_registered(common.as_path(), future.as_path());
     assert!(!registered_before);
     let topic_root: PathBuf = add_worktree(root.as_path(), main.as_path(), "topic");
     assert_eq!(topic_root, future);
-    let found: CreatedWorktrees =
-        find_created_worktree(&git_context(), &observation, topic_root.as_path(), registered_before, "test-command", None).expect("found");
-    assert_eq!(found.created, vec![CreatedWorktree { root: topic_root.clone(), binding: binding_of(common.as_path(), topic_root.as_path()) }]);
+    let found: CreatedWorktrees = find_created_worktree(
+        &git_context(),
+        &observation,
+        topic_root.as_path(),
+        registered_before,
+        "test-command",
+        None,
+    )
+    .expect("found");
+    assert_eq!(
+        found.created,
+        vec![CreatedWorktree {
+            root: topic_root.clone(),
+            binding: binding_of(common.as_path(), topic_root.as_path())
+        }]
+    );
     assert!(found.registered_roots.contains(&topic_root));
-    assert!(found.registered_roots.contains(&std::fs::canonicalize(main.as_path()).expect("main")));
+    assert!(
+        found
+            .registered_roots
+            .contains(&std::fs::canonicalize(main.as_path()).expect("main"))
+    );
     remove(root.as_path());
 }
 
@@ -213,9 +280,19 @@ fn a_destination_registered_before_is_not_created() {
     let main: PathBuf = repository(root.as_path(), "main");
     let common: PathBuf = common_dir_of(main.as_path());
     let topic_root: PathBuf = add_worktree(root.as_path(), main.as_path(), "topic");
-    assert!(destination_is_registered(common.as_path(), topic_root.as_path()));
-    let found: CreatedWorktrees =
-        find_created_worktree(&git_context(), &main_observation(main.as_path(), common.as_path()), topic_root.as_path(), true, "test-command", None).expect("found");
+    assert!(destination_is_registered(
+        common.as_path(),
+        topic_root.as_path()
+    ));
+    let found: CreatedWorktrees = find_created_worktree(
+        &git_context(),
+        &main_observation(main.as_path(), common.as_path()),
+        topic_root.as_path(),
+        true,
+        "test-command",
+        None,
+    )
+    .expect("found");
     assert!(found.created.is_empty());
     assert_eq!(found.other_commands, None);
     remove(root.as_path());
@@ -223,8 +300,13 @@ fn a_destination_registered_before_is_not_created() {
 
 /// The registration a worktree Git made is bound to,
 /// for the expectations of what a find returns.
-fn binding_of(common: &Path, destination: &Path) -> crate::worktree_add_binding::Binding {
-    return crate::worktree_add_binding::bind_registration(common, destination).expect("binding").binding;
+fn binding_of(
+    common: &Path,
+    destination: &Path,
+) -> crate::worktree_add_binding::Binding {
+    return crate::worktree_add_binding::bind_registration(common, destination)
+        .expect("binding")
+        .binding;
 }
 
 /// Two worktrees registered around one command are told apart by their destinations:
@@ -239,10 +321,38 @@ fn concurrent_registrations_are_told_apart_by_destination() {
     let observation: WorktreeCopyObservation = main_observation(main.as_path(), common.as_path());
     let first: PathBuf = add_worktree(root.as_path(), main.as_path(), "first");
     let second: PathBuf = add_worktree(root.as_path(), main.as_path(), "second");
-    let for_first: CreatedWorktrees = find_created_worktree(&git_context(), &observation, first.as_path(), false, "test-command", None).expect("first");
-    let for_second: CreatedWorktrees = find_created_worktree(&git_context(), &observation, second.as_path(), false, "test-command", None).expect("second");
-    assert_eq!(for_first.created, vec![CreatedWorktree { root: first.clone(), binding: binding_of(common.as_path(), first.as_path()) }]);
-    assert_eq!(for_second.created, vec![CreatedWorktree { root: second.clone(), binding: binding_of(common.as_path(), second.as_path()) }]);
+    let for_first: CreatedWorktrees = find_created_worktree(
+        &git_context(),
+        &observation,
+        first.as_path(),
+        false,
+        "test-command",
+        None,
+    )
+    .expect("first");
+    let for_second: CreatedWorktrees = find_created_worktree(
+        &git_context(),
+        &observation,
+        second.as_path(),
+        false,
+        "test-command",
+        None,
+    )
+    .expect("second");
+    assert_eq!(
+        for_first.created,
+        vec![CreatedWorktree {
+            root: first.clone(),
+            binding: binding_of(common.as_path(), first.as_path())
+        }]
+    );
+    assert_eq!(
+        for_second.created,
+        vec![CreatedWorktree {
+            root: second.clone(),
+            binding: binding_of(common.as_path(), second.as_path())
+        }]
+    );
     remove(root.as_path());
 }
 
@@ -257,11 +367,19 @@ fn a_foreign_or_dangling_pointer_is_not_a_registration() {
     let other: PathBuf = repository(root.as_path(), "other");
     let common: PathBuf = common_dir_of(main.as_path());
     let elsewhere: PathBuf = add_worktree(root.as_path(), other.as_path(), "elsewhere");
-    assert!(!destination_is_registered(common.as_path(), elsewhere.as_path()));
-    let dangling: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("dangling");
+    assert!(!destination_is_registered(
+        common.as_path(),
+        elsewhere.as_path()
+    ));
+    let dangling: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical root")
+        .join("dangling");
     std::fs::create_dir(dangling.as_path()).expect("dangling");
     std::fs::write(dangling.join(".git"), b"gitdir: /nonexistent/admin\n").expect("pointer");
-    assert!(!destination_is_registered(common.as_path(), dangling.as_path()));
+    assert!(!destination_is_registered(
+        common.as_path(),
+        dangling.as_path()
+    ));
     remove(root.as_path());
 }
 
@@ -279,14 +397,37 @@ fn worktree_registered_before_failing_hook_is_found() {
     let hook: PathBuf = hooks.join("post-checkout");
     std::fs::write(hook.as_path(), b"#!/bin/sh\nexit 1\n").expect("hook");
     std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("mode");
-    let topic: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let topic: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical root")
+        .join("topic");
     let output = crate::test_support::git_output(
         main.as_path(),
-        &["worktree", "add", "--quiet", "-b", "topic", topic.to_str().expect("utf8")],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            topic.to_str().expect("utf8"),
+        ],
     );
     assert!(!output.status.success(), "the hook must fail the command");
-    let found: CreatedWorktrees = find_created_worktree(&git_context(), &observation, topic.as_path(), false, "test-command", None).expect("found");
-    assert_eq!(found.created, vec![CreatedWorktree { root: topic.clone(), binding: binding_of(common.as_path(), topic.as_path()) }]);
+    let found: CreatedWorktrees = find_created_worktree(
+        &git_context(),
+        &observation,
+        topic.as_path(),
+        false,
+        "test-command",
+        None,
+    )
+    .expect("found");
+    assert_eq!(
+        found.created,
+        vec![CreatedWorktree {
+            root: topic.clone(),
+            binding: binding_of(common.as_path(), topic.as_path())
+        }]
+    );
     remove(root.as_path());
 }
 
@@ -299,8 +440,15 @@ fn a_registration_whose_directory_is_gone_creates_nothing() {
     let common: PathBuf = common_dir_of(main.as_path());
     let topic: PathBuf = add_worktree(root.as_path(), main.as_path(), "topic");
     std::fs::remove_dir_all(topic.as_path()).expect("delete root");
-    let found: CreatedWorktrees =
-        find_created_worktree(&git_context(), &main_observation(main.as_path(), common.as_path()), topic.as_path(), false, "test-command", None).expect("found");
+    let found: CreatedWorktrees = find_created_worktree(
+        &git_context(),
+        &main_observation(main.as_path(), common.as_path()),
+        topic.as_path(),
+        false,
+        "test-command",
+        None,
+    )
+    .expect("found");
     assert!(found.created.is_empty());
     remove(root.as_path());
 }
@@ -312,12 +460,41 @@ fn a_destination_registered_with_relative_paths_is_found() {
     let root: PathBuf = fixture("registry-relative-paths");
     let main: PathBuf = repository(root.as_path(), "main");
     let common: PathBuf = common_dir_of(main.as_path());
-    let destination: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
-    git(main.as_path(), &["worktree", "add", "--quiet", "--relative-paths", "-b", "topic", destination.to_str().expect("utf8")]);
-    assert!(destination_is_registered(common.as_path(), destination.as_path()));
-    let found: CreatedWorktrees =
-        find_created_worktree(&git_context(), &main_observation(main.as_path(), common.as_path()), destination.as_path(), false, "test-command", None).expect("found");
-    assert_eq!(found.created, vec![CreatedWorktree { root: destination.clone(), binding: binding_of(common.as_path(), destination.as_path()) }]);
+    let destination: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical root")
+        .join("topic");
+    git(
+        main.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--relative-paths",
+            "-b",
+            "topic",
+            destination.to_str().expect("utf8"),
+        ],
+    );
+    assert!(destination_is_registered(
+        common.as_path(),
+        destination.as_path()
+    ));
+    let found: CreatedWorktrees = find_created_worktree(
+        &git_context(),
+        &main_observation(main.as_path(), common.as_path()),
+        destination.as_path(),
+        false,
+        "test-command",
+        None,
+    )
+    .expect("found");
+    assert_eq!(
+        found.created,
+        vec![CreatedWorktree {
+            root: destination.clone(),
+            binding: binding_of(common.as_path(), destination.as_path())
+        }]
+    );
     remove(root.as_path());
 }
 
@@ -331,17 +508,47 @@ fn a_registration_that_is_not_the_reserved_object_is_not_claimed() {
     let root: PathBuf = fixture("registry-not-the-reserved-object");
     let main: PathBuf = repository(root.as_path(), "main");
     let common: PathBuf = common_dir_of(main.as_path());
-    let destination: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
-    let moved: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("moved");
+    let destination: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical root")
+        .join("topic");
+    let moved: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("canonical root")
+        .join("moved");
     let expected: crate::fs_beneath::ObjectId = binding_of(common.as_path(), {
-        crate::test_support::git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", destination.to_str().expect("utf8")]);
+        crate::test_support::git(
+            main.as_path(),
+            &[
+                "worktree",
+                "add",
+                "--quiet",
+                "-b",
+                "topic",
+                destination.to_str().expect("utf8"),
+            ],
+        );
         destination.as_path()
     })
     .destination_id;
-    crate::test_support::git(main.as_path(), &["worktree", "move", destination.to_str().expect("utf8"), moved.to_str().expect("utf8")]);
     crate::test_support::git(
         main.as_path(),
-        &["worktree", "add", "--quiet", "--no-checkout", "-b", "replacement", destination.to_str().expect("utf8")],
+        &[
+            "worktree",
+            "move",
+            destination.to_str().expect("utf8"),
+            moved.to_str().expect("utf8"),
+        ],
+    );
+    crate::test_support::git(
+        main.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "-b",
+            "replacement",
+            destination.to_str().expect("utf8"),
+        ],
     );
     let found: CreatedWorktrees = find_created_worktree(
         &git_context(),
@@ -352,7 +559,10 @@ fn a_registration_that_is_not_the_reserved_object_is_not_claimed() {
         Some(expected),
     )
     .expect("found");
-    assert!(found.created.is_empty(), "a registration that is another object is not this command's");
+    assert!(
+        found.created.is_empty(),
+        "a registration that is another object is not this command's"
+    );
     let replacement_admin: PathBuf = common.join("worktrees").join("replacement");
     assert!(
         !replacement_admin.join(REGISTRATION_OWNER_NAME).exists(),

@@ -19,9 +19,19 @@
 //! const service = await serve({ buildDelayMillis: 3000 }); expect(await commit('mine')).toBe(0);
 //! ```
 
-use super::commit::{git_text, remove_settled, run_commit};
-use super::support::{Fixture, fixture, give_service_environment, service_log, start_fixture_service};
+use super::commit::{
+    git_text,
+    remove_settled,
+    run_commit,
+};
 use super::service_landing_selection::base_repository;
+use super::support::{
+    Fixture,
+    fixture,
+    give_service_environment,
+    service_log,
+    start_fixture_service,
+};
 use git_policy_cli::lazy_runtime::SLOW_BUILD_VARIABLE;
 use std::path::PathBuf;
 
@@ -44,17 +54,36 @@ const THE_BUILD_OUTLASTS_THE_OLD_PATIENCE_BY_MILLISECONDS: &str = "7000";
 fn a_service_whose_runtime_build_outlasted_its_deadline_still_lands_the_commit() {
     let fixture: Fixture = fixture("service-late-runtime-build");
     let repo: PathBuf = base_repository(&fixture);
-    give_service_environment(&fixture, SLOW_BUILD_VARIABLE, THE_BUILD_OUTLASTS_ITS_DEADLINE_BY_MILLISECONDS);
+    give_service_environment(
+        &fixture,
+        SLOW_BUILD_VARIABLE,
+        THE_BUILD_OUTLASTS_ITS_DEADLINE_BY_MILLISECONDS,
+    );
     let service: super::support::FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
     // The service serves from the build that arrived late, so the person's commit lands and nothing else is needed.
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
     let served = run_commit(&fixture, &repo, &["commit", "-m", "mine", "--", "a.txt"]);
-    assert_eq!(served.code, Some(0), "the commit through the late service lands: {}", String::from_utf8_lossy(&served.stderr));
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), "mine", "the commit is on the branch");
+    assert_eq!(
+        served.code,
+        Some(0),
+        "the commit through the late service lands: {}",
+        String::from_utf8_lossy(&served.stderr)
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(),
+        "mine",
+        "the commit is on the branch"
+    );
     let said: String = service_log(fixture.root.as_path());
-    assert!(said.contains("current-thread stand-in") && said.contains("outlasted"), "the service names its stand-in and its cause: {said}");
-    assert!(!said.contains("cannot start the acceptor of connections"), "the service did not end for want of a worker: {said}");
+    assert!(
+        said.contains("current-thread stand-in") && said.contains("outlasted"),
+        "the service names its stand-in and its cause: {said}"
+    );
+    assert!(
+        !said.contains("cannot start the acceptor of connections"),
+        "the service did not end for want of a worker: {said}"
+    );
     remove_settled(&fixture);
 }
 
@@ -69,16 +98,38 @@ fn a_service_whose_runtime_build_outlasted_its_deadline_still_lands_the_commit()
 fn a_runtime_that_arrives_after_the_old_patience_still_lands_the_commit() {
     let fixture: Fixture = fixture("service-slow-runtime-build");
     let repo: PathBuf = base_repository(&fixture);
-    give_service_environment(&fixture, SLOW_BUILD_VARIABLE, THE_BUILD_OUTLASTS_THE_OLD_PATIENCE_BY_MILLISECONDS);
+    give_service_environment(
+        &fixture,
+        SLOW_BUILD_VARIABLE,
+        THE_BUILD_OUTLASTS_THE_OLD_PATIENCE_BY_MILLISECONDS,
+    );
     let service: super::support::FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
     let served = run_commit(&fixture, &repo, &["commit", "-m", "mine", "--", "a.txt"]);
     let said: String = service_log(fixture.root.as_path());
-    assert_eq!(served.code, Some(0), "the commit through the slow service lands: {}\n{said}", String::from_utf8_lossy(&served.stderr));
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), "mine", "the commit is on the branch");
-    assert!(said.contains("still being built"), "the service says what it waits for while it waits: {said}");
-    assert!(said.contains("current-thread stand-in") && said.contains("outlasted"), "the service names its stand-in and its cause: {said}");
-    assert!(!said.contains("cannot start the acceptor of connections"), "the service did not end for want of a worker: {said}");
+    assert_eq!(
+        served.code,
+        Some(0),
+        "the commit through the slow service lands: {}\n{said}",
+        String::from_utf8_lossy(&served.stderr)
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(),
+        "mine",
+        "the commit is on the branch"
+    );
+    assert!(
+        said.contains("still being built"),
+        "the service says what it waits for while it waits: {said}"
+    );
+    assert!(
+        said.contains("current-thread stand-in") && said.contains("outlasted"),
+        "the service names its stand-in and its cause: {said}"
+    );
+    assert!(
+        !said.contains("cannot start the acceptor of connections"),
+        "the service did not end for want of a worker: {said}"
+    );
     remove_settled(&fixture);
 }

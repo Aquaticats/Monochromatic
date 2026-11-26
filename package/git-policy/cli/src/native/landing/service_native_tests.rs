@@ -17,8 +17,12 @@ fn strings(words: &[&str]) -> Vec<OsString> {
 #[test]
 fn parents_come_from_the_header_block_in_order() {
     let merge: &[u8] = b"tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\nparent 1111\nparent 2222\nauthor A <a@b> 1 +0000\n\nparent 3333\n";
-    assert_eq!(parents_of(merge), vec![String::from("1111"), String::from("2222")]);
-    let root: &[u8] = b"tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\nauthor A <a@b> 1 +0000\n\nparent 9999\n";
+    assert_eq!(
+        parents_of(merge),
+        vec![String::from("1111"), String::from("2222")]
+    );
+    let root: &[u8] =
+        b"tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\nauthor A <a@b> 1 +0000\n\nparent 9999\n";
     assert_eq!(parents_of(root), Vec::<String>::new());
 }
 
@@ -27,7 +31,15 @@ fn parents_come_from_the_header_block_in_order() {
 #[test]
 fn named_paths_and_the_separator_are_left_out_for_git() {
     let (globals, commit) = private_invocation(
-        &arguments(&["commit", "--only", "-m", "subject", "--", "a.txt", "dir/b.txt"]),
+        &arguments(&[
+            "commit",
+            "--only",
+            "-m",
+            "subject",
+            "--",
+            "a.txt",
+            "dir/b.txt",
+        ]),
         &strings(&["a.txt", "dir/b.txt"]),
         TransactionMode::ExplicitPath,
         false,
@@ -42,7 +54,16 @@ fn named_paths_and_the_separator_are_left_out_for_git() {
 #[test]
 fn global_options_that_redirect_git_are_dropped() {
     let (globals, commit) = private_invocation(
-        &arguments(&["-C", "/elsewhere", "-c", "core.editor=true", "commit", "-S", "-m", "signed"]),
+        &arguments(&[
+            "-C",
+            "/elsewhere",
+            "-c",
+            "core.editor=true",
+            "commit",
+            "-S",
+            "-m",
+            "signed",
+        ]),
         &[],
         TransactionMode::Index,
         false,
@@ -56,11 +77,36 @@ fn global_options_that_redirect_git_are_dropped() {
 /// with its pathspec file and its pathspecs.
 #[test]
 fn a_selection_the_private_index_holds_is_not_given_to_git_again() {
-    let line: Vec<OsString> = arguments(&["commit", "-i", "-m", "all", "--pathspec-from-file=list", "--pathspec-file-nul", "--", "a.txt"]);
-    assert_eq!(private_invocation(&line, &strings(&["a.txt"]), TransactionMode::Index, false, true).1, strings(&["-m", "all"]));
+    let line: Vec<OsString> = arguments(&[
+        "commit",
+        "-i",
+        "-m",
+        "all",
+        "--pathspec-from-file=list",
+        "--pathspec-file-nul",
+        "--",
+        "a.txt",
+    ]);
+    assert_eq!(
+        private_invocation(
+            &line,
+            &strings(&["a.txt"]),
+            TransactionMode::Index,
+            false,
+            true
+        )
+        .1,
+        strings(&["-m", "all"])
+    );
     let patch: Vec<OsString> = arguments(&["commit", "--patch", "-m", "p"]);
-    assert_eq!(private_invocation(&patch, &[], TransactionMode::Index, false, true).1, strings(&["-m", "p"]));
-    assert_eq!(private_invocation(&patch, &[], TransactionMode::Index, false, false).1, strings(&["--patch", "-m", "p"]));
+    assert_eq!(
+        private_invocation(&patch, &[], TransactionMode::Index, false, true).1,
+        strings(&["-m", "p"])
+    );
+    assert_eq!(
+        private_invocation(&patch, &[], TransactionMode::Index, false, false).1,
+        strings(&["--patch", "-m", "p"])
+    );
 }
 
 /// `-a` is removed once it has staged into the private index,
@@ -69,8 +115,14 @@ fn a_selection_the_private_index_holds_is_not_given_to_git_again() {
 #[test]
 fn commit_all_is_removed_only_when_the_index_already_holds_it() {
     let line: Vec<OsString> = arguments(&["commit", "-am", "all"]);
-    assert_eq!(private_invocation(&line, &[], TransactionMode::Index, true, false).1, strings(&["-m", "all"]));
-    assert_eq!(private_invocation(&line, &[], TransactionMode::Index, false, false).1, strings(&["-am", "all"]));
+    assert_eq!(
+        private_invocation(&line, &[], TransactionMode::Index, true, false).1,
+        strings(&["-m", "all"])
+    );
+    assert_eq!(
+        private_invocation(&line, &[], TransactionMode::Index, false, false).1,
+        strings(&["-am", "all"])
+    );
 }
 
 /// What:
@@ -87,8 +139,20 @@ fn commit_all_is_removed_only_when_the_index_already_holds_it() {
 #[test]
 fn a_message_that_is_not_text_reaches_git_with_its_own_bytes() {
     let message: OsString = crate::path_bytes::os_from_path_bytes(b"message-\xff");
-    let line: Vec<OsString> = vec![OsString::from("commit"), OsString::from("-m"), message.clone(), OsString::from("--"), OsString::from("a.txt")];
-    let (globals, commit): (Vec<OsString>, Vec<OsString>) = private_invocation(&line, &arguments(&["a.txt"]), TransactionMode::ExplicitPath, false, false);
+    let line: Vec<OsString> = vec![
+        OsString::from("commit"),
+        OsString::from("-m"),
+        message.clone(),
+        OsString::from("--"),
+        OsString::from("a.txt"),
+    ];
+    let (globals, commit): (Vec<OsString>, Vec<OsString>) = private_invocation(
+        &line,
+        &arguments(&["a.txt"]),
+        TransactionMode::ExplicitPath,
+        false,
+        false,
+    );
     assert!(globals.is_empty());
     assert_eq!(commit, vec![OsString::from("-m"), message]);
 }

@@ -30,7 +30,11 @@
 //! const there = onTheRemote(git, cwd, 'refs/heads/main', commit); // 'there' | 'not-there' | 'unknown'
 //! ```
 
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
 use std::path::Path;
 
 /// What a command can say about a held commit and the branch's remote.
@@ -63,7 +67,11 @@ pub enum OnTheRemote {
 /// ```
 pub trait RemoteRecord {
     /// Whether the commit is in Git's record of `reference`'s upstream ref.
-    fn on_the_remote(&self, reference: &str, commit: &str) -> OnTheRemote;
+    fn on_the_remote(
+        &self,
+        reference: &str,
+        commit: &str,
+    ) -> OnTheRemote;
 }
 
 /// What:
@@ -83,7 +91,11 @@ pub trait RemoteRecord {
 pub struct NothingAsked;
 
 impl RemoteRecord for NothingAsked {
-    fn on_the_remote(&self, _reference: &str, _commit: &str) -> OnTheRemote {
+    fn on_the_remote(
+        &self,
+        _reference: &str,
+        _commit: &str,
+    ) -> OnTheRemote {
         return OnTheRemote::Unknown;
     }
 }
@@ -119,14 +131,29 @@ pub struct GitRemoteRecord<'a> {
 /// ```ts
 /// const upstreamOf = (git, cwd, short) => git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', `${short}@{upstream}`]).trim() || undefined;
 /// ```
-fn upstream_of(record: &GitRemoteRecord<'_>, short: &str) -> Option<String> {
-    let request: GitRequest = GitRequest::new(record.cwd, &["rev-parse", "--abbrev-ref", "--symbolic-full-name", format!("{short}@{{upstream}}").as_str()]);
+fn upstream_of(
+    record: &GitRemoteRecord<'_>,
+    short: &str,
+) -> Option<String> {
+    let request: GitRequest = GitRequest::new(
+        record.cwd,
+        &[
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            format!("{short}@{{upstream}}").as_str(),
+        ],
+    );
     let output = run_git(record.context, &request).ok()?;
     if output.code != Some(0) {
         return None;
     }
-    let named: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
-    if named.is_empty() { return None; }
+    let named: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_string();
+    if named.is_empty() {
+        return None;
+    }
     return Some(named);
 }
 
@@ -145,8 +172,13 @@ fn upstream_of(record: &GitRemoteRecord<'_>, short: &str) -> Option<String> {
 /// ```ts
 /// const contains = (git, cwd, of, commit) => { const code = git(['merge-base', '--is-ancestor', commit, of]).status; return code === 0 ? 'there' : code === 1 ? 'not-there' : 'unknown'; };
 /// ```
-fn contains(record: &GitRemoteRecord<'_>, of: &str, commit: &str) -> OnTheRemote {
-    let request: GitRequest = GitRequest::new(record.cwd, &["merge-base", "--is-ancestor", commit, of]);
+fn contains(
+    record: &GitRemoteRecord<'_>,
+    of: &str,
+    commit: &str,
+) -> OnTheRemote {
+    let request: GitRequest =
+        GitRequest::new(record.cwd, &["merge-base", "--is-ancestor", commit, of]);
     let Ok(output) = run_git(record.context, &request) else {
         return OnTheRemote::Unknown;
     };
@@ -158,7 +190,11 @@ fn contains(record: &GitRemoteRecord<'_>, of: &str, commit: &str) -> OnTheRemote
 }
 
 impl RemoteRecord for GitRemoteRecord<'_> {
-    fn on_the_remote(&self, reference: &str, commit: &str) -> OnTheRemote {
+    fn on_the_remote(
+        &self,
+        reference: &str,
+        commit: &str,
+    ) -> OnTheRemote {
         let Some(short) = reference.strip_prefix("refs/heads/") else {
             return OnTheRemote::Unknown;
         };

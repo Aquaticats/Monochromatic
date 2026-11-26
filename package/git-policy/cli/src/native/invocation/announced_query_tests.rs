@@ -15,7 +15,11 @@
 
 /// Import the functions under test and the layout scan that feeds them.
 use super::{
-    AnnouncedQuery, WRAPPER_VERSION, announced_query, announcement, printable_after,
+    AnnouncedQuery,
+    WRAPPER_VERSION,
+    announced_query,
+    announcement,
+    printable_after,
 };
 use crate::forwarding::ChildOutcome;
 use crate::global_arguments::global_layout;
@@ -48,7 +52,10 @@ fn the_four_spellings_are_recognized() {
         (vec!["--help"], AnnouncedQuery::Help),
         (vec!["-h"], AnnouncedQuery::Help),
         (vec!["-C", "dir", "--version"], AnnouncedQuery::Version),
-        (vec!["-c", "a.b=c", "--no-pager", "-h"], AnnouncedQuery::Help),
+        (
+            vec!["-c", "a.b=c", "--no-pager", "-h"],
+            AnnouncedQuery::Help,
+        ),
         (vec!["--version", "commit"], AnnouncedQuery::Version),
     ] {
         assert_eq!(query_of(values.as_slice()), Some(expected), "{values:?}");
@@ -97,8 +104,7 @@ fn the_banner_is_one_exact_line() {
 /// and stays short.
 #[test]
 fn the_help_section_is_short_and_exact() {
-    let section: String =
-        announcement(AnnouncedQuery::Help, "1.2.3", Path::new("/usr/bin/git"));
+    let section: String = announcement(AnnouncedQuery::Help, "1.2.3", Path::new("/usr/bin/git"));
     assert_eq!(
         section,
         "\nmonochromatic-git-policy-cli 1.2.3 sits in front of this git\n\
@@ -121,7 +127,10 @@ fn the_version_is_the_crate_version() {
 ///  every other ending prints nothing.
 #[test]
 fn text_follows_only_a_successful_run() {
-    assert_eq!(printable_after(ChildOutcome::Exited(0), "banner\n"), "banner\n");
+    assert_eq!(
+        printable_after(ChildOutcome::Exited(0), "banner\n"),
+        "banner\n"
+    );
     for outcome in [
         ChildOutcome::Exited(1),
         ChildOutcome::Exited(2),

@@ -16,7 +16,12 @@
 //! ```
 
 /// Import the captured-query runner and its byte helpers.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
+use crate::git_metadata::{
+    MetadataOutput,
+    path_from_git_bytes,
+    run_metadata_git,
+    strip_git_line,
+};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -29,7 +34,10 @@ use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git,
 /// ```
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The repository shape an invocation selects.
@@ -141,7 +149,10 @@ fn malformed(detail: &str) -> std::io::Error {
 /// ```ts
 /// function parseIdentityOutput(success: boolean, stdout: Buffer): WorktreeIdentity;
 /// ```
-pub fn parse_identity_output(success: bool, stdout: &[u8]) -> std::io::Result<WorktreeIdentity> {
+pub fn parse_identity_output(
+    success: bool,
+    stdout: &[u8],
+) -> std::io::Result<WorktreeIdentity> {
     if stdout.is_empty() {
         if success {
             // `Err(...)` is the failure variant.
@@ -269,11 +280,20 @@ pub fn worktree_root(identity: &WorktreeIdentity) -> Option<&Path> {
     // return 'worktreeRoot' in identity ? identity.worktreeRoot : undefined;
     // ```
     match identity {
-        WorktreeIdentity::MainWorktree { worktree_root, .. }
-        | WorktreeIdentity::LinkedWorktree { worktree_root, .. } => {
+        WorktreeIdentity::MainWorktree {
+            worktree_root,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            worktree_root,
+            ..
+        } => {
             return Some(worktree_root.as_path());
         }
-        WorktreeIdentity::OutsideWorktree | WorktreeIdentity::BareRepository { .. } => {
+        WorktreeIdentity::OutsideWorktree
+        | WorktreeIdentity::BareRepository {
+            ..
+        } => {
             return None;
         }
     }
@@ -291,9 +311,18 @@ pub fn worktree_root(identity: &WorktreeIdentity) -> Option<&Path> {
 /// ```
 pub fn common_directory(identity: &WorktreeIdentity) -> Option<&Path> {
     match identity {
-        WorktreeIdentity::BareRepository { common_dir, .. }
-        | WorktreeIdentity::MainWorktree { common_dir, .. }
-        | WorktreeIdentity::LinkedWorktree { common_dir, .. } => {
+        WorktreeIdentity::BareRepository {
+            common_dir,
+            ..
+        }
+        | WorktreeIdentity::MainWorktree {
+            common_dir,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            common_dir,
+            ..
+        } => {
             return Some(common_dir.as_path());
         }
         WorktreeIdentity::OutsideWorktree => {
@@ -316,9 +345,18 @@ pub fn common_directory(identity: &WorktreeIdentity) -> Option<&Path> {
 /// ```
 pub fn git_directory(identity: &WorktreeIdentity) -> Option<&Path> {
     match identity {
-        WorktreeIdentity::BareRepository { git_dir, .. }
-        | WorktreeIdentity::MainWorktree { git_dir, .. }
-        | WorktreeIdentity::LinkedWorktree { git_dir, .. } => {
+        WorktreeIdentity::BareRepository {
+            git_dir,
+            ..
+        }
+        | WorktreeIdentity::MainWorktree {
+            git_dir,
+            ..
+        }
+        | WorktreeIdentity::LinkedWorktree {
+            git_dir,
+            ..
+        } => {
             return Some(git_dir.as_path());
         }
         WorktreeIdentity::OutsideWorktree => {

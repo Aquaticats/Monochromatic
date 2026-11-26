@@ -13,15 +13,30 @@
 
 /// The reading under test.
 use super::untracked_files_the_tree_tracks;
-/// The provider,
-/// built on a fixture repository.
-use crate::repository_facts::{GitFacts, git_facts};
 /// A disposable repository,
 /// its real Git and its removal.
-use crate::command_test_support::{REAL_GIT, fixture, git, remove, repository};
+use crate::command_test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    remove,
+    repository,
+};
+/// The provider,
+/// built on a fixture repository.
+use crate::repository_facts::{
+    GitFacts,
+    git_facts,
+};
 /// The file operations the controls make.
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The provider whose one global option names `repo`,
 ///  so Git answers for that repository and not for this process's directory.
@@ -46,8 +61,12 @@ fn the_untracked_file_at_a_tracked_path_is_named() {
         "a tracked file Git knows is not an untracked one"
     );
     std::fs::remove_file(repo.join("victim.txt")).expect("the tracked file goes");
-    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "victim.txt"]);
-    std::fs::write(repo.join("victim.txt"), b"the person's own file\n").expect("the untracked file");
+    git(
+        repo.as_path(),
+        &["rm", "--quiet", "--cached", "--", "victim.txt"],
+    );
+    std::fs::write(repo.join("victim.txt"), b"the person's own file\n")
+        .expect("the untracked file");
     let mut after: GitFacts = facts_for(repo.as_path());
     assert_eq!(
         untracked_files_the_tree_tracks(&mut after, OsStr::new("HEAD")).expect("the tree reads"),
@@ -72,7 +91,11 @@ fn a_tree_that_cannot_be_read_is_a_failure() {
     let root: PathBuf = fixture("untracked-and-tracked-missing-tree");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let mut facts: GitFacts = facts_for(repo.as_path());
-    let answer: Result<Vec<String>, String> = untracked_files_the_tree_tracks(&mut facts, OsStr::new("no-such-revision"));
-    assert!(answer.is_err(), "a tree Git cannot read is not an empty answer: {answer:?}");
+    let answer: Result<Vec<String>, String> =
+        untracked_files_the_tree_tracks(&mut facts, OsStr::new("no-such-revision"));
+    assert!(
+        answer.is_err(),
+        "a tree Git cannot read is not an empty answer: {answer:?}"
+    );
     remove(&root);
 }

@@ -6,16 +6,27 @@
 #![cfg(unix)]
 
 use super::*;
-use std::os::fd::AsFd as _;
-use std::io::Write;
-use crate::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
+use crate::child_class::{
+    CHILD_WAIT_VARIABLE,
+    ChildClass,
+};
 use crate::child_watch_step_bounds_and_errors::output_of;
 use crate::output_capture::Capture;
+use crate::test_support::{
+    ActionSink,
+    SharedSink,
+};
 use crate::wait_progress::Cadence;
-use crate::test_support::{ActionSink, SharedSink};
+use std::io::Write;
+use std::os::fd::AsFd as _;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
 
 /// What:
 ///  The process number a step recorded,
@@ -49,7 +60,10 @@ const INTERVALS_OFFERED: usize = 3;
 
 /// Terms of a limit,
 /// the quick cadence and a shared sink the test reads.
-fn terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
+fn terms(
+    limit: Duration,
+    sink: &SharedSink,
+) -> WatchTerms {
     return WatchTerms {
         limit,
         cadence: QUICK,
@@ -65,9 +79,18 @@ fn the_timeout_sentence_names_the_wait_the_bound_and_the_next_step() {
     let limit: Duration = ChildClass::Object.default_limit();
     let subject: String = format!("git add -- a.md, {}", ChildClass::Object.label());
     let text: String = watched_timeout_text(subject.as_str(), limit);
-    assert!(text.starts_with(format!("{subject} showed no sign of work for ").as_str()), "{text}");
-    assert!(text.contains(format!("for {} seconds and was stopped", limit.as_secs()).as_str()), "{text}");
-    assert!(text.contains(format!("{CHILD_WAIT_VARIABLE}=").as_str()), "the raise hint spells the variable: {text}");
+    assert!(
+        text.starts_with(format!("{subject} showed no sign of work for ").as_str()),
+        "{text}"
+    );
+    assert!(
+        text.contains(format!("for {} seconds and was stopped", limit.as_secs()).as_str()),
+        "{text}"
+    );
+    assert!(
+        text.contains(format!("{CHILD_WAIT_VARIABLE}=").as_str()),
+        "the raise hint spells the variable: {text}"
+    );
     assert!(text.contains("run the command again"), "{text}");
     assert!(text.contains("`ps`"), "{text}");
 }
@@ -102,7 +125,11 @@ fn a_short_bound_pulls_the_first_notice_inside_it() {
         let interval: Duration = class.notice_grace() * 2;
         let short: Duration = class.notice_grace() / 2;
         assert!(grace_for(class, interval, short) < short, "{class:?}");
-        assert_eq!(grace_for(class, interval, class.default_limit()), class.notice_grace(), "{class:?}");
+        assert_eq!(
+            grace_for(class, interval, class.default_limit()),
+            class.notice_grace(),
+            "{class:?}"
+        );
     }
 }
 
@@ -118,9 +145,14 @@ struct LineSignal {
 /// Writes are copied and each finished line is signalled.
 impl Write for LineSignal {
     /// Copy the bytes and signal the lines they finish.
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         Write::write(&mut self.shared, bytes)?;
-        for _line in bytes.iter().filter(|byte| { return **byte == b'\n'; }) {
+        for _line in bytes.iter().filter(|byte| {
+            return **byte == b'\n';
+        }) {
             self.lines.send(()).ok();
         }
         return Ok(bytes.len());
@@ -141,8 +173,13 @@ impl Write for LineSignal {
 #[test]
 fn a_wait_past_the_bound_is_announced_then_the_child_is_stopped() {
     let sink: SharedSink = SharedSink::default();
-    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
-    let watch: ChildWatch = ChildWatch::start("the sleeper", child.id(), terms(Duration::from_millis(450), &sink));
+    let mut child: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
+    let watch: ChildWatch = ChildWatch::start(
+        "the sleeper",
+        child.id(),
+        terms(Duration::from_millis(450), &sink),
+    );
     watch.begin();
     let status = child.wait().expect("the stopped child is collected");
     watch.end();
@@ -153,8 +190,16 @@ fn a_wait_past_the_bound_is_announced_then_the_child_is_stopped() {
     let lines: Vec<&str> = text.lines().collect();
     assert!(!lines.is_empty(), "{text}");
     for line in &lines {
-        assert!(line.starts_with("monochromatic-git-policy-cli: still waiting for the sleeper (process "), "{text}");
-        assert!(line.contains("(CLI_GIT_CHILD_WAIT_SECONDS changes this)"), "{text}");
+        assert!(
+            line.starts_with(
+                "monochromatic-git-policy-cli: still waiting for the sleeper (process "
+            ),
+            "{text}"
+        );
+        assert!(
+            line.contains("(CLI_GIT_CHILD_WAIT_SECONDS changes this)"),
+            "{text}"
+        );
     }
     assert_eq!(text.matches("Hint:").count(), 1, "{text}");
 }
@@ -166,13 +211,17 @@ fn a_wait_past_the_bound_is_announced_then_the_child_is_stopped() {
 #[test]
 fn a_wait_that_ends_inside_the_grace_prints_nothing() {
     let sink: SharedSink = SharedSink::default();
-    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
+    let mut child: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
     let watch: ChildWatch = ChildWatch::start(
         "the sleeper",
         child.id(),
         WatchTerms {
             limit: Duration::from_secs(7200),
-            cadence: Cadence { grace: Duration::from_secs(3600), interval: Duration::from_secs(3600) },
+            cadence: Cadence {
+                grace: Duration::from_secs(3600),
+                interval: Duration::from_secs(3600),
+            },
             notices: Box::new(sink.clone()),
         },
     );
@@ -202,21 +251,29 @@ fn a_wait_that_ends_inside_the_grace_prints_nothing() {
 fn a_wait_that_has_ended_is_announced_no_more() {
     let shared: SharedSink = SharedSink::default();
     let (sender, receiver) = std::sync::mpsc::channel::<()>();
-    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
+    let mut child: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
     let watch: ChildWatch = ChildWatch::start(
         "the sleeper",
         child.id(),
         WatchTerms {
             limit: Duration::from_secs(3600),
             cadence: QUICK,
-            notices: Box::new(LineSignal { shared: shared.clone(), lines: sender }),
+            notices: Box::new(LineSignal {
+                shared: shared.clone(),
+                lines: sender,
+            }),
         },
     );
     watch.begin();
     receiver.recv().expect("a notice announces the wait");
     watch.end();
     let settled: usize = shared.text().lines().count();
-    assert!(settled > 0, "the waiting notice was announced: {:?}", shared.text());
+    assert!(
+        settled > 0,
+        "the waiting notice was announced: {:?}",
+        shared.text()
+    );
     // The ended wait is offered more than two intervals of the watcher's cadence: a watcher that went on counting it
     //  prints on one of these turns, and one that went back to sleeping prints nothing.
     for turn in 0..INTERVALS_OFFERED {
@@ -239,7 +296,11 @@ fn a_wait_that_has_ended_is_announced_no_more() {
     // Collected before the checks, so a failing check does not leave the sleeper running.
     child.kill().expect("kill");
     child.wait().expect("collect");
-    assert_eq!(later.lines().count(), settled.saturating_add(1), "a finished wait went on being announced: {later}");
+    assert_eq!(
+        later.lines().count(),
+        settled.saturating_add(1),
+        "a finished wait went on being announced: {later}"
+    );
     assert!(!expired);
 }
 
@@ -253,14 +314,18 @@ fn a_wait_that_has_ended_is_announced_no_more() {
 fn each_wait_is_announced_from_its_own_start() {
     let shared: SharedSink = SharedSink::default();
     let (sender, receiver) = std::sync::mpsc::channel::<()>();
-    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
+    let mut child: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
     let watch: ChildWatch = ChildWatch::start(
         "the sleeper",
         child.id(),
         WatchTerms {
             limit: Duration::from_secs(3600),
             cadence: QUICK,
-            notices: Box::new(LineSignal { shared: shared.clone(), lines: sender }),
+            notices: Box::new(LineSignal {
+                shared: shared.clone(),
+                lines: sender,
+            }),
         },
     );
     for _wait in 0..2 {
@@ -269,7 +334,11 @@ fn each_wait_is_announced_from_its_own_start() {
         watch.end();
     }
     let text: String = shared.text();
-    assert_eq!(text.matches("Hint:").count(), 2, "the hint opens each wait: {text}");
+    assert_eq!(
+        text.matches("Hint:").count(),
+        2,
+        "the hint opens each wait: {text}"
+    );
     assert!(!watch.expired());
     drop(watch);
     child.kill().expect("kill");
@@ -289,7 +358,10 @@ fn a_command_that_runs_long_is_announced_and_its_output_is_kept() {
     let mut command: Command = Command::new("sh");
     command
         .arg("-c")
-        .arg(format!("while [ ! -e \"$1\" ] && {}; do sleep 0.02; done; printf out; printf err >&2", crate::test_support::while_test_lives(root.as_path())))
+        .arg(format!(
+            "while [ ! -e \"$1\" ] && {}; do sleep 0.02; done; printf out; printf err >&2",
+            crate::test_support::while_test_lives(root.as_path())
+        ))
         .arg("sh")
         .arg(&release)
         .stdin(Stdio::null());
@@ -300,14 +372,26 @@ fn a_command_that_runs_long_is_announced_and_its_output_is_kept() {
     let output: Output = output_watched(
         &mut command,
         "the slow command",
-        WatchTerms { limit: Duration::from_secs(3600), cadence: QUICK, notices: Box::new(counted) },
+        WatchTerms {
+            limit: Duration::from_secs(3600),
+            cadence: QUICK,
+            notices: Box::new(counted),
+        },
     )
     .expect("finished");
-    assert_eq!((output.stdout, output.stderr), (b"out".to_vec(), b"err".to_vec()));
+    assert_eq!(
+        (output.stdout, output.stderr),
+        (b"out".to_vec(), b"err".to_vec())
+    );
     assert!(output.status.success());
     let text: String = shared.text();
     assert!(text.lines().count() >= 2, "{text}");
-    assert!(text.starts_with("monochromatic-git-policy-cli: still waiting for the slow command (process "), "{text}");
+    assert!(
+        text.starts_with(
+            "monochromatic-git-policy-cli: still waiting for the slow command (process "
+        ),
+        "{text}"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -318,10 +402,19 @@ fn a_command_past_the_bound_is_stopped_and_reported() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sleep");
     command.arg("30").stdin(Stdio::null());
-    let failure: std::io::Error = output_watched(&mut command, "git rev-parse HEAD", terms(Duration::from_millis(400), &sink))
-        .expect_err("stopped at the bound");
+    let failure: std::io::Error = output_watched(
+        &mut command,
+        "git rev-parse HEAD",
+        terms(Duration::from_millis(400), &sink),
+    )
+    .expect_err("stopped at the bound");
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
-    assert!(failure.to_string().starts_with("git rev-parse HEAD showed no sign of work for 0 seconds and was stopped"), "{failure}");
+    assert!(
+        failure
+            .to_string()
+            .starts_with("git rev-parse HEAD showed no sign of work for 0 seconds and was stopped"),
+        "{failure}"
+    );
     assert!(sink.text().lines().count() >= 1, "{}", sink.text());
 }
 
@@ -329,9 +422,21 @@ fn a_command_past_the_bound_is_stopped_and_reported() {
 /// the number may have been given to another process
 /// since,
 /// and only the helper is signalled.
-fn is_the_helper(pid: i32, seconds: u64) -> bool {
-    let Ok(line) = std::fs::read(format!("/proc/{pid}/cmdline")) else { return false };
-    let words: Vec<&[u8]> = line.split(|byte| { return *byte == 0; }).filter(|word| { return !word.is_empty(); }).collect();
+fn is_the_helper(
+    pid: i32,
+    seconds: u64,
+) -> bool {
+    let Ok(line) = std::fs::read(format!("/proc/{pid}/cmdline")) else {
+        return false;
+    };
+    let words: Vec<&[u8]> = line
+        .split(|byte| {
+            return *byte == 0;
+        })
+        .filter(|word| {
+            return !word.is_empty();
+        })
+        .collect();
     return words == [b"sleep".as_slice(), seconds.to_string().as_bytes()];
 }
 
@@ -345,7 +450,10 @@ fn is_the_helper(pid: i32, seconds: u64) -> bool {
 /// a zombie has exited (`process_birth_identity` answers nothing for one),
 /// so the observation does not depend on how fast the reaper is.
 fn helper_is_running(pid: i32) -> bool {
-    return !matches!(crate::process_identity::process_birth_identity(i64::from(pid)), Ok(None));
+    return !matches!(
+        crate::process_identity::process_birth_identity(i64::from(pid)),
+        Ok(None)
+    );
 }
 
 /// A killed process that nobody has reaped yet is not running,
@@ -356,18 +464,29 @@ fn helper_is_running(pid: i32) -> bool {
 /// and this makes it deterministic.
 #[test]
 fn a_killed_process_that_is_not_yet_reaped_is_not_running() {
-    let mut child: std::process::Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30").stdin(Stdio::null())).expect("a process");
+    let mut child: std::process::Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("30").stdin(Stdio::null()))
+            .expect("a process");
     let pid: i32 = i32::try_from(child.id()).expect("a process ID");
     assert!(helper_is_running(pid), "a sleeping process runs");
     // SAFETY: `kill` takes two integers and touches no memory of this process.
     unsafe { libc::kill(pid, libc::SIGKILL) };
     let began: Instant = Instant::now();
-    while std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|text| { return !text.contains(") Z "); }) {
-        assert!(began.elapsed() < Duration::from_secs(10), "the process never became a zombie");
+    while std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|text| {
+        return !text.contains(") Z ");
+    }) {
+        assert!(
+            began.elapsed() < Duration::from_secs(10),
+            "the process never became a zombie"
+        );
         std::thread::sleep(Duration::from_millis(2));
     }
     // SAFETY: `kill` with signal 0 only checks that the process exists.
-    assert_eq!(unsafe { libc::kill(pid, 0) }, 0, "the premise: a zombie still answers signal 0");
+    assert_eq!(
+        unsafe { libc::kill(pid, 0) },
+        0,
+        "the premise: a zombie still answers signal 0"
+    );
     assert!(!helper_is_running(pid), "a zombie has exited");
     child.wait().expect("reaped");
     assert!(!helper_is_running(pid), "a reaped process is gone");
@@ -388,18 +507,31 @@ fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
     let mut command: Command = Command::new("sh");
     command
         .arg("-c")
-        .arg(format!("sleep {helper_seconds} & echo $! > '{}'; wait", helper_file.display()))
+        .arg(format!(
+            "sleep {helper_seconds} & echo $! > '{}'; wait",
+            helper_file.display()
+        ))
         .stdin(Stdio::null());
     let started: Instant = Instant::now();
-    let failure: std::io::Error = output_watched(&mut command, "a step with a helper", terms(Duration::from_millis(600), &sink))
-        .expect_err("stopped at the bound");
+    let failure: std::io::Error = output_watched(
+        &mut command,
+        "a step with a helper",
+        terms(Duration::from_millis(600), &sink),
+    )
+    .expect_err("stopped at the bound");
     let waited: Duration = started.elapsed();
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
-    let helper: i32 = std::fs::read_to_string(&helper_file).expect("the helper's process ID").trim().parse().expect("a process ID");
+    let helper: i32 = std::fs::read_to_string(&helper_file)
+        .expect("the helper's process ID")
+        .trim()
+        .parse()
+        .expect("a process ID");
     // A process that was killed stays a zombie until whoever inherited it has waited for it, and a zombie is not running
     //  (`helper_is_running`). The kill lands before the process is scheduled to die, so the control waits for that event, with a
     //  patience that only a helper that was never stopped reaches.
-    let running = || -> bool { return helper_is_running(helper) && is_the_helper(helper, helper_seconds); };
+    let running = || -> bool {
+        return helper_is_running(helper) && is_the_helper(helper, helper_seconds);
+    };
     let patience: Instant = Instant::now();
     while running() && patience.elapsed() < Duration::from_secs(60) {
         std::thread::sleep(Duration::from_millis(20));
@@ -415,7 +547,10 @@ fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
         waited < Duration::from_secs(helper_seconds / 2),
         "the stop took {waited:?}, as long as the helper that kept the output open lived"
     );
-    assert!(!helper_alive, "the helper the step started is still running after the step was stopped");
+    assert!(
+        !helper_alive,
+        "the helper the step started is still running after the step was stopped"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -432,21 +567,31 @@ fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_root_that_could_not_be_pinned_is_not_signalled() {
-    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
+    let mut sleeper: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+            .expect("a sleeper");
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
     assert!(helper_is_running(pid), "the premise: the process runs");
     // The state of a stop whose read proved nothing about the root.
-    let delivered: crate::member_signalled_through_its_pidfd::Delivered = crate::child_watch_clock_marks_and_stopping::send_to_the_root(
-        &crate::member_signalled_through_its_pidfd::Pinned::Unproven,
-        pid,
-        libc::SIGKILL,
-    );
+    let delivered: crate::member_signalled_through_its_pidfd::Delivered =
+        crate::child_watch_clock_marks_and_stopping::send_to_the_root(
+            &crate::member_signalled_through_its_pidfd::Pinned::Unproven,
+            pid,
+            libc::SIGKILL,
+        );
     std::thread::sleep(Duration::from_millis(300));
     let survived: bool = helper_is_running(pid);
     sleeper.kill().expect("the control ends its sleeper");
     sleeper.wait().expect("the sleeper is collected");
-    assert_eq!(delivered, crate::member_signalled_through_its_pidfd::Delivered::Unproven, "a signal nothing was pinned for is not taken");
-    assert!(survived, "a number nothing was pinned for was signalled: it may have named an unrelated process");
+    assert_eq!(
+        delivered,
+        crate::member_signalled_through_its_pidfd::Delivered::Unproven,
+        "a signal nothing was pinned for is not taken"
+    );
+    assert!(
+        survived,
+        "a number nothing was pinned for was signalled: it may have named an unrelated process"
+    );
 }
 
 /// What:
@@ -466,12 +611,30 @@ fn a_root_that_could_not_be_pinned_is_not_signalled() {
 fn the_root_is_pinned_when_its_child_starts() {
     let watch: &str = include_str!("child_watch.rs");
     let stop: &str = include_str!("child_watch_clock_marks_and_stopping.rs");
-    let watch_code: String = watch.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
-    let stop_code: String = stop.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
-    assert!(watch_code.contains("pin_at_start("), "the watch does not pin its child where the child starts");
+    let watch_code: String = watch
+        .lines()
+        .filter(|line| {
+            return !line.trim_start().starts_with("//");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    let stop_code: String = stop
+        .lines()
+        .filter(|line| {
+            return !line.trim_start().starts_with("//");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    assert!(
+        watch_code.contains("pin_at_start("),
+        "the watch does not pin its child where the child starts"
+    );
     // The needle is built at run time, so this control's own text does not contain it.
     let at_stop: String = format!("pin_of_the{}", "_root");
-    assert!(!stop_code.contains(at_stop.as_str()), "a stop still pins a record it reads at stopping time");
+    assert!(
+        !stop_code.contains(at_stop.as_str()),
+        "a stop still pins a record it reads at stopping time"
+    );
 }
 
 /// What:
@@ -489,13 +652,19 @@ fn the_root_is_pinned_when_its_child_starts() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_root_pinned_at_its_start_never_follows_the_number() {
-    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a child of this control");
+    let mut child: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+            .expect("a child of this control");
     let pid: u32 = child.id();
     let started: i32 = i32::try_from(pid).expect("a process number");
     // The pin is taken while this process's child is running and has not been reaped: the state of a watch at its start.
-    let pin: crate::child_watch_clock_marks_and_stopping::RootPin = crate::child_watch_clock_marks_and_stopping::pin_at_start(pid);
+    let pin: crate::child_watch_clock_marks_and_stopping::RootPin =
+        crate::child_watch_clock_marks_and_stopping::pin_at_start(pid);
     assert!(
-        matches!(pin, crate::member_signalled_through_its_pidfd::Pinned::Held(_)),
+        matches!(
+            pin,
+            crate::member_signalled_through_its_pidfd::Pinned::Held(_)
+        ),
         "the child that was just started was not pinned"
     );
     // The child ends and is reaped, so its number is free for another process; the pin still names the child that ended.
@@ -529,7 +698,10 @@ fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
     let holder_file: PathBuf = root.join("holder-pid");
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sh");
-    command.arg("-c").arg(format!("sleep 8 & echo $! > '{}'", holder_file.display())).stdin(Stdio::null());
+    command
+        .arg("-c")
+        .arg(format!("sleep 8 & echo $! > '{}'", holder_file.display()))
+        .stdin(Stdio::null());
     let began: Instant = Instant::now();
     let failure: std::io::Error = output_watched_within(
         &mut command,
@@ -541,7 +713,11 @@ fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
     )
     .expect_err("the output a program held open is not the step's answer");
     let waited: Duration = began.elapsed();
-    let holder: i32 = std::fs::read_to_string(&holder_file).expect("the holder's process ID").trim().parse().expect("a process ID");
+    let holder: i32 = std::fs::read_to_string(&holder_file)
+        .expect("the holder's process ID")
+        .trim()
+        .parse()
+        .expect("a process ID");
     // The assertions come after the cleanup, so a failure leaves nothing running. Only the helper the step started is signalled.
     if helper_is_running(holder) && is_the_helper(holder, 8) {
         // SAFETY: `kill` takes two integers and touches no memory of this process.
@@ -551,9 +727,22 @@ fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
         crate::step_output_read_whole_through_pipes::is_output_held_open(&failure),
         "the wait names the program that held the output open: {failure}"
     );
-    assert!(failure.to_string().contains("still holds the step's output open"), "{failure}");
-    assert!(failure.to_string().contains(format!("process {holder}").as_str()), "the holder is named by its number: {failure}");
-    assert!(waited < Duration::from_secs(3), "the wait outlasted the step by {waited:?}, as long as the holder lived");
+    assert!(
+        failure
+            .to_string()
+            .contains("still holds the step's output open"),
+        "{failure}"
+    );
+    assert!(
+        failure
+            .to_string()
+            .contains(format!("process {holder}").as_str()),
+        "the holder is named by its number: {failure}"
+    );
+    assert!(
+        waited < Duration::from_secs(3),
+        "the wait outlasted the step by {waited:?}, as long as the holder lived"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -574,7 +763,10 @@ fn a_step_whose_standard_error_is_held_open_returns_its_answer() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sh");
     // The helper inherits the step's standard error alone: its standard output is the step's answer and closes with the step.
-    command.arg("-c").arg("sleep 4 >/dev/null & printf 'answer\\n'; printf 'warned\\n' >&2").stdin(Stdio::null());
+    command
+        .arg("-c")
+        .arg("sleep 4 >/dev/null & printf 'answer\\n'; printf 'warned\\n' >&2")
+        .stdin(Stdio::null());
     let began: Instant = Instant::now();
     let output: std::process::Output = output_watched_within(
         &mut command,
@@ -586,10 +778,25 @@ fn a_step_whose_standard_error_is_held_open_returns_its_answer() {
     )
     .expect("the step's exit status and standard output are its answer");
     let waited: Duration = began.elapsed();
-    assert!(output.status.success(), "the step succeeded: {:?}", output.status);
-    assert_eq!(output.stdout, b"answer\n".to_vec(), "the whole answer comes back");
-    assert_eq!(output.stderr, b"warned\n".to_vec(), "what the step printed to standard error before the drain ended comes back");
-    assert!(waited < Duration::from_secs(3), "the wait outlasted the step by {waited:?}, as long as the holder lived");
+    assert!(
+        output.status.success(),
+        "the step succeeded: {:?}",
+        output.status
+    );
+    assert_eq!(
+        output.stdout,
+        b"answer\n".to_vec(),
+        "the whole answer comes back"
+    );
+    assert_eq!(
+        output.stderr,
+        b"warned\n".to_vec(),
+        "what the step printed to standard error before the drain ended comes back"
+    );
+    assert!(
+        waited < Duration::from_secs(3),
+        "the wait outlasted the step by {waited:?}, as long as the holder lived"
+    );
 }
 
 /// What:
@@ -608,7 +815,8 @@ fn a_step_whose_standard_error_is_held_open_returns_its_answer() {
 /// so a wait that outlasts the step shows.
 #[test]
 fn a_step_whose_watch_had_no_task_ends_at_its_ceiling_and_says_so() {
-    let refused: crate::lazy_runtime::RefusalForTheControl = crate::lazy_runtime::a_control_refuses_every_task();
+    let refused: crate::lazy_runtime::RefusalForTheControl =
+        crate::lazy_runtime::a_control_refuses_every_task();
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sleep");
     command.arg("6").stdin(Stdio::null());
@@ -638,12 +846,27 @@ fn a_step_whose_watch_had_no_task_ends_at_its_ceiling_and_says_so() {
     )
     .expect_err("the ceiling ended it");
     let waited_watched: Duration = began_watched.elapsed();
-    assert!(is_ceiling(&through_the_watch), "the watch ends the step at its ceiling: {through_the_watch}");
-    assert!(waited_watched < Duration::from_secs(3), "the watched step ended at its ceiling after {waited_watched:?}");
-    assert!(waited < Duration::from_secs(3), "a step nobody could watch outlasted its ceiling by {waited:?}");
+    assert!(
+        is_ceiling(&through_the_watch),
+        "the watch ends the step at its ceiling: {through_the_watch}"
+    );
+    assert!(
+        waited_watched < Duration::from_secs(3),
+        "the watched step ended at its ceiling after {waited_watched:?}"
+    );
+    assert!(
+        waited < Duration::from_secs(3),
+        "a step nobody could watch outlasted its ceiling by {waited:?}"
+    );
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
-    assert!(failure.to_string().contains("refused a thread"), "the failure says no thread could watch the step: {failure}");
-    assert!(failure.to_string().contains("a step nobody watches"), "the failure names the step: {failure}");
+    assert!(
+        failure.to_string().contains("refused a thread"),
+        "the failure says no thread could watch the step: {failure}"
+    );
+    assert!(
+        failure.to_string().contains("a step nobody watches"),
+        "the failure names the step: {failure}"
+    );
 }
 
 /// A command that finishes at once prints nothing;
@@ -659,7 +882,10 @@ fn a_command_that_finishes_at_once_prints_nothing() {
         "true",
         WatchTerms {
             limit: Duration::from_secs(7200),
-            cadence: Cadence { grace: Duration::from_secs(3600), interval: Duration::from_secs(3600) },
+            cadence: Cadence {
+                grace: Duration::from_secs(3600),
+                interval: Duration::from_secs(3600),
+            },
             notices: Box::new(sink.clone()),
         },
     )
@@ -703,10 +929,21 @@ fn working_command() -> Command {
 fn a_child_that_keeps_working_is_never_ended_however_long_it_runs() {
     let sink: SharedSink = SharedSink::default();
     let started: Instant = Instant::now();
-    let output: Output = output_watched(&mut working_command(), "a working step", terms(WORKING_WINDOW, &sink))
-        .expect("a step that keeps working is never ended");
-    assert!(started.elapsed() > WORKING_WINDOW * 2, "the fixture ran only {:?}", started.elapsed());
-    assert_eq!(output.stdout.len(), usize::try_from(WORKING_ROUNDS).expect("rounds fit"));
+    let output: Output = output_watched(
+        &mut working_command(),
+        "a working step",
+        terms(WORKING_WINDOW, &sink),
+    )
+    .expect("a step that keeps working is never ended");
+    assert!(
+        started.elapsed() > WORKING_WINDOW * 2,
+        "the fixture ran only {:?}",
+        started.elapsed()
+    );
+    assert_eq!(
+        output.stdout.len(),
+        usize::try_from(WORKING_ROUNDS).expect("rounds fit")
+    );
     assert!(output.status.success());
 }
 
@@ -717,16 +954,24 @@ fn a_child_that_keeps_working_is_never_ended_however_long_it_runs() {
 #[test]
 fn a_silent_child_is_ended_after_the_quiet_window_and_a_sibling_is_left_alone() {
     let sink: SharedSink = SharedSink::default();
-    let mut sibling: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("31").stdin(Stdio::null())).expect("sibling");
+    let mut sibling: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("31").stdin(Stdio::null()))
+            .expect("sibling");
     let mut command: Command = Command::new("sleep");
     command.arg("30").stdin(Stdio::null());
-    let failure: std::io::Error = output_watched(&mut command, "a silent step", terms(WORKING_WINDOW, &sink))
-        .expect_err("a silent step is ended");
+    let failure: std::io::Error =
+        output_watched(&mut command, "a silent step", terms(WORKING_WINDOW, &sink))
+            .expect_err("a silent step is ended");
     let sibling_ended: bool = sibling.try_wait().expect("look at the sibling").is_some();
     sibling.kill().expect("kill the sibling");
     sibling.wait().expect("collect the sibling");
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
-    assert!(failure.to_string().contains("showed no sign of work for 1 seconds"), "{failure}");
+    assert!(
+        failure
+            .to_string()
+            .contains("showed no sign of work for 1 seconds"),
+        "{failure}"
+    );
     assert!(!sibling_ended, "the stop reached a process beside the step");
 }
 
@@ -742,12 +987,27 @@ fn a_step_that_keeps_working_is_ended_at_its_ceiling() {
     let mut command: Command = Command::new("sh");
     command.args(["-c", "while true; do echo working; sleep 0.05; done"]);
     let began: Instant = Instant::now();
-    let error = output_watched_within(&mut command, "a working step", "a working step", terms(Duration::from_secs(3600), &sink), true, StepBound::EndAt(Duration::from_millis(700)))
-        .expect_err("the ceiling ended it");
+    let error = output_watched_within(
+        &mut command,
+        "a working step",
+        "a working step",
+        terms(Duration::from_secs(3600), &sink),
+        true,
+        StepBound::EndAt(Duration::from_millis(700)),
+    )
+    .expect_err("the ceiling ended it");
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
     assert!(is_ceiling(&error), "{error}");
-    assert!(error.to_string().contains("a working step ran for") && error.to_string().contains("was ended"), "{error}");
-    assert!(began.elapsed() >= Duration::from_millis(700) && began.elapsed() < Duration::from_secs(30), "{:?}", began.elapsed());
+    assert!(
+        error.to_string().contains("a working step ran for")
+            && error.to_string().contains("was ended"),
+        "{error}"
+    );
+    assert!(
+        began.elapsed() >= Duration::from_millis(700) && began.elapsed() < Duration::from_secs(30),
+        "{:?}",
+        began.elapsed()
+    );
 }
 
 /// A step that may not be ended for being quiet (a reference update) is ended at the ceiling all the same.
@@ -757,10 +1017,21 @@ fn a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling() {
     let mut command: Command = Command::new("sleep");
     command.arg("600");
     let began: Instant = Instant::now();
-    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(200), &sink), false, StepBound::EndAt(Duration::from_millis(700)))
-        .expect_err("the ceiling ended it");
+    let error = output_watched_within(
+        &mut command,
+        "a quiet step",
+        "a quiet step",
+        terms(Duration::from_millis(200), &sink),
+        false,
+        StepBound::EndAt(Duration::from_millis(700)),
+    )
+    .expect_err("the ceiling ended it");
     assert!(is_ceiling(&error), "{error}");
-    assert!(began.elapsed() < Duration::from_secs(30), "{:?}", began.elapsed());
+    assert!(
+        began.elapsed() < Duration::from_secs(30),
+        "{:?}",
+        began.elapsed()
+    );
 }
 
 /// What:
@@ -796,7 +1067,8 @@ const HELD_POLL: Duration = Duration::from_millis(50);
 /// How long the sink above holds the watch at most:
 /// twice the ending a watch is given,
 /// so a fixture that never records its process holds the watch for no longer than one that does.
-const THE_WATCH_IS_HELD_FOR: Duration = crate::child_watch_running_task::THE_WATCH_HAS_ITS_ENDING.saturating_mul(2);
+const THE_WATCH_IS_HELD_FOR: Duration =
+    crate::child_watch_running_task::THE_WATCH_HAS_ITS_ENDING.saturating_mul(2);
 
 /// Whether the process the step wrote down is gone;
 /// a step that recorded none is not gone,
@@ -815,10 +1087,15 @@ fn the_process_the_step_recorded_has_gone(pid_file: &std::path::Path) -> bool {
 impl Write for AWriteTheControlHolds {
     /// Tell the control the watch is here,
     /// then hold it until the step is gone.
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         let _told = self.began.send(());
         let held: Instant = Instant::now();
-        while !the_process_the_step_recorded_has_gone(self.pid_file.as_path()) && held.elapsed() < THE_WATCH_IS_HELD_FOR {
+        while !the_process_the_step_recorded_has_gone(self.pid_file.as_path())
+            && held.elapsed() < THE_WATCH_IS_HELD_FOR
+        {
             std::thread::sleep(HELD_POLL);
         }
         return Ok(bytes.len());
@@ -849,34 +1126,56 @@ impl Write for AWriteTheControlHolds {
 fn a_step_whose_watch_is_held_back_is_still_ended_at_its_ceiling() {
     let directory: PathBuf = crate::test_support::fixture("child-watch-held-back");
     let pid_file: PathBuf = directory.join("pid");
-    let (began, held): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
+    let (began, held): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) =
+        std::sync::mpsc::channel();
     let watch_terms: WatchTerms = WatchTerms {
         limit: Duration::from_millis(200),
         cadence: QUICK,
-        notices: Box::new(AWriteTheControlHolds { began, pid_file: pid_file.clone() }),
+        notices: Box::new(AWriteTheControlHolds {
+            began,
+            pid_file: pid_file.clone(),
+        }),
     };
     let (answer, the_end) = std::sync::mpsc::channel::<std::io::Result<Output>>();
-    let step = std::thread::Builder::new().name(String::from("child-watch-held-back-control")).spawn(move || {
-        let mut command: Command = Command::new("sh");
-        command.arg("-c").arg(format!("echo $$ > '{}'; sleep 600", pid_file.display())).stdin(Stdio::null());
-        let _sent = answer.send(output_watched_within(
-            &mut command,
-            "a step whose watch is held back",
-            "a step whose watch is held back",
-            watch_terms,
-            true,
-            StepBound::EndAt(Duration::from_millis(700)),
-        ));
-    });
-    held.recv_timeout(Duration::from_secs(30)).expect("the watch reached the write of its first notice");
-    let result: std::io::Result<Output> = the_end.recv_timeout(Duration::from_secs(120)).expect("the step ended; a wait that never ends is reported here");
+    let step = std::thread::Builder::new()
+        .name(String::from("child-watch-held-back-control"))
+        .spawn(move || {
+            let mut command: Command = Command::new("sh");
+            command
+                .arg("-c")
+                .arg(format!("echo $$ > '{}'; sleep 600", pid_file.display()))
+                .stdin(Stdio::null());
+            let _sent = answer.send(output_watched_within(
+                &mut command,
+                "a step whose watch is held back",
+                "a step whose watch is held back",
+                watch_terms,
+                true,
+                StepBound::EndAt(Duration::from_millis(700)),
+            ));
+        });
+    held.recv_timeout(Duration::from_secs(30))
+        .expect("the watch reached the write of its first notice");
+    let result: std::io::Result<Output> = the_end
+        .recv_timeout(Duration::from_secs(120))
+        .expect("the step ended; a wait that never ends is reported here");
     let _joined = step.expect("the control's thread").join();
     crate::test_support::remove(directory.as_path());
     let error: std::io::Error = result.expect_err("a step past its ceiling is not an answer");
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
     assert!(is_ceiling(&error), "{error}");
-    assert!(error.to_string().contains("the longest the wrapper lets one step run"), "{error}");
-    assert!(!error.to_string().contains("nothing proved which process to stop"), "nothing refused the watch its proof: {error}");
+    assert!(
+        error
+            .to_string()
+            .contains("the longest the wrapper lets one step run"),
+        "{error}"
+    );
+    assert!(
+        !error
+            .to_string()
+            .contains("nothing proved which process to stop"),
+        "nothing refused the watch its proof: {error}"
+    );
 }
 
 /// A step with no ceiling (a write in place that is not safe to run twice) is waited for as long as it lives,
@@ -891,7 +1190,15 @@ fn a_step_with_no_ceiling_is_waited_for_until_it_ends_by_itself() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sh");
     command.args(["-c", "sleep 2; echo done"]);
-    let output = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_millis(300), &sink), false, StepBound::Unbounded).expect("waited for");
+    let output = output_watched_within(
+        &mut command,
+        "a write",
+        "a write",
+        terms(Duration::from_millis(300), &sink),
+        false,
+        StepBound::Unbounded,
+    )
+    .expect("waited for");
     assert!(String::from_utf8_lossy(output.stdout.as_slice()).contains("done"));
 }
 
@@ -906,15 +1213,42 @@ fn a_step_that_outlasts_its_bound_and_the_extra_wait_is_left_running() {
     let directory: PathBuf = crate::test_support::fixture("child-watch-left-running");
     let pid_file: PathBuf = directory.join("pid");
     let mut command: Command = Command::new("sh");
-    command.args(["-c", format!("echo $$ > '{}'; sleep 20", pid_file.display()).as_str()]);
-    let bound: StepBound = StepBound::LeaveRunning { after: Duration::from_millis(500), extra: Duration::from_millis(500) };
+    command.args([
+        "-c",
+        format!("echo $$ > '{}'; sleep 20", pid_file.display()).as_str(),
+    ]);
+    let bound: StepBound = StepBound::LeaveRunning {
+        after: Duration::from_millis(500),
+        extra: Duration::from_millis(500),
+    };
     let began: Instant = Instant::now();
-    let error = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound).expect_err("the command stopped waiting");
+    let error = output_watched_within(
+        &mut command,
+        "a write",
+        "a write",
+        terms(Duration::from_secs(3600), &sink),
+        false,
+        bound,
+    )
+    .expect_err("the command stopped waiting");
     let waited: Duration = began.elapsed();
-    assert!(is_not_known(&error) && error.kind() == std::io::ErrorKind::TimedOut, "{error}");
-    assert!(error.to_string().contains("a write") && error.to_string().contains("left running"), "{error}");
-    assert!(waited >= Duration::from_secs(1) && waited < Duration::from_secs(10), "{waited:?}");
-    let pid: i32 = std::fs::read_to_string(&pid_file).expect("the step recorded its process").trim().parse().expect("a process number");
+    assert!(
+        is_not_known(&error) && error.kind() == std::io::ErrorKind::TimedOut,
+        "{error}"
+    );
+    assert!(
+        error.to_string().contains("a write") && error.to_string().contains("left running"),
+        "{error}"
+    );
+    assert!(
+        waited >= Duration::from_secs(1) && waited < Duration::from_secs(10),
+        "{waited:?}"
+    );
+    let pid: i32 = std::fs::read_to_string(&pid_file)
+        .expect("the step recorded its process")
+        .trim()
+        .parse()
+        .expect("a process number");
     // SAFETY: signal 0 only asks whether the process exists.
     assert_eq!(unsafe { libc::kill(pid, 0) }, 0, "the step was not ended");
     // SAFETY: the control ends the process it started, by the number it recorded.
@@ -929,8 +1263,19 @@ fn a_step_that_ends_within_the_extra_wait_returns_its_output() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sh");
     command.args(["-c", "sleep 1; echo done"]);
-    let bound: StepBound = StepBound::LeaveRunning { after: Duration::from_millis(500), extra: Duration::from_secs(20) };
-    let output = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound).expect("finished within the extra wait");
+    let bound: StepBound = StepBound::LeaveRunning {
+        after: Duration::from_millis(500),
+        extra: Duration::from_secs(20),
+    };
+    let output = output_watched_within(
+        &mut command,
+        "a write",
+        "a write",
+        terms(Duration::from_secs(3600), &sink),
+        false,
+        bound,
+    )
+    .expect("finished within the extra wait");
     assert!(String::from_utf8_lossy(output.stdout.as_slice()).contains("done"));
 }
 
@@ -941,8 +1286,15 @@ fn a_quiet_step_is_not_reported_as_the_ceiling() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sleep");
     command.arg("600");
-    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(300), &sink), true, StepBound::EndAt(Duration::from_secs(600)))
-        .expect_err("the quiet window ended it");
+    let error = output_watched_within(
+        &mut command,
+        "a quiet step",
+        "a quiet step",
+        terms(Duration::from_millis(300), &sink),
+        true,
+        StepBound::EndAt(Duration::from_secs(600)),
+    )
+    .expect_err("the quiet window ended it");
     assert!(!is_ceiling(&error), "{error}");
 }
 
@@ -957,14 +1309,27 @@ const HELPER_DIRECTORY: &str = "CLI_GIT_LEFT_RUNNING_DIRECTORY";
 /// so this is a no-op in a normal run.
 #[test]
 fn left_running_helper() {
-    let Some(named) = std::env::var_os(HELPER_DIRECTORY) else { return };
+    let Some(named) = std::env::var_os(HELPER_DIRECTORY) else {
+        return;
+    };
     let directory: PathBuf = PathBuf::from(named);
     let script: PathBuf = directory.join("step.sh");
     let mut command: Command = Command::new("sh");
     command.arg(script.as_path());
     let sink: SharedSink = SharedSink::default();
-    let bound: StepBound = StepBound::LeaveRunning { after: Duration::from_millis(300), extra: Duration::from_millis(300) };
-    let error = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound).expect_err("the command stopped waiting");
+    let bound: StepBound = StepBound::LeaveRunning {
+        after: Duration::from_millis(300),
+        extra: Duration::from_millis(300),
+    };
+    let error = output_watched_within(
+        &mut command,
+        "a write",
+        "a write",
+        terms(Duration::from_secs(3600), &sink),
+        false,
+        bound,
+    )
+    .expect_err("the command stopped waiting");
     assert!(is_not_known(&error), "{error}");
     // The command exits now, with the step still running, as the wrapper does after it reports that the result is not known.
     std::process::exit(0);
@@ -1018,14 +1383,28 @@ fn a_step_left_running_survives_the_exit_of_the_command_that_left_it() {
         }
         std::thread::sleep(Duration::from_millis(20));
     };
-    assert!(helper.success(), "the command that left the step running exited cleanly: {helper:?}");
-    let pid: i32 = std::fs::read_to_string(&pid_file).expect("the step recorded its process").trim().parse().expect("a process number");
+    assert!(
+        helper.success(),
+        "the command that left the step running exited cleanly: {helper:?}"
+    );
+    let pid: i32 = std::fs::read_to_string(&pid_file)
+        .expect("the step recorded its process")
+        .trim()
+        .parse()
+        .expect("a process number");
     // SAFETY: signal 0 only asks whether the process exists.
-    assert_eq!(unsafe { libc::kill(pid, 0) }, 0, "the step outlived the command");
+    assert_eq!(
+        unsafe { libc::kill(pid, 0) },
+        0,
+        "the step outlived the command"
+    );
     std::fs::write(&release, b"").expect("let the step go on");
     let waiting_since: Instant = Instant::now();
     while !finished.exists() {
-        assert!(waiting_since.elapsed() < Duration::from_secs(20), "the step died when it wrote after the command had exited");
+        assert!(
+            waiting_since.elapsed() < Duration::from_secs(20),
+            "the step died when it wrote after the command had exited"
+        );
         std::thread::sleep(Duration::from_millis(50));
     }
     crate::test_support::remove(directory.as_path());
@@ -1039,11 +1418,19 @@ fn a_step_left_running_survives_the_exit_of_the_command_that_left_it() {
 fn the_output_of_a_step_is_released_once_it_is_read() {
     let capture: Capture = Capture::new().expect("the files");
     let (out, err) = capture.stdio().expect("the streams");
-    let status = Command::new("sh").args(["-c", "echo kept-for-the-reader; echo and-this >&2"]).stdout(out).stderr(err).status().expect("the child");
+    let status = Command::new("sh")
+        .args(["-c", "echo kept-for-the-reader; echo and-this >&2"])
+        .stdout(out)
+        .stderr(err)
+        .status()
+        .expect("the child");
     let output: Output = output_of(status, Some(&capture));
     assert!(String::from_utf8_lossy(output.stdout.as_slice()).contains("kept-for-the-reader"));
     let again: crate::output_capture::Captured = capture.snapshot(1024);
-    assert!(again.stdout.is_empty() && again.stderr.is_empty(), "the files were emptied after the read");
+    assert!(
+        again.stdout.is_empty() && again.stderr.is_empty(),
+        "the files were emptied after the read"
+    );
 }
 
 /// What:
@@ -1060,27 +1447,46 @@ fn the_output_of_a_step_is_released_once_it_is_read() {
 #[cfg(target_os = "linux")]
 #[test]
 fn the_wait_after_the_kill_is_bounded() {
-    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
+    let mut sleeper: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+            .expect("a sleeper");
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
     let member: crate::process_tree::TreeMember = match crate::process_tree::member_read(pid) {
-        crate::process_tree::MemberRead::Found { member, .. } => member,
+        crate::process_tree::MemberRead::Found {
+            member,
+            ..
+        } => member,
         other => panic!("the control's process is found: {other:?}"),
     };
     let tree: [crate::process_tree::TreeMember; 1] = [member];
-    let inside: bool = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(Duration::from_millis(1), tree.as_slice());
+    let inside: bool = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(
+        Duration::from_millis(1),
+        tree.as_slice(),
+    );
     let past_the_grace: bool = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(
         crate::bounded_push::STOP_GRACE + Duration::from_secs(1),
         tree.as_slice(),
     );
-    let past_the_ceiling: bool = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(
-        crate::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING + Duration::from_secs(1),
-        tree.as_slice(),
+    let past_the_ceiling: bool =
+        crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(
+            crate::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING
+                + Duration::from_secs(1),
+            tree.as_slice(),
+        );
+    let nothing: bool = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(
+        Duration::from_millis(1),
+        &[],
     );
-    let nothing: bool = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(Duration::from_millis(1), &[]);
     sleeper.kill().expect("the control ends its sleeper");
     sleeper.wait().expect("the sleeper is collected");
-    assert!(inside, "a stop inside the grace after the kill waited for nothing");
-    assert!(!past_the_grace, "a stop waited past its grace with nothing left to wait for");
+    assert!(
+        inside,
+        "a stop inside the grace after the kill waited for nothing"
+    );
+    assert!(
+        !past_the_grace,
+        "a stop waited past its grace with nothing left to wait for"
+    );
     assert!(!past_the_ceiling, "a stop waited past its own ceiling");
     assert!(!nothing, "a stop with nothing left in its tree waited");
 }
@@ -1130,7 +1536,8 @@ fn a_step_the_watch_cannot_end_is_ended_at_its_ceiling() {
         })
         .expect("the control's thread");
     let began: Instant = Instant::now();
-    let answer: Result<std::io::Result<std::process::Output>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(Duration::from_secs(20));
+    let answer: Result<std::io::Result<std::process::Output>, std::sync::mpsc::RecvTimeoutError> =
+        receiver.recv_timeout(Duration::from_secs(20));
     let waited: Duration = began.elapsed();
     let _joined = running.join();
     let failure: std::io::Error = answer
@@ -1139,8 +1546,16 @@ fn a_step_the_watch_cannot_end_is_ended_at_its_ceiling() {
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut, "{failure}");
     // The step reached its ceiling and was ended there; whether the sentence names the watch or the wait that carried the
     //  ceiling, it must say which limit the step met.
-    assert!(failure.to_string().contains("the longest the wrapper lets one step run"), "{failure}");
-    assert!(waited < Duration::from_secs(10), "the step outlasted its ceiling by {waited:?}");
+    assert!(
+        failure
+            .to_string()
+            .contains("the longest the wrapper lets one step run"),
+        "{failure}"
+    );
+    assert!(
+        waited < Duration::from_secs(10),
+        "the step outlasted its ceiling by {waited:?}"
+    );
 }
 
 /// What:
@@ -1160,10 +1575,15 @@ fn a_step_the_watch_cannot_end_is_ended_at_its_ceiling() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_member_in_uninterruptible_io_cannot_hold_the_stop_past_its_ceiling() {
-    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
+    let mut sleeper: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+            .expect("a sleeper");
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
     let member: crate::process_tree::TreeMember = match crate::process_tree::member_read(pid) {
-        crate::process_tree::MemberRead::Found { member, .. } => member,
+        crate::process_tree::MemberRead::Found {
+            member,
+            ..
+        } => member,
         other => panic!("the control's process is found: {other:?}"),
     };
     let tree: [crate::process_tree::TreeMember; 1] = [member];
@@ -1175,20 +1595,36 @@ fn a_member_in_uninterruptible_io_cannot_hold_the_stop_past_its_ceiling() {
     {
         let _rules = crate::stop_waits_while_a_member_cannot_be_interrupted::rules_for_this_thread(
             crate::stop_waits_while_a_member_cannot_be_interrupted::ControlRules {
-                blocked: |_member| { return true; },
+                blocked: |_member| {
+                    return true;
+                },
                 ceiling,
             },
         );
-        inside_grace = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(Duration::ZERO, tree.as_slice());
-        after_the_grace =
-            crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(crate::bounded_push::STOP_GRACE, tree.as_slice());
-        past_the_ceiling = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(ceiling + Duration::from_millis(1), tree.as_slice());
+        inside_grace = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(
+            Duration::ZERO,
+            tree.as_slice(),
+        );
+        after_the_grace = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(
+            crate::bounded_push::STOP_GRACE,
+            tree.as_slice(),
+        );
+        past_the_ceiling = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(
+            ceiling + Duration::from_millis(1),
+            tree.as_slice(),
+        );
     }
     sleeper.kill().expect("the control ends its sleeper");
     sleeper.wait().expect("the sleeper is collected");
     assert!(inside_grace, "the stop did not wait at all after the kill");
-    assert!(after_the_grace, "a member in uninterruptible I/O was given up at the grace rather than at the ceiling");
-    assert!(!past_the_ceiling, "a member in uninterruptible I/O held the stop past its ceiling");
+    assert!(
+        after_the_grace,
+        "a member in uninterruptible I/O was given up at the grace rather than at the ceiling"
+    );
+    assert!(
+        !past_the_ceiling,
+        "a member in uninterruptible I/O held the stop past its ceiling"
+    );
 }
 
 /// What:
@@ -1211,11 +1647,15 @@ fn a_member_in_uninterruptible_io_cannot_hold_the_stop_past_its_ceiling() {
 /// so the state the review describes is the one this step is in.
 #[test]
 fn a_step_that_finishes_inside_its_ceiling_is_answered() {
-    let refused: crate::lazy_runtime::RefusalForTheControl = crate::lazy_runtime::a_control_refuses_every_task();
+    let refused: crate::lazy_runtime::RefusalForTheControl =
+        crate::lazy_runtime::a_control_refuses_every_task();
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sh");
     // The helper holds the standard error alone, and the step finishes at once with its whole answer on the standard output.
-    command.arg("-c").arg("sleep 6 >/dev/null & printf answer; exit 0").stdin(Stdio::null());
+    command
+        .arg("-c")
+        .arg("sleep 6 >/dev/null & printf answer; exit 0")
+        .stdin(Stdio::null());
     let began: Instant = Instant::now();
     let output: std::process::Output = output_watched_within(
         &mut command,
@@ -1229,8 +1669,15 @@ fn a_step_that_finishes_inside_its_ceiling_is_answered() {
     let waited: Duration = began.elapsed();
     drop(refused);
     assert!(output.status.success(), "{:?}", output.status);
-    assert_eq!(output.stdout, b"answer".to_vec(), "the step's answer comes back");
-    assert!(waited < Duration::from_secs(3), "the step was reported at its ceiling after {waited:?}");
+    assert_eq!(
+        output.stdout,
+        b"answer".to_vec(),
+        "the step's answer comes back"
+    );
+    assert!(
+        waited < Duration::from_secs(3),
+        "the step was reported at its ceiling after {waited:?}"
+    );
 }
 
 /// What:
@@ -1250,7 +1697,10 @@ fn a_step_that_finishes_inside_its_ceiling_is_answered() {
 fn a_watched_step_that_finished_inside_its_ceiling_is_answered() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sh");
-    command.arg("-c").arg("sleep 6 >/dev/null & printf answer; exit 0").stdin(Stdio::null());
+    command
+        .arg("-c")
+        .arg("sleep 6 >/dev/null & printf answer; exit 0")
+        .stdin(Stdio::null());
     let began: Instant = Instant::now();
     let output: std::process::Output = output_watched_within(
         &mut command,
@@ -1264,8 +1714,15 @@ fn a_watched_step_that_finished_inside_its_ceiling_is_answered() {
     .expect("the step's exit status and standard output are its answer");
     let waited: Duration = began.elapsed();
     assert!(output.status.success(), "{:?}", output.status);
-    assert_eq!(output.stdout, b"answer".to_vec(), "the step's answer comes back");
-    assert!(waited < Duration::from_secs(3), "the step was reported at its ceiling after {waited:?}");
+    assert_eq!(
+        output.stdout,
+        b"answer".to_vec(),
+        "the step's answer comes back"
+    );
+    assert!(
+        waited < Duration::from_secs(3),
+        "the step was reported at its ceiling after {waited:?}"
+    );
 }
 
 /// What:
@@ -1287,11 +1744,19 @@ fn a_watched_step_that_finished_inside_its_ceiling_is_answered() {
 fn each_stream_is_found_by_its_own_pipe() {
     let module: String = include_str!("../process/step_output_read_whole_through_pipes.rs")
         .lines()
-        .filter(|line| { return !line.trim_start().starts_with("//"); })
+        .filter(|line| {
+            return !line.trim_start().starts_with("//");
+        })
         .collect::<Vec<&str>>()
         .join("\n");
-    assert!(module.contains("standard_output.as_fd()"), "the standard output's pipe identity is not taken from it");
-    assert!(module.contains("standard_error.as_fd()"), "the standard error's pipe identity is not taken from it");
+    assert!(
+        module.contains("standard_output.as_fd()"),
+        "the standard output's pipe identity is not taken from it"
+    );
+    assert!(
+        module.contains("standard_error.as_fd()"),
+        "the standard error's pipe identity is not taken from it"
+    );
     // A program of this control holds the write end of one pipe as its standard error and writes nothing into it.
     let (error_read, error_write) = std::io::pipe().expect("a pipe");
     let mut holder: Child = Command::new("sleep")
@@ -1302,16 +1767,29 @@ fn each_stream_is_found_by_its_own_pipe() {
         .spawn()
         .expect("a holder of the pipe");
     let holder_pid: i32 = i32::try_from(holder.id()).expect("a process number");
-    let identity: Option<(u64, u64)> = crate::step_output_read_whole_through_pipes::pipe_identity(error_read.as_fd());
+    let identity: Option<(u64, u64)> =
+        crate::step_output_read_whole_through_pipes::pipe_identity(error_read.as_fd());
     let named: Vec<i64> = match identity {
         Some((mount, inode)) => {
-            crate::process_use::processes_using(&crate::process_use::UseTarget::Mounted { mount, inode }).users.iter().map(|user| { return user.pid; }).collect()
+            crate::process_use::processes_using(&crate::process_use::UseTarget::Mounted {
+                mount,
+                inode,
+            })
+            .users
+            .iter()
+            .map(|user| {
+                return user.pid;
+            })
+            .collect()
         }
         None => Vec::new(),
     };
     let _ended = holder.kill();
     let _reaped = holder.wait();
-    assert!(named.contains(&i64::from(holder_pid)), "the program holding the pipe was not found through that pipe: {named:?}");
+    assert!(
+        named.contains(&i64::from(holder_pid)),
+        "the program holding the pipe was not found through that pipe: {named:?}"
+    );
 }
 
 /// What:
@@ -1330,34 +1808,53 @@ fn the_tree_of_a_root_that_has_ended_is_not_read() {
     let mut shell: Child = {
         use std::os::unix::process::CommandExt as _;
         Command::new("sh")
-        .args(["-c", "sleep 600 & echo $!; wait"])
-        .process_group(0)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("the control's process")
+            .args(["-c", "sleep 600 & echo $!; wait"])
+            .process_group(0)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("the control's process")
     };
     let mut line: String = String::new();
-    std::io::BufRead::read_line(&mut std::io::BufReader::new(shell.stdout.take().expect("piped stdout")), &mut line).expect("the child's number");
+    std::io::BufRead::read_line(
+        &mut std::io::BufReader::new(shell.stdout.take().expect("piped stdout")),
+        &mut line,
+    )
+    .expect("the child's number");
     let shell_pid: i32 = i32::try_from(shell.id()).expect("a process number");
     // A child of this control, pinned at its start and then ended and reaped: its pin names a process that has gone.
-    let mut gone_child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a child");
+    let mut gone_child: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+            .expect("a child");
     let gone_pin: crate::child_watch_clock_marks_and_stopping::RootPin =
         crate::child_watch_clock_marks_and_stopping::pin_at_start(gone_child.id());
     gone_child.kill().expect("the control ends its child");
     gone_child.wait().expect("the child is collected");
     // A root that is still there is the positive control: its tree is read.
     let live_pin: crate::child_watch_clock_marks_and_stopping::RootPin =
-        crate::child_watch_clock_marks_and_stopping::pin_at_start(u32::try_from(shell_pid).expect("a process number"));
+        crate::child_watch_clock_marks_and_stopping::pin_at_start(
+            u32::try_from(shell_pid).expect("a process number"),
+        );
     let for_a_gone_root: Vec<crate::process_tree::TreeMember> =
-        crate::child_watch_clock_marks_and_stopping::descendants_of_a_root_that_still_runs(&gone_pin, shell_pid);
+        crate::child_watch_clock_marks_and_stopping::descendants_of_a_root_that_still_runs(
+            &gone_pin, shell_pid,
+        );
     let for_a_live_root: Vec<crate::process_tree::TreeMember> =
-        crate::child_watch_clock_marks_and_stopping::descendants_of_a_root_that_still_runs(&live_pin, shell_pid);
+        crate::child_watch_clock_marks_and_stopping::descendants_of_a_root_that_still_runs(
+            &live_pin, shell_pid,
+        );
     // SAFETY: `kill` takes two integers and touches no memory; the number is this control's own process group leader.
     let _ended = unsafe { libc::kill(-shell_pid, libc::SIGKILL) };
     let _collected = shell.wait();
-    assert!(for_a_gone_root.is_empty(), "the tree of a root that has ended was read: {for_a_gone_root:?}");
-    assert_eq!(for_a_live_root.len(), 1, "the tree of the root that is still there was not read: {for_a_live_root:?}");
+    assert!(
+        for_a_gone_root.is_empty(),
+        "the tree of a root that has ended was read: {for_a_gone_root:?}"
+    );
+    assert_eq!(
+        for_a_live_root.len(),
+        1,
+        "the tree of the root that is still there was not read: {for_a_live_root:?}"
+    );
 }
 
 /// What:
@@ -1380,52 +1877,64 @@ fn the_tree_of_a_root_that_has_ended_is_not_read() {
 fn a_watcher_whose_child_has_ended_waits_for_a_mark_instead_of_taking_its_ceiling_again() {
     // A child this control started and then ended and reaped: the pin taken at its start reports it gone, which is the state
     //  a step that finished before its ceiling leaves.
-    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a child of this control");
+    let mut child: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+            .expect("a child of this control");
     let pid: u32 = child.id();
-    let pin: crate::child_watch_clock_marks_and_stopping::RootPin = crate::child_watch_clock_marks_and_stopping::pin_at_start(pid);
+    let pin: crate::child_watch_clock_marks_and_stopping::RootPin =
+        crate::child_watch_clock_marks_and_stopping::pin_at_start(pid);
     child.kill().expect("the control ends its child");
     child.wait().expect("the child is collected");
     assert!(
         !crate::child_watch_clock_marks_and_stopping::the_root_is_still_there(&pin),
         "the control's child ended, so its pin must report it gone"
     );
-    let answering: Result<Result<(), tokio::task::JoinError>, tokio::time::error::Elapsed> = crate::lazy_runtime::run_on_runtime(async move {
-        let sink: SharedSink = SharedSink::default();
-        let flags: WatchFlags = WatchFlags {
-            expired: Arc::new(AtomicBool::new(false)),
-            stoppable: Arc::new(AtomicBool::new(true)),
-            longest: Arc::new(AtomicU64::new(0)),
-            // A ceiling of nothing: it has passed at the first look.
-            ceiling: Arc::new(AtomicU64::new(0)),
-            ceiling_hit: Arc::new(AtomicBool::new(false)),
-            stopped: Arc::new(AtomicBool::new(false)),
-            left_running_after: Arc::new(AtomicU64::new(0)),
-        };
-        let terms: WatchTerms = WatchTerms {
-            limit: Duration::from_secs(3600),
-            // No notice comes due, so a loop that took its ceiling branch again would have nothing to await.
-            cadence: Cadence { grace: Duration::from_secs(3600), interval: Duration::from_secs(3600) },
-            notices: Box::new(sink),
-        };
-        let (marks, incoming) = unbounded_channel::<Mark>();
-        let task: tokio::task::JoinHandle<()> = tokio::spawn(watch_loop(
-            incoming,
-            flags,
-            String::from("a step that already ended"),
-            pid,
-            terms,
-            LockLedger::none(),
-            None,
-            pin,
-        ));
-        let _began = marks.send(Mark::Begin(Instant::now()));
-        // The watch is dropped, as a command that stopped waiting drops it, and the watcher reads that as its last mark.
-        drop(marks);
-        return tokio::time::timeout(Duration::from_secs(5), task).await;
-    })
-    .expect("the runtime");
-    assert!(answering.is_ok(), "a watcher whose child had ended spun on its ceiling branch instead of waiting for the mark that ends it");
-    answering.expect("the task answered").expect("the watcher ended normally");
+    let answering: Result<Result<(), tokio::task::JoinError>, tokio::time::error::Elapsed> =
+        crate::lazy_runtime::run_on_runtime(async move {
+            let sink: SharedSink = SharedSink::default();
+            let flags: WatchFlags = WatchFlags {
+                expired: Arc::new(AtomicBool::new(false)),
+                stoppable: Arc::new(AtomicBool::new(true)),
+                longest: Arc::new(AtomicU64::new(0)),
+                // A ceiling of nothing: it has passed at the first look.
+                ceiling: Arc::new(AtomicU64::new(0)),
+                ceiling_hit: Arc::new(AtomicBool::new(false)),
+                stopped: Arc::new(AtomicBool::new(false)),
+                left_running_after: Arc::new(AtomicU64::new(0)),
+            };
+            let terms: WatchTerms = WatchTerms {
+                limit: Duration::from_secs(3600),
+                // No notice comes due, so a loop that took its ceiling branch again would have nothing to await.
+                cadence: Cadence {
+                    grace: Duration::from_secs(3600),
+                    interval: Duration::from_secs(3600),
+                },
+                notices: Box::new(sink),
+            };
+            let (marks, incoming) = unbounded_channel::<Mark>();
+            let task: tokio::task::JoinHandle<()> = tokio::spawn(watch_loop(
+                incoming,
+                flags,
+                String::from("a step that already ended"),
+                pid,
+                terms,
+                LockLedger::none(),
+                None,
+                pin,
+            ));
+            let _began = marks.send(Mark::Begin(Instant::now()));
+            // The watch is dropped, as a command that stopped waiting drops it, and the watcher reads that as its last mark.
+            drop(marks);
+            return tokio::time::timeout(Duration::from_secs(5), task).await;
+        })
+        .expect("the runtime");
+    assert!(
+        answering.is_ok(),
+        "a watcher whose child had ended spun on its ceiling branch instead of waiting for the mark that ends it"
+    );
+    answering
+        .expect("the task answered")
+        .expect("the watcher ended normally");
 }
 
 /// What:
@@ -1442,32 +1951,59 @@ fn a_watcher_whose_child_has_ended_waits_for_a_mark_instead_of_taking_its_ceilin
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_ended_at_the_ceiling_its_wait_carried_takes_the_processes_it_started_with_it() {
-    let refused: crate::lazy_runtime::RefusalForTheControl = crate::lazy_runtime::a_control_refuses_every_task();
+    let refused: crate::lazy_runtime::RefusalForTheControl =
+        crate::lazy_runtime::a_control_refuses_every_task();
     let directory: PathBuf = crate::test_support::fixture("child-watch-tree-at-the-ceiling");
     let helper_file: PathBuf = directory.join("helper");
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sh");
-    command.args(["-c", format!("sleep 600 & echo $! > '{}'; wait", helper_file.display()).as_str()]).stdin(Stdio::null());
-    let failure: std::io::Error =
-        output_watched_within(&mut command, "a step with a helper", "a step with a helper", terms(Duration::from_secs(3600), &sink), true, StepBound::EndAt(Duration::from_millis(400)))
-            .expect_err("the ceiling ended the step");
+    command
+        .args([
+            "-c",
+            format!("sleep 600 & echo $! > '{}'; wait", helper_file.display()).as_str(),
+        ])
+        .stdin(Stdio::null());
+    let failure: std::io::Error = output_watched_within(
+        &mut command,
+        "a step with a helper",
+        "a step with a helper",
+        terms(Duration::from_secs(3600), &sink),
+        true,
+        StepBound::EndAt(Duration::from_millis(400)),
+    )
+    .expect_err("the ceiling ended the step");
     drop(refused);
-    let helper: i32 = std::fs::read_to_string(&helper_file).expect("the helper's process ID").trim().parse().expect("a process number");
+    let helper: i32 = std::fs::read_to_string(&helper_file)
+        .expect("the helper's process ID")
+        .trim()
+        .parse()
+        .expect("a process number");
     // A process that has ended is collected by the system's init, or waits as a zombie of a subreaper; neither is a
     //  process that still runs, and `member_read` answers both with `Gone`.
     let looked_from: Instant = Instant::now();
-    while looked_from.elapsed() < Duration::from_secs(2) && crate::process_tree::member_read(helper) != crate::process_tree::MemberRead::Gone {
+    while looked_from.elapsed() < Duration::from_secs(2)
+        && crate::process_tree::member_read(helper) != crate::process_tree::MemberRead::Gone
+    {
         std::thread::sleep(Duration::from_millis(20));
     }
-    let gone: bool = crate::process_tree::member_read(helper) == crate::process_tree::MemberRead::Gone;
+    let gone: bool =
+        crate::process_tree::member_read(helper) == crate::process_tree::MemberRead::Gone;
     // The assertions come after the cleanup, so a failing control leaves nothing running.
     if !gone {
         // SAFETY: `kill` takes two integers and touches no memory; the number is the helper this control started.
         let _ended = unsafe { libc::kill(helper, libc::SIGKILL) };
     }
     crate::test_support::remove(directory.as_path());
-    assert!(failure.to_string().contains("the longest the wrapper lets one step run"), "the step ended at its ceiling: {failure}");
-    assert!(gone, "the process the step started was left running after the step was reported ended at its ceiling");
+    assert!(
+        failure
+            .to_string()
+            .contains("the longest the wrapper lets one step run"),
+        "the step ended at its ceiling: {failure}"
+    );
+    assert!(
+        gone,
+        "the process the step started was left running after the step was reported ended at its ceiling"
+    );
 }
 
 /// What:
@@ -1491,16 +2027,30 @@ fn a_step_left_running_whose_waiter_thread_is_refused_is_still_collected() {
     let script: PathBuf = directory.join("step.sh");
     std::fs::write(
         &script,
-        format!("echo $$ > '{pid}'\nwhile [ ! -e '{release}' ]; do sleep 0.02; done\n", pid = pid_file.display(), release = release.display()),
+        format!(
+            "echo $$ > '{pid}'\nwhile [ ! -e '{release}' ]; do sleep 0.02; done\n",
+            pid = pid_file.display(),
+            release = release.display()
+        ),
     )
     .expect("the step");
     crate::child_watch::refuse_the_next_left_running_waiter(1);
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sh");
     command.arg(script.as_path());
-    let bound: StepBound = StepBound::LeaveRunning { after: Duration::from_millis(300), extra: Duration::from_millis(300) };
-    let failure: std::io::Error = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound)
-        .expect_err("no thread could be started to wait for the step");
+    let bound: StepBound = StepBound::LeaveRunning {
+        after: Duration::from_millis(300),
+        extra: Duration::from_millis(300),
+    };
+    let failure: std::io::Error = output_watched_within(
+        &mut command,
+        "a write",
+        "a write",
+        terms(Duration::from_secs(3600), &sink),
+        false,
+        bound,
+    )
+    .expect_err("no thread could be started to wait for the step");
     // The step was started before the thread was refused, and it writes its number as it begins.
     // The shell's redirection makes the file before the number reaches it, so the wait is for a number and not for the
     //  name: waiting for the name made this control fail under a loaded suite with an empty read.
@@ -1512,7 +2062,9 @@ fn a_step_left_running_whose_waiter_thread_is_refused_is_still_collected() {
     }
     let pid: i32 = recorded.expect("the step recorded its process");
     // The start time proves which process the number names, so a number that passed to another one is not read as the step.
-    let started: u64 = crate::process_tree::use_of(pid).expect("the step runs as it waits").started;
+    let started: u64 = crate::process_tree::use_of(pid)
+        .expect("the step runs as it waits")
+        .started;
     // The step ends now, and its end must be collected by whoever owns it.
     std::fs::write(&release, b"").expect("let the step end");
     let looked_from: Instant = Instant::now();
@@ -1533,8 +2085,16 @@ fn a_step_left_running_whose_waiter_thread_is_refused_is_still_collected() {
         let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
     }
     crate::test_support::remove(directory.as_path());
-    assert!(failure.to_string().contains("no thread could be started to wait for it"), "the refusal is what this control armed: {failure}");
-    assert!(collected, "the step that was left running stayed a zombie after it ended: nothing collected it");
+    assert!(
+        failure
+            .to_string()
+            .contains("no thread could be started to wait for it"),
+        "the refusal is what this control armed: {failure}"
+    );
+    assert!(
+        collected,
+        "the step that was left running stayed a zombie after it ended: nothing collected it"
+    );
 }
 
 /// What:
@@ -1562,21 +2122,36 @@ fn a_step_left_running_whose_waiter_thread_is_refused_is_still_collected() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_left_running_whose_waiter_is_refused_names_the_limit() {
-    let directory: PathBuf = crate::test_support::fixture("child-watch-refused-waiter-names-the-limit");
+    let directory: PathBuf =
+        crate::test_support::fixture("child-watch-refused-waiter-names-the-limit");
     let pid_file: PathBuf = directory.join("pid");
     let release: PathBuf = directory.join("release");
     let script: PathBuf = directory.join("step.sh");
     std::fs::write(
         &script,
-        format!("echo $$ > '{pid}'\nwhile [ ! -e '{release}' ]; do sleep 0.02; done\n", pid = pid_file.display(), release = release.display()),
+        format!(
+            "echo $$ > '{pid}'\nwhile [ ! -e '{release}' ]; do sleep 0.02; done\n",
+            pid = pid_file.display(),
+            release = release.display()
+        ),
     )
     .expect("the step");
     crate::child_watch::refuse_the_next_left_running_waiter(1);
     let mut command: Command = Command::new("sh");
     command.arg(script.as_path());
     let sink: SharedSink = SharedSink::default();
-    let bound: StepBound = StepBound::LeaveRunning { after: Duration::from_millis(300), extra: Duration::from_millis(300) };
-    let refused: Result<Output, std::io::Error> = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound);
+    let bound: StepBound = StepBound::LeaveRunning {
+        after: Duration::from_millis(300),
+        extra: Duration::from_millis(300),
+    };
+    let refused: Result<Output, std::io::Error> = output_watched_within(
+        &mut command,
+        "a write",
+        "a write",
+        terms(Duration::from_secs(3600), &sink),
+        false,
+        bound,
+    );
     let waited_for_the_number: Instant = Instant::now();
     let mut recorded: Option<i32> = recorded_step_number(pid_file.as_path());
     while recorded.is_none() && waited_for_the_number.elapsed() < Duration::from_secs(5) {
@@ -1589,7 +2164,9 @@ fn a_step_left_running_whose_waiter_is_refused_names_the_limit() {
     std::fs::write(&release, b"").expect("let the step end");
     if let Some(pid) = recorded {
         let looked_from: Instant = Instant::now();
-        while looked_from.elapsed() < Duration::from_secs(10) && crate::process_tree::member_read(pid) != crate::process_tree::MemberRead::Gone {
+        while looked_from.elapsed() < Duration::from_secs(10)
+            && crate::process_tree::member_read(pid) != crate::process_tree::MemberRead::Gone
+        {
             std::thread::sleep(Duration::from_millis(20));
         }
         // A step still there after its release is ended here, so the fixture goes with nothing running in it.
@@ -1599,8 +2176,15 @@ fn a_step_left_running_whose_waiter_is_refused_names_the_limit() {
         }
     }
     crate::test_support::remove(directory.as_path());
-    let failure: std::io::Error = refused.expect_err("no thread could be started to wait for the step");
+    let failure: std::io::Error =
+        refused.expect_err("no thread could be started to wait for the step");
     let said: String = failure.to_string();
-    assert!(said.contains("no thread could be started to wait for it"), "the refusal is what this control made: {said}");
-    assert!(said.contains("ulimit -u") && said.contains("pids.max"), "the refusal names the limits that refused the thread: {said}");
+    assert!(
+        said.contains("no thread could be started to wait for it"),
+        "the refusal is what this control made: {said}"
+    );
+    assert!(
+        said.contains("ulimit -u") && said.contains("pids.max"),
+        "the refusal names the limits that refused the thread: {said}"
+    );
 }

@@ -7,7 +7,11 @@
 //! and the next hold then publishes the commit the gate refused.
 
 use super::*;
-use crate::test_support::{fixture, remove, restore_owner_access};
+use crate::test_support::{
+    fixture,
+    remove,
+    restore_owner_access,
+};
 use std::path::PathBuf;
 
 /// The commit the gate of these controls refused.
@@ -59,7 +63,8 @@ fn a_blocked_directory_that_refuses_every_name(work: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let blocked: PathBuf = state_directory(work, BLOCKED);
     create_private_directory_all(blocked.as_path()).expect("the blocked directory");
-    std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory no name can be made in");
+    std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o500))
+        .expect("a directory no name can be made in");
     return blocked;
 }
 
@@ -77,17 +82,33 @@ fn a_refusal_that_cannot_be_written_keeps_the_held_record() {
     let root: PathBuf = fixture("work-item-holding-refusal-not-written");
     let work: PathBuf = root.join("work");
     let item: WorkItem = push_item(root.as_path());
-    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the push is held while the gate decides");
+    assert_eq!(
+        hold(work.as_path(), &item, "4321"),
+        Ok(()),
+        "the push is held while the gate decides"
+    );
     let blocked: PathBuf = a_blocked_directory_that_refuses_every_name(work.as_path());
-    assert!(!block(work.as_path(), &item, REASON), "the verdict could not be written, so the answer says it is not durable");
     assert!(
-        state_directory(work.as_path(), HELD).join(item.id()).exists(),
+        !block(work.as_path(), &item, REASON),
+        "the verdict could not be written, so the answer says it is not durable"
+    );
+    assert!(
+        state_directory(work.as_path(), HELD)
+            .join(item.id())
+            .exists(),
         "the held record is the only statement that this commit may not be published, so it stays"
     );
-    assert!(blocked_verdicts(work.as_path()).is_empty(), "no verdict was written, so none is read");
+    assert!(
+        blocked_verdicts(work.as_path()).is_empty(),
+        "no verdict was written, so none is read"
+    );
     // The next hold of the same commit asks nothing of a blocked id, and this one is not blocked: the hold stands again, which is
     //  what keeps the push local.
-    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the hold is written again");
+    assert_eq!(
+        hold(work.as_path(), &item, "4321"),
+        Ok(()),
+        "the hold is written again"
+    );
     restore_owner_access(blocked.as_path());
     remove(root.as_path());
 }
@@ -112,12 +133,21 @@ fn a_settled_push_is_not_held_again() {
     let done: PathBuf = state_directory(work.as_path(), DONE);
     create_private_directory_all(done.as_path()).expect("the done directory");
     std::fs::write(done.join(item.id()), item.encode()).expect("the settled record");
-    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the hold answers that nothing is owed");
+    assert_eq!(
+        hold(work.as_path(), &item, "4321"),
+        Ok(()),
+        "the hold answers that nothing is owed"
+    );
     assert!(
-        !state_directory(work.as_path(), HELD).join(item.id()).exists(),
+        !state_directory(work.as_path(), HELD)
+            .join(item.id())
+            .exists(),
         "a push that was made is not held again: a hold here would name a published commit on every command"
     );
-    assert!(done.join(item.id()).exists(), "the settled record is left where it is");
+    assert!(
+        done.join(item.id()).exists(),
+        "the settled record is left where it is"
+    );
     remove(root.as_path());
 }
 
@@ -138,7 +168,8 @@ fn a_settled_push_is_not_held_again() {
 #[cfg(unix)]
 fn a_work_directory_that_takes_no_new_name(work: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(work, std::fs::Permissions::from_mode(0o500)).expect("a work tree no name can be made in");
+    std::fs::set_permissions(work, std::fs::Permissions::from_mode(0o500))
+        .expect("a work tree no name can be made in");
     return work.to_path_buf();
 }
 
@@ -158,12 +189,25 @@ fn a_promotion_moves_the_record_without_making_a_directory() {
     let root: PathBuf = fixture("work-item-holding-promotion-makes-nothing");
     let work: PathBuf = root.join("work");
     let item: WorkItem = push_item(root.as_path());
-    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the push is held while the gate decides");
+    assert_eq!(
+        hold(work.as_path(), &item, "4321"),
+        Ok(()),
+        "the push is held while the gate decides"
+    );
     // The queue the service runs has a pending directory already: it moves records through it as pushes are claimed.
-    create_private_directory_all(state_directory(work.as_path(), PENDING).as_path()).expect("the pending directory the queue keeps");
+    create_private_directory_all(state_directory(work.as_path(), PENDING).as_path())
+        .expect("the pending directory the queue keeps");
     let closed: PathBuf = a_work_directory_that_takes_no_new_name(work.as_path());
-    assert!(promote(work.as_path(), item.id().as_str()), "the one rename the promotion needs is a rename");
-    assert!(state_directory(work.as_path(), PENDING).join(item.id()).exists(), "the record is where a round finds it");
+    assert!(
+        promote(work.as_path(), item.id().as_str()),
+        "the one rename the promotion needs is a rename"
+    );
+    assert!(
+        state_directory(work.as_path(), PENDING)
+            .join(item.id())
+            .exists(),
+        "the record is where a round finds it"
+    );
     restore_owner_access(closed.as_path());
     remove(root.as_path());
 }
@@ -180,10 +224,25 @@ fn a_promotion_into_a_work_tree_without_states_makes_them() {
     let root: PathBuf = fixture("work-item-holding-promotion-makes-states");
     let work: PathBuf = root.join("work");
     let item: WorkItem = push_item(root.as_path());
-    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the push is held while the gate decides");
-    assert!(!state_directory(work.as_path(), PENDING).exists(), "a hold makes the held directory alone, so the queue has no states yet");
-    assert!(promote(work.as_path(), item.id().as_str()), "the record is moved once there is somewhere to move it to");
-    assert!(state_directory(work.as_path(), PENDING).join(item.id()).exists(), "the record is where a round finds it");
+    assert_eq!(
+        hold(work.as_path(), &item, "4321"),
+        Ok(()),
+        "the push is held while the gate decides"
+    );
+    assert!(
+        !state_directory(work.as_path(), PENDING).exists(),
+        "a hold makes the held directory alone, so the queue has no states yet"
+    );
+    assert!(
+        promote(work.as_path(), item.id().as_str()),
+        "the record is moved once there is somewhere to move it to"
+    );
+    assert!(
+        state_directory(work.as_path(), PENDING)
+            .join(item.id())
+            .exists(),
+        "the record is where a round finds it"
+    );
     remove(root.as_path());
 }
 
@@ -200,12 +259,28 @@ fn a_refusal_that_is_written_gives_the_held_record_up() {
     let root: PathBuf = fixture("work-item-holding-refusal-written");
     let work: PathBuf = root.join("work");
     let item: WorkItem = push_item(root.as_path());
-    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the push is held while the gate decides");
-    assert!(block(work.as_path(), &item, REASON), "the verdict is durable");
-    assert!(!state_directory(work.as_path(), HELD).join(item.id()).exists(), "the verdict replaces the hold");
+    assert_eq!(
+        hold(work.as_path(), &item, "4321"),
+        Ok(()),
+        "the push is held while the gate decides"
+    );
+    assert!(
+        block(work.as_path(), &item, REASON),
+        "the verdict is durable"
+    );
+    assert!(
+        !state_directory(work.as_path(), HELD)
+            .join(item.id())
+            .exists(),
+        "the verdict replaces the hold"
+    );
     assert_eq!(
         blocked_verdicts(work.as_path()),
-        vec![BlockedVerdict { branch_ref: String::from("refs/heads/main"), commit: String::from(OID), reason: String::from(REASON) }],
+        vec![BlockedVerdict {
+            branch_ref: String::from("refs/heads/main"),
+            commit: String::from(OID),
+            reason: String::from(REASON)
+        }],
         "the verdict names the branch, the commit and the gate's words"
     );
     remove(root.as_path());
@@ -223,11 +298,30 @@ fn a_refusal_whose_verdict_is_already_there_gives_the_held_record_up() {
     let root: PathBuf = fixture("work-item-holding-refusal-already-there");
     let work: PathBuf = root.join("work");
     let item: WorkItem = push_item(root.as_path());
-    assert!(block(work.as_path(), &item, REASON), "the first verdict is durable");
-    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "a hold an earlier release wrote is written again");
-    assert!(block(work.as_path(), &item, REASON), "a verdict that is already there is a refusal that stands");
-    assert!(!state_directory(work.as_path(), HELD).join(item.id()).exists(), "the verdict replaces the hold");
-    assert_eq!(blocked_verdicts(work.as_path()).len(), 1, "one verdict for one commit");
+    assert!(
+        block(work.as_path(), &item, REASON),
+        "the first verdict is durable"
+    );
+    assert_eq!(
+        hold(work.as_path(), &item, "4321"),
+        Ok(()),
+        "a hold an earlier release wrote is written again"
+    );
+    assert!(
+        block(work.as_path(), &item, REASON),
+        "a verdict that is already there is a refusal that stands"
+    );
+    assert!(
+        !state_directory(work.as_path(), HELD)
+            .join(item.id())
+            .exists(),
+        "the verdict replaces the hold"
+    );
+    assert_eq!(
+        blocked_verdicts(work.as_path()).len(),
+        1,
+        "one verdict for one commit"
+    );
     remove(root.as_path());
 }
 
@@ -242,10 +336,18 @@ fn a_held_record_that_is_a_named_pipe_is_answered_at_once() {
     let held: PathBuf = state_directory(work.as_path(), HELD);
     create_private_directory_all(held.as_path()).expect("held");
     let record: PathBuf = held.join(format!("{}-{OID}", crate::work_item::WorkKind::Push.name()));
-    crate::subvolume_sync_attrs::make_fifo(record.as_path(), 0o600).expect("a named pipe where a held record goes");
+    crate::subvolume_sync_attrs::make_fifo(record.as_path(), 0o600)
+        .expect("a named pipe where a held record goes");
     let inside: PathBuf = work.clone();
-    let answered = crate::test_support::finished_within(move || return (blocked_verdicts(inside.as_path()), undecided_commits(inside.as_path(), "refs/heads/main")));
-    let Some((verdicts, undecided)) = answered else { panic!("a held record that is a named pipe held the reading") };
+    let answered = crate::test_support::finished_within(move || {
+        return (
+            blocked_verdicts(inside.as_path()),
+            undecided_commits(inside.as_path(), "refs/heads/main"),
+        );
+    });
+    let Some((verdicts, undecided)) = answered else {
+        panic!("a held record that is a named pipe held the reading")
+    };
     assert!(verdicts.is_empty(), "a pipe states no refusal");
     assert!(undecided.is_empty(), "and holds no commit back");
     remove(root.as_path());

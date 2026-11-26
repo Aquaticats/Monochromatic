@@ -2,13 +2,20 @@
 //!  the work each changed path's standing costs over the index records.
 
 use super::*;
-/// The paths a fixture repository is built under.
-use std::path::PathBuf;
 /// The place a reading runs in.
 use crate::merge_isolation_recovery_steps::RecoveryPlace;
 /// Fixtures,
 /// and the counters that weigh a pass (`foundation/collected_elements_looked_at.rs`).
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
+/// The paths a fixture repository is built under.
+use std::path::PathBuf;
 
 /// What:
 ///  Deciding how the index stands at each changed path asks the staged records once per path,
@@ -34,26 +41,52 @@ fn a_standing_for_each_changed_path_reads_the_staged_records_once() {
     // The width is the number of staged paths and of changed paths at once, so a walk costs its square.
     let width: usize = 64;
     for number in 0..width {
-        std::fs::write(repo.join(format!("path-{number:04}.txt")), format!("base {number}\n")).expect("base file");
+        std::fs::write(
+            repo.join(format!("path-{number:04}.txt")),
+            format!("base {number}\n"),
+        )
+        .expect("base file");
     }
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     let old_oid: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     for number in 0..width {
-        std::fs::write(repo.join(format!("path-{number:04}.txt")), format!("staged {number}\n")).expect("staged file");
+        std::fs::write(
+            repo.join(format!("path-{number:04}.txt")),
+            format!("staged {number}\n"),
+        )
+        .expect("staged file");
     }
     git(repo.as_path(), &["add", "--all"]);
     let git_dir: PathBuf = repo.join(".git");
-    let place: RecoveryPlace = RecoveryPlace { git: git_context(), cwd: repo.clone(), common_dir: git_dir.clone(), git_dir };
-    let staged: Vec<Change> = index_entries(&place, repo.as_path(), old_oid.as_str()).expect("the staged records");
-    assert_eq!(staged.len(), width, "every path is staged against the commit");
+    let place: RecoveryPlace = RecoveryPlace {
+        git: git_context(),
+        cwd: repo.clone(),
+        common_dir: git_dir.clone(),
+        git_dir,
+    };
+    let staged: Vec<Change> =
+        index_entries(&place, repo.as_path(), old_oid.as_str()).expect("the staged records");
+    assert_eq!(
+        staged.len(),
+        width,
+        "every path is staged against the commit"
+    );
     // Measuring the records first is what makes the count below the standings' own work: `index_standings` reads them again.
     let before: u64 = crate::collected_elements_looked_at::looked_at();
-    let standings: Vec<Standing> = index_standings(&place, repo.as_path(), old_oid.as_str(), staged.as_slice()).expect("the standings");
+    let standings: Vec<Standing> =
+        index_standings(&place, repo.as_path(), old_oid.as_str(), staged.as_slice())
+            .expect("the standings");
     let counted: u64 = crate::collected_elements_looked_at::looked_at() - before;
-    assert_eq!(standings.len(), width, "every changed path got its standing");
+    assert_eq!(
+        standings.len(),
+        width,
+        "every changed path got its standing"
+    );
     assert!(
-        standings.iter().all(|standing| return *standing == Standing::New),
+        standings
+            .iter()
+            .all(|standing| return *standing == Standing::New),
         "every staged entry is the change's own end state: {standings:?}"
     );
     assert_eq!(

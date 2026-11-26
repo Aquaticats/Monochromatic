@@ -24,43 +24,99 @@
 //! named a cause that was not the case.
 
 use super::commit::remove_settled;
-use super::lfs_pre_push::{World, commit_directly, ref_of, wrapped, world};
-use super::support::{Fixture, Observed, direct, fixture, git, observe, stderr_of};
+use super::lfs_pre_push::{
+    World,
+    commit_directly,
+    ref_of,
+    world,
+    wrapped,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    direct,
+    fixture,
+    git,
+    observe,
+    stderr_of,
+};
 
 /// What the wrapper's own failure report carries for this refusal,
 /// which a refusal by Git must never show.
-const ENGINE_FAILURE_MARKERS: [&str; 3] = ["engine-failure", "content-unavailable", "Hint: if you are committing or pushing content"];
+const ENGINE_FAILURE_MARKERS: [&str; 3] = [
+    "engine-failure",
+    "content-unavailable",
+    "Hint: if you are committing or pushing content",
+];
 
 /// A repository whose policy file turns a manual-push policy on,
 /// with one commit published to `origin`.
 fn policy_world(fixture: &Fixture) -> World {
     let world: World = world(fixture, false, None);
     let policy: &str = "{ \"policies\": { \"final-newline\": \"error\" } }\n";
-    commit_directly(fixture, world.repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", policy);
-    git(fixture, world.repo.as_path(), &["push", "--quiet", "--no-verify", "origin", "main"]);
+    commit_directly(
+        fixture,
+        world.repo.as_path(),
+        "monochromatic-git-policy-cli.config.jsonc",
+        policy,
+    );
+    git(
+        fixture,
+        world.repo.as_path(),
+        &["push", "--quiet", "--no-verify", "origin", "main"],
+    );
     return world;
 }
 
 /// Runs `region` with plain Git in the repository,
 /// for the status and message Git gives.
-fn plain(fixture: &Fixture, world: &World, region: &[&str]) -> Observed {
-    return observe(direct(fixture).current_dir(world.repo.as_path()).args(region), b"");
+fn plain(
+    fixture: &Fixture,
+    world: &World,
+    region: &[&str],
+) -> Observed {
+    return observe(
+        direct(fixture)
+            .current_dir(world.repo.as_path())
+            .args(region),
+        b"",
+    );
 }
 
 /// Requires that the wrapped `region` ends exactly as plain Git ends it,
 /// with no engine failure and no hint.
-fn assert_ends_as_git(fixture: &Fixture, world: &World, region: &[&str]) {
+fn assert_ends_as_git(
+    fixture: &Fixture,
+    world: &World,
+    region: &[&str],
+) {
     let expected: Observed = plain(fixture, world, region);
-    assert_ne!(expected.code, Some(0), "{region:?}: the case must be a push Git refuses: {}", stderr_of(&expected));
+    assert_ne!(
+        expected.code,
+        Some(0),
+        "{region:?}: the case must be a push Git refuses: {}",
+        stderr_of(&expected)
+    );
     let before: String = ref_of(fixture, world.origin.as_path(), "refs/heads/main");
     let pushed: Observed = wrapped(fixture, world.repo.as_path(), region);
     let stderr: String = stderr_of(&pushed);
     assert_eq!(pushed.code, expected.code, "{region:?}: {stderr}");
     for marker in ENGINE_FAILURE_MARKERS {
-        assert!(!stderr.contains(marker), "{region:?} shows the wrapper's {marker:?}: {stderr}");
+        assert!(
+            !stderr.contains(marker),
+            "{region:?} shows the wrapper's {marker:?}: {stderr}"
+        );
     }
-    assert_eq!(stderr, stderr_of(&expected), "{region:?}: Git's message must be the whole answer");
-    assert_eq!(ref_of(fixture, world.origin.as_path(), "refs/heads/main"), before, "{region:?}: nothing may be published");
+    assert_eq!(
+        stderr,
+        stderr_of(&expected),
+        "{region:?}: Git's message must be the whole answer"
+    );
+    assert_eq!(
+        ref_of(fixture, world.origin.as_path(), "refs/heads/main"),
+        before,
+        "{region:?}: nothing may be published"
+    );
 }
 
 /// A branch to delete that the remote does not have ends as Git ends it.
@@ -68,7 +124,11 @@ fn assert_ends_as_git(fixture: &Fixture, world: &World, region: &[&str]) {
 fn deleting_a_branch_the_remote_does_not_have_ends_as_git_ends_it() {
     let fixture: Fixture = fixture("refusal-delete-absent");
     let world: World = policy_world(&fixture);
-    assert_ends_as_git(&fixture, &world, &["push", "origin", "--delete", "no-such-branch"]);
+    assert_ends_as_git(
+        &fixture,
+        &world,
+        &["push", "origin", "--delete", "no-such-branch"],
+    );
     remove_settled(&fixture);
 }
 
@@ -127,7 +187,11 @@ fn a_rejected_update_ends_as_git_ends_it() {
     let fixture: Fixture = fixture("refusal-rejected");
     let world: World = policy_world(&fixture);
     git(&fixture, world.repo.as_path(), &["tag", "v1"]);
-    git(&fixture, world.repo.as_path(), &["push", "--quiet", "--no-verify", "origin", "v1"]);
+    git(
+        &fixture,
+        world.repo.as_path(),
+        &["push", "--quiet", "--no-verify", "origin", "v1"],
+    );
     commit_directly(&fixture, world.repo.as_path(), "later.txt", "later\n");
     git(&fixture, world.repo.as_path(), &["tag", "--force", "v1"]);
     let expected: Observed = plain(&fixture, &world, &["push", "origin", "v1"]);
@@ -135,11 +199,22 @@ fn a_rejected_update_ends_as_git_ends_it() {
     let stderr: String = stderr_of(&pushed);
     assert_eq!(pushed.code, expected.code, "{stderr}");
     for marker in ENGINE_FAILURE_MARKERS {
-        assert!(!stderr.contains(marker), "the rejection shows the wrapper's {marker:?}: {stderr}");
+        assert!(
+            !stderr.contains(marker),
+            "the rejection shows the wrapper's {marker:?}: {stderr}"
+        );
     }
     // Git's own line for the rejected ref; the wrapper's atomic push adds a line of its own before it.
     let plain_text: String = stderr_of(&expected);
-    let rejection: &str = plain_text.lines().find(|line| { return line.contains("[rejected]"); }).expect("Git rejects the tag");
-    assert!(stderr.contains(rejection), "Git's rejection must be shown: {stderr}");
+    let rejection: &str = plain_text
+        .lines()
+        .find(|line| {
+            return line.contains("[rejected]");
+        })
+        .expect("Git rejects the tag");
+    assert!(
+        stderr.contains(rejection),
+        "Git's rejection must be shown: {stderr}"
+    );
     remove_settled(&fixture);
 }

@@ -29,7 +29,10 @@
 //! ```
 
 use crate::worktree_clone_forced_removal::caller_property::CallerIdentity;
-use crate::worktree_clone_forced_removal::process_session_record::{ProcessRecord, ReadOutcome};
+use crate::worktree_clone_forced_removal::process_session_record::{
+    ProcessRecord,
+    ReadOutcome,
+};
 
 /// How many ancestors one walk asks for.
 /// Why:
@@ -125,7 +128,10 @@ impl CallerChain {
     /// ```ts
     /// holder.pid === caller.pid || holder.session === caller.session || ancestors.some(a => a.pid === holder.pid && a.started === holder.started);
     /// ```
-    pub fn spares(&self, holder: &ProcessRecord) -> bool {
+    pub fn spares(
+        &self,
+        holder: &ProcessRecord,
+    ) -> bool {
         if holder.pid == self.caller.pid && holder.started == self.caller.started {
             return true;
         }
@@ -139,7 +145,10 @@ impl CallerChain {
 
     /// Which half of the set holds this holder,
     /// for the report's own sentence.
-    pub fn why_spared(&self, holder: &ProcessRecord) -> Option<SparedBy> {
+    pub fn why_spared(
+        &self,
+        holder: &ProcessRecord,
+    ) -> Option<SparedBy> {
         if holder.pid == self.caller.pid && holder.started == self.caller.started {
             return Some(SparedBy::Caller);
         }
@@ -192,7 +201,10 @@ pub enum SparedBy {
 /// let child = readTheCaller(identity); const ancestors = [];
 /// while (child.parent > 1) { const parent = read(child.parent); reRead(child); ancestors.push(parent); child = parent; }
 /// ```
-pub fn walk_the_caller_chain<Read>(read: Read, identity: &CallerIdentity) -> Result<CallerChain, ChainRefusal>
+pub fn walk_the_caller_chain<Read>(
+    read: Read,
+    identity: &CallerIdentity,
+) -> Result<CallerChain, ChainRefusal>
 where
     Read: Fn(i32) -> ReadOutcome,
 {
@@ -200,10 +212,19 @@ where
         ReadOutcome::Found(record) if record.started == identity.started => record,
         ReadOutcome::Found(_record) => return Err(ChainRefusal::CallerGone),
         ReadOutcome::Gone => return Err(ChainRefusal::CallerGone),
-        ReadOutcome::Blind { .. } => return Err(ChainRefusal::Blind { pid: identity.pid }),
+        ReadOutcome::Blind {
+            ..
+        } => {
+            return Err(ChainRefusal::Blind {
+                pid: identity.pid,
+            });
+        }
     };
     if caller.parent != identity.parent {
-        return Err(ChainRefusal::ParentChanged { recorded: identity.parent, found: caller.parent });
+        return Err(ChainRefusal::ParentChanged {
+            recorded: identity.parent,
+            found: caller.parent,
+        });
     }
     let mut ancestors: Vec<ProcessRecord> = Vec::new();
     let mut child: ProcessRecord = caller.clone();
@@ -216,7 +237,13 @@ where
         let parent: ProcessRecord = match read(child.parent) {
             ReadOutcome::Found(record) => record,
             ReadOutcome::Gone => return Err(ChainRefusal::ParentGone),
-            ReadOutcome::Blind { .. } => return Err(ChainRefusal::Blind { pid: child.parent }),
+            ReadOutcome::Blind {
+                ..
+            } => {
+                return Err(ChainRefusal::Blind {
+                    pid: child.parent,
+                });
+            }
         };
         if parent.started > child.started {
             return Err(ChainRefusal::StartOrder {
@@ -235,10 +262,19 @@ where
         let again: ProcessRecord = match read(child.pid) {
             ReadOutcome::Found(record) => record,
             ReadOutcome::Gone => return Err(ChainRefusal::ParentGone),
-            ReadOutcome::Blind { .. } => return Err(ChainRefusal::Blind { pid: child.pid }),
+            ReadOutcome::Blind {
+                ..
+            } => {
+                return Err(ChainRefusal::Blind {
+                    pid: child.pid,
+                });
+            }
         };
         if again.parent != parent.pid || again.started != child.started {
-            return Err(ChainRefusal::ParentChanged { recorded: child.parent, found: again.parent });
+            return Err(ChainRefusal::ParentChanged {
+                recorded: child.parent,
+                found: again.parent,
+            });
         }
         if ancestors.iter().any(|seen| return seen.pid == parent.pid) {
             return Err(ChainRefusal::TooDeep);
@@ -249,7 +285,10 @@ where
     if !reached_the_first_process {
         return Err(ChainRefusal::TooDeep);
     }
-    return Ok(CallerChain { caller, ancestors });
+    return Ok(CallerChain {
+        caller,
+        ancestors,
+    });
 }
 
 /// Controls stay out of the release executable.

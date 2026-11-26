@@ -22,7 +22,10 @@
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_remove::remove_tree;
 use crate::subvolume_run::Run;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Remove a file,
 /// treating "already gone" as done.
@@ -44,17 +47,28 @@ pub(crate) fn remove_if_present(path: &Path) -> Result<(), MigrateError> {
 /// ```ts
 /// const nested = await nestedSubvolumes(top); // deepest first
 /// ```
-pub(crate) fn nested_subvolumes(run: &Run<'_>, top: &Path) -> Vec<PathBuf> {
+pub(crate) fn nested_subvolumes(
+    run: &Run<'_>,
+    top: &Path,
+) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut stack: Vec<PathBuf> = vec![top.to_path_buf()];
     while let Some(directory) = stack.pop() {
-        let Ok(listing) = std::fs::read_dir(&directory) else { continue };
+        let Ok(listing) = std::fs::read_dir(&directory) else {
+            continue;
+        };
         for item in listing.flatten() {
-            let Ok(file_type) = item.file_type() else { continue };
+            let Ok(file_type) = item.file_type() else {
+                continue;
+            };
             if !file_type.is_dir() {
                 continue;
             }
-            if run.platform.is_subvolume_root(item.path().as_path()).unwrap_or(false) {
+            if run
+                .platform
+                .is_subvolume_root(item.path().as_path())
+                .unwrap_or(false)
+            {
                 found.push(item.path());
             }
             stack.push(item.path());
@@ -74,7 +88,10 @@ pub(crate) fn nested_subvolumes(run: &Run<'_>, top: &Path) -> Vec<PathBuf> {
 }
 
 /// Order two paths with the one that has more components first.
-pub(crate) fn deeper_first(left: &(usize, PathBuf), right: &(usize, PathBuf)) -> std::cmp::Ordering {
+pub(crate) fn deeper_first(
+    left: &(usize, PathBuf),
+    right: &(usize, PathBuf),
+) -> std::cmp::Ordering {
     return right.0.cmp(&left.0);
 }
 
@@ -93,7 +110,10 @@ pub(crate) fn deeper_first(left: &(usize, PathBuf), right: &(usize, PathBuf)) ->
 /// ```ts
 /// await removeOneSubvolume(run, path);
 /// ```
-pub(crate) fn remove_one_subvolume(run: &mut Run<'_>, path: &Path) -> Result<(), MigrateError> {
+pub(crate) fn remove_one_subvolume(
+    run: &mut Run<'_>,
+    path: &Path,
+) -> Result<(), MigrateError> {
     if run.platform.removal_allowed(path) && run.platform.destroy_subvolume(path).is_ok() {
         return Ok(());
     }
@@ -111,7 +131,10 @@ pub(crate) fn remove_one_subvolume(run: &mut Run<'_>, path: &Path) -> Result<(),
 /// ```ts
 /// await removeSubvolumeTree(run, path);
 /// ```
-pub fn remove_subvolume_tree(run: &mut Run<'_>, path: &Path) -> Result<(), MigrateError> {
+pub fn remove_subvolume_tree(
+    run: &mut Run<'_>,
+    path: &Path,
+) -> Result<(), MigrateError> {
     for nested in nested_subvolumes(run, path) {
         remove_one_subvolume(run, nested.as_path())?;
     }

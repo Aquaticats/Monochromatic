@@ -12,7 +12,10 @@ use super::*;
 use crate::held_push_release_wakes_the_service::WakeTheService;
 use crate::plain_file::take_reads;
 use crate::service_work::work_directory;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// How many records of other kinds stand beside the one trash record in the control's queue.
@@ -24,11 +27,18 @@ const RECORDS_OF_OTHER_KINDS: usize = 12;
 struct NeverWoken;
 
 impl WakeTheService for NeverWoken {
-    fn wake(&self, _git_dir: &Path) {
+    fn wake(
+        &self,
+        _git_dir: &Path,
+    ) {
         panic!("the scan writes no record here, so it wakes nothing");
     }
 
-    fn forget_programs(&self, _git_dir: &Path, _records: &[String]) {
+    fn forget_programs(
+        &self,
+        _git_dir: &Path,
+        _records: &[String],
+    ) {
         panic!("the scan settles no record here, so it forgets nothing");
     }
 }
@@ -65,10 +75,19 @@ fn a_queue_of_every_kind(name: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
         let object: String = object_name(index);
         for kind in [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review] {
             let record_name: String = format!("{}-{object}", kind.name());
-            std::fs::write(failed.join(record_name), "a record this scan cannot use").expect("a record of another kind");
+            std::fs::write(failed.join(record_name), "a record this scan cannot use")
+                .expect("a record of another kind");
         }
     }
-    std::fs::write(failed.join(format!("{}-{}", WorkKind::Trash.name(), object_name(RECORDS_OF_OTHER_KINDS))), "a record this scan cannot read").expect("the trash record");
+    std::fs::write(
+        failed.join(format!(
+            "{}-{}",
+            WorkKind::Trash.name(),
+            object_name(RECORDS_OF_OTHER_KINDS)
+        )),
+        "a record this scan cannot read",
+    )
+    .expect("the trash record");
     return (root, git_dir, worktree, work);
 }
 
@@ -83,15 +102,38 @@ fn the_scan_reads_the_trash_records_alone() {
     let (root, git_dir, worktree, _work) = a_queue_of_every_kind("trash-unaccounted-reads");
     let mut notices: Vec<u8> = Vec::new();
     let _taken: Vec<PathBuf> = take_reads();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut notices, &NeverWoken);
+    name_unaccounted_trash(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &mut notices,
+        &NeverWoken,
+    );
     let read: Vec<PathBuf> = take_reads();
-    assert_eq!(read.len(), 1, "one record of the queue can be this scan's work, so one is read: {read:?}");
     assert_eq!(
-        read.first().map(|path| { return path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }); }).flatten(),
-        Some(format!("{}-{}", WorkKind::Trash.name(), object_name(RECORDS_OF_OTHER_KINDS))),
+        read.len(),
+        1,
+        "one record of the queue can be this scan's work, so one is read: {read:?}"
+    );
+    assert_eq!(
+        read.first()
+            .map(|path| {
+                return path.file_name().map(|name| {
+                    return name.to_string_lossy().into_owned();
+                });
+            })
+            .flatten(),
+        Some(format!(
+            "{}-{}",
+            WorkKind::Trash.name(),
+            object_name(RECORDS_OF_OTHER_KINDS)
+        )),
         "the record it reads is the trash one: {read:?}"
     );
-    assert!(notices.is_empty(), "an empty trash parent leaves nothing to name: {}", String::from_utf8_lossy(notices.as_slice()));
+    assert!(
+        notices.is_empty(),
+        "an empty trash parent leaves nothing to name: {}",
+        String::from_utf8_lossy(notices.as_slice())
+    );
     remove(root.as_path());
 }
 
@@ -104,7 +146,10 @@ fn the_scan_reads_the_trash_records_alone() {
 fn a_trash_record_read_accounts_for_the_trash_it_names() {
     let (root, git_dir, worktree, work) = a_queue_of_every_kind("trash-unaccounted-accounted");
     let oid: String = object_name(RECORDS_OF_OTHER_KINDS);
-    assert!(crate::worktree_trash::is_trash_name(oid.as_str()), "the control's trash name is one the scan looks for");
+    assert!(
+        crate::worktree_trash::is_trash_name(oid.as_str()),
+        "the control's trash name is one the scan looks for"
+    );
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(oid.as_str());
     std::fs::create_dir_all(trash.as_path()).expect("a trash of the worktree");
     let item: WorkItem = WorkItem {
@@ -119,11 +164,26 @@ fn a_trash_record_read_accounts_for_the_trash_it_names() {
         transport: false,
     };
     let claimed: PathBuf = state_directory(work.as_path(), CLAIMED).join(item.id());
-    std::fs::create_dir_all(claimed.parent().expect("the claimed directory")).expect("the claimed directory");
+    std::fs::create_dir_all(claimed.parent().expect("the claimed directory"))
+        .expect("the claimed directory");
     std::fs::write(claimed.as_path(), item.encode()).expect("a trash record the service owns");
     let mut notices: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut notices, &NeverWoken);
-    assert!(notices.is_empty(), "the record the queue holds is the trash's, so nothing is named: {}", String::from_utf8_lossy(notices.as_slice()));
-    assert!(!state_directory(work.as_path(), PENDING).join(item.id()).exists(), "no second record is made");
+    name_unaccounted_trash(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &mut notices,
+        &NeverWoken,
+    );
+    assert!(
+        notices.is_empty(),
+        "the record the queue holds is the trash's, so nothing is named: {}",
+        String::from_utf8_lossy(notices.as_slice())
+    );
+    assert!(
+        !state_directory(work.as_path(), PENDING)
+            .join(item.id())
+            .exists(),
+        "no second record is made"
+    );
     remove(root.as_path());
 }

@@ -19,23 +19,39 @@
 //! ```
 
 /// Import the classification's record of a copy and the names the lock declares.
-use super::launcher_records::{CopyOfAnEarlierLayout, declared_launcher_names};
-/// Import the launcher directory and the lock's name.
-use super::names_and_bounds::{LAUNCHERS, LOCK_FILE};
+use super::launcher_records::{
+    CopyOfAnEarlierLayout,
+    declared_launcher_names,
+};
 /// Import the log tag.
 use super::names_and_bounds::TAG;
 /// Import the two slots a control stands a concurrent writer and a kill in,
 /// which only a control build has.
 #[cfg(test)]
-use super::names_and_bounds::{KILLED_AFTER_THE_RECORD_IS_ASIDE, WHEN_THE_REMOVAL_BEGINS};
+use super::names_and_bounds::{
+    KILLED_AFTER_THE_RECORD_IS_ASIDE,
+    WHEN_THE_REMOVAL_BEGINS,
+};
+/// Import the launcher directory and the lock's name.
+use super::names_and_bounds::{
+    LAUNCHERS,
+    LOCK_FILE,
+};
 /// Import the object comparisons the removal proves its bytes with.
-use super::object_identity::{ThisWorktreesLock, identity_of, lock_named_by_record};
+use super::object_identity::{
+    ThisWorktreesLock,
+    identity_of,
+    lock_named_by_record,
+};
 /// Import the one diagnostic log this crate writes.
 use crate::diagnostic_log::debug;
 /// Import the set of launcher names a lock declares.
 use std::collections::HashSet;
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  Remove the launcher records, and the launchers beside them,
 ///  that this worktree's lock declares nowhere,
@@ -65,7 +81,10 @@ use std::path::{Path, PathBuf};
 /// restoreWhatAKillLeft(destination); if (!copies.length) return;
 /// for (const copy of copies) { const aside = takeAside(copy); if (!aside) continue; if (!stillACopy(destination, aside, copy.name)) { putBack(aside, copy.record); continue; } unlink(aside); if (identityOf(copy.launcher) === copy.launcherIdentity) unlink(copy.launcher); }
 /// ```
-pub(super) fn remove_what_no_install_rewrites(destination: &Path, copies: &[CopyOfAnEarlierLayout]) {
+pub(super) fn remove_what_no_install_rewrites(
+    destination: &Path,
+    copies: &[CopyOfAnEarlierLayout],
+) {
     // A control's own concurrent `toolchain:update` and install, run once as the removal begins: the window a
     //  classification cannot see lies between its read and the removal, and a control has to stand in it to show what
     //  the pass does when something is written there. Taken out, so it runs once; only a control build has it.
@@ -85,21 +104,37 @@ pub(super) fn remove_what_no_install_rewrites(destination: &Path, copies: &[Copy
     //  the whole lock a thousand times in a worktree carrying a thousand copies.
     let declared_now: Option<HashSet<String>> = declared_launcher_names(destination);
     for copy in copies {
-        let Some(aside) = take_aside(copy) else { continue };
+        let Some(aside) = take_aside(copy) else {
+            continue;
+        };
         // A control's own kill, at the one instruction a record is out of its place: nothing after this line runs, which
         //  is what a killed pass leaves. Only a control build has it.
         #[cfg(test)]
         if KILLED_AFTER_THE_RECORD_IS_ASIDE.with(std::cell::Cell::get) {
             return;
         }
-        if !still_a_copy_of_an_earlier_layout(aside.as_path(), copy.name.as_deref(), &own, declared_now.as_ref()) {
+        if !still_a_copy_of_an_earlier_layout(
+            aside.as_path(),
+            copy.name.as_deref(),
+            &own,
+            declared_now.as_ref(),
+        ) {
             // Another command declared this name or wrote its own record there: the bytes are not a copy any more,
             //  and a name that holds a newer file keeps it.
             put_back(aside.as_path(), copy.record.as_path());
             continue;
         }
         match std::fs::remove_file(aside.as_path()) {
-            Ok(()) => debug(TAG, format!("{}: removed {}, whose launcher name {} declares nowhere", destination.display(), copy.record.display(), LOCK_FILE).as_str()),
+            Ok(()) => debug(
+                TAG,
+                format!(
+                    "{}: removed {}, whose launcher name {} declares nowhere",
+                    destination.display(),
+                    copy.record.display(),
+                    LOCK_FILE
+                )
+                .as_str(),
+            ),
             Err(error) => {
                 debug(TAG, format!("{}: {} is no record any install rewrites and it could not be removed ({error})", destination.display(), aside.display()).as_str());
                 continue;
@@ -111,13 +146,29 @@ pub(super) fn remove_what_no_install_rewrites(destination: &Path, copies: &[Copy
             continue;
         }
         if identity_of(copy.launcher.as_path()) != copy.launcher_identity {
-            debug(TAG, format!("{}: {} was written by another command and is left", destination.display(), copy.launcher.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "{}: {} was written by another command and is left",
+                    destination.display(),
+                    copy.launcher.display()
+                )
+                .as_str(),
+            );
             continue;
         }
         match std::fs::remove_file(copy.launcher.as_path()) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => debug(TAG, format!("{}: {} could not be removed ({error})", destination.display(), copy.launcher.display()).as_str()),
+            Err(error) => debug(
+                TAG,
+                format!(
+                    "{}: {} could not be removed ({error})",
+                    destination.display(),
+                    copy.launcher.display()
+                )
+                .as_str(),
+            ),
         }
     }
 }
@@ -145,20 +196,45 @@ fn take_aside(copy: &CopyOfAnEarlierLayout) -> Option<PathBuf> {
     static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let record: &Path = copy.record.as_path();
     let Some(judged) = copy.record_identity else {
-        debug(TAG, format!("{} was not the same object even when this pass judged it, so it is left", record.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{} was not the same object even when this pass judged it, so it is left",
+                record.display()
+            )
+            .as_str(),
+        );
         return None;
     };
     if identity_of(record) != Some(judged) {
-        debug(TAG, format!("{} is another record than the one this pass judged, so it is left", record.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{} is another record than the one this pass judged, so it is left",
+                record.display()
+            )
+            .as_str(),
+        );
         return None;
     }
     let token: u32 = NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let name: String = format!("{}.removing-{}-{token}", record.file_name()?.to_string_lossy(), std::process::id());
+    let name: String = format!(
+        "{}.removing-{}-{token}",
+        record.file_name()?.to_string_lossy(),
+        std::process::id()
+    );
     let aside: PathBuf = record.with_file_name(name);
     match std::fs::rename(record, aside.as_path()) {
         Ok(()) => {}
         Err(error) => {
-            debug(TAG, format!("{} could not be taken aside ({error}), so it is left", record.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "{} could not be taken aside ({error}), so it is left",
+                    record.display()
+                )
+                .as_str(),
+            );
             return None;
         }
     }
@@ -189,7 +265,10 @@ fn take_aside(copy: &CopyOfAnEarlierLayout) -> Option<PathBuf> {
 /// ```ts
 /// const putBack = (aside, record) => { if (link(aside, record) fails with EEXIST) unlink(aside); else if (it succeeds) unlink(aside); };
 /// ```
-fn put_back(aside: &Path, record: &Path) {
+fn put_back(
+    aside: &Path,
+    record: &Path,
+) {
     match std::fs::hard_link(aside, record) {
         Ok(()) => {
             let _removed = std::fs::remove_file(aside);
@@ -217,7 +296,12 @@ fn put_back(aside: &Path, record: &Path) {
 /// ```ts
 /// const stillACopy = (aside, name, own) => own.namesAnotherLock(aside) === true && (name === undefined || !(declaredLauncherNames(destination)?.has(name) ?? false));
 /// ```
-fn still_a_copy_of_an_earlier_layout(aside: &Path, name: Option<&str>, own: &ThisWorktreesLock, declared_now: Option<&HashSet<String>>) -> bool {
+fn still_a_copy_of_an_earlier_layout(
+    aside: &Path,
+    name: Option<&str>,
+    own: &ThisWorktreesLock,
+    declared_now: Option<&HashSet<String>>,
+) -> bool {
     match own.names_another_lock(aside) {
         Some(true) => {}
         Some(false) | None => return false,
@@ -248,13 +332,21 @@ fn still_a_copy_of_an_earlier_layout(aside: &Path, name: Option<&str>, own: &Thi
 /// ```
 fn restore_what_a_kill_left_aside(destination: &Path) {
     let launchers: PathBuf = destination.join(LAUNCHERS);
-    let Ok(listing) = std::fs::read_dir(launchers.as_path()) else { return };
+    let Ok(listing) = std::fs::read_dir(launchers.as_path()) else {
+        return;
+    };
     for item in listing.flatten() {
         let name: std::ffi::OsString = item.file_name();
         let Some(text) = name.to_str() else { continue };
-        let Some((record_name, owner)) = text.rsplit_once(".removing-") else { continue };
-        let Some((written_pid, _token)) = owner.split_once('-') else { continue };
-        let Ok(pid) = written_pid.parse::<u32>() else { continue };
+        let Some((record_name, owner)) = text.rsplit_once(".removing-") else {
+            continue;
+        };
+        let Some((written_pid, _token)) = owner.split_once('-') else {
+            continue;
+        };
+        let Ok(pid) = written_pid.parse::<u32>() else {
+            continue;
+        };
         if std::path::Path::new(format!("/proc/{pid}").as_str()).exists() {
             continue;
         }
@@ -268,11 +360,24 @@ fn restore_what_a_kill_left_aside(destination: &Path) {
         match std::fs::hard_link(aside.as_path(), record.as_path()) {
             Ok(()) => {
                 let _removed = std::fs::remove_file(aside.as_path());
-                debug(TAG, format!("{}: put back {} from what a killed pass left", destination.display(), record.display()).as_str());
+                debug(
+                    TAG,
+                    format!(
+                        "{}: put back {} from what a killed pass left",
+                        destination.display(),
+                        record.display()
+                    )
+                    .as_str(),
+                );
             }
             Err(error) => {
                 debug(TAG, format!("{}: {} could not be put back from what a killed pass left ({error}), so it is named for the person", destination.display(), record.display()).as_str());
-                name_what_a_killed_pass_kept(destination, aside.as_path(), record.as_path(), &error);
+                name_what_a_killed_pass_kept(
+                    destination,
+                    aside.as_path(),
+                    record.as_path(),
+                    &error,
+                );
             }
         }
     }
@@ -291,7 +396,12 @@ fn restore_what_a_kill_left_aside(destination: &Path) {
 /// ```ts
 /// const name = (worktree, aside, record, why) => recordNotice(gitDirOf(worktree), `toolchain-kept-${basename(aside)}`, `...kept ${aside}... mv ${aside} ${record}`);
 /// ```
-fn name_what_a_killed_pass_kept(destination: &Path, aside: &Path, record: &Path, why: &std::io::Error) {
+fn name_what_a_killed_pass_kept(
+    destination: &Path,
+    aside: &Path,
+    record: &Path,
+    why: &std::io::Error,
+) {
     let words: String = format!(
         "monochromatic-git-policy-cli: a relink of {} was stopped with a launcher record set aside, and the wrapper could not put it back at {} ({why}), so it kept it at {} instead of discarding it. If it is the record this worktree needs, run `mv -- {} {}`; otherwise remove it.",
         destination.display(),
@@ -300,12 +410,31 @@ fn name_what_a_killed_pass_kept(destination: &Path, aside: &Path, record: &Path,
         crate::shell_quote::shell_quote(aside.as_os_str().as_encoded_bytes()),
         crate::shell_quote::shell_quote(record.as_os_str().as_encoded_bytes())
     );
-    let Some(git_dir) = crate::package_repair_relink_notice::git_dir_of_a_worktree(destination) else {
-        crate::service_error!("the record kept at {} could not be named for the person, because {} has no Git directory this release can read: {words}", aside.display(), destination.display());
+    let Some(git_dir) = crate::package_repair_relink_notice::git_dir_of_a_worktree(destination)
+    else {
+        crate::service_error!(
+            "the record kept at {} could not be named for the person, because {} has no Git directory this release can read: {words}",
+            aside.display(),
+            destination.display()
+        );
         return;
     };
-    let id: String = format!("toolchain-kept-{}", aside.file_name().map_or(String::from("a-record"), |name| return name.to_string_lossy().into_owned()));
-    if let Err(problem) = crate::package_repair_relink_notice::record_notice(git_dir.as_path(), id.as_str(), words.as_str()) {
-        crate::service_error!("the record kept at {} could not be named for the person: {problem}", aside.display());
+    let id: String = format!(
+        "toolchain-kept-{}",
+        aside
+            .file_name()
+            .map_or(String::from("a-record"), |name| return name
+                .to_string_lossy()
+                .into_owned())
+    );
+    if let Err(problem) = crate::package_repair_relink_notice::record_notice(
+        git_dir.as_path(),
+        id.as_str(),
+        words.as_str(),
+    ) {
+        crate::service_error!(
+            "the record kept at {} could not be named for the person: {problem}",
+            aside.display()
+        );
     }
 }

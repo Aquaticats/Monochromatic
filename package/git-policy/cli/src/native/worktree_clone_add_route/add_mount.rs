@@ -18,9 +18,15 @@
 //! const mount = waitForTheMount(slot, clone, PROVISIONAL_MOUNT_REQUEST_DEADLINE);
 //! ```
 
-use crate::worktree_clone_mount::attached_mount_identity::{MountIdentity, mount_identity_of};
+use crate::worktree_clone_mount::attached_mount_identity::{
+    MountIdentity,
+    mount_identity_of,
+};
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The wait's poll interval,
 /// the protocol's own between two receipt reads.
@@ -28,7 +34,8 @@ pub const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// The bound on one add's wait,
 /// the protocol's provisional mount-request deadline until step 22 sizes it.
-pub const MOUNT_WAIT: Duration = crate::worktree_clone_mount_protocol::mount_request_wait::PROVISIONAL_MOUNT_REQUEST_DEADLINE;
+pub const MOUNT_WAIT: Duration =
+    crate::worktree_clone_mount_protocol::mount_request_wait::PROVISIONAL_MOUNT_REQUEST_DEADLINE;
 
 /// What:
 ///  The slot's own mount, once it shows the clone's root.
@@ -61,12 +68,20 @@ pub struct MountedHere {
 /// # Errors
 /// The deadline passed,
 /// or the slot cannot be opened.
-pub fn wait_for_the_mount(slot: &Path, clone: &str) -> Result<MountedHere, String> {
+pub fn wait_for_the_mount(
+    slot: &Path,
+    clone: &str,
+) -> Result<MountedHere, String> {
     let started: Instant = Instant::now();
     let mut last: String = String::from("the slot could not be examined");
     while started.elapsed() < MOUNT_WAIT {
         match one_look(slot, clone) {
-            Ok(Some(mount)) => return Ok(MountedHere { mount, waited: started.elapsed() }),
+            Ok(Some(mount)) => {
+                return Ok(MountedHere {
+                    mount,
+                    waited: started.elapsed(),
+                });
+            }
             Ok(None) => last = format!("the slot shows no mount of {clone}"),
             Err(reason) => last = reason,
         }
@@ -80,13 +95,23 @@ pub fn wait_for_the_mount(slot: &Path, clone: &str) -> Result<MountedHere, Strin
 }
 
 /// One look at the slot's mount.
-fn one_look(slot: &Path, clone: &str) -> Result<Option<MountIdentity>, String> {
+fn one_look(
+    slot: &Path,
+    clone: &str,
+) -> Result<Option<MountIdentity>, String> {
     let folder: std::fs::File = match std::fs::File::open(slot) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("the slot {} cannot be opened ({error})", slot.display())),
+        Err(error) => {
+            return Err(format!(
+                "the slot {} cannot be opened ({error})",
+                slot.display()
+            ));
+        }
     };
-    let mount: MountIdentity = mount_identity_of(&folder).map_err(|refusal| return format!("the slot's mount cannot be read ({})", refusal.message()))?;
+    let mount: MountIdentity = mount_identity_of(&folder).map_err(|refusal| {
+        return format!("the slot's mount cannot be read ({})", refusal.message());
+    })?;
     if mount.source != clone || mount.mount_point != slot || mount.file_system_type != "zfs" {
         return Ok(None);
     }
@@ -101,7 +126,10 @@ fn one_look(slot: &Path, clone: &str) -> Result<Option<MountIdentity>, String> {
 ///
 /// # Errors
 /// The slot or its mount cannot be read.
-pub fn the_mount_at(slot: &Path, clone: &str) -> Result<Option<MountIdentity>, String> {
+pub fn the_mount_at(
+    slot: &Path,
+    clone: &str,
+) -> Result<Option<MountIdentity>, String> {
     return one_look(slot, clone);
 }
 

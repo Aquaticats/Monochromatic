@@ -42,8 +42,13 @@
 /// ```ts
 /// queuedPushLine(branchRef, commit, waited)
 /// ```
-pub fn queued_push_line(reference: &str, commit: &str, waited: std::time::Duration) -> String {
-    let bound: String = crate::kept_reference_words::span_words(crate::service_claim_watch::LOOK_AGAIN_AFTER);
+pub fn queued_push_line(
+    reference: &str,
+    commit: &str,
+    waited: std::time::Duration,
+) -> String {
+    let bound: String =
+        crate::kept_reference_words::span_words(crate::service_claim_watch::LOOK_AGAIN_AFTER);
     let from: String = match reference.is_empty() {
         true => String::new(),
         false => format!(" from {reference}"),
@@ -78,7 +83,11 @@ pub fn queued_push_line(reference: &str, commit: &str, waited: std::time::Durati
 /// ```
 fn waited_words(waited: std::time::Duration) -> String {
     if waited.as_secs() < 120 {
-        return format!("{} {}", waited.as_secs(), crate::kept_reference_words::counted(u128::from(waited.as_secs()), "second"));
+        return format!(
+            "{} {}",
+            waited.as_secs(),
+            crate::kept_reference_words::counted(u128::from(waited.as_secs()), "second")
+        );
     }
     return crate::kept_reference_words::age_words(waited.as_millis());
 }

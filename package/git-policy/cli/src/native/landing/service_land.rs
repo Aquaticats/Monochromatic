@@ -23,43 +23,67 @@
 //! const outcomes = await landBatch(context, seq, requests);
 //! ```
 
+pub use crate::service_land_context::LandContext;
+use crate::service_land_outcomes::{
+    IgnoreAnnouncements,
+    any_landed,
+};
 #[cfg(test)]
 use std::path::PathBuf;
-pub use crate::service_land_context::LandContext;
-use crate::service_land_outcomes::{IgnoreAnnouncements, any_landed};
 
 /// What became of one request of a batch,
 /// named here so every caller of a landing keeps one path.
 pub use crate::service_land_outcomes::Outcome;
 
-pub use crate::service_land_finish::{Handled, RecoveryReport, recover, recover_instance, recover_instance_without_drops};
+use crate::service_built_checks::history_is_plain;
 #[cfg(test)]
-use crate::service_land_finish::follow_up;
-#[cfg(test)]
-use crate::service_journal::{Recovery, list_intents};
+use crate::service_head::{
+    follows_move,
+    still_checked_out,
+};
 #[cfg(test)]
 use crate::service_index_lock::try_acquire;
-use crate::service_built_checks::history_is_plain;
+#[cfg(test)]
+use crate::service_journal::{
+    Intent,
+    OPEN_EXTENSION,
+};
+#[cfg(test)]
+use crate::service_journal::{
+    Recovery,
+    list_intents,
+};
+use crate::service_land_batch_body::land_batch_body;
+#[cfg(test)]
+use crate::service_land_finish::follow_up;
+pub use crate::service_land_finish::{
+    Handled,
+    RecoveryReport,
+    recover,
+    recover_instance,
+    recover_instance_without_drops,
+};
+use crate::service_land_settings::Settings;
 use crate::service_scratch_ref_marker_of_a_batch::end_scratch_ref_record;
-#[cfg(test)]
-use crate::service_journal::{Intent, OPEN_EXTENSION};
-#[cfg(test)]
-use crate::service_head::{follows_move, still_checked_out};
 #[cfg(test)]
 use crate::transaction_git::GitContext;
 #[cfg(test)]
 use std::path::Path;
-use crate::service_land_batch_body::land_batch_body;
-use crate::service_land_settings::Settings;
 
 /// How many times a batch is built again when the branch moved under it before the failure is reported,
 /// named here so the service client keeps one path.
 pub use crate::service_land_settings::LANDING_ATTEMPTS;
 
+use crate::config_snapshot::{
+    ConfigSnapshot,
+    read_config_snapshot,
+};
 use crate::service_index_lock::Announcer;
+use crate::service_protocol::{
+    CommitRequest,
+    FailureCode,
+};
 use crate::service_timing::LandTiming;
-use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
-use crate::service_protocol::{CommitRequest, FailureCode};
 use std::time::Instant;
 
 /// What:
@@ -77,13 +101,22 @@ use std::time::Instant;
 /// ```ts
 /// await landBatch(context, seq, requests) // one outcome per request, in order
 /// ```
-pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -> Result<Vec<Outcome>, FailureCode> {
+pub fn land_batch(
+    context: &LandContext,
+    seq: u64,
+    requests: &[CommitRequest],
+) -> Result<Vec<Outcome>, FailureCode> {
     return land_batch_announcing(context, seq, requests, &IgnoreAnnouncements);
 }
 
 /// `land_batch`,
 /// telling the clients of the batch what it waits for when another program holds the index.
-pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[CommitRequest], announce: &dyn Announcer) -> Result<Vec<Outcome>, FailureCode> {
+pub fn land_batch_announcing(
+    context: &LandContext,
+    seq: u64,
+    requests: &[CommitRequest],
+    announce: &dyn Announcer,
+) -> Result<Vec<Outcome>, FailureCode> {
     return land_batch_timed(context, seq, requests, announce, &mut LandTiming::default());
 }
 
@@ -125,7 +158,9 @@ pub fn land_batch_timed(
     //  directory beside its work tree, or one an environment variable sent elsewhere, is found in this process only when the
     //  landing names it (`repository_selection::of_paths`).
     let named: LandContext = match requests.first() {
-        Some(first) => context.for_the_repository(first.git_dir.as_path(), first.repository.as_path()),
+        Some(first) => {
+            context.for_the_repository(first.git_dir.as_path(), first.repository.as_path())
+        }
         None => context.clone(),
     };
     let landing: &LandContext = &named;
@@ -137,16 +172,23 @@ pub fn land_batch_timed(
         Some(first) => read_config_snapshot(&landing.git, first.repository.as_path()),
         None => None,
     };
-    let hardens_index: bool = snapshot.as_ref().and_then(ConfigSnapshot::hardens_index).unwrap_or(true);
+    let hardens_index: bool = snapshot
+        .as_ref()
+        .and_then(ConfigSnapshot::hardens_index)
+        .unwrap_or(true);
     // Native Git writes a commit's objects as loose objects and flushes none by default; the import of a small batch writes a
     //  temporary pack, flushes it and deletes it, so the flush is dropped unless the repository asks for flushed objects.
-    let import_fsync: Option<String> = snapshot.as_ref().and_then(ConfigSnapshot::import_fsync_value);
+    let import_fsync: Option<String> = snapshot
+        .as_ref()
+        .and_then(ConfigSnapshot::import_fsync_value);
     let deferral = crate::service_durable::begin(hardens_index);
     // The object store may answer the checks of a commit Git built only where Git shows the history the files say: the settings that
     //  change it (a shallow or graft file elsewhere, another replacement namespace, replacements switched off) are read here from
     //  the environment and configuration the landing's Git children run under, and a configuration that cannot be read counts as one.
     let plain_history: bool = match requests.first() {
-        Some(first) => history_is_plain(first.common_dir.as_path(), &landing.git, snapshot.as_ref()),
+        Some(first) => {
+            history_is_plain(first.common_dir.as_path(), &landing.git, snapshot.as_ref())
+        }
         None => false,
     };
     timing.reads_split.config = config_began.elapsed();
@@ -158,16 +200,21 @@ pub fn land_batch_timed(
         //  landing cannot read) keeps Git's own write, unchanged.
         side_reference: crate::side_reference_written_here::the_plan_of(snapshot.as_ref()),
     };
-    let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(landing, seq, requests, announce, timing, &settings);
+    let result: Result<Vec<Outcome>, FailureCode> =
+        land_batch_body(landing, seq, requests, announce, timing, &settings);
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
     //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
     if result == Err(FailureCode::StepTooSlow) {
-        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(landing, announce, requests, seq);
+        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(
+            landing, announce, requests, seq,
+        );
     }
     // A batch whose own side reference did not keep the commit Git built is answered as not made, and the commit is on no branch: it is
     //  kept where a commit that did not land is kept, and the person is told where, because a commit no reference names is one
     //  `git gc --prune=now` takes (`keep_what_a_side_reference_write_left`).
-    crate::service_land_side_reference_write::keep_what_a_side_reference_write_left(landing, announce, requests, seq);
+    crate::service_land_side_reference_write::keep_what_a_side_reference_write_left(
+        landing, announce, requests, seq,
+    );
     // A batch whose own reference the write did not prove is landed as real Git would land it, and the person is told once what the
     //  missing reference exposed; a commit held behind a reference lock is kept on its kept name, because the batch's own reference
     //  is not there to hold it (`service_land_without_its_scratch_reference.rs`).
@@ -193,8 +240,6 @@ pub fn land_batch_timed(
     timing.syncs = crate::service_durable::take_syncs();
     return result;
 }
-
-
 
 /// Landing controls stay out of the release executable.
 #[cfg(test)]

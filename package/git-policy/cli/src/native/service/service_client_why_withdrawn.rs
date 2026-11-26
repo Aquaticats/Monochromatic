@@ -48,10 +48,25 @@ impl WhyWithdrawn {
     /// ```ts
     /// why.itWillNotLand(blocker) // stillWithService(minutes) | interrupted(signal)
     /// ```
-    pub(crate) fn it_will_not_land(&self, blocker: Option<String>) -> ClientFailure {
+    pub(crate) fn it_will_not_land(
+        &self,
+        blocker: Option<String>,
+    ) -> ClientFailure {
         return match self {
-            Self::Ceiling { minutes } => ClientFailure::StillWithService { minutes: *minutes, blocker },
-            Self::Interrupted { signal, sender } => ClientFailure::Interrupted { signal: *signal, sender: *sender, blocker },
+            Self::Ceiling {
+                minutes,
+            } => ClientFailure::StillWithService {
+                minutes: *minutes,
+                blocker,
+            },
+            Self::Interrupted {
+                signal,
+                sender,
+            } => ClientFailure::Interrupted {
+                signal: *signal,
+                sender: *sender,
+                blocker,
+            },
         };
     }
 
@@ -66,10 +81,24 @@ impl WhyWithdrawn {
     /// ```ts
     /// why.notKnown(blocker) // withdrawalUnconfirmed | interruptedNotKnown(signal)
     /// ```
-    pub(crate) fn not_known(&self, blocker: Option<String>) -> ClientFailure {
+    pub(crate) fn not_known(
+        &self,
+        blocker: Option<String>,
+    ) -> ClientFailure {
         return match self {
-            Self::Ceiling { .. } => ClientFailure::WithdrawalUnconfirmed { blocker },
-            Self::Interrupted { signal, sender } => ClientFailure::InterruptedNotKnown { signal: *signal, sender: *sender, blocker },
+            Self::Ceiling {
+                ..
+            } => ClientFailure::WithdrawalUnconfirmed {
+                blocker,
+            },
+            Self::Interrupted {
+                signal,
+                sender,
+            } => ClientFailure::InterruptedNotKnown {
+                signal: *signal,
+                sender: *sender,
+                blocker,
+            },
         };
     }
 }

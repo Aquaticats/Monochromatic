@@ -20,13 +20,22 @@
 //! ```
 
 use crate::path_bytes_in_records as path_bytes;
-use crate::path_bytes_in_records::{GITDIR_HEX_PREFIX, path_of_hex};
-use crate::service_claim_watch::{WATCH_DIRECTORY, named_repositories};
+use crate::path_bytes_in_records::{
+    GITDIR_HEX_PREFIX,
+    path_of_hex,
+};
+use crate::service_claim_watch::{
+    WATCH_DIRECTORY,
+    named_repositories,
+};
 use crate::service_files_of_a_stopped_instance::note_path;
 use crate::service_instance::instance_of;
 use crate::service_journal_folder_of_an_instance::journal_of;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Where the units of the user's instances are told apart from one another.
 #[derive(Clone, Copy, Debug)]
@@ -79,8 +88,14 @@ pub fn worktree_is_gone(git_dir: &Path) -> bool {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         _ => return false,
     }
-    let Some(parent) = git_dir.parent() else { return false };
-    let anchor: Option<&Path> = if parent.file_name() == Some(std::ffi::OsStr::new("worktrees")) { parent.parent() } else { Some(parent) };
+    let Some(parent) = git_dir.parent() else {
+        return false;
+    };
+    let anchor: Option<&Path> = if parent.file_name() == Some(std::ffi::OsStr::new("worktrees")) {
+        parent.parent()
+    } else {
+        Some(parent)
+    };
     if let Some(place) = anchor
         && place.is_dir()
     {
@@ -90,7 +105,11 @@ pub fn worktree_is_gone(git_dir: &Path) -> bool {
     //  drive that is not mounted. The proof the retry plans use is what tells the two apart, and it reads no worktree of its
     //  own: a worktree that is still there is one whose Git directory moved, which the caller of the proof names where it knows it.
     return matches!(
-        crate::unreachable_git_dir_proven_gone::prove(git_dir, None, &crate::unreachable_git_dir_proven_gone::the_mounts()),
+        crate::unreachable_git_dir_proven_gone::prove(
+            git_dir,
+            None,
+            &crate::unreachable_git_dir_proven_gone::the_mounts()
+        ),
         crate::unreachable_git_dir_proven_gone::Proof::Gone(_)
     );
 }
@@ -104,20 +123,30 @@ pub fn worktree_is_gone(git_dir: &Path) -> bool {
 /// so the last byte of that text is the path's even when it is a line break.
 /// A note whose bytes do not decode names nothing,
 /// and its units stay where they are rather than being stopped on a guess.
-fn named_for(instance: &str, text: &str) -> Option<PathBuf> {
+fn named_for(
+    instance: &str,
+    text: &str,
+) -> Option<PathBuf> {
     let (bytes, plain): (Option<&str>, Option<&str>) = match text.strip_prefix(GITDIR_HEX_PREFIX) {
-        Some(hexadecimal) => (Some(hexadecimal.strip_suffix('\n').unwrap_or(hexadecimal)), None),
+        Some(hexadecimal) => (
+            Some(hexadecimal.strip_suffix('\n').unwrap_or(hexadecimal)),
+            None,
+        ),
         None if text.is_empty() => (None, None),
         None => (None, Some(text)),
     };
-    let path: PathBuf = path_bytes::path_of_the_two_fields(bytes, plain).ok().flatten()?;
+    let path: PathBuf = path_bytes::path_of_the_two_fields(bytes, plain)
+        .ok()
+        .flatten()?;
     return (instance_of(path.as_path()) == instance).then_some(path);
 }
 
 /// The records of a service journal,
 /// sorted by name.
 fn journal_records(journal: &Path) -> Vec<PathBuf> {
-    let Ok(listing) = std::fs::read_dir(journal) else { return Vec::new() };
+    let Ok(listing) = std::fs::read_dir(journal) else {
+        return Vec::new();
+    };
     let mut records: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
         let path: PathBuf = entry.path();
@@ -131,11 +160,19 @@ fn journal_records(journal: &Path) -> Vec<PathBuf> {
 
 /// The `gitdir=` text of the first record of the instance's service journal that has one,
 /// and names a directory that hashes to the instance.
-fn from_journal(state_dir: &Path, instance: &str) -> Option<PathBuf> {
-    let journal: PathBuf = state_dir.join(SERVICE_UNIT.current).join("service").join(instance);
+fn from_journal(
+    state_dir: &Path,
+    instance: &str,
+) -> Option<PathBuf> {
+    let journal: PathBuf = state_dir
+        .join(SERVICE_UNIT.current)
+        .join("service")
+        .join(instance);
     for record in journal_records(journal.as_path()) {
         // A journal record that is a named pipe answers as unreadable at once, where a plain read would wait for a writer.
-        let Ok(text) = crate::plain_file::read_plain_text(&record) else { continue };
+        let Ok(text) = crate::plain_file::read_plain_text(&record) else {
+            continue;
+        };
         // A line of this release names the bytes of the directory, which is the only spelling that keeps a path that is not
         //  text; a line of an earlier release names its plain text.
         let mut plain: Option<PathBuf> = None;
@@ -178,7 +215,10 @@ fn from_journal(state_dir: &Path, instance: &str) -> Option<PathBuf> {
 /// ```ts
 /// worktreeOf(folders, instance) // { known: gitDir } or unmapped
 /// ```
-pub fn worktree_of(folders: &UnitFolders<'_>, instance: &str) -> UnitWorktree {
+pub fn worktree_of(
+    folders: &UnitFolders<'_>,
+    instance: &str,
+) -> UnitWorktree {
     // The note is this program's own record of whose units these are, so a note that is a named pipe names nobody and answers
     // at once instead of holding the command that asks.
     if let Ok(text) = crate::plain_file::read_plain_text(&note_path(folders.runtime_dir, instance))

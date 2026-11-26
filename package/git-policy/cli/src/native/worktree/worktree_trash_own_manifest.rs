@@ -29,12 +29,22 @@
 //! const leaving = itsOwnManifest({ trash, name });      // { manifest, file } when the emptying may remove it
 //! ```
 
-use crate::fs_beneath::{handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components};
+use crate::fs_beneath::{
+    handle_path,
+    identity_of,
+    open_directory_at,
+    open_file_at,
+    open_root,
+    plain_components,
+};
 use crate::plain_file::write_plain_file;
 use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_manifest::TrashManifest;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The name of the file a trash carries inside itself,
@@ -86,12 +96,18 @@ const MANIFEST_LIMIT: u64 = 1024 * 1024;
 /// ```ts
 /// const writeTrashManifest = ({ root, manifest }) => writePlainFile(join(root, TRASH_PARENT, manifest.name, '.manifest'), encodeManifest(manifest));
 /// ```
-pub fn write(root: &Path, manifest: &TrashManifest) -> Result<(), String> {
+pub fn write(
+    root: &Path,
+    manifest: &TrashManifest,
+) -> Result<(), String> {
     let trash: std::fs::File = opened_trash(root, manifest.name.as_str())?;
     let path: PathBuf = handle_path(&trash).join(MANIFEST_FILE_NAME);
     return match write_plain_file(path.as_path(), manifest.encode().as_bytes()) {
         Ok(()) => Ok(()),
-        Err(error) => Err(format!("the manifest inside the trash {} cannot be written ({error})", shown(root, manifest.name.as_str()).display())),
+        Err(error) => Err(format!(
+            "the manifest inside the trash {} cannot be written ({error})",
+            shown(root, manifest.name.as_str()).display()
+        )),
     };
 }
 
@@ -132,7 +148,10 @@ pub struct OwnManifest {
 /// ```ts
 /// const readTrashManifest = ({ root, name }) => { const trash = openTrash(root, name); const manifest = decode(name, readFileSync(join(trash, '.manifest'))); return identity(trash) === manifest.trash ? manifest : undefined; };
 /// ```
-pub fn read(root: &Path, name: &str) -> Option<TrashManifest> {
+pub fn read(
+    root: &Path,
+    name: &str,
+) -> Option<TrashManifest> {
     let trash: std::fs::File = match opened_trash(root, name) {
         Ok(found) => found,
         Err(_unreadable) => return None,
@@ -161,14 +180,21 @@ pub fn read(root: &Path, name: &str) -> Option<TrashManifest> {
 /// ```ts
 /// const itsOwnManifest = ({ trash, name }) => { const file = openAt(trash, '.manifest', O_NOFOLLOW | O_NONBLOCK); const manifest = decode(name, read(file)); return manifest.trash === identity(trash) ? { manifest, file: identity(file) } : undefined; };
 /// ```
-pub fn its_own(trash: &std::fs::File, name: &str) -> Option<OwnManifest> {
+pub fn its_own(
+    trash: &std::fs::File,
+    name: &str,
+) -> Option<OwnManifest> {
     let file: std::fs::File = open_file_at(trash, OsStr::new(MANIFEST_FILE_NAME)).ok()?;
     if !file.metadata().ok()?.file_type().is_file() {
         return None;
     }
     let carrier: crate::fs_beneath::ObjectId = identity_of(&file).ok()?;
     let mut bytes: Vec<u8> = Vec::new();
-    std::io::Read::read_to_end(&mut std::io::Read::take(&file, MANIFEST_LIMIT + 1), &mut bytes).ok()?;
+    std::io::Read::read_to_end(
+        &mut std::io::Read::take(&file, MANIFEST_LIMIT + 1),
+        &mut bytes,
+    )
+    .ok()?;
     if bytes.len() as u64 > MANIFEST_LIMIT {
         return None;
     }
@@ -177,7 +203,10 @@ pub fn its_own(trash: &std::fs::File, name: &str) -> Option<OwnManifest> {
     if manifest.trash != identity_of(trash).ok()? {
         return None;
     }
-    return Some(OwnManifest { manifest, file: carrier });
+    return Some(OwnManifest {
+        manifest,
+        file: carrier,
+    });
 }
 
 /// What:
@@ -193,7 +222,10 @@ pub fn its_own(trash: &std::fs::File, name: &str) -> Option<OwnManifest> {
 /// ```ts
 /// const openedTrash = (root, name) => openDirectoryAt(openDirectoryBeneath(openRoot(root), TRASH_PARENT.split('/')), name);
 /// ```
-fn opened_trash(root: &Path, name: &str) -> Result<std::fs::File, String> {
+fn opened_trash(
+    root: &Path,
+    name: &str,
+) -> Result<std::fs::File, String> {
     let held: std::fs::File = match open_root(root) {
         Ok(file) => file,
         Err(error) => return Err(format!("{} cannot be opened ({error})", root.display())),
@@ -206,17 +238,28 @@ fn opened_trash(root: &Path, name: &str) -> Result<std::fs::File, String> {
     for part in names {
         parent = match open_directory_at(&parent, part.as_os_str()) {
             Ok(next) => next,
-            Err(error) => return Err(format!("{} cannot be opened ({error})", shown(root, name).display())),
+            Err(error) => {
+                return Err(format!(
+                    "{} cannot be opened ({error})",
+                    shown(root, name).display()
+                ));
+            }
         };
     }
     return match open_directory_at(&parent, OsStr::new(name)) {
         Ok(trash) => Ok(trash),
-        Err(error) => Err(format!("{} is not a plain directory ({error})", shown(root, name).display())),
+        Err(error) => Err(format!(
+            "{} is not a plain directory ({error})",
+            shown(root, name).display()
+        )),
     };
 }
 
 /// The path a message names for the trash `name` of `root`.
-fn shown(root: &Path, name: &str) -> PathBuf {
+fn shown(
+    root: &Path,
+    name: &str,
+) -> PathBuf {
     return root.join(TRASH_PARENT).join(name);
 }
 

@@ -22,7 +22,10 @@
 
 use crate::claim_time::ClaimTime;
 use crate::random_id::random_uuid;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::SystemTime;
 /// The state directories,
 /// in the order an item moves through them.
@@ -45,7 +48,10 @@ pub const DONE: &str = "done";
 pub const FAILED: &str = "failed";
 
 /// The directory of one state.
-pub fn state_directory(work_dir: &Path, state: &str) -> PathBuf {
+pub fn state_directory(
+    work_dir: &Path,
+    state: &str,
+) -> PathBuf {
     return work_dir.join(state);
 }
 
@@ -62,7 +68,10 @@ pub fn state_directory(work_dir: &Path, state: &str) -> PathBuf {
 /// ```ts
 /// entries.sort((a, b) => a.time - b.time || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 /// ```
-pub(crate) fn oldest_first(left: &(String, SystemTime), right: &(String, SystemTime)) -> std::cmp::Ordering {
+pub(crate) fn oldest_first(
+    left: &(String, SystemTime),
+    right: &(String, SystemTime),
+) -> std::cmp::Ordering {
     return match left.1.cmp(&right.1) {
         std::cmp::Ordering::Equal => left.0.cmp(&right.0),
         other => other,
@@ -106,8 +115,15 @@ pub fn id_of_entry(name: &str) -> &str {
 /// ```ts
 /// `${id}~${token}~${stamp.encode()}`
 /// ```
-pub fn claim_file_name(id: &str, token: &str, stamp: &ClaimTime) -> String {
-    return format!("{id}{NAME_SEPARATOR}{token}{NAME_SEPARATOR}{}", stamp.encode());
+pub fn claim_file_name(
+    id: &str,
+    token: &str,
+    stamp: &ClaimTime,
+) -> String {
+    return format!(
+        "{id}{NAME_SEPARATOR}{token}{NAME_SEPARATOR}{}",
+        stamp.encode()
+    );
 }
 
 /// The generation and the reading in a claim's file name,
@@ -126,13 +142,19 @@ pub(crate) fn parse_claim_name(name: &str) -> Option<(&str, ClaimTime)> {
 pub(crate) fn new_generation() -> Result<String, String> {
     return match random_uuid() {
         Ok(uuid) => Ok(uuid.replace('-', "")),
-        Err(error) => Err(format!("making the generation of a claim failed: {}", error.0)),
+        Err(error) => Err(format!(
+            "making the generation of a claim failed: {}",
+            error.0
+        )),
     };
 }
 
 /// The names in a state directory with their modification times,
 /// oldest first.
-pub(crate) fn entries_oldest_first(work_dir: &Path, state: &str) -> Vec<(String, SystemTime)> {
+pub(crate) fn entries_oldest_first(
+    work_dir: &Path,
+    state: &str,
+) -> Vec<(String, SystemTime)> {
     #[cfg(test)]
     count_listing();
     let mut found: Vec<(String, SystemTime)> = Vec::new();
@@ -167,7 +189,9 @@ thread_local! {
 /// ```
 #[cfg(test)]
 fn count_listing() {
-    LISTINGS.with(|listings| { listings.set(listings.get() + 1); });
+    LISTINGS.with(|listings| {
+        listings.set(listings.get() + 1);
+    });
 }
 
 /// What:

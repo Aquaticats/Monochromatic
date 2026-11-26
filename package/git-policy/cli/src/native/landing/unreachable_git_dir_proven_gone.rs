@@ -55,8 +55,16 @@
 //! ```
 
 #[cfg(target_os = "linux")]
-use crate::fs_mount_options::{MOUNTINFO_PATH, MountFacts, mount_holding, parse_mount_table};
-use std::path::{Path, PathBuf};
+use crate::fs_mount_options::{
+    MOUNTINFO_PATH,
+    MountFacts,
+    mount_holding,
+    parse_mount_table,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What a path that cannot be resolved shows about the repository it named.
@@ -109,7 +117,9 @@ impl GoneBecause {
     /// ```
     pub fn words(self) -> &'static str {
         return match self {
-            GoneBecause::MountedFilesystemRoot => "is the root of a mounted filesystem that is answering",
+            GoneBecause::MountedFilesystemRoot => {
+                "is the root of a mounted filesystem that is answering"
+            }
             GoneBecause::OrdinaryDirectory => "is a directory that holds other entries",
         };
     }
@@ -173,7 +183,10 @@ pub struct MayReturn {
 /// ```
 pub trait Mounts {
     /// Whether `path` is the root of a mounted filesystem.
-    fn is_mount_point(&self, path: &Path) -> bool;
+    fn is_mount_point(
+        &self,
+        path: &Path,
+    ) -> bool;
 }
 
 /// What:
@@ -222,7 +235,9 @@ impl TheMountTable {
     fn read_now() -> Self {
         #[cfg(target_os = "linux")]
         {
-            return Self { table: the_mount_table() };
+            return Self {
+                table: the_mount_table(),
+            };
         }
         #[cfg(not(target_os = "linux"))]
         {
@@ -232,7 +247,10 @@ impl TheMountTable {
 }
 
 impl Mounts for TheMountTable {
-    fn is_mount_point(&self, path: &Path) -> bool {
+    fn is_mount_point(
+        &self,
+        path: &Path,
+    ) -> bool {
         #[cfg(target_os = "linux")]
         {
             return match mount_holding(self.table.as_slice(), path) {
@@ -278,7 +296,10 @@ pub fn the_mounts() -> TheMountTable {
 /// ```
 #[cfg(target_os = "linux")]
 fn the_mount_table() -> Vec<MountFacts> {
-    let Ok(text) = crate::plain_file::read_plain_file(Path::new(MOUNTINFO_PATH), crate::plain_file::MOUNT_TABLE_LIMIT) else {
+    let Ok(text) = crate::plain_file::read_plain_file(
+        Path::new(MOUNTINFO_PATH),
+        crate::plain_file::MOUNT_TABLE_LIMIT,
+    ) else {
         return Vec::new();
     };
     return parse_mount_table(text.as_slice());
@@ -298,7 +319,10 @@ fn the_mount_table() -> Vec<MountFacts> {
 pub struct NothingIsMounted;
 
 impl Mounts for NothingIsMounted {
-    fn is_mount_point(&self, _path: &Path) -> bool {
+    fn is_mount_point(
+        &self,
+        _path: &Path,
+    ) -> bool {
         return false;
     }
 }
@@ -337,7 +361,9 @@ enum Look {
 /// ```
 fn look(path: &Path) -> Look {
     return match std::fs::metadata(path) {
-        Ok(found) => Look::There { directory: found.is_dir() },
+        Ok(found) => Look::There {
+            directory: found.is_dir(),
+        },
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Look::Absent,
         Err(_unanswered) => Look::Unknown,
     };
@@ -383,9 +409,14 @@ enum Nearest {
 fn nearest_looked_at(path: &Path) -> Nearest {
     for candidate in path.ancestors() {
         match look(candidate) {
-            Look::There { directory: true } => return Nearest::At(candidate.to_path_buf()),
+            Look::There {
+                directory: true,
+            } => return Nearest::At(candidate.to_path_buf()),
             Look::Unknown => return Nearest::Unknown,
-            Look::There { directory: false } | Look::Absent => {}
+            Look::There {
+                directory: false,
+            }
+            | Look::Absent => {}
         }
     }
     return Nearest::Nothing;
@@ -430,34 +461,69 @@ fn is_empty_directory(path: &Path) -> std::io::Result<bool> {
 /// ```ts
 /// const proof = prove(gitDir, worktree, mounts);
 /// ```
-pub fn prove(git_dir: &Path, worktree: Option<&Path>, mounts: &dyn Mounts) -> Proof {
+pub fn prove(
+    git_dir: &Path,
+    worktree: Option<&Path>,
+    mounts: &dyn Mounts,
+) -> Proof {
     if let Some(root) = worktree {
         match look(root) {
             // A worktree that is still there is a repository whose own Git directory moved or is away: nothing of the repository was
             //  deleted, and the plan waits for the directory as it always has.
-            Look::There { directory: true } => return Proof::MayReturn(MayReturn { nearest: root.to_path_buf() }),
+            Look::There {
+                directory: true,
+            } => {
+                return Proof::MayReturn(MayReturn {
+                    nearest: root.to_path_buf(),
+                });
+            }
             // A worktree this process may not look at may be there, and then nothing of the repository was deleted either.
-            Look::Unknown => return Proof::MayReturn(MayReturn { nearest: root.to_path_buf() }),
-            Look::There { directory: false } | Look::Absent => {}
+            Look::Unknown => {
+                return Proof::MayReturn(MayReturn {
+                    nearest: root.to_path_buf(),
+                });
+            }
+            Look::There {
+                directory: false,
+            }
+            | Look::Absent => {}
         }
     }
     let nearest: PathBuf = match nearest_looked_at(git_dir) {
         Nearest::At(nearest) => nearest,
         // No ancestor at all exists, so nothing is known about the path: it is read as one that may return, which loses nothing.
-        Nearest::Nothing => return Proof::MayReturn(MayReturn { nearest: git_dir.to_path_buf() }),
+        Nearest::Nothing => {
+            return Proof::MayReturn(MayReturn {
+                nearest: git_dir.to_path_buf(),
+            });
+        }
         // Something above the path did not answer, so what the path is was not seen: it may be there behind that answer.
-        Nearest::Unknown => return Proof::MayReturn(MayReturn { nearest: git_dir.to_path_buf() }),
+        Nearest::Unknown => {
+            return Proof::MayReturn(MayReturn {
+                nearest: git_dir.to_path_buf(),
+            });
+        }
     };
     if mounts.is_mount_point(nearest.as_path()) {
-        return Proof::Gone(Gone { nearest, because: GoneBecause::MountedFilesystemRoot });
+        return Proof::Gone(Gone {
+            nearest,
+            because: GoneBecause::MountedFilesystemRoot,
+        });
     }
     return match is_empty_directory(nearest.as_path()) {
         // The directory holds nothing, so it may be a mount point waiting for its drive.
-        Ok(true) => Proof::MayReturn(MayReturn { nearest }),
+        Ok(true) => Proof::MayReturn(MayReturn {
+            nearest,
+        }),
         // It holds other entries, so the repository was one of them and was deleted.
-        Ok(false) => Proof::Gone(Gone { nearest, because: GoneBecause::OrdinaryDirectory }),
+        Ok(false) => Proof::Gone(Gone {
+            nearest,
+            because: GoneBecause::OrdinaryDirectory,
+        }),
         // Whether it holds anything was not answered, so it is not read as holding the entries of a directory a repository was deleted from.
-        Err(_unanswered) => Proof::MayReturn(MayReturn { nearest }),
+        Err(_unanswered) => Proof::MayReturn(MayReturn {
+            nearest,
+        }),
     };
 }
 
@@ -472,7 +538,11 @@ pub fn prove(git_dir: &Path, worktree: Option<&Path>, mounts: &dyn Mounts) -> Pr
 /// ```ts
 /// goneLine(gitDir, gone, branches) // 'the pushes of ... end: the repository at ... is gone ...'
 /// ```
-pub fn gone_line(git_dir: &Path, gone: &Gone, branches: &[String]) -> String {
+pub fn gone_line(
+    git_dir: &Path,
+    gone: &Gone,
+    branches: &[String],
+) -> String {
     let named: String = if branches.is_empty() {
         String::from("its push")
     } else {

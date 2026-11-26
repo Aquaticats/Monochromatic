@@ -12,15 +12,26 @@
 //! const held = await takeIndexLock(...)
 //! ```
 
-use std::time::Duration;
-use crate::service_land_side_reference_write::keep_an_unlanded_commit;
 use crate::journald_native::Priority;
+use crate::service_index_lock::{
+    Announcer,
+    IndexLock,
+    WaitNotes,
+    acquire_noting_wait_within,
+};
 use crate::service_journal::OPEN_EXTENSION;
-use crate::service_index_lock::{Announcer, IndexLock, WaitNotes, acquire_noting_wait_within};
-use crate::service_timing::{LandTiming, wait_line};
-use crate::service_protocol::{CommitRequest, FailureCode};
+use crate::service_land_side_reference_write::keep_an_unlanded_commit;
+use crate::service_protocol::{
+    CommitRequest,
+    FailureCode,
+};
+use crate::service_timing::{
+    LandTiming,
+    wait_line,
+};
 use crate::transaction_git::GitContext;
 use std::path::Path;
+use std::time::Duration;
 use std::time::Instant;
 
 /// What:
@@ -64,12 +75,19 @@ pub(crate) fn take_index_lock(
     //       marked lock whose holder is gone, and the wrapper's record proves a Git the wrapper started is gone, so the commit
     //       lands at once instead of the wait reaching its ceiling and withdrawing the change.
     let _cleared: usize = crate::abandoned_locks::clear_abandoned_locks_telling(
-        crate::abandoned_locks::roots_of_git_directory(first.index.parent().unwrap_or(repository)).as_slice(),
+        crate::abandoned_locks::roots_of_git_directory(first.index.parent().unwrap_or(repository))
+            .as_slice(),
         &mut std::io::stderr(),
     );
     let waiting_since: Instant = Instant::now();
     let mut notes: WaitNotes = WaitNotes::default();
-    let taken = acquire_noting_wait_within(first.index.as_path(), seq, lock_ceiling, announce, &mut notes);
+    let taken = acquire_noting_wait_within(
+        first.index.as_path(),
+        seq,
+        lock_ceiling,
+        announce,
+        &mut notes,
+    );
     let waited: std::time::Duration = waiting_since.elapsed();
     timing.lock_wait += waited;
     // A pass over the batch that found the lock free has nothing to add to what an earlier pass found held.
@@ -80,8 +98,16 @@ pub(crate) fn take_index_lock(
     // The wait is written down when it ends, not with the answer, so a landing that fails later still leaves it.
     if let Some(line) = wait_line(seq, repository, waited, &notes, taken.is_ok()) {
         // A lock that was refused fails the commit, so the line stands out from a wait that ended in the lock.
-        let priority: Priority = if taken.is_ok() { Priority::Info } else { Priority::Error };
-        crate::service_timing::log_entry(priority, line.as_str(), &[("CLI_GIT_BATCH", seq.to_string())]);
+        let priority: Priority = if taken.is_ok() {
+            Priority::Info
+        } else {
+            Priority::Error
+        };
+        crate::service_timing::log_entry(
+            priority,
+            line.as_str(),
+            &[("CLI_GIT_BATCH", seq.to_string())],
+        );
     }
     match taken {
         Ok(lock) => {
@@ -112,7 +138,11 @@ pub(crate) fn take_index_lock(
             //  held it on. The commit is on no branch whatever refused the lock, so the lock's own code decides nothing about it:
             //  a refusal that is not another program's lock (a read-only Git directory, a permission, a full disk, a stale lock
             //  nothing can remove) loses the commit exactly as one that is.
-            let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(journal, seq, OPEN_EXTENSION));
+            let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(
+                journal,
+                seq,
+                OPEN_EXTENSION,
+            ));
             let _kept = keep_an_unlanded_commit(git, repository, seq, scratch, new, announce);
             return Err(failure.code);
         }

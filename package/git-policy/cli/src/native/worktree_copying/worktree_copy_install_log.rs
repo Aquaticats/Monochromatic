@@ -13,15 +13,31 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
+use crate::path_bytes_in_records::{
+    list_fragment,
+    read_path_list,
+};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+    raw_failure_of,
+};
 use crate::worktree_copy_install_entry::InstalledPath;
-use crate::worktree_copy_journal::{Role, assert_private_path};
-use crate::path_bytes_in_records::{list_fragment, read_path_list};
-use crate::worktree_copy_journal_encoding_and_validation::{encode_installed_entry, installed_entry};
+use crate::worktree_copy_journal::{
+    Role,
+    assert_private_path,
+};
+use crate::worktree_copy_journal_encoding_and_validation::{
+    encode_installed_entry,
+    installed_entry,
+};
 use crate::worktree_copy_selection::assert_safe_repository_path;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The install-log file name inside a stage container.
@@ -103,7 +119,11 @@ pub struct OpenedLog {
 /// ```
 fn corrupt_install_log(path: &Path) -> WorktreeCopyError {
     return failure_with_cause(
-        format!("monochromatic-git-policy-cli: worktree-copy install log is corrupt: {}.", quote(path.to_string_lossy().as_ref())).as_str(),
+        format!(
+            "monochromatic-git-policy-cli: worktree-copy install log is corrupt: {}.",
+            quote(path.to_string_lossy().as_ref())
+        )
+        .as_str(),
         None,
     );
 }
@@ -131,7 +151,10 @@ fn is_line_feed(byte: &u8) -> bool {
 /// ```ts
 /// function parseLine({ line, path }): InstallLogRecords;
 /// ```
-fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopyError> {
+fn parse_line(
+    line: &str,
+    path: &Path,
+) -> Result<InstallLogRecords, WorktreeCopyError> {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
         return Err(corrupt_install_log(path));
     };
@@ -151,7 +174,11 @@ fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopy
         });
     }
     if let Some(created) = object.get("created").and_then(serde_json::Value::as_array) {
-        let Some(entries) = created.iter().map(installed_entry).collect::<Option<Vec<InstalledPath>>>() else {
+        let Some(entries) = created
+            .iter()
+            .map(installed_entry)
+            .collect::<Option<Vec<InstalledPath>>>()
+        else {
             return Err(corrupt_install_log(path));
         };
         for entry in &entries {
@@ -186,7 +213,8 @@ fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopy
 /// ```
 fn read_complete_records(path: &Path) -> Result<(InstallLogRecords, u64, u64), WorktreeCopyError> {
     assert_private_path(path, Role::JournalFile)?;
-    let mut opened: std::fs::File = crate::plain_file::open_plain_file(path).map_err(raw_failure_of)?;
+    let mut opened: std::fs::File =
+        crate::plain_file::open_plain_file(path).map_err(raw_failure_of)?;
     let mut content: Vec<u8> = Vec::new();
     std::io::Read::read_to_end(&mut opened, &mut content).map_err(raw_failure_of)?;
     let complete_length: usize = match content.iter().rposition(is_line_feed) {
@@ -247,11 +275,13 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
         }
     };
     if complete_length < total_length {
-        file.set_len(complete_length)
-            .map_err(raw_failure_of)?;
+        file.set_len(complete_length).map_err(raw_failure_of)?;
     }
     return Ok(OpenedLog {
-        log: InstallLog { file, path },
+        log: InstallLog {
+            file,
+            path,
+        },
         recorded,
     });
 }
@@ -266,7 +296,10 @@ impl InstallLog {
     /// and the record of an unfilled worktree names the worktree
     /// (`SPEC.md`,
     /// "The records an add writes for itself").
-    fn append_line(&mut self, line: &str) -> Result<(), WorktreeCopyError> {
+    fn append_line(
+        &mut self,
+        line: &str,
+    ) -> Result<(), WorktreeCopyError> {
         let written: std::io::Result<()> = self.file.write_all(line.as_bytes());
         if let Err(error) = written {
             let message: String = format!(
@@ -279,7 +312,10 @@ impl InstallLog {
     }
 
     /// Durably appends the selected paths one batch is about to create.
-    pub fn append_intents(&mut self, relative_paths: &[Vec<u8>]) -> Result<(), WorktreeCopyError> {
+    pub fn append_intents(
+        &mut self,
+        relative_paths: &[Vec<u8>],
+    ) -> Result<(), WorktreeCopyError> {
         if relative_paths.is_empty() {
             return Ok(());
         }
@@ -288,7 +324,10 @@ impl InstallLog {
     }
 
     /// Durably appends the identities of the paths one batch created.
-    pub fn append_creations(&mut self, entries: &[InstalledPath]) -> Result<(), WorktreeCopyError> {
+    pub fn append_creations(
+        &mut self,
+        entries: &[InstalledPath],
+    ) -> Result<(), WorktreeCopyError> {
         if entries.is_empty() {
             return Ok(());
         }

@@ -32,13 +32,29 @@
 //! ```
 
 use crate::blocking_job::BlockingJobError;
-use crate::parallel_runner::{Message, OrderedEvents, refuse_lanes_that_do_not_cover_every_item};
-use crate::parallel_runner_on_the_runtime::{CountedOut, LinesToTheConsumer, OrderedRunError, SlotsStillRunning, finish_the_run};
+use crate::parallel_runner::{
+    Message,
+    OrderedEvents,
+    refuse_lanes_that_do_not_cover_every_item,
+};
+use crate::parallel_runner_on_the_runtime::{
+    CountedOut,
+    LinesToTheConsumer,
+    OrderedRunError,
+    SlotsStillRunning,
+    finish_the_run,
+};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use tokio::sync::mpsc::{
+    UnboundedSender,
+    unbounded_channel,
+};
 
 /// What:
 ///  What one item of an awaited ordered run does:
@@ -70,7 +86,12 @@ pub trait OrderedAwaitingWork<T, R>: Send + Sync {
     /// Do the item at `index`,
     /// saying its lines through `say`,
     /// and return its result when its waits are over.
-    fn run<'a>(&'a self, index: usize, item: &'a T, say: LinesToTheConsumer<R>) -> Pin<Box<dyn Future<Output = R> + Send + 'a>>;
+    fn run<'a>(
+        &'a self,
+        index: usize,
+        item: &'a T,
+        say: LinesToTheConsumer<R>,
+    ) -> Pin<Box<dyn Future<Output = R> + Send + 'a>>;
 }
 
 /// What:
@@ -145,12 +166,18 @@ struct Lane<T, R> {
 /// ```ts
 /// for (let lane = nextLane(); lane; lane = nextLane()) for (const index of lane) sender.send(Done(index, await work(index, items[index], say)));
 /// ```
-async fn run_a_lane<T: Send + Sync + 'static, R: Send + 'static>(lane: Lane<T, R>) -> Result<(), BlockingJobError> {
+async fn run_a_lane<T: Send + Sync + 'static, R: Send + 'static>(
+    lane: Lane<T, R>
+) -> Result<(), BlockingJobError> {
     loop {
         let lane_index: usize = lane.next_lane.fetch_add(1, Ordering::Relaxed);
-        let Some(indices) = lane.lanes.get(lane_index) else { return Ok(()) };
+        let Some(indices) = lane.lanes.get(lane_index) else {
+            return Ok(());
+        };
         for &index in indices {
-            let Some(item) = lane.items.get(index) else { continue };
+            let Some(item) = lane.items.get(index) else {
+                continue;
+            };
             // The sink is a value the item owns, so a `'static` job of the pool can carry it.
             let say: LinesToTheConsumer<R> = LinesToTheConsumer::new(&lane.sender, index);
             let result: R = lane.work.run(index, item, say).await;
@@ -170,7 +197,10 @@ async fn run_a_lane<T: Send + Sync + 'static, R: Send + 'static>(lane: Lane<T, R
 ///  and the consumer would wait for it for good
 /// (`blocking_jobs_within_the_budget.rs` says how one such case is measured).
 ///
-async fn run_counted_lane<T: Send + Sync + 'static, R: Send + 'static>(lane: Lane<T, R>, counted: Arc<SlotsStillRunning>) -> Result<(), BlockingJobError> {
+async fn run_counted_lane<T: Send + Sync + 'static, R: Send + 'static>(
+    lane: Lane<T, R>,
+    counted: Arc<SlotsStillRunning>,
+) -> Result<(), BlockingJobError> {
     let _counted: CountedOut = CountedOut(counted);
     return run_a_lane(lane).await;
 }
@@ -192,13 +222,21 @@ async fn run_counted_lane<T: Send + Sync + 'static, R: Send + 'static>(lane: Lan
 /// # Panics
 /// When a lane names an index that is not an item,
 /// or the lanes do not cover every item exactly once.
-pub async fn run_ordered_awaiting_on_the_runtime<T, R, E>(run: OrderedRunOfAwaitingOwned<'_, T, R, E>) -> Result<(), OrderedRunError>
+pub async fn run_ordered_awaiting_on_the_runtime<T, R, E>(
+    run: OrderedRunOfAwaitingOwned<'_, T, R, E>
+) -> Result<(), OrderedRunError>
 where
     T: Send + Sync + 'static,
     R: Send + 'static,
     E: OrderedEvents<R> + ?Sized,
 {
-    let OrderedRunOfAwaitingOwned { items, lanes, workers, work, on_event } = run;
+    let OrderedRunOfAwaitingOwned {
+        items,
+        lanes,
+        workers,
+        work,
+        on_event,
+    } = run;
     refuse_lanes_that_do_not_cover_every_item(items.len(), lanes.as_ref());
     let next_lane: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let (sender, receiver) = unbounded_channel::<Message<R>>();

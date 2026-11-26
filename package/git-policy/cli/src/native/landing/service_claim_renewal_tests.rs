@@ -5,12 +5,32 @@
 //! and that
 //! the thread stops.
 
-use crate::work_item_recovery::requeue_expired;
 use super::*;
-use crate::service_claim_renewal_running::{ClaimRenewal, Control, DrivenRenewal, RENEWALS_MADE, RENEWAL_STOP_CEILING, TASKS_ENDED, TASKS_STARTED};
+use crate::service_claim_renewal_running::{
+    ClaimRenewal,
+    Control,
+    DrivenRenewal,
+    RENEWAL_STOP_CEILING,
+    RENEWALS_MADE,
+    TASKS_ENDED,
+    TASKS_STARTED,
+};
 use crate::service_work::MAX_TRIES;
-use crate::test_support::{fixture, remove};
-use crate::work_item::{CLAIMED, DONE, WorkItem, WorkKind, claim_next_of, enqueue, find_claim, state_directory};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use crate::work_item::{
+    CLAIMED,
+    DONE,
+    WorkItem,
+    WorkKind,
+    claim_next_of,
+    enqueue,
+    find_claim,
+    state_directory,
+};
+use crate::work_item_recovery::requeue_expired;
 use std::path::Path;
 
 /// The bound that ends a control which waits for a renewal thread to run:
@@ -29,7 +49,10 @@ const PASSES_WATCHED: usize = 2;
 /// Waits until the renewal thread has made `count` more passes than `before`,
 /// which the renewal itself counts,
 /// and gives whether it did within `PASS_PATIENCE`.
-fn wait_for_passes(before: usize, count: usize) -> bool {
+fn wait_for_passes(
+    before: usize,
+    count: usize,
+) -> bool {
     let began: std::time::Instant = std::time::Instant::now();
     while RENEWALS_MADE.load(std::sync::atomic::Ordering::SeqCst) < before.saturating_add(count) {
         if began.elapsed() >= PASS_PATIENCE {
@@ -51,13 +74,20 @@ const BOOT: &str = "0123456789abcdef0123456789abcdef";
 
 /// The clocks at the start of every test.
 fn clock() -> ClaimTime {
-    return ClaimTime::from_parts(BOOT, Duration::from_secs(5000), Duration::from_secs(1_700_000_000));
+    return ClaimTime::from_parts(
+        BOOT,
+        Duration::from_secs(5000),
+        Duration::from_secs(1_700_000_000),
+    );
 }
 
 /// A claimed push item in a fresh work directory,
 /// claimed at `stamp`;
 /// the claim is returned with the directories.
-fn claimed_item(name: &str, stamp: &ClaimTime) -> (PathBuf, PathBuf, Claimed) {
+fn claimed_item(
+    name: &str,
+    stamp: &ClaimTime,
+) -> (PathBuf, PathBuf, Claimed) {
     let root: PathBuf = fixture(name);
     let work_dir: PathBuf = root.join("work");
     let item: WorkItem = WorkItem {
@@ -72,13 +102,21 @@ fn claimed_item(name: &str, stamp: &ClaimTime) -> (PathBuf, PathBuf, Claimed) {
         transport: false,
     };
     enqueue(work_dir.as_path(), &item).expect("enqueue");
-    let claimed: Claimed = claim_next_of(work_dir.as_path(), stamp, &[WorkKind::Push]).expect("claim").expect("one claim");
+    let claimed: Claimed = claim_next_of(work_dir.as_path(), stamp, &[WorkKind::Push])
+        .expect("claim")
+        .expect("one claim");
     return (root, work_dir, claimed);
 }
 
 /// The names in `claimed`.
 fn claimed_names(work_dir: &Path) -> Vec<String> {
-    return std::fs::read_dir(state_directory(work_dir, CLAIMED)).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    return std::fs::read_dir(state_directory(work_dir, CLAIMED))
+        .expect("listing")
+        .flatten()
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .collect();
 }
 
 /// A renewed claim is not taken over at the end of the lease it started with,
@@ -88,10 +126,33 @@ fn a_renewed_claim_outlives_the_lease_it_started_with() {
     let started: ClaimTime = clock();
     let (root, work_dir, claimed) = claimed_item("renewal-outlives", &started);
     let almost_over: ClaimTime = started.advanced(LEASE - Duration::from_secs(1));
-    let renewed: String = renew_claim(work_dir.as_path(), claimed.name.as_str(), &almost_over).expect("the claim is still held");
-    assert_eq!(claimed_names(work_dir.as_path()), vec![renewed], "the claim is one file, renamed");
-    assert_eq!(requeue_expired(work_dir.as_path(), &started.advanced(LEASE + Duration::from_secs(1)), LEASE, MAX_TRIES), 0, "renewed, so still held");
-    assert_eq!(requeue_expired(work_dir.as_path(), &almost_over.advanced(LEASE + Duration::from_secs(1)), LEASE, MAX_TRIES), 1, "a holder that stopped renewing loses it");
+    let renewed: String = renew_claim(work_dir.as_path(), claimed.name.as_str(), &almost_over)
+        .expect("the claim is still held");
+    assert_eq!(
+        claimed_names(work_dir.as_path()),
+        vec![renewed],
+        "the claim is one file, renamed"
+    );
+    assert_eq!(
+        requeue_expired(
+            work_dir.as_path(),
+            &started.advanced(LEASE + Duration::from_secs(1)),
+            LEASE,
+            MAX_TRIES
+        ),
+        0,
+        "renewed, so still held"
+    );
+    assert_eq!(
+        requeue_expired(
+            work_dir.as_path(),
+            &almost_over.advanced(LEASE + Duration::from_secs(1)),
+            LEASE,
+            MAX_TRIES
+        ),
+        1,
+        "a holder that stopped renewing loses it"
+    );
     remove(root.as_path());
 }
 
@@ -101,9 +162,21 @@ fn a_renewed_claim_outlives_the_lease_it_started_with() {
 fn renewing_never_brings_back_a_settled_claim() {
     let started: ClaimTime = clock();
     let (root, work_dir, claimed) = claimed_item("renewal-settled", &started);
-    std::fs::remove_file(state_directory(work_dir.as_path(), CLAIMED).join(claimed.name.as_str())).expect("settled");
-    assert_eq!(renew_claim(work_dir.as_path(), claimed.name.as_str(), &started.advanced(Duration::from_secs(5))), None, "nothing is left to renew");
-    assert!(claimed_names(work_dir.as_path()).is_empty(), "a renewal does not create the claim");
+    std::fs::remove_file(state_directory(work_dir.as_path(), CLAIMED).join(claimed.name.as_str()))
+        .expect("settled");
+    assert_eq!(
+        renew_claim(
+            work_dir.as_path(),
+            claimed.name.as_str(),
+            &started.advanced(Duration::from_secs(5))
+        ),
+        None,
+        "nothing is left to renew"
+    );
+    assert!(
+        claimed_names(work_dir.as_path()).is_empty(),
+        "a renewal does not create the claim"
+    );
     remove(root.as_path());
 }
 
@@ -118,12 +191,24 @@ fn the_held_set_follows_what_is_taken_and_settled() {
     assert!(held.is_held(claimed.id.as_str()));
     renewer.renew(&clock().advanced(Duration::from_secs(30)));
     let renamed: String = renewer.names().into_iter().next().expect("held");
-    assert_ne!(renamed, claimed.name, "the renewed name follows the renewal");
-    assert_eq!(claimed_names(work_dir.as_path()), vec![renamed], "and so does the file");
-    held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect("settled under the renewed name");
+    assert_ne!(
+        renamed, claimed.name,
+        "the renewed name follows the renewal"
+    );
+    assert_eq!(
+        claimed_names(work_dir.as_path()),
+        vec![renamed],
+        "and so does the file"
+    );
+    held.settle(work_dir.as_path(), claimed.id.as_str(), DONE)
+        .expect("settled under the renewed name");
     assert!(held.snapshot().is_empty());
     assert!(find_claim(work_dir.as_path(), claimed.id.as_str()).is_none());
-    assert!(state_directory(work_dir.as_path(), DONE).join(claimed.id.as_str()).exists());
+    assert!(
+        state_directory(work_dir.as_path(), DONE)
+            .join(claimed.id.as_str())
+            .exists()
+    );
     remove(root.as_path());
 }
 
@@ -140,15 +225,37 @@ fn a_claim_taken_over_is_found_gone_and_settles_nothing_of_the_new_claim() {
     held.hold(&claimed);
     // Another instance finds the lease over, returns the item to pending and claims it.
     let later: ClaimTime = started.advanced(LEASE * 2);
-    assert_eq!(requeue_expired(work_dir.as_path(), &later, LEASE, MAX_TRIES), 1);
-    let successor: Claimed = claim_next_of(work_dir.as_path(), &later, &[WorkKind::Push]).expect("claim").expect("requeued item");
+    assert_eq!(
+        requeue_expired(work_dir.as_path(), &later, LEASE, MAX_TRIES),
+        1
+    );
+    let successor: Claimed = claim_next_of(work_dir.as_path(), &later, &[WorkKind::Push])
+        .expect("claim")
+        .expect("requeued item");
     renewer.renew(&later);
-    assert!(!held.is_held(claimed.id.as_str()), "the renewal found the claim gone");
-    assert_eq!(claimed_names(work_dir.as_path()), vec![successor.name.clone()], "the renewal did not touch the successor's claim");
-    let refused: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a taken-over claim settles nothing");
+    assert!(
+        !held.is_held(claimed.id.as_str()),
+        "the renewal found the claim gone"
+    );
+    assert_eq!(
+        claimed_names(work_dir.as_path()),
+        vec![successor.name.clone()],
+        "the renewal did not touch the successor's claim"
+    );
+    let refused: String = held
+        .settle(work_dir.as_path(), claimed.id.as_str(), DONE)
+        .expect_err("a taken-over claim settles nothing");
     assert!(refused.contains("taken over"), "{refused}");
-    assert_eq!(claimed_names(work_dir.as_path()), vec![successor.name], "the successor's claim stays where it is");
-    assert!(!state_directory(work_dir.as_path(), DONE).join(claimed.id.as_str()).exists());
+    assert_eq!(
+        claimed_names(work_dir.as_path()),
+        vec![successor.name],
+        "the successor's claim stays where it is"
+    );
+    assert!(
+        !state_directory(work_dir.as_path(), DONE)
+            .join(claimed.id.as_str())
+            .exists()
+    );
     remove(root.as_path());
 }
 
@@ -165,12 +272,25 @@ fn a_claim_claimed_again_by_another_instance_is_not_this_holders_though_its_id_i
     let (held, _renewer) = held_claims(work_dir.as_path());
     held.hold(&claimed);
     let later: ClaimTime = started.advanced(LEASE * 2);
-    assert_eq!(requeue_expired(work_dir.as_path(), &later, LEASE, MAX_TRIES), 1);
-    let successor: Claimed = claim_next_of(work_dir.as_path(), &later, &[WorkKind::Push]).expect("claim").expect("requeued item");
+    assert_eq!(
+        requeue_expired(work_dir.as_path(), &later, LEASE, MAX_TRIES),
+        1
+    );
+    let successor: Claimed = claim_next_of(work_dir.as_path(), &later, &[WorkKind::Push])
+        .expect("claim")
+        .expect("requeued item");
     assert_eq!(successor.id, claimed.id, "the same item, claimed again");
-    assert!(!held.is_held_on_disk(work_dir.as_path(), claimed.id.as_str()), "the file of that id in claimed is the other instance's");
-    held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("nothing of the other instance's claim is settled");
-    assert_eq!(claimed_names(work_dir.as_path()), vec![successor.name], "the successor's claim stays where it is");
+    assert!(
+        !held.is_held_on_disk(work_dir.as_path(), claimed.id.as_str()),
+        "the file of that id in claimed is the other instance's"
+    );
+    held.settle(work_dir.as_path(), claimed.id.as_str(), DONE)
+        .expect_err("nothing of the other instance's claim is settled");
+    assert_eq!(
+        claimed_names(work_dir.as_path()),
+        vec![successor.name],
+        "the successor's claim stays where it is"
+    );
     remove(root.as_path());
 }
 
@@ -190,23 +310,41 @@ fn a_running_renewal_renews_the_held_claims_until_its_stop_is_awaited() {
     let renewal: ClaimRenewal = ClaimRenewal::start(renewer, Duration::from_millis(5));
     // The bound only ends a failing run: a passing run leaves the loop as soon as the thread has renewed the claim.
     let bound: std::time::Instant = std::time::Instant::now() + PASS_PATIENCE;
-    while claimed_names(work_dir.as_path()) == vec![claimed.name.clone()] && std::time::Instant::now() < bound {
+    while claimed_names(work_dir.as_path()) == vec![claimed.name.clone()]
+        && std::time::Instant::now() < bound
+    {
         std::thread::sleep(Duration::from_millis(5));
     }
-    assert_ne!(claimed_names(work_dir.as_path()), vec![claimed.name.clone()], "the thread renewed the held claim");
+    assert_ne!(
+        claimed_names(work_dir.as_path()),
+        vec![claimed.name.clone()],
+        "the thread renewed the held claim"
+    );
     // The stop says whether it waited for the task or only for its ceiling, and the task says it returned, so no clock is
     //  asked whether anything can rename after this line.
     let ended_before: usize = TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst);
     let stopped = crate::service_timing::capture::entries_of(|| {
-        crate::lazy_runtime::run_on_runtime(renewal.stop_awaiting()).expect("the runtime runs the stop");
+        crate::lazy_runtime::run_on_runtime(renewal.stop_awaiting())
+            .expect("the runtime runs the stop");
     });
-    assert!(stopped.is_empty(), "the renewal's task ended with the stop, so nothing can rename after it: {stopped:?}");
-    assert_eq!(TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst), ended_before.saturating_add(1), "the task returned before the stop did");
+    assert!(
+        stopped.is_empty(),
+        "the renewal's task ended with the stop, so nothing can rename after it: {stopped:?}"
+    );
+    assert_eq!(
+        TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst),
+        ended_before.saturating_add(1),
+        "the task returned before the stop did"
+    );
     // What the returned task left: one claim, under a renewal's name. A pass it made before it read the stop is its own work
     //  and not a rename after it, so no name is compared with one taken before the drop.
     let after: Vec<String> = claimed_names(work_dir.as_path());
     assert_eq!(after.len(), 1, "the drop left one claim: {after:?}");
-    assert_ne!(after, vec![claimed.name.clone()], "the claim the task left is a renewal's: {after:?}");
+    assert_ne!(
+        after,
+        vec![claimed.name.clone()],
+        "the claim the task left is a renewal's: {after:?}"
+    );
     remove(root.as_path());
 }
 
@@ -221,12 +359,26 @@ fn a_claim_that_is_not_held_is_not_renewed() {
     let before: usize = passes_made();
     let renewal: ClaimRenewal = ClaimRenewal::start(renewer, Duration::from_millis(5));
     // The held set names another claim; the thread runs many intervals and must leave this one alone.
-    let other: Claimed = Claimed { id: String::from("push-another-claim"), name: String::from("push-another-claim~00~x"), item: claimed.item.clone() };
+    let other: Claimed = Claimed {
+        id: String::from("push-another-claim"),
+        name: String::from("push-another-claim~00~x"),
+        item: claimed.item.clone(),
+    };
     held.hold(&other);
-    assert!(wait_for_passes(before, PASSES_WATCHED), "the renewal thread ran {PASSES_WATCHED} passes, so leaving the claim alone is its own doing");
+    assert!(
+        wait_for_passes(before, PASSES_WATCHED),
+        "the renewal thread ran {PASSES_WATCHED} passes, so leaving the claim alone is its own doing"
+    );
     drop(renewal);
-    assert_eq!(claimed_names(work_dir.as_path()), vec![claimed.name], "an unheld claim keeps its name");
-    assert!(!held.is_held("push-another-claim"), "a held claim that is not in the directory is found gone");
+    assert_eq!(
+        claimed_names(work_dir.as_path()),
+        vec![claimed.name],
+        "an unheld claim keeps its name"
+    );
+    assert!(
+        !held.is_held("push-another-claim"),
+        "a held claim that is not in the directory is found gone"
+    );
     remove(root.as_path());
 }
 
@@ -242,9 +394,18 @@ fn a_settlement_after_renewals_finds_the_claim_under_whatever_name_it_has() {
     for third in 1..=RENEWALS_PER_LEASE {
         renewer.renew(&clock().advanced(Duration::from_secs(u64::from(third))));
     }
-    assert_ne!(claimed_names(work_dir.as_path()), vec![claimed.name.clone()], "the file was renamed under the drain");
-    held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect("settled under the renewed name, found by its generation");
-    assert!(state_directory(work_dir.as_path(), DONE).join(claimed.id.as_str()).exists());
+    assert_ne!(
+        claimed_names(work_dir.as_path()),
+        vec![claimed.name.clone()],
+        "the file was renamed under the drain"
+    );
+    held.settle(work_dir.as_path(), claimed.id.as_str(), DONE)
+        .expect("settled under the renewed name, found by its generation");
+    assert!(
+        state_directory(work_dir.as_path(), DONE)
+            .join(claimed.id.as_str())
+            .exists()
+    );
     assert!(claimed_names(work_dir.as_path()).is_empty());
     remove(root.as_path());
 }
@@ -274,9 +435,15 @@ fn settlements_racing_renewals_lose_no_claim() {
     let renewal: ClaimRenewal = ClaimRenewal::driven(renewer, &driver);
     let mut ids: Vec<String> = Vec::new();
     for number in 0..RACED_CLAIMS {
-        let queued: WorkItem = WorkItem { oid: format!("{number:040x}"), transport: false, ..item.clone() };
+        let queued: WorkItem = WorkItem {
+            oid: format!("{number:040x}"),
+            transport: false,
+            ..item.clone()
+        };
         enqueue(work_dir.as_path(), &queued).expect("enqueue");
-        let claimed: Claimed = claim_next_of(work_dir.as_path(), &clock(), &[WorkKind::Push]).expect("claim").expect("one claim");
+        let claimed: Claimed = claim_next_of(work_dir.as_path(), &clock(), &[WorkKind::Push])
+            .expect("claim")
+            .expect("one claim");
         held.hold(&claimed);
         ids.push(claimed.id);
     }
@@ -291,15 +458,24 @@ fn settlements_racing_renewals_lose_no_claim() {
         });
         let letting_go: StopRenewing<'_> = StopRenewing(&stop);
         for id in &ids {
-            held.settle(work_dir.as_path(), id.as_str(), DONE).expect("settled while renewals run");
+            held.settle(work_dir.as_path(), id.as_str(), DONE)
+                .expect("settled while renewals run");
         }
         drop(letting_go);
         renewing.join().expect("the renewals finished");
     });
     drop(renewal);
-    assert!(claimed_names(work_dir.as_path()).is_empty(), "no claim was left in claimed");
+    assert!(
+        claimed_names(work_dir.as_path()).is_empty(),
+        "no claim was left in claimed"
+    );
     for id in &ids {
-        assert!(state_directory(work_dir.as_path(), DONE).join(id.as_str()).exists(), "{id} was settled");
+        assert!(
+            state_directory(work_dir.as_path(), DONE)
+                .join(id.as_str())
+                .exists(),
+            "{id} was settled"
+        );
     }
     remove(root.as_path());
 }
@@ -325,9 +501,17 @@ impl Drop for StopRenewing<'_> {
 /// The number of threads this process has,
 /// read from its status.
 fn threads_of_this_process() -> usize {
-    let status: String = std::fs::read_to_string("/proc/self/status").expect("the status of this process");
-    let line: &str = status.lines().find(|line| return line.starts_with("Threads:")).expect("a Threads line");
-    return line.trim_start_matches("Threads:").trim().parse().expect("a thread count");
+    let status: String =
+        std::fs::read_to_string("/proc/self/status").expect("the status of this process");
+    let line: &str = status
+        .lines()
+        .find(|line| return line.starts_with("Threads:"))
+        .expect("a Threads line");
+    return line
+        .trim_start_matches("Threads:")
+        .trim()
+        .parse()
+        .expect("a thread count");
 }
 
 /// How many renewals the control below keeps running at once.
@@ -336,7 +520,10 @@ const RENEWALS_RUNNING: usize = 16;
 /// Waits until `count` renewal tasks have begun beyond `before`,
 /// which the tasks themselves say,
 /// and gives whether they did within `PASS_PATIENCE`.
-fn wait_for_starts(before: usize, count: usize) -> bool {
+fn wait_for_starts(
+    before: usize,
+    count: usize,
+) -> bool {
     let began: std::time::Instant = std::time::Instant::now();
     while TASKS_STARTED.load(std::sync::atomic::Ordering::SeqCst) < before.saturating_add(count) {
         if began.elapsed() >= PASS_PATIENCE {
@@ -366,13 +553,19 @@ fn renewals_running_at_once_start_no_thread_each() {
         running.push(ClaimRenewal::start(renewer, LEASE));
         roots.push(root);
     }
-    assert!(wait_for_starts(started_before, RENEWALS_RUNNING), "{RENEWALS_RUNNING} renewals began");
+    assert!(
+        wait_for_starts(started_before, RENEWALS_RUNNING),
+        "{RENEWALS_RUNNING} renewals began"
+    );
     let growth: usize = threads_of_this_process().saturating_sub(before);
     drop(running);
     for root in &roots {
         remove(root.as_path());
     }
-    assert!(growth < RENEWALS_RUNNING / 2, "{RENEWALS_RUNNING} renewals added {growth} threads: a renewal must be a task");
+    assert!(
+        growth < RENEWALS_RUNNING / 2,
+        "{RENEWALS_RUNNING} renewals added {growth} threads: a renewal must be a task"
+    );
 }
 
 /// How long the control below keeps the blocking pool busy.
@@ -396,14 +589,18 @@ fn stopping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling() {
     let (held, renewer) = held_claims(work_dir.as_path());
     held.hold(&claimed);
     let driver: DrivenRenewal = DrivenRenewal::default();
-    let renewal: ClaimRenewal = ClaimRenewal::driven_with_stop_ceiling(renewer, &driver, SHORT_STOP_CEILING);
+    let renewal: ClaimRenewal =
+        ClaimRenewal::driven_with_stop_ceiling(renewer, &driver, SHORT_STOP_CEILING);
     // Every thread the blocking pool may have is kept busy, then the task is asked to renew: its job waits for a thread.
     let workers: usize = match crate::lazy_runtime::built_flavor() {
-        Some(crate::lazy_runtime::BuiltFlavor::MultiThread { workers }) => workers,
+        Some(crate::lazy_runtime::BuiltFlavor::MultiThread {
+            workers,
+        }) => workers,
         _ => 1,
     };
     let jobs: usize = workers * 2 + 2;
-    let finished: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let finished: std::sync::Arc<std::sync::atomic::AtomicUsize> =
+        std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let busy = {
         let counting = std::sync::Arc::clone(&finished);
         crate::lazy_runtime::spawn_on_runtime(async move {
@@ -420,11 +617,18 @@ fn stopping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling() {
     std::thread::sleep(Duration::from_millis(100));
     let _asked = renewal.control.send(Control::Renew(clock(), None));
     let began: std::time::Instant = std::time::Instant::now();
-    crate::lazy_runtime::run_on_runtime(renewal.stop_awaiting()).expect("the runtime runs the stop");
+    crate::lazy_runtime::run_on_runtime(renewal.stop_awaiting())
+        .expect("the runtime runs the stop");
     let waited: Duration = began.elapsed();
     let done: usize = finished.load(std::sync::atomic::Ordering::SeqCst);
-    assert_eq!(done, 0, "the stop waited for the pool to free instead of for the ceiling: {done} of {jobs} jobs had finished after {waited:?}");
-    assert!(waited >= SHORT_STOP_CEILING, "the stop did not wait for the task at all: {waited:?}");
+    assert_eq!(
+        done, 0,
+        "the stop waited for the pool to free instead of for the ceiling: {done} of {jobs} jobs had finished after {waited:?}"
+    );
+    assert!(
+        waited >= SHORT_STOP_CEILING,
+        "the stop did not wait for the task at all: {waited:?}"
+    );
     drop(held);
     remove(root.as_path());
 }
@@ -444,10 +648,13 @@ fn dropping_a_renewal_leaves_its_task_to_end_without_waiting_for_it() {
     let (held, renewer) = held_claims(work_dir.as_path());
     held.hold(&claimed);
     let driver: DrivenRenewal = DrivenRenewal::default();
-    let renewal: ClaimRenewal = ClaimRenewal::driven_with_stop_ceiling(renewer, &driver, SHORT_STOP_CEILING);
+    let renewal: ClaimRenewal =
+        ClaimRenewal::driven_with_stop_ceiling(renewer, &driver, SHORT_STOP_CEILING);
     // Every thread the blocking pool may have is kept busy, then the task is asked to renew: its job waits for a thread.
     let workers: usize = match crate::lazy_runtime::built_flavor() {
-        Some(crate::lazy_runtime::BuiltFlavor::MultiThread { workers }) => workers,
+        Some(crate::lazy_runtime::BuiltFlavor::MultiThread {
+            workers,
+        }) => workers,
         _ => 1,
     };
     let jobs: usize = workers * 2 + 2;
@@ -471,7 +678,10 @@ fn dropping_a_renewal_leaves_its_task_to_end_without_waiting_for_it() {
     })
     .expect("the runtime runs the drop");
     let dropped: Duration = began.elapsed();
-    assert!(dropped < SHORT_STOP_CEILING, "the drop held the thread it ran on until the ceiling: {dropped:?}");
+    assert!(
+        dropped < SHORT_STOP_CEILING,
+        "the drop held the thread it ran on until the ceiling: {dropped:?}"
+    );
     assert_eq!(
         TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst),
         ended_before,
@@ -497,9 +707,16 @@ fn a_renewal_takes_far_less_than_its_stop_ceiling() {
     let started: ClaimTime = clock();
     let (root, work_dir, claimed) = claimed_item("renewal-time", &started);
     let began: std::time::Instant = std::time::Instant::now();
-    let renewed = renew_claim(work_dir.as_path(), claimed.name.as_str(), &started.advanced(Duration::from_secs(5)));
+    let renewed = renew_claim(
+        work_dir.as_path(),
+        claimed.name.as_str(),
+        &started.advanced(Duration::from_secs(5)),
+    );
     let took: Duration = began.elapsed();
     assert!(renewed.is_some());
-    assert!(took * 1000 < RENEWAL_STOP_CEILING, "one renewal took {took:?}, a thousandth of the ceiling is the control's bar");
+    assert!(
+        took * 1000 < RENEWAL_STOP_CEILING,
+        "one renewal took {took:?}, a thousandth of the ceiling is the control's bar"
+    );
     remove(root.as_path());
 }

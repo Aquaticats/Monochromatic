@@ -13,14 +13,21 @@
 
 /// The refusal list,
 ///  its notice and the engine answer it is built from.
-use super::{Unported, unported_from_unavailable, unported_notice};
+use super::{
+    Unported,
+    unported_from_unavailable,
+    unported_notice,
+};
 use crate::policy_engine::Unavailable;
 use crate::policy_registry::PolicyId;
 use crate::policy_trigger::Trigger;
 use std::path::PathBuf;
 
 /// The sentence around every subject.
-fn notice(subject: &str, command: &str) -> String {
+fn notice(
+    subject: &str,
+    command: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: {subject} is not implemented in this native development executable, so git {command} was not run. Run it with the installed monochromatic-git-policy-cli.\n"
     );

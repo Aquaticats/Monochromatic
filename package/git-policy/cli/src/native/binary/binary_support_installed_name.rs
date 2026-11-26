@@ -24,7 +24,10 @@
 //! ```
 
 use git_policy_cli::foundation::wrapper_names_old_and_new::COMMAND_WORD;
-use git_policy_cli::worktree_clone_mount_handler::root_mode_names::{ROOT_GROUP_WORD, ZEDLET_START_NAME};
+use git_policy_cli::worktree_clone_mount_handler::root_mode_names::{
+    ROOT_GROUP_WORD,
+    ZEDLET_START_NAME,
+};
 use std::path::PathBuf;
 
 /// The wrapper this control's guest built,
@@ -49,7 +52,9 @@ pub const BUILT_WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli
 /// const link = installedName('sweep');
 /// ```
 pub fn installed_name(what: &str) -> PathBuf {
-    let folder: PathBuf = crate::support_fixture_directories::fixture_root().join("installed-name").join(what);
+    let folder: PathBuf = crate::support_fixture_directories::fixture_root()
+        .join("installed-name")
+        .join(what);
     std::fs::create_dir_all(folder.as_path()).expect("the installed name's folder");
     let link: PathBuf = folder.join(ZEDLET_START_NAME);
     let _removed: std::io::Result<()> = std::fs::remove_file(link.as_path());

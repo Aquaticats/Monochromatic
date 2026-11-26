@@ -22,7 +22,10 @@
 //! ```
 
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The directory the process was started in,
@@ -71,8 +74,11 @@ impl StartDirectory {
     /// StartDirectory.readFromTheProcess() // { path: process.cwd() }
     /// ```
     pub fn read_from_the_process() -> StartDirectory {
-        let outcome: Result<PathBuf, String> = std::env::current_dir().map_err(|error| return error.to_string());
-        return StartDirectory { outcome };
+        let outcome: Result<PathBuf, String> =
+            std::env::current_dir().map_err(|error| return error.to_string());
+        return StartDirectory {
+            outcome,
+        };
     }
 
     /// What:
@@ -87,7 +93,9 @@ impl StartDirectory {
     /// StartDirectory.at(fixture) // { path: fixture }
     /// ```
     pub fn at(directory: &Path) -> StartDirectory {
-        return StartDirectory { outcome: Ok(directory.to_path_buf()) };
+        return StartDirectory {
+            outcome: Ok(directory.to_path_buf()),
+        };
     }
 
     /// What:
@@ -103,7 +111,11 @@ impl StartDirectory {
     /// StartDirectory.unknown() // { unreadable: 'the caller named no directory' }
     /// ```
     pub fn unknown() -> StartDirectory {
-        return StartDirectory { outcome: Err(String::from("the caller named no directory the command starts in")) };
+        return StartDirectory {
+            outcome: Err(String::from(
+                "the caller named no directory the command starts in",
+            )),
+        };
     }
 
     /// What:

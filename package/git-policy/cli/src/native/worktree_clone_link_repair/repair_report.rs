@@ -76,8 +76,12 @@ impl LinkRepair {
             LinkRepair::Intact => "intact",
             LinkRepair::Damaged => "damaged, and the registration stands",
             LinkRepair::Unchecked => "not compared, and the registration stands",
-            LinkRepair::Pruned { .. } => "pruned, and the registration is gone",
-            LinkRepair::Unprovable { .. } => "cannot be proved",
+            LinkRepair::Pruned {
+                ..
+            } => "pruned, and the registration is gone",
+            LinkRepair::Unprovable {
+                ..
+            } => "cannot be proved",
         };
     }
 }
@@ -121,7 +125,10 @@ impl LinkRepairReport {
     /// const lines = report.lines(); // ['slot `one`', 'link: intact', 'evidence: ...', ...]
     /// ```
     pub fn lines(&self) -> Vec<String> {
-        let mut lines: Vec<String> = vec![format!("slot `{}`", self.slot), format!("link: {}", self.state)];
+        let mut lines: Vec<String> = vec![
+            format!("slot `{}`", self.slot),
+            format!("link: {}", self.state),
+        ];
         lines.extend(self.lines.iter().cloned());
         return lines;
     }
@@ -141,27 +148,48 @@ impl LinkRepairReport {
 /// ```
 pub fn class_of(facts: &LinkFacts) -> LinkRepair {
     if facts.registration.is_none() {
-        return LinkRepair::Unprovable { reason: String::from("the record names no Git registration yet, so there is no link to repair") };
+        return LinkRepair::Unprovable {
+            reason: String::from(
+                "the record names no Git registration yet, so there is no link to repair",
+            ),
+        };
     }
     if !facts.registration_stands {
-        return LinkRepair::Pruned { backup: facts.backup };
+        return LinkRepair::Pruned {
+            backup: facts.backup,
+        };
     }
     match facts.registration_names_the_slot {
         Some(true) => {}
         Some(false) => {
             return LinkRepair::Unprovable {
-                reason: String::from("the registration's `gitdir` names another path than this slot's `.git`, so a repair here would rebuild the wrong link"),
+                reason: String::from(
+                    "the registration's `gitdir` names another path than this slot's `.git`, so a repair here would rebuild the wrong link",
+                ),
             };
         }
         None => {
-            return LinkRepair::Unprovable { reason: String::from("the registration's `gitdir` could not be read, so nothing proves which worktree it belongs to") };
+            return LinkRepair::Unprovable {
+                reason: String::from(
+                    "the registration's `gitdir` could not be read, so nothing proves which worktree it belongs to",
+                ),
+            };
         }
     }
     return match &facts.pointer {
         PointerState::Intact => LinkRepair::Intact,
-        PointerState::Missing | PointerState::Differs { .. } => LinkRepair::Damaged,
-        PointerState::Present { .. } => LinkRepair::Unchecked,
-        PointerState::Unprovable { reason } => LinkRepair::Unprovable { reason: reason.clone() },
+        PointerState::Missing
+        | PointerState::Differs {
+            ..
+        } => LinkRepair::Damaged,
+        PointerState::Present {
+            ..
+        } => LinkRepair::Unchecked,
+        PointerState::Unprovable {
+            reason,
+        } => LinkRepair::Unprovable {
+            reason: reason.clone(),
+        },
     };
 }
 
@@ -190,24 +218,48 @@ fn copy_line(facts: &LinkFacts) -> String {
 /// ```ts
 /// const line = evidenceLine('damaged', facts);
 /// ```
-fn evidence_line(state: &LinkRepair, facts: &LinkFacts) -> String {
+fn evidence_line(
+    state: &LinkRepair,
+    facts: &LinkFacts,
+) -> String {
     let pointer: String = match &facts.pointer {
         PointerState::Intact => String::from("is the bytes the add recorded"),
         PointerState::Missing => String::from("is absent"),
-        PointerState::Differs { found } => format!("holds {found} bytes and not the ones the add recorded"),
-        PointerState::Present { found } => format!("holds {found} bytes and the record keeps none to compare them with"),
-        PointerState::Unprovable { reason } => format!("cannot be compared ({reason})"),
+        PointerState::Differs {
+            found,
+        } => format!("holds {found} bytes and not the ones the add recorded"),
+        PointerState::Present {
+            found,
+        } => format!("holds {found} bytes and the record keeps none to compare them with"),
+        PointerState::Unprovable {
+            reason,
+        } => format!("cannot be compared ({reason})"),
     };
-    let registration: String = facts.registration.as_ref().map_or_else(|| return String::from("the record names none"), |path| return path.display().to_string());
+    let registration: String = facts.registration.as_ref().map_or_else(
+        || return String::from("the record names none"),
+        |path| return path.display().to_string(),
+    );
     return match state {
-        LinkRepair::Intact => format!("evidence: the pointer at `{}` {pointer}, and the registration at `{registration}` stands", facts.slot_path.join(".git").display()),
-        LinkRepair::Damaged => format!("evidence: the pointer at `{}` {pointer}, and the registration at `{registration}` stands", facts.slot_path.join(".git").display()),
+        LinkRepair::Intact => format!(
+            "evidence: the pointer at `{}` {pointer}, and the registration at `{registration}` stands",
+            facts.slot_path.join(".git").display()
+        ),
+        LinkRepair::Damaged => format!(
+            "evidence: the pointer at `{}` {pointer}, and the registration at `{registration}` stands",
+            facts.slot_path.join(".git").display()
+        ),
         LinkRepair::Unchecked => format!(
             "evidence: the record keeps no pointer bytes, and the registration at `{registration}` stands and names this slot, so the pointer at `{}` was not compared",
             facts.slot_path.join(".git").display()
         ),
-        LinkRepair::Pruned { .. } => format!("evidence: the registration the record names at `{registration}` is gone, so Git pruned this worktree's administrative entry"),
-        LinkRepair::Unprovable { reason } => format!("evidence: {reason}"),
+        LinkRepair::Pruned {
+            ..
+        } => format!(
+            "evidence: the registration the record names at `{registration}` is gone, so Git pruned this worktree's administrative entry"
+        ),
+        LinkRepair::Unprovable {
+            reason,
+        } => format!("evidence: {reason}"),
     };
 }
 
@@ -225,49 +277,93 @@ fn evidence_line(state: &LinkRepair, facts: &LinkFacts) -> String {
 /// ```ts
 /// const rest = ['kept: ...', 'restorable: ...', 'next safe command: ...'];
 /// ```
-fn kept_and_restorable(state: &LinkRepair, facts: &LinkFacts) -> Vec<String> {
-    let registration: String = facts.registration.as_ref().map_or_else(|| return String::from("the record names none"), |path| return path.display().to_string());
+fn kept_and_restorable(
+    state: &LinkRepair,
+    facts: &LinkFacts,
+) -> Vec<String> {
+    let registration: String = facts.registration.as_ref().map_or_else(
+        || return String::from("the record names none"),
+        |path| return path.display().to_string(),
+    );
     let repair_command: String = format!("`git worktree repair {}`", facts.slot_path.display());
-    let next_after_repair: String = format!("next safe command: {repair_command}, then `git worktree list`");
+    let next_after_repair: String =
+        format!("next safe command: {repair_command}, then `git worktree list`");
     return match state {
         LinkRepair::Intact => vec![
-            format!("kept: the registration at `{registration}`, with HEAD, the index and the worktree's lock, and the clone dataset `{}`", facts.clone_dataset),
-            String::from("restorable: nothing needs restoring, and `git worktree prune` keeps this registration because the pointer stands"),
-            format!("next safe command: nothing here; run Git in the worktree while the clone is mounted, and to be rid of it, {}", crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
+            format!(
+                "kept: the registration at `{registration}`, with HEAD, the index and the worktree's lock, and the clone dataset `{}`",
+                facts.clone_dataset
+            ),
+            String::from(
+                "restorable: nothing needs restoring, and `git worktree prune` keeps this registration because the pointer stands",
+            ),
+            format!(
+                "next safe command: nothing here; run Git in the worktree while the clone is mounted, and to be rid of it, {}",
+                crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
+            ),
         ],
         LinkRepair::Damaged => vec![
-            format!("kept: the registration at `{registration}`, with HEAD, the index and the worktree's lock, and the clone dataset `{}`", facts.clone_dataset),
-            String::from("kept: the record keeps the exact pointer bytes the add wrote, and this wrapper writes them back before a `git worktree prune` it forwards"),
+            format!(
+                "kept: the registration at `{registration}`, with HEAD, the index and the worktree's lock, and the clone dataset `{}`",
+                facts.clone_dataset
+            ),
+            String::from(
+                "kept: the record keeps the exact pointer bytes the add wrote, and this wrapper writes them back before a `git worktree prune` it forwards",
+            ),
             format!(
                 "restorable: the pointer file, which {repair_command} rebuilds from the registration; Git 2.56.1 exits 1 while rebuilding a missing pointer, so a second run of it exits 0. Not restorable this way: a registration Git already pruned"
             ),
             next_after_repair,
         ],
         LinkRepair::Unchecked => vec![
-            format!("kept: the registration at `{registration}`, with HEAD, the index and the worktree's lock, and the clone dataset `{}`", facts.clone_dataset),
+            format!(
+                "kept: the registration at `{registration}`, with HEAD, the index and the worktree's lock, and the clone dataset `{}`",
+                facts.clone_dataset
+            ),
             format!(
                 "restorable: a missing or changed pointer, which {repair_command} rebuilds from the registration's own `gitdir`; Git 2.56.1 exits 1 while rebuilding a missing pointer, so a second run of it exits 0"
             ),
-            String::from("unknown: whether the pointer needs that repair, because the record keeps no bytes to compare it with"),
-            String::from("next safe command: nothing while the worktree works; if Git reports the slot's `.git` unreadable, run the repair command above"),
+            String::from(
+                "unknown: whether the pointer needs that repair, because the record keeps no bytes to compare it with",
+            ),
+            String::from(
+                "next safe command: nothing while the worktree works; if Git reports the slot's `.git` unreadable, run the repair command above",
+            ),
         ],
-        LinkRepair::Pruned { backup } => {
+        LinkRepair::Pruned {
+            backup,
+        } => {
             let bytes: String = if *backup {
-                String::from("lost: the registration's bytes are not the loss; the record's pointer bytes are kept and are what a re-registration is proven against")
+                String::from(
+                    "lost: the registration's bytes are not the loss; the record's pointer bytes are kept and are what a re-registration is proven against",
+                )
             } else {
                 String::from("lost: the pointer bytes as well, because the record keeps none")
             };
             vec![
-                format!("kept: the clone dataset `{}` with the worktree's checked-out files, and the slot's own folder", facts.clone_dataset),
-                format!("lost: the registration at `{registration}`, which held HEAD, the index, the worktree's per-worktree refs and the managed lock"),
+                format!(
+                    "kept: the clone dataset `{}` with the worktree's checked-out files, and the slot's own folder",
+                    facts.clone_dataset
+                ),
+                format!(
+                    "lost: the registration at `{registration}`, which held HEAD, the index, the worktree's per-worktree refs and the managed lock"
+                ),
                 bytes,
-                String::from("what a repair cannot do: `git worktree repair` rebuilds a link from a registration and cannot rebuild a registration, and a pointer restored from the record would point at nothing"),
-                String::from("next safe command: decide explicitly whether to re-register at a commit you name or to remove the clone dataset; this wrapper never guesses a branch or a path, and nothing was changed here"),
+                String::from(
+                    "what a repair cannot do: `git worktree repair` rebuilds a link from a registration and cannot rebuild a registration, and a pointer restored from the record would point at nothing",
+                ),
+                String::from(
+                    "next safe command: decide explicitly whether to re-register at a commit you name or to remove the clone dataset; this wrapper never guesses a branch or a path, and nothing was changed here",
+                ),
             ]
         }
-        LinkRepair::Unprovable { .. } => vec![
+        LinkRepair::Unprovable {
+            ..
+        } => vec![
             String::from("kept: nothing was changed here"),
-            String::from("next safe command: read what the evidence names, then run the command again"),
+            String::from(
+                "next safe command: read what the evidence names, then run the command again",
+            ),
         ],
     };
 }
@@ -286,7 +382,11 @@ pub fn link_report_of(facts: &LinkFacts) -> LinkRepairReport {
     let state: LinkRepair = class_of(facts);
     let mut lines: Vec<String> = vec![evidence_line(&state, facts), copy_line(facts)];
     lines.extend(kept_and_restorable(&state, facts));
-    return LinkRepairReport { slot: facts.slot.clone(), state: state.word(), lines };
+    return LinkRepairReport {
+        slot: facts.slot.clone(),
+        state: state.word(),
+        lines,
+    };
 }
 
 /// What:

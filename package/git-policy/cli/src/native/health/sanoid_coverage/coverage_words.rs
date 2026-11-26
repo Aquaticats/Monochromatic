@@ -23,7 +23,15 @@
 //! ```
 
 use super::measured_dataset_tree::has_path_mountpoint;
-use super::sanoid_section::{AUTOSNAP_NO, AUTOSNAP_SETTING, RECURSIVE_SETTING, RECURSIVE_YES, SanoidSection, TEMPLATE_SETTING, render_section};
+use super::sanoid_section::{
+    AUTOSNAP_NO,
+    AUTOSNAP_SETTING,
+    RECURSIVE_SETTING,
+    RECURSIVE_YES,
+    SanoidSection,
+    TEMPLATE_SETTING,
+    render_section,
+};
 
 /// The property that marks an exclusion for the snapshotting tools.
 pub const AUTO_SNAPSHOT_PROPERTY: &str = "com.sun:auto-snapshot";
@@ -43,31 +51,63 @@ pub fn mountpoint_words(mountpoint: Option<&str>) -> String {
 }
 
 /// The correction that adds one section and where it goes.
-pub fn add_section_correction(config_path: &str, section: &SanoidSection) -> String {
-    return format!("add these lines to {config_path}:\n{}", render_section(section));
+pub fn add_section_correction(
+    config_path: &str,
+    section: &SanoidSection,
+) -> String {
+    return format!(
+        "add these lines to {config_path}:\n{}",
+        render_section(section)
+    );
 }
 
 /// The correction that changes the recursive ancestor's recursion value.
-pub fn change_recursion_correction(config_path: &str, dataset: &str, written: &str) -> String {
-    return format!("in the [{dataset}] section of {config_path}, change `{RECURSIVE_SETTING} = {written}` to `{RECURSIVE_SETTING} = {RECURSIVE_YES}`");
+pub fn change_recursion_correction(
+    config_path: &str,
+    dataset: &str,
+    written: &str,
+) -> String {
+    return format!(
+        "in the [{dataset}] section of {config_path}, change `{RECURSIVE_SETTING} = {written}` to `{RECURSIVE_SETTING} = {RECURSIVE_YES}`"
+    );
 }
 
 /// The correction that adds a recursion value to a section that writes none.
-pub fn add_recursion_correction(config_path: &str, dataset: &str) -> String {
-    return format!("add `{RECURSIVE_SETTING} = {RECURSIVE_YES}` to the [{dataset}] section of {config_path}");
+pub fn add_recursion_correction(
+    config_path: &str,
+    dataset: &str,
+) -> String {
+    return format!(
+        "add `{RECURSIVE_SETTING} = {RECURSIVE_YES}` to the [{dataset}] section of {config_path}"
+    );
 }
 
 /// The correction that names the retention template in the ancestor's section.
-pub fn template_correction(config_path: &str, dataset: &str, template: &str, written: Option<&str>) -> String {
+pub fn template_correction(
+    config_path: &str,
+    dataset: &str,
+    template: &str,
+    written: Option<&str>,
+) -> String {
     let Some(value) = written else {
-        return format!("add `{TEMPLATE_SETTING} = {template}` to the [{dataset}] section of {config_path}");
+        return format!(
+            "add `{TEMPLATE_SETTING} = {template}` to the [{dataset}] section of {config_path}"
+        );
     };
-    return format!("in the [{dataset}] section of {config_path}, change `{TEMPLATE_SETTING} = {value}` to name `{template}`");
+    return format!(
+        "in the [{dataset}] section of {config_path}, change `{TEMPLATE_SETTING} = {value}` to name `{template}`"
+    );
 }
 
 /// The correction that turns an exclusion's snapshots off.
-pub fn change_autosnap_correction(config_path: &str, dataset: &str, written: &str) -> String {
-    return format!("in the [{dataset}] section of {config_path}, change `{AUTOSNAP_SETTING} = {written}` to `{AUTOSNAP_SETTING} = {AUTOSNAP_NO}`");
+pub fn change_autosnap_correction(
+    config_path: &str,
+    dataset: &str,
+    written: &str,
+) -> String {
+    return format!(
+        "in the [{dataset}] section of {config_path}, change `{AUTOSNAP_SETTING} = {written}` to `{AUTOSNAP_SETTING} = {AUTOSNAP_NO}`"
+    );
 }
 
 /// How a measured `com.sun:auto-snapshot` value reads in a finding.
@@ -85,12 +125,21 @@ pub fn marker_correction(dataset: &str) -> String {
 
 /// The correction that moves one section below the section whose recursion
 /// reaches it.
-pub fn move_section_correction(dataset: &str, ancestor: &str) -> String {
+pub fn move_section_correction(
+    dataset: &str,
+    ancestor: &str,
+) -> String {
     return format!("move the [{dataset}] section below the [{ancestor}] section");
 }
 
 /// The pass line's account of what the comparison read.
-pub fn pass_detail(covered: usize, root: &str, exclusions: usize, store_path: &str, holder: &str) -> String {
+pub fn pass_detail(
+    covered: usize,
+    root: &str,
+    exclusions: usize,
+    store_path: &str,
+    holder: &str,
+) -> String {
     return format!(
         "{covered} dataset(s) under {root} are covered by its recursive section, {exclusions} exclusion(s) stand after every recursive ancestor with {AUTO_SNAPSHOT_PROPERTY}={AUTO_SNAPSHOT_OFF}, and the store at {store_path} is held by {holder}"
     );

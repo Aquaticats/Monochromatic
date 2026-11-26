@@ -34,8 +34,14 @@
 
 /// The records a command leaves behind.
 use crate::merge_isolation_journal::list_merge_intents;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// The start of the private name a file is set aside under while a merge's content takes its place.
 ///  It sits in the file's own directory,
@@ -124,9 +130,15 @@ pub(crate) fn name_key(text: &str) -> String {
 /// ```ts
 /// `${dirname}/.cli-git-recovery-${nameKey(basename)}-${nameKey(transactionId)}-${pid}-${count}-${nanos}`;
 /// ```
-pub(crate) fn aside_name(location: &Path, transaction_id: &str) -> PathBuf {
+pub(crate) fn aside_name(
+    location: &Path,
+    transaction_id: &str,
+) -> PathBuf {
     let count: u64 = ASIDE_COUNT.fetch_add(1, Ordering::Relaxed);
-    let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let nanos: u128 = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
     return location.with_file_name(format!(
         "{ASIDE_PREFIX}-{}-{}-{}-{count}-{nanos:x}",
         name_key(name_text(location).as_str()),
@@ -180,7 +192,10 @@ fn is_a_ran_number(text: &str) -> bool {
 /// ```ts
 /// function theMergeOfAName(name: string, location: string): string | null | undefined; // null: no record named
 /// ```
-fn the_merge_of_a_name(name: &str, location: &Path) -> Option<Option<String>> {
+fn the_merge_of_a_name(
+    name: &str,
+    location: &Path,
+) -> Option<Option<String>> {
     return the_merge_of_a_private_name(ASIDE_PREFIX, name, location);
 }
 
@@ -202,14 +217,20 @@ fn the_merge_of_a_name(name: &str, location: &Path) -> Option<Option<String>> {
 /// ```ts
 /// function theMergeOfAPrivateName(prefix: string, name: string, location: string): string | null | undefined;
 /// ```
-fn the_merge_of_a_private_name(kind: &str, name: &str, location: &Path) -> Option<Option<String>> {
+fn the_merge_of_a_private_name(
+    kind: &str,
+    name: &str,
+    location: &Path,
+) -> Option<Option<String>> {
     let start: String = format!("{kind}-{}-", name_key(name_text(location).as_str()));
     let rest: &str = name.strip_prefix(start.as_str())?;
     let parts: Vec<&str> = rest.split('-').collect();
     return match parts.as_slice() {
         // A name an earlier release wrote named no record, so nothing claims it.
         [_process, _count, nanos] if is_a_ran_number(nanos) => Some(None),
-        [merge, _process, _count, nanos] if is_a_key(merge) && is_a_ran_number(nanos) => Some(Some(String::from(*merge))),
+        [merge, _process, _count, nanos] if is_a_key(merge) && is_a_ran_number(nanos) => {
+            Some(Some(String::from(*merge)))
+        }
         _ => None,
     };
 }
@@ -238,7 +259,11 @@ fn the_merge_of_a_private_name(kind: &str, name: &str, location: &Path) -> Optio
 /// ```ts
 /// function staleCarryNamesOf(location, live: string[], finished: string): string[]; // carry names whose merge is finished or unnamed
 /// ```
-pub(crate) fn stale_carry_names_of(location: &Path, live: &[String], finished: &str) -> Vec<PathBuf> {
+pub(crate) fn stale_carry_names_of(
+    location: &Path,
+    live: &[String],
+    finished: &str,
+) -> Vec<PathBuf> {
     let Some(directory) = location.parent() else {
         return Vec::new();
     };
@@ -250,7 +275,10 @@ pub(crate) fn stale_carry_names_of(location: &Path, live: &[String], finished: &
         let name: String = name_of(entry.file_name().as_os_str());
         // A name of the file the merge writes, or of a path inside a directory it replaces, is still the file's own:
         //  `name_text` is the base name it was written for.
-        let Some(Some(merge)) = the_merge_of_a_private_name(CARRY_PREFIX, name.as_str(), location) else { continue };
+        let Some(Some(merge)) = the_merge_of_a_private_name(CARRY_PREFIX, name.as_str(), location)
+        else {
+            continue;
+        };
         // The private name carries a key, and the caller names the merge it is finishing by its identifier.
         if merge == name_key(finished) || !live.contains(&merge) {
             found.push(entry.path());
@@ -267,7 +295,10 @@ pub(crate) fn stale_carry_names_of(location: &Path, live: &[String], finished: &
 /// ```ts
 /// const byTheirPaths = (left: Aside, right: Aside) => left.path.toString().localeCompare(right.path.toString());
 /// ```
-fn by_their_paths(left: &Aside, right: &Aside) -> std::cmp::Ordering {
+fn by_their_paths(
+    left: &Aside,
+    right: &Aside,
+) -> std::cmp::Ordering {
     return left.path.cmp(&right.path);
 }
 
@@ -293,7 +324,10 @@ pub(crate) fn asides_of(location: &Path) -> Vec<Aside> {
     for entry in listing.flatten() {
         let name: String = name_of(entry.file_name().as_os_str());
         if let Some(merge) = the_merge_of_a_name(name.as_str(), location) {
-            found.push(Aside { path: entry.path(), merge });
+            found.push(Aside {
+                path: entry.path(),
+                merge,
+            });
         }
     }
     found.sort_by(by_their_paths);

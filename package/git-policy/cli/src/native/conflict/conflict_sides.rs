@@ -22,18 +22,40 @@
 //! await saveCopies({ root, commonDir, paths: conflicted });
 //! ```
 
-use crate::conflict_side_source::{copy_located, locate};
+use crate::conflict_side_source::{
+    copy_located,
+    locate,
+};
 /// The limits of the folder of saved copies of conflicted files.
-use crate::discarded_prune::{Limits, Problem, directory_name_of, prune};
+use crate::discarded_prune::{
+    Limits,
+    Problem,
+    directory_name_of,
+    prune,
+};
 use crate::iso_time::format_iso_milliseconds;
-use crate::private_storage::{create_private_directory, create_private_directory_all, sync_directory};
+use crate::private_storage::{
+    create_private_directory,
+    create_private_directory_all,
+    sync_directory,
+};
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-pub use crate::conflict_side_source::{FailureKind, SaveFailure};
-pub use crate::conflict_side_state::{Operation, conflicted_paths, operation_in_progress};
+pub use crate::conflict_side_source::{
+    FailureKind,
+    SaveFailure,
+};
+pub use crate::conflict_side_state::{
+    Operation,
+    conflicted_paths,
+    operation_in_progress,
+};
 
 /// Where the copies live,
 /// below the common Git directory,
@@ -73,17 +95,26 @@ pub(crate) fn depth_deepest_first(path: &&PathBuf) -> std::cmp::Reverse<usize> {
 /// a second invocation in the same second
 ///  gets a numbered sibling,
 /// so no copy overwrites another.
-fn fresh_directory(saved_root: &Path, name: &str) -> std::io::Result<PathBuf> {
+fn fresh_directory(
+    saved_root: &Path,
+    name: &str,
+) -> std::io::Result<PathBuf> {
     create_private_directory_all(saved_root)?;
     for number in 0_u32..1000 {
-        let candidate: PathBuf = if number == 0 { saved_root.join(name) } else { saved_root.join(format!("{name}-{number}")) };
+        let candidate: PathBuf = if number == 0 {
+            saved_root.join(name)
+        } else {
+            saved_root.join(format!("{name}-{number}"))
+        };
         match create_private_directory(candidate.as_path()) {
             Ok(()) => return Ok(candidate),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(error),
         }
     }
-    return Err(std::io::Error::other("a thousand copies were saved in this second"));
+    return Err(std::io::Error::other(
+        "a thousand copies were saved in this second",
+    ));
 }
 
 /// What:
@@ -99,7 +130,10 @@ fn fresh_directory(saved_root: &Path, name: &str) -> std::io::Result<PathBuf> {
 /// ```ts
 /// function freshSavedDirectory(commonDir: string, milliseconds: number): string; // throws
 /// ```
-pub(crate) fn fresh_saved_directory(common_dir: &Path, milliseconds: i64) -> std::io::Result<PathBuf> {
+pub(crate) fn fresh_saved_directory(
+    common_dir: &Path,
+    milliseconds: i64,
+) -> std::io::Result<PathBuf> {
     let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
     return fresh_directory(saved_root.as_path(), stamp(milliseconds).as_str());
 }
@@ -120,7 +154,12 @@ pub(crate) fn fresh_saved_directory(common_dir: &Path, milliseconds: i64) -> std
 /// ```ts
 /// const copies = await saveCopies({ root, commonDir, paths, milliseconds });
 /// ```
-pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], milliseconds: i64) -> Result<Vec<SavedCopy>, SaveFailure> {
+pub fn save_copies(
+    root: &Path,
+    common_dir: &Path,
+    paths: &[Vec<u8>],
+    milliseconds: i64,
+) -> Result<Vec<SavedCopy>, SaveFailure> {
     let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
     let mut copies: Vec<SavedCopy> = Vec::new();
     let mut directory: Option<PathBuf> = None;
@@ -128,16 +167,25 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
     for path in paths {
         let shown: String = String::from_utf8_lossy(path).into_owned();
         let Some(located) = locate(root, path.as_slice())? else {
-            copies.push(SavedCopy { path: shown, saved_to: None });
+            copies.push(SavedCopy {
+                path: shown,
+                saved_to: None,
+            });
             continue;
         };
         let base: PathBuf = match &directory {
             Some(existing) => existing.clone(),
             None => {
-                let created: PathBuf = match fresh_directory(saved_root.as_path(), stamp(milliseconds).as_str()) {
-                    Ok(made) => made,
-                    Err(error) => return Err(SaveFailure::io(saved_root.display().to_string(), error.to_string())),
-                };
+                let created: PathBuf =
+                    match fresh_directory(saved_root.as_path(), stamp(milliseconds).as_str()) {
+                        Ok(made) => made,
+                        Err(error) => {
+                            return Err(SaveFailure::io(
+                                saved_root.display().to_string(),
+                                error.to_string(),
+                            ));
+                        }
+                    };
                 directory = Some(created.clone());
                 created
             }
@@ -157,7 +205,10 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
             }
         }
         copy_located(&located, destination.as_path(), &mut no_pause)?;
-        copies.push(SavedCopy { path: shown, saved_to: Some(destination) });
+        copies.push(SavedCopy {
+            path: shown,
+            saved_to: Some(destination),
+        });
     }
     if directory.is_some() {
         // Deepest first, then the directories that hold the copies' root, so every new entry is durable.
@@ -165,13 +216,19 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
         ordered.sort_by_key(depth_deepest_first);
         for each in ordered {
             if let Err(error) = sync_directory(each.as_path()) {
-                return Err(SaveFailure::io(each.display().to_string(), error.to_string()));
+                return Err(SaveFailure::io(
+                    each.display().to_string(),
+                    error.to_string(),
+                ));
             }
         }
         let parent: PathBuf = common_dir.join("monochromatic-git-policy-cli");
         for each in [saved_root.as_path(), parent.as_path()] {
             if let Err(error) = sync_directory(each) {
-                return Err(SaveFailure::io(each.display().to_string(), error.to_string()));
+                return Err(SaveFailure::io(
+                    each.display().to_string(),
+                    error.to_string(),
+                ));
             }
         }
     }
@@ -201,7 +258,12 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
 /// ```ts
 /// await pruneAfterSave(commonDir, copies, milliseconds, limits)
 /// ```
-pub fn prune_after_save(common_dir: &Path, copies: &[SavedCopy], milliseconds: i64, limits: Limits) -> String {
+pub fn prune_after_save(
+    common_dir: &Path,
+    copies: &[SavedCopy],
+    milliseconds: i64,
+    limits: Limits,
+) -> String {
     let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
     let mut keep: Option<String> = None;
     for copy in copies {

@@ -22,14 +22,35 @@
 //! const files = installPlan(facts, nested); // gate, stop drop-in, provider drop-in, propagation pair, nested units
 //! ```
 
-use crate::checkout_boot_units::boot_gate_unit_text::{boot_gate_unit, provider_restart_drop_in, stop_failure_drop_in};
-use crate::checkout_boot_units::boot_unit_facts::{CheckoutBootFacts, InstalledUnitFile, NestedDatasetMount, UnitTextRefusal};
+use crate::checkout_boot_units::boot_gate_unit_text::{
+    boot_gate_unit,
+    provider_restart_drop_in,
+    stop_failure_drop_in,
+};
+use crate::checkout_boot_units::boot_unit_facts::{
+    CheckoutBootFacts,
+    InstalledUnitFile,
+    NestedDatasetMount,
+    UnitTextRefusal,
+};
 use crate::checkout_boot_units::boot_unit_names::{
-    BOOT_GATE_UNIT_NAME, BOOT_GATE_UNIT_PATH, PROPAGATION_MOUNT_DROP_IN_NAME, PROVIDER_DROP_IN_NAME, PROVIDER_UNIT_NAME, STOP_FAILURE_DROP_IN_NAME, drop_in_path, mount_unit_name,
-    nested_unit_name, propagation_service_path, unit_path,
+    BOOT_GATE_UNIT_NAME,
+    BOOT_GATE_UNIT_PATH,
+    PROPAGATION_MOUNT_DROP_IN_NAME,
+    PROVIDER_DROP_IN_NAME,
+    PROVIDER_UNIT_NAME,
+    STOP_FAILURE_DROP_IN_NAME,
+    drop_in_path,
+    mount_unit_name,
+    nested_unit_name,
+    propagation_service_path,
+    unit_path,
 };
 use crate::checkout_boot_units::nested_dataset_unit_text::nested_dataset_unit;
-use crate::checkout_boot_units::propagation_unit_text::{propagation_mount_drop_in, propagation_service};
+use crate::checkout_boot_units::propagation_unit_text::{
+    propagation_mount_drop_in,
+    propagation_service,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -50,23 +71,50 @@ use std::path::PathBuf;
 /// # Errors
 /// Any fact a unit text cannot carry,
 /// which the first refused text names.
-pub fn install_plan(facts: &CheckoutBootFacts, nested: &[NestedDatasetMount]) -> Result<Vec<InstalledUnitFile>, UnitTextRefusal> {
+pub fn install_plan(
+    facts: &CheckoutBootFacts,
+    nested: &[NestedDatasetMount],
+) -> Result<Vec<InstalledUnitFile>, UnitTextRefusal> {
     facts.checked()?;
     let gate: String = boot_gate_unit(facts)?;
-    if !gate.lines().any(|line| return line.starts_with("ExecReload=")) {
-        return Err(UnitTextRefusal::MissingLine { line: "ExecReload=", unit: BOOT_GATE_UNIT_NAME });
+    if !gate
+        .lines()
+        .any(|line| return line.starts_with("ExecReload="))
+    {
+        return Err(UnitTextRefusal::MissingLine {
+            line: "ExecReload=",
+            unit: BOOT_GATE_UNIT_NAME,
+        });
     }
     let mount_unit: String = mount_unit_name(facts.checkout.as_path());
     let mut files: Vec<InstalledUnitFile> = vec![
-        InstalledUnitFile { path: PathBuf::from(BOOT_GATE_UNIT_PATH), text: gate },
-        InstalledUnitFile { path: drop_in_path(BOOT_GATE_UNIT_NAME, STOP_FAILURE_DROP_IN_NAME), text: stop_failure_drop_in() },
-        InstalledUnitFile { path: drop_in_path(PROVIDER_UNIT_NAME, PROVIDER_DROP_IN_NAME), text: provider_restart_drop_in() },
-        InstalledUnitFile { path: propagation_service_path(), text: propagation_service(facts)? },
-        InstalledUnitFile { path: drop_in_path(mount_unit.as_str(), PROPAGATION_MOUNT_DROP_IN_NAME), text: propagation_mount_drop_in(facts)? },
+        InstalledUnitFile {
+            path: PathBuf::from(BOOT_GATE_UNIT_PATH),
+            text: gate,
+        },
+        InstalledUnitFile {
+            path: drop_in_path(BOOT_GATE_UNIT_NAME, STOP_FAILURE_DROP_IN_NAME),
+            text: stop_failure_drop_in(),
+        },
+        InstalledUnitFile {
+            path: drop_in_path(PROVIDER_UNIT_NAME, PROVIDER_DROP_IN_NAME),
+            text: provider_restart_drop_in(),
+        },
+        InstalledUnitFile {
+            path: propagation_service_path(),
+            text: propagation_service(facts)?,
+        },
+        InstalledUnitFile {
+            path: drop_in_path(mount_unit.as_str(), PROPAGATION_MOUNT_DROP_IN_NAME),
+            text: propagation_mount_drop_in(facts)?,
+        },
     ];
     for one in nested {
         let name: String = nested_unit_name(one.slug.as_str());
-        files.push(InstalledUnitFile { path: unit_path(name.as_str()), text: nested_dataset_unit(one, facts)? });
+        files.push(InstalledUnitFile {
+            path: unit_path(name.as_str()),
+            text: nested_dataset_unit(one, facts)?,
+        });
     }
     return Ok(files);
 }

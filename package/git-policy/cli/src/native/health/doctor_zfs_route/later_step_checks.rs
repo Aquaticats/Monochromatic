@@ -23,7 +23,11 @@
 //! const outcome = check_later_step(LaterStep.CancelCommand); // { kind: 'unknown', reason: 'step 17 ...' }
 //! ```
 
-use super::check_outcome::{Check, CheckOutcome, unknown};
+use super::check_outcome::{
+    Check,
+    CheckOutcome,
+    unknown,
+};
 
 /// What:
 ///  One check a later plan step builds,
@@ -52,7 +56,13 @@ pub enum LaterStep {
 
 impl LaterStep {
     /// Every later-step check the report answers.
-    pub const ALL: [LaterStep; 5] = [LaterStep::CancelCommand, LaterStep::BootProtection, LaterStep::ServiceUnit, LaterStep::BackupCoverage, LaterStep::Sanoid];
+    pub const ALL: [LaterStep; 5] = [
+        LaterStep::CancelCommand,
+        LaterStep::BootProtection,
+        LaterStep::ServiceUnit,
+        LaterStep::BackupCoverage,
+        LaterStep::Sanoid,
+    ];
 
     /// The check's stable name.
     pub fn name(self) -> &'static str {

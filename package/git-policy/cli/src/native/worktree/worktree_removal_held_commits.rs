@@ -68,13 +68,31 @@
 //! for (const held of linkedHeldCommits(commonDir)) { const kept = await keepOne(git, commonDir, held); if (kept.refused) return stopped(kept.refused); console.error(words(kept)); }
 //! ```
 
-use crate::held_commit_record::{Held, list};
-use crate::held_commit_words::{locks_named, removal};
-use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
+use crate::held_commit_record::{
+    Held,
+    list,
+};
+use crate::held_commit_words::{
+    locks_named,
+    removal,
+};
+use crate::plain_file::{
+    SMALL_FILE_LIMIT,
+    read_plain_file,
+};
 use crate::service_land_side_reference_write::keep_on_a_side_ref;
-use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, kept_ref, rescue_ref, scratch_ref, value_of};
+use crate::service_scratch_ref_of_a_dropped_batch::{
+    RefValue,
+    kept_ref,
+    rescue_ref,
+    scratch_ref,
+    value_of,
+};
 use crate::transaction_git::GitContext;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The branch as a person reads it,
 /// without the `refs/heads/` every branch carries.
@@ -90,7 +108,10 @@ fn words_of_a_name_already_taken(named: &str) -> String {
 }
 
 /// The sentence for a commit kept at the batch's own kept reference.
-fn words_of_a_commit_kept(held: &Held, name: &str) -> String {
+fn words_of_a_commit_kept(
+    held: &Held,
+    name: &str,
+) -> String {
     return format!(
         "the commit {} for {} is held in {} behind {}, and a command that removes that worktree leaves no record there that could move \
          the branch: it is kept at `{}`, {} stays where it is, and no command moves it by itself.",
@@ -105,7 +126,12 @@ fn words_of_a_commit_kept(held: &Held, name: &str) -> String {
 
 /// The sentence for a commit kept beside the batch's own kept reference,
 /// which could not be written.
-fn words_of_a_commit_kept_beside(held: &Held, name: &str, rescue: &str, words: &str) -> String {
+fn words_of_a_commit_kept_beside(
+    held: &Held,
+    name: &str,
+    rescue: &str,
+    words: &str,
+) -> String {
     return format!(
         "the commit {} for {} is held in {} behind {}, and `{}` could not be written ({}), so it is kept at `{}` instead: a command \
          that removes that worktree leaves no record there that could move the branch, {} stays where it is, and no command moves it by itself.",
@@ -122,7 +148,13 @@ fn words_of_a_commit_kept_beside(held: &Held, name: &str, rescue: &str, words: &
 
 /// The paragraph for a commit no reference of the repository could hold,
 /// which stops the removal.
-fn words_of_a_commit_nothing_keeps(held: &Held, name: &str, words: &str, rescue: &str, rescue_words: &str) -> String {
+fn words_of_a_commit_nothing_keeps(
+    held: &Held,
+    name: &str,
+    words: &str,
+    rescue: &str,
+    rescue_words: &str,
+) -> String {
     return format!(
         "the commit {} for {} is held in {} behind {}, and it could not be kept on a reference of this repository: `{}` was not \
          written ({}), and neither was `{}` ({}), so a removal of that worktree would leave nothing that names the commit.",
@@ -173,7 +205,12 @@ enum Keeping {
 /// ```ts
 /// namesThisCommit(git, commonDir, 'refs/cli-git/kept/7', held.new)
 /// ```
-fn names_this_commit(git: &GitContext, common_dir: &Path, name: &str, commit: &str) -> bool {
+fn names_this_commit(
+    git: &GitContext,
+    common_dir: &Path,
+    name: &str,
+    commit: &str,
+) -> bool {
     return matches!(value_of(git, common_dir, name), RefValue::Names(named) if named == commit);
 }
 
@@ -191,13 +228,33 @@ fn names_this_commit(git: &GitContext, common_dir: &Path, name: &str, commit: &s
 /// ```ts
 /// recordARemovalsKeptReference(commonDir, name, held.new, held.repository, Date.now());
 /// ```
-fn remember_the_worktree(common_dir: &Path, name: &str, held: &Held) {
-    remember_the_commit_of_a_worktree(common_dir, name, held.new.as_str(), held.repository.as_path());
+fn remember_the_worktree(
+    common_dir: &Path,
+    name: &str,
+    held: &Held,
+) {
+    remember_the_commit_of_a_worktree(
+        common_dir,
+        name,
+        held.new.as_str(),
+        held.repository.as_path(),
+    );
 }
 
 /// `remember_the_worktree` for a commit and a worktree a caller holds apart from the record.
-fn remember_the_commit_of_a_worktree(common_dir: &Path, name: &str, commit: &str, worktree: &Path) {
-    crate::kept_reference_record::record_a_removals_kept_reference(common_dir, name, commit, worktree, crate::kept_reference_pass_answers::now_ms());
+fn remember_the_commit_of_a_worktree(
+    common_dir: &Path,
+    name: &str,
+    commit: &str,
+    worktree: &Path,
+) {
+    crate::kept_reference_record::record_a_removals_kept_reference(
+        common_dir,
+        name,
+        commit,
+        worktree,
+        crate::kept_reference_pass_answers::now_ms(),
+    );
 }
 
 /// What:
@@ -213,10 +270,18 @@ fn remember_the_commit_of_a_worktree(common_dir: &Path, name: &str, commit: &str
 /// ```ts
 /// takenWords(git, commonDir, name, refused) // the collision clause, or Git's own words
 /// ```
-fn taken_words(git: &GitContext, common_dir: &Path, held: &Held, name: &str, refused: &str) -> String {
+fn taken_words(
+    git: &GitContext,
+    common_dir: &Path,
+    held: &Held,
+    name: &str,
+    refused: &str,
+) -> String {
     // `match` on what the reference names now: another commit is said as itself, anything else is Git's own words.
     return match value_of(git, common_dir, name) {
-        RefValue::Names(named) if named != held.new => words_of_a_name_already_taken(named.as_str()),
+        RefValue::Names(named) if named != held.new => {
+            words_of_a_name_already_taken(named.as_str())
+        }
         _ => refused.to_owned(),
     };
 }
@@ -247,7 +312,11 @@ fn taken_words(git: &GitContext, common_dir: &Path, held: &Held, name: &str, ref
 /// ```ts
 /// const kept = await valueOf(git, commonDir, keptRef(seq)); kept.kind === 'absent' ? (await keepOnlyIfFree(...), words(held)) : undefined
 /// ```
-fn keep_one(git: &GitContext, held: &Held, common_dir: &Path) -> Keeping {
+fn keep_one(
+    git: &GitContext,
+    held: &Held,
+    common_dir: &Path,
+) -> Keeping {
     let name: String = kept_ref(held.seq);
     let rescue: String = rescue_ref(held.seq);
     if names_this_commit(git, common_dir, name.as_str(), held.new.as_str()) {
@@ -266,14 +335,27 @@ fn keep_one(git: &GitContext, held: &Held, common_dir: &Path) -> Keeping {
     if names_this_commit(git, common_dir, rescue.as_str(), held.new.as_str()) {
         return Keeping::Nothing;
     }
-    let Some(also_refused) = keep_on_a_side_ref(git, common_dir, rescue.as_str(), held.new.as_str()) else {
+    let Some(also_refused) =
+        keep_on_a_side_ref(git, common_dir, rescue.as_str(), held.new.as_str())
+    else {
         remember_the_worktree(common_dir, rescue.as_str(), held);
-        return Keeping::Kept(words_of_a_commit_kept_beside(held, name.as_str(), rescue.as_str(), taken.as_str()));
+        return Keeping::Kept(words_of_a_commit_kept_beside(
+            held,
+            name.as_str(),
+            rescue.as_str(),
+            taken.as_str(),
+        ));
     };
     if names_this_commit(git, common_dir, rescue.as_str(), held.new.as_str()) {
         return Keeping::Nothing;
     }
-    return Keeping::Refused(words_of_a_commit_nothing_keeps(held, name.as_str(), taken.as_str(), rescue.as_str(), also_refused.as_str()));
+    return Keeping::Refused(words_of_a_commit_nothing_keeps(
+        held,
+        name.as_str(),
+        taken.as_str(),
+        rescue.as_str(),
+        also_refused.as_str(),
+    ));
 }
 
 /// The lock files that would refuse these writes and stand now:
@@ -282,7 +364,10 @@ fn keep_one(git: &GitContext, held: &Held, common_dir: &Path) -> Keeping {
 /// Why:
 ///  A refusal is not actionable unless it names what stands in the way,
 /// and a lock nothing holds is the one such thing the person removes.
-fn standing_locks(common_dir: &Path, names: &[String]) -> Vec<PathBuf> {
+fn standing_locks(
+    common_dir: &Path,
+    names: &[String],
+) -> Vec<PathBuf> {
     let mut standing: Vec<PathBuf> = Vec::new();
     for name in names {
         let lock: PathBuf = common_dir.join(format!("{name}.lock"));
@@ -330,7 +415,12 @@ enum UnreadableKeeping {
 /// ```ts
 /// `the record ${record} cannot be read ... the commit ${commit} is kept at ${name}`
 /// ```
-fn words_of_a_commit_kept_from_an_unreadable_record(record: &Path, scratch: &str, commit: &str, name: &str) -> String {
+fn words_of_a_commit_kept_from_an_unreadable_record(
+    record: &Path,
+    scratch: &str,
+    commit: &str,
+    name: &str,
+) -> String {
     return format!(
         "the record {} cannot be read by this build, so the commit {} that its batch's own reference `{}` names is kept at `{}`: \
          a command that removes that worktree leaves no record there that could move the branch, and that reference is the \
@@ -354,7 +444,11 @@ fn words_of_a_commit_kept_from_an_unreadable_record(record: &Path, scratch: &str
 /// ```ts
 /// `the record ${record} cannot be read ... so the worktree ${worktree} stays`
 /// ```
-fn words_of_a_commit_nothing_keeps_behind_an_unreadable_record(record: &Path, worktree: &Path, why: &str) -> String {
+fn words_of_a_commit_nothing_keeps_behind_an_unreadable_record(
+    record: &Path,
+    worktree: &Path,
+    why: &str,
+) -> String {
     return format!(
         "the record {} cannot be read by this build, and {}: so no reference of this repository names the commit behind it, and \
          the worktree {} stays, because its own Git directory and that reference are the only holders of whatever the record \
@@ -395,9 +489,18 @@ fn batch_of(record: &Path) -> Option<u64> {
 /// worktreeOf(gitDir) // '<the worktree root>' | undefined
 /// ```
 fn worktree_of(git_dir: &Path) -> Option<PathBuf> {
-    let recorded: Vec<u8> = read_plain_file(git_dir.join("gitdir").as_path(), SMALL_FILE_LIMIT).ok()?;
-    let named: PathBuf = PathBuf::from(String::from_utf8_lossy(recorded.as_slice()).trim().to_owned());
-    let pointer: PathBuf = if named.is_absolute() { named } else { git_dir.join(named) };
+    let recorded: Vec<u8> =
+        read_plain_file(git_dir.join("gitdir").as_path(), SMALL_FILE_LIMIT).ok()?;
+    let named: PathBuf = PathBuf::from(
+        String::from_utf8_lossy(recorded.as_slice())
+            .trim()
+            .to_owned(),
+    );
+    let pointer: PathBuf = if named.is_absolute() {
+        named
+    } else {
+        git_dir.join(named)
+    };
     let root: PathBuf = pointer.parent()?.to_path_buf();
     return root.is_dir().then_some(root);
 }
@@ -421,17 +524,24 @@ fn worktree_of(git_dir: &Path) -> Option<PathBuf> {
 /// ```ts
 /// keepTheCommitOfAnUnreadableRecord(git, commonDir, gitDir, record) // { kind, line }
 /// ```
-fn keep_the_commit_of_an_unreadable_record(git: &GitContext, common_dir: &Path, git_dir: &Path, record: &Path) -> UnreadableKeeping {
+fn keep_the_commit_of_an_unreadable_record(
+    git: &GitContext,
+    common_dir: &Path,
+    git_dir: &Path,
+    record: &Path,
+) -> UnreadableKeeping {
     let worktree: PathBuf = match worktree_of(git_dir) {
         Some(found) => found,
         None => git_dir.to_path_buf(),
     };
     let Some(seq) = batch_of(record) else {
-        return UnreadableKeeping::Refused(words_of_a_commit_nothing_keeps_behind_an_unreadable_record(
-            record,
-            worktree.as_path(),
-            "its name is no batch number, so no reference of that batch can be found",
-        ));
+        return UnreadableKeeping::Refused(
+            words_of_a_commit_nothing_keeps_behind_an_unreadable_record(
+                record,
+                worktree.as_path(),
+                "its name is no batch number, so no reference of that batch can be found",
+            ),
+        );
     };
     let scratch: String = scratch_ref(seq);
     let commit: String = match value_of(git, git_dir, scratch.as_str()) {
@@ -485,16 +595,24 @@ fn keep_the_commit_of_an_unreadable_record(git: &GitContext, common_dir: &Path, 
 /// ```ts
 /// keepThisCommit(git, commonDir, seq, commit) // the name it is kept at, or undefined
 /// ```
-fn keep_this_commit(git: &GitContext, common_dir: &Path, seq: u64, commit: &str, worktree: &Path) -> Option<String> {
+fn keep_this_commit(
+    git: &GitContext,
+    common_dir: &Path,
+    seq: u64,
+    commit: &str,
+    worktree: &Path,
+) -> Option<String> {
     for name in [kept_ref(seq), rescue_ref(seq)] {
-        if matches!(value_of(git, common_dir, name.as_str()), RefValue::Names(named) if named == commit) {
+        if matches!(value_of(git, common_dir, name.as_str()), RefValue::Names(named) if named == commit)
+        {
             return Some(name);
         }
         if keep_on_a_side_ref(git, common_dir, name.as_str(), commit).is_none() {
             remember_the_commit_of_a_worktree(common_dir, name.as_str(), commit, worktree);
             return Some(name);
         }
-        if matches!(value_of(git, common_dir, name.as_str()), RefValue::Names(named) if named == commit) {
+        if matches!(value_of(git, common_dir, name.as_str()), RefValue::Names(named) if named == commit)
+        {
             return Some(name);
         }
     }
@@ -541,9 +659,17 @@ pub(crate) struct KeptCommits {
 /// ```ts
 /// for (const gitDir of linkedGitDirs(commonDir)) for (const held of heldRecords(gitDir)) said.push(keepOne(git, commonDir, held));
 /// ```
-pub(crate) fn keep_held_commits(common_dir: &Path, git: &GitContext) -> KeptCommits {
-    let mut kept: KeptCommits = KeptCommits { said: Vec::new(), refused: Vec::new() };
-    let Ok(listing) = std::fs::read_dir(common_dir.join("worktrees")) else { return kept };
+pub(crate) fn keep_held_commits(
+    common_dir: &Path,
+    git: &GitContext,
+) -> KeptCommits {
+    let mut kept: KeptCommits = KeptCommits {
+        said: Vec::new(),
+        refused: Vec::new(),
+    };
+    let Ok(listing) = std::fs::read_dir(common_dir.join("worktrees")) else {
+        return kept;
+    };
     let mut directories: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
         let git_dir: PathBuf = entry.path();
@@ -574,7 +700,12 @@ pub(crate) fn keep_held_commits(common_dir: &Path, git: &GitContext) -> KeptComm
         // cannot reach it; a batch nothing of this repository can name keeps the worktree
         // (a review of the landed sweep, round 210).
         for record in damaged {
-            match keep_the_commit_of_an_unreadable_record(git, common_dir, git_dir.as_path(), record.as_path()) {
+            match keep_the_commit_of_an_unreadable_record(
+                git,
+                common_dir,
+                git_dir.as_path(),
+                record.as_path(),
+            ) {
                 UnreadableKeeping::Kept(line) => kept.said.push(line),
                 UnreadableKeeping::Refused(line) => {
                     kept.refused.push(line);
@@ -588,7 +719,11 @@ pub(crate) fn keep_held_commits(common_dir: &Path, git: &GitContext) -> KeptComm
         }
     }
     if !kept.refused.is_empty() {
-        kept.refused.push(nothing_was_removed(common_dir, tried.as_slice(), unkept_worktrees.as_slice()));
+        kept.refused.push(nothing_was_removed(
+            common_dir,
+            tried.as_slice(),
+            unkept_worktrees.as_slice(),
+        ));
     }
     return kept;
 }
@@ -618,7 +753,10 @@ fn removal_commands(holders: &[PathBuf]) -> String {
     let mut prune: bool = false;
     for holder in holders {
         if holder.is_dir() {
-            commands.push(format!("`git worktree remove {}`", crate::shell_quote::shell_quote(holder.as_os_str().as_encoded_bytes())));
+            commands.push(format!(
+                "`git worktree remove {}`",
+                crate::shell_quote::shell_quote(holder.as_os_str().as_encoded_bytes())
+            ));
         } else {
             prune = true;
         }
@@ -652,7 +790,11 @@ fn removal_commands(holders: &[PathBuf]) -> String {
 /// ```ts
 /// `no reference of this repository could be written for the held commits above, so nothing was removed ...`
 /// ```
-fn nothing_was_removed(common_dir: &Path, names: &[String], holders: &[PathBuf]) -> String {
+fn nothing_was_removed(
+    common_dir: &Path,
+    names: &[String],
+    holders: &[PathBuf],
+) -> String {
     let directory: PathBuf = common_dir.join("refs/cli-git/kept");
     let mut paragraph: String = format!(
         "no reference of this repository could be written for the held commits above, so nothing was removed and no removal ran: \

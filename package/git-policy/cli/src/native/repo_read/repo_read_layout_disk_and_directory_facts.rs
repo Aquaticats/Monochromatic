@@ -19,7 +19,10 @@
 
 use crate::private_storage::read_regular_file;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The longest `HEAD` or `commondir` or gitfile this reader looks at.
 ///  Exempt from a citation under `LQM` (class:
@@ -83,7 +86,9 @@ pub(crate) fn small_file_bytes(path: &Path) -> Option<Vec<u8>> {
 
 /// Whether `directory` holds the three entries Git takes for a Git directory.
 pub(crate) fn has_git_directory_entries(directory: &Path) -> bool {
-    return directory.join("HEAD").exists() && directory.join("objects").is_dir() && directory.join("refs").is_dir();
+    return directory.join("HEAD").exists()
+        && directory.join("objects").is_dir()
+        && directory.join("refs").is_dir();
 }
 
 /// Whether `byte` is an ASCII hexadecimal digit.
@@ -128,6 +133,11 @@ pub(crate) fn device_of(_path: &Path) -> Option<u64> {
 
 /// The three-entry check,
 /// with `HEAD` in the worktree's directory and the rest in the common directory.
-pub(crate) fn has_git_directory_entries_split(git_dir: &Path, common_dir: &Path) -> bool {
-    return git_dir.join("HEAD").exists() && common_dir.join("objects").is_dir() && common_dir.join("refs").is_dir();
+pub(crate) fn has_git_directory_entries_split(
+    git_dir: &Path,
+    common_dir: &Path,
+) -> bool {
+    return git_dir.join("HEAD").exists()
+        && common_dir.join("objects").is_dir()
+        && common_dir.join("refs").is_dir();
 }

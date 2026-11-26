@@ -25,7 +25,8 @@ const SHORT_BOUND: Duration = Duration::from_millis(100);
 #[test]
 fn a_process_that_never_prepared_counts_nothing_and_refuses_nothing() {
     assert!(record_from_a_signal_handler(SIGNAL));
-    let mut work: Unfinished = begin_unfinished_work(false, "git status").expect("work is not refused where no stop is noticed");
+    let mut work: Unfinished = begin_unfinished_work(false, "git status")
+        .expect("work is not refused where no stop is noticed");
     assert_eq!(unfinished_work(), 0);
     assert!(work.take_arm().is_none());
 }
@@ -62,12 +63,20 @@ fn only_the_first_stop_signal_is_recorded() {
 fn a_stop_refuses_new_work_unless_it_must_finish_and_the_refusal_is_not_counted() {
     prepare_to_notice().expect("the pipe");
     assert!(record_from_a_signal_handler(SIGNAL));
-    let refused: RefusedWhileStopping = begin_unfinished_work(false, "git push").expect_err("work after the stop is refused");
-    assert!(refused.to_string().contains("git push") && refused.to_string().contains("stopping"), "{refused}");
+    let refused: RefusedWhileStopping =
+        begin_unfinished_work(false, "git push").expect_err("work after the stop is refused");
+    assert!(
+        refused.to_string().contains("git push") && refused.to_string().contains("stopping"),
+        "{refused}"
+    );
     assert_eq!(unfinished_work(), 0, "a refusal gives its count back");
-    let mut unwinding: Unfinished = begin_unfinished_work(true, "git update-ref").expect("work that must finish is allowed");
+    let mut unwinding: Unfinished =
+        begin_unfinished_work(true, "git update-ref").expect("work that must finish is allowed");
     assert_eq!(unfinished_work(), 1);
-    assert!(unwinding.take_arm().is_none(), "work that began after the stop is not ended by it");
+    assert!(
+        unwinding.take_arm().is_none(),
+        "work that began after the stop is not ended by it"
+    );
 }
 
 /// The arm of work that began before the stop resolves when the shutdown tells the stop,
@@ -77,7 +86,9 @@ fn a_stop_refuses_new_work_unless_it_must_finish_and_the_refusal_is_not_counted(
 fn the_arm_of_work_begun_before_the_stop_resolves_when_the_shutdown_tells_it() {
     prepare_to_notice().expect("the pipe");
     let mut work: Unfinished = begin_unfinished_work(false, "git fast-import").expect("work");
-    let mut arm: StopArm = work.take_arm().expect("work begun before a stop has an arm");
+    let mut arm: StopArm = work
+        .take_arm()
+        .expect("work begun before a stop has an arm");
     let outcome = run_on_runtime(async move {
         assert!(record_from_a_signal_handler(SIGNAL));
         let early = tokio::time::timeout(SHORT_BOUND, arm.stop_told()).await;
@@ -102,7 +113,8 @@ fn the_shutdown_gives_up_at_its_bound_with_work_in_flight() {
     let held: Unfinished = begin_unfinished_work(false, "git gc").expect("work");
     assert!(record_from_a_signal_handler(SIGNAL));
     assert!(wake_the_shutdown_from_a_signal_handler());
-    let settled: Settled = run_on_runtime(tell_the_stop_and_wait_for_the_work(SHORT_BOUND)).expect("the runtime");
+    let settled: Settled =
+        run_on_runtime(tell_the_stop_and_wait_for_the_work(SHORT_BOUND)).expect("the runtime");
     assert_eq!(settled, Settled::AtTheBound);
     assert_eq!(unfinished_work(), 1);
     drop(held);
@@ -114,7 +126,8 @@ fn the_shutdown_settles_at_once_with_nothing_in_flight() {
     prepare_to_notice().expect("the pipe");
     assert!(record_from_a_signal_handler(SIGNAL));
     assert!(wake_the_shutdown_from_a_signal_handler());
-    let settled: Settled = run_on_runtime(tell_the_stop_and_wait_for_the_work(PATIENCE)).expect("the runtime");
+    let settled: Settled =
+        run_on_runtime(tell_the_stop_and_wait_for_the_work(PATIENCE)).expect("the runtime");
     assert_eq!(settled, Settled::Completely);
 }
 
@@ -124,9 +137,13 @@ fn the_shutdown_settles_at_once_with_nothing_in_flight() {
 /// which is why the unit must set one (15 s on this host).
 #[test]
 fn the_bounds_end_before_the_units_own_stop_timeout() {
-    let unit_timeout: Duration = Duration::from_secs(crate::service_provision_host_and_manager::STOP_TIMEOUT_SECONDS);
+    let unit_timeout: Duration =
+        Duration::from_secs(crate::service_provision_host_and_manager::STOP_TIMEOUT_SECONDS);
     assert!(SETTLE_CEILING < LAST_RESORT);
-    assert!(LAST_RESORT < unit_timeout, "{LAST_RESORT:?} against {unit_timeout:?}");
+    assert!(
+        LAST_RESORT < unit_timeout,
+        "{LAST_RESORT:?} against {unit_timeout:?}"
+    );
 }
 
 /// A handler wakes nothing in a process that did not prepare,

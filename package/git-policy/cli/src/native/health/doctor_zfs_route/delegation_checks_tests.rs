@@ -22,8 +22,22 @@
 //! ```
 
 use super::check_delegation;
-use crate::health::doctor_zfs_route::delegation_reply::{DelegationFacts, Grant, Inheritance, Who, grants_of};
-use crate::health::doctor_zfs_route::route_test_facts::{ACCOUNT, ACCOUNT_GROUP, CHECKOUT_DATASET, CONTAINER_DATASET, grant, healthy_delegation, healthy_grants};
+use crate::health::doctor_zfs_route::delegation_reply::{
+    DelegationFacts,
+    Grant,
+    Inheritance,
+    Who,
+    grants_of,
+};
+use crate::health::doctor_zfs_route::route_test_facts::{
+    ACCOUNT,
+    ACCOUNT_GROUP,
+    CHECKOUT_DATASET,
+    CONTAINER_DATASET,
+    grant,
+    healthy_delegation,
+    healthy_grants,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 
 /// The dataset above both the checkout and the clone container,
@@ -38,9 +52,17 @@ fn with_grant(granted: Grant) -> DelegationFacts {
 }
 
 /// The decided facts with one grant removed.
-fn without_grant(permission: &str, place: &str, inheritance: Inheritance) -> DelegationFacts {
+fn without_grant(
+    permission: &str,
+    place: &str,
+    inheritance: Inheritance,
+) -> DelegationFacts {
     let mut facts: DelegationFacts = healthy_delegation();
-    facts.grants.retain(|grant| return !(grant.permission == permission && grant.carried_by == place && grant.inheritance == inheritance));
+    facts.grants.retain(|grant| {
+        return !(grant.permission == permission
+            && grant.carried_by == place
+            && grant.inheritance == inheritance);
+    });
     return facts;
 }
 
@@ -101,7 +123,10 @@ fn a_reply_of_another_shape_is_a_refusal() {
 #[test]
 fn the_nine_decided_grants_pass() {
     let outcome: super::CheckOutcome = check_delegation(&healthy_delegation());
-    let super::CheckOutcome::Pass { detail } = outcome else {
+    let super::CheckOutcome::Pass {
+        detail,
+    } = outcome
+    else {
         panic!("the decided shape passes: {outcome:?}");
     };
     assert!(detail.contains('9'), "{detail}");
@@ -110,8 +135,13 @@ fn the_nine_decided_grants_pass() {
 /// A missing decided grant is a finding naming the permission and the command.
 #[test]
 fn a_missing_grant_is_a_finding_with_the_command() {
-    let facts: DelegationFacts = without_grant("userprop", CONTAINER_DATASET, Inheritance::Descendants);
-    let super::CheckOutcome::Finding { field, detail } = check_delegation(&facts) else {
+    let facts: DelegationFacts =
+        without_grant("userprop", CONTAINER_DATASET, Inheritance::Descendants);
+    let super::CheckOutcome::Finding {
+        field,
+        detail,
+    } = check_delegation(&facts)
+    else {
         panic!("a missing grant is a finding");
     };
     assert_eq!(field, "grant");
@@ -125,9 +155,19 @@ fn a_missing_grant_is_a_finding_with_the_command() {
 /// then the `zfs unallow` of the ancestor's wider grant.
 #[test]
 fn a_grant_carried_by_an_ancestor_is_a_scope_finding_with_its_narrowing_pair() {
-    let mut facts: DelegationFacts = without_grant("destroy", CONTAINER_DATASET, Inheritance::Descendants);
-    facts.grants.push(grant(ANCESTOR_DATASET, "destroy", Who::User(ACCOUNT), Inheritance::Descendants));
-    let super::CheckOutcome::Finding { field, detail } = check_delegation(&facts) else {
+    let mut facts: DelegationFacts =
+        without_grant("destroy", CONTAINER_DATASET, Inheritance::Descendants);
+    facts.grants.push(grant(
+        ANCESTOR_DATASET,
+        "destroy",
+        Who::User(ACCOUNT),
+        Inheritance::Descendants,
+    ));
+    let super::CheckOutcome::Finding {
+        field,
+        detail,
+    } = check_delegation(&facts)
+    else {
         panic!("a wider grant is a finding");
     };
     assert_eq!(field, "scope");
@@ -138,8 +178,13 @@ fn a_grant_carried_by_an_ancestor_is_a_scope_finding_with_its_narrowing_pair() {
     assert!(detail.contains(&narrow), "{detail}");
     assert!(detail.contains(&wide_removal), "{detail}");
     let narrow_at: usize = detail.find(&narrow).expect("the narrowed grant is printed");
-    let wide_removal_at: usize = detail.find(&wide_removal).expect("the wider grant's removal is printed");
-    assert!(narrow_at < wide_removal_at, "the grant comes before the wider one goes: {detail}");
+    let wide_removal_at: usize = detail
+        .find(&wide_removal)
+        .expect("the wider grant's removal is printed");
+    assert!(
+        narrow_at < wide_removal_at,
+        "the grant comes before the wider one goes: {detail}"
+    );
 }
 
 /// One ancestor grant can make two decided permissions effective,
@@ -147,9 +192,22 @@ fn a_grant_carried_by_an_ancestor_is_a_scope_finding_with_its_narrowing_pair() {
 #[test]
 fn one_wide_grant_serving_two_permissions_is_removed_once_after_both_grants() {
     let mut facts: DelegationFacts = healthy_delegation();
-    facts.grants.retain(|grant| return !(grant.permission == "mount" && (grant.carried_by == CHECKOUT_DATASET || grant.carried_by == CONTAINER_DATASET) && grant.inheritance == Inheritance::Descendants));
-    facts.grants.push(grant(ANCESTOR_DATASET, "mount", Who::User(ACCOUNT), Inheritance::Descendants));
-    let super::CheckOutcome::Finding { field, detail } = check_delegation(&facts) else {
+    facts.grants.retain(|grant| {
+        return !(grant.permission == "mount"
+            && (grant.carried_by == CHECKOUT_DATASET || grant.carried_by == CONTAINER_DATASET)
+            && grant.inheritance == Inheritance::Descendants);
+    });
+    facts.grants.push(grant(
+        ANCESTOR_DATASET,
+        "mount",
+        Who::User(ACCOUNT),
+        Inheritance::Descendants,
+    ));
+    let super::CheckOutcome::Finding {
+        field,
+        detail,
+    } = check_delegation(&facts)
+    else {
         panic!("a wider grant is a finding");
     };
     assert_eq!(field, "scope");
@@ -158,19 +216,51 @@ fn one_wide_grant_serving_two_permissions_is_removed_once_after_both_grants() {
     let wide_removal: String = format!("zfs unallow -d -u {ACCOUNT} mount {ANCESTOR_DATASET}");
     assert!(detail.contains(&checkout_narrow), "{detail}");
     assert!(detail.contains(&container_narrow), "{detail}");
-    assert_eq!(detail.matches(&wide_removal).count(), 1, "the one wider grant is removed once: {detail}");
-    let checkout_narrow_at: usize = detail.find(&checkout_narrow).expect("the checkout's narrowed grant is printed");
-    let container_narrow_at: usize = detail.find(&container_narrow).expect("the container's narrowed grant is printed");
-    let wide_removal_at: usize = detail.find(&wide_removal).expect("the wider grant's removal is printed");
-    assert!(checkout_narrow_at < wide_removal_at && container_narrow_at < wide_removal_at, "both grants come before the wider one goes: {detail}");
+    assert_eq!(
+        detail.matches(&wide_removal).count(),
+        1,
+        "the one wider grant is removed once: {detail}"
+    );
+    let checkout_narrow_at: usize = detail
+        .find(&checkout_narrow)
+        .expect("the checkout's narrowed grant is printed");
+    let container_narrow_at: usize = detail
+        .find(&container_narrow)
+        .expect("the container's narrowed grant is printed");
+    let wide_removal_at: usize = detail
+        .find(&wide_removal)
+        .expect("the wider grant's removal is printed");
+    assert!(
+        checkout_narrow_at < wide_removal_at && container_narrow_at < wide_removal_at,
+        "both grants come before the wider one goes: {detail}"
+    );
 }
 
 /// Every forbidden permission is a finding naming it and the unallow command.
 #[test]
 fn a_forbidden_permission_is_a_finding_with_the_unallow_command() {
-    for forbidden in ["mountpoint", "canmount", "setuid", "devices", "rename", "promote", "receive", "receive:append", "allow"] {
-        let facts: DelegationFacts = with_grant(grant(CONTAINER_DATASET, forbidden, Who::User(ACCOUNT), Inheritance::Descendants));
-        let super::CheckOutcome::Finding { field, detail } = check_delegation(&facts) else {
+    for forbidden in [
+        "mountpoint",
+        "canmount",
+        "setuid",
+        "devices",
+        "rename",
+        "promote",
+        "receive",
+        "receive:append",
+        "allow",
+    ] {
+        let facts: DelegationFacts = with_grant(grant(
+            CONTAINER_DATASET,
+            forbidden,
+            Who::User(ACCOUNT),
+            Inheritance::Descendants,
+        ));
+        let super::CheckOutcome::Finding {
+            field,
+            detail,
+        } = check_delegation(&facts)
+        else {
             panic!("{forbidden} is forbidden");
         };
         assert_eq!(field, "permission", "{forbidden}");
@@ -183,8 +273,17 @@ fn a_forbidden_permission_is_a_finding_with_the_unallow_command() {
 /// even when the account's own grants are right.
 #[test]
 fn a_permission_given_to_everyone_is_a_finding() {
-    let facts: DelegationFacts = with_grant(grant(CONTAINER_DATASET, "destroy", Who::Everyone, Inheritance::Descendants));
-    let super::CheckOutcome::Finding { field, detail } = check_delegation(&facts) else {
+    let facts: DelegationFacts = with_grant(grant(
+        CONTAINER_DATASET,
+        "destroy",
+        Who::Everyone,
+        Inheritance::Descendants,
+    ));
+    let super::CheckOutcome::Finding {
+        field,
+        detail,
+    } = check_delegation(&facts)
+    else {
         panic!("a grant to everyone is a finding");
     };
     assert_eq!(field, "everyone");
@@ -198,14 +297,35 @@ fn a_permission_given_to_everyone_is_a_finding() {
 #[test]
 fn a_named_set_the_account_holds_leaves_the_delegation_unknown() {
     let mut facts: DelegationFacts = healthy_delegation();
-    facts.grants.push(grant(CONTAINER_DATASET, "@backup", Who::User(ACCOUNT), Inheritance::Local));
-    facts.grants.push(grant(CONTAINER_DATASET, "destroy", Who::NamedSet(String::from("@backup")), Inheritance::NotApplicable));
-    let super::CheckOutcome::Unknown { reason } = check_delegation(&facts) else {
+    facts.grants.push(grant(
+        CONTAINER_DATASET,
+        "@backup",
+        Who::User(ACCOUNT),
+        Inheritance::Local,
+    ));
+    facts.grants.push(grant(
+        CONTAINER_DATASET,
+        "destroy",
+        Who::NamedSet(String::from("@backup")),
+        Inheritance::NotApplicable,
+    ));
+    let super::CheckOutcome::Unknown {
+        reason,
+    } = check_delegation(&facts)
+    else {
         panic!("a held named set leaves the answer unknown");
     };
     assert!(reason.contains("@backup"), "{reason}");
-    assert!(reason.contains("destroy"), "the permission is named: {reason}");
-    assert!(reason.contains(&format!("zfs unallow -s @backup destroy {CONTAINER_DATASET}")), "the command that removes it is named: {reason}");
+    assert!(
+        reason.contains("destroy"),
+        "the permission is named: {reason}"
+    );
+    assert!(
+        reason.contains(&format!(
+            "zfs unallow -s @backup destroy {CONTAINER_DATASET}"
+        )),
+        "the command that removes it is named: {reason}"
+    );
 }
 
 /// A set definition that no holder in the reply grants the account still
@@ -213,8 +333,16 @@ fn a_named_set_the_account_holds_leaves_the_delegation_unknown() {
 /// and the reason says that no holder grants it.
 #[test]
 fn a_named_set_no_holder_grants_leaves_the_route_permissions_unproved() {
-    let facts: DelegationFacts = with_grant(grant(CONTAINER_DATASET, "destroy", Who::NamedSet(String::from("@backup")), Inheritance::NotApplicable));
-    let super::CheckOutcome::Unknown { reason } = check_delegation(&facts) else {
+    let facts: DelegationFacts = with_grant(grant(
+        CONTAINER_DATASET,
+        "destroy",
+        Who::NamedSet(String::from("@backup")),
+        Inheritance::NotApplicable,
+    ));
+    let super::CheckOutcome::Unknown {
+        reason,
+    } = check_delegation(&facts)
+    else {
         panic!("a set definition leaves the route's permissions unproved");
     };
     assert!(reason.contains("@backup"), "{reason}");
@@ -229,14 +357,26 @@ fn a_named_set_no_holder_grants_leaves_the_route_permissions_unproved() {
 #[test]
 fn a_creation_time_grant_of_a_forbidden_permission_is_a_finding() {
     for dataset in [CHECKOUT_DATASET, CONTAINER_DATASET] {
-        let facts: DelegationFacts = with_grant(grant(dataset, "mountpoint", Who::Create, Inheritance::NotApplicable));
+        let facts: DelegationFacts = with_grant(grant(
+            dataset,
+            "mountpoint",
+            Who::Create,
+            Inheritance::NotApplicable,
+        ));
         let outcome: super::CheckOutcome = check_delegation(&facts);
-        let super::CheckOutcome::Finding { field, detail } = outcome else {
+        let super::CheckOutcome::Finding {
+            field,
+            detail,
+        } = outcome
+        else {
             panic!("a creation-time `mountpoint` on `{dataset}` is a finding: {outcome:?}");
         };
         assert_eq!(field, "permission", "{dataset}");
         assert!(detail.contains("mountpoint"), "{detail}");
-        assert!(detail.contains(&format!("zfs unallow -c mountpoint {dataset}")), "{detail}");
+        assert!(
+            detail.contains(&format!("zfs unallow -c mountpoint {dataset}")),
+            "{detail}"
+        );
     }
 }
 
@@ -248,23 +388,51 @@ fn a_creation_time_grant_of_a_forbidden_permission_is_a_finding() {
 #[test]
 fn a_forbidden_permission_in_a_named_set_the_account_can_hold_is_a_finding() {
     let holders: [(Who, Inheritance, &str); 4] = [
-        (Who::User(ACCOUNT), Inheritance::Local, "the account's own grant"),
-        (Who::Group(ACCOUNT_GROUP), Inheritance::Descendants, "a grant to one of the account's groups"),
+        (
+            Who::User(ACCOUNT),
+            Inheritance::Local,
+            "the account's own grant",
+        ),
+        (
+            Who::Group(ACCOUNT_GROUP),
+            Inheritance::Descendants,
+            "a grant to one of the account's groups",
+        ),
         (Who::Everyone, Inheritance::Local, "a grant to everyone"),
-        (Who::Create, Inheritance::NotApplicable, "a creation-time set grant"),
+        (
+            Who::Create,
+            Inheritance::NotApplicable,
+            "a creation-time set grant",
+        ),
     ];
     for (holder, inheritance, words) in holders {
         let mut facts: DelegationFacts = healthy_delegation();
-        facts.grants.push(grant(CONTAINER_DATASET, "@backup", holder, inheritance));
-        facts.grants.push(grant(CONTAINER_DATASET, "mountpoint", Who::NamedSet(String::from("@backup")), Inheritance::NotApplicable));
+        facts
+            .grants
+            .push(grant(CONTAINER_DATASET, "@backup", holder, inheritance));
+        facts.grants.push(grant(
+            CONTAINER_DATASET,
+            "mountpoint",
+            Who::NamedSet(String::from("@backup")),
+            Inheritance::NotApplicable,
+        ));
         let outcome: super::CheckOutcome = check_delegation(&facts);
-        let super::CheckOutcome::Finding { field, detail } = outcome else {
+        let super::CheckOutcome::Finding {
+            field,
+            detail,
+        } = outcome
+        else {
             panic!("{words} hands the account a set holding `mountpoint`: {outcome:?}");
         };
         assert_eq!(field, "permission", "{words}");
         assert!(detail.contains("@backup"), "{words}: {detail}");
         assert!(detail.contains("mountpoint"), "{words}: {detail}");
-        assert!(detail.contains(&format!("zfs unallow -s @backup mountpoint {CONTAINER_DATASET}")), "{words}: {detail}");
+        assert!(
+            detail.contains(&format!(
+                "zfs unallow -s @backup mountpoint {CONTAINER_DATASET}"
+            )),
+            "{words}: {detail}"
+        );
     }
 }
 
@@ -274,16 +442,40 @@ fn a_forbidden_permission_in_a_named_set_the_account_can_hold_is_a_finding() {
 #[test]
 fn a_forbidden_permission_reached_through_a_nested_set_is_a_finding() {
     let mut facts: DelegationFacts = healthy_delegation();
-    facts.grants.push(grant(CONTAINER_DATASET, "@outer", Who::User(ACCOUNT), Inheritance::Local));
-    facts.grants.push(grant(CONTAINER_DATASET, "@inner", Who::NamedSet(String::from("@outer")), Inheritance::NotApplicable));
-    facts.grants.push(grant(CONTAINER_DATASET, "mountpoint", Who::NamedSet(String::from("@inner")), Inheritance::NotApplicable));
+    facts.grants.push(grant(
+        CONTAINER_DATASET,
+        "@outer",
+        Who::User(ACCOUNT),
+        Inheritance::Local,
+    ));
+    facts.grants.push(grant(
+        CONTAINER_DATASET,
+        "@inner",
+        Who::NamedSet(String::from("@outer")),
+        Inheritance::NotApplicable,
+    ));
+    facts.grants.push(grant(
+        CONTAINER_DATASET,
+        "mountpoint",
+        Who::NamedSet(String::from("@inner")),
+        Inheritance::NotApplicable,
+    ));
     let outcome: super::CheckOutcome = check_delegation(&facts);
-    let super::CheckOutcome::Finding { field, detail } = outcome else {
+    let super::CheckOutcome::Finding {
+        field,
+        detail,
+    } = outcome
+    else {
         panic!("a set inside a held set hands `mountpoint` over: {outcome:?}");
     };
     assert_eq!(field, "permission");
     assert!(detail.contains("@inner"), "{detail}");
-    assert!(detail.contains(&format!("zfs unallow -s @inner mountpoint {CONTAINER_DATASET}")), "{detail}");
+    assert!(
+        detail.contains(&format!(
+            "zfs unallow -s @inner mountpoint {CONTAINER_DATASET}"
+        )),
+        "{detail}"
+    );
 }
 
 /// A grant both replies carry, because it stands on an ancestor of both
@@ -291,15 +483,37 @@ fn a_forbidden_permission_reached_through_a_nested_set_is_a_finding() {
 #[test]
 fn a_grant_both_replies_carry_is_a_finding_once() {
     let mut facts: DelegationFacts = healthy_delegation();
-    facts.grants.push(grant(ANCESTOR_DATASET, "mountpoint", Who::User(ACCOUNT), Inheritance::Descendants));
-    facts.grants.push(grant(ANCESTOR_DATASET, "mountpoint", Who::User(ACCOUNT), Inheritance::Descendants));
+    facts.grants.push(grant(
+        ANCESTOR_DATASET,
+        "mountpoint",
+        Who::User(ACCOUNT),
+        Inheritance::Descendants,
+    ));
+    facts.grants.push(grant(
+        ANCESTOR_DATASET,
+        "mountpoint",
+        Who::User(ACCOUNT),
+        Inheritance::Descendants,
+    ));
     let outcome: super::CheckOutcome = check_delegation(&facts);
-    let super::CheckOutcome::Finding { field, detail } = outcome else {
+    let super::CheckOutcome::Finding {
+        field,
+        detail,
+    } = outcome
+    else {
         panic!("a forbidden grant on an ancestor is a finding: {outcome:?}");
     };
     assert_eq!(field, "permission");
     assert!(detail.contains("1 lineage-changing grant"), "{detail}");
-    assert_eq!(detail.matches(&format!("zfs unallow -d -u {ACCOUNT} mountpoint {ANCESTOR_DATASET}")).count(), 1, "{detail}");
+    assert_eq!(
+        detail
+            .matches(&format!(
+                "zfs unallow -d -u {ACCOUNT} mountpoint {ANCESTOR_DATASET}"
+            ))
+            .count(),
+        1,
+        "{detail}"
+    );
 }
 
 /// One set two entries hand the account is one set,
@@ -307,15 +521,42 @@ fn a_grant_both_replies_carry_is_a_finding_once() {
 #[test]
 fn a_set_the_account_holds_twice_is_expanded_once() {
     let mut facts: DelegationFacts = healthy_delegation();
-    facts.grants.push(grant(CONTAINER_DATASET, "@backup", Who::User(ACCOUNT), Inheritance::Local));
-    facts.grants.push(grant(CONTAINER_DATASET, "@backup", Who::Group(ACCOUNT_GROUP), Inheritance::Local));
-    facts.grants.push(grant(CONTAINER_DATASET, "mountpoint", Who::NamedSet(String::from("@backup")), Inheritance::NotApplicable));
+    facts.grants.push(grant(
+        CONTAINER_DATASET,
+        "@backup",
+        Who::User(ACCOUNT),
+        Inheritance::Local,
+    ));
+    facts.grants.push(grant(
+        CONTAINER_DATASET,
+        "@backup",
+        Who::Group(ACCOUNT_GROUP),
+        Inheritance::Local,
+    ));
+    facts.grants.push(grant(
+        CONTAINER_DATASET,
+        "mountpoint",
+        Who::NamedSet(String::from("@backup")),
+        Inheritance::NotApplicable,
+    ));
     let outcome: super::CheckOutcome = check_delegation(&facts);
-    let super::CheckOutcome::Finding { field, detail } = outcome else {
+    let super::CheckOutcome::Finding {
+        field,
+        detail,
+    } = outcome
+    else {
         panic!("a set handed over twice still hands `mountpoint` over: {outcome:?}");
     };
     assert_eq!(field, "permission");
-    assert_eq!(detail.matches(&format!("zfs unallow -s @backup mountpoint {CONTAINER_DATASET}")).count(), 1, "{detail}");
+    assert_eq!(
+        detail
+            .matches(&format!(
+                "zfs unallow -s @backup mountpoint {CONTAINER_DATASET}"
+            ))
+            .count(),
+        1,
+        "{detail}"
+    );
 }
 
 /// A set the account holds which the reply defines no member of leaves the
@@ -323,8 +564,16 @@ fn a_set_the_account_holds_twice_is_expanded_once() {
 /// naming the set and the holder whose grant cannot be judged.
 #[test]
 fn a_held_set_the_reply_does_not_define_is_unproved() {
-    let facts: DelegationFacts = with_grant(grant(CONTAINER_DATASET, "@backup", Who::User(ACCOUNT), Inheritance::Local));
-    let super::CheckOutcome::Unknown { reason } = check_delegation(&facts) else {
+    let facts: DelegationFacts = with_grant(grant(
+        CONTAINER_DATASET,
+        "@backup",
+        Who::User(ACCOUNT),
+        Inheritance::Local,
+    ));
+    let super::CheckOutcome::Unknown {
+        reason,
+    } = check_delegation(&facts)
+    else {
         panic!("a held set with no definition leaves the answer unknown");
     };
     assert!(reason.contains("@backup"), "{reason}");
@@ -336,11 +585,25 @@ fn a_held_set_the_reply_does_not_define_is_unproved() {
 /// so a change to the table turns this control red.
 #[test]
 fn the_decided_grants_are_the_ones_the_design_names() {
-    let mut named: Vec<String> = healthy_grants().into_iter().map(|grant| return format!("{} {} {:?}", grant.carried_by, grant.permission, grant.inheritance)).collect();
+    let mut named: Vec<String> = healthy_grants()
+        .into_iter()
+        .map(|grant| {
+            return format!(
+                "{} {} {:?}",
+                grant.carried_by, grant.permission, grant.inheritance
+            );
+        })
+        .collect();
     named.sort();
     assert_eq!(named.len(), 9, "{named:?}");
-    assert!(named.contains(&format!("{CHECKOUT_DATASET} snapshot Local")), "{named:?}");
-    assert!(named.contains(&format!("{CONTAINER_DATASET} userprop Descendants")), "{named:?}");
+    assert!(
+        named.contains(&format!("{CHECKOUT_DATASET} snapshot Local")),
+        "{named:?}"
+    );
+    assert!(
+        named.contains(&format!("{CONTAINER_DATASET} userprop Descendants")),
+        "{named:?}"
+    );
 }
 
 //endregion

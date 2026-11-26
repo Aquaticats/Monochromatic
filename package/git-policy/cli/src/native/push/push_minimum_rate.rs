@@ -105,7 +105,8 @@ pub fn push_minimum_rate_bytes(environment: &[(OsString, OsString)]) -> u64 {
     let Some(value) = found else {
         return DEFAULT_PUSH_MINIMUM_RATE_BYTES;
     };
-    return positive_count(PUSH_MINIMUM_RATE_VARIABLE, value.as_os_str()).unwrap_or(DEFAULT_PUSH_MINIMUM_RATE_BYTES);
+    return positive_count(PUSH_MINIMUM_RATE_VARIABLE, value.as_os_str())
+        .unwrap_or(DEFAULT_PUSH_MINIMUM_RATE_BYTES);
 }
 
 /// Minimum-rate reading is controlled in the test module.

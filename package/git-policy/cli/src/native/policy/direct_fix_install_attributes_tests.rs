@@ -15,10 +15,18 @@
 /// The module under test.
 use super::reading::read_until_it_fits;
 use super::{
-    ATTRIBUTE_ATTEMPTS, Attribute, AttributeRefusal, attributes_of, give_to, is_a_label,
+    ATTRIBUTE_ATTEMPTS,
+    Attribute,
+    AttributeRefusal,
+    attributes_of,
+    give_to,
+    is_a_label,
 };
 /// A disposable fixture and its removal.
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 /// `CString` names the attribute the control plants.
 use std::ffi::CString;
 /// `OsStrExt` lends the path's bytes.
@@ -26,7 +34,10 @@ use std::os::unix::ffi::OsStrExt;
 /// `MetadataExt` and `PermissionsExt` describe the file the control plants on.
 use std::os::unix::fs::PermissionsExt;
 /// `Path` and `PathBuf` are filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Give `path` the extended attribute `name` with `value`;
@@ -39,8 +50,15 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// // const planted = (path, name, value) => { try { setxattrSync(path, name, value); return true } catch { return false } };
 /// ```
-fn set_attribute(path: &Path, name: &[u8], value: &[u8]) -> bool {
-    let (Ok(name_text), Ok(path_text)) = (CString::new(name), CString::new(path.as_os_str().as_bytes())) else {
+fn set_attribute(
+    path: &Path,
+    name: &[u8],
+    value: &[u8],
+) -> bool {
+    let (Ok(name_text), Ok(path_text)) = (
+        CString::new(name),
+        CString::new(path.as_os_str().as_bytes()),
+    ) else {
         return false;
     };
     // SAFETY: both strings are NUL-terminated and outlive the call; `value` holds `value.len()` initialised bytes.
@@ -70,7 +88,11 @@ fn set_attribute(path: &Path, name: &[u8], value: &[u8]) -> bool {
 /// // const planted = plant('xattr-read', 'user.draft', 'only-copy-of-draft');
 /// // if (planted === undefined) return; // XATTR CONTROL NOT RUN
 /// ```
-fn plant(name: &str, attribute: &[u8], value: &[u8]) -> Option<(PathBuf, PathBuf)> {
+fn plant(
+    name: &str,
+    attribute: &[u8],
+    value: &[u8],
+) -> Option<(PathBuf, PathBuf)> {
     let root: PathBuf = fixture(name);
     let path: PathBuf = root.join("kept.txt");
     std::fs::write(&path, b"x\n").expect("a file");
@@ -106,7 +128,9 @@ fn an_attribute_is_read_with_the_name_and_value_it_was_given() {
         return;
     };
     let found: Vec<Attribute> = attributes_of(path.as_path(), "reading a file").expect("read");
-    let carried: Option<&Attribute> = found.iter().find(|attribute| { return attribute.name == DRAFT; });
+    let carried: Option<&Attribute> = found.iter().find(|attribute| {
+        return attribute.name == DRAFT;
+    });
     let Some(draft) = carried else {
         panic!("the attribute the file carries is listed: {found:?}");
     };
@@ -139,11 +163,14 @@ fn a_file_nothing_was_planted_on_reads_no_user_attribute() {
     let found: Vec<Attribute> = attributes_of(path.as_path(), "reading a file").expect("read");
     let planted: Vec<&Attribute> = found
         .iter()
-        .filter(|attribute| { return attribute.name.starts_with(b"user."); })
+        .filter(|attribute| {
+            return attribute.name.starts_with(b"user.");
+        })
         .collect();
     assert_eq!(planted, Vec::<&Attribute>::new(), "{found:?}");
     // A name nothing is at is a refusal, not an empty list: the fix must not carry on as if the file held nothing.
-    let absent: String = attributes_of(root.join("gone.txt").as_path(), "reading a file").expect_err("no file");
+    let absent: String =
+        attributes_of(root.join("gone.txt").as_path(), "reading a file").expect_err("no file");
     assert!(absent.starts_with("reading a file failed ("), "{absent}");
     remove(root.as_path());
 }
@@ -165,38 +192,57 @@ fn an_attribute_the_system_will_not_set_is_refused_by_name() {
     let path: PathBuf = root.join("kept.txt");
     std::fs::write(&path, b"x\n").expect("a file");
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("mode");
-    let file: std::fs::File = std::fs::OpenOptions::new().write(true).open(&path).expect("open");
+    let file: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .expect("open");
     let impossible: Attribute = Attribute {
         name: b"bogus.never".to_vec(),
         value: b"x".to_vec(),
     };
     let refusal: AttributeRefusal =
         give_to(&file, [impossible.clone()].as_slice()).expect_err("no such namespace");
-    let AttributeRefusal::NotGiven { attribute: refused, reason: why } = refusal else {
+    let AttributeRefusal::NotGiven {
+        attribute: refused,
+        reason: why,
+    } = refusal
+    else {
         panic!("the refusal names the attribute the system would not set: {refusal:?}");
     };
     assert_eq!(refused, impossible);
-    assert_ne!(why.raw_os_error(), None, "the system's own reason is kept: {why}");
+    assert_ne!(
+        why.raw_os_error(),
+        None,
+        "the system's own reason is kept: {why}"
+    );
     assert_eq!(refused.display_name(), "bogus.never");
     // Positive control: the call does set an attribute this system knows.
     let Some((known_root, known_path)) = plant("xattr-given", DRAFT, b"first") else {
         remove(root.as_path());
         return;
     };
-    let known: std::fs::File = std::fs::OpenOptions::new().write(true).open(&known_path).expect("open");
+    let known: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&known_path)
+        .expect("open");
     let wanted: Attribute = Attribute {
         name: DRAFT.to_vec(),
         value: b"second".to_vec(),
     };
     // The list is the file's own with the wanted value in place of the one it holds, as the fix's list is the
     // original's: every attribute the file carries is named, so nothing is taken off it.
-    let mut asked: Vec<Attribute> = attributes_of(known_path.as_path(), "reading a file").expect("read");
+    let mut asked: Vec<Attribute> =
+        attributes_of(known_path.as_path(), "reading a file").expect("read");
     asked.retain(|attribute| {
         return attribute.name != wanted.name;
     });
     asked.push(wanted.clone());
-    assert!(give_to(&known, asked.as_slice()).is_ok(), "the value is given");
-    let read_back: Vec<Attribute> = attributes_of(known_path.as_path(), "reading a file").expect("read");
+    assert!(
+        give_to(&known, asked.as_slice()).is_ok(),
+        "the value is given"
+    );
+    let read_back: Vec<Attribute> =
+        attributes_of(known_path.as_path(), "reading a file").expect("read");
     assert!(
         read_back.contains(&wanted),
         "the value the replacement was given is the one it holds: {read_back:?}"
@@ -232,7 +278,10 @@ fn an_attribute_the_original_never_had_is_taken_off_the_replacement() {
         remove(root.as_path());
         return;
     }
-    let file: std::fs::File = std::fs::OpenOptions::new().write(true).open(&path).expect("open");
+    let file: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .expect("open");
     // The list is what the original carried: every attribute of the file but the one the directory planted on it.
     let kept: Vec<Attribute> = attributes_of(path.as_path(), "reading a file")
         .expect("read")
@@ -249,7 +298,11 @@ fn an_attribute_the_original_never_had_is_taken_off_the_replacement() {
             return attribute.name.starts_with(b"user.");
         })
         .collect();
-    assert_eq!(user, Vec::<&Attribute>::new(), "the inherited attribute is gone: {found:?}");
+    assert_eq!(
+        user,
+        Vec::<&Attribute>::new(),
+        "the inherited attribute is gone: {found:?}"
+    );
     remove(root.as_path());
 }
 
@@ -306,7 +359,10 @@ fn growing_length(answer: &mut GrowingAnswer) -> std::io::Result<usize> {
 /// ```ts
 /// const growingRead = (answer, buffer) => buffer.length < answer.after.length ? answer.after.length : copy(buffer);
 /// ```
-fn growing_read(answer: &mut GrowingAnswer, buffer: &mut [u8]) -> std::io::Result<usize> {
+fn growing_read(
+    answer: &mut GrowingAnswer,
+    buffer: &mut [u8],
+) -> std::io::Result<usize> {
     if buffer.len() < answer.after.len() {
         return Ok(answer.after.len());
     }
@@ -340,8 +396,14 @@ fn a_value_that_grows_between_the_length_question_and_the_read_is_read_whole() {
         growing_read,
     )
     .expect("the value is read once its length fits");
-    assert_eq!(read, DRAFT_VALUE, "the grown value is the one that comes back");
-    assert_eq!(answer.asked, 2, "the length was asked again after the buffer did not fit");
+    assert_eq!(
+        read, DRAFT_VALUE,
+        "the grown value is the one that comes back"
+    );
+    assert_eq!(
+        answer.asked, 2,
+        "the length was asked again after the buffer did not fit"
+    );
 }
 
 /// What:
@@ -370,7 +432,10 @@ fn a_list_that_grows_between_the_length_question_and_the_read_is_read_whole() {
     )
     .expect("the list is read once its length fits");
     assert_eq!(read, LISTED, "the grown list is the one that comes back");
-    assert_eq!(answer.asked, 2, "the length was asked again after the buffer did not fit");
+    assert_eq!(
+        answer.asked, 2,
+        "the length was asked again after the buffer did not fit"
+    );
 }
 
 /// What:
@@ -389,7 +454,10 @@ fn never_fitting_length(_answer: &mut GrowingAnswer) -> std::io::Result<usize> {
 }
 
 /// The reading of an answer that is always larger than the buffer it was given.
-fn never_fitting_read(answer: &mut GrowingAnswer, buffer: &mut [u8]) -> std::io::Result<usize> {
+fn never_fitting_read(
+    answer: &mut GrowingAnswer,
+    buffer: &mut [u8],
+) -> std::io::Result<usize> {
     answer.asked += 1;
     return Ok(buffer.len() + answer.after.len() + 1);
 }
@@ -420,8 +488,14 @@ fn an_answer_that_never_fits_is_refused_after_the_attempts_it_allows() {
         never_fitting_read,
     )
     .expect_err("an answer that never fits is refused");
-    assert_eq!(refusal.to_string(), "its value kept changing while it was read");
-    assert_eq!(answer.asked, ATTRIBUTE_ATTEMPTS, "the reading stops at its own bound");
+    assert_eq!(
+        refusal.to_string(),
+        "its value kept changing while it was read"
+    );
+    assert_eq!(
+        answer.asked, ATTRIBUTE_ATTEMPTS,
+        "the reading stops at its own bound"
+    );
 }
 
 /// What:
@@ -456,7 +530,10 @@ fn a_label_the_system_will_not_set_does_not_stop_the_write() {
         remove(root.as_path());
         return;
     }
-    let file: std::fs::File = std::fs::OpenOptions::new().write(true).open(&path).expect("open");
+    let file: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .expect("open");
     let mut asked: Vec<Attribute> = attributes_of(path.as_path(), "reading a file").expect("read");
     asked.push(Attribute {
         name: LABEL.to_vec(),
@@ -498,8 +575,14 @@ fn a_label_this_process_may_not_take_off_does_not_stop_the_write() {
         return;
     }
     // The original carried none of them, so the replacement ends without them where this process may take one off.
-    let kept: Vec<Attribute> = carried.into_iter().filter(is_not_a_label_attribute).collect();
-    let file: std::fs::File = std::fs::OpenOptions::new().write(true).open(&path).expect("open");
+    let kept: Vec<Attribute> = carried
+        .into_iter()
+        .filter(is_not_a_label_attribute)
+        .collect();
+    let file: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .expect("open");
     give_to(&file, kept.as_slice())
         .expect("a label this process may not take off does not stop the write");
     remove(root.as_path());

@@ -12,7 +12,10 @@
 //! expect(() => parse(bytesWithARepeatedKey)).toThrow();
 //! ```
 
-use crate::worktree_clone_origin_cleanup::origin_cleanup_fixtures::{an_owed_record, the_bytes};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_fixtures::{
+    an_owed_record,
+    the_bytes,
+};
 use crate::worktree_clone_origin_cleanup::origin_cleanup_parse::parse_the_record;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_record::OriginCleanupRecord;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::CleanupRefusalCause;
@@ -36,8 +39,14 @@ fn a_key_the_grammar_does_not_hold_refuses() {
 #[test]
 fn a_key_out_of_order_refuses() {
     let mut lines: Vec<String> = the_bytes().lines().map(String::from).collect();
-    let at: usize = lines.iter().position(|line| return line.starts_with("startedAt=")).expect("the record carries it");
-    let later: usize = lines.iter().position(|line| return line.starts_with("originDatasetGuid=")).expect("the record carries it");
+    let at: usize = lines
+        .iter()
+        .position(|line| return line.starts_with("startedAt="))
+        .expect("the record carries it");
+    let later: usize = lines
+        .iter()
+        .position(|line| return line.starts_with("originDatasetGuid="))
+        .expect("the record carries it");
     lines.swap(at, later);
     let mut text: String = lines.join("\n");
     text.push('\n');
@@ -49,21 +58,27 @@ fn a_key_out_of_order_refuses() {
 fn a_missing_key_refuses() {
     let text: String = the_bytes().replace("originSnapshotGuid=", "originSnapshotGuidExtra=");
     let refusal = parse_the_record(text.as_bytes()).expect_err("the identity lines are required");
-    assert!(matches!(refusal.cause, CleanupRefusalCause::MissingKey | CleanupRefusalCause::UnknownKey));
+    assert!(matches!(
+        refusal.cause,
+        CleanupRefusalCause::MissingKey | CleanupRefusalCause::UnknownKey
+    ));
 }
 
 #[test]
 fn a_record_that_stops_before_its_last_line_refuses() {
     let text: String = the_bytes();
     let cut: &str = &text[..text.rfind('\n').expect("the record has lines")];
-    let refusal = parse_the_record(cut.as_bytes()).expect_err("a record cut short is not one this reader reads");
+    let refusal = parse_the_record(cut.as_bytes())
+        .expect_err("a record cut short is not one this reader reads");
     assert_eq!(refusal.cause, CleanupRefusalCause::EndsEarly);
 }
 
 #[test]
 fn a_non_canonical_guid_refuses() {
-    let text: String = the_bytes().replace("originSnapshotCreatetxg=15", "originSnapshotCreatetxg=015");
-    let refusal = parse_the_record(text.as_bytes()).expect_err("a leading zero is not canonical decimal");
+    let text: String =
+        the_bytes().replace("originSnapshotCreatetxg=15", "originSnapshotCreatetxg=015");
+    let refusal =
+        parse_the_record(text.as_bytes()).expect_err("a leading zero is not canonical decimal");
     assert_eq!(refusal.cause, CleanupRefusalCause::NotCanonical);
 }
 
@@ -71,8 +86,12 @@ fn a_non_canonical_guid_refuses() {
 fn an_owed_record_with_a_block_reason_refuses() {
     let mut text: String = the_bytes();
     text = text.replace("state=owed", "state=blocked");
-    let refusal = parse_the_record(text.as_bytes()).expect_err("a blocked record needs every state line");
-    assert!(matches!(refusal.cause, CleanupRefusalCause::MissingKey | CleanupRefusalCause::UnexpectedKey));
+    let refusal =
+        parse_the_record(text.as_bytes()).expect_err("a blocked record needs every state line");
+    assert!(matches!(
+        refusal.cause,
+        CleanupRefusalCause::MissingKey | CleanupRefusalCause::UnexpectedKey
+    ));
 }
 
 #[test]

@@ -20,7 +20,10 @@
 //! export const syncCounts = { noteFileSync, noteDirectorySync, takeSyncCounts };
 //! ```
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// How many durability syncs a stretch of the run made,
 /// and how many it skipped.
@@ -73,5 +76,8 @@ pub(crate) fn note_directory_sync(skipped: bool) {
 /// const made = madeCount.swap(0); const skipped = skippedCount.swap(0); return { made, skipped };
 /// ```
 pub(crate) fn take_sync_counts() -> SyncCounts {
-    return SyncCounts { made: MADE.swap(0, Ordering::SeqCst), skipped: SKIPPED.swap(0, Ordering::SeqCst) };
+    return SyncCounts {
+        made: MADE.swap(0, Ordering::SeqCst),
+        skipped: SKIPPED.swap(0, Ordering::SeqCst),
+    };
 }

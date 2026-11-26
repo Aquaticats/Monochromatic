@@ -42,7 +42,10 @@ use std::path::Path;
 pub fn while_test_lives(root: &Path) -> String {
     // A single quote in the path ends the quoted text, is written as itself, and starts it again.
     let quoted: String = root.display().to_string().replace('\'', "'\\''");
-    return format!("[ -d '{quoted}' ] && kill -0 {} 2>/dev/null", std::process::id());
+    return format!(
+        "[ -d '{quoted}' ] && kill -0 {} 2>/dev/null",
+        std::process::id()
+    );
 }
 
 /// What:
@@ -74,7 +77,9 @@ pub fn end_processes_working_in(root: &Path) {
     };
     for entry in listing.flatten() {
         // Only the numbered entries are processes.
-        let Some(pid) = entry.file_name().to_str().and_then(|name| { return name.parse::<u32>().ok(); }) else {
+        let Some(pid) = entry.file_name().to_str().and_then(|name| {
+            return name.parse::<u32>().ok();
+        }) else {
             continue;
         };
         if pid == own {

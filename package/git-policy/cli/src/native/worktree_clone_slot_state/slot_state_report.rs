@@ -23,10 +23,16 @@
 //! for (const line of report.lines()) console.log(line);
 //! ```
 
-use crate::worktree_clone_slot_state::slot_state_classification::{SlotRouteState, classify_slot};
+use crate::worktree_clone_slot_state::slot_state_classification::{
+    SlotRouteState,
+    classify_slot,
+};
 use crate::worktree_clone_slot_state::slot_state_evidence::evidence;
 use crate::worktree_clone_slot_state::slot_state_next_actions::next_safe_action;
-use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, SlotReadings};
+use crate::worktree_clone_slot_state::slot_state_readings::{
+    BindingReading,
+    SlotReadings,
+};
 
 /// What:
 ///  The words one report prints when the record names no dataset.
@@ -87,7 +93,11 @@ impl SlotStateReport {
                 format!("dataset: `{}` in pool `{}`", self.dataset, self.pool)
             },
         ];
-        lines.extend(self.evidence.iter().map(|line| return format!("evidence: {line}")));
+        lines.extend(
+            self.evidence
+                .iter()
+                .map(|line| return format!("evidence: {line}")),
+        );
         lines.push(format!("next safe action: {}", self.next_safe_action));
         return lines;
     }
@@ -107,8 +117,13 @@ impl SlotStateReport {
 pub fn report_of(readings: &SlotReadings) -> SlotStateReport {
     let state: SlotRouteState = classify_slot(readings);
     let named: Option<(&str, &str)> = match &readings.binding {
-        BindingReading::Record(record) => Some((record.clone_dataset.as_str(), record.pool.as_str())),
-        BindingReading::Absent | BindingReading::Unreadable { .. } => None,
+        BindingReading::Record(record) => {
+            Some((record.clone_dataset.as_str(), record.pool.as_str()))
+        }
+        BindingReading::Absent
+        | BindingReading::Unreadable {
+            ..
+        } => None,
     };
     let (dataset, pool): (String, String) = match named {
         Some((dataset, pool)) => (String::from(dataset), String::from(pool)),

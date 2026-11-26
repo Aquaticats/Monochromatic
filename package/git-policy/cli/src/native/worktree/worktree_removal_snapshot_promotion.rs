@@ -22,11 +22,20 @@
 //! promoteSnapshot(commonDir, snapshot, problems);
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::private_storage::create_private_directory_all;
-use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, record_lost_push};
+use crate::push_failure_notice::{
+    ORPHAN_NOTICE_DIRECTORY,
+    record_lost_push,
+};
 use crate::work_item::WorkItem;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemovalSnapshotPromotion";
@@ -41,7 +50,9 @@ pub(crate) const WORK: &str = "work";
 /// The files of a directory,
 /// or none when it cannot be read.
 pub(crate) fn files_of(directory: &Path) -> Vec<PathBuf> {
-    let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
+    let Ok(listing) = std::fs::read_dir(directory) else {
+        return Vec::new();
+    };
     let mut paths: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
         let path: PathBuf = entry.path();
@@ -75,13 +86,17 @@ pub(crate) fn name_of(path: &Path) -> String {
 /// savedRecordText(path) // string; throws
 /// ```
 fn saved_record_text(path: &Path) -> std::io::Result<String> {
-    let bytes: Vec<u8> = crate::plain_file::read_plain_file(path, crate::plain_file::SMALL_FILE_LIMIT)?;
+    let bytes: Vec<u8> =
+        crate::plain_file::read_plain_file(path, crate::plain_file::SMALL_FILE_LIMIT)?;
     return String::from_utf8(bytes).map_err(std::io::Error::other);
 }
 
 /// Moves one saved notice to the notices any worktree shows;
 /// a notice another command already moved is not a failure.
-pub(crate) fn promote_notice(orphans: &Path, path: &Path) -> std::io::Result<()> {
+pub(crate) fn promote_notice(
+    orphans: &Path,
+    path: &Path,
+) -> std::io::Result<()> {
     create_private_directory_all(orphans)?;
     return match std::fs::rename(path, orphans.join(name_of(path))) {
         Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
@@ -106,7 +121,11 @@ pub(crate) fn promote_notice(orphans: &Path, path: &Path) -> std::io::Result<()>
 /// ```ts
 /// const complete = await promote(commonDir, snapshot, problems)
 /// ```
-pub(crate) fn promote(common_dir: &Path, snapshot: &Path, problems: &mut Vec<String>) -> bool {
+pub(crate) fn promote(
+    common_dir: &Path,
+    snapshot: &Path,
+    problems: &mut Vec<String>,
+) -> bool {
     let orphans: PathBuf = common_dir.join(ORPHAN_NOTICE_DIRECTORY);
     let mut complete: bool = true;
     for path in files_of(snapshot.join(NOTICES).as_path()) {
@@ -129,36 +148,52 @@ pub(crate) fn promote(common_dir: &Path, snapshot: &Path, problems: &mut Vec<Str
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => {
                 complete = false;
-                let said: String = format!("The saved record {} of a removed worktree's unfinished push could not be read ({error}); it stays in {}.", name_of(path.as_path()), snapshot.display());
+                let said: String = format!(
+                    "The saved record {} of a removed worktree's unfinished push could not be read ({error}); it stays in {}.",
+                    name_of(path.as_path()),
+                    snapshot.display()
+                );
                 debug(TAG, said.as_str());
                 problems.push(said);
                 continue;
             }
         };
         match WorkItem::decode(text.as_str()) {
-            Ok(found) => match record_lost_push(common_dir, found.branch_ref.as_str(), found.oid.as_str()) {
-                Ok(()) => {
-                    // Removed now, so that a try after a failure elsewhere in this snapshot does not record the push again.
-                    if let Err(error) = std::fs::remove_file(path.as_path()) {
-                        warn(TAG, format!("removing the promoted record {} failed: {error}", path.display()).as_str());
+            Ok(found) => {
+                match record_lost_push(common_dir, found.branch_ref.as_str(), found.oid.as_str()) {
+                    Ok(()) => {
+                        // Removed now, so that a try after a failure elsewhere in this snapshot does not record the push again.
+                        if let Err(error) = std::fs::remove_file(path.as_path()) {
+                            warn(
+                                TAG,
+                                format!(
+                                    "removing the promoted record {} failed: {error}",
+                                    path.display()
+                                )
+                                .as_str(),
+                            );
+                        }
+                    }
+                    Err(reason) => {
+                        complete = false;
+                        let said: String = format!(
+                            "The backup push of {} for commit {} had not finished when its worktree was removed, and noting that failed ({reason}). \
+                         The record stays in {}; once that is fixed, any git command shows it.",
+                            found.branch_ref,
+                            found.oid,
+                            snapshot.display()
+                        );
+                        debug(TAG, said.as_str());
+                        problems.push(said);
                     }
                 }
-                Err(reason) => {
-                    complete = false;
-                    let said: String = format!(
-                        "The backup push of {} for commit {} had not finished when its worktree was removed, and noting that failed ({reason}). \
-                         The record stays in {}; once that is fixed, any git command shows it.",
-                        found.branch_ref,
-                        found.oid,
-                        snapshot.display()
-                    );
-                    debug(TAG, said.as_str());
-                    problems.push(said);
-                }
-            },
+            }
             Err(reason) => {
                 // A record that cannot be read now cannot be read later: it is said once and dropped.
-                let said: String = format!("A saved record of an unfinished push of a removed worktree is unreadable ({reason}), so that push is not reported: {}", path.display());
+                let said: String = format!(
+                    "A saved record of an unfinished push of a removed worktree is unreadable ({reason}), so that push is not reported: {}",
+                    path.display()
+                );
                 debug(TAG, said.as_str());
                 problems.push(said);
                 let _dropped = std::fs::remove_file(path.as_path());
@@ -183,7 +218,11 @@ pub(crate) fn promote(common_dir: &Path, snapshot: &Path, problems: &mut Vec<Str
 /// ```ts
 /// promoteSnapshot(commonDir, snapshot, problems)
 /// ```
-pub(crate) fn promote_snapshot(common_dir: &Path, snapshot: &Path, problems: &mut Vec<String>) {
+pub(crate) fn promote_snapshot(
+    common_dir: &Path,
+    snapshot: &Path,
+    problems: &mut Vec<String>,
+) {
     if promote(common_dir, snapshot, problems) {
         let _settled = std::fs::remove_dir_all(snapshot);
     }

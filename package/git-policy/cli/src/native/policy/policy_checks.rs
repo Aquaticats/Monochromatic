@@ -21,6 +21,8 @@
 //! // const findings = await policy.check({ context });
 //! ```
 
+/// The code a check reports when a repository fact could not be read.
+use crate::diagnostics::EngineFailureCode;
 /// What:
 ///  `use` brings names from sibling files into this file;
 ///  `super::` means "the parent
@@ -35,56 +37,85 @@
 /// ```
 /// The tool-cache entries exempt from the linked-worktree enforcement.
 use crate::effective_target::ToolCacheDirectory;
+/// The guarded decision about the command Git will really run,
+/// alias expansion included.
+use crate::guarded_forwarded_command::{
+    GuardedForwarded,
+    decide_guarded_forwarded,
+};
 /// The Markdown autofix check,
 ///  its state and the linter the executable gives it.
 use crate::markdown_linter::embedded_linter;
+/// The branch-worktree-only check,
+/// one policy of its own file.
+use crate::policy_branch_worktree::check_branch_worktree;
+/// The optional catalog-specifier check over candidates.
+use crate::policy_catalog_specifiers::check_catalog_specifiers;
 /// What the lifecycle offers content policies,
 ///  and its prepared candidates.
-use crate::policy_content::{ContentState, LifecycleContent};
+use crate::policy_content::{
+    ContentState,
+    LifecycleContent,
+};
 /// The dependent-version check over the candidate state.
-use crate::policy_dependent_version::{DependentCheck, check_dependent_version};
+use crate::policy_dependent_version::{
+    DependentCheck,
+    check_dependent_version,
+};
 /// The engine's check interface,
 ///  findings and outcomes.
-use crate::policy_engine::{PolicyChecks, PolicyFinding, PolicyOutcome};
-/// The code a check reports when a repository fact could not be read.
-use crate::diagnostics::EngineFailureCode;
+use crate::policy_engine::{
+    PolicyChecks,
+    PolicyFinding,
+    PolicyOutcome,
+};
 /// The built-in final-newline check over candidates.
 use crate::policy_final_newline::check_final_newline;
 /// The forbidden-strings check,
 ///  its settings and its scanner.
 use crate::policy_forbidden_strings::{
-    ScannerSettings, ScannerState, check_forbidden_strings, default_scanner_settings,
+    ScannerSettings,
+    ScannerState,
+    check_forbidden_strings,
+    default_scanner_settings,
     unloaded_scanner,
 };
-use crate::policy_markdown::{MarkdownState, check_markdown, markdown_state};
+use crate::policy_markdown::{
+    MarkdownState,
+    check_markdown,
+    markdown_state,
+};
 /// The typed policy identities.
 use crate::policy_registry::PolicyId;
 /// The optional root-context check over candidates.
 use crate::policy_root_context::check_root_context;
-/// The optional catalog-specifier check over candidates.
-use crate::policy_catalog_specifiers::check_catalog_specifiers;
 /// The lifecycle points.
 use crate::policy_trigger::Trigger;
 /// The facts interface every check asks.
 use crate::repository_facts::RepositoryFacts;
 /// Where a command runs,
 ///  and the directory Git works in.
-use crate::repository_location::{RepositoryLocation, effective_directory};
+use crate::repository_location::{
+    RepositoryLocation,
+    effective_directory,
+};
 /// The add-explicit rule core,
 ///  its question and the measurement it reads.
 use crate::rule_add_explicit::{
-    BULK_ADD_CODE, StagedSelection, add_explicit_question, decide_add_explicit, pathspec_spellings,
+    BULK_ADD_CODE,
+    StagedSelection,
+    add_explicit_question,
+    decide_add_explicit,
+    pathspec_spellings,
 };
-/// The branch-worktree-only check,
-/// one policy of its own file.
-use crate::policy_branch_worktree::check_branch_worktree;
-/// The guarded decision about the command Git will really run,
-/// alias expansion included.
-use crate::guarded_forwarded_command::{GuardedForwarded, decide_guarded_forwarded};
 /// The require-root rule core.
 use crate::rule_require_root::{
-    NOT_AT_ROOT_CODE, RequireRootDecision, RequireRootFacts, RequireRootVerdict,
-    decide_require_root, resolve_require_root,
+    NOT_AT_ROOT_CODE,
+    RequireRootDecision,
+    RequireRootFacts,
+    RequireRootVerdict,
+    decide_require_root,
+    resolve_require_root,
 };
 /// The worktree's top level.
 use crate::worktree_identity::worktree_root;
@@ -323,7 +354,10 @@ pub(crate) fn clean() -> PolicyOutcome {
 /// ```ts
 /// const rejected = (code: string, message: string): PolicyOutcome => ({ kind: 'findings', findings: [{ code, message }] });
 /// ```
-pub(crate) fn rejected(code: &'static str, message: String) -> PolicyOutcome {
+pub(crate) fn rejected(
+    code: &'static str,
+    message: String,
+) -> PolicyOutcome {
     // `vec![...]` is a macro building an owned list from literal items.
     return PolicyOutcome::Findings(vec![PolicyFinding {
         code,
@@ -454,7 +488,11 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
     /// ```ts
     /// check(policy: PolicyId, trigger: PolicyTrigger): PolicyOutcome;
     /// ```
-    fn check(&mut self, policy: PolicyId, trigger: Trigger) -> PolicyOutcome {
+    fn check(
+        &mut self,
+        policy: PolicyId,
+        trigger: Trigger,
+    ) -> PolicyOutcome {
         // `&mut self.facts` lends the provider for writing; `.as_slice()` lends a list.
         match policy {
             PolicyId::RequireRoot => {
@@ -475,7 +513,11 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
                 return check_branch_worktree(&mut self.facts, self.arguments.as_slice());
             }
             PolicyId::AddExplicit => {
-                return check_add_explicit(&mut self.facts, self.arguments.as_slice(), &mut self.notices);
+                return check_add_explicit(
+                    &mut self.facts,
+                    self.arguments.as_slice(),
+                    &mut self.notices,
+                );
             }
             PolicyId::FinalNewline => {
                 return check_final_newline(

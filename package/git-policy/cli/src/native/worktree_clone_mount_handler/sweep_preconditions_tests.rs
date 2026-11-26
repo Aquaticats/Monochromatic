@@ -16,16 +16,45 @@
 //! ```
 
 use super::{
-    BootFacts, ProbeRefusal, ProbeStanding, boot_identifier, checkout_state, complete, pool_name_of, pool_state, prepare, probe_fingerprint_standing, probe_standing, read_probe_standing,
+    BootFacts,
+    ProbeRefusal,
+    ProbeStanding,
+    boot_identifier,
+    checkout_state,
+    complete,
+    pool_name_of,
+    pool_state,
+    prepare,
+    probe_fingerprint_standing,
+    probe_standing,
+    read_probe_standing,
 };
-use crate::start_probe::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
-use crate::start_probe::probe_record::{ABSENT, RECORD_KIND, RECORD_VERSION};
-use crate::worktree_clone_mount_handler::sweep_checkout_mount::{CheckoutMount, CheckoutMountRefusal, CheckoutMounts};
+use crate::start_probe::probe_fingerprint::{
+    FingerprintPaths,
+    ProbeFingerprint,
+};
+use crate::start_probe::probe_record::{
+    ABSENT,
+    RECORD_KIND,
+    RECORD_VERSION,
+};
+use crate::worktree_clone_mount_handler::sweep_checkout_mount::{
+    CheckoutMount,
+    CheckoutMountRefusal,
+    CheckoutMounts,
+};
 use crate::worktree_clone_mount_handler::sweep_configuration::SweepConfiguration;
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ListedChild, ReadFailure};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ListedChild,
+    ReadFailure,
+};
 use crate::worktree_clone_mount_protocol::ReadyState;
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The pinned parent the controls name.
 const PARENT: &str = "zpcachyos/nosnap/clones";
@@ -36,7 +65,8 @@ const CHECKOUT: &str = "/fixture/checkout";
 /// The running machine's fingerprint,
 /// which every record this control writes pins.
 fn running() -> ProbeFingerprint {
-    return ProbeFingerprint::read(&FingerprintPaths::live()).expect("this machine's fingerprint reads");
+    return ProbeFingerprint::read(&FingerprintPaths::live())
+        .expect("this machine's fingerprint reads");
 }
 
 /// One record a probe that passed writes,
@@ -54,8 +84,13 @@ fn passed_record(boot: &str) -> String {
 }
 
 /// One record a probe that failed writes.
-fn failed_record(boot: &str, step: &str) -> String {
-    return format!("{RECORD_VERSION}\nkind {RECORD_KIND}\nstate finished\nboot {boot}\nverdict failed\nverdict-step {step}\n");
+fn failed_record(
+    boot: &str,
+    step: &str,
+) -> String {
+    return format!(
+        "{RECORD_VERSION}\nkind {RECORD_KIND}\nstate finished\nboot {boot}\nverdict failed\nverdict-step {step}\n"
+    );
 }
 
 /// One scripted checkout mount,
@@ -66,7 +101,10 @@ struct ScriptedMounts {
 }
 
 impl CheckoutMounts for ScriptedMounts {
-    fn mount_holding(&self, _checkout: &Path) -> Result<CheckoutMount, CheckoutMountRefusal> {
+    fn mount_holding(
+        &self,
+        _checkout: &Path,
+    ) -> Result<CheckoutMount, CheckoutMountRefusal> {
         return self.answer.clone();
     }
 }
@@ -93,13 +131,18 @@ struct Fixture {
 impl Fixture {
     /// A fresh folder under this process's own temporary root.
     fn new(name: &str) -> Self {
-        return Fixture { path: crate::test_support::fixture(format!("sweep-preconditions-{name}").as_str()) };
+        return Fixture {
+            path: crate::test_support::fixture(format!("sweep-preconditions-{name}").as_str()),
+        };
     }
 
     /// The folder,
     /// with a `.claude/worktrees` chain inside it when asked,
     /// and the record file when one is given.
-    fn with_checkout(self, record: Option<&str>) -> Self {
+    fn with_checkout(
+        self,
+        record: Option<&str>,
+    ) -> Self {
         let parent: PathBuf = self.path.join("checkout").join(".claude").join("worktrees");
         std::fs::create_dir_all(parent.as_path()).expect("the checkout chain is made");
         if let Some(text) = record {
@@ -137,7 +180,10 @@ fn stats() -> monochromatic_zfs_request_to_openzfs_kernel_device::DmuObjsetStats
 
 /// The identity a pool's answer for the pinned parent carries.
 fn identity_of_one_dataset() -> DatasetIdentity {
-    return DatasetIdentity { stats: stats(), properties: monochromatic_zfs_request_to_openzfs_kernel_device::NvList::new() };
+    return DatasetIdentity {
+        stats: stats(),
+        properties: monochromatic_zfs_request_to_openzfs_kernel_device::NvList::new(),
+    };
 }
 
 /// A pool that answers one dataset and nothing else.
@@ -153,14 +199,24 @@ struct OneDataset {
 }
 
 impl DatasetReader for OneDataset {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure> {
         return match &self.held {
             Some(held) if held == dataset => Ok(identity_of_one_dataset()),
-            _ => Err(ReadFailure { said: self.refusal.clone(), errno: self.errno }),
+            _ => Err(ReadFailure {
+                said: self.refusal.clone(),
+                errno: self.errno,
+            }),
         };
     }
 
-    fn next_child(&self, _parent: &str, _cursor: u64) -> Result<Option<ListedChild>, String> {
+    fn next_child(
+        &self,
+        _parent: &str,
+        _cursor: u64,
+    ) -> Result<Option<ListedChild>, String> {
         return Ok(None);
     }
 }
@@ -171,7 +227,10 @@ impl DatasetReader for OneDataset {
 fn this_boots_identifier_is_the_kernels_own() {
     let boot: String = boot_identifier().expect("this host's boot identifier reads");
     assert!(!boot.is_empty());
-    assert!(boot.len() <= 36, "the record's bound holds this boot: {boot}");
+    assert!(
+        boot.len() <= 36,
+        "the record's bound holds this boot: {boot}"
+    );
 }
 
 /// What:
@@ -184,18 +243,62 @@ fn this_boots_identifier_is_the_kernels_own() {
 fn a_record_enables_the_route_only_when_it_passed_for_this_boot() {
     let boot: String = boot_identifier().expect("this host's boot identifier reads");
     let path: &Path = Path::new("/fixture/probe-record");
-    assert_eq!(probe_standing(passed_record(boot.as_str()).as_str(), boot.as_str(), path), Ok(ProbeStanding::Passed));
-    let blocked: ProbeRefusal = probe_standing(failed_record(boot.as_str(), "attach-exclusive-create").as_str(), boot.as_str(), path).expect_err("a failed arm blocks the route");
-    assert!(matches!(blocked, ProbeRefusal::Blocked { .. }), "{blocked:?}");
-    assert!(blocked.message().contains("attach-exclusive-create"), "the refusal names the step: {}", blocked.message());
-    assert!(blocked.message().contains("Nothing was enumerated"), "the refusal says nothing acted: {}", blocked.message());
-    let skipped: ProbeRefusal = probe_standing(format!("boot {boot}\nverdict skipped\nverdict-step device\n").as_str(), boot.as_str(), path).expect_err("a skipped probe blocks the route");
-    assert!(matches!(skipped, ProbeRefusal::Blocked { .. }), "{skipped:?}");
-    let another: ProbeRefusal = probe_standing(passed_record("00000000-0000-4000-8000-000000000000").as_str(), boot.as_str(), path).expect_err("another boot's record is stale");
-    assert!(matches!(another, ProbeRefusal::AnotherBoot { .. }), "{another:?}");
-    assert!(another.message().contains("is another boot's"), "the refusal says the record is another boot's: {}", another.message());
-    let no_verdict: ProbeRefusal = probe_standing(format!("boot {boot}\n").as_str(), boot.as_str(), path).expect_err("a record with no verdict enables nothing");
-    assert!(matches!(no_verdict, ProbeRefusal::Unreadable { .. }), "{no_verdict:?}");
+    assert_eq!(
+        probe_standing(passed_record(boot.as_str()).as_str(), boot.as_str(), path),
+        Ok(ProbeStanding::Passed)
+    );
+    let blocked: ProbeRefusal = probe_standing(
+        failed_record(boot.as_str(), "attach-exclusive-create").as_str(),
+        boot.as_str(),
+        path,
+    )
+    .expect_err("a failed arm blocks the route");
+    assert!(
+        matches!(blocked, ProbeRefusal::Blocked { .. }),
+        "{blocked:?}"
+    );
+    assert!(
+        blocked.message().contains("attach-exclusive-create"),
+        "the refusal names the step: {}",
+        blocked.message()
+    );
+    assert!(
+        blocked.message().contains("Nothing was enumerated"),
+        "the refusal says nothing acted: {}",
+        blocked.message()
+    );
+    let skipped: ProbeRefusal = probe_standing(
+        format!("boot {boot}\nverdict skipped\nverdict-step device\n").as_str(),
+        boot.as_str(),
+        path,
+    )
+    .expect_err("a skipped probe blocks the route");
+    assert!(
+        matches!(skipped, ProbeRefusal::Blocked { .. }),
+        "{skipped:?}"
+    );
+    let another: ProbeRefusal = probe_standing(
+        passed_record("00000000-0000-4000-8000-000000000000").as_str(),
+        boot.as_str(),
+        path,
+    )
+    .expect_err("another boot's record is stale");
+    assert!(
+        matches!(another, ProbeRefusal::AnotherBoot { .. }),
+        "{another:?}"
+    );
+    assert!(
+        another.message().contains("is another boot's"),
+        "the refusal says the record is another boot's: {}",
+        another.message()
+    );
+    let no_verdict: ProbeRefusal =
+        probe_standing(format!("boot {boot}\n").as_str(), boot.as_str(), path)
+            .expect_err("a record with no verdict enables nothing");
+    assert!(
+        matches!(no_verdict, ProbeRefusal::Unreadable { .. }),
+        "{no_verdict:?}"
+    );
 }
 
 /// What:
@@ -208,11 +311,33 @@ fn a_record_enables_the_route_only_when_it_passed_for_this_boot() {
 #[test]
 fn a_boot_with_no_record_attaches_nothing() {
     let fixture: Fixture = Fixture::new("no-record").with_checkout(None);
-    let configuration: SweepConfiguration = SweepConfiguration { parent_dataset: String::from(PARENT), checkout: fixture.checkout(), checkout_dataset: String::from("zpcachyos/nosnap/checkout") };
-    let refusal: ProbeRefusal = prepare(&configuration, fixture.record().as_path(), &a_private_mount()).expect_err("a missing record refuses the run");
-    assert!(matches!(refusal, ProbeRefusal::Missing { .. }), "{refusal:?}");
-    assert!(refusal.message().contains("start-probe"), "the refusal names the mode that writes it: {}", refusal.message());
-    assert!(refusal.message().contains("every clone's mount intent stands untouched"), "the refusal says every intent stands: {}", refusal.message());
+    let configuration: SweepConfiguration = SweepConfiguration {
+        parent_dataset: String::from(PARENT),
+        checkout: fixture.checkout(),
+        checkout_dataset: String::from("zpcachyos/nosnap/checkout"),
+    };
+    let refusal: ProbeRefusal = prepare(
+        &configuration,
+        fixture.record().as_path(),
+        &a_private_mount(),
+    )
+    .expect_err("a missing record refuses the run");
+    assert!(
+        matches!(refusal, ProbeRefusal::Missing { .. }),
+        "{refusal:?}"
+    );
+    assert!(
+        refusal.message().contains("start-probe"),
+        "the refusal names the mode that writes it: {}",
+        refusal.message()
+    );
+    assert!(
+        refusal
+            .message()
+            .contains("every clone's mount intent stands untouched"),
+        "the refusal says every intent stands: {}",
+        refusal.message()
+    );
 }
 
 /// The pool's name is the pinned parent's first component,
@@ -228,14 +353,30 @@ fn the_pools_name_is_the_parents_first_component() {
 /// and one whose answer this route cannot read is unknown.
 #[test]
 fn the_pool_is_ready_only_when_the_parent_answers() {
-    let answering: OneDataset = OneDataset { held: Some(String::from(PARENT)), refusal: String::from("no such pool"), errno: Some(libc::ENOENT) };
+    let answering: OneDataset = OneDataset {
+        held: Some(String::from(PARENT)),
+        refusal: String::from("no such pool"),
+        errno: Some(libc::ENOENT),
+    };
     assert_eq!(pool_state(&answering, PARENT), ReadyState::Ready);
-    let gone: OneDataset = OneDataset { held: None, refusal: String::from("dataset does not exist"), errno: Some(libc::ENOENT) };
+    let gone: OneDataset = OneDataset {
+        held: None,
+        refusal: String::from("dataset does not exist"),
+        errno: Some(libc::ENOENT),
+    };
     assert_eq!(pool_state(&gone, PARENT), ReadyState::NotReady);
-    let unreadable: OneDataset = OneDataset { held: None, refusal: String::from("the device answered EIO"), errno: Some(libc::EIO) };
+    let unreadable: OneDataset = OneDataset {
+        held: None,
+        refusal: String::from("the device answered EIO"),
+        errno: Some(libc::EIO),
+    };
     assert_eq!(pool_state(&unreadable, PARENT), ReadyState::Unknown);
     // A sentence that says a pool is gone is not the kernel's answer, so a read that kept no errno admits nothing.
-    let words_only: OneDataset = OneDataset { held: None, refusal: String::from("dataset does not exist"), errno: None };
+    let words_only: OneDataset = OneDataset {
+        held: None,
+        refusal: String::from("dataset does not exist"),
+        errno: None,
+    };
     assert_eq!(pool_state(&words_only, PARENT), ReadyState::Unknown);
 }
 
@@ -244,12 +385,17 @@ fn the_pool_is_ready_only_when_the_parent_answers() {
 #[test]
 fn the_checkout_is_ready_only_when_the_walk_reaches_it() {
     let fixture: Fixture = Fixture::new("checkout").with_checkout(None);
-    let (state, _said): (ReadyState, String) = checkout_state(fixture.checkout().as_path(), &a_private_mount());
+    let (state, _said): (ReadyState, String) =
+        checkout_state(fixture.checkout().as_path(), &a_private_mount());
     assert_eq!(state, ReadyState::Ready);
     let absent: PathBuf = fixture.path.join("nothing-here");
-    let (missing, said): (ReadyState, String) = checkout_state(absent.as_path(), &a_private_mount());
+    let (missing, said): (ReadyState, String) =
+        checkout_state(absent.as_path(), &a_private_mount());
     assert_eq!(missing, ReadyState::NotReady, "{said}");
-    assert!(said.contains("nothing-here"), "the refusal names the checkout: {said}");
+    assert!(
+        said.contains("nothing-here"),
+        "the refusal names the checkout: {said}"
+    );
 }
 
 /// A run whose prerequisites all hold is prepared,
@@ -257,14 +403,29 @@ fn the_checkout_is_ready_only_when_the_walk_reaches_it() {
 #[test]
 fn prepare_reads_the_record_and_the_checkout_before_any_device() {
     let boot: String = boot_identifier().expect("this host's boot identifier reads");
-    let fixture: Fixture = Fixture::new("prepared").with_checkout(Some(passed_record(boot.as_str()).as_str()));
-    let configuration: SweepConfiguration = SweepConfiguration { parent_dataset: String::from(PARENT), checkout: fixture.checkout(), checkout_dataset: String::from("zpcachyos/nosnap/checkout") };
-    let prepared = prepare(&configuration, fixture.record().as_path(), &a_private_mount()).expect("every check passed");
+    let fixture: Fixture =
+        Fixture::new("prepared").with_checkout(Some(passed_record(boot.as_str()).as_str()));
+    let configuration: SweepConfiguration = SweepConfiguration {
+        parent_dataset: String::from(PARENT),
+        checkout: fixture.checkout(),
+        checkout_dataset: String::from("zpcachyos/nosnap/checkout"),
+    };
+    let prepared = prepare(
+        &configuration,
+        fixture.record().as_path(),
+        &a_private_mount(),
+    )
+    .expect("every check passed");
     assert_eq!(prepared.boot, boot);
     assert_eq!(prepared.checkout_state, ReadyState::Ready);
     assert_eq!(prepared.standing, ProbeStanding::Passed);
-    let absent: SweepConfiguration = SweepConfiguration { parent_dataset: String::from(PARENT), checkout: fixture.path.join("nowhere"), checkout_dataset: String::from("zpcachyos/nosnap/checkout") };
-    let refused = prepare(&absent, fixture.record().as_path(), &a_private_mount()).expect("the record passes, so the checkout is what the admission refuses");
+    let absent: SweepConfiguration = SweepConfiguration {
+        parent_dataset: String::from(PARENT),
+        checkout: fixture.path.join("nowhere"),
+        checkout_dataset: String::from("zpcachyos/nosnap/checkout"),
+    };
+    let refused = prepare(&absent, fixture.record().as_path(), &a_private_mount())
+        .expect("the record passes, so the checkout is what the admission refuses");
     assert_eq!(refused.checkout_state, ReadyState::NotReady);
     let facts: BootFacts = BootFacts {
         boot: String::from("boot"),
@@ -272,12 +433,26 @@ fn prepare_reads_the_record_and_the_checkout_before_any_device() {
         pool_state: ReadyState::Ready,
         checkout: PathBuf::from(CHECKOUT),
         checkout_state: ReadyState::NotReady,
-        checkout_said: String::from("the walk from the checkout did not reach its worktrees folder"),
+        checkout_said: String::from(
+            "the walk from the checkout did not reach its worktrees folder",
+        ),
     };
-    let admission: ProbeRefusal = facts.admit().expect_err("a checkout that is not ready admits nothing");
-    assert!(matches!(admission, ProbeRefusal::CheckoutNotReady { .. }), "{admission:?}");
-    let unknown: BootFacts = BootFacts { checkout_state: ReadyState::Ready, pool_state: ReadyState::Unknown, ..facts };
-    assert!(matches!(unknown.admit(), Err(ProbeRefusal::PoolNotReady { .. })), "an unknown pool admits nothing");
+    let admission: ProbeRefusal = facts
+        .admit()
+        .expect_err("a checkout that is not ready admits nothing");
+    assert!(
+        matches!(admission, ProbeRefusal::CheckoutNotReady { .. }),
+        "{admission:?}"
+    );
+    let unknown: BootFacts = BootFacts {
+        checkout_state: ReadyState::Ready,
+        pool_state: ReadyState::Unknown,
+        ..facts
+    };
+    assert!(
+        matches!(unknown.admit(), Err(ProbeRefusal::PoolNotReady { .. })),
+        "an unknown pool admits nothing"
+    );
 }
 
 /// What:
@@ -290,8 +465,13 @@ fn prepare_reads_the_record_and_the_checkout_before_any_device() {
 #[test]
 fn a_shared_checkout_is_refused_with_its_own_reason() {
     let boot: String = boot_identifier().expect("this host's boot identifier reads");
-    let fixture: Fixture = Fixture::new("shared-reason").with_checkout(Some(passed_record(boot.as_str()).as_str()));
-    let configuration: SweepConfiguration = SweepConfiguration { parent_dataset: String::from(PARENT), checkout: fixture.checkout(), checkout_dataset: String::from("zpcachyos/nosnap/checkout") };
+    let fixture: Fixture =
+        Fixture::new("shared-reason").with_checkout(Some(passed_record(boot.as_str()).as_str()));
+    let configuration: SweepConfiguration = SweepConfiguration {
+        parent_dataset: String::from(PARENT),
+        checkout: fixture.checkout(),
+        checkout_dataset: String::from("zpcachyos/nosnap/checkout"),
+    };
     let shared: ScriptedMounts = ScriptedMounts {
         answer: Ok(CheckoutMount {
             source: String::from("zpcachyos/ROOT/cos/home/monochromatic-git-checkout"),
@@ -300,15 +480,34 @@ fn a_shared_checkout_is_refused_with_its_own_reason() {
             shared: Some(String::from("shared:217")),
         }),
     };
-    let prepared = prepare(&configuration, fixture.record().as_path(), &shared).expect("the record passes, so the checkout is what the admission refuses");
+    let prepared = prepare(&configuration, fixture.record().as_path(), &shared)
+        .expect("the record passes, so the checkout is what the admission refuses");
     assert_eq!(prepared.checkout_state, ReadyState::NotReady);
-    assert!(prepared.checkout_said.contains("shared:217"), "the prepared facts keep the checkout's own words: {}", prepared.checkout_said);
-    let answering: OneDataset = OneDataset { held: Some(String::from(PARENT)), refusal: String::from("no such pool"), errno: Some(libc::ENOENT) };
-    let refusal: ProbeRefusal = complete(prepared, &answering, PARENT).expect_err("a shared checkout admits nothing");
-    assert!(matches!(refusal, ProbeRefusal::CheckoutNotReady { .. }), "{refusal:?}");
+    assert!(
+        prepared.checkout_said.contains("shared:217"),
+        "the prepared facts keep the checkout's own words: {}",
+        prepared.checkout_said
+    );
+    let answering: OneDataset = OneDataset {
+        held: Some(String::from(PARENT)),
+        refusal: String::from("no such pool"),
+        errno: Some(libc::ENOENT),
+    };
+    let refusal: ProbeRefusal =
+        complete(prepared, &answering, PARENT).expect_err("a shared checkout admits nothing");
+    assert!(
+        matches!(refusal, ProbeRefusal::CheckoutNotReady { .. }),
+        "{refusal:?}"
+    );
     let said: String = refusal.message();
-    assert!(said.contains("shared:217"), "the refusal names the shared tag a person must clear: {said}");
-    assert!(!said.contains("did not reach its worktrees folder"), "the refusal does not name a walk that did reach the folder: {said}");
+    assert!(
+        said.contains("shared:217"),
+        "the refusal names the shared tag a person must clear: {said}"
+    );
+    assert!(
+        !said.contains("did not reach its worktrees folder"),
+        "the refusal does not name a walk that did reach the folder: {said}"
+    );
 }
 
 /// What:
@@ -322,13 +521,34 @@ fn a_record_of_another_module_is_stale_through_the_read_the_sweep_makes() {
     let boot: String = boot_identifier().expect("this host's boot identifier reads");
     let live: ProbeFingerprint = running();
     let record: String = passed_record(boot.as_str());
-    let running_module: String = format!("module {}", live.module_version.as_deref().unwrap_or(ABSENT));
-    let wrong: String = record.replacen(running_module.as_str(), "module 0.0.0-not-the-running-module", 1);
+    let running_module: String = format!(
+        "module {}",
+        live.module_version.as_deref().unwrap_or(ABSENT)
+    );
+    let wrong: String = record.replacen(
+        running_module.as_str(),
+        "module 0.0.0-not-the-running-module",
+        1,
+    );
     assert_ne!(wrong, record, "the control changed the module line");
     let fixture: Fixture = Fixture::new("stale-module").with_checkout(Some(wrong.as_str()));
-    let refusal: ProbeRefusal = read_probe_standing(fixture.record().as_path()).expect_err("another module is stale");
-    assert!(matches!(&refusal, ProbeRefusal::Stale { line: "module", .. }), "{refusal:?}");
-    assert!(refusal.message().contains("0.0.0-not-the-running-module"), "the refusal names the record's module: {}", refusal.message());
+    let refusal: ProbeRefusal =
+        read_probe_standing(fixture.record().as_path()).expect_err("another module is stale");
+    assert!(
+        matches!(
+            &refusal,
+            ProbeRefusal::Stale {
+                line: "module",
+                ..
+            }
+        ),
+        "{refusal:?}"
+    );
+    assert!(
+        refusal.message().contains("0.0.0-not-the-running-module"),
+        "the refusal names the record's module: {}",
+        refusal.message()
+    );
 }
 
 /// What:
@@ -347,30 +567,104 @@ fn a_record_of_another_kernel_or_module_is_stale() {
     let path: &Path = Path::new("/fixture/probe-record");
     let live: ProbeFingerprint = running();
     let record: String = passed_record(live.boot_id.as_str());
-    probe_fingerprint_standing(record.as_str(), &live, path).expect("the record pins the running machine");
+    probe_fingerprint_standing(record.as_str(), &live, path)
+        .expect("the record pins the running machine");
 
-    let another_kernel: ProbeFingerprint = ProbeFingerprint { kernel_release: String::from("0.0.0-other"), ..live.clone() };
-    let stale: ProbeRefusal = probe_fingerprint_standing(record.as_str(), &another_kernel, path).expect_err("another kernel is stale");
-    assert!(matches!(&stale, ProbeRefusal::Stale { line: "kernel", .. }), "{stale:?}");
-    assert!(stale.message().contains("0.0.0-other"), "the refusal names the record's kernel: {}", stale.message());
+    let another_kernel: ProbeFingerprint = ProbeFingerprint {
+        kernel_release: String::from("0.0.0-other"),
+        ..live.clone()
+    };
+    let stale: ProbeRefusal = probe_fingerprint_standing(record.as_str(), &another_kernel, path)
+        .expect_err("another kernel is stale");
+    assert!(
+        matches!(
+            &stale,
+            ProbeRefusal::Stale {
+                line: "kernel",
+                ..
+            }
+        ),
+        "{stale:?}"
+    );
+    assert!(
+        stale.message().contains("0.0.0-other"),
+        "the refusal names the record's kernel: {}",
+        stale.message()
+    );
 
-    let another_module: ProbeFingerprint = ProbeFingerprint { module_version: Some(String::from("2.4.5-1")), ..live.clone() };
-    let module_stale: ProbeRefusal = probe_fingerprint_standing(record.as_str(), &another_module, path).expect_err("another module is stale");
-    assert!(matches!(&module_stale, ProbeRefusal::Stale { line: "module", .. }), "{module_stale:?}");
+    let another_module: ProbeFingerprint = ProbeFingerprint {
+        module_version: Some(String::from("2.4.5-1")),
+        ..live.clone()
+    };
+    let module_stale: ProbeRefusal =
+        probe_fingerprint_standing(record.as_str(), &another_module, path)
+            .expect_err("another module is stale");
+    assert!(
+        matches!(
+            &module_stale,
+            ProbeRefusal::Stale {
+                line: "module",
+                ..
+            }
+        ),
+        "{module_stale:?}"
+    );
 
-    let another_srcversion: ProbeFingerprint = ProbeFingerprint { module_srcversion: Some(String::from("FFFFFFFF")), ..live.clone() };
-    let srcversion_stale: ProbeRefusal = probe_fingerprint_standing(record.as_str(), &another_srcversion, path).expect_err("another srcversion is stale");
-    assert!(matches!(&srcversion_stale, ProbeRefusal::Stale { line: "srcversion", .. }), "{srcversion_stale:?}");
+    let another_srcversion: ProbeFingerprint = ProbeFingerprint {
+        module_srcversion: Some(String::from("FFFFFFFF")),
+        ..live.clone()
+    };
+    let srcversion_stale: ProbeRefusal =
+        probe_fingerprint_standing(record.as_str(), &another_srcversion, path)
+            .expect_err("another srcversion is stale");
+    assert!(
+        matches!(
+            &srcversion_stale,
+            ProbeRefusal::Stale {
+                line: "srcversion",
+                ..
+            }
+        ),
+        "{srcversion_stale:?}"
+    );
 
-    let another_build: ProbeFingerprint = ProbeFingerprint { module_build_id: Some(String::from("ffffffff")), ..live.clone() };
-    let build_stale: ProbeRefusal = probe_fingerprint_standing(record.as_str(), &another_build, path).expect_err("another build is stale");
-    assert!(matches!(&build_stale, ProbeRefusal::Stale { line: "build-id", .. }), "{build_stale:?}");
+    let another_build: ProbeFingerprint = ProbeFingerprint {
+        module_build_id: Some(String::from("ffffffff")),
+        ..live.clone()
+    };
+    let build_stale: ProbeRefusal =
+        probe_fingerprint_standing(record.as_str(), &another_build, path)
+            .expect_err("another build is stale");
+    assert!(
+        matches!(
+            &build_stale,
+            ProbeRefusal::Stale {
+                line: "build-id",
+                ..
+            }
+        ),
+        "{build_stale:?}"
+    );
 
-    let wrong_kind: String = record.replacen("kind probe-result", "kind git-worktree-clone-mount-probe", 1);
-    let refused: ProbeRefusal = probe_fingerprint_standing(wrong_kind.as_str(), &live, path).expect_err("another kind is no record this route reads");
-    assert!(matches!(refused, ProbeRefusal::NotARecord { .. }), "{refused:?}");
+    let wrong_kind: String = record.replacen(
+        "kind probe-result",
+        "kind git-worktree-clone-mount-probe",
+        1,
+    );
+    let refused: ProbeRefusal = probe_fingerprint_standing(wrong_kind.as_str(), &live, path)
+        .expect_err("another kind is no record this route reads");
+    assert!(
+        matches!(refused, ProbeRefusal::NotARecord { .. }),
+        "{refused:?}"
+    );
     let no_version: String = record.replacen("v1\n", "", 1);
-    assert!(matches!(probe_fingerprint_standing(no_version.as_str(), &live, path), Err(ProbeRefusal::NotARecord { .. })), "a record without v1 is refused");
+    assert!(
+        matches!(
+            probe_fingerprint_standing(no_version.as_str(), &live, path),
+            Err(ProbeRefusal::NotARecord { .. })
+        ),
+        "a record without v1 is refused"
+    );
 }
 
 /// What:
@@ -394,11 +688,21 @@ fn a_shared_checkout_is_not_ready() {
     };
     let (state, said): (ReadyState, String) = checkout_state(fixture.checkout().as_path(), &shared);
     assert_eq!(state, ReadyState::NotReady, "{said}");
-    assert!(said.contains("shared:217"), "the refusal names the propagation tag: {said}");
+    assert!(
+        said.contains("shared:217"),
+        "the refusal names the propagation tag: {said}"
+    );
     let unreadable: ScriptedMounts = ScriptedMounts {
-        answer: Err(CheckoutMountRefusal::Unreadable { checkout: fixture.checkout(), reason: String::from("the table did not read") }),
+        answer: Err(CheckoutMountRefusal::Unreadable {
+            checkout: fixture.checkout(),
+            reason: String::from("the table did not read"),
+        }),
     };
-    let (unknown, why): (ReadyState, String) = checkout_state(fixture.checkout().as_path(), &unreadable);
+    let (unknown, why): (ReadyState, String) =
+        checkout_state(fixture.checkout().as_path(), &unreadable);
     assert_eq!(unknown, ReadyState::Unknown, "{why}");
-    assert!(why.contains("the table did not read"), "the refusal keeps the read's words: {why}");
+    assert!(
+        why.contains("the table did not read"),
+        "the refusal keeps the read's words: {why}"
+    );
 }

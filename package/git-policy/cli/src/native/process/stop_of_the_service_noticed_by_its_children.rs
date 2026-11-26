@@ -32,11 +32,24 @@
 //! so a stop of one of those is the relay's business (`signal_relay.rs`).
 
 use std::io;
-use std::os::fd::{FromRawFd, IntoRawFd, OwnedFd, RawFd};
+use std::os::fd::{
+    FromRawFd,
+    IntoRawFd,
+    OwnedFd,
+    RawFd,
+};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicI32,
+    AtomicUsize,
+    Ordering,
+};
 use std::time::Duration;
-use tokio::sync::{Notify, watch};
+use tokio::sync::{
+    Notify,
+    watch,
+};
 
 /// How long the shutdown waits for the work in flight to settle after the stop was told:
 /// the longest delay measured on this host times the owner's margin (`STOP_CEILING`),
@@ -53,9 +66,10 @@ use tokio::sync::{Notify, watch};
 /// The host's default (15 s on this host,
 /// `DefaultTimeoutStopSec=` in `/etc/systemd/user.conf.d/timeout.conf`) is shorter than these bounds:
 /// the first version of this step assumed ninety seconds and the unit set none.
-pub const SETTLE_CEILING: Duration = crate::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING
-    .saturating_add(crate::bounded_push::STOP_GRACE)
-    .saturating_add(Duration::from_secs(1));
+pub const SETTLE_CEILING: Duration =
+    crate::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING
+        .saturating_add(crate::bounded_push::STOP_GRACE)
+        .saturating_add(Duration::from_secs(1));
 
 /// The seconds after the stop at which the kernel ends the process whatever the runtime is doing:
 /// the settle bound and one more grace.
@@ -171,7 +185,9 @@ fn make_non_blocking(descriptor: &OwnedFd) -> io::Result<()> {
 /// const first = stopSignal.compareExchange(0, signal);
 /// ```
 pub fn record_from_a_signal_handler(signal: libc::c_int) -> bool {
-    return STOP_SIGNAL.compare_exchange(0, signal, Ordering::SeqCst, Ordering::SeqCst).is_ok();
+    return STOP_SIGNAL
+        .compare_exchange(0, signal, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok();
 }
 
 /// What:
@@ -212,7 +228,8 @@ pub fn wake_the_shutdown_from_a_signal_handler() -> bool {
 /// ```
 pub fn arm_the_last_resort_from_a_signal_handler() {
     // SAFETY: `alarm` takes a number of seconds and touches no memory.
-    let _previous: libc::c_uint = unsafe { libc::alarm(u32::try_from(LAST_RESORT.as_secs()).unwrap_or(u32::MAX)) };
+    let _previous: libc::c_uint =
+        unsafe { libc::alarm(u32::try_from(LAST_RESORT.as_secs()).unwrap_or(u32::MAX)) };
 }
 
 /// The signal that began the stop,
@@ -283,7 +300,8 @@ impl StopArm {
     /// resolves at once when it already was.
     pub async fn stop_told(&mut self) {
         // The sender lives in a static and is never dropped, so an error would mean a defect and a wait that ends at once is the safe side.
-        let _told: Result<watch::Ref<'_, bool>, watch::error::RecvError> = self.level.wait_for(is_true).await;
+        let _told: Result<watch::Ref<'_, bool>, watch::error::RecvError> =
+            self.level.wait_for(is_true).await;
     }
 }
 
@@ -335,8 +353,15 @@ pub struct RefusedWhileStopping(
 );
 
 impl std::fmt::Display for RefusedWhileStopping {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return write!(formatter, "{} was not started because the service is stopping", self.0);
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        return write!(
+            formatter,
+            "{} was not started because the service is stopping",
+            self.0
+        );
     }
 }
 
@@ -359,15 +384,30 @@ impl std::error::Error for RefusedWhileStopping {}
 /// ```ts
 /// unfinished += 1; if (stopping && !mustFinish) { unfinished -= 1; throw new RefusedWhileStopping(what); }
 /// ```
-pub fn begin_unfinished_work(allowed_after_the_stop: bool, what: &str) -> Result<Unfinished, RefusedWhileStopping> {
+pub fn begin_unfinished_work(
+    allowed_after_the_stop: bool,
+    what: &str,
+) -> Result<Unfinished, RefusedWhileStopping> {
     if !NOTICING.load(Ordering::SeqCst) {
-        return Ok(Unfinished { arm: None, counted: false });
+        return Ok(Unfinished {
+            arm: None,
+            counted: false,
+        });
     }
     UNFINISHED.fetch_add(1, Ordering::SeqCst);
     let stopping: bool = is_stopping();
-    let arm: Option<StopArm> = if stopping { None } else { Some(StopArm { level: told().subscribe() }) };
+    let arm: Option<StopArm> = if stopping {
+        None
+    } else {
+        Some(StopArm {
+            level: told().subscribe(),
+        })
+    };
     // Dropped on the refusal below, which gives the count back.
-    let work: Unfinished = Unfinished { arm, counted: true };
+    let work: Unfinished = Unfinished {
+        arm,
+        counted: true,
+    };
     if stopping && !allowed_after_the_stop {
         return Err(RefusedWhileStopping(String::from(what)));
     }

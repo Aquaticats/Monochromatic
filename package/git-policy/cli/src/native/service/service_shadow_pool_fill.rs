@@ -24,26 +24,53 @@
 //! startPoolFill({ context, request }); // returns at once
 //! ```
 
+/// Answers of one `git rev-parse` report,
+/// read as the bytes Git wrote.
+use crate::git_report_answers::{
+    absolute_reported,
+    answers_of,
+    object_format_of,
+};
+/// One answer without the line feed that ends it.
+use crate::hooks_path_values::without_the_terminator;
 /// One thread per fill,
 /// which the system may refuse.
-use crate::scoped_start::{refused_thread_sentence, spawn_named};
+use crate::scoped_start::{
+    refused_thread_sentence,
+    spawn_named,
+};
 /// What a commit request names,
 /// and the facts a shadow is made from.
 use crate::service_protocol::CommitRequest;
+use crate::shadow_config::{
+    RepositoryFormat,
+    read_repository_format,
+};
 use crate::shadow_create::ShadowTemplate;
-use crate::shadow_config::{RepositoryFormat, read_repository_format};
-use crate::shadow_pool::{POOL_LIMIT, fill, members, pool_root_for};
 use crate::shadow_git::REPOSITORY_REDIRECT_VARIABLES;
-/// Answers of one `git rev-parse` report,
-/// read as the bytes Git wrote.
-use crate::git_report_answers::{absolute_reported, answers_of, object_format_of};
-/// One answer without the line feed that ends it.
-use crate::hooks_path_values::without_the_terminator;
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
+use crate::shadow_pool::{
+    POOL_LIMIT,
+    fill,
+    members,
+    pool_root_for,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    run_git_checked,
+};
 use crate::transaction_journal::RefFormat;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// Lock kept:
 ///  whether this service is already filling a pool,
@@ -67,7 +94,10 @@ static FILLING: AtomicBool = AtomicBool::new(false);
 /// ```ts
 /// start({ context, request }) // void
 /// ```
-pub fn start(context: &GitContext, request: &CommitRequest) {
+pub fn start(
+    context: &GitContext,
+    request: &CommitRequest,
+) {
     let root: PathBuf = pool_root_for(request.common_dir.as_path(), request.git_dir.as_path());
     if members(root.as_path()).len() >= POOL_LIMIT {
         return;
@@ -82,7 +112,8 @@ pub fn start(context: &GitContext, request: &CommitRequest) {
     let repository: PathBuf = request.repository.clone();
     let started = spawn_named("shadow-pool-fill", move || {
         // The flag is cleared however the fill ends, so one refused Git start does not stop every later fill.
-        let outcome: Result<Option<PathBuf>, GitFailure> = fill_one(&own, &common_dir, &git_dir, &repository);
+        let outcome: Result<Option<PathBuf>, GitFailure> =
+            fill_one(&own, &common_dir, &git_dir, &repository);
         FILLING.store(false, Ordering::Release);
         match outcome {
             Ok(_made) => {}
@@ -93,7 +124,10 @@ pub fn start(context: &GitContext, request: &CommitRequest) {
     });
     if let Err(error) = started {
         FILLING.store(false, Ordering::Release);
-        crate::service_warn!("{}", refused_thread_sentence("fill the shadow pool", &error));
+        crate::service_warn!(
+            "{}",
+            refused_thread_sentence("fill the shadow pool", &error)
+        );
     }
 }
 
@@ -138,7 +172,8 @@ pub(crate) fn template_of(
     repository: &Path,
 ) -> Result<ShadowTemplate, GitFailure> {
     let format: RepositoryFormat = read_repository_format(context, common_dir)?;
-    let (object_directory, object_format, ref_format): (PathBuf, String, RefFormat) = facts_of(context, repository)?;
+    let (object_directory, object_format, ref_format): (PathBuf, String, RefFormat) =
+        facts_of(context, repository)?;
     return Ok(ShadowTemplate {
         common_dir: common_dir.to_path_buf(),
         git_dir: git_dir.to_path_buf(),
@@ -168,11 +203,21 @@ const FACTS: usize = 3;
 /// ```ts
 /// const answers = splitReport(await revParse(FACTS_ARGS)); answers.length === 3 ? facts(answers) : await eachFactAlone()
 /// ```
-fn facts_of(context: &GitContext, repository: &Path) -> Result<(PathBuf, String, RefFormat), GitFailure> {
+fn facts_of(
+    context: &GitContext,
+    repository: &Path,
+) -> Result<(PathBuf, String, RefFormat), GitFailure> {
     let report: Vec<u8> = rev_parse(
         context,
         repository,
-        &["rev-parse", "--path-format=absolute", "--git-path", "objects", "--show-object-format", "--show-ref-format"],
+        &[
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "objects",
+            "--show-object-format",
+            "--show-ref-format",
+        ],
     )?;
     let answers: Vec<&[u8]> = answers_of(report.as_slice());
     if answers.len() == FACTS {
@@ -182,8 +227,18 @@ fn facts_of(context: &GitContext, repository: &Path) -> Result<(PathBuf, String,
             ref_format_of(answers[2]),
         ));
     }
-    let object_directory: Vec<u8> = rev_parse(context, repository, &["rev-parse", "--path-format=absolute", "--git-path", "objects"])?;
-    let object_format: Vec<u8> = rev_parse(context, repository, &["rev-parse", "--show-object-format"])?;
+    let object_directory: Vec<u8> = rev_parse(
+        context,
+        repository,
+        &[
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "objects",
+        ],
+    )?;
+    let object_format: Vec<u8> =
+        rev_parse(context, repository, &["rev-parse", "--show-object-format"])?;
     let ref_format: Vec<u8> = rev_parse(context, repository, &["rev-parse", "--show-ref-format"])?;
     return Ok((
         absolute_reported(repository, object_directory.as_slice())?,
@@ -220,10 +275,18 @@ fn ref_format_of(answer: &[u8]) -> RefFormat {
 /// ```ts
 /// const report = await runGit({ cwd: repository, args }); return report.stdout
 /// ```
-fn rev_parse(context: &GitContext, repository: &Path, arguments: &[&str]) -> Result<Vec<u8>, GitFailure> {
+fn rev_parse(
+    context: &GitContext,
+    repository: &Path,
+    arguments: &[&str],
+) -> Result<Vec<u8>, GitFailure> {
     let mut request: GitRequest = GitRequest::new(repository, arguments);
     request.without_prefix = true;
-    request.unset = REPOSITORY_REDIRECT_VARIABLES.iter().copied().map(OsString::from).collect();
+    request.unset = REPOSITORY_REDIRECT_VARIABLES
+        .iter()
+        .copied()
+        .map(OsString::from)
+        .collect();
     let output: GitOutput = run_git_checked(context, &request)?;
     return Ok(output.stdout);
 }

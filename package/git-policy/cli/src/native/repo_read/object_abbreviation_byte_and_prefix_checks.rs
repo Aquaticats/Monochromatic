@@ -15,7 +15,6 @@
 //! const sharedPrefixLength = (left: string, right: string): number => ...;
 //! ```
 
-
 /// Whether `byte` is zero,
 /// the separator between pack names in a multi-pack-index.
 pub(crate) fn is_nul(byte: &u8) -> bool {
@@ -28,7 +27,10 @@ pub(crate) fn is_hex_digit(byte: u8) -> bool {
 }
 
 /// How many characters `left` and `right` share at their start.
-pub(crate) fn shared_prefix_length(left: &str, right: &str) -> usize {
+pub(crate) fn shared_prefix_length(
+    left: &str,
+    right: &str,
+) -> usize {
     let mut count: usize = 0;
     for (one, other) in left.bytes().zip(right.bytes()) {
         if one != other {

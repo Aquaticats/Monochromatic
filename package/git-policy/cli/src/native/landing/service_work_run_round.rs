@@ -26,17 +26,33 @@
 //! const asked = await runPlannedRound(host, directories, handlers, retries, now);
 //! ```
 
-use crate::service_work_handlers_replanning_and_acceptance::*;
-use crate::service_work::GitHandlers;
 use crate::claim_time::ClaimTime;
-use crate::parallel_runner_on_the_runtime::OrderedRunError;
-use crate::push_retry::{PushRetries, RetryChange, Retrying};
 use crate::parallel_budget::HostResources;
+use crate::parallel_runner_on_the_runtime::OrderedRunError;
+use crate::push_retry::{
+    PushRetries,
+    RetryChange,
+    Retrying,
+};
 use crate::service_review_key::ReviewKey;
-use crate::service_round::{Assignment, RoundAnswer, RoundDrain, drain_directories, drain_directories_awaiting};
-use std::path::{Path, PathBuf};
+use crate::service_round::{
+    Assignment,
+    RoundAnswer,
+    RoundDrain,
+    drain_directories,
+    drain_directories_awaiting,
+};
+use crate::service_work::GitHandlers;
+use crate::service_work_handlers_replanning_and_acceptance::*;
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  The directories a round drains,
@@ -56,7 +72,10 @@ use std::time::{Duration, Instant};
 /// ```ts
 /// const [directories, round] = roundOfWakes(wakes, handlers);
 /// ```
-fn round_of_wakes(wakes: Vec<Wake>, handlers: &GitHandlers) -> (Vec<PathBuf>, Arc<GitHandlers>) {
+fn round_of_wakes(
+    wakes: Vec<Wake>,
+    handlers: &GitHandlers,
+) -> (Vec<PathBuf>, Arc<GitHandlers>) {
     let mut directories: Vec<PathBuf> = Vec::new();
     let mut keys: std::collections::HashMap<PathBuf, ReviewKey> = std::collections::HashMap::new();
     for (directory, review_key) in wakes {
@@ -82,13 +101,21 @@ fn round_of_wakes(wakes: Vec<Wake>, handlers: &GitHandlers) -> (Vec<PathBuf>, Ar
 /// ```ts
 /// const assignments = planTheRound(directories, retries, takenAt);
 /// ```
-fn plan_the_round(directories: &[PathBuf], retries: &mut PushRetries, taken_at: Instant) -> Vec<Assignment> {
+fn plan_the_round(
+    directories: &[PathBuf],
+    retries: &mut PushRetries,
+    taken_at: Instant,
+) -> Vec<Assignment> {
     let first: Duration = retries.first();
     let mut assignments: Vec<Assignment> = Vec::new();
     for directory in directories {
         assignments.push(Assignment {
             directory: directory.clone(),
-            retrying: Retrying { first: Some(first), due: retries.take_due(directory.as_path(), taken_at), plans: retries.plans().map(Path::to_path_buf) },
+            retrying: Retrying {
+                first: Some(first),
+                due: retries.take_due(directory.as_path(), taken_at),
+                plans: retries.plans().map(Path::to_path_buf),
+            },
         });
     }
     return assignments;
@@ -105,10 +132,16 @@ fn plan_the_round(directories: &[PathBuf], retries: &mut PushRetries, taken_at: 
 /// ```ts
 /// const named = namedOf(directories, answer.changes);
 /// ```
-fn named_of(directories: &[PathBuf], changes: &[RetryChange]) -> Vec<PathBuf> {
+fn named_of(
+    directories: &[PathBuf],
+    changes: &[RetryChange],
+) -> Vec<PathBuf> {
     let mut named: Vec<PathBuf> = directories.to_vec();
     for change in changes {
-        if let RetryChange::Plan { git_dir, .. } = change
+        if let RetryChange::Plan {
+            git_dir,
+            ..
+        } = change
             && !named.contains(git_dir)
         {
             named.push(git_dir.clone());
@@ -129,7 +162,12 @@ fn named_of(directories: &[PathBuf], changes: &[RetryChange]) -> Vec<PathBuf> {
 /// ```ts
 /// askedOf(named, answer.waits, retries, appliedAt)
 /// ```
-fn asked_of(named: Vec<PathBuf>, waits: &[(PathBuf, Duration)], retries: &PushRetries, applied_at: Instant) -> Vec<(PathBuf, Duration)> {
+fn asked_of(
+    named: Vec<PathBuf>,
+    waits: &[(PathBuf, Duration)],
+    retries: &PushRetries,
+    applied_at: Instant,
+) -> Vec<(PathBuf, Duration)> {
     let mut asked: Vec<(PathBuf, Duration)> = Vec::new();
     for directory in named {
         // The first lease wait the round reported for this directory.
@@ -178,13 +216,24 @@ fn asked_of(named: Vec<PathBuf>, waits: &[(PathBuf, Duration)], retries: &PushRe
 /// ```ts
 /// const round = handlers.forRound(keysOf(wakes)); await Promise.all(directories.map((dir) => drain(dir, round)));
 /// ```
-pub fn run_round(wakes: Vec<Wake>, handlers: &GitHandlers, retries: &mut PushRetries, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
+pub fn run_round(
+    wakes: Vec<Wake>,
+    handlers: &GitHandlers,
+    retries: &mut PushRetries,
+    now: &ClaimTime,
+) -> Vec<(PathBuf, Duration)> {
     return run_round_on(&HostResources::read(), wakes, handlers, retries, now);
 }
 
 /// `run_round` with the host's resources chosen by the caller,
 /// so a control states a host of any size.
-pub fn run_round_on(host: &HostResources, wakes: Vec<Wake>, handlers: &GitHandlers, retries: &mut PushRetries, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
+pub fn run_round_on(
+    host: &HostResources,
+    wakes: Vec<Wake>,
+    handlers: &GitHandlers,
+    retries: &mut PushRetries,
+    now: &ClaimTime,
+) -> Vec<(PathBuf, Duration)> {
     let (directories, round): (Vec<PathBuf>, Arc<GitHandlers>) = round_of_wakes(wakes, handlers);
     return run_planned_round(host, directories.as_slice(), &round, retries, now);
 }
@@ -203,7 +252,12 @@ pub fn run_round_on(host: &HostResources, wakes: Vec<Wake>, handlers: &GitHandle
 /// ```ts
 /// const [retries, asked] = await runRoundAwaiting(wakes, handlers, retries, now);
 /// ```
-pub async fn run_round_awaiting(wakes: Vec<Wake>, handlers: &GitHandlers, retries: PushRetries, now: &ClaimTime) -> (PushRetries, Vec<(PathBuf, Duration)>) {
+pub async fn run_round_awaiting(
+    wakes: Vec<Wake>,
+    handlers: &GitHandlers,
+    retries: PushRetries,
+    now: &ClaimTime,
+) -> (PushRetries, Vec<(PathBuf, Duration)>) {
     return run_round_awaiting_on(&HostResources::read(), wakes, handlers, retries, now).await;
 }
 
@@ -241,17 +295,29 @@ pub async fn run_round_awaiting_on(
 /// ```ts
 /// const due = dirs.map((d) => retries.takeDue(d)); const answers = await Promise.all(dirs.map((d, i) => drain(d, due[i]))); retries.apply(answers.flatMap(changes));
 /// ```
-pub fn run_planned_round<H: WorkHandlers + Sync + Send + 'static>(host: &HostResources, directories: &[PathBuf], handlers: &Arc<H>, retries: &mut PushRetries, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
+pub fn run_planned_round<H: WorkHandlers + Sync + Send + 'static>(
+    host: &HostResources,
+    directories: &[PathBuf],
+    handlers: &Arc<H>,
+    retries: &mut PushRetries,
+    now: &ClaimTime,
+) -> Vec<(PathBuf, Duration)> {
     // A child a stop left behind and the kernel has since released is collected here, so the service keeps no zombie for a
     //  process it abandoned.
     let _collected: usize = crate::stop_of_a_push_and_sweep_of_its_locks::reap_abandoned_children();
     let taken_at: Instant = Instant::now();
     let assignments: Vec<Assignment> = plan_the_round(directories, retries, taken_at);
-    let answered: RoundAnswer = drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers: Arc::clone(handlers), now, host });
+    let answered: RoundAnswer = drain_directories(&RoundDrain {
+        directories: assignments.as_slice(),
+        handlers: Arc::clone(handlers),
+        now,
+        host,
+    });
     let named: Vec<PathBuf> = named_of(directories, answered.changes.as_slice());
     retries.apply(answered.changes);
     let applied_at: Instant = Instant::now();
-    let asked: Vec<(PathBuf, Duration)> = asked_of(named, answered.waits.as_slice(), retries, applied_at);
+    let asked: Vec<(PathBuf, Duration)> =
+        asked_of(named, answered.waits.as_slice(), retries, applied_at);
     return asked;
 }
 
@@ -288,7 +354,13 @@ pub async fn run_planned_round_awaiting<H: WorkHandlers + Sync + Send + 'static>
     let taken_at: Instant = Instant::now();
     let assignments: Vec<Assignment> = plan_the_round(directories, &mut retries, taken_at);
     let (answered, stopped): (RoundAnswer, Option<OrderedRunError>) =
-        drain_directories_awaiting(&RoundDrain { directories: assignments.as_slice(), handlers: Arc::clone(handlers), now, host }).await;
+        drain_directories_awaiting(&RoundDrain {
+            directories: assignments.as_slice(),
+            handlers: Arc::clone(handlers),
+            now,
+            host,
+        })
+        .await;
     if let Some(reason) = stopped {
         crate::service_warn!("the round of the service's work did not finish: {reason}");
     }
@@ -296,7 +368,8 @@ pub async fn run_planned_round_awaiting<H: WorkHandlers + Sync + Send + 'static>
     // The workers already told the journal what each change is, on the thread that decided it; this is the list the loop reads.
     retries.apply(answered.changes);
     let applied_at: Instant = Instant::now();
-    let asked: Vec<(PathBuf, Duration)> = asked_of(named, answered.waits.as_slice(), &retries, applied_at);
+    let asked: Vec<(PathBuf, Duration)> =
+        asked_of(named, answered.waits.as_slice(), &retries, applied_at);
     return (retries, asked);
 }
 

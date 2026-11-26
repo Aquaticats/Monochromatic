@@ -137,12 +137,18 @@ pub struct KeptReferenceLimits {
 /// ```ts
 /// const positiveBytes = (name, value) => /^[0-9]+$/.test(value) && BigInt(value) > 0n ? BigInt(value) : undefined;
 /// ```
-pub fn positive_bytes(name: &str, value: &std::ffi::OsStr) -> Option<u64> {
+pub fn positive_bytes(
+    name: &str,
+    value: &std::ffi::OsStr,
+) -> Option<u64> {
     let parsed: Option<u64> = value.to_str()?.trim().parse::<u64>().ok();
     return match parsed {
         Some(count) if count > 0 => Some(count),
         Some(_) | None => {
-            crate::diagnostic_log::debug(TAG, format!("{name} is not a positive whole number of bytes; ignoring it").as_str());
+            crate::diagnostic_log::debug(
+                TAG,
+                format!("{name} is not a positive whole number of bytes; ignoring it").as_str(),
+            );
             None
         }
     };
@@ -181,16 +187,25 @@ fn variable(name: &str) -> Option<OsString> {
 /// ```
 pub fn limits_from_the_environment() -> KeptReferenceLimits {
     let max_age: Duration = match variable(MAX_AGE_VARIABLE) {
-        Some(value) => positive_seconds(MAX_AGE_VARIABLE, value.as_os_str()).unwrap_or(KEPT_REFERENCE_MAX_AGE),
+        Some(value) => {
+            positive_seconds(MAX_AGE_VARIABLE, value.as_os_str()).unwrap_or(KEPT_REFERENCE_MAX_AGE)
+        }
         None => KEPT_REFERENCE_MAX_AGE,
     };
     let max_bytes: u64 = match variable(MAX_BYTES_VARIABLE) {
-        Some(value) => positive_bytes(MAX_BYTES_VARIABLE, value.as_os_str()).unwrap_or(KEPT_REFERENCE_MAX_BYTES),
+        Some(value) => positive_bytes(MAX_BYTES_VARIABLE, value.as_os_str())
+            .unwrap_or(KEPT_REFERENCE_MAX_BYTES),
         None => KEPT_REFERENCE_MAX_BYTES,
     };
     let floor: Duration = match variable(FLOOR_VARIABLE) {
-        Some(value) => positive_seconds(FLOOR_VARIABLE, value.as_os_str()).unwrap_or(KEPT_REFERENCE_FLOOR),
+        Some(value) => {
+            positive_seconds(FLOOR_VARIABLE, value.as_os_str()).unwrap_or(KEPT_REFERENCE_FLOOR)
+        }
         None => KEPT_REFERENCE_FLOOR,
     };
-    return KeptReferenceLimits { max_age, max_bytes, floor };
+    return KeptReferenceLimits {
+        max_age,
+        max_bytes,
+        floor,
+    };
 }

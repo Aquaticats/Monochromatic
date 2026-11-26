@@ -25,11 +25,33 @@
 //! await emptyDirectoryAround(top, shown);       // everything else removed, the volumes kept
 //! ```
 
-use crate::fs_beneath::{device_of, handle_directory_at, handle_path, open_directory_at, remove_at, widen_directory, widen_through_a_handle};
-use crate::subvolume_remove_walk::{A_MOUNT_POINT, ANOTHER_FILESYSTEM, Boundary, EMPTY_SUBVOLUME_PLACEHOLDER_INODE, list, refused_as_not_empty, what_is_there_now};
-use std::ffi::{OsStr, OsString};
+use crate::fs_beneath::{
+    device_of,
+    handle_directory_at,
+    handle_path,
+    open_directory_at,
+    remove_at,
+    widen_directory,
+    widen_through_a_handle,
+};
+use crate::subvolume_remove_walk::{
+    A_MOUNT_POINT,
+    ANOTHER_FILESYSTEM,
+    Boundary,
+    EMPTY_SUBVOLUME_PLACEHOLDER_INODE,
+    list,
+    refused_as_not_empty,
+    what_is_there_now,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Every boundary below `top`,
@@ -93,18 +115,46 @@ pub struct LookRefusal {
 /// ```ts
 /// const look = lookForBoundaries(top, shown); // { found, unreadable? }
 /// ```
-pub fn look_for_boundaries(top: &File, shown: &Path) -> BoundaryLook {
+pub fn look_for_boundaries(
+    top: &File,
+    shown: &Path,
+) -> BoundaryLook {
     use std::os::unix::fs::MetadataExt;
     let baseline: u64 = match device_of(top) {
         Ok(device) => device,
-        Err(error) => return BoundaryLook { found: Vec::new(), unreadable: Some(format!("{} cannot be asked which filesystem holds it ({error})", shown.display())) },
+        Err(error) => {
+            return BoundaryLook {
+                found: Vec::new(),
+                unreadable: Some(format!(
+                    "{} cannot be asked which filesystem holds it ({error})",
+                    shown.display()
+                )),
+            };
+        }
     };
     let mut found: Vec<Boundary> = Vec::new();
     let pending: Vec<(OsString, bool)> = match list(top, false) {
         Ok(entries) => entries,
-        Err(error) => return BoundaryLook { found, unreadable: Some(format!("{} cannot be listed ({error})", shown.display())) },
+        Err(error) => {
+            return BoundaryLook {
+                found,
+                unreadable: Some(format!("{} cannot be listed ({error})", shown.display())),
+            };
+        }
     };
-    let mut stack: Vec<(File, PathBuf, Vec<(OsString, bool)>)> = vec![(match top.try_clone() { Ok(held) => held, Err(error) => return BoundaryLook { found, unreadable: Some(format!("{} cannot be held ({error})", shown.display())) } }, shown.to_path_buf(), pending)];
+    let mut stack: Vec<(File, PathBuf, Vec<(OsString, bool)>)> = vec![(
+        match top.try_clone() {
+            Ok(held) => held,
+            Err(error) => {
+                return BoundaryLook {
+                    found,
+                    unreadable: Some(format!("{} cannot be held ({error})", shown.display())),
+                };
+            }
+        },
+        shown.to_path_buf(),
+        pending,
+    )];
     while let Some((directory, path, mut entries)) = stack.pop() {
         while let Some((name, is_directory)) = entries.pop() {
             let below: PathBuf = path.join(&name);
@@ -117,27 +167,54 @@ pub fn look_for_boundaries(top: &File, shown: &Path) -> BoundaryLook {
             let inner: File = match open_directory_at(&directory, name.as_os_str()) {
                 Ok(inner) => inner,
                 Err(error) if error.raw_os_error() == Some(libc::EXDEV) => {
-                    found.push(Boundary { path: below, what: A_MOUNT_POINT });
+                    found.push(Boundary {
+                        path: below,
+                        what: A_MOUNT_POINT,
+                    });
                     continue;
                 }
-                Err(error) => return BoundaryLook { found, unreadable: Some(format!("{} cannot be read ({error})", below.display())) },
+                Err(error) => {
+                    return BoundaryLook {
+                        found,
+                        unreadable: Some(format!("{} cannot be read ({error})", below.display())),
+                    };
+                }
             };
             let facts: std::fs::Metadata = match inner.metadata() {
                 Ok(facts) => facts,
-                Err(error) => return BoundaryLook { found, unreadable: Some(format!("{} cannot be examined ({error})", below.display())) },
+                Err(error) => {
+                    return BoundaryLook {
+                        found,
+                        unreadable: Some(format!(
+                            "{} cannot be examined ({error})",
+                            below.display()
+                        )),
+                    };
+                }
             };
             if facts.dev() != baseline && facts.ino() != EMPTY_SUBVOLUME_PLACEHOLDER_INODE {
-                found.push(Boundary { path: below, what: ANOTHER_FILESYSTEM });
+                found.push(Boundary {
+                    path: below,
+                    what: ANOTHER_FILESYSTEM,
+                });
                 continue;
             }
             let listed: Vec<(OsString, bool)> = match list(&inner, false) {
                 Ok(listed) => listed,
-                Err(error) => return BoundaryLook { found, unreadable: Some(format!("{} cannot be listed ({error})", below.display())) },
+                Err(error) => {
+                    return BoundaryLook {
+                        found,
+                        unreadable: Some(format!("{} cannot be listed ({error})", below.display())),
+                    };
+                }
             };
             stack.push((inner, below, listed));
         }
     }
-    return BoundaryLook { found, unreadable: None };
+    return BoundaryLook {
+        found,
+        unreadable: None,
+    };
 }
 
 /// One directory on the work stack of the pass that removes around what it did not make.
@@ -171,17 +248,26 @@ fn mode_of(directory: &File) -> std::io::Result<u32> {
 /// Why:
 ///  A directory that stays is not the pass's to change,
 ///  and a mode that was given for the pass is given back.
-fn give_back_the_mode(directory: &File, mode: u32) {
+fn give_back_the_mode(
+    directory: &File,
+    mode: u32,
+) {
     use std::os::unix::fs::PermissionsExt;
     // A directory this user does not own keeps the mode the kernel left it: only an owner is refused the change, and the
     //  widening was refused too, so there is nothing to give back.
-    let _given = std::fs::set_permissions(handle_path(directory), std::fs::Permissions::from_mode(mode));
+    let _given = std::fs::set_permissions(
+        handle_path(directory),
+        std::fs::Permissions::from_mode(mode),
+    );
 }
 
 /// Mark every frame that holds the directory at `index`,
 /// and that directory,
 /// as kept.
-fn keep_this_and_every_frame_above(stack: &mut [AroundFrame], index: usize) {
+fn keep_this_and_every_frame_above(
+    stack: &mut [AroundFrame],
+    index: usize,
+) {
     if let Some(frame) = stack.get_mut(index) {
         frame.keep = true;
     }
@@ -206,7 +292,11 @@ fn keep_this_and_every_frame_above(stack: &mut [AroundFrame], index: usize) {
 /// ```ts
 /// take(directory, name, folder); // unlink, or rmdir for a folder
 /// ```
-fn take(directory: &File, name: &OsStr, folder: bool) -> std::io::Result<()> {
+fn take(
+    directory: &File,
+    name: &OsStr,
+    folder: bool,
+) -> std::io::Result<()> {
     return remove_at(directory, name, folder);
 }
 
@@ -236,7 +326,10 @@ fn take(directory: &File, name: &OsStr, folder: bool) -> std::io::Result<()> {
 /// ```ts
 /// await emptyAround(top, shown); // throws the reason it stopped
 /// ```
-pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
+pub fn empty_directory_around(
+    top: &File,
+    shown: &Path,
+) -> std::io::Result<()> {
     use std::os::unix::fs::MetadataExt;
     let baseline: u64 = device_of(top)?;
     let top_mode: u32 = mode_of(top)?;
@@ -267,20 +360,40 @@ pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
             let parent: &AroundFrame = stack.last().expect("a frame below the top");
             if let Err(error) = take(&parent.directory, own_name.as_os_str(), true) {
                 if !refused_as_not_empty(&error) {
-                    return Err(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", done.path.display())));
+                    return Err(std::io::Error::new(
+                        error.kind(),
+                        format!("{} cannot be removed ({error})", done.path.display()),
+                    ));
                 }
                 // The directory was listed and emptied, and the kernel still finds something in it: a volume or an entry
                 //  appeared in that moment. A volume keeps the directory, and the entries are removed as the listing says.
                 match look_for_boundaries(&done.directory, done.path.as_path()) {
-                    BoundaryLook { found, unreadable: None } if !found.is_empty() => {
+                    BoundaryLook {
+                        found,
+                        unreadable: None,
+                    } if !found.is_empty() => {
                         let pending: Vec<(OsString, bool)> = list(&done.directory, false)?;
-                        stack.push(AroundFrame { directory: done.directory, name: Some(own_name), path: done.path, pending, keep: true, mode: done.mode });
+                        stack.push(AroundFrame {
+                            directory: done.directory,
+                            name: Some(own_name),
+                            path: done.path,
+                            pending,
+                            keep: true,
+                            mode: done.mode,
+                        });
                         let again: usize = stack.len() - 1;
                         keep_this_and_every_frame_above(&mut stack, again);
                         continue;
                     }
-                    BoundaryLook { found, unreadable: None } if found.is_empty() => {
-                        return Err(what_is_there_now(&done.directory, done.path.as_path(), shown));
+                    BoundaryLook {
+                        found,
+                        unreadable: None,
+                    } if found.is_empty() => {
+                        return Err(what_is_there_now(
+                            &done.directory,
+                            done.path.as_path(),
+                            shown,
+                        ));
                     }
                     _unread => {
                         return Err(std::io::Error::new(
@@ -298,7 +411,10 @@ pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
         let path: PathBuf = stack[index].path.join(&name);
         if !is_directory {
             if let Err(error) = take(&stack[index].directory, name.as_os_str(), false) {
-                return Err(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", path.display())));
+                return Err(std::io::Error::new(
+                    error.kind(),
+                    format!("{} cannot be removed ({error})", path.display()),
+                ));
             }
             continue;
         }
@@ -310,7 +426,15 @@ pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
                 keep_this_and_every_frame_above(&mut stack, index);
                 continue;
             }
-            Err(error) => return Err(std::io::Error::new(error.kind(), format!("{} cannot be opened without following a link ({error})", path.display()))),
+            Err(error) => {
+                return Err(std::io::Error::new(
+                    error.kind(),
+                    format!(
+                        "{} cannot be opened without following a link ({error})",
+                        path.display()
+                    ),
+                ));
+            }
         };
         let facts: std::fs::Metadata = handle.metadata()?;
         if facts.dev() != baseline && facts.ino() != EMPTY_SUBVOLUME_PLACEHOLDER_INODE {
@@ -332,7 +456,12 @@ pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
                 keep_this_and_every_frame_above(&mut stack, index);
                 continue;
             }
-            Err(error) => return Err(std::io::Error::new(error.kind(), format!("{} cannot be read ({error})", path.display()))),
+            Err(error) => {
+                return Err(std::io::Error::new(
+                    error.kind(),
+                    format!("{} cannot be read ({error})", path.display()),
+                ));
+            }
         };
         let read_facts: std::fs::Metadata = child.metadata()?;
         if read_facts.dev() != facts.dev() || read_facts.ino() != facts.ino() {
@@ -345,7 +474,14 @@ pub fn empty_directory_around(top: &File, shown: &Path) -> std::io::Result<()> {
         let pending: Vec<(OsString, bool)> = list(&child, false)?;
         #[cfg(test)]
         let just_listed: PathBuf = path.clone();
-        stack.push(AroundFrame { directory: child, name: Some(name), path, pending, keep: false, mode });
+        stack.push(AroundFrame {
+            directory: child,
+            name: Some(name),
+            path,
+            pending,
+            keep: false,
+            mode,
+        });
         #[cfg(test)]
         crate::subvolume_remove_listing_test_support::after_listing(just_listed.as_path());
     }

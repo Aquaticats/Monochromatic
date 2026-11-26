@@ -21,10 +21,19 @@
 //! const watchName = (gitDir, attempt) => `${fnvHex(encode(gitDir))}-${attempt}.watch`
 //! ```
 
-use crate::private_storage::{ReadRefusal, read_regular_file};
+use crate::private_storage::{
+    ReadRefusal,
+    read_regular_file,
+};
 use crate::push_failure_notice::fnv_hex;
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::path::{Path, PathBuf};
+use std::os::unix::ffi::{
+    OsStrExt,
+    OsStringExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The extension of a watch file.
 pub(crate) const WATCH_EXTENSION: &str = "watch";
@@ -106,10 +115,14 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<PathBuf, String> {
         Err(_not_text) => return Err(String::from("the file is not text")),
     };
     let Some(after_prefix) = text.strip_prefix(FORMAT_PREFIX) else {
-        return Err(String::from("the file does not start with the format words or lacks its last newline"));
+        return Err(String::from(
+            "the file does not start with the format words or lacks its last newline",
+        ));
     };
     let Some(hex) = after_prefix.strip_suffix('\n') else {
-        return Err(String::from("the file does not start with the format words or lacks its last newline"));
+        return Err(String::from(
+            "the file does not start with the format words or lacks its last newline",
+        ));
     };
     if hex.len() % 2 != 0 || !hex.as_bytes().iter().all(u8::is_ascii_hexdigit) {
         return Err(String::from("the path is not written in hexadecimal"));
@@ -128,7 +141,8 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<PathBuf, String> {
 /// so that any path is kept as it is.
 pub(crate) fn encode(git_dir: &Path) -> String {
     // The crate's one encoder spells the path's bytes (`hexadecimal_of_bytes.rs`).
-    let hex: String = crate::hexadecimal_of_bytes::hexadecimal_of_bytes(git_dir.as_os_str().as_bytes());
+    let hex: String =
+        crate::hexadecimal_of_bytes::hexadecimal_of_bytes(git_dir.as_os_str().as_bytes());
     return format!("{FORMAT_PREFIX}{hex}\n");
 }
 
@@ -137,6 +151,12 @@ pub(crate) fn encode(git_dir: &Path) -> String {
 /// and the number of the candidate,
 /// which only
 /// differs from zero when another directory's file holds the first name.
-pub(crate) fn watch_name(git_dir: &Path, attempt: u32) -> String {
-    return format!("{}-{attempt}.{WATCH_EXTENSION}", fnv_hex(encode(git_dir).as_str()));
+pub(crate) fn watch_name(
+    git_dir: &Path,
+    attempt: u32,
+) -> String {
+    return format!(
+        "{}-{attempt}.{WATCH_EXTENSION}",
+        fnv_hex(encode(git_dir).as_str())
+    );
 }

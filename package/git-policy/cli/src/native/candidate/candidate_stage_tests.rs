@@ -14,11 +14,26 @@
 
 /// Import the module under test.
 use super::{
-    ChangedPath, StageRecord, delta_candidates, parse_stage_records, scope_candidates, staged_delta,
+    ChangedPath,
+    StageRecord,
+    delta_candidates,
+    parse_stage_records,
+    scope_candidates,
+    staged_delta,
 };
-use crate::candidate_error::{CandidateError, CandidateFailure};
-use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
-use crate::candidate_record::{CandidateChange, CandidateRecord};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    parse_object_id,
+};
+use crate::candidate_record::{
+    CandidateChange,
+    CandidateRecord,
+};
 
 /// An object name made of one repeated hexadecimal digit.
 fn object(digit: u8) -> ObjectId {
@@ -26,7 +41,11 @@ fn object(digit: u8) -> ObjectId {
 }
 
 /// A regular-file record at `stage`.
-fn record(path: &str, digit: u8, stage: u8) -> StageRecord {
+fn record(
+    path: &str,
+    digit: u8,
+    stage: u8,
+) -> StageRecord {
     return StageRecord {
         mode: CandidateMode::Regular,
         object: object(digit),
@@ -46,7 +65,10 @@ fn changed_paths(changed: &[ChangedPath]) -> Vec<String> {
 }
 
 /// A candidate record of the baseline listing.
-fn baseline(path: &str, change: CandidateChange) -> CandidateRecord {
+fn baseline(
+    path: &str,
+    change: CandidateChange,
+) -> CandidateRecord {
     let object: Option<ObjectId> = if change == CandidateChange::Deleted {
         None
     } else {

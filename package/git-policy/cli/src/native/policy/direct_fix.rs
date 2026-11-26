@@ -29,7 +29,11 @@
 use crate::diagnostics::EngineFailureCode;
 /// Import the change list a converged fix installs,
 ///  and the installer.
-use crate::direct_fix_install::{InstallChange, InstallOutcome, install_corrections};
+use crate::direct_fix_install::{
+    InstallChange,
+    InstallOutcome,
+    install_corrections,
+};
 /// The sweep of the journals a killed fix left.
 use crate::direct_fix_install_journal_sweep::reap_interrupted_installs;
 /// Import the event form of a pathname.
@@ -41,15 +45,26 @@ use crate::policy_checks::ShippedChecks;
 use crate::policy_content::Correction;
 /// Import the bounded loop and its interface.
 use crate::policy_convergence::{
-    Convergence, FIX_PASS_LIMIT_MESSAGE, FixPasses, PassResult as ConvergencePass, converge,
+    Convergence,
+    FIX_PASS_LIMIT_MESSAGE,
+    FixPasses,
+    PassResult as ConvergencePass,
+    converge,
 };
 /// Import the stage request,
 ///  how a stage ended and the exit code of a pass.
-use crate::policy_engine::{StageEnd, StageRequest, pass_exit_code};
+use crate::policy_engine::{
+    StageEnd,
+    StageRequest,
+    pass_exit_code,
+};
 /// Import the events a fix reports.
 use crate::policy_events::PolicyEvent;
 /// Import one policy pass and its result.
-use crate::policy_pass::{PassResult, run_policy_pass};
+use crate::policy_pass::{
+    PassResult,
+    run_policy_pass,
+};
 /// Import the lifecycle point of a fix.
 use crate::policy_trigger::Trigger;
 /// Import the facts interface.
@@ -57,7 +72,10 @@ use crate::repository_facts::RepositoryFacts;
 /// `BTreeMap<K, V>` is a map kept sorted by key.
 use std::collections::BTreeMap;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The message of a fix whose corrections returned to an earlier state,
 ///  as the installed
@@ -66,8 +84,7 @@ pub const DIRECT_FIX_CYCLE_MESSAGE: &str =
     "Policy patches entered a repeated candidate-state cycle.";
 
 /// The message of a fix that has no worktree to install into.
-pub const NO_WORKTREE_MESSAGE: &str =
-    "monochromatic-git-policy-cli fix could not install its corrections: the repository has no worktree.";
+pub const NO_WORKTREE_MESSAGE: &str = "monochromatic-git-policy-cli fix could not install its corrections: the repository has no worktree.";
 
 /// The message of a fix that cannot learn this worktree's own Git directory.
 /// Why:
@@ -80,8 +97,7 @@ pub const NO_WORKTREE_MESSAGE: &str =
 /// ```ts
 /// const NO_GIT_DIR_MESSAGE = '... could not find this worktree's Git directory ...';
 /// ```
-pub const NO_GIT_DIR_MESSAGE: &str =
-    "monochromatic-git-policy-cli fix could not install its corrections: this worktree's own Git directory cannot be found, so no journal can be kept there and no file was changed.";
+pub const NO_GIT_DIR_MESSAGE: &str = "monochromatic-git-policy-cli fix could not install its corrections: this worktree's own Git directory cannot be found, so no journal can be kept there and no file was changed.";
 
 /// What:
 ///  The passes of one direct fix,
@@ -154,7 +170,10 @@ impl<'a, F: RepositoryFacts> DirectFixPasses<'a, F> {
     /// ```ts
     /// constructor(request: StageRequest, checks: ShippedChecks)
     /// ```
-    pub fn new(request: &'a StageRequest, checks: &'a mut ShippedChecks<F>) -> Self {
+    pub fn new(
+        request: &'a StageRequest,
+        checks: &'a mut ShippedChecks<F>,
+    ) -> Self {
         return DirectFixPasses {
             request,
             checks,
@@ -187,7 +206,10 @@ impl<F: RepositoryFacts> FixPasses for DirectFixPasses<'_, F> {
     /// ```ts
     /// async runPass(version: number): Promise<'stable' | 'proposed' | 'failed'>;
     /// ```
-    fn run_pass(&mut self, _candidate_version: usize) -> ConvergencePass {
+    fn run_pass(
+        &mut self,
+        _candidate_version: usize,
+    ) -> ConvergencePass {
         // What: `let _ = ...` drops proposals no `apply` took.
         // Why:  Only a pass that ends proposing is followed by `apply`; a pass that
         //       proposed and then failed must not carry its proposals into another.
@@ -214,7 +236,10 @@ impl<F: RepositoryFacts> FixPasses for DirectFixPasses<'_, F> {
     /// ```ts
     /// async apply(snapshot: number): Promise<boolean>;
     /// ```
-    fn apply(&mut self, _snapshot: usize) -> bool {
+    fn apply(
+        &mut self,
+        _snapshot: usize,
+    ) -> bool {
         let proposals: Vec<Correction> = self.checks.content.take_proposals();
         self.checks.content.apply(proposals);
         self.states.push(self.checks.content.corrected_state());
@@ -232,7 +257,11 @@ impl<F: RepositoryFacts> FixPasses for DirectFixPasses<'_, F> {
     /// ```ts
     /// async snapshotsEqual(left: number, right: number): Promise<boolean>;
     /// ```
-    fn snapshots_equal(&mut self, left: usize, right: usize) -> bool {
+    fn snapshots_equal(
+        &mut self,
+        left: usize,
+        right: usize,
+    ) -> bool {
         return self.states[left] == self.states[right];
     }
 }
@@ -397,7 +426,10 @@ pub fn settled_fix<F: RepositoryFacts>(
 /// ```ts
 /// const withNotices = (pass, notices) => ({ ...pass, events: [...pass.events, ...notices.map(engineFailure)] });
 /// ```
-fn with_notices(pass: PassResult, notices: Vec<String>) -> PassResult {
+fn with_notices(
+    pass: PassResult,
+    notices: Vec<String>,
+) -> PassResult {
     if notices.is_empty() {
         return pass;
     }
@@ -441,7 +473,9 @@ pub fn finish_fix<F: RepositoryFacts>(
     root: Option<&Path>,
 ) -> PassResult {
     match convergence {
-        Convergence::Settled { changed_passes } => {
+        Convergence::Settled {
+            changed_passes,
+        } => {
             return settled_fix(pass, changed_passes, checks, root);
         }
         Convergence::Blocked => return pass,

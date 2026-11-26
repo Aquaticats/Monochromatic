@@ -103,7 +103,9 @@ impl FsyncComponents {
     /// FsyncComponents.default()
     /// ```
     pub fn default_set() -> Self {
-        return Self { bits: DEFAULT };
+        return Self {
+            bits: DEFAULT,
+        };
     }
 
     /// What:
@@ -159,7 +161,9 @@ impl FsyncComponents {
             }
             rest = &rest[end..];
         }
-        return Self { bits: (current & !negative) | positive };
+        return Self {
+            bits: (current & !negative) | positive,
+        };
     }
 
     /// Whether loose objects are flushed.
@@ -200,7 +204,9 @@ impl FsyncComponents {
     /// set.without('pack', 'pack-metadata')
     /// ```
     pub fn without_packs(self) -> Self {
-        return Self { bits: self.bits & !(PACK | PACK_METADATA) };
+        return Self {
+            bits: self.bits & !(PACK | PACK_METADATA),
+        };
     }
 
     /// What:
@@ -215,7 +221,9 @@ impl FsyncComponents {
     /// set.with('pack', 'pack-metadata')
     /// ```
     pub fn with_packs(self) -> Self {
-        return Self { bits: self.bits | PACK | PACK_METADATA };
+        return Self {
+            bits: self.bits | PACK | PACK_METADATA,
+        };
     }
 
     /// What:

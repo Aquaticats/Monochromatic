@@ -208,18 +208,23 @@ so a clean build downloads them again,
 and any registry credentials in the builder's `~/.npmrc` are no longer used.
 Upgrades work unchanged only once the recipe itself carries this.
 
-### Remove the `prefix` line from `~/.npmrc`
+### Remove the `prefix` line from `~/.npmrc` (applied 2026-11-26T01:59:51-05:00)
 
-Source-derived and not run:
+On the owner's choice, the line was deleted; the file had no other line and is now empty, mode `0600`.
+A fresh clone of the unmodified recipe then built with `HOME=/home/user` in the harness environment:
+`Now using node v22.12.0 (npm v10.9.0)`, `Built ivpn-ui`, exit `0`.
+That is the reading of the source as well:
 with no `prefix` or `globalconfig` line,
 `nvm_npmrc_bad_news_bears` returns `1` and the check passes,
 so `shelly install aur ivpn-ui` and later upgrades build unchanged.
 Tradeoff:
-`npm install --global` no longer installs into `~/.local`.
-On `2026-11-26T01:41:13-05:00`,
+`npm install --global` no longer installs into `~/.local`;
+with the repo toolchain's node first on `PATH`,
+`npm config get prefix` now prints that node's install folder
+(`~/.local/share/monochromatic-dev/toolchain/node/26.13.1/node-v26.13.1-linux-x64`).
 `~/.local/lib/node_modules` was empty,
-so nothing currently installed depends on the setting.
-This is the owner's npm configuration and was not changed.
+so nothing installed depended on the setting.
+The previous file is kept at `~/temp/agent/ivpn-ui-npmrc-prefix-removal-check-2026-11-26/keep/`.
 
 ## What does not work
 
@@ -269,9 +274,17 @@ No work in progress on the recipe was found.
 4.  **Would the repo welcome our contribution?**
      AUR comments are the package's intake,
      and a comment thanking the maintainer for an earlier fix shows they respond.
-    The AUR's rules on AI-assisted comments were not read on `2026-11-26T01:41:13-05:00`;
-     the AUR site also refused `agent-browser` (Anubis "Access Denied"),
-     so this constraint is unchecked.
+    On 2026-11-26 the wiki's "AUR submission guidelines" (`action=raw`),
+     its "Arch User Repository" page and the Arch code of conduct (`terms.archlinux.org/docs/code-of-conduct/`)
+     had no match for `AI`, `LLM`, `generated` or `ChatGPT`; no ban was found.
+    The guidelines say changes to a maintained package "can be submitted in a comment for the maintainer's attention".
+    The "Arch User Repository" page's "Commenting on packages" tip says:
+     "Avoid pasting patches or {{ic|PKGBUILD}}s into the comments section ... email those files to the maintainer,
+     or even use a [[pastebin]]."
+    The draft's three-line excerpt is short,
+     but emailing the diff in "Recipe fix (prototype)" is the route that tip prefers.
+    The AUR site itself refused `agent-browser` (Anubis "Access Denied"),
+     so the live package page was read with `curl` only.
 5.  **Will they likely fix it?**
      Plausible; no sign of refusal.
 6.  **Have we prototyped a minimal fix compatible with their architecture?**
@@ -280,10 +293,12 @@ No work in progress on the recipe was found.
 Readiness on `2026-11-26T01:41:13-05:00`:
 reproduction re-run on the only release line the AUR carries (`3.15.15-1`);
 prior-art search done as listed;
-AUR comment policy, a clean-runner reproduction repository and a same-day trust-system check not done.
+AUR comment policy read as listed under constraint 4;
+a clean-runner reproduction repository and a same-day trust-system check not done.
 So there is no recommendation.
 A comment posted from the owner's AUR account puts that account in front of the maintainer;
 filing is the owner's decision.
+On 2026-11-26T01:59:51-05:00 the owner chose to post the draft themself.
 
 ~~~md
 ivpn-ui 3.15.15-1 fails in prepare() when the builder's ~/.npmrc contains a prefix= (or globalconfig=) line:

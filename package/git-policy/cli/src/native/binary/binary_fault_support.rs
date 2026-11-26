@@ -32,13 +32,32 @@
 //! await expectRecoveredRepository();
 //! ```
 
-use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, run_commit};
 use super::commit::COMMIT_BOUND_SECONDS;
+use super::commit::{
+    assert_nothing_left,
+    git_text,
+    keep_maintenance_in_the_foreground,
+    run_commit,
+};
 use super::strace::strace_program;
-use super::support::{Fixture, Observed, bounded_for, git, repository, wrapper_first_path};
+use super::support::{
+    Fixture,
+    Observed,
+    bounded_for,
+    git,
+    repository,
+    wrapper_first_path,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+    Stdio,
+};
 
 /// What a fault does to the call it hits.
 #[derive(Clone, Copy, Debug)]
@@ -119,8 +138,10 @@ impl Ran {
 
     /// Standard output and standard error as one text.
     pub(super) fn text(&self) -> String {
-        return String::from_utf8_lossy(&[self.output.stdout.as_slice(), self.output.stderr.as_slice()].concat())
-            .into_owned();
+        return String::from_utf8_lossy(
+            &[self.output.stdout.as_slice(), self.output.stderr.as_slice()].concat(),
+        )
+        .into_owned();
     }
 
     /// The exit code,
@@ -132,7 +153,10 @@ impl Ran {
 
 /// A repository with one commit and `a.txt` staged,
 /// ready for an explicit-path commit.
-pub(super) fn staged_repository(fixture: &Fixture, name: &str) -> PathBuf {
+pub(super) fn staged_repository(
+    fixture: &Fixture,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     std::fs::write(repo.join("a.txt"), b"one\n").expect("a");
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
@@ -171,7 +195,10 @@ fn traced(
     if let Some(fault) = injection {
         command.arg(format!("--inject={}", fault.specification()));
     }
-    command.arg(fixture.root.join("bin/git")).args(arguments).current_dir(repo);
+    command
+        .arg(fixture.root.join("bin/git"))
+        .args(arguments)
+        .current_dir(repo);
     return command;
 }
 
@@ -218,7 +245,10 @@ pub(super) fn run_injected_with_environment(
     }
     let output: Output = run_to_end(&mut command);
     let log: String = std::fs::read_to_string(&trace).unwrap_or_default();
-    return Ran { output, trace: log };
+    return Ran {
+        output,
+        trace: log,
+    };
 }
 
 /// Whether a panic payload is a message,
@@ -240,14 +270,26 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
 /// for a failure message that must say what a first run left.
 fn names_in_git_directory(repo: &Path) -> String {
     let mut names: Vec<String> = Vec::new();
-    for directory in [repo.join(".git"), repo.join(".git/cli-git-transactions"), repo.join(".git/refs/heads")] {
+    for directory in [
+        repo.join(".git"),
+        repo.join(".git/cli-git-transactions"),
+        repo.join(".git/refs/heads"),
+    ] {
         let Ok(entries) = std::fs::read_dir(&directory) else {
             continue;
         };
         for entry in entries.flatten() {
             let name: String = entry.file_name().to_string_lossy().into_owned();
-            if name.contains("lock") || name.starts_with("monochromatic-git-policy-cli") || name.starts_with("cli-git") || directory.ends_with("cli-git-transactions") || directory.ends_with("heads") {
-                names.push(format!("{}/{name}", directory.strip_prefix(repo).unwrap_or(&directory).display()));
+            if name.contains("lock")
+                || name.starts_with("monochromatic-git-policy-cli")
+                || name.starts_with("cli-git")
+                || directory.ends_with("cli-git-transactions")
+                || directory.ends_with("heads")
+            {
+                names.push(format!(
+                    "{}/{name}",
+                    directory.strip_prefix(repo).unwrap_or(&directory).display()
+                ));
             }
         }
     }
@@ -263,7 +305,12 @@ fn names_in_git_directory(repo: &Path) -> String {
 ///  and nothing of the wrapper stays behind once that commit has landed.
 ///  `said` is what the first run printed,
 /// for the failure message.
-pub(super) fn verify_recovery(fixture: &Fixture, repo: &Path, label: &str, said: &str) -> Result<(), String> {
+pub(super) fn verify_recovery(
+    fixture: &Fixture,
+    repo: &Path,
+    label: &str,
+    said: &str,
+) -> Result<(), String> {
     return verify_recovery_with(fixture, repo, label, said, run_commit);
 }
 
@@ -296,7 +343,11 @@ pub(super) fn verify_recovery_with(
     match commits.trim() {
         "1" if status == "A  a.txt\n" => {}
         "2" if status.is_empty() => {}
-        other => return Err(format!("{label}: {other} commits with status {status:?}; first run said: {said}")),
+        other => {
+            return Err(format!(
+                "{label}: {other} commits with status {status:?}; first run said: {said}"
+            ));
+        }
     }
     let checked: Output = Command::new("/usr/bin/git")
         .current_dir(repo)
@@ -307,7 +358,10 @@ pub(super) fn verify_recovery_with(
         .output()
         .expect("git fsck starts");
     if !checked.status.success() || !checked.stderr.is_empty() {
-        return Err(format!("{label}: git fsck: {}", String::from_utf8_lossy(&checked.stderr)));
+        return Err(format!(
+            "{label}: git fsck: {}",
+            String::from_utf8_lossy(&checked.stderr)
+        ));
     }
     std::fs::write(repo.join("b.txt"), b"two\n").expect("b");
     // Through the wrapper, as a user stages.
@@ -320,7 +374,11 @@ pub(super) fn verify_recovery_with(
             names_in_git_directory(repo)
         ));
     }
-    let again: Observed = run_commit(fixture, repo, &["commit", "--quiet", "--message=y", "--", "b.txt"]);
+    let again: Observed = run_commit(
+        fixture,
+        repo,
+        &["commit", "--quiet", "--message=y", "--", "b.txt"],
+    );
     if again.code != Some(0) {
         return Err(format!(
             "{label}: a further commit must land, exit {:?}: {}\nfirst run said: {said}\nleft in .git: {}",
@@ -329,9 +387,14 @@ pub(super) fn verify_recovery_with(
             names_in_git_directory(repo)
         ));
     }
-    let leftovers = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { assert_nothing_left(fixture, repo); }));
+    let leftovers = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        assert_nothing_left(fixture, repo);
+    }));
     if let Err(payload) = leftovers {
-        return Err(format!("{label}: {}; first run said: {said}", panic_text(payload.as_ref())));
+        return Err(format!(
+            "{label}: {}; first run said: {said}",
+            panic_text(payload.as_ref())
+        ));
     }
     return Ok(());
 }

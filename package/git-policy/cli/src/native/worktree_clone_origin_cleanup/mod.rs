@@ -85,14 +85,48 @@ pub mod origin_cleanup_words;
 #[path = "origin_cleanup_fixtures_tests.rs"]
 pub(crate) mod origin_cleanup_fixtures;
 
-pub use origin_cleanup_attempt::{CleanupAttempt, CleanupOutcome, attempt_the_cleanup};
-pub use origin_cleanup_lines::{line_of_a_block, line_of_a_destruction, line_of_a_refusal, the_reason_changed};
-pub use origin_cleanup_look::{LookAnswer, OriginCleanupLook, the_origin_cleanup_look};
+pub use origin_cleanup_attempt::{
+    CleanupAttempt,
+    CleanupOutcome,
+    attempt_the_cleanup,
+};
+pub use origin_cleanup_lines::{
+    line_of_a_block,
+    line_of_a_destruction,
+    line_of_a_refusal,
+    the_reason_changed,
+};
+pub use origin_cleanup_look::{
+    LookAnswer,
+    OriginCleanupLook,
+    the_origin_cleanup_look,
+};
 pub use origin_cleanup_publication::CleanupFolder;
 pub use origin_cleanup_reading::{
-    CleanupListing, check_the_private_file, check_the_private_folder, common_directory_owner, is_a_record_name, is_a_staging_name, list_the_origin_cleanups, origin_cleanups_folder,
-    an_existing_cleanup_record, read_the_cleanup_record,
+    CleanupListing,
+    an_existing_cleanup_record,
+    check_the_private_file,
+    check_the_private_folder,
+    common_directory_owner,
+    is_a_record_name,
+    is_a_staging_name,
+    list_the_origin_cleanups,
+    origin_cleanups_folder,
+    read_the_cleanup_record,
 };
-pub use origin_cleanup_record::{CleanupBlock, OriginCleanupRecord};
-pub use origin_cleanup_refusal::{CleanupRefusal, CleanupRefusalCause};
-pub use origin_cleanup_words::{BlockReason, CleanupState, ORIGIN_CLEANUPS_FOLDER, ORIGIN_CLEANUP_HEADER, ORIGIN_CLEANUP_KEYS_IN_ORDER, ORIGIN_SNAPSHOT_PREFIX};
+pub use origin_cleanup_record::{
+    CleanupBlock,
+    OriginCleanupRecord,
+};
+pub use origin_cleanup_refusal::{
+    CleanupRefusal,
+    CleanupRefusalCause,
+};
+pub use origin_cleanup_words::{
+    BlockReason,
+    CleanupState,
+    ORIGIN_CLEANUP_HEADER,
+    ORIGIN_CLEANUP_KEYS_IN_ORDER,
+    ORIGIN_CLEANUPS_FOLDER,
+    ORIGIN_SNAPSHOT_PREFIX,
+};

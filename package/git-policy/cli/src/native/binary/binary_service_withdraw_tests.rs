@@ -28,16 +28,38 @@
 //! await restartService(); expect(await log()).not.toContain(request.message);
 //! ```
 
-use super::commit::{git_text, remove_settled};
+use super::commit::{
+    git_text,
+    remove_settled,
+};
 use super::service_commit::runtime_for;
-use super::service_landing_lock::{Held, foreign_commit_until_released, service_with_arguments};
+use super::service_landing_lock::{
+    Held,
+    foreign_commit_until_released,
+    service_with_arguments,
+};
 use super::service_landing_selection::base_repository;
-use super::support::{Fixture, fixture};
-use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
+use super::support::{
+    Fixture,
+    fixture,
+};
+use git_policy_cli::service_client::{
+    Activation,
+    ClientConfig,
+    Submitted,
+    submit,
+};
 use git_policy_cli::service_messages::ClientFailure;
-use git_policy_cli::service_protocol::{ALLOWED_MODES, Change, CommitRequest};
+use git_policy_cli::service_protocol::{
+    ALLOWED_MODES,
+    Change,
+    CommitRequest,
+};
 use git_policy_cli::service_server::Bind;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Child;
 use std::time::Duration;
 
@@ -107,9 +129,17 @@ const HOLD_PAST_THE_CEILING: Duration = Duration::from_secs(5);
 
 /// A request that sets `path` to `content`,
 /// prepared against the branch as it is now.
-fn request_for(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) -> CommitRequest {
+fn request_for(
+    fixture: &Fixture,
+    repo: &Path,
+    id: &str,
+    path: &str,
+    content: &str,
+) -> CommitRequest {
     std::fs::write(repo.join(path), content).expect("write");
-    let blob: String = git_text(fixture, repo, &["hash-object", "-w", "--", path]).trim().to_string();
+    let blob: String = git_text(fixture, repo, &["hash-object", "-w", "--", path])
+        .trim()
+        .to_string();
     let git_dir: PathBuf = repo.join(".git");
     return CommitRequest {
         id: id.to_string(),
@@ -117,8 +147,14 @@ fn request_for(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &s
         common_dir: git_dir.clone(),
         git_dir: git_dir.clone(),
         reference: git_policy_cli::ref_name::RefName::from_text("refs/heads/main"),
-        base: git_text(fixture, repo, &["rev-parse", "HEAD"]).trim().to_string(),
-        changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        base: git_text(fixture, repo, &["rev-parse", "HEAD"])
+            .trim()
+            .to_string(),
+        changes: vec![Change {
+            path: PathBuf::from(path),
+            mode: ALLOWED_MODES[0],
+            blob: Some(blob),
+        }],
         message: format!("message of {id}\n"),
         author: None,
         committer: String::from("T <t@example.invalid> 1793535889 +0000"),
@@ -127,7 +163,9 @@ fn request_for(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &s
         commit: None,
         cleanup: None,
         index: git_dir.join("index"),
-        scratch: git_dir.join("monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
+        scratch: git_dir
+            .join("monochromatic-git-policy-cli-scratch")
+            .join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         shadow: None,
         captured: 0,
         holder: String::new(),
@@ -137,9 +175,16 @@ fn request_for(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &s
 
 /// The client configuration for the service of `name`,
 /// with the given ceiling for the answer.
-fn config_for(fixture: &Fixture, name: &str, answer_ceiling: Duration) -> ClientConfig {
+fn config_for(
+    fixture: &Fixture,
+    name: &str,
+    answer_ceiling: Duration,
+) -> ClientConfig {
     let git_dir: PathBuf = fixture.root.join("repo/.git");
-    let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime_for(name).as_path(), git_dir.as_path());
+    let socket: PathBuf = git_policy_cli::service_instance::socket_for(
+        runtime_for(name).as_path(),
+        git_dir.as_path(),
+    );
     return ClientConfig {
         address: Bind::Path(socket),
         activation: Activation::Managed,
@@ -156,7 +201,10 @@ fn config_for(fixture: &Fixture, name: &str, answer_ceiling: Duration) -> Client
 }
 
 /// A client that submits `request` on a thread of its own and returns what it ended with and printed.
-fn submit_on_a_thread(config: ClientConfig, request: CommitRequest) -> std::thread::JoinHandle<(Result<Submitted, ClientFailure>, String)> {
+fn submit_on_a_thread(
+    config: ClientConfig,
+    request: CommitRequest,
+) -> std::thread::JoinHandle<(Result<Submitted, ClientFailure>, String)> {
     return std::thread::spawn(move || {
         let mut notices: Vec<u8> = Vec::new();
         let answered = submit(&config, &request, &mut notices);
@@ -166,8 +214,21 @@ fn submit_on_a_thread(config: ClientConfig, request: CommitRequest) -> std::thre
 
 /// The subjects on the branch after `base`,
 /// oldest first.
-fn subjects_since(fixture: &Fixture, repo: &Path, base: &str) -> String {
-    return git_text(fixture, repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]);
+fn subjects_since(
+    fixture: &Fixture,
+    repo: &Path,
+    base: &str,
+) -> String {
+    return git_text(
+        fixture,
+        repo,
+        &[
+            "log",
+            "--reverse",
+            "--format=%s",
+            format!("{base}..HEAD").as_str(),
+        ],
+    );
 }
 
 /// How many batches the service's journal still holds open:
@@ -175,7 +236,12 @@ fn subjects_since(fixture: &Fixture, repo: &Path, base: &str) -> String {
 fn open_batches(fixture: &Fixture) -> usize {
     let journal: PathBuf = fixture.root.join("journal");
     return std::fs::read_dir(journal).map_or(0, |entries| {
-        return entries.flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".open"); }).count();
+        return entries
+            .flatten()
+            .filter(|entry| {
+                return entry.file_name().to_string_lossy().ends_with(".open");
+            })
+            .count();
     });
 }
 
@@ -195,31 +261,61 @@ fn a_request_withdrawn_at_its_bound_never_lands_not_even_after_a_restart() {
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("wd-never-{}", std::process::id());
     let service: Held = service_with_arguments(&fixture, name.as_str(), QUIET_NOTICE_SECONDS, &[]);
-    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, 0);
     // The first request waits for the foreign lock with the service's long ceiling; it has no client ceiling of note.
-    let first = submit_on_a_thread(config_for(&fixture, name.as_str(), PATIENCE), request_for(&fixture, &repo, "first", "a.txt", "first\n"));
+    let first = submit_on_a_thread(
+        config_for(&fixture, name.as_str(), PATIENCE),
+        request_for(&fixture, &repo, "first", "a.txt", "first\n"),
+    );
     std::thread::sleep(CLIENT_CEILING);
     // The second is queued behind the first landing, and its client reaches its bound while it waits.
-    let second = submit_on_a_thread(config_for(&fixture, name.as_str(), CLIENT_CEILING), request_for(&fixture, &repo, "second", "c.txt", "second\n"));
+    let second = submit_on_a_thread(
+        config_for(&fixture, name.as_str(), CLIENT_CEILING),
+        request_for(&fixture, &repo, "second", "c.txt", "second\n"),
+    );
     std::thread::sleep(CLIENT_CEILING * 3);
     std::fs::write(&release, b"").expect("the foreign commit is told to let go");
     let held = holder.wait_with_output().expect("the foreign commit ends");
-    assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
+    assert!(
+        held.status.success(),
+        "{}",
+        String::from_utf8_lossy(&held.stderr)
+    );
     let (first_answer, first_notices) = first.join().expect("first client");
-    assert!(matches!(first_answer, Ok(Submitted::Landed { .. })), "{first_answer:?} {first_notices}");
+    assert!(
+        matches!(first_answer, Ok(Submitted::Landed { .. })),
+        "{first_answer:?} {first_notices}"
+    );
     let (second_answer, _second_notices) = second.join().expect("second client");
-    assert!(matches!(second_answer, Err(ClientFailure::StillWithService { .. })), "{second_answer:?}");
+    assert!(
+        matches!(second_answer, Err(ClientFailure::StillWithService { .. })),
+        "{second_answer:?}"
+    );
     // The service gets time to land anything it is going to land before the branch is read.
     std::thread::sleep(CLIENT_CEILING * 3);
     let landed: String = subjects_since(&fixture, &repo, base.as_str());
-    assert_eq!(landed, "foreign\nmessage of first\n", "the withdrawn request is not on the branch");
+    assert_eq!(
+        landed, "foreign\nmessage of first\n",
+        "the withdrawn request is not on the branch"
+    );
     // A restart: the old service is killed and a new one settles the journal and serves.
     drop(service);
-    let _restarted: Held = service_with_arguments(&fixture, name.as_str(), QUIET_NOTICE_SECONDS, &[]);
+    let _restarted: Held =
+        service_with_arguments(&fixture, name.as_str(), QUIET_NOTICE_SECONDS, &[]);
     std::thread::sleep(CLIENT_CEILING * 2);
-    assert_eq!(subjects_since(&fixture, &repo, base.as_str()), landed, "a restart of the service landed nothing");
-    assert_eq!(open_batches(&fixture), 0, "no batch is left open for a restart to finish");
+    assert_eq!(
+        subjects_since(&fixture, &repo, base.as_str()),
+        landed,
+        "a restart of the service landed nothing"
+    );
+    assert_eq!(
+        open_batches(&fixture),
+        0,
+        "no batch is left open for a restart to finish"
+    );
     remove_settled(&fixture);
 }
 
@@ -238,22 +334,44 @@ fn a_landing_that_starts_as_the_bound_passes_is_reported_as_landed() {
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("wd-race-{}", std::process::id());
     let _service: Held = service_with_arguments(&fixture, name.as_str(), RACE_NOTICE_SECONDS, &[]);
-    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, 0);
     let mut client: ClientConfig = config_for(&fixture, name.as_str(), RACE_CLIENT_CEILING);
     // The wait a client gives a write it is inside is the owner's short one (`SHORT_EXTRA_WAIT`, seven seconds), which a landing
     //  the machine stalled spends before it answers; this control is about the withdrawal meeting a landing, not about that wait
     //  (which `service_heartbeat` proves), so its client waits like a person's.
     client.extra_wait = PATIENCE;
-    let waiting = submit_on_a_thread(client, request_for(&fixture, &repo, "racer", "a.txt", "racer\n"));
+    let waiting = submit_on_a_thread(
+        client,
+        request_for(&fixture, &repo, "racer", "a.txt", "racer\n"),
+    );
     // The foreign program holds the lock past the bound, so the withdrawal is decided while the landing waits for it.
     std::thread::sleep(RACE_CLIENT_CEILING + HOLD_PAST_THE_CEILING);
     std::fs::write(&release, b"").expect("the foreign commit is told to let go");
     let held = holder.wait_with_output().expect("the foreign commit ends");
-    assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
+    assert!(
+        held.status.success(),
+        "{}",
+        String::from_utf8_lossy(&held.stderr)
+    );
     let (answered, notices) = waiting.join().expect("client");
-    assert!(matches!(answered, Ok(Submitted::Landed { already: true, .. })), "{answered:?} {notices}");
-    assert_eq!(subjects_since(&fixture, &repo, base.as_str()), "foreign\nmessage of racer\n", "the commit landed once");
+    assert!(
+        matches!(
+            answered,
+            Ok(Submitted::Landed {
+                already: true,
+                ..
+            })
+        ),
+        "{answered:?} {notices}"
+    );
+    assert_eq!(
+        subjects_since(&fixture, &repo, base.as_str()),
+        "foreign\nmessage of racer\n",
+        "the commit landed once"
+    );
     remove_settled(&fixture);
 }
 
@@ -270,23 +388,62 @@ fn a_foreign_lock_that_outlasts_the_service_ceiling_withdraws_the_commit_and_kee
     let fixture: Fixture = fixture("withdraw-service-ceiling");
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("wd-lock-{}", std::process::id());
-    let service: Held = service_with_arguments(&fixture, name.as_str(), QUIET_NOTICE_SECONDS, &["--lock-ceiling-millis", SERVICE_CEILING_MILLIS]);
-    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+    let service: Held = service_with_arguments(
+        &fixture,
+        name.as_str(),
+        QUIET_NOTICE_SECONDS,
+        &["--lock-ceiling-millis", SERVICE_CEILING_MILLIS],
+    );
+    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, 0);
     let request: CommitRequest = request_for(&fixture, &repo, "blocked", "a.txt", "blocked\n");
-    let (answered, notices) = submit_on_a_thread(config_for(&fixture, name.as_str(), SERVICE_ANSWER_PATIENCE), request).join().expect("client");
-    assert!(matches!(answered, Err(ClientFailure::IndexInUse(_))), "{answered:?} {notices}");
-    assert!(notices.contains("refs/cli-git/kept/") && notices.contains("still held") && notices.contains("was not made"), "{notices}");
-    let kept: String = git_text(&fixture, &repo, &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]);
-    assert!(kept.trim().starts_with("refs/cli-git/kept/"), "the built commit is kept: {kept:?}");
-    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s", kept.trim()]).trim(), "message of blocked");
+    let (answered, notices) = submit_on_a_thread(
+        config_for(&fixture, name.as_str(), SERVICE_ANSWER_PATIENCE),
+        request,
+    )
+    .join()
+    .expect("client");
+    assert!(
+        matches!(answered, Err(ClientFailure::IndexInUse(_))),
+        "{answered:?} {notices}"
+    );
+    assert!(
+        notices.contains("refs/cli-git/kept/")
+            && notices.contains("still held")
+            && notices.contains("was not made"),
+        "{notices}"
+    );
+    let kept: String = git_text(
+        &fixture,
+        &repo,
+        &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"],
+    );
+    assert!(
+        kept.trim().starts_with("refs/cli-git/kept/"),
+        "the built commit is kept: {kept:?}"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%s", kept.trim()]).trim(),
+        "message of blocked"
+    );
     assert_eq!(open_batches(&fixture), 0);
     drop(service);
-    let _restarted: Held = service_with_arguments(&fixture, name.as_str(), QUIET_NOTICE_SECONDS, &[]);
+    let _restarted: Held =
+        service_with_arguments(&fixture, name.as_str(), QUIET_NOTICE_SECONDS, &[]);
     std::fs::write(&release, b"").expect("the foreign commit is told to let go");
     let held = holder.wait_with_output().expect("the foreign commit ends");
-    assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
+    assert!(
+        held.status.success(),
+        "{}",
+        String::from_utf8_lossy(&held.stderr)
+    );
     std::thread::sleep(CLIENT_CEILING * 2);
-    assert_eq!(subjects_since(&fixture, &repo, base.as_str()), "foreign\n", "nothing landed by itself after the foreign program let go");
+    assert_eq!(
+        subjects_since(&fixture, &repo, base.as_str()),
+        "foreign\n",
+        "nothing landed by itself after the foreign program let go"
+    );
     remove_settled(&fixture);
 }

@@ -31,9 +31,15 @@
 
 /// The prefix of every stage container any rung makes beside its destination.
 use crate::path_bytes::path_bytes_of;
-use crate::worktree_copy_selection::{STAGE_PREFIX, is_separator_byte};
+use crate::worktree_copy_selection::{
+    STAGE_PREFIX,
+    is_separator_byte,
+};
 use crate::worktree_trash_manifest::is_trash_name;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Whether the records of earlier runs (logs,
@@ -85,7 +91,12 @@ const TARGET_CACHE_NAMES: [&str; 2] = ["incremental", "zig-global-cache"];
 /// ```ts
 /// const RUN_RECORD_NAMES = ['mutants.out', 'mutants.out.old', 'playwright-report', 'test-results'] as const;
 /// ```
-const RUN_RECORD_NAMES: [&str; 4] = ["mutants.out", "mutants.out.old", "playwright-report", "test-results"];
+const RUN_RECORD_NAMES: [&str; 4] = [
+    "mutants.out",
+    "mutants.out.old",
+    "playwright-report",
+    "test-results",
+];
 
 /// What:
 ///  The name Git gives the entry that makes a directory a checkout of its own.
@@ -134,7 +145,10 @@ pub enum Prune {
 /// ```ts
 /// names.includes(component)
 /// ```
-fn component_is_one_of(component: &[u8], names: &[&str]) -> bool {
+fn component_is_one_of(
+    component: &[u8],
+    names: &[&str],
+) -> bool {
     for name in names {
         if component == name.as_bytes() {
             return true;
@@ -184,11 +198,19 @@ fn names_checkout_marker(child_names: &[Vec<u8>]) -> bool {
 /// ```
 fn names_a_wrappers_trash(relative_path: &[u8]) -> bool {
     let parent: &[u8] = crate::worktree_trash::TRASH_PARENT.as_bytes();
-    let Some(below_parent) = relative_path.strip_prefix(parent) else { return false };
-    let Some(below_slash) = below_parent.strip_prefix(b"/") else { return false };
+    let Some(below_parent) = relative_path.strip_prefix(parent) else {
+        return false;
+    };
+    let Some(below_slash) = below_parent.strip_prefix(b"/") else {
+        return false;
+    };
     let mut components = below_slash.split(is_separator_byte);
-    let Some(component) = components.next() else { return false };
-    let Ok(name) = std::str::from_utf8(component) else { return false };
+    let Some(component) = components.next() else {
+        return false;
+    };
+    let Ok(name) = std::str::from_utf8(component) else {
+        return false;
+    };
     return is_trash_name(name);
 }
 
@@ -241,7 +263,10 @@ pub fn names_a_private_stage(relative_path: &[u8]) -> bool {
 /// leavesOutWhole(directory, true)
 /// // true when that folder holds only `.cli-git-worktree-copy-*` folders and the folders around those
 /// ```
-fn leaves_out_whole(directory: &Path, empty_folders_are_state: bool) -> bool {
+fn leaves_out_whole(
+    directory: &Path,
+    empty_folders_are_state: bool,
+) -> bool {
     // The walk uses a work stack, not recursion, so a deep tree cannot overflow the stack.
     let mut pending: Vec<PathBuf> = vec![directory.to_path_buf()];
     while let Some(current) = pending.pop() {
@@ -322,7 +347,9 @@ impl Prune {
     /// Prune.mainCheckout() // { kind: 'main-checkout', runRecords: COPY_RUN_RECORDS }
     /// ```
     pub fn main_checkout() -> Prune {
-        return Prune::MainCheckout { run_records: COPY_RUN_RECORDS };
+        return Prune::MainCheckout {
+            run_records: COPY_RUN_RECORDS,
+        };
     }
 
     /// What:
@@ -341,7 +368,10 @@ impl Prune {
     /// skipsPath(prune, 'package/x/target/debug/incremental') // true
     /// skipsPath(prune, '.claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543') // true
     /// ```
-    pub fn skips_path(self, relative_path: &[u8]) -> bool {
+    pub fn skips_path(
+        self,
+        relative_path: &[u8],
+    ) -> bool {
         // Another command's stage container is no state of the source, whatever the rule: its payload is a full copy of
         //  another worktree's ignored state, made while its own copy runs, and nothing names it in the new worktree.
         if names_a_private_stage(relative_path) {
@@ -354,7 +384,10 @@ impl Prune {
             return true;
         }
         let components: Vec<&[u8]> = relative_path.split(is_separator_byte).collect();
-        let Prune::MainCheckout { run_records } = self else {
+        let Prune::MainCheckout {
+            run_records,
+        } = self
+        else {
             return false;
         };
         // The component before this one, which the two nested names below are judged by; nothing at the first.
@@ -367,7 +400,8 @@ impl Prune {
                 || nested_cache
                 || (below_target && component_is_one_of(component, &TARGET_CACHE_NAMES));
             let record: bool = component_is_one_of(component, &RUN_RECORD_NAMES)
-                || (*component == b".monochromatic" && components[..index].contains(&"node_modules".as_bytes()))
+                || (*component == b".monochromatic"
+                    && components[..index].contains(&"node_modules".as_bytes()))
                 || (*component == b"verification" && parent == Some(b"target".as_slice()))
                 || (*component == b"cache" && parent == Some(b".serena".as_slice()));
             if cache || (record && !run_records) {
@@ -389,10 +423,15 @@ impl Prune {
     /// ```ts
     /// skipsCheckout(prune, ['.git', 'src']) // true
     /// ```
-    pub fn skips_checkout(self, child_names: &[Vec<u8>]) -> bool {
+    pub fn skips_checkout(
+        self,
+        child_names: &[Vec<u8>],
+    ) -> bool {
         return match self {
             Prune::Never => false,
-            Prune::MainCheckout { .. } => names_checkout_marker(child_names),
+            Prune::MainCheckout {
+                ..
+            } => names_checkout_marker(child_names),
         };
     }
 }

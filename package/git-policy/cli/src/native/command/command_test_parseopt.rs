@@ -13,11 +13,24 @@
 /// The tokenizer under comparison,
 ///  its queries and the real-Git fixture helpers.
 use crate::command_options::{
-    Arity, Boundary, OptionError, OptionErrorKind, OptionSpec, ParseMode, ParsedOptions,
-    parse_options, row,
+    Arity,
+    Boundary,
+    OptionError,
+    OptionErrorKind,
+    OptionSpec,
+    ParseMode,
+    ParsedOptions,
+    parse_options,
+    row,
 };
-use crate::command_options_query::{positional_tokens, value_bytes};
-use crate::command_test_support::{git_with_input, os_arguments};
+use crate::command_options_query::{
+    positional_tokens,
+    value_bytes,
+};
+use crate::command_test_support::{
+    git_with_input,
+    os_arguments,
+};
 use std::ffi::OsString;
 use std::path::Path;
 use std::process::Output;
@@ -97,7 +110,10 @@ fn specification(table: &[OptionSpec]) -> String {
 }
 
 /// Look up the row an occurrence refers to.
-fn find(table: &[OptionSpec], id: u16) -> OptionSpec {
+fn find(
+    table: &[OptionSpec],
+    id: u16,
+) -> OptionSpec {
     for spec in table {
         if spec.id == id {
             return *spec;
@@ -107,7 +123,10 @@ fn find(table: &[OptionSpec], id: u16) -> OptionSpec {
 }
 
 /// Append one value or argument in Git's `sq_quote_buf` form.
-fn push_quoted(out: &mut Vec<u8>, bytes: &[u8]) {
+fn push_quoted(
+    out: &mut Vec<u8>,
+    bytes: &[u8],
+) {
     assert!(!bytes.contains(&b'\'') && !bytes.contains(&b'!'));
     out.push(b'\'');
     out.extend_from_slice(bytes);
@@ -117,7 +136,11 @@ fn push_quoted(out: &mut Vec<u8>, bytes: &[u8]) {
 /// Render a parse exactly as `parseopt_dump` prints it in `--stuck-long` form
 /// (builtin/rev-parse.c:395-412,
 ///  554-556).
-fn render(arguments: &[OsString], parsed: &ParsedOptions, keep_dashdash: bool) -> Vec<u8> {
+fn render(
+    arguments: &[OsString],
+    parsed: &ParsedOptions,
+    keep_dashdash: bool,
+) -> Vec<u8> {
     let mut out: Vec<u8> = b"set --".to_vec();
     for occurrence in &parsed.occurrences {
         let spec: OptionSpec = find(PARSEOPT_TABLE, occurrence.id);

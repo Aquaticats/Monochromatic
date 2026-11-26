@@ -13,9 +13,15 @@
 //! ```
 
 /// The block reader and its node kind under test.
-use super::{YamlNode, parse_yaml_document};
+use super::{
+    YamlNode,
+    parse_yaml_document,
+};
 /// The problem type and the line reader the blocks build on.
-use crate::dependent_version_yaml_lines::{GENERATED_MAX_INDENT, YamlProblem};
+use crate::dependent_version_yaml_lines::{
+    GENERATED_MAX_INDENT,
+    YamlProblem,
+};
 
 /// A tree of mappings and sequences,
 /// written the way the reader builds one.
@@ -70,7 +76,10 @@ fn reads_nesting_from_indentation() {
         ])
     );
     assert_eq!(document(""), YamlNode::Mapping(Vec::new()));
-    assert_eq!(document("# nothing but a comment\n"), YamlNode::Mapping(Vec::new()));
+    assert_eq!(
+        document("# nothing but a comment\n"),
+        YamlNode::Mapping(Vec::new())
+    );
 }
 
 /// An item holds a scalar,
@@ -135,10 +144,7 @@ fn reads_the_generated_configuration() {
         .entry("workloads")
         .and_then(YamlNode::items)
         .unwrap_or_else(|| panic!("no workloads"))[0];
-    assert_eq!(
-        workload.entry("packages"),
-        Some(&scalars(&["@s/a"]))
-    );
+    assert_eq!(workload.entry("packages"), Some(&scalars(&["@s/a"])));
     assert_eq!(
         workload
             .entry("identity")

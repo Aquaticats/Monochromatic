@@ -19,11 +19,17 @@
 
 /// A pathname from the bytes Git printed for it,
 ///  and one answer without its terminating line feed.
-use crate::hooks_path_values::{path_answer, without_the_terminator};
+use crate::hooks_path_values::{
+    path_answer,
+    without_the_terminator,
+};
 /// Failure text of one Git start the layout reports as unusable.
 use crate::transaction_git::GitFailure;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One answer of the layout report without the single line feed Git ends it with,
@@ -40,7 +46,9 @@ use std::path::{Path, PathBuf};
 pub(crate) fn required_answer(answer: &[u8]) -> Result<&[u8], GitFailure> {
     let value: &[u8] = without_the_terminator(answer);
     if value.is_empty() {
-        return Err(GitFailure(String::from("Git returned incomplete repository layout.")));
+        return Err(GitFailure(String::from(
+            "Git returned incomplete repository layout.",
+        )));
     }
     return Ok(value);
 }
@@ -58,7 +66,10 @@ pub(crate) fn required_answer(answer: &[u8]) -> Result<&[u8], GitFailure> {
 /// ```ts
 /// const reported = pathFromBytes(answer); isAbsolute(reported) ? reported : resolve(cwd, reported)
 /// ```
-pub(crate) fn absolute_reported(cwd: &Path, answer: &[u8]) -> Result<PathBuf, GitFailure> {
+pub(crate) fn absolute_reported(
+    cwd: &Path,
+    answer: &[u8],
+) -> Result<PathBuf, GitFailure> {
     let reported: PathBuf = path_answer(required_answer(answer)?);
     return Ok(if reported.is_absolute() {
         reported

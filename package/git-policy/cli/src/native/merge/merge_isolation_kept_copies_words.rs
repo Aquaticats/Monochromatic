@@ -15,11 +15,11 @@
 //! sayTheCopyStays({ out, copy, named }); sayTheCopyStaysBecause({ out, copy, why });
 //! ```
 
-/// Writing the lines a person reads.
-use std::io::Write;
 /// One copy a merge kept,
 /// with the worktree path it belongs to.
 use crate::merge_isolation_kept_copies::KeptCopy;
+/// Writing the lines a person reads.
+use std::io::Write;
 
 /// What:
 ///  Say that a copy stays,
@@ -37,7 +37,11 @@ use crate::merge_isolation_kept_copies::KeptCopy;
 /// ```ts
 /// say(`${aside} holds a copy of ${location} ...; mv puts it back, rm drops it, and a later command removes it once ${location} holds its bytes`);
 /// ```
-pub(crate) fn say_the_copy_stays<W: Write + ?Sized>(out: &mut W, copy: &KeptCopy, named: bool) {
+pub(crate) fn say_the_copy_stays<W: Write + ?Sized>(
+    out: &mut W,
+    copy: &KeptCopy,
+    named: bool,
+) {
     let whose: &str = if named {
         "A merge in this worktree that has not finished set it aside for"
     } else {
@@ -75,7 +79,11 @@ pub(crate) fn say_the_copy_stays<W: Write + ?Sized>(out: &mut W, copy: &KeptCopy
 /// ```ts
 /// say(`${aside} holds a copy of ${location}, and ${location} holds those same bytes, but ${why}, so the copy stays ...`);
 /// ```
-pub(crate) fn say_the_copy_stays_because<W: Write + ?Sized>(out: &mut W, copy: &KeptCopy, why: &str) {
+pub(crate) fn say_the_copy_stays_because<W: Write + ?Sized>(
+    out: &mut W,
+    copy: &KeptCopy,
+    why: &str,
+) {
     let _said = out.write_all(
         format!(
             "monochromatic-git-policy-cli: {} holds a copy of a file, and {} holds those same bytes, but {why}, so the copy stays \

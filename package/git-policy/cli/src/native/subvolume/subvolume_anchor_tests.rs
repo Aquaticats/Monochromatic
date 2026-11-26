@@ -5,8 +5,14 @@
 //! and a directory that was replaced after it was opened.
 
 use super::*;
-use crate::test_support::{fixture, remove};
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
 
 /// A directory is opened below a root,
 /// and a child path made from it reaches the real directory.
@@ -30,12 +36,25 @@ fn a_linked_or_missing_component_is_refused() {
     std::fs::create_dir_all(parent.join("real")).expect("directory");
     std::os::unix::fs::symlink(parent.join("real"), parent.join("linked")).expect("link");
     std::fs::write(parent.join("plain"), b"x").expect("file");
-    let code = |name: &str| -> Option<i32> { return Anchor::open_below(parent.as_path(), Path::new(name)).expect_err("refused").raw_os_error(); };
+    let code = |name: &str| -> Option<i32> {
+        return Anchor::open_below(parent.as_path(), Path::new(name))
+            .expect_err("refused")
+            .raw_os_error();
+    };
     // The kernel answers `ENOTDIR` for a link opened with `O_DIRECTORY | O_NOFOLLOW`, `ELOOP` without `O_DIRECTORY`.
-    assert!(matches!(code("linked"), Some(libc::ELOOP | libc::ENOTDIR)), "{:?}", code("linked"));
+    assert!(
+        matches!(code("linked"), Some(libc::ELOOP | libc::ENOTDIR)),
+        "{:?}",
+        code("linked")
+    );
     assert_eq!(code("plain"), Some(libc::ENOTDIR));
     assert_eq!(code("absent"), Some(libc::ENOENT));
-    assert_eq!(Anchor::open_below(parent.as_path(), Path::new("../escape")).expect_err("refused").raw_os_error(), Some(libc::EINVAL));
+    assert_eq!(
+        Anchor::open_below(parent.as_path(), Path::new("../escape"))
+            .expect_err("refused")
+            .raw_os_error(),
+        Some(libc::EINVAL)
+    );
     remove(parent.as_path());
 }
 
@@ -47,7 +66,8 @@ fn a_replaced_directory_does_not_redirect_the_children_of_an_open_anchor() {
     std::fs::create_dir_all(parent.join("outside")).expect("outside");
     let anchor: Anchor = Anchor::open_below(parent.as_path(), Path::new("d")).expect("open");
     std::fs::rename(parent.join("d"), parent.join("moved")).expect("move aside");
-    std::os::unix::fs::symlink(parent.join("outside"), parent.join("d")).expect("link in its place");
+    std::os::unix::fs::symlink(parent.join("outside"), parent.join("d"))
+        .expect("link in its place");
     std::fs::write(anchor.child(OsStr::new("file")), b"x").expect("write through the anchor");
     assert!(parent.join("moved/file").exists() && !parent.join("outside/file").exists());
     remove(parent.as_path());
@@ -62,10 +82,20 @@ fn a_directory_without_owner_permission_is_opened_after_widening_it() {
     }
     let parent: PathBuf = fixture("anchor-closed");
     std::fs::create_dir_all(parent.join("closed")).expect("directory");
-    std::fs::set_permissions(parent.join("closed"), std::fs::Permissions::from_mode(0o000)).expect("closed");
+    std::fs::set_permissions(
+        parent.join("closed"),
+        std::fs::Permissions::from_mode(0o000),
+    )
+    .expect("closed");
     let anchor: Anchor = Anchor::open_below(parent.as_path(), Path::new("closed")).expect("open");
     std::fs::write(anchor.child(OsStr::new("file")), b"x").expect("write");
-    assert_eq!(std::fs::metadata(parent.join("closed")).expect("metadata").mode() & 0o700, 0o700);
+    assert_eq!(
+        std::fs::metadata(parent.join("closed"))
+            .expect("metadata")
+            .mode()
+            & 0o700,
+        0o700
+    );
     remove(parent.as_path());
 }
 
@@ -85,9 +115,17 @@ fn a_directory_that_keeps_some_owner_bits_gets_all_of_them() {
     let parent: PathBuf = fixture("anchor-partly-closed");
     for (name, mode) in [("search", 0o100u32), ("write", 0o200), ("both", 0o300)] {
         std::fs::create_dir_all(parent.join(name)).expect("directory");
-        std::fs::set_permissions(parent.join(name), std::fs::Permissions::from_mode(mode)).expect("closed");
+        std::fs::set_permissions(parent.join(name), std::fs::Permissions::from_mode(mode))
+            .expect("closed");
         let anchor: Anchor = Anchor::open_below(parent.as_path(), Path::new(name)).expect("open");
-        assert_eq!(std::fs::metadata(parent.join(name)).expect("metadata").mode() & 0o700, 0o700, "{name}");
+        assert_eq!(
+            std::fs::metadata(parent.join(name))
+                .expect("metadata")
+                .mode()
+                & 0o700,
+            0o700,
+            "{name}"
+        );
         std::fs::write(anchor.child(OsStr::new("file")), b"x").expect("write");
     }
     remove(parent.as_path());

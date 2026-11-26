@@ -5,20 +5,55 @@
 //! and the commits two members build are the same commit.
 
 use super::*;
-use crate::capture_invocation::{InvocationCapture, capture_invocation_base, capture_invocation_layout};
+use crate::capture_invocation::{
+    InvocationCapture,
+    capture_invocation_base,
+    capture_invocation_layout,
+};
 use crate::commit_build_part_durations::BuildPartClock;
-use crate::commit_index::{IndexSelection, initialize_commit_index};
-use crate::commit_preparation::{PreparationRequest, read_prepared_commit, run_native_commit};
+use crate::commit_index::{
+    IndexSelection,
+    initialize_commit_index,
+};
+use crate::commit_preparation::{
+    PreparationRequest,
+    read_prepared_commit,
+    run_native_commit,
+};
 use crate::private_index_request::CaptureIndexes;
-use crate::shadow_create::{ShadowTemplate, create_shadow_template, take_or_create_shadow};
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
-use crate::scratch_location::{SCRATCH_STALE_AFTER, prepare_repository_scratch};
-use crate::wrapper_names_old_and_new::{REPOSITORY_SCRATCH, SERVICE_SCRATCH_PREFIX, SHADOW_POOL_FOLDER};
+use crate::scratch_location::{
+    SCRATCH_STALE_AFTER,
+    prepare_repository_scratch,
+};
+use crate::shadow_create::{
+    ShadowTemplate,
+    create_shadow_template,
+    take_or_create_shadow,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use crate::transaction_git::GitContext;
 use crate::transaction_journal::TransactionMode;
+use crate::wrapper_names_old_and_new::{
+    REPOSITORY_SCRATCH,
+    SERVICE_SCRATCH_PREFIX,
+    SHADOW_POOL_FOLDER,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// Captures the invocation of a repository's working directory,
 /// as the transaction does.
@@ -42,7 +77,9 @@ fn shape_of(directory: &Path) -> Vec<String> {
     let mut pending: Vec<PathBuf> = vec![PathBuf::from("")];
     while let Some(relative) = pending.pop() {
         let reading: PathBuf = directory.join(&relative);
-        let Ok(entries) = std::fs::read_dir(reading.as_path()) else { continue };
+        let Ok(entries) = std::fs::read_dir(reading.as_path()) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let name: String = entry.file_name().to_string_lossy().into_owned();
             let child: PathBuf = relative.join(&name);
@@ -58,7 +95,11 @@ fn shape_of(directory: &Path) -> Vec<String> {
                 continue;
             }
             let bytes = std::fs::read(entry.path()).expect("bytes");
-            shape.push(format!("file {name}: {} bytes {:x}", bytes.len(), bytes.len()));
+            shape.push(format!(
+                "file {name}: {} bytes {:x}",
+                bytes.len(),
+                bytes.len()
+            ));
         }
     }
     shape.sort();
@@ -73,7 +114,10 @@ fn a_member(repo: &Path) -> (ShadowTemplate, PathBuf) {
 }
 
 /// A repository with one commit on `main`.
-fn one_commit_repository(root: &Path, name: &str) -> PathBuf {
+fn one_commit_repository(
+    root: &Path,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(root, name);
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");
     git(repo.as_path(), &["add", "a.txt"]);
@@ -89,20 +133,44 @@ fn a_fill_makes_what_a_creation_makes_and_a_claim_takes_it() {
     let root: PathBuf = fixture("shadow-pool-take");
     let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
     let (template, member) = a_member(repo.as_path());
-    assert_eq!(members(pool_root(&template).as_path()), vec![member.clone()], "one member");
+    assert_eq!(
+        members(pool_root(&template).as_path()),
+        vec![member.clone()],
+        "one member"
+    );
     let same_creation: PathBuf = root.join("created");
     let mut clock: BuildPartClock = BuildPartClock::begin("test");
-    create_shadow_template(&git_context(), &template, same_creation.as_path(), &mut clock).expect("creation");
-    assert_eq!(shape_of(member.as_path()), shape_of(same_creation.as_path()), "a member is a creation's tree");
+    create_shadow_template(
+        &git_context(),
+        &template,
+        same_creation.as_path(),
+        &mut clock,
+    )
+    .expect("creation");
+    assert_eq!(
+        shape_of(member.as_path()),
+        shape_of(same_creation.as_path()),
+        "a member is a creation's tree"
+    );
     assert_eq!(
         std::fs::read_to_string(member.join("config").as_path()).expect("config"),
         std::fs::read_to_string(same_creation.join("config").as_path()).expect("config"),
         "the same config"
     );
     let destination: PathBuf = root.join("claimed");
-    assert!(take(&template, destination.as_path()), "the member is taken");
-    assert!(members(pool_root(&template).as_path()).is_empty(), "the pool gave it up");
-    assert_eq!(shape_of(destination.as_path()), shape_of(same_creation.as_path()), "the claim is the same tree");
+    assert!(
+        take(&template, destination.as_path()),
+        "the member is taken"
+    );
+    assert!(
+        members(pool_root(&template).as_path()).is_empty(),
+        "the pool gave it up"
+    );
+    assert_eq!(
+        shape_of(destination.as_path()),
+        shape_of(same_creation.as_path()),
+        "the claim is the same tree"
+    );
     remove(root.as_path());
 }
 
@@ -115,7 +183,10 @@ fn an_empty_pool_leaves_the_creation_to_the_commit() {
     let template: ShadowTemplate = template_of(repo.as_path());
     let destination: PathBuf = root.join("shadow");
     assert!(!take(&template, destination.as_path()), "nothing to take");
-    assert!(std::fs::symlink_metadata(destination.as_path()).is_err(), "and nothing is made");
+    assert!(
+        std::fs::symlink_metadata(destination.as_path()).is_err(),
+        "and nothing is made"
+    );
     remove(root.as_path());
 }
 
@@ -146,14 +217,27 @@ fn a_pool_folder_that_is_a_link_is_left_alone() {
     std::fs::create_dir(member.as_path()).expect("a member elsewhere");
     let folder: &Path = pool.parent().expect("the pool folder's parent");
     std::os::unix::fs::symlink(elsewhere.as_path(), folder).expect("the pool folder is a link");
-    assert_eq!(fill(&git_context(), &template).expect("fill"), None, "a linked pool folder is not filled");
-    sweep_abandoned(pool.as_path(), SystemTime::now() + FILLING_STALE_AFTER + Duration::from_secs(60));
+    assert_eq!(
+        fill(&git_context(), &template).expect("fill"),
+        None,
+        "a linked pool folder is not filled"
+    );
+    sweep_abandoned(
+        pool.as_path(),
+        SystemTime::now() + FILLING_STALE_AFTER + Duration::from_secs(60),
+    );
     assert!(
         std::fs::symlink_metadata(half_made.join("kept").as_path()).is_ok(),
         "the sweep removes nothing inside the tree the link named"
     );
-    assert!(!take(&template, root.join("shadow").as_path()), "and nothing is taken from it");
-    assert!(std::fs::symlink_metadata(member.as_path()).is_ok(), "the tree the link named keeps its own entries");
+    assert!(
+        !take(&template, root.join("shadow").as_path()),
+        "and nothing is taken from it"
+    );
+    assert!(
+        std::fs::symlink_metadata(member.as_path()).is_ok(),
+        "the tree the link named keeps its own entries"
+    );
     remove(root.as_path());
 }
 
@@ -169,19 +253,31 @@ fn a_pool_directory_that_is_a_link_is_left_alone() {
     let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
     let template: ShadowTemplate = template_of(repo.as_path());
     let pool: PathBuf = pool_root(&template);
-    std::fs::create_dir_all(pool.parent().expect("the folder's parent")).expect("the folder's parent");
+    std::fs::create_dir_all(pool.parent().expect("the folder's parent"))
+        .expect("the folder's parent");
     let elsewhere: PathBuf = root.join("elsewhere");
     let half_made: PathBuf = elsewhere.join(format!("{FILLING_PREFIX}abandoned"));
     std::fs::create_dir_all(half_made.as_path()).expect("a half-made member elsewhere");
     std::fs::write(half_made.join("kept").as_path(), b"x\n").expect("what the sweep would remove");
-    std::os::unix::fs::symlink(elsewhere.as_path(), pool.as_path()).expect("the worktree's pool folder is a link");
-    assert_eq!(fill(&git_context(), &template).expect("fill"), None, "a linked pool directory is not filled");
-    sweep_abandoned(pool.as_path(), SystemTime::now() + FILLING_STALE_AFTER + Duration::from_secs(60));
+    std::os::unix::fs::symlink(elsewhere.as_path(), pool.as_path())
+        .expect("the worktree's pool folder is a link");
+    assert_eq!(
+        fill(&git_context(), &template).expect("fill"),
+        None,
+        "a linked pool directory is not filled"
+    );
+    sweep_abandoned(
+        pool.as_path(),
+        SystemTime::now() + FILLING_STALE_AFTER + Duration::from_secs(60),
+    );
     assert!(
         std::fs::symlink_metadata(half_made.join("kept").as_path()).is_ok(),
         "the sweep removes nothing inside the tree the link named"
     );
-    assert!(!take(&template, root.join("shadow").as_path()), "and nothing is taken from it");
+    assert!(
+        !take(&template, root.join("shadow").as_path()),
+        "and nothing is taken from it"
+    );
     remove(root.as_path());
 }
 
@@ -206,20 +302,44 @@ fn a_link_at_a_members_name_is_refused_and_removed() {
     let link: PathBuf = pool_root(&template).join(format!("{MEMBER_PREFIX}link"));
     std::os::unix::fs::symlink(moved.as_path(), link.as_path()).expect("a link at a member's name");
     let destination: PathBuf = root.join("shadow");
-    assert!(!take(&template, destination.as_path()), "a link is not a member");
-    assert!(std::fs::symlink_metadata(link.as_path()).is_err(), "the refused claim is removed from the pool");
-    assert!(std::fs::symlink_metadata(destination.as_path()).is_err(), "and is not left where the creation runs");
-    assert!(std::fs::symlink_metadata(moved.join("config").as_path()).is_ok(), "the tree the link named is untouched");
+    assert!(
+        !take(&template, destination.as_path()),
+        "a link is not a member"
+    );
+    assert!(
+        std::fs::symlink_metadata(link.as_path()).is_err(),
+        "the refused claim is removed from the pool"
+    );
+    assert!(
+        std::fs::symlink_metadata(destination.as_path()).is_err(),
+        "and is not left where the creation runs"
+    );
+    assert!(
+        std::fs::symlink_metadata(moved.join("config").as_path()).is_ok(),
+        "the tree the link named is untouched"
+    );
     let capture: InvocationCapture = capture_of(repo.as_path());
     let scratch: PathBuf = root.join("scratch");
     std::fs::create_dir(scratch.as_path()).expect("scratch");
     let mut clock: BuildPartClock = BuildPartClock::begin("test");
     // A socket nothing listens on is no service, so this control makes the commit's own shadow rather than asking for one.
-    let nowhere: crate::service_server_socket_binding::Bind = crate::service_server_socket_binding::Bind::Path(root.join("no-service-here.sock"));
-    take_or_create_shadow(&git_context(), repo.as_path(), &capture, destination.as_path(), scratch.as_path(), false, &mut clock, &nowhere)
-        .expect("the commit's own shadow");
+    let nowhere: crate::service_server_socket_binding::Bind =
+        crate::service_server_socket_binding::Bind::Path(root.join("no-service-here.sock"));
+    take_or_create_shadow(
+        &git_context(),
+        repo.as_path(),
+        &capture,
+        destination.as_path(),
+        scratch.as_path(),
+        false,
+        &mut clock,
+        &nowhere,
+    )
+    .expect("the commit's own shadow");
     assert!(
-        std::fs::symlink_metadata(destination.as_path()).expect("the claim's path").is_dir(),
+        std::fs::symlink_metadata(destination.as_path())
+            .expect("the claim's path")
+            .is_dir(),
         "the commit's own creation is a real directory, never a link another claim would take with it"
     );
     remove(root.as_path());
@@ -242,7 +362,10 @@ fn a_file_at_a_members_name_is_refused_and_removed() {
     let file: PathBuf = pool.join(format!("{MEMBER_PREFIX}file"));
     std::fs::write(file.as_path(), b"not a member\n").expect("a file at a member's name");
     let destination: PathBuf = root.join("shadow");
-    assert!(!take(&template, destination.as_path()), "a file is not a member");
+    assert!(
+        !take(&template, destination.as_path()),
+        "a file is not a member"
+    );
     assert!(
         std::fs::symlink_metadata(destination.as_path()).is_err(),
         "the refused claim is removed rather than left where the creation runs"
@@ -257,11 +380,24 @@ fn a_member_the_creation_would_not_make_is_refused_and_removed() {
     let root: PathBuf = fixture("shadow-pool-refused");
     let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
     let (template, member) = a_member(repo.as_path());
-    std::fs::write(member.join("MERGE_HEAD").as_path(), b"0123456789012345678901234567890123456789\n").expect("state");
+    std::fs::write(
+        member.join("MERGE_HEAD").as_path(),
+        b"0123456789012345678901234567890123456789\n",
+    )
+    .expect("state");
     let destination: PathBuf = root.join("shadow");
-    assert!(!take(&template, destination.as_path()), "a member with state is refused");
-    assert!(std::fs::symlink_metadata(member.as_path()).is_err(), "the refused member is removed");
-    assert!(std::fs::symlink_metadata(destination.as_path()).is_err(), "and is not left at the claim's path");
+    assert!(
+        !take(&template, destination.as_path()),
+        "a member with state is refused"
+    );
+    assert!(
+        std::fs::symlink_metadata(member.as_path()).is_err(),
+        "the refused member is removed"
+    );
+    assert!(
+        std::fs::symlink_metadata(destination.as_path()).is_err(),
+        "and is not left at the claim's path"
+    );
     remove(root.as_path());
 }
 
@@ -272,8 +408,14 @@ fn a_member_is_claimed_once() {
     let root: PathBuf = fixture("shadow-pool-once");
     let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
     let (template, _member) = a_member(repo.as_path());
-    assert!(take(&template, root.join("first").as_path()), "the first claim takes it");
-    assert!(!take(&template, root.join("second").as_path()), "the second finds nothing");
+    assert!(
+        take(&template, root.join("first").as_path()),
+        "the first claim takes it"
+    );
+    assert!(
+        !take(&template, root.join("second").as_path()),
+        "the second finds nothing"
+    );
     remove(root.as_path());
 }
 
@@ -286,8 +428,14 @@ fn a_member_of_another_worktree_root_is_refused() {
     let (mut template, member) = a_member(repo.as_path());
     // A worktree at another path is another root, and the same pool, because the key is the worktree's Git directory.
     template.repository_root = root.join("elsewhere");
-    assert!(!take(&template, member.as_path()), "its config names another worktree");
-    assert!(std::fs::symlink_metadata(member.as_path()).is_err(), "and it is removed");
+    assert!(
+        !take(&template, member.as_path()),
+        "its config names another worktree"
+    );
+    assert!(
+        std::fs::symlink_metadata(member.as_path()).is_err(),
+        "and it is removed"
+    );
     remove(root.as_path());
 }
 
@@ -300,7 +448,11 @@ fn a_fill_keeps_the_pool_at_its_limit() {
     for _round in 0..POOL_LIMIT + 2 {
         let _ = fill(&git_context(), &template).expect("fill");
     }
-    assert_eq!(members(pool_root(&template).as_path()).len(), POOL_LIMIT, "the pool's limit holds");
+    assert_eq!(
+        members(pool_root(&template).as_path()).len(),
+        POOL_LIMIT,
+        "the pool's limit holds"
+    );
     remove(root.as_path());
 }
 
@@ -315,9 +467,18 @@ fn an_abandoned_fill_is_removed_by_a_later_fill() {
     std::fs::create_dir_all(pool.as_path()).expect("pool");
     let abandoned: PathBuf = pool.join(format!("{FILLING_PREFIX}abandoned"));
     std::fs::create_dir(abandoned.as_path()).expect("half a member");
-    assert!(!take(&template, root.join("shadow").as_path()), "a fill is not a member");
-    sweep_abandoned(pool.as_path(), SystemTime::now() + Duration::from_secs(3600));
-    assert!(std::fs::symlink_metadata(abandoned.as_path()).is_err(), "the abandoned fill is removed");
+    assert!(
+        !take(&template, root.join("shadow").as_path()),
+        "a fill is not a member"
+    );
+    sweep_abandoned(
+        pool.as_path(),
+        SystemTime::now() + Duration::from_secs(3600),
+    );
+    assert!(
+        std::fs::symlink_metadata(abandoned.as_path()).is_err(),
+        "the abandoned fill is removed"
+    );
     remove(root.as_path());
 }
 
@@ -329,11 +490,29 @@ fn a_reftable_repository_is_never_pooled() {
     let root: PathBuf = fixture("shadow-pool-reftable");
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(repo.as_path()).expect("repo");
-    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--ref-format=reftable",
+            "--initial-branch=main",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let template: ShadowTemplate = template_of(repo.as_path());
-    assert_eq!(fill(&git_context(), &template).expect("fill"), None, "nothing is filled");
-    assert!(!take(&template, root.join("shadow").as_path()), "and nothing is taken");
+    assert_eq!(
+        fill(&git_context(), &template).expect("fill"),
+        None,
+        "nothing is filled"
+    );
+    assert!(
+        !take(&template, root.join("shadow").as_path()),
+        "and nothing is taken"
+    );
     remove(root.as_path());
 }
 
@@ -357,7 +536,10 @@ fn the_commit_a_member_builds_is_the_commit_a_creation_builds() {
         ("GIT_AUTHOR_DATE", "1700000000 +0000"),
         ("GIT_COMMITTER_DATE", "1700000000 +0000"),
     ] {
-        context.overlay.push((std::ffi::OsString::from(name), std::ffi::OsString::from(value)));
+        context.overlay.push((
+            std::ffi::OsString::from(name),
+            std::ffi::OsString::from(value),
+        ));
     }
     let capture: InvocationCapture = capture_invocation_base(
         &context,
@@ -400,19 +582,34 @@ fn the_commit_a_member_builds_is_the_commit_a_creation_builds() {
             std::fs::create_dir(scratch.as_path()).expect("scratch");
             let index: PathBuf = scratch.join("commit.index");
             std::fs::copy(private.as_path(), index.as_path()).expect("index copy");
-            let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
+            let template: ShadowTemplate =
+                ShadowTemplate::of(&context, &capture.layout).expect("template");
             let pooled: bool = *arm == "pooled";
             if pooled {
                 fill(&context, &template).expect("fill");
-                assert_eq!(members(pool_root(&template).as_path()).len(), 1, "one member waits");
+                assert_eq!(
+                    members(pool_root(&template).as_path()).len(),
+                    1,
+                    "one member waits"
+                );
             }
             let shadow: PathBuf = scratch.join("shadow");
             let mut clock: BuildPartClock = BuildPartClock::begin("test");
             // A socket nothing listens on is no service, so these controls take the pool's member and make their own
             //  creation exactly as they did before the service could draw one ahead.
-            let nowhere: crate::service_server_socket_binding::Bind = crate::service_server_socket_binding::Bind::Path(root.join("no-service-here.sock"));
-            take_or_create_shadow(&context, repo.as_path(), &capture, shadow.as_path(), scratch.as_path(), false, &mut clock, &nowhere)
-                .expect("shadow");
+            let nowhere: crate::service_server_socket_binding::Bind =
+                crate::service_server_socket_binding::Bind::Path(root.join("no-service-here.sock"));
+            take_or_create_shadow(
+                &context,
+                repo.as_path(),
+                &capture,
+                shadow.as_path(),
+                scratch.as_path(),
+                false,
+                &mut clock,
+                &nowhere,
+            )
+            .expect("shadow");
             if pooled {
                 assert!(
                     members(pool_root(&template).as_path()).is_empty(),
@@ -428,7 +625,8 @@ fn the_commit_a_member_builds_is_the_commit_a_creation_builds() {
                 commit_args: &[OsString::from("-m"), OsString::from("message")],
                 object_directory: None,
             };
-            let code: i32 = run_native_commit(&context, repo.as_path(), &request).expect("git commit");
+            let code: i32 =
+                run_native_commit(&context, repo.as_path(), &request).expect("git commit");
             assert_eq!(code, 0, "{arm} commit");
             let prepared = read_prepared_commit(&context, shadow.as_path()).expect("prepared");
             return (prepared.raw, prepared.oid);
@@ -458,11 +656,28 @@ fn the_pool_is_its_own_folder_beside_the_scratch_directory() {
     let scratch: PathBuf = common.join(REPOSITORY_SCRATCH.current);
     let (template, member) = a_member(repo.as_path());
     let pool: PathBuf = pool_root(&template);
-    assert_eq!(pool, common.join(SHADOW_POOL_FOLDER).join("main"), "the pool's own folder, named after the worktree");
-    assert_eq!(member.parent(), Some(pool.as_path()), "a member is inside the pool");
-    assert!(!pool.starts_with(scratch.as_path()), "the pool is not inside the scratch directory");
-    assert!(!member.starts_with(scratch.as_path()), "and neither is a member");
-    assert!(pool.starts_with(common.as_path()), "the pool is the repository's own state, on its device");
+    assert_eq!(
+        pool,
+        common.join(SHADOW_POOL_FOLDER).join("main"),
+        "the pool's own folder, named after the worktree"
+    );
+    assert_eq!(
+        member.parent(),
+        Some(pool.as_path()),
+        "a member is inside the pool"
+    );
+    assert!(
+        !pool.starts_with(scratch.as_path()),
+        "the pool is not inside the scratch directory"
+    );
+    assert!(
+        !member.starts_with(scratch.as_path()),
+        "and neither is a member"
+    );
+    assert!(
+        pool.starts_with(common.as_path()),
+        "the pool is the repository's own state, on its device"
+    );
     remove(root.as_path());
 }
 
@@ -481,26 +696,52 @@ fn a_pooled_shadow_survives_a_sweep_of_the_scratch_directory() {
     let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
     let (template, member) = a_member(repo.as_path());
     let common: PathBuf = repo.join(".git");
-    let scratch: PathBuf = prepare_repository_scratch(common.as_path()).expect("the repository scratch directory");
-    assert_eq!(scratch, common.join(REPOSITORY_SCRATCH.current), "the scratch directory a command takes");
+    let scratch: PathBuf =
+        prepare_repository_scratch(common.as_path()).expect("the repository scratch directory");
+    assert_eq!(
+        scratch,
+        common.join(REPOSITORY_SCRATCH.current),
+        "the scratch directory a command takes"
+    );
     // The stale tree is one a killed command left, and the member beside the directory is older still.
     let stale: PathBuf = scratch.join(format!("{SERVICE_SCRATCH_PREFIX}a-command-that-was-killed"));
     std::fs::create_dir(stale.as_path()).expect("a stale tree");
-    std::fs::File::open(stale.as_path()).expect("open").set_modified(SystemTime::now() - SCRATCH_STALE_AFTER * 3).expect("its age");
-    std::fs::File::open(member.as_path()).expect("open").set_modified(SystemTime::now() - SCRATCH_STALE_AFTER * 3).expect("its age");
-    let _again: PathBuf = prepare_repository_scratch(common.as_path()).expect("the scratch directory again");
-    assert!(std::fs::symlink_metadata(stale.as_path()).is_err(), "the sweep removed the stale scratch tree");
-    assert_eq!(members(pool_root(&template).as_path()), vec![member.clone()], "and left the pooled shadow alone");
+    std::fs::File::open(stale.as_path())
+        .expect("open")
+        .set_modified(SystemTime::now() - SCRATCH_STALE_AFTER * 3)
+        .expect("its age");
+    std::fs::File::open(member.as_path())
+        .expect("open")
+        .set_modified(SystemTime::now() - SCRATCH_STALE_AFTER * 3)
+        .expect("its age");
+    let _again: PathBuf =
+        prepare_repository_scratch(common.as_path()).expect("the scratch directory again");
+    assert!(
+        std::fs::symlink_metadata(stale.as_path()).is_err(),
+        "the sweep removed the stale scratch tree"
+    );
+    assert_eq!(
+        members(pool_root(&template).as_path()),
+        vec![member.clone()],
+        "and left the pooled shadow alone"
+    );
     remove(root.as_path());
 }
 
 /// A pool folder for one worktree's key,
 /// holding one member.
-fn a_pool_folder(common: &Path, key: &str) -> PathBuf {
+fn a_pool_folder(
+    common: &Path,
+    key: &str,
+) -> PathBuf {
     let folder: PathBuf = common.join(SHADOW_POOL_FOLDER).join(key);
     let member: PathBuf = folder.join("member-a-finished-shadow");
     std::fs::create_dir_all(member.as_path()).expect("a member");
-    std::fs::write(member.join("config").as_path(), b"[core]\n\trepositoryformatversion = 0\n").expect("the member's config");
+    std::fs::write(
+        member.join("config").as_path(),
+        b"[core]\n\trepositoryformatversion = 0\n",
+    )
+    .expect("the member's config");
     return folder;
 }
 
@@ -520,10 +761,18 @@ fn a_pool_of_a_worktree_git_no_longer_lists_is_removed() {
     let topic: PathBuf = a_pool_folder(common.as_path(), "worktree-topic");
     let pruned: PathBuf = a_pool_folder(common.as_path(), "worktree-pruned");
     let main: PathBuf = a_pool_folder(common.as_path(), "main");
-    std::fs::create_dir_all(common.join("worktrees/topic").as_path()).expect("the registration of a worktree Git lists");
+    std::fs::create_dir_all(common.join("worktrees/topic").as_path())
+        .expect("the registration of a worktree Git lists");
     let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
-    assert_eq!(removed, vec![pruned.clone()], "the pool of the worktree Git no longer lists, and nothing else");
-    assert!(std::fs::symlink_metadata(pruned.as_path()).is_err(), "its folder is gone");
+    assert_eq!(
+        removed,
+        vec![pruned.clone()],
+        "the pool of the worktree Git no longer lists, and nothing else"
+    );
+    assert!(
+        std::fs::symlink_metadata(pruned.as_path()).is_err(),
+        "its folder is gone"
+    );
     assert!(topic.is_dir(), "the pool of a worktree Git lists stays");
     assert!(main.is_dir(), "the main checkout's pool stays");
     remove(root.as_path());
@@ -544,22 +793,52 @@ fn a_member_stays_usable_when_an_entry_no_commit_reads_appears() {
     let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
     let (template, member) = a_member(repo.as_path());
     let common: PathBuf = repo.join(".git");
-    for name in ["FETCH_HEAD", "monochromatic-git-policy-cli-commit-timing.jsonl", "cli-git-captures"] {
+    for name in [
+        "FETCH_HEAD",
+        "monochromatic-git-policy-cli-commit-timing.jsonl",
+        "cli-git-captures",
+    ] {
         std::fs::write(common.join(name), b"state").expect("an entry no commit reads");
     }
     let another: PathBuf = root.join("another");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "--detach", another.to_str().expect("fixture")]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--detach",
+            another.to_str().expect("fixture"),
+        ],
+    );
     let registration: PathBuf = common.join("worktrees").join("another");
     // The entry must still be there when the claim runs, and only a registration Git can read outlives the
     //  repository's own upkeep (issue 6325): a folder written by hand is pruned, and the control would then assert
     //  nothing about a `worktrees` entry being present.
-    assert!(registration.is_dir(), "the registration this control adds is still there before the claim");
+    assert!(
+        registration.is_dir(),
+        "the registration this control adds is still there before the claim"
+    );
     let destination: PathBuf = root.join("shadow");
-    assert!(take(&template, destination.as_path()), "the member is still what this invocation's creation makes");
-    for name in ["FETCH_HEAD", "monochromatic-git-policy-cli-commit-timing.jsonl", "cli-git-captures", "worktrees"] {
-        assert!(std::fs::symlink_metadata(destination.join(name)).is_err(), "the claimed shadow holds no {name}");
+    assert!(
+        take(&template, destination.as_path()),
+        "the member is still what this invocation's creation makes"
+    );
+    for name in [
+        "FETCH_HEAD",
+        "monochromatic-git-policy-cli-commit-timing.jsonl",
+        "cli-git-captures",
+        "worktrees",
+    ] {
+        assert!(
+            std::fs::symlink_metadata(destination.join(name)).is_err(),
+            "the claimed shadow holds no {name}"
+        );
     }
-    assert!(std::fs::symlink_metadata(member.as_path()).is_err(), "and the pool gave the member up");
+    assert!(
+        std::fs::symlink_metadata(member.as_path()).is_err(),
+        "and the pool gave the member up"
+    );
     remove(root.as_path());
 }
 
@@ -576,10 +855,20 @@ fn every_linked_worktrees_pool_goes_when_git_removed_its_registrations() {
     let common: PathBuf = root.join("repo/.git");
     let topic: PathBuf = a_pool_folder(common.as_path(), "worktree-topic");
     let main: PathBuf = a_pool_folder(common.as_path(), "main");
-    assert!(!common.join("worktrees").exists(), "no registration is there at all");
+    assert!(
+        !common.join("worktrees").exists(),
+        "no registration is there at all"
+    );
     let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
-    assert_eq!(removed, vec![topic.clone()], "the one linked worktree's pool");
-    assert!(std::fs::symlink_metadata(topic.as_path()).is_err(), "its folder is gone");
+    assert_eq!(
+        removed,
+        vec![topic.clone()],
+        "the one linked worktree's pool"
+    );
+    assert!(
+        std::fs::symlink_metadata(topic.as_path()).is_err(),
+        "its folder is gone"
+    );
     assert!(main.is_dir(), "the main checkout's pool stays");
     remove(root.as_path());
 }
@@ -606,7 +895,10 @@ fn a_member_stays_usable_when_an_entry_no_commit_reads_goes_away() {
     }
     std::fs::remove_dir_all(common.join("lost-found")).expect("gone");
     let destination: PathBuf = root.join("shadow");
-    assert!(take(&template, destination.as_path()), "the member is what a creation of this moment makes");
+    assert!(
+        take(&template, destination.as_path()),
+        "the member is what a creation of this moment makes"
+    );
     remove(root.as_path());
 }
 
@@ -624,12 +916,22 @@ fn a_pool_of_a_worktree_git_is_adding_stays() {
     let common: PathBuf = root.join("repo/.git");
     let adding: PathBuf = a_pool_folder(common.as_path(), "worktree-adding");
     let registration: PathBuf = common.join("worktrees/adding");
-    std::fs::create_dir_all(registration.as_path()).expect("the registration Git makes before the checkout");
+    std::fs::create_dir_all(registration.as_path())
+        .expect("the registration Git makes before the checkout");
     // What an unfinished registration holds: the back-pointer to the checkout being filled, and no HEAD yet.
-    std::fs::write(registration.join("gitdir").as_path(), root.join("repo/.git/worktrees/adding").display().to_string()).expect("the back-pointer");
+    std::fs::write(
+        registration.join("gitdir").as_path(),
+        root.join("repo/.git/worktrees/adding")
+            .display()
+            .to_string(),
+    )
+    .expect("the back-pointer");
     let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
     assert!(removed.is_empty(), "nothing is removed: {removed:?}");
-    assert!(adding.is_dir(), "the pool of the worktree being added stays");
+    assert!(
+        adding.is_dir(),
+        "the pool of the worktree being added stays"
+    );
     remove(root.as_path());
 }
 
@@ -647,10 +949,17 @@ fn a_member_that_would_miss_an_entry_a_commit_reads_is_refused() {
     std::fs::remove_dir_all(common.join("info")).expect("this repository has no info directory");
     let (template, _member) = a_member(repo.as_path());
     std::fs::create_dir(common.join("info")).expect("an info directory appears");
-    std::fs::write(common.join("info").join("attributes"), "*.rs text\n").expect("and holds attributes");
+    std::fs::write(common.join("info").join("attributes"), "*.rs text\n")
+        .expect("and holds attributes");
     let destination: PathBuf = root.join("shadow");
-    assert!(!take(&template, destination.as_path()), "a member that misses info is refused");
-    assert!(std::fs::symlink_metadata(destination.as_path()).is_err(), "and the claim's path is left empty");
+    assert!(
+        !take(&template, destination.as_path()),
+        "a member that misses info is refused"
+    );
+    assert!(
+        std::fs::symlink_metadata(destination.as_path()).is_err(),
+        "and the claim's path is left empty"
+    );
     remove(root.as_path());
 }
 
@@ -666,10 +975,14 @@ fn a_pool_of_a_worktree_git_still_lists_stays() {
     let root: PathBuf = fixture("shadow-pool-still-listed");
     let common: PathBuf = root.join("repo/.git");
     let registered: PathBuf = a_pool_folder(common.as_path(), "worktree-registered");
-    std::fs::create_dir_all(common.join("worktrees/registered").as_path()).expect("the registration of a worktree whose checkout is gone");
+    std::fs::create_dir_all(common.join("worktrees/registered").as_path())
+        .expect("the registration of a worktree whose checkout is gone");
     let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
     assert!(removed.is_empty(), "nothing is removed: {removed:?}");
-    assert!(registered.is_dir(), "the pool of a worktree Git still lists stays");
+    assert!(
+        registered.is_dir(),
+        "the pool of a worktree Git still lists stays"
+    );
     remove(root.as_path());
 }
 
@@ -689,9 +1002,13 @@ fn a_member_that_holds_a_real_entry_where_a_link_belongs_is_refused() {
         std::fs::symlink_metadata(repo.join(".git").join("rr-cache").as_path()).is_err(),
         "this repository has no rr-cache"
     );
-    std::fs::create_dir(member.join("rr-cache").as_path()).expect("a real entry where a link belongs");
+    std::fs::create_dir(member.join("rr-cache").as_path())
+        .expect("a real entry where a link belongs");
     let destination: PathBuf = root.join("shadow");
-    assert!(!take(&template, destination.as_path()), "a real directory at a shared name is refused");
+    assert!(
+        !take(&template, destination.as_path()),
+        "a real directory at a shared name is refused"
+    );
     remove(root.as_path());
 }
 
@@ -709,7 +1026,10 @@ fn a_folder_the_wrapper_did_not_name_stays() {
     let stranger: PathBuf = a_pool_folder(common.as_path(), "notes-before-the-upgrade");
     let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
     assert!(removed.is_empty(), "nothing is removed: {removed:?}");
-    assert!(stranger.join("member-a-finished-shadow").is_dir(), "the stranger's folder is untouched");
+    assert!(
+        stranger.join("member-a-finished-shadow").is_dir(),
+        "the stranger's folder is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -728,12 +1048,21 @@ fn a_refused_member_is_named_in_the_build_parts() {
     let root: PathBuf = fixture("shadow-pool-refusal-evidence");
     let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
     let (template, member) = a_member(repo.as_path());
-    std::fs::write(member.join("MERGE_HEAD").as_path(), b"0123456789012345678901234567890123456789\n").expect("state");
+    std::fs::write(
+        member.join("MERGE_HEAD").as_path(),
+        b"0123456789012345678901234567890123456789\n",
+    )
+    .expect("state");
     let _before = crate::commit_build_part_durations::drain_build_parts();
-    assert!(!take(&template, root.join("shadow").as_path()), "a member with state is refused");
+    assert!(
+        !take(&template, root.join("shadow").as_path()),
+        "a member with state is refused"
+    );
     let (parts, _dropped) = crate::commit_build_part_durations::drain_build_parts();
     assert!(
-        parts.iter().any(|part| { return part.name == "shadow pool refused"; }),
+        parts.iter().any(|part| {
+            return part.name == "shadow pool refused";
+        }),
         "the record names the refusal: {parts:?}"
     );
     remove(root.as_path());
@@ -753,12 +1082,27 @@ fn removing_the_pool_of_a_gone_worktree_leaves_what_a_member_links_to() {
     let gone: PathBuf = a_pool_folder(common.as_path(), "worktree-gone");
     let kept: PathBuf = root.join("repo/.git/objects-kept");
     std::fs::create_dir_all(kept.as_path()).expect("what the member links to");
-    std::fs::write(kept.join("a-pack").as_path(), b"the repository's own bytes\n").expect("its bytes");
-    std::os::unix::fs::symlink(kept.as_path(), gone.join("member-a-finished-shadow/objects").as_path()).expect("the member's link");
+    std::fs::write(
+        kept.join("a-pack").as_path(),
+        b"the repository's own bytes\n",
+    )
+    .expect("its bytes");
+    std::os::unix::fs::symlink(
+        kept.as_path(),
+        gone.join("member-a-finished-shadow/objects").as_path(),
+    )
+    .expect("the member's link");
     let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
     assert_eq!(removed, vec![gone.clone()], "the gone worktree's pool");
-    assert!(std::fs::symlink_metadata(gone.as_path()).is_err(), "the member's folder is gone");
-    assert_eq!(std::fs::read(kept.join("a-pack").as_path()).expect("what the link pointed at"), b"the repository's own bytes\n", "the removal followed no link");
+    assert!(
+        std::fs::symlink_metadata(gone.as_path()).is_err(),
+        "the member's folder is gone"
+    );
+    assert_eq!(
+        std::fs::read(kept.join("a-pack").as_path()).expect("what the link pointed at"),
+        b"the repository's own bytes\n",
+        "the removal followed no link"
+    );
     remove(root.as_path());
 }
 
@@ -782,23 +1126,45 @@ fn a_link_at_the_pools_folder_or_at_a_pools_name_is_no_pool_and_what_it_points_a
     let common: PathBuf = root.join("repo/.git");
     let outside: PathBuf = root.join("outside");
     let a_stranger_tree: PathBuf = outside.join("worktree-gone");
-    std::fs::create_dir_all(a_stranger_tree.as_path()).expect("a folder somebody keeps outside the pool");
+    std::fs::create_dir_all(a_stranger_tree.as_path())
+        .expect("a folder somebody keeps outside the pool");
     std::fs::write(a_stranger_tree.join("keep.txt").as_path(), b"mine\n").expect("its file");
     std::fs::create_dir_all(common.as_path()).expect("the common directory");
     let pool_folder: PathBuf = common.join(SHADOW_POOL_FOLDER);
-    std::os::unix::fs::symlink(outside.as_path(), pool_folder.as_path()).expect("a link at the pool's folder");
+    std::os::unix::fs::symlink(outside.as_path(), pool_folder.as_path())
+        .expect("a link at the pool's folder");
     let followed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
-    assert!(followed.is_empty(), "a link at the pool's folder is no pool to sweep: {followed:?}");
-    assert_eq!(std::fs::read(a_stranger_tree.join("keep.txt").as_path()).expect("the file below the link's target"), b"mine\n", "the file in the linked tree survives");
+    assert!(
+        followed.is_empty(),
+        "a link at the pool's folder is no pool to sweep: {followed:?}"
+    );
+    assert_eq!(
+        std::fs::read(a_stranger_tree.join("keep.txt").as_path())
+            .expect("the file below the link's target"),
+        b"mine\n",
+        "the file in the linked tree survives"
+    );
     std::fs::remove_file(pool_folder.as_path()).expect("the link the control made");
     // The same shape at one pool's own name, with the folder this program made around it.
     let pool: PathBuf = a_pool_folder(common.as_path(), "worktree-topic");
     std::fs::remove_dir_all(pool.as_path()).expect("the pool folder the control made");
-    std::os::unix::fs::symlink(a_stranger_tree.as_path(), pool.as_path()).expect("a link at a pool's name");
+    std::os::unix::fs::symlink(a_stranger_tree.as_path(), pool.as_path())
+        .expect("a link at a pool's name");
     let named: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
-    assert!(named.is_empty(), "a link at a pool's name is no pool to sweep: {named:?}");
-    assert_eq!(std::fs::read(a_stranger_tree.join("keep.txt").as_path()).expect("the file below the link's target"), b"mine\n", "the file in the linked tree survives that too");
-    assert!(std::fs::symlink_metadata(pool.as_path()).is_ok(), "and the link itself is not this program's to remove");
+    assert!(
+        named.is_empty(),
+        "a link at a pool's name is no pool to sweep: {named:?}"
+    );
+    assert_eq!(
+        std::fs::read(a_stranger_tree.join("keep.txt").as_path())
+            .expect("the file below the link's target"),
+        b"mine\n",
+        "the file in the linked tree survives that too"
+    );
+    assert!(
+        std::fs::symlink_metadata(pool.as_path()).is_ok(),
+        "and the link itself is not this program's to remove"
+    );
     remove(root.as_path());
 }
 
@@ -815,9 +1181,16 @@ fn a_second_sweep_removes_nothing() {
     let root: PathBuf = fixture("shadow-pool-swept-twice");
     let common: PathBuf = root.join("repo/.git");
     let gone: PathBuf = a_pool_folder(common.as_path(), "worktree-gone");
-    assert_eq!(sweep_gone_worktrees(common.as_path()), vec![gone.clone()], "the first sweep collects it");
+    assert_eq!(
+        sweep_gone_worktrees(common.as_path()),
+        vec![gone.clone()],
+        "the first sweep collects it"
+    );
     let again: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
-    assert!(again.is_empty(), "the second sweep finds nothing to remove: {again:?}");
+    assert!(
+        again.is_empty(),
+        "the second sweep finds nothing to remove: {again:?}"
+    );
     remove(root.as_path());
 }
 
@@ -835,14 +1208,31 @@ fn a_fill_makes_no_member_for_a_worktree_that_keeps_its_own_info() {
     let linked: PathBuf = root.join("linked");
     git(
         repo.as_path(),
-        &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("fixture")],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            linked.to_str().expect("fixture"),
+        ],
     );
     let git_dir: PathBuf = repo.join(".git").join("worktrees").join("linked");
     std::fs::create_dir_all(git_dir.join("info")).expect("worktree info");
     std::fs::write(git_dir.join("info").join("sparse-checkout"), "/*\n").expect("sparse");
     let template: ShadowTemplate = template_of(linked.as_path());
-    assert_eq!(fill(&git_context(), &template).expect("fill"), None, "no member is made");
-    assert!(members(pool_root(&template).as_path()).is_empty(), "and the pool holds none");
-    assert!(!take(&template, root.join("shadow").as_path()), "nothing is taken either");
+    assert_eq!(
+        fill(&git_context(), &template).expect("fill"),
+        None,
+        "no member is made"
+    );
+    assert!(
+        members(pool_root(&template).as_path()).is_empty(),
+        "and the pool holds none"
+    );
+    assert!(
+        !take(&template, root.join("shadow").as_path()),
+        "nothing is taken either"
+    );
     remove(root.as_path());
 }

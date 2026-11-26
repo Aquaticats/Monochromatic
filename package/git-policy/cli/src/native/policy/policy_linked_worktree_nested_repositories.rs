@@ -20,34 +20,57 @@
 
 /// The builder of the clean's own dry run,
 ///  and the parsed facts that decide whether the question applies.
-use crate::command_clean::{UNREADABLE_CLEAN_DELETION, clean_dry_run_arguments, parse_clean_region};
+use crate::command_clean::{
+    UNREADABLE_CLEAN_DELETION,
+    clean_dry_run_arguments,
+    parse_clean_region,
+};
 /// Which nested Git repositories that answer says the clean would delete.
 use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
 /// The bound on the folder of saved copies applied after a save,
 ///  and the place saved copies live.
-use crate::conflict_sides::{SAVED_DIRECTORY, SavedCopy, prune_after_save};
+use crate::conflict_sides::{
+    SAVED_DIRECTORY,
+    SavedCopy,
+    prune_after_save,
+};
 /// The record of every decision.
-use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies};
-/// The limits of the folder of saved copies.
-use crate::discarded_prune::Limits;
+use crate::discard_audit::{
+    AuditOutcome,
+    record_audit,
+    record_audit_with_copies,
+};
 /// The move of a nested repository the clean would delete.
 use crate::discarded_nested_repository::set_nested_repositories_aside;
+/// The limits of the folder of saved copies.
+use crate::discarded_prune::Limits;
+use crate::policy_checks::{
+    clean,
+    rejected,
+};
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_location::RepositoryLocation;
-use crate::policy_checks::{clean, rejected};
 /// The linked-worktree rule core.
-use crate::rule_linked_worktree::{GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE};
+use crate::rule_linked_worktree::{
+    GuardedCommand,
+    LINKED_WORKTREE_REQUIRED_CODE,
+};
 /// The notice that names where a saved nested repository went,
 ///  and the rejection when it could not be moved there.
 use crate::rule_linked_worktree_nested_repository_messages::{
-    NotSaved, nested_repository_not_saved_message, saved_nested_repository_notice,
+    NotSaved,
+    nested_repository_not_saved_message,
+    saved_nested_repository_notice,
 };
 /// The Git directories of an identity,
 ///  for naming the place saved copies live and the worktree the paths are below.
-use crate::worktree_identity::{common_directory, worktree_root};
+use crate::worktree_identity::{
+    common_directory,
+    worktree_root,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -56,7 +79,9 @@ use std::path::PathBuf;
 /// The clock reading the conflict copies are named with,
 /// in milliseconds since the Unix epoch.
 pub(crate) fn now_milliseconds() -> i64 {
-    let elapsed: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    let elapsed: std::time::Duration = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
     return i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
 }
 
@@ -159,23 +184,44 @@ fn keep_the_nested_repositories_a_clean_would_delete(
     let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(as_typed) {
         Ok(answer) => answer,
         // Git refuses this clean itself, so it deletes nothing and Git's own refusal is the answer the person gets.
-        Err(message) if message.starts_with(UNREADABLE_CLEAN_DELETION) => return NestedRepositories::Nothing,
+        Err(message) if message.starts_with(UNREADABLE_CLEAN_DELETION) => {
+            return NestedRepositories::Nothing;
+        }
         // A reading that never answered could hide a repository, so the clean stops here.
-        Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
+        Err(message) => {
+            return NestedRepositories::Refused {
+                message,
+                copies: Vec::<SavedCopy>::new(),
+            };
+        }
     };
-    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root) {
-        Ok(found) => found,
-        Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
-    };
+    let repositories: Vec<Vec<u8>> =
+        match nested_repositories_the_clean_deletes(deleted.as_slice(), root) {
+            Ok(found) => found,
+            Err(message) => {
+                return NestedRepositories::Refused {
+                    message,
+                    copies: Vec::<SavedCopy>::new(),
+                };
+            }
+        };
     if repositories.is_empty() {
         return NestedRepositories::Nothing;
     }
     let milliseconds: i64 = now_milliseconds();
     match set_nested_repositories_aside(common_dir, root, repositories.as_slice(), milliseconds) {
         Ok(copies) => {
-            let unpruned: String = prune_after_save(common_dir, copies.as_slice(), milliseconds, discarded_limits);
+            let unpruned: String = prune_after_save(
+                common_dir,
+                copies.as_slice(),
+                milliseconds,
+                discarded_limits,
+            );
             return NestedRepositories::Saved {
-                notice: format!("{}{unpruned}", saved_nested_repository_notice(copies.as_slice())),
+                notice: format!(
+                    "{}{unpruned}",
+                    saved_nested_repository_notice(copies.as_slice())
+                ),
                 copies,
             };
         }
@@ -242,10 +288,21 @@ pub(crate) struct AllowedForm<'a> {
 /// function allowADiscardingForm(form: AllowedForm): PolicyOutcome;
 /// ```
 pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
-    if matches!(form.command, GuardedCommand::CleanIgnored | GuardedCommand::CleanIgnoredOnly) {
-        match keep_the_nested_repositories_a_clean_would_delete(form.facts, form.location, form.region, form.discarded_limits) {
+    if matches!(
+        form.command,
+        GuardedCommand::CleanIgnored | GuardedCommand::CleanIgnoredOnly
+    ) {
+        match keep_the_nested_repositories_a_clean_would_delete(
+            form.facts,
+            form.location,
+            form.region,
+            form.discarded_limits,
+        ) {
             NestedRepositories::Nothing => {}
-            NestedRepositories::Saved { copies, notice } => {
+            NestedRepositories::Saved {
+                copies,
+                notice,
+            } => {
                 let mut places: Vec<String> = Vec::<String>::new();
                 for copy in &copies {
                     let saved_to: String = match copy.saved_to.as_ref() {
@@ -265,7 +322,10 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
                 );
                 return clean();
             }
-            NestedRepositories::Refused { message, copies } => {
+            NestedRepositories::Refused {
+                message,
+                copies,
+            } => {
                 let mut places: Vec<String> = Vec::<String>::new();
                 for copy in &copies {
                     let saved_to: String = match copy.saved_to.as_ref() {
@@ -277,7 +337,13 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
                 // A rejection that left a repository under the saved copies names where it is;
                 //  one that left none is a worktree nobody can tell apart from the one before the command.
                 if places.is_empty() {
-                    record_audit(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, None);
+                    record_audit(
+                        &form.location.identity,
+                        form.command,
+                        AuditOutcome::Rejected,
+                        form.seen,
+                        None,
+                    );
                 } else {
                     record_audit_with_copies(
                         &form.location.identity,
@@ -292,6 +358,12 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
             }
         }
     }
-    record_audit(&form.location.identity, form.command, AuditOutcome::Allowed, form.seen, form.dirty);
+    record_audit(
+        &form.location.identity,
+        form.command,
+        AuditOutcome::Allowed,
+        form.seen,
+        form.dirty,
+    );
     return clean();
 }

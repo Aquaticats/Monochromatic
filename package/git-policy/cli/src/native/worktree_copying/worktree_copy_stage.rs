@@ -13,22 +13,50 @@
 //! const snapshot = await stageIgnoredSnapshot({ sourceRoot, destinationRoot, registeredRoots, gitPath });
 //! ```
 
+use crate::diagnostic_log::debug;
+use crate::json_record::quote;
 use crate::private_storage::create_private_directory;
 use crate::random_id::random_uuid;
 use crate::transaction_git::GitContext;
-use crate::diagnostic_log::debug;
 use crate::worktree_copy_ceiling::CopyCeiling;
-pub use crate::worktree_copy_stage_leaf_copying::copy_file_exclusive;
-use crate::worktree_copy_stage_leaf_copying::{CopiedManifest, copy_manifest_entries_with, copy_worker_count, create_private_tree, try_clone};
-use crate::worktree_copy_settling::{Settled, SettlingRequest, settle_the_copy};
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of, wrap_raw};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    raw_failure,
+    raw_failure_of,
+    wrap_raw,
+};
 use crate::worktree_copy_manifest::{
-    FileStamp, LeftOut, WorktreeCopyEntry, collect_pruned_manifest,
+    FileStamp,
+    LeftOut,
+    WorktreeCopyEntry,
+    collect_pruned_manifest,
 };
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_selection::{CopySelection, STAGE_PREFIX, filesystem_path, is_separator_byte, select_roots, shown_repository_path};
-use crate::json_record::quote;
-use std::path::{Path, PathBuf};
+use crate::worktree_copy_selection::{
+    CopySelection,
+    STAGE_PREFIX,
+    filesystem_path,
+    is_separator_byte,
+    select_roots,
+    shown_repository_path,
+};
+use crate::worktree_copy_settling::{
+    Settled,
+    SettlingRequest,
+    settle_the_copy,
+};
+pub use crate::worktree_copy_stage_leaf_copying::copy_file_exclusive;
+use crate::worktree_copy_stage_leaf_copying::{
+    CopiedManifest,
+    copy_manifest_entries_with,
+    copy_worker_count,
+    create_private_tree,
+    try_clone,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The name of the payload directory inside a stage container.
@@ -112,7 +140,10 @@ fn source_exclusions(
 /// ```ts
 /// roots.filter((root) => root !== sourceRoot && isInside(sourceRoot, root))
 /// ```
-fn nested_under(source_root: &Path, roots: &[PathBuf]) -> Vec<PathBuf> {
+fn nested_under(
+    source_root: &Path,
+    roots: &[PathBuf],
+) -> Vec<PathBuf> {
     let mut nested: Vec<PathBuf> = Vec::new();
     for root in roots {
         if root.as_path() != source_root && root.starts_with(source_root) {
@@ -137,7 +168,8 @@ fn nested_under(source_root: &Path, roots: &[PathBuf]) -> Vec<PathBuf> {
 /// component.startsWith(STAGE_PREFIX) || component.startsWith(AHEAD_PREFIX)
 /// ```
 fn starts_private_stage(component: &[u8]) -> bool {
-    return component.starts_with(STAGE_PREFIX.as_bytes()) || component.starts_with(crate::worktree_snapshot_ahead::AHEAD_PREFIX.as_bytes());
+    return component.starts_with(STAGE_PREFIX.as_bytes())
+        || component.starts_with(crate::worktree_snapshot_ahead::AHEAD_PREFIX.as_bytes());
 }
 
 /// What:
@@ -149,7 +181,10 @@ fn starts_private_stage(component: &[u8]) -> bool {
 /// ```ts
 /// roots.some((root) => path.startsWith(root))
 /// ```
-fn lies_within_any(path: &Path, roots: &[PathBuf]) -> bool {
+fn lies_within_any(
+    path: &Path,
+    roots: &[PathBuf],
+) -> bool {
     for root in roots {
         if path.starts_with(root.as_path()) {
             return true;
@@ -230,7 +265,15 @@ pub fn stage_ignored_snapshot(
     registered_roots: &[PathBuf],
     selection: &CopySelection,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
-    return stage_ignored_snapshot_for(context, source_root, stage_container, registered_roots, selection, None, &CopyCeiling::unbounded());
+    return stage_ignored_snapshot_for(
+        context,
+        source_root,
+        stage_container,
+        registered_roots,
+        selection,
+        None,
+        &CopyCeiling::unbounded(),
+    );
 }
 
 /// What:
@@ -258,16 +301,23 @@ pub fn stage_ignored_snapshot_for(
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let selecting: std::time::Instant = std::time::Instant::now();
     let nested: Vec<PathBuf> = nested_under(source_root, registered_roots);
-    let git_selected: Vec<Vec<u8>> = select_roots(context, source_root, nested.as_slice(), selection)?;
+    let git_selected: Vec<Vec<u8>> =
+        select_roots(context, source_root, nested.as_slice(), selection)?;
     debug(
         "worktreeCopyStage",
-        format!("selected {} ignored roots in {} ms", git_selected.len(), selecting.elapsed().as_millis()).as_str(),
+        format!(
+            "selected {} ignored roots in {} ms",
+            git_selected.len(),
+            selecting.elapsed().as_millis()
+        )
+        .as_str(),
     );
     create_private_directory(stage_container).map_err(raw_failure_of)?;
     // The registration goes in before the first byte of the payload, so a container killed at any later instruction says
     // which copy it belongs to.
     if let Some(bound) = binding
-        && let Err(error) = crate::worktree_copy_stage_binding::record_stage_binding(stage_container, bound)
+        && let Err(error) =
+            crate::worktree_copy_stage_binding::record_stage_binding(stage_container, bound)
     {
         std::fs::remove_dir_all(stage_container).map_err(raw_failure_of)?;
         return Err(error);
@@ -289,8 +339,7 @@ pub fn stage_ignored_snapshot_for(
         Ok(snapshot) => return Ok(snapshot),
         Err(error) => {
             // A failed removal replaces the copy failure, as the incumbent's cleanup throws its own error there.
-            std::fs::remove_dir_all(stage_container)
-                .map_err(raw_failure_of)?;
+            std::fs::remove_dir_all(stage_container).map_err(raw_failure_of)?;
             return Err(words_for_source(error, source_root));
         }
     }
@@ -305,7 +354,10 @@ pub fn stage_ignored_snapshot_for(
 /// ```ts
 /// new WorktreeCopyError(`monochromatic-git-policy-cli: could not stage ignored state from ${JSON.stringify(sourceRoot)}.`, error)
 /// ```
-fn words_for_source(error: WorktreeCopyError, source_root: &Path) -> WorktreeCopyError {
+fn words_for_source(
+    error: WorktreeCopyError,
+    source_root: &Path,
+) -> WorktreeCopyError {
     let message: String = format!(
         "monochromatic-git-policy-cli: could not stage ignored state from {}.",
         quote(source_root.to_string_lossy().as_ref())
@@ -336,7 +388,9 @@ fn stage_into(
         source_exclusions(source_root, registered_roots, stage_container);
     let mut candidate_roots: Vec<Vec<u8>> = Vec::new();
     for repository_path in git_selected {
-        if names_private_stage(repository_path.as_slice()) || prune.skips_path(repository_path.as_slice()) {
+        if names_private_stage(repository_path.as_slice())
+            || prune.skips_path(repository_path.as_slice())
+        {
             continue;
         }
         let Ok(source_path) = filesystem_path(source_root, repository_path.as_slice()) else {

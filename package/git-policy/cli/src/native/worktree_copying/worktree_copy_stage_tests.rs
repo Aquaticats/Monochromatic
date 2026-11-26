@@ -3,10 +3,19 @@
 
 use super::*;
 use crate::parallel_budget::HostResources;
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::worktree_copy_ceiling::a_shorter_ceiling_for_this_thread;
-use crate::worktree_copy_manifest::{EntryKind, stamp_of};
+use crate::worktree_copy_manifest::{
+    EntryKind,
+    stamp_of,
+};
 use crate::worktree_copy_stage_leaf_copying::*;
-use crate::test_support::{fixture, git, git_context, remove, repository};
 
 /// A source with ignored files,
 /// a symbolic link,
@@ -54,7 +63,9 @@ fn stage_mirrors_selected_entries_with_modes_and_links() {
     let staged: StagedSnapshot = stage_ignored_snapshot(
         &git_context(),
         source.as_path(),
-        new_stage_container(destination.as_path()).expect("container").as_path(),
+        new_stage_container(destination.as_path())
+            .expect("container")
+            .as_path(),
         &[std::fs::canonicalize(source.as_path()).expect("canonical")],
         &CopySelection::Ignored,
     )
@@ -140,7 +151,9 @@ fn nested_registered_worktree_is_not_copied() {
         std::fs::canonicalize(source.as_path())
             .expect("canonical source")
             .as_path(),
-        new_stage_container(destination.as_path()).expect("container").as_path(),
+        new_stage_container(destination.as_path())
+            .expect("container")
+            .as_path(),
         &[nested_root],
         &CopySelection::Ignored,
     )
@@ -180,14 +193,19 @@ fn a_fifo_is_left_out_of_the_stage_and_the_rest_is_staged() {
         std::fs::canonicalize(source.as_path())
             .expect("canonical source")
             .as_path(),
-        new_stage_container(root.join("topic").as_path()).expect("container").as_path(),
+        new_stage_container(root.join("topic").as_path())
+            .expect("container")
+            .as_path(),
         &[],
         &CopySelection::Ignored,
     )
     .expect("a socket, a FIFO and a device node are left out of a copy, never opened");
     assert_eq!(staged.uncopiable, vec![b"pipe".to_vec()]);
     assert!(staged.unreadable.is_empty());
-    assert_eq!(std::fs::read(staged.stage_root.join("kept")).expect("kept is staged"), b"kept");
+    assert_eq!(
+        std::fs::read(staged.stage_root.join("kept")).expect("kept is staged"),
+        b"kept"
+    );
     assert!(!staged.stage_root.join("pipe").exists());
     std::fs::remove_dir_all(staged.stage_container.as_path()).expect("stage removed");
     remove(root.as_path());
@@ -213,7 +231,9 @@ fn a_copy_stopped_at_the_ceiling_removes_its_stage() {
         std::fs::canonicalize(source.as_path())
             .expect("canonical source")
             .as_path(),
-        new_stage_container(destination.as_path()).expect("container").as_path(),
+        new_stage_container(destination.as_path())
+            .expect("container")
+            .as_path(),
         &[],
         &CopySelection::Ignored,
         None,
@@ -263,17 +283,13 @@ fn a_refused_exclusive_copy_reports_the_operating_systems_error() {
     let root: PathBuf = fixture("stage-exclusive-kind");
     std::fs::write(root.join("source"), b"payload").expect("source");
     copy_file_exclusive(root.join("source").as_path(), root.join("copy").as_path()).expect("copy");
-    let existing: std::io::Error = copy_file_exclusive(
-        root.join("source").as_path(),
-        root.join("copy").as_path(),
-    )
-    .expect_err("existing destination");
+    let existing: std::io::Error =
+        copy_file_exclusive(root.join("source").as_path(), root.join("copy").as_path())
+            .expect_err("existing destination");
     assert_eq!(existing.kind(), std::io::ErrorKind::AlreadyExists);
-    let missing: std::io::Error = copy_file_exclusive(
-        root.join("absent").as_path(),
-        root.join("other").as_path(),
-    )
-    .expect_err("missing source");
+    let missing: std::io::Error =
+        copy_file_exclusive(root.join("absent").as_path(), root.join("other").as_path())
+            .expect_err("missing source");
     assert_eq!(missing.kind(), std::io::ErrorKind::NotFound);
     remove(root.as_path());
 }
@@ -290,7 +306,9 @@ fn staging_under_a_missing_parent_fails_with_cause() {
         std::fs::canonicalize(source.as_path())
             .expect("canonical source")
             .as_path(),
-        new_stage_container(destination.as_path()).expect("container").as_path(),
+        new_stage_container(destination.as_path())
+            .expect("container")
+            .as_path(),
         &[],
         &CopySelection::Ignored,
     )
@@ -301,12 +319,18 @@ fn staging_under_a_missing_parent_fails_with_cause() {
 
 /// A clone request that the filesystem accepts leaves the destination as the clone made it,
 ///  so no bytes are copied over it.
-fn clone_accepts_and_copies_nothing(_source: &std::fs::File, _destination: &std::fs::File) -> bool {
+fn clone_accepts_and_copies_nothing(
+    _source: &std::fs::File,
+    _destination: &std::fs::File,
+) -> bool {
     return true;
 }
 
 /// A clone request that the filesystem refuses.
-fn clone_refuses(_source: &std::fs::File, _destination: &std::fs::File) -> bool {
+fn clone_refuses(
+    _source: &std::fs::File,
+    _destination: &std::fs::File,
+) -> bool {
     return false;
 }
 
@@ -330,7 +354,10 @@ fn bytes_are_copied_exactly_when_the_clone_is_refused() {
         clone_refuses,
     )
     .expect("refused");
-    assert_eq!(std::fs::read(root.join("refused")).expect("refused"), b"payload");
+    assert_eq!(
+        std::fs::read(root.join("refused")).expect("refused"),
+        b"payload"
+    );
     remove(root.as_path());
 }
 
@@ -351,9 +378,16 @@ fn the_clone_request_reports_what_it_did() {
     let cloned: bool = try_clone(&input, &output);
     let held: Vec<u8> = std::fs::read(root.join("clone")).expect("clone bytes");
     if cloned {
-        assert_eq!(held, vec![9_u8; 8192], "an accepted clone fills the destination");
+        assert_eq!(
+            held,
+            vec![9_u8; 8192],
+            "an accepted clone fills the destination"
+        );
     } else {
-        assert!(held.is_empty(), "a refused clone leaves the destination empty");
+        assert!(
+            held.is_empty(),
+            "a refused clone leaves the destination empty"
+        );
     }
     remove(root.as_path());
 }
@@ -382,7 +416,11 @@ fn the_clone_request_succeeds_where_the_filesystem_clones() {
     let (probe_input, probe_output) = pair("probe");
     // SAFETY: both descriptors are open for the call, and FICLONE takes the source descriptor as its argument.
     let supported: bool = unsafe {
-        libc::ioctl(probe_output.as_raw_fd(), libc::FICLONE, probe_input.as_raw_fd())
+        libc::ioctl(
+            probe_output.as_raw_fd(),
+            libc::FICLONE,
+            probe_input.as_raw_fd(),
+        )
     } == 0;
     let (input, output) = pair("clone");
     assert_eq!(try_clone(&input, &output), supported);
@@ -408,8 +446,14 @@ fn only_strictly_nested_roots_are_nested() {
 
 /// A clone request that the filesystem accepts and that fills the file,
 /// so the stamp logic sees a real clone.
-fn clone_accepts_and_copies(source: &std::fs::File, destination: &std::fs::File) -> bool {
-    use std::io::{Seek, SeekFrom};
+fn clone_accepts_and_copies(
+    source: &std::fs::File,
+    destination: &std::fs::File,
+) -> bool {
+    use std::io::{
+        Seek,
+        SeekFrom,
+    };
     let mut from: &std::fs::File = source;
     let mut to: &std::fs::File = destination;
     from.seek(SeekFrom::Start(0)).expect("rewind");
@@ -433,35 +477,60 @@ fn clone_accepts_and_copies(source: &std::fs::File, destination: &std::fs::File)
 fn a_stamp_comes_only_from_a_clone_of_a_settled_file() {
     let root: PathBuf = fixture("stage-stamp");
     std::fs::write(root.join("source"), b"payload").expect("source");
-    let written: FileStamp = stamp_of(&std::fs::symlink_metadata(root.join("source")).expect("metadata")).expect("a stamp of the source");
+    let written: FileStamp =
+        stamp_of(&std::fs::symlink_metadata(root.join("source")).expect("metadata"))
+            .expect("a stamp of the source");
     let changed: i128 = stamp_nanos(written.changed);
     // The clock stands at the very instant of the change: nothing about it can prove a write does not follow.
     let at_the_change: ClockPin = clock_reads(changed);
-    let recent: Option<FileStamp> =
-        copy_file_exclusive_with(root.join("source").as_path(), root.join("recent").as_path(), clone_accepts_and_copies)
-            .expect("recent");
-    assert_eq!(recent, None, "a file whose change time is the clock's own instant is within the timestamp granularity");
+    let recent: Option<FileStamp> = copy_file_exclusive_with(
+        root.join("source").as_path(),
+        root.join("recent").as_path(),
+        clone_accepts_and_copies,
+    )
+    .expect("recent");
+    assert_eq!(
+        recent, None,
+        "a file whose change time is the clock's own instant is within the timestamp granularity"
+    );
     drop(at_the_change);
     // One nanosecond short of the granularity is still too close.
     let just_short: ClockPin = clock_reads(changed + RECENT_CHANGE_NANOS - 1);
-    let still_recent: Option<FileStamp> =
-        copy_file_exclusive_with(root.join("source").as_path(), root.join("still-recent").as_path(), clone_accepts_and_copies)
-            .expect("still recent");
-    assert_eq!(still_recent, None, "a change time one nanosecond inside the granularity proves nothing either");
+    let still_recent: Option<FileStamp> = copy_file_exclusive_with(
+        root.join("source").as_path(),
+        root.join("still-recent").as_path(),
+        clone_accepts_and_copies,
+    )
+    .expect("still recent");
+    assert_eq!(
+        still_recent, None,
+        "a change time one nanosecond inside the granularity proves nothing either"
+    );
     drop(just_short);
     // A whole granularity later the stamp proves the bytes.
     let settled_at: ClockPin = clock_reads(changed + RECENT_CHANGE_NANOS);
-    let settled: Option<FileStamp> =
-        copy_file_exclusive_with(root.join("source").as_path(), root.join("settled").as_path(), clone_accepts_and_copies)
-            .expect("settled");
-    let source_stamp: Option<FileStamp> = stamp_of(&std::fs::symlink_metadata(root.join("source")).expect("metadata"));
+    let settled: Option<FileStamp> = copy_file_exclusive_with(
+        root.join("source").as_path(),
+        root.join("settled").as_path(),
+        clone_accepts_and_copies,
+    )
+    .expect("settled");
+    let source_stamp: Option<FileStamp> =
+        stamp_of(&std::fs::symlink_metadata(root.join("source")).expect("metadata"));
     assert!(settled.is_some());
     assert_eq!(settled, source_stamp);
     drop(settled_at);
-    let refused: Option<FileStamp> =
-        copy_file_exclusive_with(root.join("source").as_path(), root.join("refused").as_path(), clone_refuses).expect("refused");
+    let refused: Option<FileStamp> = copy_file_exclusive_with(
+        root.join("source").as_path(),
+        root.join("refused").as_path(),
+        clone_refuses,
+    )
+    .expect("refused");
     assert_eq!(refused, None);
-    assert_eq!(std::fs::read(root.join("refused")).expect("bytes"), b"payload");
+    assert_eq!(
+        std::fs::read(root.join("refused")).expect("bytes"),
+        b"payload"
+    );
     remove(root.as_path());
 }
 
@@ -478,22 +547,37 @@ fn a_large_manifest_is_copied_in_slices_and_arrives_whole() {
     for index in 0..files {
         let directory: PathBuf = source.join(format!("bulk/d{}", index % 7));
         std::fs::create_dir_all(directory.as_path()).expect("directory");
-        std::fs::write(directory.join(format!("f{index}")), format!("content {index}")).expect("file");
+        std::fs::write(
+            directory.join(format!("f{index}")),
+            format!("content {index}"),
+        )
+        .expect("file");
     }
     assert!(copy_worker_count(files) >= 1);
     let staged: StagedSnapshot = stage_ignored_snapshot(
         &git_context(),
         source.as_path(),
-        new_stage_container(root.join("destination").as_path()).expect("container").as_path(),
+        new_stage_container(root.join("destination").as_path())
+            .expect("container")
+            .as_path(),
         &[],
         &CopySelection::MainCheckout,
     )
     .expect("staged");
-    let staged_files: usize = staged.entries.iter().filter(|entry| return entry.kind == EntryKind::File).count();
+    let staged_files: usize = staged
+        .entries
+        .iter()
+        .filter(|entry| return entry.kind == EntryKind::File)
+        .count();
     assert_eq!(staged_files, files);
     for index in [0, 1, files / 2, files - 1] {
-        let path: PathBuf = staged.stage_root.join(format!("bulk/d{}/f{index}", index % 7));
-        assert_eq!(std::fs::read_to_string(path).expect("staged file"), format!("content {index}"));
+        let path: PathBuf = staged
+            .stage_root
+            .join(format!("bulk/d{}/f{index}", index % 7));
+        assert_eq!(
+            std::fs::read_to_string(path).expect("staged file"),
+            format!("content {index}")
+        );
     }
     remove(root.as_path());
 }
@@ -510,7 +594,11 @@ fn unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage() {
     std::fs::create_dir_all(source.join("cache")).expect("cache");
     std::fs::write(source.join("cache/kept"), b"kept").expect("kept");
     std::fs::write(source.join("cache/hidden"), b"hidden").expect("hidden");
-    std::fs::set_permissions(source.join("cache/hidden"), std::fs::Permissions::from_mode(0o000)).expect("mode");
+    std::fs::set_permissions(
+        source.join("cache/hidden"),
+        std::fs::Permissions::from_mode(0o000),
+    )
+    .expect("mode");
     std::fs::create_dir_all(source.join("clone/.git")).expect("clone");
     std::fs::write(source.join("clone/file"), b"another checkout").expect("clone file");
     // A process allowed to read anything cannot show the case.
@@ -521,17 +609,27 @@ fn unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage() {
     let staged: StagedSnapshot = stage_ignored_snapshot(
         &git_context(),
         source.as_path(),
-        new_stage_container(root.join("destination").as_path()).expect("container").as_path(),
+        new_stage_container(root.join("destination").as_path())
+            .expect("container")
+            .as_path(),
         &[],
         &CopySelection::MainCheckout,
     )
     .expect("staged");
     assert_eq!(staged.unreadable, vec![b"cache/hidden".to_vec()]);
-    assert_eq!(staged.selected_roots, vec![b"cache".to_vec()], "the clone is no root of the stage");
+    assert_eq!(
+        staged.selected_roots,
+        vec![b"cache".to_vec()],
+        "the clone is no root of the stage"
+    );
     assert!(staged.stage_root.join("cache/kept").is_file());
     assert!(!staged.stage_root.join("cache/hidden").exists());
     assert!(!staged.stage_root.join("clone").exists());
-    std::fs::set_permissions(source.join("cache/hidden"), std::fs::Permissions::from_mode(0o600)).expect("restore");
+    std::fs::set_permissions(
+        source.join("cache/hidden"),
+        std::fs::Permissions::from_mode(0o600),
+    )
+    .expect("restore");
     remove(root.as_path());
 }
 
@@ -540,17 +638,35 @@ fn unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage() {
 /// with the margin left free.
 #[test]
 fn the_copy_workers_follow_the_hosts_budget_up_to_the_ceiling() {
-    let small_host: HostResources = HostResources { parallelism: PARALLEL_COPY_MAX_WORKERS, memory_available: None };
-    let large_host: HostResources = HostResources { parallelism: PARALLEL_COPY_MAX_WORKERS * 8, memory_available: None };
-    assert_eq!(copy_worker_count_on(&large_host, PARALLEL_COPY_MIN_ENTRIES - 1), 1);
-    assert_eq!(copy_worker_count_on(&large_host, PARALLEL_COPY_MIN_ENTRIES), PARALLEL_COPY_MAX_WORKERS);
-    assert_eq!(copy_worker_count_on(&small_host, PARALLEL_COPY_MIN_ENTRIES), PARALLEL_COPY_MAX_WORKERS - crate::parallel_budget::cpu_margin(PARALLEL_COPY_MAX_WORKERS));
+    let small_host: HostResources = HostResources {
+        parallelism: PARALLEL_COPY_MAX_WORKERS,
+        memory_available: None,
+    };
+    let large_host: HostResources = HostResources {
+        parallelism: PARALLEL_COPY_MAX_WORKERS * 8,
+        memory_available: None,
+    };
+    assert_eq!(
+        copy_worker_count_on(&large_host, PARALLEL_COPY_MIN_ENTRIES - 1),
+        1
+    );
+    assert_eq!(
+        copy_worker_count_on(&large_host, PARALLEL_COPY_MIN_ENTRIES),
+        PARALLEL_COPY_MAX_WORKERS
+    );
+    assert_eq!(
+        copy_worker_count_on(&small_host, PARALLEL_COPY_MIN_ENTRIES),
+        PARALLEL_COPY_MAX_WORKERS - crate::parallel_budget::cpu_margin(PARALLEL_COPY_MAX_WORKERS)
+    );
 }
 
 /// A copy goes parallel from the measured break-even number of entries and not before.
 #[test]
 fn the_copy_threshold_is_the_measured_break_even() {
-    assert_eq!(PARALLEL_COPY_MIN_ENTRIES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
+    assert_eq!(
+        PARALLEL_COPY_MIN_ENTRIES,
+        crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES
+    );
 }
 
 /// The copy's slices are jobs of the process's blocking pool:
@@ -558,29 +674,52 @@ fn the_copy_threshold_is_the_measured_break_even() {
 /// which a slice on a thread of its own never does.
 #[test]
 fn the_copy_slices_take_places_of_the_processs_bound() {
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{
+        AtomicBool,
+        Ordering,
+    };
     use std::sync::mpsc::RecvTimeoutError;
-    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) = crate::parallel_test_support::hold_the_only_place();
+    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) =
+        crate::parallel_test_support::hold_the_only_place();
     let root: PathBuf = fixture("stage-copy-the-bound");
     let source: PathBuf = root.join("source");
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(source.join("many")).expect("many");
     std::fs::create_dir_all(stage.join("many")).expect("stage many");
     for index in 0..PARALLEL_COPY_MIN_ENTRIES + 100 {
-        std::fs::write(source.join(format!("many/file-{index:05}")), format!("{index}")).expect("file");
+        std::fs::write(
+            source.join(format!("many/file-{index:05}")),
+            format!("{index}"),
+        )
+        .expect("file");
     }
-    let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[b"many".to_vec()], &[]).expect("manifest");
-    let copied = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()).expect("every file is copied");
+    let entries = crate::worktree_copy_manifest::collect_entry_manifest(
+        source.as_path(),
+        &[b"many".to_vec()],
+        &[],
+    )
+    .expect("manifest");
+    let copied = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice())
+        .expect("every file is copied");
     assert_eq!(copied.stamps.len(), entries.len());
     // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
     //  copy's slices reached the process's bound instead of starting at once.
     match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
         Ok(true) => {}
-        Ok(false) => panic!("the job that holds the only place saw no ask, so no slice of the copy took a place of the process's bound"),
-        Err(RecvTimeoutError::Timeout) => panic!("no slice of the copy asked for a place of the process's bound within the patience, so the slices did not run as jobs of the blocking pool"),
-        Err(RecvTimeoutError::Disconnected) => panic!("the job that holds the only place ended without answering"),
+        Ok(false) => panic!(
+            "the job that holds the only place saw no ask, so no slice of the copy took a place of the process's bound"
+        ),
+        Err(RecvTimeoutError::Timeout) => panic!(
+            "no slice of the copy asked for a place of the process's bound within the patience, so the slices did not run as jobs of the blocking pool"
+        ),
+        Err(RecvTimeoutError::Disconnected) => {
+            panic!("the job that holds the only place ended without answering")
+        }
     }
-    assert!(given_back.load(Ordering::SeqCst), "the place of the process's bound was never given back to a slice of the copy");
+    assert!(
+        given_back.load(Ordering::SeqCst),
+        "the place of the process's bound was never given back to a slice of the copy"
+    );
     remove(root.as_path());
 }
 
@@ -589,7 +728,10 @@ fn the_copy_slices_take_places_of_the_processs_bound() {
 /// in a child that is refused every thread.
 #[test]
 fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn") {
+    if crate::no_threads_child_test_support::ran_in_child(
+        module_path!(),
+        "a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn",
+    ) {
         return;
     }
     let root: PathBuf = fixture("stage-copy-no-threads");
@@ -598,29 +740,54 @@ fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {
     std::fs::create_dir_all(source.join("many")).expect("many");
     std::fs::create_dir_all(stage.join("many")).expect("stage many");
     for index in 0..PARALLEL_COPY_MIN_ENTRIES + 100 {
-        std::fs::write(source.join(format!("many/file-{index:05}")), format!("{index}")).expect("file");
+        std::fs::write(
+            source.join(format!("many/file-{index:05}")),
+            format!("{index}"),
+        )
+        .expect("file");
     }
-    let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[b"many".to_vec()], &[]).expect("manifest");
-    let copied = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()).expect("every file is copied here");
+    let entries = crate::worktree_copy_manifest::collect_entry_manifest(
+        source.as_path(),
+        &[b"many".to_vec()],
+        &[],
+    )
+    .expect("manifest");
+    let copied = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice())
+        .expect("every file is copied here");
     assert_eq!(copied.stamps.len(), entries.len());
     assert!(copied.gone.is_empty(), "no entry went away here");
-    assert_eq!(std::fs::read(stage.join("many/file-00007")).expect("copied"), b"7");
+    assert_eq!(
+        std::fs::read(stage.join("many/file-00007")).expect("copied"),
+        b"7"
+    );
     remove(&root);
 }
 
 /// The source of `a_regular_file_replaced_by_a_named_pipe_is_named_with_the_entries_a_worktree_cannot_hold`,
 /// and whether the replacement has happened yet.
-static THE_FILE_THAT_BECOMES_A_PIPE: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
-static THE_PIPE_REPLACED_A_FILE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static THE_FILE_THAT_BECOMES_A_PIPE: std::sync::Mutex<Option<PathBuf>> =
+    std::sync::Mutex::new(None);
+static THE_PIPE_REPLACED_A_FILE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 /// Copy one file,
 /// replacing `cache/b.txt` with a named pipe before the copy reaches it.
-fn clone_after_replacing_b(input: &std::fs::File, output: &std::fs::File) -> bool {
+fn clone_after_replacing_b(
+    input: &std::fs::File,
+    output: &std::fs::File,
+) -> bool {
     if !THE_PIPE_REPLACED_A_FILE.swap(true, std::sync::atomic::Ordering::SeqCst) {
-        let source: PathBuf = THE_FILE_THAT_BECOMES_A_PIPE.lock().expect("the source the control set").clone().expect("a source");
+        let source: PathBuf = THE_FILE_THAT_BECOMES_A_PIPE
+            .lock()
+            .expect("the source the control set")
+            .clone()
+            .expect("a source");
         let pipe: PathBuf = source.join("cache/b.txt");
         std::fs::remove_file(pipe.as_path()).expect("the regular file goes away");
-        let made: std::process::ExitStatus = std::process::Command::new("mkfifo").arg(pipe.as_path()).status().expect("mkfifo runs");
+        let made: std::process::ExitStatus = std::process::Command::new("mkfifo")
+            .arg(pipe.as_path())
+            .status()
+            .expect("mkfifo runs");
         assert!(made.success(), "the named pipe is made");
     }
     return try_clone(input, output);
@@ -640,7 +807,9 @@ fn a_regular_file_replaced_by_a_named_pipe_is_named_with_the_entries_a_worktree_
     std::fs::create_dir_all(source.join("cache")).expect("cache");
     std::fs::write(source.join("cache/a.txt"), b"a").expect("a");
     std::fs::write(source.join("cache/b.txt"), b"b").expect("b");
-    *THE_FILE_THAT_BECOMES_A_PIPE.lock().expect("no other control holds it") = Some(source.clone());
+    *THE_FILE_THAT_BECOMES_A_PIPE
+        .lock()
+        .expect("no other control holds it") = Some(source.clone());
     THE_PIPE_REPLACED_A_FILE.store(false, std::sync::atomic::Ordering::SeqCst);
     let container: PathBuf = new_stage_container(root.join("topic").as_path()).expect("container");
     create_private_tree(container.join("payload").as_path()).expect("payload");
@@ -655,8 +824,18 @@ fn a_regular_file_replaced_by_a_named_pipe_is_named_with_the_entries_a_worktree_
         &CopyCeiling::unbounded(),
     )
     .expect("a named pipe that replaced a file does not fail a copy");
-    assert!(!staged.stage_root.join("cache/b.txt").exists(), "a worktree holds no named pipe");
-    assert!(staged.stage_root.join("cache/a.txt").exists(), "the neighbour the copy reached first arrived");
-    assert_eq!(staged.uncopiable, vec![b"cache/b.txt".to_vec()], "the entry a worktree cannot hold is named");
+    assert!(
+        !staged.stage_root.join("cache/b.txt").exists(),
+        "a worktree holds no named pipe"
+    );
+    assert!(
+        staged.stage_root.join("cache/a.txt").exists(),
+        "the neighbour the copy reached first arrived"
+    );
+    assert_eq!(
+        staged.uncopiable,
+        vec![b"cache/b.txt".to_vec()],
+        "the entry a worktree cannot hold is named"
+    );
     remove(root.as_path());
 }

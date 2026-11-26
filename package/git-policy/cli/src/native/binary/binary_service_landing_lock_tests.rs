@@ -13,13 +13,36 @@
 //! or an owner nothing proves alive,
 //! keeps the lock.
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
+use super::commit::{
+    git_text,
+    remove_settled,
+    wrapped_commit,
+};
 use super::service_commit::runtime_for;
 use super::service_landing_selection::base_repository;
-use super::support::{Fixture, direct_held, executable, fixture, git, observe, spawn_owned, while_test_lives};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use super::support::{
+    Fixture,
+    direct_held,
+    executable,
+    fixture,
+    git,
+    observe,
+    spawn_owned,
+    while_test_lives,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 const PATIENCE: Duration = Duration::from_secs(60);
 
@@ -37,15 +60,25 @@ impl Drop for Held {
 /// A service for the control,
 /// started the way the unit file starts it,
 /// repeating its notices every `notice_seconds`.
-fn service_for(fixture: &Fixture, name: &str, notice_seconds: &str) -> Held {
+fn service_for(
+    fixture: &Fixture,
+    name: &str,
+    notice_seconds: &str,
+) -> Held {
     return service_with_arguments(fixture, name, notice_seconds, &[]);
 }
 
 /// `service_for` with more arguments for the service program (a control gives a short lock ceiling this way).
-pub(super) fn service_with_arguments(fixture: &Fixture, name: &str, notice_seconds: &str, extra: &[&str]) -> Held {
+pub(super) fn service_with_arguments(
+    fixture: &Fixture,
+    name: &str,
+    notice_seconds: &str,
+    extra: &[&str],
+) -> Held {
     let runtime: PathBuf = runtime_for(name);
     let git_dir: PathBuf = fixture.root.join("repo/.git");
-    let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir.as_path());
+    let socket: PathBuf =
+        git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir.as_path());
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     let child: Child = super::support::service_command()
         .args(["--journal"])
@@ -86,18 +119,40 @@ pub(super) fn service_with_arguments(fixture: &Fixture, name: &str, notice_secon
 ///  built again after the branch moved would meet the same file changed on both sides and refuse the commit
 ///  (`concurrent-commit/replay-conflict`,
 /// 2026-11-08).
-fn foreign_commit_with_editor(fixture: &Fixture, repo: &Path, editor_body: &str) -> Child {
+fn foreign_commit_with_editor(
+    fixture: &Fixture,
+    repo: &Path,
+    editor_body: &str,
+) -> Child {
     let editor: PathBuf = fixture.root.join("holding-editor");
-    executable(editor.as_path(), format!("#!/bin/sh\n{editor_body}printf 'foreign\\n' > \"$1\"\n").as_bytes());
-    git(fixture, repo, &["config", "core.editor", editor.to_str().expect("UTF-8")]);
+    executable(
+        editor.as_path(),
+        format!("#!/bin/sh\n{editor_body}printf 'foreign\\n' > \"$1\"\n").as_bytes(),
+    );
+    git(
+        fixture,
+        repo,
+        &["config", "core.editor", editor.to_str().expect("UTF-8")],
+    );
     // Git 2.54 can leave its process number beside the lock, which is what lets the service name the holder.
     git(fixture, repo, &["config", "core.lockfilePid", "true"]);
     std::fs::write(repo.join("b.txt"), "foreign edit\n").expect("b.txt");
     // No `timeout` in front: the control holds this commit open itself and lets it go when the control says so.
-    let child: Child = spawn_owned(direct_held(fixture).current_dir(repo).args(["commit", "--quiet", "--", "b.txt"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped())).expect("foreign commit");
+    let child: Child = spawn_owned(
+        direct_held(fixture)
+            .current_dir(repo)
+            .args(["commit", "--quiet", "--", "b.txt"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped()),
+    )
+    .expect("foreign commit");
     let began: Instant = Instant::now();
     while !repo.join(".git/index.lock").exists() {
-        assert!(began.elapsed() < PATIENCE, "the foreign commit never took the lock");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the foreign commit never took the lock"
+        );
         std::thread::sleep(Duration::from_millis(5));
     }
     return child;
@@ -105,7 +160,11 @@ fn foreign_commit_with_editor(fixture: &Fixture, repo: &Path, editor_body: &str)
 
 /// A foreign `git commit` of `b.txt` whose editor stays open for `hold` seconds,
 /// started once its lock exists.
-pub(super) fn foreign_commit(fixture: &Fixture, repo: &Path, hold: u32) -> Child {
+pub(super) fn foreign_commit(
+    fixture: &Fixture,
+    repo: &Path,
+    hold: u32,
+) -> Child {
     return foreign_commit_with_editor(fixture, repo, format!("sleep {hold}\n").as_str());
 }
 
@@ -120,10 +179,21 @@ pub(super) fn foreign_commit(fixture: &Fixture, repo: &Path, hold: u32) -> Child
 /// and
 ///  it lets go on its own if the test ends first,
 /// so the wait never depends on how fast the host runs the commit.
-pub(super) fn foreign_commit_until_released(fixture: &Fixture, repo: &Path, hold: u32) -> (Child, PathBuf) {
+pub(super) fn foreign_commit_until_released(
+    fixture: &Fixture,
+    repo: &Path,
+    hold: u32,
+) -> (Child, PathBuf) {
     let release: PathBuf = fixture.root.join("holder-release");
-    let body: String = format!("while [ ! -e '{}' ] && {}; do sleep 0.02; done\nsleep {hold}\n", release.display(), while_test_lives(fixture.root.as_path()));
-    return (foreign_commit_with_editor(fixture, repo, body.as_str()), release);
+    let body: String = format!(
+        "while [ ! -e '{}' ] && {}; do sleep 0.02; done\nsleep {hold}\n",
+        release.display(),
+        while_test_lives(fixture.root.as_path())
+    );
+    return (
+        foreign_commit_with_editor(fixture, repo, body.as_str()),
+        release,
+    );
 }
 
 /// What:
@@ -135,11 +205,25 @@ pub(super) fn foreign_commit_until_released(fixture: &Fixture, repo: &Path, hold
 /// so the commit built again after the branch moved would conflict with the holder on a file the control never meant to share.
 /// The control then failed with `left: Some(1)`,
 /// `right: Some(0)` and the wrapper's `replay-conflict` finding (2026-11-08).
-fn assert_the_holder_changed_only_its_own_file(fixture: &Fixture, repo: &Path) {
-    let foreign: String = git_text(fixture, repo, &["log", "--max-count=1", "--format=%H", "--grep", "^foreign$"]).trim().to_string();
+fn assert_the_holder_changed_only_its_own_file(
+    fixture: &Fixture,
+    repo: &Path,
+) {
+    let foreign: String = git_text(
+        fixture,
+        repo,
+        &["log", "--max-count=1", "--format=%H", "--grep", "^foreign$"],
+    )
+    .trim()
+    .to_string();
     assert!(!foreign.is_empty(), "the holder's commit is on the branch");
     assert_eq!(
-        git_text(fixture, repo, &["show", "--name-only", "--format=", foreign.as_str()]).trim(),
+        git_text(
+            fixture,
+            repo,
+            &["show", "--name-only", "--format=", foreign.as_str()]
+        )
+        .trim(),
         "b.txt",
         "the holder's commit changes only b.txt, never the file the control commits"
     );
@@ -156,18 +240,46 @@ fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("landing-lock-{}", std::process::id());
     let _service: Held = service_for(&fixture, name.as_str(), "1");
-    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     let holder: Child = foreign_commit(&fixture, &repo, 2);
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
-    let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", "mine", "--", "a.txt"]);
+    let mut command: Command =
+        wrapped_commit(&fixture, &repo, &["commit", "-m", "mine", "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()));
     let served = observe(&mut command, b"");
     let held = holder.wait_with_output().expect("the foreign commit ends");
-    assert!(held.status.success(), "the holder's own commit succeeds: {}", String::from_utf8_lossy(&held.stderr));
+    assert!(
+        held.status.success(),
+        "the holder's own commit succeeds: {}",
+        String::from_utf8_lossy(&held.stderr)
+    );
     assert_the_holder_changed_only_its_own_file(&fixture, &repo);
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
-    assert_eq!(git_text(&fixture, &repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\nmine\n");
-    assert_eq!(git_text(&fixture, &repo, &["status", "--short"]), "", "the index shows both commits");
+    assert_eq!(
+        served.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&served.stderr)
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            &repo,
+            &[
+                "log",
+                "--reverse",
+                "--format=%s",
+                format!("{base}..HEAD").as_str()
+            ]
+        ),
+        "foreign\nmine\n"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["status", "--short"]),
+        "",
+        "the index shows both commits"
+    );
     assert!(!repo.join(".git/index.lock").exists(), "no lock is left");
     remove_settled(&fixture);
 }
@@ -199,21 +311,56 @@ fn a_foreign_holder_proven_alive_is_waited_for_until_it_lets_go_and_the_commit_l
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("ll-nobound-{}", std::process::id());
     let _service: Held = service_for(&fixture, name.as_str(), "1");
-    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
-    let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, RELEASED_HOLD_SECONDS);
+    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
+    let (holder, release): (Child, PathBuf) =
+        foreign_commit_until_released(&fixture, &repo, RELEASED_HOLD_SECONDS);
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
-    let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", "mine", "--", "a.txt"]);
-    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str())).env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
-    let watched = super::wait_notice::watch_notices(&mut command, "waiting for PID", NOTICES_BEYOND_BACKOFF, || {
-        std::fs::write(&release, b"").expect("the foreign commit is told to let go");
-    });
+    let mut command: Command =
+        wrapped_commit(&fixture, &repo, &["commit", "-m", "mine", "--", "a.txt"]);
+    command
+        .env("XDG_RUNTIME_DIR", runtime_for(name.as_str()))
+        .env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+    let watched = super::wait_notice::watch_notices(
+        &mut command,
+        "waiting for PID",
+        NOTICES_BEYOND_BACKOFF,
+        || {
+            std::fs::write(&release, b"").expect("the foreign commit is told to let go");
+        },
+    );
     let held = holder.wait_with_output().expect("the foreign commit ends");
-    assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
+    assert!(
+        held.status.success(),
+        "{}",
+        String::from_utf8_lossy(&held.stderr)
+    );
     assert_the_holder_changed_only_its_own_file(&fixture, &repo);
     assert_eq!(watched.code, Some(0), "{}", watched.stderr);
-    assert!(!watched.stderr.contains("was not made") && !watched.stderr.contains("giving up"), "{}", watched.stderr);
-    assert_eq!(git_text(&fixture, &repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\nmine\n");
-    assert_eq!(git_text(&fixture, &repo, &["status", "--short"]), "", "the index shows both commits");
+    assert!(
+        !watched.stderr.contains("was not made") && !watched.stderr.contains("giving up"),
+        "{}",
+        watched.stderr
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            &repo,
+            &[
+                "log",
+                "--reverse",
+                "--format=%s",
+                format!("{base}..HEAD").as_str()
+            ]
+        ),
+        "foreign\nmine\n"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["status", "--short"]),
+        "",
+        "the index shows both commits"
+    );
     remove_settled(&fixture);
 }
 
@@ -241,7 +388,10 @@ struct SignalOnNotice {
 }
 
 impl std::io::Write for SignalOnNotice {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         self.text.extend_from_slice(bytes);
         if let Some(channel) = self.told.take() {
             let _sent = channel.send(());
@@ -264,18 +414,33 @@ impl std::io::Write for SignalOnNotice {
 ///  the control of the client's side.
 #[test]
 fn the_service_sends_heartbeats_to_a_request_that_waits_behind_a_long_foreign_hold() {
-    use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
-    use git_policy_cli::service_protocol::{ALLOWED_MODES, Change, CommitRequest};
+    use git_policy_cli::service_client::{
+        Activation,
+        ClientConfig,
+        Submitted,
+        submit,
+    };
+    use git_policy_cli::service_protocol::{
+        ALLOWED_MODES,
+        Change,
+        CommitRequest,
+    };
     use git_policy_cli::service_server::Bind;
     let fixture: Fixture = fixture("landing-lock-heartbeat");
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("ll-beat-{}", std::process::id());
     let _service: Held = service_for(&fixture, name.as_str(), QUIET_NOTICE_SECONDS);
     let git_dir: PathBuf = fixture.root.join("repo/.git");
-    let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime_for(name.as_str()).as_path(), git_dir.as_path());
-    let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, RELEASED_HOLD_SECONDS);
+    let socket: PathBuf = git_policy_cli::service_instance::socket_for(
+        runtime_for(name.as_str()).as_path(),
+        git_dir.as_path(),
+    );
+    let (holder, release): (Child, PathBuf) =
+        foreign_commit_until_released(&fixture, &repo, RELEASED_HOLD_SECONDS);
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
-    let blob: String = git_text(&fixture, &repo, &["hash-object", "-w", "--", "a.txt"]).trim().to_string();
+    let blob: String = git_text(&fixture, &repo, &["hash-object", "-w", "--", "a.txt"])
+        .trim()
+        .to_string();
     let request: CommitRequest = CommitRequest {
         id: String::from("heartbeat-landing"),
         repository: repo.clone(),
@@ -298,19 +463,48 @@ fn the_service_sends_heartbeats_to_a_request_that_waits_behind_a_long_foreign_ho
         holder: String::new(),
         programs: None,
     };
-    let config: ClientConfig = ClientConfig { address: Bind::Path(socket), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: CLIENT_SILENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: PATIENCE };
+    let config: ClientConfig = ClientConfig {
+        address: Bind::Path(socket),
+        activation: Activation::Managed,
+        start_wait: PATIENCE,
+        heartbeat_silence: CLIENT_SILENCE,
+        start_watch: None,
+        keep_fresh: None,
+        answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING,
+        withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING,
+        extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT,
+        start_ceiling: git_policy_cli::wait_ceilings::START_CEILING,
+        waiting_notice_after: PATIENCE,
+    };
     let (told, hearing) = std::sync::mpsc::channel::<()>();
     let letting_go = std::thread::spawn(move || {
-        hearing.recv_timeout(PATIENCE).expect("the client was told the request waits");
+        hearing
+            .recv_timeout(PATIENCE)
+            .expect("the client was told the request waits");
         std::thread::sleep(HOLD_AFTER_NOTICE);
         std::fs::write(&release, b"").expect("the foreign commit is told to let go");
     });
-    let mut notices: SignalOnNotice = SignalOnNotice { told: Some(told), text: Vec::new() };
+    let mut notices: SignalOnNotice = SignalOnNotice {
+        told: Some(told),
+        text: Vec::new(),
+    };
     let answered = submit(&config, &request, &mut notices);
     letting_go.join().expect("releaser");
     let held = holder.wait_with_output().expect("the foreign commit ends");
-    assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
-    assert!(matches!(answered, Ok(Submitted::Landed { .. })), "{answered:?} {}", String::from_utf8_lossy(&notices.text));
-    assert!(!String::from_utf8_lossy(&notices.text).contains("stopped answering"), "{}", String::from_utf8_lossy(&notices.text));
+    assert!(
+        held.status.success(),
+        "{}",
+        String::from_utf8_lossy(&held.stderr)
+    );
+    assert!(
+        matches!(answered, Ok(Submitted::Landed { .. })),
+        "{answered:?} {}",
+        String::from_utf8_lossy(&notices.text)
+    );
+    assert!(
+        !String::from_utf8_lossy(&notices.text).contains("stopped answering"),
+        "{}",
+        String::from_utf8_lossy(&notices.text)
+    );
     remove_settled(&fixture);
 }

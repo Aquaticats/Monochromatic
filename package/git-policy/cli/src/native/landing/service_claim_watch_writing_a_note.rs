@@ -16,10 +16,23 @@
 //! writeDown(directory, gitDir) // an exclusive create, then the next name when the first is another's
 //! ```
 
-use super::service_claim_watch_note_format::{NOTE_FILE_LIMIT, decode, encode, watch_name};
-use crate::private_storage::{ReadRefusal, create_private_directory_all, read_regular_file, write_private_file_unsynced};
+use super::service_claim_watch_note_format::{
+    NOTE_FILE_LIMIT,
+    decode,
+    encode,
+    watch_name,
+};
+use crate::private_storage::{
+    ReadRefusal,
+    create_private_directory_all,
+    read_regular_file,
+    write_private_file_unsynced,
+};
 use crate::service_claim_watch_whose_repository_it_is::of_another_instance;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The point at which the landing writes its note for the service that starts next,
 /// for a control that holds that write (`service_fault_hooks_test_support.rs`).
@@ -47,7 +60,11 @@ pub(crate) const IN_THE_NEXT_SERVICE_NOTE: &str = "in-the-next-service-note";
 /// ```ts
 /// const noteForTheNextService = (store, instance, gitDir) => { if (!ofAnotherInstance(instance, gitDir)) writeDown(store, gitDir); };
 /// ```
-pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: &Path) {
+pub fn note_for_the_next_service(
+    store: &Path,
+    instance: Option<&str>,
+    git_dir: &Path,
+) {
     // A control holds this write on whichever thread runs it, which `note_for_the_next_service_within` made a thread of its own
     //  (`service_claim_watch_note_within_a_ceiling.rs`).
     #[cfg(test)]
@@ -56,7 +73,10 @@ pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: 
         return;
     }
     if let Err(reason) = write_down(store, git_dir) {
-        crate::service_warn!("{} could not be kept for a restart, so a service that starts may not look at it: {reason}", git_dir.display());
+        crate::service_warn!(
+            "{} could not be kept for a restart, so a service that starts may not look at it: {reason}",
+            git_dir.display()
+        );
     }
 }
 
@@ -75,7 +95,10 @@ pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: 
 /// and a plain read of such a name waits in the kernel,
 /// reads a link through,
 /// or costs memory for nothing.
-pub(crate) fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
+pub(crate) fn write_down(
+    directory: &Path,
+    git_dir: &Path,
+) -> Result<(), String> {
     if let Err(error) = create_private_directory_all(directory) {
         return Err(format!("creating the note directory failed: {error}"));
     }
@@ -96,7 +119,10 @@ pub(crate) fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String>
             // A note of this store that was torn is replaced by the note of this name.
             Ok(_) => {
                 if let Err(removal) = std::fs::remove_file(path.as_path()) {
-                    return Err(format!("removing the damaged note {} failed: {removal}", path.display()));
+                    return Err(format!(
+                        "removing the damaged note {} failed: {removal}",
+                        path.display()
+                    ));
                 }
                 false
             }
@@ -104,7 +130,12 @@ pub(crate) fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String>
             Err(ReadRefusal::NotRegular | ReadRefusal::TooLarge) => true,
             // The name went between the create that found it taken and this read, so the same name is tried again.
             Err(ReadRefusal::Missing) => false,
-            Err(ReadRefusal::Io(error)) => return Err(format!("reading the note {} failed: {error}", path.display())),
+            Err(ReadRefusal::Io(error)) => {
+                return Err(format!(
+                    "reading the note {} failed: {error}",
+                    path.display()
+                ));
+            }
         };
         if next_name {
             attempt = attempt.saturating_add(1);

@@ -54,9 +54,14 @@ const SERVICE_LOG_KEPT_BYTES: u64 = 8 * 1024;
 pub fn kept_stderr_pipe(root: &Path) -> std::io::Result<(OwnedFd, std::sync::mpsc::Receiver<()>)> {
     let (mut reader, writer): (std::io::PipeReader, std::io::PipeWriter) = std::io::pipe()?;
     let path: std::path::PathBuf = root.join(SERVICE_LOG_FILE);
-    let (ended, when_it_ends): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
+    let (ended, when_it_ends): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) =
+        std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let mut file: Option<std::fs::File> = std::fs::OpenOptions::new().create(true).append(true).open(path.as_path()).ok();
+        let mut file: Option<std::fs::File> = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path.as_path())
+            .ok();
         let mut chunk: [u8; 4096] = [0; 4096];
         loop {
             match std::io::Read::read(&mut reader, &mut chunk) {
@@ -94,14 +99,28 @@ pub fn kept_stderr_pipe(root: &Path) -> std::io::Result<(OwnedFd, std::sync::mps
 /// const said = serviceLog(root).slice(-8 * 1024); // after copyEnded
 /// ```
 pub fn service_log(root: &Path) -> String {
-    use std::io::{Read, Seek};
+    use std::io::{
+        Read,
+        Seek,
+    };
     let path: std::path::PathBuf = root.join(SERVICE_LOG_FILE);
     let Ok(mut file) = std::fs::File::open(path.as_path()) else {
         return String::from("(the fixture's service wrote nothing)");
     };
-    let length: u64 = file.metadata().map(|metadata| { return metadata.len(); }).unwrap_or_default();
-    let _skipped = file.seek(std::io::SeekFrom::Start(length.saturating_sub(SERVICE_LOG_KEPT_BYTES)));
+    let length: u64 = file
+        .metadata()
+        .map(|metadata| {
+            return metadata.len();
+        })
+        .unwrap_or_default();
+    let _skipped = file.seek(std::io::SeekFrom::Start(
+        length.saturating_sub(SERVICE_LOG_KEPT_BYTES),
+    ));
     let mut kept: Vec<u8> = Vec::new();
     let _read = file.read_to_end(&mut kept);
-    return format!("the service logged ({} bytes kept):\n{}", kept.len(), String::from_utf8_lossy(kept.as_slice()));
+    return format!(
+        "the service logged ({} bytes kept):\n{}",
+        kept.len(),
+        String::from_utf8_lossy(kept.as_slice())
+    );
 }

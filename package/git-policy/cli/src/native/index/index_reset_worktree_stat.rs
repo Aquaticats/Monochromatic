@@ -87,16 +87,35 @@
 //! const stat: StatData | undefined = recordedStat({ worktreeRoot, path, blob, mode, format, stamp, hashed });
 //! ```
 
-use crate::fs_beneath::{entry_metadata_at, open_file_at, plain_components};
+use crate::fs_beneath::{
+    entry_metadata_at,
+    open_file_at,
+    plain_components,
+};
 use crate::fs_beneath_walk_chain::open_directory_beneath;
 use crate::index_reset_worktree_stat_source::WorktreeStatSource;
-use crate::index_stat::{IndexStamp, StatData};
+use crate::index_stat::{
+    IndexStamp,
+    StatData,
+};
 use crate::repo_read_layout::ObjectFormat;
-use crate::subvolume_sha::{sha1, sha256};
-use crate::worktree_clean_content::{CONTENT_LIMIT, ContentJudge};
+use crate::subvolume_sha::{
+    sha1,
+    sha256,
+};
+use crate::worktree_clean_content::{
+    CONTENT_LIMIT,
+    ContentJudge,
+};
 use crate::worktree_clean_tree_walk::ContentTarget;
-use std::cell::{Cell, RefCell};
-use std::ffi::{OsStr, OsString};
+use std::cell::{
+    Cell,
+    RefCell,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -133,7 +152,10 @@ pub struct ProofSeams<'a> {
 /// ```ts
 /// const readSome = (file, buffer) => readSync(file, buffer);
 /// ```
-fn read_some(file: &std::fs::File, buffer: &mut [u8]) -> std::io::Result<usize> {
+fn read_some(
+    file: &std::fs::File,
+    buffer: &mut [u8],
+) -> std::io::Result<usize> {
     use std::io::Read as _;
     return (&*file).read(buffer);
 }
@@ -222,7 +244,10 @@ pub struct WorktreeStatRequest<'a> {
 /// ```ts
 /// const name = hash(`blob ${data.length}\0`, data); // sha1 or sha256
 /// ```
-fn blob_name(data: &[u8], format: ObjectFormat) -> Vec<u8> {
+fn blob_name(
+    data: &[u8],
+    format: ObjectFormat,
+) -> Vec<u8> {
     let mut framed: Vec<u8> = format!("blob {}\0", data.len()).into_bytes();
     framed.extend_from_slice(data);
     return match format {
@@ -250,7 +275,10 @@ fn blob_name(data: &[u8], format: ObjectFormat) -> Vec<u8> {
 /// const same = (a, b) => a.dev === b.dev && a.ino === b.ino && a.size === b.size && a.mode === b.mode && a.uid === b.uid
 ///   && a.gid === b.gid && a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
 /// ```
-fn same_state(first: &std::fs::Metadata, second: &std::fs::Metadata) -> bool {
+fn same_state(
+    first: &std::fs::Metadata,
+    second: &std::fs::Metadata,
+) -> bool {
     return first.dev() == second.dev()
         && first.ino() == second.ino()
         && first.size() == second.size()
@@ -330,12 +358,19 @@ fn stat_of(metadata: &std::fs::Metadata) -> StatData {
 ///     catch (error) { if (error.kind === 'Interrupted' && interrupted < INTERRUPTED_TRIES) { interrupted += 1; continue; } return undefined; } if (taken === 0) break; data.push(...taken); spent += taken; } return data;
 /// }
 /// ```
-fn read_by_chunks(file: &std::fs::File, room: u64, spent: &Cell<u64>, seams: &mut ProofSeams<'_>) -> Option<Vec<u8>> {
+fn read_by_chunks(
+    file: &std::fs::File,
+    room: u64,
+    spent: &Cell<u64>,
+    seams: &mut ProofSeams<'_>,
+) -> Option<Vec<u8>> {
     let mut data: Vec<u8> = Vec::new();
     let mut interrupted: usize = 0;
     let mut buffer: Vec<u8> = vec![0; READ_CHUNK];
     while (data.len() as u64) < room {
-        let want: usize = usize::try_from(room - data.len() as u64).unwrap_or(usize::MAX).min(READ_CHUNK);
+        let want: usize = usize::try_from(room - data.len() as u64)
+            .unwrap_or(usize::MAX)
+            .min(READ_CHUNK);
         match (seams.read)(file, &mut buffer[..want]) {
             Ok(0) => break,
             Ok(taken) => {
@@ -345,7 +380,10 @@ fn read_by_chunks(file: &std::fs::File, room: u64, spent: &Cell<u64>, seams: &mu
             }
             // An interruption is not a fact about the file, so it is tried again;
             // a source that interrupts every try is refused rather than waited on.
-            Err(error) if error.kind() == std::io::ErrorKind::Interrupted && interrupted < INTERRUPTED_TRIES => {
+            Err(error)
+                if error.kind() == std::io::ErrorKind::Interrupted
+                    && interrupted < INTERRUPTED_TRIES =>
+            {
                 interrupted += 1;
                 continue;
             }
@@ -371,11 +409,15 @@ fn read_by_chunks(file: &std::fs::File, room: u64, spent: &Cell<u64>, seams: &mu
 /// const agrees = entry.mode === 0o100644 || entry.mode === 0o100755
 ///   ? m.isFile() && (entry.mode & 0o100) === (m.mode & 0o100) : false;
 /// ```
-fn mode_agrees(entry_mode: u32, metadata: &std::fs::Metadata) -> bool {
+fn mode_agrees(
+    entry_mode: u32,
+    metadata: &std::fs::Metadata,
+) -> bool {
     if entry_mode & TYPE_BITS != REGULAR_FILE {
         return false;
     }
-    return metadata.file_type().is_file() && (entry_mode & EXECUTABLE_BIT != 0) == (metadata.mode() & EXECUTABLE_BIT != 0);
+    return metadata.file_type().is_file()
+        && (entry_mode & EXECUTABLE_BIT != 0) == (metadata.mode() & EXECUTABLE_BIT != 0);
 }
 
 /// What:
@@ -391,8 +433,18 @@ fn mode_agrees(entry_mode: u32, metadata: &std::fs::Metadata) -> bool {
 /// ```ts
 /// const judge = new ContentJudge({ root, gitDir, commonDir, environment, format }); judge.chargeAttributesTo(hashed);
 /// ```
-fn charged_judge<'a>(root: &'a std::fs::File, target: &ContentTarget<'a>, hashed: &'a Cell<u64>) -> ContentJudge<'a> {
-    let mut judge: ContentJudge<'a> = ContentJudge::new(root, target.git_dir, target.common_dir, target.environment, target.format);
+fn charged_judge<'a>(
+    root: &'a std::fs::File,
+    target: &ContentTarget<'a>,
+    hashed: &'a Cell<u64>,
+) -> ContentJudge<'a> {
+    let mut judge: ContentJudge<'a> = ContentJudge::new(
+        root,
+        target.git_dir,
+        target.common_dir,
+        target.environment,
+        target.format,
+    );
     judge.charge_attributes_to(hashed);
     return judge;
 }
@@ -454,7 +506,13 @@ pub struct LandingStat<'a> {
 impl<'a> LandingStat<'a> {
     /// The source of the worktree held open as `root`,
     /// whose index file is dated `stamp`.
-    pub fn new(root: &'a std::fs::File, target: &ContentTarget<'a>, stamp: IndexStamp, hashed: &'a Cell<u64>, indexed_attributes: &'a [Vec<u8>]) -> LandingStat<'a> {
+    pub fn new(
+        root: &'a std::fs::File,
+        target: &ContentTarget<'a>,
+        stamp: IndexStamp,
+        hashed: &'a Cell<u64>,
+        indexed_attributes: &'a [Vec<u8>],
+    ) -> LandingStat<'a> {
         return LandingStat {
             root,
             judge: RefCell::new(charged_judge(root, target, hashed)),
@@ -485,7 +543,10 @@ impl<'a> LandingStat<'a> {
     /// ```ts
     /// const directory = (cache.get(parents) ?? openBelow(heldRoot, parents)).dup();
     /// ```
-    fn directory(&self, parents: &[OsString]) -> Option<std::fs::File> {
+    fn directory(
+        &self,
+        parents: &[OsString],
+    ) -> Option<std::fs::File> {
         let missed: bool = match self.directory.borrow().as_ref() {
             Some((known, _opened)) => known.as_slice() != parents,
             None => true,
@@ -494,7 +555,8 @@ impl<'a> LandingStat<'a> {
             let opened: std::fs::File = open_directory_beneath(self.root, parents).ok()?;
             self.directory.replace(Some((parents.to_vec(), opened)));
         }
-        let cache: std::cell::Ref<'_, Option<(Vec<OsString>, std::fs::File)>> = self.directory.borrow();
+        let cache: std::cell::Ref<'_, Option<(Vec<OsString>, std::fs::File)>> =
+            self.directory.borrow();
         let cached: &std::fs::File = the_directory(&cache)?;
         return cached.try_clone().ok();
     }
@@ -523,7 +585,14 @@ impl<'a> LandingStat<'a> {
     ///   seams.afterRead(); ... stability checks ...; return data;
     /// }
     /// ```
-    fn read_charged(&self, directory: &std::fs::File, name: &OsStr, before: &std::fs::Metadata, room: u64, seams: &mut ProofSeams<'_>) -> Option<(Vec<u8>, std::fs::Metadata)> {
+    fn read_charged(
+        &self,
+        directory: &std::fs::File,
+        name: &OsStr,
+        before: &std::fs::Metadata,
+        room: u64,
+        seams: &mut ProofSeams<'_>,
+    ) -> Option<(Vec<u8>, std::fs::Metadata)> {
         (seams.before_open)();
         let file: std::fs::File = open_file_at(directory, name).ok()?;
         let held: std::fs::Metadata = file.metadata().ok()?;
@@ -566,7 +635,10 @@ impl<'a> LandingStat<'a> {
     /// ```ts
     /// const attributesMissing = (parents) => !exists(join(heldDirectory(parents), '.gitattributes'));
     /// ```
-    fn attributes_missing(&self, parents: &[OsString]) -> Option<bool> {
+    fn attributes_missing(
+        &self,
+        parents: &[OsString],
+    ) -> Option<bool> {
         let directory: std::fs::File = self.directory(parents)?;
         return Some(entry_metadata_at(&directory, OsStr::new(".gitattributes")).is_err());
     }
@@ -582,11 +654,16 @@ impl<'a> LandingStat<'a> {
     /// ```ts
     /// for (const directory of ancestors(parents)) if (indexed.has(directory) && attributesMissing(directory)) return undefined;
     /// ```
-    fn attributes_come_only_from_the_index(&self, parents: &[OsString]) -> bool {
+    fn attributes_come_only_from_the_index(
+        &self,
+        parents: &[OsString],
+    ) -> bool {
         if self.indexed_attributes.is_empty() {
             return false;
         }
-        if self.indexed_attributes.binary_search(&Vec::new()).is_ok() && matches!(self.attributes_missing(&[]), None | Some(true)) {
+        if self.indexed_attributes.binary_search(&Vec::new()).is_ok()
+            && matches!(self.attributes_missing(&[]), None | Some(true))
+        {
             return true;
         }
         for depth in 1..=parents.len() {
@@ -600,7 +677,10 @@ impl<'a> LandingStat<'a> {
             if self.indexed_attributes.binary_search(&prefix).is_err() {
                 continue;
             }
-            if matches!(self.attributes_missing(&parents[..depth]), None | Some(true)) {
+            if matches!(
+                self.attributes_missing(&parents[..depth]),
+                None | Some(true)
+            ) {
                 return true;
             }
         }
@@ -620,7 +700,13 @@ impl<'a> LandingStat<'a> {
     /// ```ts
     /// const stat = source.recorded(path, blob, mode);
     /// ```
-    fn record(&self, path: &[u8], blob: &[u8], mode: u32, seams: &mut ProofSeams<'_>) -> Option<StatData> {
+    fn record(
+        &self,
+        path: &[u8],
+        blob: &[u8],
+        mode: u32,
+        seams: &mut ProofSeams<'_>,
+    ) -> Option<StatData> {
         let names: Vec<OsString> = plain_components(Path::new(OsStr::from_bytes(path))).ok()?;
         let (name, parents): (&OsString, &[OsString]) = names.split_last()?;
         let directory: std::fs::File = self.directory(parents)?;
@@ -632,14 +718,20 @@ impl<'a> LandingStat<'a> {
         if self.attributes_come_only_from_the_index(parents) {
             return None;
         }
-        if self.judge.borrow_mut().conversion_is_the_identity(path, parents).is_err() {
+        if self
+            .judge
+            .borrow_mut()
+            .conversion_is_the_identity(path, parents)
+            .is_err()
+        {
             return None;
         }
         let room: u64 = CONTENT_LIMIT.saturating_sub(self.hashed.get());
         if before.len() > room {
             return None;
         }
-        let (data, examined): (Vec<u8>, std::fs::Metadata) = self.read_charged(&directory, name.as_os_str(), &before, room, seams)?;
+        let (data, examined): (Vec<u8>, std::fs::Metadata) =
+            self.read_charged(&directory, name.as_os_str(), &before, room, seams)?;
         // A line-ending rule Git applies whatever the attributes say may strip a carriage return on the way into the index.
         if data.contains(&b'\r') || blob_name(data.as_slice(), self.format) != blob {
             return None;
@@ -649,8 +741,22 @@ impl<'a> LandingStat<'a> {
 }
 
 impl WorktreeStatSource for LandingStat<'_> {
-    fn recorded(&self, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData> {
-        return self.record(path, blob, mode, &mut ProofSeams { before_open: &mut do_nothing, after_read: &mut do_nothing, read: &mut read_some });
+    fn recorded(
+        &self,
+        path: &[u8],
+        blob: &[u8],
+        mode: u32,
+    ) -> Option<StatData> {
+        return self.record(
+            path,
+            blob,
+            mode,
+            &mut ProofSeams {
+                before_open: &mut do_nothing,
+                after_read: &mut do_nothing,
+                read: &mut read_some,
+            },
+        );
     }
 }
 
@@ -666,10 +772,25 @@ impl WorktreeStatSource for LandingStat<'_> {
 /// ```ts
 /// const stat = recordedStatSeamed(request, seams);
 /// ```
-pub fn recorded_stat_seamed(request: &WorktreeStatRequest<'_>, seams: &mut ProofSeams<'_>) -> Option<StatData> {
+pub fn recorded_stat_seamed(
+    request: &WorktreeStatRequest<'_>,
+    seams: &mut ProofSeams<'_>,
+) -> Option<StatData> {
     let root: std::fs::File = crate::fs_beneath::open_root(request.worktree_root).ok()?;
-    let target: ContentTarget<'_> = ContentTarget { root: request.worktree_root, git_dir: request.git_dir, common_dir: request.common_dir, environment: request.environment, format: request.format };
-    let source: LandingStat<'_> = LandingStat::new(&root, &target, request.stamp, request.hashed, request.indexed_attributes);
+    let target: ContentTarget<'_> = ContentTarget {
+        root: request.worktree_root,
+        git_dir: request.git_dir,
+        common_dir: request.common_dir,
+        environment: request.environment,
+        format: request.format,
+    };
+    let source: LandingStat<'_> = LandingStat::new(
+        &root,
+        &target,
+        request.stamp,
+        request.hashed,
+        request.indexed_attributes,
+    );
     return source.record(request.path, request.blob, request.mode, seams);
 }
 
@@ -683,7 +804,14 @@ pub fn recorded_stat_seamed(request: &WorktreeStatRequest<'_>, seams: &mut Proof
 /// const stat = recordedStat(request);
 /// ```
 pub fn recorded_stat(request: &WorktreeStatRequest<'_>) -> Option<StatData> {
-    return recorded_stat_seamed(request, &mut ProofSeams { before_open: &mut do_nothing, after_read: &mut do_nothing, read: &mut read_some });
+    return recorded_stat_seamed(
+        request,
+        &mut ProofSeams {
+            before_open: &mut do_nothing,
+            after_read: &mut do_nothing,
+            read: &mut read_some,
+        },
+    );
 }
 
 /// Controls for the recorded stat data stay out of the release executable.

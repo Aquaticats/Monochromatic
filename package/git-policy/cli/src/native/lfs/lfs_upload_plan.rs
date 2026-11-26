@@ -38,25 +38,54 @@
 //! const plan = planUpload(globalPrefix, region, env, directory, settings, query); // { remotes, refs, everything }
 //! ```
 
-/// What the arguments and the configuration decide before Git is asked anything.
-use crate::lfs_upload_plan_arguments::{
-    Destinations, a_bare_push, a_branch_is_needed, destinations_of, remote_name_of, same_place, specs_of, submodules_of, the_plan, unique_refs,
-    uploads_nothing,
-};
 /// Whether the destination confirms this clone's tracking refs.
-use crate::lfs_destination_confirms_tracking_refs::{ConfirmedTrackingRefs, DestinationHeads, tracking_refs_confirmed_by};
-/// The configuration the plan reads.
-use crate::lfs_upload_settings::{current_branch, git_says_true, setting};
+use crate::lfs_destination_confirms_tracking_refs::{
+    ConfirmedTrackingRefs,
+    DestinationHeads,
+    tracking_refs_confirmed_by,
+};
 /// The host a URL names,
 /// with any userinfo left out.
 use crate::lfs_output_mask::host_of;
+/// What the arguments and the configuration decide before Git is asked anything.
+use crate::lfs_upload_plan_arguments::{
+    Destinations,
+    a_bare_push,
+    a_branch_is_needed,
+    destinations_of,
+    remote_name_of,
+    same_place,
+    specs_of,
+    submodules_of,
+    the_plan,
+    unique_refs,
+    uploads_nothing,
+};
 /// The whole plan awaited by a caller that is itself a task of the runtime.
 pub use crate::lfs_upload_plan_awaiting::plan_upload_awaiting;
 pub use crate::lfs_upload_settings::{
-    GitQuery, GitQueryAwaiting, PlanError, Query, QueryAwaiting, Settings, read_settings, read_settings_awaiting, resolve_push_remote, settings_from_snapshot,
+    GitQuery,
+    GitQueryAwaiting,
+    PlanError,
+    Query,
+    QueryAwaiting,
+    Settings,
+    read_settings,
+    read_settings_awaiting,
+    resolve_push_remote,
+    settings_from_snapshot,
+};
+/// The configuration the plan reads.
+use crate::lfs_upload_settings::{
+    current_branch,
+    git_says_true,
+    setting,
 };
 /// Owned OS text for arguments.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// Locations.
 use std::path::Path;
 
@@ -121,13 +150,20 @@ impl UploadPlan {
     /// with named objects,
     /// one
     ///  `push --object-id <destination> <oid>...` run per [`OBJECTS_PER_RUN`] objects.
-    pub fn runs(&self, remote: &OsStr) -> Vec<Vec<OsString>> {
+    pub fn runs(
+        &self,
+        remote: &OsStr,
+    ) -> Vec<Vec<OsString>> {
         let Some(objects) = self.objects.as_ref() else {
             return vec![self.arguments(remote)];
         };
         let mut runs: Vec<Vec<OsString>> = Vec::new();
         for chunk in objects.chunks(OBJECTS_PER_RUN) {
-            let mut arguments: Vec<OsString> = vec![OsString::from("push"), OsString::from("--object-id"), remote.to_owned()];
+            let mut arguments: Vec<OsString> = vec![
+                OsString::from("push"),
+                OsString::from("--object-id"),
+                remote.to_owned(),
+            ];
             arguments.extend(chunk.iter().map(OsString::from));
             runs.push(arguments);
         }
@@ -144,7 +180,10 @@ impl UploadPlan {
     ///  mention are not skipped;
     /// without it `git-lfs` skips them,
     /// and a push that adds no object sends no batch request.
-    pub fn arguments(&self, remote: &OsStr) -> Vec<OsString> {
+    pub fn arguments(
+        &self,
+        remote: &OsStr,
+    ) -> Vec<OsString> {
         let mut arguments: Vec<OsString> = vec![OsString::from("push")];
         if self.full_scan {
             arguments.push(OsString::from("--all"));
@@ -157,13 +196,21 @@ impl UploadPlan {
     }
 }
 
-/// The source of one refspec,
-/// and the refs a pattern of it names,
-/// which `lfs_upload_refspecs.rs` owns.
-pub(crate) use crate::lfs_upload_refspecs::{Source, directory_of, expand_pattern, list, names_of, refspec_source, star_split};
 /// The one test of a colon,
 /// which the destination of an upload reads too.
 use crate::lfs_upload_refspecs::is_colon_byte;
+/// The source of one refspec,
+/// and the refs a pattern of it names,
+/// which `lfs_upload_refspecs.rs` owns.
+pub(crate) use crate::lfs_upload_refspecs::{
+    Source,
+    directory_of,
+    expand_pattern,
+    list,
+    names_of,
+    refspec_source,
+    star_split,
+};
 
 /// `file://` and percent-encoding for a path,
 /// where `git-lfs` accepts only a remote name or an URL.
@@ -195,7 +242,11 @@ fn file_url(absolute: &Path) -> OsString {
 /// ```ts
 /// isPath(remote) ? pathToFileURL(resolve(directory, remote)) : remote
 /// ```
-pub(crate) fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool) -> OsString {
+pub(crate) fn lfs_destination(
+    remote: &OsStr,
+    directory: &Path,
+    configured: bool,
+) -> OsString {
     let bytes: &[u8] = remote.as_encoded_bytes();
     let mut has_scheme: bool = false;
     for window in bytes.windows(3) {
@@ -208,7 +259,8 @@ pub(crate) fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool
         Some(colon) => !bytes[..colon].contains(&b'/'),
         None => false,
     };
-    let explicit_path: bool = bytes.starts_with(b"/") || bytes.starts_with(b"./") || bytes.starts_with(b"../");
+    let explicit_path: bool =
+        bytes.starts_with(b"/") || bytes.starts_with(b"./") || bytes.starts_with(b"../");
     if configured || has_scheme || (scp_like && !explicit_path) {
         return remote.to_owned();
     }
@@ -263,13 +315,18 @@ pub(crate) fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool
 /// ```ts
 /// function lfsServerOf(remote: string, all: Settings): string | undefined
 /// ```
-pub fn lfs_server_of(remote: &OsStr, all: &[(String, String)]) -> Option<String> {
+pub fn lfs_server_of(
+    remote: &OsStr,
+    all: &[(String, String)],
+) -> Option<String> {
     let text: String = remote.to_string_lossy().into_owned();
     let push_aliases: Vec<(&str, &str)> = url_aliases(all, true);
     let fetch_aliases: Vec<(&str, &str)> = url_aliases(all, false);
     let endpoint_host = |value: &str| -> Option<String> {
-        let rewritten: Option<String> = replace_url_alias(value, push_aliases.as_slice())
-            .or_else(|| { return replace_url_alias(value, fetch_aliases.as_slice()); });
+        let rewritten: Option<String> =
+            replace_url_alias(value, push_aliases.as_slice()).or_else(|| {
+                return replace_url_alias(value, fetch_aliases.as_slice());
+            });
         return host_of(rewritten.as_deref().unwrap_or(value));
     };
     // The two global keys answer first, whatever the remote's own keys say (git-lfs `getEndpoint`, lines 99 and 104).
@@ -287,7 +344,10 @@ pub fn lfs_server_of(remote: &OsStr, all: &[(String, String)]) -> Option<String>
     }
     names.push("origin");
     for name in names {
-        for key in [format!("remote.{name}.lfspushurl"), format!("remote.{name}.lfsurl")] {
+        for key in [
+            format!("remote.{name}.lfspushurl"),
+            format!("remote.{name}.lfsurl"),
+        ] {
             if let Some(value) = setting(all, key.as_str())
                 && let Some(host) = endpoint_host(value)
             {
@@ -295,8 +355,13 @@ pub fn lfs_server_of(remote: &OsStr, all: &[(String, String)]) -> Option<String>
             }
         }
         // `git-lfs` reads one value per key and the last one written wins (`config/git_fetcher.go:121-128`).
-        for value in [setting(all, &format!("remote.{name}.pushurl")), setting(all, &format!("remote.{name}.url"))] {
-            if let Some(host) = value.and_then(|endpoint| { return endpoint_host(endpoint); }) {
+        for value in [
+            setting(all, &format!("remote.{name}.pushurl")),
+            setting(all, &format!("remote.{name}.url")),
+        ] {
+            if let Some(host) = value.and_then(|endpoint| {
+                return endpoint_host(endpoint);
+            }) {
                 return Some(host);
             }
         }
@@ -338,18 +403,25 @@ pub fn lfs_server_of(remote: &OsStr, all: &[(String, String)]) -> Option<String>
 /// ```ts
 /// function urlAliases(all: Settings, push: boolean): Array<[alias: string, replacement: string]>
 /// ```
-fn url_aliases<'a>(all: &'a [(String, String)], push: bool) -> Vec<(&'a str, &'a str)> {
+fn url_aliases<'a>(
+    all: &'a [(String, String)],
+    push: bool,
+) -> Vec<(&'a str, &'a str)> {
     let suffix: &str = if push { ".pushinsteadof" } else { ".insteadof" };
     let mut aliases: Vec<(&'a str, &'a str)> = Vec::new();
     // The last entry of a key wins, so the entries are read backwards and one alias is kept once.
     for (key, value) in all.iter().rev() {
-        let Some(base) = key.strip_prefix("url.").and_then(|rest| { return rest.strip_suffix(suffix); }) else {
+        let Some(base) = key.strip_prefix("url.").and_then(|rest| {
+            return rest.strip_suffix(suffix);
+        }) else {
             continue;
         };
         if value.is_empty() {
             continue;
         }
-        if aliases.iter().any(|(alias, _replacement)| { return *alias == value.as_str(); }) {
+        if aliases.iter().any(|(alias, _replacement)| {
+            return *alias == value.as_str();
+        }) {
             continue;
         }
         aliases.push((value.as_str(), base));
@@ -369,17 +441,24 @@ fn url_aliases<'a>(all: &'a [(String, String)], push: bool) -> Vec<(&'a str, &'a
 /// ```ts
 /// function replaceUrlAlias(rawurl: string, aliases: Array<[alias: string, replacement: string]>): string | undefined
 /// ```
-fn replace_url_alias(rawurl: &str, aliases: &[(&str, &str)]) -> Option<String> {
+fn replace_url_alias(
+    rawurl: &str,
+    aliases: &[(&str, &str)],
+) -> Option<String> {
     let mut longest: Option<(&str, &str)> = None;
     for (alias, replacement) in aliases {
         if !rawurl.starts_with(alias) {
             continue;
         }
-        if longest.is_none_or(|(found, _replacement)| { return alias.len() > found.len(); }) {
+        if longest.is_none_or(|(found, _replacement)| {
+            return alias.len() > found.len();
+        }) {
             longest = Some((alias, replacement));
         }
     }
-    return longest.map(|(alias, replacement)| { return format!("{replacement}{}", &rawurl[alias.len()..]); });
+    return longest.map(|(alias, replacement)| {
+        return format!("{replacement}{}", &rawurl[alias.len()..]);
+    });
 }
 
 /// The remotes the configuration defines (a `url` or a `pushurl`).
@@ -464,14 +543,25 @@ pub fn plan_upload(
         return Ok(None);
     };
     let submodules: bool = submodules_of(&shape);
-    let branch: Option<String> = if a_branch_is_needed(&shape) { current_branch(query)? } else { None };
+    let branch: Option<String> = if a_branch_is_needed(&shape) {
+        current_branch(query)?
+    } else {
+        None
+    };
     let remote_name: OsString = remote_name_of(&shape, branch.as_deref(), all);
     let remote_text: String = remote_name.to_string_lossy().into_owned();
     let mirror_is_set: bool = match a_bare_push(&shape, shape.mirror) {
         true => git_says_true(all, format!("remote.{remote_text}.mirror").as_str(), query)?,
         false => false,
     };
-    let (everything, specs): (bool, Vec<OsString>) = specs_of(&shape, remote_text.as_str(), branch.as_deref(), all, shape.mirror, mirror_is_set);
+    let (everything, specs): (bool, Vec<OsString>) = specs_of(
+        &shape,
+        remote_text.as_str(),
+        branch.as_deref(),
+        all,
+        shape.mirror,
+        mirror_is_set,
+    );
     let mut refs: Vec<OsString> = Vec::new();
     for spec in &specs {
         match refspec_source(spec.as_os_str()) {
@@ -493,7 +583,8 @@ pub fn plan_upload(
     if listed.is_empty() && !everything {
         return Ok(None);
     }
-    let destinations: Destinations<'_> = destinations_of(&remote_name, remote_text.as_str(), directory, all);
+    let destinations: Destinations<'_> =
+        destinations_of(&remote_name, remote_text.as_str(), directory, all);
     // The destination confirms this clone's tracking refs ref by ref, where it is one the clone both fetches from and
     //  pushes to; every other destination is asked nothing and its upload stops nowhere.
     let evidence: ConfirmedTrackingRefs = if same_place(&destinations, everything, all) {
@@ -503,7 +594,15 @@ pub fn plan_upload(
     };
     let full_scan: bool = everything || !evidence.every_tracking_ref_is_confirmed();
     let lfs_server: Option<String> = lfs_server_of(remote_name.as_os_str(), all);
-    return Ok(Some(the_plan(destinations, listed, everything, submodules, full_scan, evidence.names().to_vec(), lfs_server)));
+    return Ok(Some(the_plan(
+        destinations,
+        listed,
+        everything,
+        submodules,
+        full_scan,
+        evidence.names().to_vec(),
+        lfs_server,
+    )));
 }
 
 /// The plan is controlled in the test module.

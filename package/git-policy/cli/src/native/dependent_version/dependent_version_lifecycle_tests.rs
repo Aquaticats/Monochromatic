@@ -18,21 +18,37 @@
 #![cfg(unix)]
 
 /// Import the view under test and its mode mapping.
-use super::{lifecycle_workspace, tracked_mode};
+use super::{
+    lifecycle_workspace,
+    tracked_mode,
+};
 /// The modes and object names entries carry.
-use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    parse_object_id,
+};
 /// The store the view reads through.
 use crate::candidate_store::CandidateStore;
 /// The planner's seam and its types.
 use crate::dependent_version_content::{
-    ContentUnavailable, TrackedMode, TrackedPath, WorkspaceContent,
+    ContentUnavailable,
+    TrackedMode,
+    TrackedPath,
+    WorkspaceContent,
 };
 /// A corrected file.
 use crate::direct_fix_install::InstallChange;
 /// The object name of a revision.
 use crate::git_metadata::strip_git_line;
 /// Shared fixture directories and real Git.
-use crate::test_support::{REAL_GIT, fixture, git, remove, repository};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    remove,
+    repository,
+};
 /// Corrected files by pathname.
 use std::collections::BTreeMap;
 /// Owned operating-system text.
@@ -41,7 +57,10 @@ use std::ffi::OsString;
 /// for the executable file.
 use std::os::unix::fs::PermissionsExt;
 /// Borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Shared byte handles.
 use std::rc::Rc;
 
@@ -55,7 +74,10 @@ fn store(directory: &Path) -> CandidateStore {
 }
 
 /// The object a revision expression names.
-fn object(repository: &Path, revision: &str) -> ObjectId {
+fn object(
+    repository: &Path,
+    revision: &str,
+) -> ObjectId {
     let output: std::process::Output = git(repository, &["rev-parse", "--verify", revision]);
     return parse_object_id(strip_git_line(output.stdout.as_slice())).expect("object name");
 }

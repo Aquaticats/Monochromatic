@@ -12,15 +12,33 @@
 //!  and the line must never claim the worktree was clean when a removal takes
 //!       more than it counted.
 
-use super::{CHANGED_PATHS_CEILING, changed_paths, removal_facts, removal_target, worktree_head};
-use crate::discard_audit_facts::AuditFact;
+use super::{
+    CHANGED_PATHS_CEILING,
+    changed_paths,
+    removal_facts,
+    removal_target,
+    worktree_head,
+};
 use crate::command_test_support::git_status;
-use crate::test_support::{fixture, git, isolated_overlay, remove, repository};
+use crate::discard_audit_facts::AuditFact;
 use crate::path_bytes::path_bytes_of;
-use crate::transaction_git::GitContext;
+use crate::test_support::{
+    fixture,
+    git,
+    isolated_overlay,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use crate::transaction_git::GitContext;
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A context that reads a repository through `-C`.
 fn context(repo: &std::path::Path) -> GitContext {
@@ -34,7 +52,10 @@ fn context(repo: &std::path::Path) -> GitContext {
 
 /// The value of one named fact,
 /// or empty text when the record carries none.
-fn value(facts: &[AuditFact], name: &'static str) -> String {
+fn value(
+    facts: &[AuditFact],
+    name: &'static str,
+) -> String {
     for fact in facts {
         if fact.name() != name {
             continue;
@@ -57,15 +78,22 @@ fn real_git_answers_the_head_and_the_tracked_changes() {
     git(repo.as_path(), &["add", "--", "tracked.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../linked"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../linked"],
+    );
     std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
     std::fs::write(linked.join("untracked.txt"), b"not counted\n").expect("untracked file");
 
     // The target is read before anything removes it.
-    assert_eq!(worktree_head(linked.as_path()).as_deref(), Some("refs/heads/topic"));
+    assert_eq!(
+        worktree_head(linked.as_path()).as_deref(),
+        Some("refs/heads/topic")
+    );
     let reading: GitContext = context(repo.as_path());
     assert_eq!(changed_paths(&reading, linked.as_path()), Some(1));
-    let facts: Vec<AuditFact> = removal_facts(&reading, linked.as_path(), OsStr::new("../linked"), true);
+    let facts: Vec<AuditFact> =
+        removal_facts(&reading, linked.as_path(), OsStr::new("../linked"), true);
     assert_eq!(value(&facts, "worktree"), "../linked");
     assert_eq!(value(&facts, "force"), "true");
     assert_eq!(value(&facts, "head"), "refs/heads/topic");
@@ -75,16 +103,27 @@ fn real_git_answers_the_head_and_the_tracked_changes() {
     // A clean worktree says zero, and a worktree Git cannot read answers nothing.
     git(linked.as_path(), &["stash", "push", "--quiet"]);
     assert_eq!(changed_paths(&reading, linked.as_path()), Some(0));
-    assert_eq!(changed_paths(&reading, Path::new("/nonexistent-worktree")), None);
+    assert_eq!(
+        changed_paths(&reading, Path::new("/nonexistent-worktree")),
+        None
+    );
     assert_eq!(worktree_head(Path::new("/nonexistent-worktree")), None);
-    let missing: Vec<AuditFact> = removal_facts(&reading, Path::new("/nonexistent"), OsStr::new("/nonexistent"), false);
+    let missing: Vec<AuditFact> = removal_facts(
+        &reading,
+        Path::new("/nonexistent"),
+        OsStr::new("/nonexistent"),
+        false,
+    );
     assert_eq!(value(&missing, "changed"), "");
     assert_eq!(value(&missing, "force"), "false");
     assert_eq!(value(&missing, "counted"), "tracked changes only");
 
     // A relative target is joined to the directory the command runs in, which is the repository here, and read there.
     let joined: PathBuf = removal_target(&reading, OsStr::new("../linked"), repo.as_path());
-    assert_eq!(std::fs::canonicalize(joined.as_path()).expect("the joined target"), linked);
+    assert_eq!(
+        std::fs::canonicalize(joined.as_path()).expect("the joined target"),
+        linked
+    );
     assert_eq!(changed_paths(&reading, joined.as_path()), Some(0));
     remove(root.as_path());
 }
@@ -100,7 +139,11 @@ fn a_pointer_that_is_not_a_regular_file_is_never_opened() {
         .arg(linked.join(".git"))
         .output()
         .expect("mkfifo runs");
-    assert!(made.status.success(), "{}", String::from_utf8_lossy(made.stderr.as_slice()));
+    assert!(
+        made.status.success(),
+        "{}",
+        String::from_utf8_lossy(made.stderr.as_slice())
+    );
     // The question runs on another thread, so a read that waits cannot hold this control for ever.
     let (sender, receiver) = std::sync::mpsc::channel::<Option<String>>();
     let asked: PathBuf = linked.clone();
@@ -131,14 +174,20 @@ fn a_relative_pointer_is_resolved_against_its_worktree() {
     std::fs::create_dir_all(&own).expect("own Git directory");
     std::fs::write(own.join("HEAD"), b"ref: refs/heads/topic\n").expect("HEAD");
     std::fs::write(linked.join(".git"), b"gitdir: ./own-git-dir\n").expect("pointer file");
-    assert_eq!(worktree_head(linked.as_path()), Some(String::from("refs/heads/topic")));
+    assert_eq!(
+        worktree_head(linked.as_path()),
+        Some(String::from("refs/heads/topic"))
+    );
     // An absolute pointer is read as it is written.
     std::fs::write(
         linked.join(".git"),
         format!("gitdir: {}\n", own.display()).as_bytes(),
     )
     .expect("pointer file");
-    assert_eq!(worktree_head(linked.as_path()), Some(String::from("refs/heads/topic")));
+    assert_eq!(
+        worktree_head(linked.as_path()),
+        Some(String::from("refs/heads/topic"))
+    );
     // A pointer Git would refuse names no Git directory.
     std::fs::write(linked.join(".git"), b"not a pointer\n").expect("pointer file");
     assert_eq!(worktree_head(linked.as_path()), None);
@@ -160,15 +209,31 @@ fn real_git_resolves_the_worktree_a_removal_names() {
     let parent: PathBuf = root.join("worktrees");
     std::fs::create_dir(&parent).expect("worktrees directory");
     let linked: PathBuf = parent.join("topic");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../worktrees/topic"]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            "../worktrees/topic",
+        ],
+    );
     let reading: GitContext = context(repo.as_path());
     // The exact path, in both spellings Git accepts for it.
     let name: &OsStr = linked.file_name().expect("a name");
     assert_eq!(removal_target(&reading, name, repo.as_path()), linked);
-    assert_eq!(removal_target(&reading, OsStr::new("../worktrees/topic"), repo.as_path()), linked);
+    assert_eq!(
+        removal_target(&reading, OsStr::new("../worktrees/topic"), repo.as_path()),
+        linked
+    );
     // A unique suffix of the registered path, where the command's own directory holds no such worktree.
     std::fs::create_dir(repo.join("topic")).expect("a directory of the same name");
-    assert_eq!(removal_target(&reading, OsStr::new("topic"), repo.as_path()), linked);
+    assert_eq!(
+        removal_target(&reading, OsStr::new("topic"), repo.as_path()),
+        linked
+    );
     // A name no worktree answers is the path the command named, so the record reads that and says nothing about
     //  another directory.
     assert_eq!(
@@ -176,8 +241,13 @@ fn real_git_resolves_the_worktree_a_removal_names() {
         repo.join("no-such-worktree")
     );
     // The control: Git removes that worktree under exactly the suffix this resolution names.
-    let removed: std::process::Output = git_status(repo.as_path(), &["worktree", "remove", "--force", "topic"]);
-    assert!(removed.status.success(), "{}", String::from_utf8_lossy(removed.stderr.as_slice()));
+    let removed: std::process::Output =
+        git_status(repo.as_path(), &["worktree", "remove", "--force", "topic"]);
+    assert!(
+        removed.status.success(),
+        "{}",
+        String::from_utf8_lossy(removed.stderr.as_slice())
+    );
     assert!(!linked.exists());
     remove(root.as_path());
 }
@@ -198,16 +268,36 @@ fn real_git_resolves_a_worktree_whose_path_holds_a_line_break() {
     let linked: PathBuf = parent.join("line\nbreak/chapter");
     git(
         repo.as_path(),
-        &["worktree", "add", "--quiet", "-b", "chapter", "../worktrees/line\nbreak/chapter"],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "chapter",
+            "../worktrees/line\nbreak/chapter",
+        ],
     );
-    assert!(linked.is_dir(), "the control needs a worktree whose path holds a line break");
+    assert!(
+        linked.is_dir(),
+        "the control needs a worktree whose path holds a line break"
+    );
     let reading: GitContext = context(repo.as_path());
     // The listed paths keep the line break, so the suffix names this worktree.
-    assert_eq!(removal_target(&reading, OsStr::new("chapter"), repo.as_path()), linked);
+    assert_eq!(
+        removal_target(&reading, OsStr::new("chapter"), repo.as_path()),
+        linked
+    );
     // The control: Git removes that worktree under exactly that suffix.
     std::fs::create_dir(repo.join("chapter")).expect("a directory of the same name");
-    let removed: std::process::Output = git_status(repo.as_path(), &["worktree", "remove", "--force", "chapter"]);
-    assert!(removed.status.success(), "{}", String::from_utf8_lossy(removed.stderr.as_slice()));
+    let removed: std::process::Output = git_status(
+        repo.as_path(),
+        &["worktree", "remove", "--force", "chapter"],
+    );
+    assert!(
+        removed.status.success(),
+        "{}",
+        String::from_utf8_lossy(removed.stderr.as_slice())
+    );
     assert!(!linked.exists());
     remove(root.as_path());
 }
@@ -225,7 +315,10 @@ fn real_git_resolves_a_worktree_whose_path_holds_a_line_break() {
 /// const shim = `#!/bin/sh\nfor word in "$@"; do [ "$word" = status ] && sleep 6; done\nexec git "$@"`;
 /// ```
 #[cfg(unix)]
-fn a_git_whose_status_is_late(root: &Path, seconds: u32) -> GitContext {
+fn a_git_whose_status_is_late(
+    root: &Path,
+    seconds: u32,
+) -> GitContext {
     let shim: PathBuf = root.join("late-status-git");
     let script: String = format!(
         "#!/bin/sh\nfor word in \"$@\"; do\n  if [ \"$word\" = status ]; then sleep {seconds}; fi\ndone\nexec {} \"$@\"\n",
@@ -270,14 +363,18 @@ fn a_read_of_the_tracked_changes_past_its_bound_leaves_the_count_out() {
     git(repo.as_path(), &["add", "--", "tracked.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../linked"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../linked"],
+    );
     std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
     // The positive control: the same fixture through a Git that answers at once names the one changed path.
     let prompt: GitContext = context(repo.as_path());
     assert_eq!(changed_paths(&prompt, linked.as_path()), Some(1));
     let late: GitContext = a_git_whose_status_is_late(root.as_path(), 6);
     let began: std::time::Instant = std::time::Instant::now();
-    let facts: Vec<AuditFact> = removal_facts(&late, linked.as_path(), OsStr::new("../linked"), true);
+    let facts: Vec<AuditFact> =
+        removal_facts(&late, linked.as_path(), OsStr::new("../linked"), true);
     let took: std::time::Duration = began.elapsed();
     assert_eq!(
         value(&facts, "changed"),
@@ -323,14 +420,18 @@ fn a_read_whose_git_ignores_the_request_to_end_holds_the_removal_only_to_its_bou
     git(repo.as_path(), &["add", "--", "tracked.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../linked"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../linked"],
+    );
     std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
     // The positive control: the same fixture through a Git that answers at once names the one changed path.
     let prompt: GitContext = context(repo.as_path());
     assert_eq!(changed_paths(&prompt, linked.as_path()), Some(1));
     let stubborn: GitContext = a_git_whose_status_ignores_the_request_to_end(root.as_path());
     let began: std::time::Instant = std::time::Instant::now();
-    let facts: Vec<AuditFact> = removal_facts(&stubborn, linked.as_path(), OsStr::new("../linked"), true);
+    let facts: Vec<AuditFact> =
+        removal_facts(&stubborn, linked.as_path(), OsStr::new("../linked"), true);
     let took: std::time::Duration = began.elapsed();
     assert_eq!(
         value(&facts, "changed"),
@@ -390,7 +491,9 @@ fn a_git_whose_status_ignores_the_request_to_end(root: &Path) -> GitContext {
 ///  and a removal recorded nothing about what it took.
 #[test]
 fn a_pointer_to_a_directory_that_is_not_text_names_it() {
-    if !in_a_fixture_root_taking_any_name("worktree::worktree_audit::tests::a_pointer_to_a_directory_that_is_not_text_names_it") {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree::worktree_audit::tests::a_pointer_to_a_directory_that_is_not_text_names_it",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStringExt;
@@ -403,7 +506,10 @@ fn a_pointer_to_a_directory_that_is_not_text_names_it() {
     pointer.extend_from_slice(path_bytes_of(own.as_path()));
     pointer.push(b'\n');
     std::fs::write(linked.join(".git"), pointer).expect("pointer file");
-    assert_eq!(worktree_head(linked.as_path()), Some(String::from("refs/heads/topic")));
+    assert_eq!(
+        worktree_head(linked.as_path()),
+        Some(String::from("refs/heads/topic"))
+    );
     remove(root.as_path());
 }
 
@@ -425,20 +531,38 @@ fn real_git_keeps_the_head_of_a_worktree_whose_administration_ends_in_a_space() 
     let linked: PathBuf = root.join("linked");
     git(
         repo.as_path(),
-        &["worktree", "add", "--quiet", "-b", "topic", linked.to_str().expect("a UTF-8 fixture path")],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            linked.to_str().expect("a UTF-8 fixture path"),
+        ],
     );
     // Git registers the worktree under the repository's own Git directory.
     let administration: PathBuf = repo.join(".git").join("worktrees").join("linked");
     let spaced: PathBuf = administration.with_file_name("linked ");
-    std::fs::rename(administration.as_path(), spaced.as_path()).expect("the administrative directory is renamed");
+    std::fs::rename(administration.as_path(), spaced.as_path())
+        .expect("the administrative directory is renamed");
     let mut pointer: Vec<u8> = Vec::from(b"gitdir: ".as_slice());
     pointer.extend_from_slice(path_bytes_of(spaced.as_path()));
     pointer.push(b'\n');
     std::fs::write(linked.join(".git"), pointer).expect("pointer file");
     // Real Git keeps the space and reads that worktree, so a removal meets exactly this pointer.
     let read: std::process::Output = git_status(linked.as_path(), &["symbolic-ref", "HEAD"]);
-    assert!(read.status.success(), "{}", String::from_utf8_lossy(read.stderr.as_slice()));
-    assert_eq!(String::from_utf8_lossy(read.stdout.as_slice()).trim_end(), "refs/heads/topic");
-    assert_eq!(worktree_head(linked.as_path()), Some(String::from("refs/heads/topic")));
+    assert!(
+        read.status.success(),
+        "{}",
+        String::from_utf8_lossy(read.stderr.as_slice())
+    );
+    assert_eq!(
+        String::from_utf8_lossy(read.stdout.as_slice()).trim_end(),
+        "refs/heads/topic"
+    );
+    assert_eq!(
+        worktree_head(linked.as_path()),
+        Some(String::from("refs/heads/topic"))
+    );
     remove(root.as_path());
 }

@@ -22,16 +22,27 @@
 //! ```
 
 use crate::held_commit_record::Held;
+use crate::scratch_location::state_directory;
 use crate::service_branch_shows::what_the_branch_shows;
+use crate::service_journal::{
+    Intent,
+    OPEN_EXTENSION,
+    list_intents_read_only,
+    newest_finished_batches_read_only,
+};
 use crate::service_messages::WhatTheBranchShows;
-use crate::service_journal::{Intent, OPEN_EXTENSION, list_intents_read_only, newest_finished_batches_read_only};
 use crate::service_protocol::CommitRequest;
 use crate::service_units_of_removed_worktrees::journal_of;
-use crate::scratch_location::state_directory;
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How often the look reads the journal and the branch again.
 /// Why:
@@ -94,7 +105,9 @@ pub(crate) fn looking_for_what_landed(look: LookForWhatLanded<'_>) -> Option<Str
         // An open batch names the commit it is making; the branch says whether it is made.
         match an_open_batch_making(journal, look.id) {
             Some((intent, commit)) => {
-                if what_the_branch_shows(look.context, look.cwd, &intent.reference, commit.as_str()) == WhatTheBranchShows::Made {
+                if what_the_branch_shows(look.context, look.cwd, &intent.reference, commit.as_str())
+                    == WhatTheBranchShows::Made
+                {
                     return Some(commit);
                 }
             }
@@ -122,7 +135,8 @@ pub(crate) fn looking_for_what_landed(look: LookForWhatLanded<'_>) -> Option<Str
 /// journalOfRequest(request) // undefined: no state folder or no instance
 /// ```
 pub(crate) fn journal_of_request(request: &CommitRequest) -> Option<PathBuf> {
-    let instance: String = crate::service_instance::try_instance_of(request.git_dir.as_path()).ok()?;
+    let instance: String =
+        crate::service_instance::try_instance_of(request.git_dir.as_path()).ok()?;
     // The read of this process's environment is the read of the invocation's: `main` hands the entry `std::env::vars_os()` as
     //  that environment, and nothing in the crate changes the wrapper's own environment, so a command started with another
     //  `HOME` reads that home's state folder here (`repository_move_freeze.rs` reads the same one on the same terms).
@@ -142,7 +156,10 @@ pub(crate) fn journal_of_request(request: &CommitRequest) -> Option<PathBuf> {
 /// ```ts
 /// finishedBatches.find((record) => record.ids.includes(id))?.commits[at]
 /// ```
-fn a_finished_batch_made(journal: &Path, id: &str) -> Option<String> {
+fn a_finished_batch_made(
+    journal: &Path,
+    id: &str,
+) -> Option<String> {
     for (_path, record) in newest_finished_batches_read_only(journal, NEWEST_FINISHED_BATCHES) {
         let Some(parsed) = record else { continue };
         if let Some(commit) = the_commit_of(&parsed, id) {
@@ -166,7 +183,10 @@ fn a_finished_batch_made(journal: &Path, id: &str) -> Option<String> {
 /// ```ts
 /// openBatches.find((record) => record.ids.includes(id))
 /// ```
-fn an_open_batch_making(journal: &Path, id: &str) -> Option<(Intent, String)> {
+fn an_open_batch_making(
+    journal: &Path,
+    id: &str,
+) -> Option<(Intent, String)> {
     for (_path, record) in list_intents_read_only(journal, OPEN_EXTENSION) {
         let Some(parsed) = record else { continue };
         if let Some(commit) = the_commit_of(&parsed, id) {
@@ -190,7 +210,11 @@ fn an_open_batch_making(journal: &Path, id: &str) -> Option<(Intent, String)> {
 /// ```ts
 /// const intent = openBatchMaking(journal, id); return heldRecords(gitDir).find((held) => held.seq === intent.seq && held.journal === journal)
 /// ```
-pub(crate) fn a_held_batch_of(journal: &Path, git_dir: &Path, id: &str) -> Option<Held> {
+pub(crate) fn a_held_batch_of(
+    journal: &Path,
+    git_dir: &Path,
+    id: &str,
+) -> Option<Held> {
     let (intent, _commit): (Intent, String) = an_open_batch_making(journal, id)?;
     let (records, _damaged) = crate::held_commit_record::list(git_dir);
     for held in records {
@@ -211,7 +235,10 @@ pub(crate) fn a_held_batch_of(journal: &Path, git_dir: &Path, id: &str) -> Optio
 /// ```ts
 /// const at = record.ids.indexOf(id); return at < 0 ? undefined : record.commits[at]
 /// ```
-fn the_commit_of(record: &Intent, id: &str) -> Option<String> {
+fn the_commit_of(
+    record: &Intent,
+    id: &str,
+) -> Option<String> {
     for (at, named) in record.ids.iter().enumerate() {
         if named == id {
             return record.commits.get(at).cloned();

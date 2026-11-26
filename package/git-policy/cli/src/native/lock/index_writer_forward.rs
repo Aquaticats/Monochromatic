@@ -22,43 +22,67 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, environment });
 //! ```
 
-/// The wait for any program's hold on the index lock,
-/// before a merge that native Git runs.
-use crate::index_holder_wait::wait_for_index_release_here;
-/// The wait for the commit service's own hold on the index.
-use crate::service_index_wait::wait_for_service_hold_here;
-/// Starting a command again when the commit service took the index first.
-use crate::service_hold_retry::{may_run_again, run_again_while_service_holds};
-/// Running real Git,
-/// settling the linked-worktree copy around it when one applies.
-use crate::worktree_copy_forward::{CopyFacts, ForwardedRun, run_forwarded_git};
 /// The second measurement of an abort or a skip,
 /// owed immediately before Git starts.
 use crate::abort_recheck::recheck_before_the_command;
+/// The failure event rendered for standard error.
+use crate::diagnostics::{
+    EngineFailureCode,
+    render_engine_failure,
+};
 /// The resolved forwarded command.
 use crate::forwarded_command::ResolvedCommand;
+/// The once-per-process Git version check.
+use crate::git_version::check_git_version;
+/// The wait for any program's hold on the index lock,
+/// before a merge that native Git runs.
+use crate::index_holder_wait::wait_for_index_release_here;
 /// The classification of index writers.
 use crate::index_writer_commands::is_index_writer;
 /// The index a command writes.
-use crate::landing_location::{LandingLocation, resolve_landing_location};
-/// The failure event rendered for standard error.
-use crate::diagnostics::{EngineFailureCode, render_engine_failure};
-/// The once-per-process Git version check.
-use crate::git_version::check_git_version;
-/// The repository shape the invocation selects.
-use crate::worktree_identity::WorktreeIdentity;
+use crate::landing_location::{
+    LandingLocation,
+    resolve_landing_location,
+};
 /// A merge the staged index would make native Git refuse,
 /// completed without disturbing the staged work.
-use crate::merge_isolation::{IsolatedMerge, IsolatedMergeInput, run_isolated_merge};
-/// A pull that merges,
-/// split into its fetch and its merge so the merge is completed in isolation.
-use crate::pull_isolation::{PullStep, pull_step};
+use crate::merge_isolation::{
+    IsolatedMerge,
+    IsolatedMergeInput,
+    run_isolated_merge,
+};
 /// The word-level second pass for the conflicts a merge,
 /// rebase,
 /// cherry-pick or revert created.
-use crate::merge_second_pass_worktree::{Watch, resolve_after, watch_before};
+use crate::merge_second_pass_worktree::{
+    Watch,
+    resolve_after,
+    watch_before,
+};
+/// A pull that merges,
+/// split into its fetch and its merge so the merge is completed in isolation.
+use crate::pull_isolation::{
+    PullStep,
+    pull_step,
+};
+/// Starting a command again when the commit service took the index first.
+use crate::service_hold_retry::{
+    may_run_again,
+    run_again_while_service_holds,
+};
+/// The wait for the commit service's own hold on the index.
+use crate::service_index_wait::wait_for_service_hold_here;
 /// Running real Git for the location query.
 use crate::transaction_git::GitContext;
+/// Running real Git,
+/// settling the linked-worktree copy around it when one applies.
+use crate::worktree_copy_forward::{
+    CopyFacts,
+    ForwardedRun,
+    run_forwarded_git,
+};
+/// The repository shape the invocation selects.
+use crate::worktree_identity::WorktreeIdentity;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// Writing the merge's own output.
@@ -142,7 +166,10 @@ pub enum CoordinatedRun {
 /// ```ts
 /// if (!isIndexWriter(command) || location.indexPath !== location.realIndexPath) return undefined;
 /// ```
-fn written_real_index(context: &GitContext, command: &ResolvedCommand) -> Result<Option<LandingLocation>, String> {
+fn written_real_index(
+    context: &GitContext,
+    command: &ResolvedCommand,
+) -> Result<Option<LandingLocation>, String> {
     if !is_index_writer(command) {
         return Ok(None);
     }
@@ -208,7 +235,10 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
         match pull_step(typed, location.real_index_path.as_path()) {
             PullStep::Native => typed,
             PullStep::Ended(run) => return run,
-            PullStep::Merge { forward: merge, makes_commit } => {
+            PullStep::Merge {
+                forward: merge,
+                makes_commit,
+            } => {
                 merge_of_pull = *merge;
                 isolate = makes_commit;
                 &merge_of_pull
@@ -221,7 +251,10 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     // What: The branch as the merge found it, read before Git moves it.
     // Why:  The worktrees whose branches the merge lands are those new to the landed branch, and only this reading says
     //       which commits the landed branch did not hold before (`worktree_landed_after_a_merge.rs`).
-    let merge_window: Option<(GitContext, crate::worktree_landed_after_a_merge::LandedWindow)> = if forward.command.word() == b"merge" {
+    let merge_window: Option<(
+        GitContext,
+        crate::worktree_landed_after_a_merge::LandedWindow,
+    )> = if forward.command.word() == b"merge" {
         let sweep_context: GitContext = GitContext {
             real_git: forward.real_git.clone(),
             overlay: forward.overlay.clone(),
@@ -248,7 +281,9 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
             environment: forward.environment.as_slice(),
         };
         match run_isolated_merge(&merge_input) {
-            IsolatedMerge::Forward { notice } => {
+            IsolatedMerge::Forward {
+                notice,
+            } => {
                 if let Some(text) = notice {
                     let _ = std::io::stderr().write_all(text.as_bytes());
                 }
@@ -256,7 +291,11 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
                 //  the merge it is handed waits for the holder first, bounded and naming it.
                 wait_for_index_release_here(location.real_index_path.as_path(), name.as_str());
             }
-            IsolatedMerge::Finished { code, stdout, stderr } => {
+            IsolatedMerge::Finished {
+                code,
+                stdout,
+                stderr,
+            } => {
                 let _ = std::io::stdout().write_all(stdout.as_bytes());
                 let _ = std::io::stderr().write_all(stderr.as_bytes());
                 swept_after_a_merge(merge_window.as_ref(), &forward.identity, code);
@@ -269,10 +308,15 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     // The second measurement of an abort or a skip, immediately before the command the person typed:
     //  work that appeared after the policy pass stops the command.
     if let Some(refusal) = recheck_before_the_command() {
-        return CoordinatedRun::Failed { stderr: refusal, code: crate::action::REJECTED_EXIT_CODE };
+        return CoordinatedRun::Failed {
+            stderr: refusal,
+            code: crate::action::REJECTED_EXIT_CODE,
+        };
     }
     // A command that takes the index lock before it changes anything is run again when the commit service took the index first.
-    let outcome: ForwardedRun = if forward.copy.is_none() && may_run_again(forward.command.word(), forward.command.region()) {
+    let outcome: ForwardedRun = if forward.copy.is_none()
+        && may_run_again(forward.command.word(), forward.command.region())
+    {
         run_again_while_service_holds(
             forward.real_git.as_path(),
             forward.arguments.as_slice(),
@@ -294,7 +338,12 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     // A merge, rebase, cherry-pick or revert that Git stopped with a conflict gets the word-level second pass.
     // The pass awaits every Git start it makes, so a person's command reaches it through one entry of the runtime.
     if let CoordinatedRun::Ran(code) = &finished {
-        let passed_on: Option<i32> = resolve_after(second_pass_watch.as_ref(), forward, *code, &mut std::io::stderr());
+        let passed_on: Option<i32> = resolve_after(
+            second_pass_watch.as_ref(),
+            forward,
+            *code,
+            &mut std::io::stderr(),
+        );
         // Every conflicted file resolved and the operation was ended like a clean run: that run's status is the command's.
         if let Some(ended) = passed_on {
             swept_after_a_merge(merge_window.as_ref(), &forward.identity, ended);
@@ -319,11 +368,19 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
 /// ```ts
 /// sweptAfterAMerge(window, identity, code); // nothing when this command was no merge
 /// ```
-fn swept_after_a_merge(merge_window: Option<&(GitContext, crate::worktree_landed_after_a_merge::LandedWindow)>, identity: &WorktreeIdentity, code: i32) {
+fn swept_after_a_merge(
+    merge_window: Option<&(
+        GitContext,
+        crate::worktree_landed_after_a_merge::LandedWindow,
+    )>,
+    identity: &WorktreeIdentity,
+    code: i32,
+) {
     let Some((context, window)) = merge_window else {
         return;
     };
-    let _swept = crate::worktree_landed_after_a_merge::after_a_merge(context, identity, window, code);
+    let _swept =
+        crate::worktree_landed_after_a_merge::after_a_merge(context, identity, window, code);
 }
 
 /// What:
@@ -346,7 +403,15 @@ fn from_forwarded(run: ForwardedRun) -> CoordinatedRun {
         //       caller see a normal exit with that status, where native Git's caller sees `WIFSIGNALED`
         //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 4 of the round-1 review).
         ForwardedRun::Killed(signal) => return CoordinatedRun::Killed(signal),
-        ForwardedRun::Failed { stderr, code } => return CoordinatedRun::Failed { stderr, code },
+        ForwardedRun::Failed {
+            stderr,
+            code,
+        } => {
+            return CoordinatedRun::Failed {
+                stderr,
+                code,
+            };
+        }
     }
 }
 
@@ -359,7 +424,10 @@ fn from_forwarded(run: ForwardedRun) -> CoordinatedRun {
 /// ```ts
 /// renderPolicyEvents([createEngineFailureEvent({ code, message })])
 /// ```
-fn failed_with(code: EngineFailureCode, message: &str) -> CoordinatedRun {
+fn failed_with(
+    code: EngineFailureCode,
+    message: &str,
+) -> CoordinatedRun {
     return CoordinatedRun::Failed {
         stderr: render_engine_failure(0, code, message),
         code: crate::action::ENGINE_FAILURE_EXIT_CODE,

@@ -10,7 +10,11 @@ use super::*;
 /// The labels the second pass gives one merge:
 /// a fresh value per call,
 /// so this is one of them.
-const LABELS: MarkerLabels<'_> = MarkerLabels { ours: b"ours-0f8b1c", base: b"base-0f8b1c", theirs: b"theirs-0f8b1c" };
+const LABELS: MarkerLabels<'_> = MarkerLabels {
+    ours: b"ours-0f8b1c",
+    base: b"base-0f8b1c",
+    theirs: b"theirs-0f8b1c",
+};
 
 /// A `--zdiff3` answer with two regions,
 /// as Git writes one,
@@ -28,7 +32,9 @@ const TWO_REGIONS_THEIRS: &[u8] = b"head\ntheirs one\nbetween\ntheirs two\ntail\
 /// cut and placed against the stages above.
 fn two_regions_placed() -> (Cut, Vec<Region>) {
     let cut: Cut = cut(TWO_REGIONS, &LABELS).expect("a two-region answer cuts");
-    let regions: Vec<Region> = cut.place([TWO_REGIONS_BASE, TWO_REGIONS_OURS, TWO_REGIONS_THEIRS]).expect("both regions are explained by the stages");
+    let regions: Vec<Region> = cut
+        .place([TWO_REGIONS_BASE, TWO_REGIONS_OURS, TWO_REGIONS_THEIRS])
+        .expect("both regions are explained by the stages");
     return (cut, regions);
 }
 
@@ -37,7 +43,14 @@ fn two_regions_placed() -> (Cut, Vec<Region>) {
 #[test]
 fn an_answer_is_cut_into_its_settled_text_and_its_regions() {
     let (cut, regions) = two_regions_placed();
-    assert_eq!(cut.settled, vec![b"head\n".to_vec(), b"between\n".to_vec(), b"tail\n".to_vec()]);
+    assert_eq!(
+        cut.settled,
+        vec![
+            b"head\n".to_vec(),
+            b"between\n".to_vec(),
+            b"tail\n".to_vec()
+        ]
+    );
     assert_eq!(regions.len(), 2);
     assert_eq!(cut.settled.len(), regions.len() + 1);
     assert_eq!(
@@ -49,7 +62,18 @@ fn an_answer_is_cut_into_its_settled_text_and_its_regions() {
     assert_eq!(cut.regions[0].line_starts.len(), 7);
     assert_eq!(cut.regions[0].base_line, Some(2));
     assert_eq!(cut.regions[0].split_lines, vec![4]);
-    assert_eq!((regions[0].base.as_slice(), regions[0].ours.as_slice(), regions[0].theirs.as_slice()), (b"base one\n".as_slice(), b"ours one\n".as_slice(), b"theirs one\n".as_slice()));
+    assert_eq!(
+        (
+            regions[0].base.as_slice(),
+            regions[0].ours.as_slice(),
+            regions[0].theirs.as_slice()
+        ),
+        (
+            b"base one\n".as_slice(),
+            b"ours one\n".as_slice(),
+            b"theirs one\n".as_slice()
+        )
+    );
     // Each side is found where its stage holds it.
     assert_eq!(regions[0].starts, [5, 5, 5]);
     // A region both sides inserted at one point has no common ancestor text.
@@ -69,9 +93,14 @@ fn a_region_without_a_common_ancestor_section_is_cut_with_an_empty_base() {
     assert_eq!(cut.regions[0].base_line, None);
     assert_eq!(cut.regions[0].split_lines, vec![2]);
     assert_eq!(cut.settled, vec![Vec::<u8>::new(), Vec::new()]);
-    let regions: Vec<Region> = cut.place([b"", b"one\n", b"two\n"]).expect("the sides of the region are its stages");
+    let regions: Vec<Region> = cut
+        .place([b"", b"one\n", b"two\n"])
+        .expect("the sides of the region are its stages");
     assert!(regions[0].base.is_empty());
-    assert_eq!((regions[0].ours.as_slice(), regions[0].theirs.as_slice()), (b"one\n".as_slice(), b"two\n".as_slice()));
+    assert_eq!(
+        (regions[0].ours.as_slice(), regions[0].theirs.as_slice()),
+        (b"one\n".as_slice(), b"two\n".as_slice())
+    );
 }
 
 /// A marker out of order inside a region and an answer that ends inside one are refused rather than guessed:
@@ -79,8 +108,14 @@ fn a_region_without_a_common_ancestor_section_is_cut_with_an_empty_base() {
 /// A line that only looks like a marker outside a region is the file's own text.
 #[test]
 fn an_answer_that_cannot_be_cut_is_refused() {
-    assert!(cut(b"<<<<<<< ours-0f8b1c\n>>>>>>> theirs-0f8b1c\n", &LABELS).is_err(), "a region with no split line cannot be cut");
-    assert!(cut(b"<<<<<<< ours-0f8b1c\none\n=======\ntwo\n", &LABELS).is_err(), "an answer that ends inside a region cannot be cut");
+    assert!(
+        cut(b"<<<<<<< ours-0f8b1c\n>>>>>>> theirs-0f8b1c\n", &LABELS).is_err(),
+        "a region with no split line cannot be cut"
+    );
+    assert!(
+        cut(b"<<<<<<< ours-0f8b1c\none\n=======\ntwo\n", &LABELS).is_err(),
+        "an answer that ends inside a region cannot be cut"
+    );
     assert!(cut(b"<<<<<<< ours-0f8b1c\none\n<<<<<<< ours-0f8b1c\ntwo\n=======\nthree\n>>>>>>> theirs-0f8b1c\n", &LABELS).is_err(), "a region inside a region cannot be cut");
     // A second common ancestor marker is not an answer Git writes, so it is refused rather than read as text.
     assert!(
@@ -90,18 +125,27 @@ fn an_answer_that_cannot_be_cut_is_refused() {
     // A split-shaped line before the common ancestor marker is the first side's own text,
     // so an answer with none behind the marker cannot be cut.
     assert!(
-        cut(b"<<<<<<< ours-0f8b1c\none\n=======\n||||||| base-0f8b1c\ntwo\n>>>>>>> theirs-0f8b1c\n", &LABELS).is_err(),
+        cut(
+            b"<<<<<<< ours-0f8b1c\none\n=======\n||||||| base-0f8b1c\ntwo\n>>>>>>> theirs-0f8b1c\n",
+            &LABELS
+        )
+        .is_err(),
         "a split-shaped line before the common ancestor marker leaves no split"
     );
     // A line that only starts like a marker is text, as Git's own seven-character run makes it,
     // and so is one outside a region: Git does not escape the markers it writes.
-    let text: Cut = cut(b"<<<<<<\n>>>>>>\n=======\n", &LABELS).expect("six characters and a marker outside a region are text");
+    let text: Cut = cut(b"<<<<<<\n>>>>>>\n=======\n", &LABELS)
+        .expect("six characters and a marker outside a region are text");
     assert!(text.regions.is_empty());
     assert_eq!(text.settled[0], b"<<<<<<\n>>>>>>\n=======\n".to_vec());
     // A line with the seven characters and another merge's label is the file's own text.
-    let other: Cut = cut(b"<<<<<<< ours-other\n>>>>>>> theirs-other\n", &LABELS).expect("another merge's labels are text");
+    let other: Cut = cut(b"<<<<<<< ours-other\n>>>>>>> theirs-other\n", &LABELS)
+        .expect("another merge's labels are text");
     assert!(other.regions.is_empty());
-    assert_eq!(other.settled[0], b"<<<<<<< ours-other\n>>>>>>> theirs-other\n".to_vec());
+    assert_eq!(
+        other.settled[0],
+        b"<<<<<<< ours-other\n>>>>>>> theirs-other\n".to_vec()
+    );
 }
 
 /// What:
@@ -126,7 +170,11 @@ fn a_split_shaped_line_before_the_common_ancestor_marker_is_the_first_sides_text
     assert_eq!(cut.regions[0].split_lines, vec![2, 7]);
     // Only the line behind the common ancestor marker can be Git's split, so the stages are not asked.
     let regions: Vec<Region> = cut
-        .place([b"alpha one\nbeta one\n", b"alpha uno\n=======\nbeta one\n", b"alpha one\nbeta uno\n"])
+        .place([
+            b"alpha one\nbeta one\n",
+            b"alpha uno\n=======\nbeta one\n",
+            b"alpha one\nbeta uno\n",
+        ])
         .expect("the region is explained by its stages");
     assert_eq!(regions[0].base, b"alpha one\nbeta one\n".to_vec());
     assert_eq!(regions[0].ours, b"alpha uno\n=======\nbeta one\n".to_vec());
@@ -147,7 +195,11 @@ fn a_split_shaped_line_of_a_section_is_told_apart_by_its_stage() {
     let cut: Cut = cut(answer, &LABELS).expect("the answer cuts");
     assert_eq!(cut.regions[0].split_lines, vec![5, 7, 8]);
     let regions: Vec<Region> = cut
-        .place([b"alpha one\n=======\nbeta one\n", b"alpha uno\nbeta one\n", b"=======\nbeta uno\n"])
+        .place([
+            b"alpha one\n=======\nbeta one\n",
+            b"alpha uno\nbeta one\n",
+            b"=======\nbeta uno\n",
+        ])
         .expect("only the split whose sides the stages hold is taken");
     assert_eq!(regions[0].base, b"alpha one\n=======\nbeta one\n".to_vec());
     assert_eq!(regions[0].ours, b"alpha uno\nbeta one\n".to_vec());
@@ -163,7 +215,8 @@ fn a_region_two_splits_explain_is_left() {
     assert_eq!(cut.regions[0].split_lines, vec![2, 4]);
     // Each split's two sides are runs of the stages, so neither is Git's for certain.
     assert!(
-        cut.place([b"", b"a\n=======\nb\n", b"b\n=======\nc\n"]).is_none(),
+        cut.place([b"", b"a\n=======\nb\n", b"b\n=======\nc\n"])
+            .is_none(),
         "both splits place, so neither is Git's for certain"
     );
 }
@@ -175,7 +228,10 @@ fn a_region_two_splits_explain_is_left() {
 fn a_region_with_no_text_on_any_side_is_left() {
     let answer: &[u8] = b"<<<<<<< ours-0f8b1c\n=======\n>>>>>>> theirs-0f8b1c\n";
     let cut: Cut = cut(answer, &LABELS).expect("the answer cuts");
-    assert!(cut.place([b"", b"", b""]).is_none(), "a region of markers alone is no region");
+    assert!(
+        cut.place([b"", b"", b""]).is_none(),
+        "a region of markers alone is no region"
+    );
 }
 
 /// What:
@@ -203,9 +259,15 @@ fn more_split_shaped_lines_than_the_tries_is_left() {
         return cut.place([b"", ours.as_slice(), b"theirs\n"]);
     };
     // At the bound the last split is the only one whose sides the stages hold, and it is found.
-    assert!(explained(SPLIT_TRIES).is_some(), "a region at the bound is explained");
+    assert!(
+        explained(SPLIT_TRIES).is_some(),
+        "a region at the bound is explained"
+    );
     // One more is past the bound, so the split the stages hold is never reached.
-    assert!(explained(SPLIT_TRIES + 1).is_none(), "a region past the bound is left");
+    assert!(
+        explained(SPLIT_TRIES + 1).is_none(),
+        "a region past the bound is left"
+    );
 }
 
 /// An answer whose lines end with a carriage return and a line feed is cut,
@@ -216,10 +278,17 @@ fn an_answer_whose_lines_end_with_both_bytes_is_cut() {
     let answer: &[u8] = b"head\r\n<<<<<<< ours-0f8b1c\r\nours one\r\n||||||| base-0f8b1c\r\nbase one\r\n=======\r\ntheirs one\r\n>>>>>>> theirs-0f8b1c\r\ntail\r\n";
     let cut: Cut = cut(answer, &LABELS).expect("an answer whose lines end with both bytes cuts");
     assert_eq!(cut.regions.len(), 1);
-    assert_eq!(cut.settled, vec![b"head\r\n".to_vec(), b"tail\r\n".to_vec()]);
+    assert_eq!(
+        cut.settled,
+        vec![b"head\r\n".to_vec(), b"tail\r\n".to_vec()]
+    );
     assert_eq!(cut.regions[0].split_lines, vec![4]);
     let regions: Vec<Region> = cut
-        .place([b"head\r\nbase one\r\ntail\r\n", b"head\r\nours one\r\ntail\r\n", b"head\r\ntheirs one\r\ntail\r\n"])
+        .place([
+            b"head\r\nbase one\r\ntail\r\n",
+            b"head\r\nours one\r\ntail\r\n",
+            b"head\r\ntheirs one\r\ntail\r\n",
+        ])
         .expect("the region is explained by its stages");
     assert_eq!(regions[0].ours, b"ours one\r\n".to_vec());
     assert_eq!(regions[0].base, b"base one\r\n".to_vec());
@@ -258,7 +327,11 @@ fn the_lines_before_a_place_count_from_the_top_of_the_stage() {
     for pair in places.windows(2) {
         counted += lines_between(text, pair[0], pair[1]);
     }
-    assert_eq!(counted, lines_before(text, places[3]), "the steps add up to the whole");
+    assert_eq!(
+        counted,
+        lines_before(text, places[3]),
+        "the steps add up to the whole"
+    );
     // A place that does not move backwards costs nothing, and one past the end counts the rest.
     assert_eq!(lines_between(text, 4, 4), 0);
     assert_eq!(lines_between(text, 8, 99), 1);

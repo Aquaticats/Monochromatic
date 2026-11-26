@@ -90,7 +90,10 @@ impl std::fmt::Display for ConfigError {
     /// ```ts
     /// format(out: Writer): void { out.write(this.message); }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         // `.as_str()` lends the owned message as a borrowed view for the writer.
         return formatter.write_str(self.message.as_str());
     }

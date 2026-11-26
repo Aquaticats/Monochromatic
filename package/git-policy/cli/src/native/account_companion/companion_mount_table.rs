@@ -21,7 +21,11 @@
 //! expect(namesMount(table, id, slotPath)).toBe(true);
 //! ```
 
-use super::companion_calls::{CompanionCall, Failure, failed};
+use super::companion_calls::{
+    CompanionCall,
+    Failure,
+    failed,
+};
 use std::ffi::CStr;
 use std::os::fd::RawFd;
 
@@ -42,9 +46,17 @@ pub fn mount_id_of(descriptor: RawFd) -> Result<u64, Failure> {
     let mut path: [u8; 32] = [0; 32];
     let prefix: &[u8] = b"/proc/self/fdinfo/";
     path[..prefix.len()].copy_from_slice(prefix);
-    let written: usize = write_number(u64::try_from(descriptor).unwrap_or(0), path[prefix.len()..].as_mut());
+    let written: usize = write_number(
+        u64::try_from(descriptor).unwrap_or(0),
+        path[prefix.len()..].as_mut(),
+    );
     path[prefix.len() + written] = 0;
-    let name: &CStr = CStr::from_bytes_until_nul(path.as_slice()).map_err(|_none| return Failure { call: CompanionCall::ReadFdinfo, errno: libc::EINVAL })?;
+    let name: &CStr = CStr::from_bytes_until_nul(path.as_slice()).map_err(|_none| {
+        return Failure {
+            call: CompanionCall::ReadFdinfo,
+            errno: libc::EINVAL,
+        };
+    })?;
     let mut table: [u8; FDINFO_BYTES] = [0; FDINFO_BYTES];
     let read: usize = read_at_most(name, table.as_mut_slice())?;
     return found_mount_id(table[..read].as_ref());
@@ -60,10 +72,16 @@ pub fn mount_id_of(descriptor: RawFd) -> Result<u64, Failure> {
 ///
 /// # Errors
 /// The table could not be read or is longer than the buffer.
-pub fn read_mount_table(path: &CStr, buffer: &mut [u8]) -> Result<usize, Failure> {
+pub fn read_mount_table(
+    path: &CStr,
+    buffer: &mut [u8],
+) -> Result<usize, Failure> {
     let read: usize = read_at_most(path, buffer)?;
     if read == buffer.len() {
-        return Err(Failure { call: CompanionCall::ReadMountinfo, errno: libc::E2BIG });
+        return Err(Failure {
+            call: CompanionCall::ReadMountinfo,
+            errno: libc::E2BIG,
+        });
     }
     return Ok(read);
 }
@@ -71,7 +89,11 @@ pub fn read_mount_table(path: &CStr, buffer: &mut [u8]) -> Result<usize, Failure
 /// What:
 ///  Whether the mount table names one mount ID at one mount point,
 ///  as the read-back after the move must find it.
-pub fn names_mount(table: &[u8], mount_id: u64, mount_point: &[u8]) -> bool {
+pub fn names_mount(
+    table: &[u8],
+    mount_id: u64,
+    mount_point: &[u8],
+) -> bool {
     for line in table.split(|byte| return *byte == b'\n') {
         if !starts_with_number(line, mount_id) {
             continue;
@@ -86,12 +108,20 @@ pub fn names_mount(table: &[u8], mount_id: u64, mount_point: &[u8]) -> bool {
 /// What:
 ///  Whether the mount table still names one mount ID anywhere,
 ///  which after the unmount it must not.
-pub fn names_mount_id(table: &[u8], mount_id: u64) -> bool {
-    return table.split(|byte| return *byte == b'\n').any(|line| return starts_with_number(line, mount_id));
+pub fn names_mount_id(
+    table: &[u8],
+    mount_id: u64,
+) -> bool {
+    return table
+        .split(|byte| return *byte == b'\n')
+        .any(|line| return starts_with_number(line, mount_id));
 }
 
 /// Whether one mount-table line begins with this number and the space after it.
-fn starts_with_number(line: &[u8], number: u64) -> bool {
+fn starts_with_number(
+    line: &[u8],
+    number: u64,
+) -> bool {
     let mut digits: [u8; 24] = [0; 24];
     let written: usize = write_number(number, digits.as_mut_slice());
     return line.starts_with(&digits[..written]) && line.get(written) == Some(&b' ');
@@ -99,7 +129,10 @@ fn starts_with_number(line: &[u8], number: u64) -> bool {
 
 /// One space-separated field of a mount-table line,
 /// counting from zero.
-fn field_of(line: &[u8], index: usize) -> Option<&[u8]> {
+fn field_of(
+    line: &[u8],
+    index: usize,
+) -> Option<&[u8]> {
     return line.split(|byte| return *byte == b' ').nth(index);
 }
 
@@ -108,20 +141,34 @@ fn field_of(line: &[u8], index: usize) -> Option<&[u8]> {
 ///  or the refusal that says its line is missing.
 fn found_mount_id(table: &[u8]) -> Result<u64, Failure> {
     for line in table.split(|byte| return *byte == b'\n') {
-        let Some(rest) = line.strip_prefix(b"mnt_id:".as_ref()) else { continue };
+        let Some(rest) = line.strip_prefix(b"mnt_id:".as_ref()) else {
+            continue;
+        };
         // The kernel separates the key from its value with a tab, and a build that writes a space is read the same way.
-        let digits: &[u8] = rest.strip_prefix(b"\t".as_ref()).or_else(|| return rest.strip_prefix(b" ".as_ref())).unwrap_or(rest);
-        let number: u64 = parse_number(digits).ok_or(Failure { call: CompanionCall::ReadFdinfo, errno: libc::EINVAL })?;
+        let digits: &[u8] = rest
+            .strip_prefix(b"\t".as_ref())
+            .or_else(|| return rest.strip_prefix(b" ".as_ref()))
+            .unwrap_or(rest);
+        let number: u64 = parse_number(digits).ok_or(Failure {
+            call: CompanionCall::ReadFdinfo,
+            errno: libc::EINVAL,
+        })?;
         return Ok(number);
     }
-    return Err(Failure { call: CompanionCall::ReadFdinfo, errno: libc::ENOENT });
+    return Err(Failure {
+        call: CompanionCall::ReadFdinfo,
+        errno: libc::ENOENT,
+    });
 }
 
 /// What:
 ///  One decimal number as the digits a stack array holds.
 /// Why:
 ///  A descriptor's number must reach a path without a formatter.
-pub(super) fn write_number(number: u64, into: &mut [u8]) -> usize {
+pub(super) fn write_number(
+    number: u64,
+    into: &mut [u8],
+) -> usize {
     let mut digits: [u8; 24] = [0; 24];
     let mut count: usize = 0;
     let mut left: u64 = number;
@@ -163,9 +210,13 @@ pub(super) fn parse_number(bytes: &[u8]) -> Option<u64> {
 ///  answering how many bytes it gave.
 /// Why:
 ///  The child reads a `/proc` table and needs no allocating reader.
-fn read_at_most(path: &CStr, buffer: &mut [u8]) -> Result<usize, Failure> {
+fn read_at_most(
+    path: &CStr,
+    buffer: &mut [u8],
+) -> Result<usize, Failure> {
     // SAFETY: the path outlives the call and the descriptor it answers is closed below, exactly once.
-    let opened: libc::c_int = unsafe { libc::open(path.as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC) };
+    let opened: libc::c_int =
+        unsafe { libc::open(path.as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC) };
     if opened < 0 {
         return Err(failed(CompanionCall::ReadMountinfo));
     }
@@ -173,7 +224,13 @@ fn read_at_most(path: &CStr, buffer: &mut [u8]) -> Result<usize, Failure> {
     // A `seq_file` gives one page per read, so a table longer than a page is read until it ends or the buffer fills.
     while read < buffer.len() {
         // SAFETY: the buffer is the caller's and holds the room the call is given, from the offset it is read at.
-        let taken: libc::ssize_t = unsafe { libc::read(opened, buffer.as_mut_ptr().add(read).cast::<libc::c_void>(), buffer.len() - read) };
+        let taken: libc::ssize_t = unsafe {
+            libc::read(
+                opened,
+                buffer.as_mut_ptr().add(read).cast::<libc::c_void>(),
+                buffer.len() - read,
+            )
+        };
         if taken < 0 {
             // SAFETY: the descriptor is this call's own and is closed exactly once.
             let _closed: libc::c_int = unsafe { libc::close(opened) };

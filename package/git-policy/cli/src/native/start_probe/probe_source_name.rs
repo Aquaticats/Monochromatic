@@ -69,8 +69,12 @@ impl NameRefusal {
             NameRefusal::Empty => String::from("the name is empty"),
             NameRefusal::TooLong => format!("the name is longer than {DATASET_NAME_BOUND} bytes"),
             NameRefusal::EmptyComponent => String::from("one `/`-separated component is empty"),
-            NameRefusal::BadCharacter { byte } => format!("`{byte}` is not a byte a dataset component holds"),
-            NameRefusal::SnapshotOrBookmark => String::from("the name carries `@` or `#`, which names a snapshot or a bookmark"),
+            NameRefusal::BadCharacter {
+                byte,
+            } => format!("`{byte}` is not a byte a dataset component holds"),
+            NameRefusal::SnapshotOrBookmark => {
+                String::from("the name carries `@` or `#`, which names a snapshot or a bookmark")
+            }
         };
     }
 }
@@ -117,7 +121,9 @@ pub fn check_dataset_name(name: &str) -> Result<(), NameRefusal> {
                 return Err(NameRefusal::SnapshotOrBookmark);
             }
             if !(byte.is_ascii_alphanumeric() || matches!(byte, '_' | '-' | '.' | ':')) {
-                return Err(NameRefusal::BadCharacter { byte });
+                return Err(NameRefusal::BadCharacter {
+                    byte,
+                });
             }
         }
     }

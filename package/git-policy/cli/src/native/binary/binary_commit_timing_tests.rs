@@ -18,29 +18,72 @@
 //!  journal;
 //! the real `.git/monochromatic-git-policy-cli` of this repository is never used.
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
+use super::commit::{
+    git_text,
+    remove_settled,
+    wrapped_commit,
+};
 use super::service_commit::runtime_for;
 use super::service_landing_lock::foreign_commit_until_released;
 use super::service_landing_selection::base_repository;
-use super::strace::{strace_available_or_acknowledged, strace_program};
-use super::support::{Fixture, Observed, assert_nothing_in_group, bounded_for, fixture, git, group_of, kill_with_everything_it_started, observe, repository, spawn_owned, wrapper_first_path};
-use super::wait_notice::{Watched, watch_notices};
+use super::strace::{
+    strace_available_or_acknowledged,
+    strace_program,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    assert_nothing_in_group,
+    bounded_for,
+    fixture,
+    git,
+    group_of,
+    kill_with_everything_it_started,
+    observe,
+    repository,
+    spawn_owned,
+    wrapper_first_path,
+};
+use super::wait_notice::{
+    Watched,
+    watch_notices,
+};
 use git_policy_cli::commit_timing::TIMING_FILE;
 use git_policy_cli::landing::service_index_prestage::MARKERS_MADE_AHEAD;
 use git_policy_cli::service_client::ask_to_retire;
-use git_policy_cli::service_server::Bind;
-use git_policy_cli::service_instance::{instance_of, socket_for};
-use git_policy_cli::wait_ceilings::WARM_REQUEST_CONNECT_CEILING;
+use git_policy_cli::service_instance::{
+    instance_of,
+    socket_for,
+};
 use git_policy_cli::service_protocol::RELEASE;
+use git_policy_cli::service_server::Bind;
+use git_policy_cli::wait_ceilings::WARM_REQUEST_CONNECT_CEILING;
 use std::ffi::OsStr;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-use std::os::unix::fs::PermissionsExt as _;
 use std::io::BufRead as _;
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
+use std::os::unix::fs::PermissionsExt as _;
+use std::os::unix::net::{
+    UnixListener,
+    UnixStream,
+};
 use std::os::unix::process::ExitStatusExt;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 const PATIENCE: Duration = Duration::from_secs(60);
 
@@ -80,19 +123,48 @@ struct Places {
 
 /// Starts a service at `places.socket` with its standard error in `places.log`,
 /// once it listens.
-fn spawn_service(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str]) -> Held {
+fn spawn_service(
+    root: &Path,
+    places: &Places,
+    idle_seconds: &str,
+    extra: &[&str],
+) -> Held {
     return spawn_service_with_environment(root, places, idle_seconds, extra, &[]);
 }
 
 /// `spawn_service` with more variables in the service's otherwise empty environment.
-fn spawn_service_with_environment(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str], environment: &[(&str, String)]) -> Held {
-    let log = std::fs::OpenOptions::new().create(true).append(true).open(&places.log).expect("service log");
-    return spawn_service_with_stderr(root, places, idle_seconds, extra, environment, Stdio::from(log));
+fn spawn_service_with_environment(
+    root: &Path,
+    places: &Places,
+    idle_seconds: &str,
+    extra: &[&str],
+    environment: &[(&str, String)],
+) -> Held {
+    let log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&places.log)
+        .expect("service log");
+    return spawn_service_with_stderr(
+        root,
+        places,
+        idle_seconds,
+        extra,
+        environment,
+        Stdio::from(log),
+    );
 }
 
 /// `spawn_service_with_environment` with the service's standard error given,
 /// so a control can make it a pipe.
-fn spawn_service_with_stderr(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str], environment: &[(&str, String)], stderr: Stdio) -> Held {
+fn spawn_service_with_stderr(
+    root: &Path,
+    places: &Places,
+    idle_seconds: &str,
+    extra: &[&str],
+    environment: &[(&str, String)],
+    stderr: Stdio,
+) -> Held {
     std::fs::create_dir_all(places.socket.parent().expect("parent")).expect("socket directory");
     let child: Child = super::support::service_command()
         .args(["--journal"])
@@ -106,7 +178,9 @@ fn spawn_service_with_stderr(root: &Path, places: &Places, idle_seconds: &str, e
         .env("HOME", root.join("home"))
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .envs(environment.iter().map(|(name, value)| { return (*name, value.as_str()); }))
+        .envs(environment.iter().map(|(name, value)| {
+            return (*name, value.as_str());
+        }))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(stderr)
@@ -123,9 +197,16 @@ fn spawn_service_with_stderr(root: &Path, places: &Places, idle_seconds: &str, e
 
 /// The places of the service of the worktree `repo`,
 /// under a runtime directory named for the control.
-fn places_for(fixture: &Fixture, name: &str, repo: &Path) -> Places {
+fn places_for(
+    fixture: &Fixture,
+    name: &str,
+    repo: &Path,
+) -> Places {
     let runtime: PathBuf = runtime_for(name);
-    return Places { socket: socket_for(runtime.as_path(), repo.join(".git").as_path()), log: fixture.root.join(format!("{name}.log")) };
+    return Places {
+        socket: socket_for(runtime.as_path(), repo.join(".git").as_path()),
+        log: fixture.root.join(format!("{name}.log")),
+    };
 }
 
 /// The instance argument that makes a service serve the worktree `repo` only,
@@ -136,22 +217,37 @@ fn instance_argument(repo: &Path) -> String {
 
 /// Waits for the service to exit by itself,
 /// at most `limit`.
-fn exit_of(service: &mut Held, limit: Duration) -> std::process::ExitStatus {
+fn exit_of(
+    service: &mut Held,
+    limit: Duration,
+) -> std::process::ExitStatus {
     let began: Instant = Instant::now();
     loop {
         if let Ok(Some(status)) = service.0.try_wait() {
             return status;
         }
-        assert!(began.elapsed() < limit, "the service did not exit within {limit:?}");
+        assert!(
+            began.elapsed() < limit,
+            "the service did not exit within {limit:?}"
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
 }
 
 /// The lines of a service log that begin with the word after the service's prefix.
-fn lines_of(log: &Path, word: &str) -> Vec<String> {
+fn lines_of(
+    log: &Path,
+    word: &str,
+) -> Vec<String> {
     let text: String = std::fs::read_to_string(log).expect("service log");
     let prefix: String = format!("{}{word}", git_policy_cli::service_timing::LOG_PREFIX);
-    return text.lines().filter(|line| { return line.starts_with(prefix.as_str()); }).map(str::to_string).collect();
+    return text
+        .lines()
+        .filter(|line| {
+            return line.starts_with(prefix.as_str());
+        })
+        .map(str::to_string)
+        .collect();
 }
 
 /// What:
@@ -167,58 +263,112 @@ fn lines_of(log: &Path, word: &str) -> Vec<String> {
 /// ```ts
 /// const text = await waitForLine(log, '<6>monochromatic-git-policy-cli-service: ready');
 /// ```
-fn log_until(log: &Path, prefix: &str) -> String {
+fn log_until(
+    log: &Path,
+    prefix: &str,
+) -> String {
     let began: Instant = Instant::now();
     loop {
         let text: String = std::fs::read_to_string(log).unwrap_or_default();
-        if text.lines().any(|line| { return line.starts_with(prefix); }) {
+        if text.lines().any(|line| {
+            return line.starts_with(prefix);
+        }) {
             return text;
         }
-        assert!(began.elapsed() < PATIENCE, "the service never wrote a line beginning {prefix}: {text}");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the service never wrote a line beginning {prefix}: {text}"
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
 }
 
 /// The whole milliseconds a `key=<digits>` word of a line states.
-fn ms_of(line: &str, key: &str) -> u64 {
+fn ms_of(
+    line: &str,
+    key: &str,
+) -> u64 {
     let marker: String = format!(" {key}=");
-    let from: usize = line.find(marker.as_str()).unwrap_or_else(|| { panic!("no {key} in {line}") }) + marker.len();
-    let digits: String = line[from..].chars().take_while(char::is_ascii_digit).collect();
-    return digits.parse::<u64>().unwrap_or_else(|_| { panic!("no number for {key} in {line}") });
+    let from: usize = line
+        .find(marker.as_str())
+        .unwrap_or_else(|| panic!("no {key} in {line}"))
+        + marker.len();
+    let digits: String = line[from..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    return digits
+        .parse::<u64>()
+        .unwrap_or_else(|_| panic!("no number for {key} in {line}"));
 }
 
 /// The records of the repository's timing file,
 /// parsed.
 fn records(repo: &Path) -> Vec<serde_json::Value> {
-    let text: String = std::fs::read_to_string(repo.join(".git").join(TIMING_FILE)).expect("the timing file");
-    return text.lines().map(|line| { return serde_json::from_str(line).expect("a JSON line"); }).collect();
+    let text: String =
+        std::fs::read_to_string(repo.join(".git").join(TIMING_FILE)).expect("the timing file");
+    return text
+        .lines()
+        .map(|line| {
+            return serde_json::from_str(line).expect("a JSON line");
+        })
+        .collect();
 }
 
 /// A number field of a record.
-fn number(record: &serde_json::Value, name: &str) -> u64 {
-    return record[name].as_u64().unwrap_or_else(|| { panic!("no number {name} in {record}") });
+fn number(
+    record: &serde_json::Value,
+    name: &str,
+) -> u64 {
+    return record[name]
+        .as_u64()
+        .unwrap_or_else(|| panic!("no number {name} in {record}"));
 }
 
 /// The wrapped commit of `a.txt` through the service at `runtime`,
 /// not yet run.
-fn commit_a_command(fixture: &Fixture, repo: &Path, runtime: &Path) -> Command {
+fn commit_a_command(
+    fixture: &Fixture,
+    repo: &Path,
+    runtime: &Path,
+) -> Command {
     // A different text each time, so a second commit in one control has something to commit.
     static ROUND: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let round: usize = ROUND.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    std::fs::write(repo.join("a.txt"), format!("edit {round} by {}\n", std::process::id())).expect("a.txt");
-    let mut command: Command = wrapped_commit(fixture, repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("edit {round} by {}\n", std::process::id()),
+    )
+    .expect("a.txt");
+    let mut command: Command =
+        wrapped_commit(fixture, repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime);
     return command;
 }
 
 /// One wrapped commit of `a.txt` through the service at `runtime`,
 /// observed.
-fn commit_a(fixture: &Fixture, repo: &Path, runtime: &Path) -> super::support::Observed {
+fn commit_a(
+    fixture: &Fixture,
+    repo: &Path,
+    runtime: &Path,
+) -> super::support::Observed {
     return observe(&mut commit_a_command(fixture, repo, runtime), b"");
 }
 
 /// The phases the record counts as disjoint stretches of the command.
-const DISJOINT: [&str; 10] = ["routeMs", "prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "closingMs", "otherMs"];
+const DISJOINT: [&str; 10] = [
+    "routeMs",
+    "prepareMs",
+    "buildMs",
+    "provisionMs",
+    "submitMs",
+    "afterLandingMs",
+    "gateMs",
+    "handoffMs",
+    "closingMs",
+    "otherMs",
+];
 
 /// What:
 ///  How much of a wrapped commit's time may go unnamed,
@@ -249,15 +399,38 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     let name: String = format!("timing-record-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
     let identity: String = git_text(&fixture, &repo, &["var", "GIT_COMMITTER_IDENT"]);
-    let address: &str = identity.split_once('<').and_then(|(_, rest)| { return rest.split_once('>'); }).map(|(inside, _)| { return inside; }).expect("an address");
-    let branch: String = git_text(&fixture, &repo, &["symbolic-ref", "--short", "HEAD"]).trim().to_string();
+    let address: &str = identity
+        .split_once('<')
+        .and_then(|(_, rest)| {
+            return rest.split_once('>');
+        })
+        .map(|(inside, _)| {
+            return inside;
+        })
+        .expect("an address");
+    let branch: String = git_text(&fixture, &repo, &["symbolic-ref", "--short", "HEAD"])
+        .trim()
+        .to_string();
     let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    assert_eq!(
+        served.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&served.stderr)
+    );
     for (stream, bytes) in [("stdout", &served.stdout), ("stderr", &served.stderr)] {
         let text: String = String::from_utf8_lossy(bytes).into_owned();
-        assert!(!text.contains(TIMING_FILE) && !text.contains("totalMs") && !text.contains("_ms="), "timing reached the terminal on {stream}: {text}");
+        assert!(
+            !text.contains(TIMING_FILE) && !text.contains("totalMs") && !text.contains("_ms="),
+            "timing reached the terminal on {stream}: {text}"
+        );
     }
     let found: Vec<serde_json::Value> = records(&repo);
     assert_eq!(found.len(), 1, "one record for one commit: {found:?}");
@@ -273,14 +446,29 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     assert_eq!(record["sends"], 1);
     // The commit is of one named path, so its private index is built once, from a copy of the real index: the record says
     // which way that build went, so a slow build is never again left without an answer (an entry per build, in order built).
-    let one_kept_build: serde_json::Value = serde_json::from_str(r#"[{"kind":"first","statDataKept":true}]"#).expect("the one build");
-    assert_eq!(record["indexBuilds"], one_kept_build, "one entry for the one build, and it kept the real index's stat data: {record}");
+    let one_kept_build: serde_json::Value =
+        serde_json::from_str(r#"[{"kind":"first","statDataKept":true}]"#).expect("the one build");
+    assert_eq!(
+        record["indexBuilds"], one_kept_build,
+        "one entry for the one build, and it kept the real index's stat data: {record}"
+    );
     assert!(number(record, "connectTries") >= 1, "{record}");
-    let phases: u64 = DISJOINT.iter().map(|field| { return number(record, field); }).sum();
+    let phases: u64 = DISJOINT
+        .iter()
+        .map(|field| {
+            return number(record, field);
+        })
+        .sum();
     // Each term is cut to whole milliseconds on its own, so the sum falls short of the total by less than one per term.
     let slack: u64 = u64::try_from(DISJOINT.len()).expect("a small count");
-    assert!(phases <= number(record, "totalMs") && number(record, "totalMs") - phases < slack, "the phases and the remainder add up to the total: {record}");
-    assert!(number(record, "reachMs") + number(record, "answerWaitMs") <= number(record, "submitMs"), "{record}");
+    assert!(
+        phases <= number(record, "totalMs") && number(record, "totalMs") - phases < slack,
+        "the phases and the remainder add up to the total: {record}"
+    );
+    assert!(
+        number(record, "reachMs") + number(record, "answerWaitMs") <= number(record, "submitMs"),
+        "{record}"
+    );
     // The longest quiet gap of every Git step and tool of the command is in the record, by step name; a commit that started
     // none still states the empty object and the zero, so a reader never has to tell a missing field from a quiet command.
     assert!(record["quietMs"].is_object(), "{record}");
@@ -288,37 +476,134 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     let started: Vec<String> = lines_of(&places.log, "started");
     println!("SERVICE START: {}", started.join("\n"));
     assert_eq!(started.len(), 1, "{started:?}");
-    assert!(started[0].contains(format!("release={RELEASE:?}").as_str()) && started[0].contains(format!("instance={instance}").as_str()), "{}", started[0]);
-    assert!(started[0].contains(format!("pid={}", _service.0.id()).as_str()), "{}", started[0]);
-    assert!(std::fs::read_to_string(&places.log).expect("log").contains("ready"), "the ready line stays");
+    assert!(
+        started[0].contains(format!("release={RELEASE:?}").as_str())
+            && started[0].contains(format!("instance={instance}").as_str()),
+        "{}",
+        started[0]
+    );
+    assert!(
+        started[0].contains(format!("pid={}", _service.0.id()).as_str()),
+        "{}",
+        started[0]
+    );
+    assert!(
+        std::fs::read_to_string(&places.log)
+            .expect("log")
+            .contains("ready"),
+        "the ready line stays"
+    );
     let answered: Vec<String> = lines_of(&places.log, "answered");
     println!("SERVICE ANSWER: {}", answered.join("\n"));
     assert_eq!(answered.len(), 1, "one line for one request: {answered:?}");
     let line: &str = answered[0].as_str();
-    assert!(line.contains("outcome=landed") && line.contains(format!("branch=\"refs/heads/{branch}\"").as_str()), "{line}");
+    assert!(
+        line.contains("outcome=landed")
+            && line.contains(format!("branch=\"refs/heads/{branch}\"").as_str()),
+        "{line}"
+    );
     assert!(line.contains(" size=1 position=1 "), "{line}");
     // One commit waits for nothing: nothing queued behind its landing.
-    assert_eq!(ms_of(line, "queued_behind"), 0, "a lone commit has nothing behind it: {line}");
-    let request_phases: u64 = ["read_ms", "queued_ms", "settle_ms", "landing_ms", "answer_ms"].iter().map(|key| { return ms_of(line, key); }).sum();
-    assert!(request_phases <= ms_of(line, "total_ms"), "the phases lie inside the request's total: {line}");
-    let landing_keys: [&str; 6] = ["lock_wait_ms", "reads_ms", "objects_ms", "journal_ms", "ref_ms", "index_update_ms"];
-    let landing_phases: u64 = landing_keys.iter().map(|key| { return ms_of(line, key); }).sum();
+    assert_eq!(
+        ms_of(line, "queued_behind"),
+        0,
+        "a lone commit has nothing behind it: {line}"
+    );
+    let request_phases: u64 = [
+        "read_ms",
+        "queued_ms",
+        "settle_ms",
+        "landing_ms",
+        "answer_ms",
+    ]
+    .iter()
+    .map(|key| {
+        return ms_of(line, key);
+    })
+    .sum();
+    assert!(
+        request_phases <= ms_of(line, "total_ms"),
+        "the phases lie inside the request's total: {line}"
+    );
+    let landing_keys: [&str; 6] = [
+        "lock_wait_ms",
+        "reads_ms",
+        "objects_ms",
+        "journal_ms",
+        "ref_ms",
+        "index_update_ms",
+    ];
+    let landing_phases: u64 = landing_keys
+        .iter()
+        .map(|key| {
+            return ms_of(line, key);
+        })
+        .sum();
     let landing_total: u64 = ms_of(line, "landing_ms");
-    assert!(landing_phases <= landing_total && landing_total - landing_phases < u64::try_from(landing_keys.len()).expect("a small count"), "{line}");
+    assert!(
+        landing_phases <= landing_total
+            && landing_total - landing_phases
+                < u64::try_from(landing_keys.len()).expect("a small count"),
+        "{line}"
+    );
     // The residual reads are named one by one, so a slow landing says which read spent the time; each is a part of `reads_ms`.
-    let read_names: [&str; 9] = ["reads_config_ms", "reads_branch_ms", "reads_parents_ms", "reads_changed_ms", "reads_content_ms", "reads_witness_ms", "reads_conclusion_ms", "reads_owed_ms", "reads_follow_ms"];
-    let named_reads: u64 = read_names.iter().map(|key| { return ms_of(line, key); }).sum();
-    assert!(named_reads <= ms_of(line, "reads_ms"), "the named reads are parts of the residual ({} of {}): {line}", named_reads, ms_of(line, "reads_ms"));
+    let read_names: [&str; 9] = [
+        "reads_config_ms",
+        "reads_branch_ms",
+        "reads_parents_ms",
+        "reads_changed_ms",
+        "reads_content_ms",
+        "reads_witness_ms",
+        "reads_conclusion_ms",
+        "reads_owed_ms",
+        "reads_follow_ms",
+    ];
+    let named_reads: u64 = read_names
+        .iter()
+        .map(|key| {
+            return ms_of(line, key);
+        })
+        .sum();
+    assert!(
+        named_reads <= ms_of(line, "reads_ms"),
+        "the named reads are parts of the residual ({} of {}): {line}",
+        named_reads,
+        ms_of(line, "reads_ms")
+    );
     // Every sync of the landing is stated with what it was for: one handed to the background says `queued`, and the landing
     //  says how many it waited for and how long that took.
-    assert!(ms_of(line, "syncs_queued") >= 1, "the records of the landing are flushed after the answer: {line}");
-    assert!(line.contains("lock-marker=queued"), "the flush of the lock marker is named: {line}");
-    assert_eq!(ms_of(line, "syncs_waited"), 0, "an unset `core.fsync` waits for no sync: {line}");
-    assert_eq!(ms_of(line, "sync_held_ms"), 0, "nothing was waited for, so nothing was held: {line}");
-    assert!(!line.contains("lock_holder"), "nobody held the index: {line}");
-    let everything: String = std::fs::read_to_string(&places.log).expect("log") + &std::fs::read_to_string(repo.join(".git").join(TIMING_FILE)).expect("record");
-    assert!(!everything.contains(MESSAGE), "the commit's text is in a log");
-    assert!(!everything.contains(address), "the committer's address is in a log");
+    assert!(
+        ms_of(line, "syncs_queued") >= 1,
+        "the records of the landing are flushed after the answer: {line}"
+    );
+    assert!(
+        line.contains("lock-marker=queued"),
+        "the flush of the lock marker is named: {line}"
+    );
+    assert_eq!(
+        ms_of(line, "syncs_waited"),
+        0,
+        "an unset `core.fsync` waits for no sync: {line}"
+    );
+    assert_eq!(
+        ms_of(line, "sync_held_ms"),
+        0,
+        "nothing was waited for, so nothing was held: {line}"
+    );
+    assert!(
+        !line.contains("lock_holder"),
+        "nobody held the index: {line}"
+    );
+    let everything: String = std::fs::read_to_string(&places.log).expect("log")
+        + &std::fs::read_to_string(repo.join(".git").join(TIMING_FILE)).expect("record");
+    assert!(
+        !everything.contains(MESSAGE),
+        "the commit's text is in a log"
+    );
+    assert!(
+        !everything.contains(address),
+        "the committer's address is in a log"
+    );
     remove_settled(&fixture);
 }
 
@@ -339,21 +624,45 @@ fn the_phases_account_for_the_whole_of_a_wrapped_commit() {
     let name: String = format!("timing-accounting-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
     let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    assert_eq!(
+        served.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&served.stderr)
+    );
     let found: Vec<serde_json::Value> = records(&repo);
     assert_eq!(found.len(), 1, "one record for one commit: {found:?}");
     let record: &serde_json::Value = &found[0];
     println!("TIMING RECORD: {record}");
     assert_eq!(record["outcome"], "landed");
     // The two edges of the closing phase are the last phase of the command and the record's own write, so it states a time.
-    assert!(number(record, "closingMs") < number(record, "totalMs"), "the closing stretch lies inside the total: {record}");
-    let phases: u64 = DISJOINT.iter().map(|field| { return number(record, field); }).sum();
+    assert!(
+        number(record, "closingMs") < number(record, "totalMs"),
+        "the closing stretch lies inside the total: {record}"
+    );
+    let phases: u64 = DISJOINT
+        .iter()
+        .map(|field| {
+            return number(record, field);
+        })
+        .sum();
     let slack: u64 = u64::try_from(DISJOINT.len()).expect("a small count");
-    assert!(phases <= number(record, "totalMs") && number(record, "totalMs") - phases < slack, "the phases and the remainder add up to the total: {record}");
+    assert!(
+        phases <= number(record, "totalMs") && number(record, "totalMs") - phases < slack,
+        "the phases and the remainder add up to the total: {record}"
+    );
     let unnamed: u64 = number(record, "otherMs");
-    assert!(unnamed <= UNNAMED_TOLERANCE_MS, "no wait of this commit is outside a named phase: unnamed {unnamed} ms, tolerance {UNNAMED_TOLERANCE_MS} ms, {record}");
+    assert!(
+        unnamed <= UNNAMED_TOLERANCE_MS,
+        "no wait of this commit is outside a named phase: unnamed {unnamed} ms, tolerance {UNNAMED_TOLERANCE_MS} ms, {record}"
+    );
     remove_settled(&fixture);
 }
 
@@ -371,7 +680,10 @@ const CONTROL_CEILING_SECONDS: &str = "600";
 /// then runs the
 ///  real Git;
 /// every other step runs at once.
-fn slow_commit_git(fixture: &Fixture, seconds: u64) -> PathBuf {
+fn slow_commit_git(
+    fixture: &Fixture,
+    seconds: u64,
+) -> PathBuf {
     let directory: PathBuf = fixture.root.join("slow-commit-bin");
     std::fs::create_dir_all(&directory).expect("directory of the stand-in");
     let program: PathBuf = directory.join("git");
@@ -379,7 +691,11 @@ fn slow_commit_git(fixture: &Fixture, seconds: u64) -> PathBuf {
         "#!/bin/sh\nslow=no\nfor word in \"$@\"; do\n  if [ \"$word\" = cat-file ]; then slow=no; break; fi\n  if [ \"$word\" = commit ]; then slow=yes; fi\ndone\nif [ $slow = yes ]; then /usr/bin/sleep {seconds}; fi\nexec /usr/bin/git \"$@\"\n"
     );
     std::fs::write(&program, source).expect("the stand-in");
-    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(
+        &program,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("executable");
     return directory;
 }
 
@@ -400,7 +716,8 @@ const BEYOND_THE_CEILING_SECONDS: u64 = 60;
 /// which is up to `LOOK_INTERVAL` (250 ms) after the step started
 /// (`native_commit_waiting_notice.rs`),
 /// so the sleep ended first and the commit landed.
-const BEYOND_THE_PRODUCTION_CEILING_SECONDS: u64 = git_policy_cli::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING.as_secs() * 2;
+const BEYOND_THE_PRODUCTION_CEILING_SECONDS: u64 =
+    git_policy_cli::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING.as_secs() * 2;
 
 /// A commit whose message came with the command and whose scratch `git commit` outlasts the ceiling
 /// the step really runs under (`wait_ceilings.rs`,
@@ -416,11 +733,18 @@ fn a_scratch_commit_that_outlasts_the_ceiling_is_stopped_and_nothing_is_committe
     let name: String = format!("timing-ceiling-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
-    let mut command: Command = commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    let mut command: Command =
+        commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
     let edited: Vec<u8> = std::fs::read(repo.join("a.txt")).expect("a.txt");
-    let mut path: std::ffi::OsString = slow_commit_git(&fixture, BEYOND_THE_PRODUCTION_CEILING_SECONDS).into_os_string();
+    let mut path: std::ffi::OsString =
+        slow_commit_git(&fixture, BEYOND_THE_PRODUCTION_CEILING_SECONDS).into_os_string();
     path.push(":");
     path.push(fixture.root.join("bin"));
     command.env("PATH", path);
@@ -429,11 +753,28 @@ fn a_scratch_commit_that_outlasts_the_ceiling_is_stopped_and_nothing_is_committe
     let lasted: Duration = began.elapsed();
     let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
     assert_eq!(served.code, Some(1), "{stderr}");
-    assert!(lasted < Duration::from_secs(BEYOND_THE_PRODUCTION_CEILING_SECONDS), "the stop did not end the step: {lasted:?}");
-    assert!(stderr.contains("was stopped after") && stderr.contains("nothing was committed"), "{stderr}");
-    assert!(stderr.contains("Run the same `git commit` command again"), "{stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
-    assert_eq!(std::fs::read(repo.join("a.txt")).expect("a.txt"), edited, "the person's file is as it was");
+    assert!(
+        lasted < Duration::from_secs(BEYOND_THE_PRODUCTION_CEILING_SECONDS),
+        "the stop did not end the step: {lasted:?}"
+    );
+    assert!(
+        stderr.contains("was stopped after") && stderr.contains("nothing was committed"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("Run the same `git commit` command again"),
+        "{stderr}"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]),
+        before,
+        "nothing was committed"
+    );
+    assert_eq!(
+        std::fs::read(repo.join("a.txt")).expect("a.txt"),
+        edited,
+        "the person's file is as it was"
+    );
     remove_settled(&fixture);
 }
 
@@ -458,48 +799,129 @@ fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
     let name: String = format!("timing-steps-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
-    let mut command: Command = commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
+    let mut command: Command =
+        commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
     // Real Git is searched in the usual places first, so the stand-in is found only where the PATH has no `/usr/bin`.
-    let mut path: std::ffi::OsString = slow_commit_git(&fixture, SLOW_STEP_SECONDS).into_os_string();
+    let mut path: std::ffi::OsString =
+        slow_commit_git(&fixture, SLOW_STEP_SECONDS).into_os_string();
     path.push(":");
     path.push(fixture.root.join("bin"));
-    command.env("PATH", path).env(git_policy_cli::native_commit_waiting_notice::SCRATCH_CEILING_VARIABLE, CONTROL_CEILING_SECONDS);
+    command.env("PATH", path).env(
+        git_policy_cli::native_commit_waiting_notice::SCRATCH_CEILING_VARIABLE,
+        CONTROL_CEILING_SECONDS,
+    );
     let served = observe(&mut command, b"");
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    assert_eq!(
+        served.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&served.stderr)
+    );
     let found: Vec<serde_json::Value> = records(&repo);
     assert_eq!(found.len(), 1, "{found:?}");
     let record: &serde_json::Value = &found[0];
-    let steps: &Vec<serde_json::Value> = record["steps"].as_array().unwrap_or_else(|| { panic!("the record has no steps list: {record}") });
+    let steps: &Vec<serde_json::Value> = record["steps"]
+        .as_array()
+        .unwrap_or_else(|| panic!("the record has no steps list: {record}"));
     let slow: u64 = SLOW_STEP_SECONDS * 1000;
-    let built: &serde_json::Value = steps.iter().find(|step| { return step["name"] == "git commit"; }).unwrap_or_else(|| { panic!("no git commit step: {record}") });
-    assert!(number(built, "durationMs") >= slow, "the sleeping step's duration is in the record: {record}");
-    assert!(number(built, "durationMs") <= number(record, "buildMs"), "the step lies inside the build phase: {record}");
-    assert!(number(built, "offsetMs") + number(built, "durationMs") <= number(record, "totalMs"), "{record}");
+    let built: &serde_json::Value = steps
+        .iter()
+        .find(|step| {
+            return step["name"] == "git commit";
+        })
+        .unwrap_or_else(|| panic!("no git commit step: {record}"));
+    assert!(
+        number(built, "durationMs") >= slow,
+        "the sleeping step's duration is in the record: {record}"
+    );
+    assert!(
+        number(built, "durationMs") <= number(record, "buildMs"),
+        "the step lies inside the build phase: {record}"
+    );
+    assert!(
+        number(built, "offsetMs") + number(built, "durationMs") <= number(record, "totalMs"),
+        "{record}"
+    );
     for step in steps {
         let step_name: &str = step["name"].as_str().expect("a step name");
-        assert!(step_name.starts_with("git ") && !step_name.contains('/') && !step_name.contains(MESSAGE) && !step_name.contains('='), "a step name is the program and the subcommand: {step_name}");
-        assert!(step["offsetMs"].is_u64() && step["durationMs"].is_u64(), "{step}");
+        assert!(
+            step_name.starts_with("git ")
+                && !step_name.contains('/')
+                && !step_name.contains(MESSAGE)
+                && !step_name.contains('='),
+            "a step name is the program and the subcommand: {step_name}"
+        );
+        assert!(
+            step["offsetMs"].is_u64() && step["durationMs"].is_u64(),
+            "{step}"
+        );
     }
     assert_eq!(record["stepsDropped"], 0, "{record}");
     // Steps are listed in the order they began.
-    let offsets: Vec<u64> = steps.iter().map(|step| { return number(step, "offsetMs"); }).collect();
-    assert!(offsets.windows(2).all(|pair| { return pair[0] <= pair[1]; }), "{offsets:?}");
+    let offsets: Vec<u64> = steps
+        .iter()
+        .map(|step| {
+            return number(step, "offsetMs");
+        })
+        .collect();
+    assert!(
+        offsets.windows(2).all(|pair| {
+            return pair[0] <= pair[1];
+        }),
+        "{offsets:?}"
+    );
     // What the step's own figure cannot say is in the record beside it: whether a ceiling was armed, how long the notice's own
     // join took (a line that waits for its reader is that figure and not the step's), and which programs ran below the step.
     // The stand-in sleeps before it execs Git, so the sleep is one of them, and its time is the time Git was not running.
-    let scratch: &Vec<serde_json::Value> = record["scratchSteps"].as_array().unwrap_or_else(|| { panic!("the record has no scratch step list: {record}") });
+    let scratch: &Vec<serde_json::Value> = record["scratchSteps"]
+        .as_array()
+        .unwrap_or_else(|| panic!("the record has no scratch step list: {record}"));
     assert_eq!(scratch.len(), 1, "one entry for the one build: {record}");
     let build: &serde_json::Value = &scratch[0];
-    assert_eq!(build["armed"], true, "a message on the command line arms the ceiling: {record}");
-    assert_eq!(number(build, "ceilingMs"), CONTROL_CEILING_SECONDS.parse::<u64>().expect("the control's ceiling") * 1000, "{record}");
-    assert!(build["stoppedAfterMs"].is_null(), "the step ended by itself: {record}");
-    assert!(number(build, "looks") >= 1 && number(build, "looksFound") >= 1, "the notice looked and found the step: {record}");
-    let below: &Vec<serde_json::Value> = build["below"].as_array().unwrap_or_else(|| { panic!("no programs below the step: {record}") });
-    let sleeping: &serde_json::Value = below.iter().find(|program| { return program["name"] == "sleep"; }).unwrap_or_else(|| { panic!("the stand-in's sleep is not named below the step: {record}") });
+    assert_eq!(
+        build["armed"], true,
+        "a message on the command line arms the ceiling: {record}"
+    );
+    assert_eq!(
+        number(build, "ceilingMs"),
+        CONTROL_CEILING_SECONDS
+            .parse::<u64>()
+            .expect("the control's ceiling")
+            * 1000,
+        "{record}"
+    );
+    assert!(
+        build["stoppedAfterMs"].is_null(),
+        "the step ended by itself: {record}"
+    );
+    assert!(
+        number(build, "looks") >= 1 && number(build, "looksFound") >= 1,
+        "the notice looked and found the step: {record}"
+    );
+    let below: &Vec<serde_json::Value> = build["below"]
+        .as_array()
+        .unwrap_or_else(|| panic!("no programs below the step: {record}"));
+    let sleeping: &serde_json::Value = below
+        .iter()
+        .find(|program| {
+            return program["name"] == "sleep";
+        })
+        .unwrap_or_else(|| panic!("the stand-in's sleep is not named below the step: {record}"));
     let slept: u64 = number(sleeping, "seenMs");
-    assert!(slept >= (SLOW_STEP_SECONDS - 1) * 1000, "the sleep ran {SLOW_STEP_SECONDS} s: {record}");
-    assert!(slept <= SLOW_STEP_SECONDS * 1000, "the sleep cannot be seen longer than it ran: {record}");
+    assert!(
+        slept >= (SLOW_STEP_SECONDS - 1) * 1000,
+        "the sleep ran {SLOW_STEP_SECONDS} s: {record}"
+    );
+    assert!(
+        slept <= SLOW_STEP_SECONDS * 1000,
+        "the sleep cannot be seen longer than it ran: {record}"
+    );
     remove_settled(&fixture);
 }
 
@@ -546,31 +968,79 @@ fn the_record_names_every_stretch_of_the_build_phase() {
     let name: String = format!("timing-build-parts-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
     let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    assert_eq!(
+        served.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&served.stderr)
+    );
     let found: Vec<serde_json::Value> = records(&repo);
     assert_eq!(found.len(), 1, "{found:?}");
     let record: &serde_json::Value = &found[0];
     println!("TIMING RECORD (build parts): {record}");
-    let parts: &serde_json::Map<String, serde_json::Value> = record["buildParts"].as_object().unwrap_or_else(|| { panic!("the record has no build parts: {record}") });
+    let parts: &serde_json::Map<String, serde_json::Value> = record["buildParts"]
+        .as_object()
+        .unwrap_or_else(|| panic!("the record has no build parts: {record}"));
     // Every stretch of the build the command ran is stated by the name the wrapper compiled into it, and the creation's own
     //  stages are among them: no name here is a path, a message or an option value.
-    for required in ["branch", "request", "shadow skeleton", "shadow config", "shadow links", "shadow conclusion", "shadow refs", "client build", "commit read back"] {
-        assert!(parts.contains_key(required), "the build states {required}: {record}");
+    for required in [
+        "branch",
+        "request",
+        "shadow skeleton",
+        "shadow config",
+        "shadow links",
+        "shadow conclusion",
+        "shadow refs",
+        "client build",
+        "commit read back",
+    ] {
+        assert!(
+            parts.contains_key(required),
+            "the build states {required}: {record}"
+        );
     }
     for (part, figure) in parts {
-        assert!(!part.contains('/') && !part.contains(MESSAGE) && !part.contains('='), "a part name is what the wrapper does: {part}");
-        assert!(figure["ms"].is_u64() && figure["calls"].is_u64(), "{part}: {figure}");
-        assert!(number(figure, "ms") <= number(record, "buildMs"), "{part} lies inside the build phase: {record}");
+        assert!(
+            !part.contains('/') && !part.contains(MESSAGE) && !part.contains('='),
+            "a part name is what the wrapper does: {part}"
+        );
+        assert!(
+            figure["ms"].is_u64() && figure["calls"].is_u64(),
+            "{part}: {figure}"
+        );
+        assert!(
+            number(figure, "ms") <= number(record, "buildMs"),
+            "{part} lies inside the build phase: {record}"
+        );
     }
     // The Git children are recorded apart, so the stretches and the steps together are no more than the build itself.
-    assert_eq!(number(record, "attempts"), 1, "one build states one window: {record}");
+    assert_eq!(
+        number(record, "attempts"),
+        1,
+        "one build states one window: {record}"
+    );
     let steps: Vec<&serde_json::Value> = steps_inside_the_build(record);
     // A frame that moved would empty the window, and an empty selection passes the accounting assertion by adding nothing.
-    assert!(steps.iter().any(|step| { return step["name"].as_str() == Some("git commit"); }), "the window holds the scratch commit the build ran: {record}");
+    assert!(
+        steps.iter().any(|step| {
+            return step["name"].as_str() == Some("git commit");
+        }),
+        "the window holds the scratch commit the build ran: {record}"
+    );
     let steps_in_build: u64 = steps_ms(steps.as_slice());
-    let stated: u64 = parts.values().map(|figure| { return number(figure, "ms"); }).sum();
+    let stated: u64 = parts
+        .values()
+        .map(|figure| {
+            return number(figure, "ms");
+        })
+        .sum();
     assert!(
         stated + steps_in_build <= number(record, "buildMs") + WINDOW_ORIGIN_ROUNDING_MS,
         "the stretches and steps lie inside the build ({} + {steps_in_build} of {}): {record}",
@@ -633,36 +1103,84 @@ fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
     let name: String = format!("timing-build-stopped-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
-    let mut command: Command = commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
-    let mut path: std::ffi::OsString = slow_commit_git(&fixture, BEYOND_THE_CEILING_SECONDS).into_os_string();
+    let mut command: Command =
+        commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    let mut path: std::ffi::OsString =
+        slow_commit_git(&fixture, BEYOND_THE_CEILING_SECONDS).into_os_string();
     path.push(":");
     path.push(fixture.root.join("bin"));
-    command.env("PATH", path).env(git_policy_cli::native_commit_waiting_notice::SCRATCH_CEILING_VARIABLE, STOP_CEILING_SECONDS);
+    command.env("PATH", path).env(
+        git_policy_cli::native_commit_waiting_notice::SCRATCH_CEILING_VARIABLE,
+        STOP_CEILING_SECONDS,
+    );
     let served = observe(&mut command, b"");
     let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
     assert_eq!(served.code, Some(1), "{stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]),
+        before,
+        "nothing was committed"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
-    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the stopped commit wrote no record") });
+    let record: &serde_json::Value = found
+        .last()
+        .unwrap_or_else(|| panic!("the stopped commit wrote no record"));
     println!("TIMING RECORD (build stopped): {record}");
     assert_eq!(record["outcome"], "stopped", "{record}");
     // The step was ended at its ceiling, so the build held at least that long; before the change this was 0 and the whole
     //  stretch was `otherMs`.
-    let ceiling: u64 = STOP_CEILING_SECONDS.parse::<u64>().expect("the control's ceiling") * 1000;
-    assert!(number(record, "buildMs") >= ceiling - ROUNDING_MS, "the stopped build states its time: {record}");
-    assert!(number(record, "otherMs") < number(record, "buildMs"), "the build's time is not left to no phase: {record}");
-    let parts: &serde_json::Map<String, serde_json::Value> = record["buildParts"].as_object().unwrap_or_else(|| { panic!("the record has no build parts: {record}") });
-    assert!(parts.contains_key("client build"), "the stop happened in the client's build: {record}");
+    let ceiling: u64 = STOP_CEILING_SECONDS
+        .parse::<u64>()
+        .expect("the control's ceiling")
+        * 1000;
+    assert!(
+        number(record, "buildMs") >= ceiling - ROUNDING_MS,
+        "the stopped build states its time: {record}"
+    );
+    assert!(
+        number(record, "otherMs") < number(record, "buildMs"),
+        "the build's time is not left to no phase: {record}"
+    );
+    let parts: &serde_json::Map<String, serde_json::Value> = record["buildParts"]
+        .as_object()
+        .unwrap_or_else(|| panic!("the record has no build parts: {record}"));
+    assert!(
+        parts.contains_key("client build"),
+        "the stop happened in the client's build: {record}"
+    );
     // The step the ceiling ended is recorded apart, so the stretch around it is the time the build spent outside that step.
-    assert_eq!(number(record, "attempts"), 1, "one build states one window: {record}");
+    assert_eq!(
+        number(record, "attempts"),
+        1,
+        "one build states one window: {record}"
+    );
     let steps: Vec<&serde_json::Value> = steps_inside_the_build(record);
     // A frame that moved would empty the window, and an empty selection passes the accounting assertion by adding nothing.
-    let names: Vec<&str> = steps.iter().map(|step| { return step["name"].as_str().unwrap_or_default(); }).collect();
-    assert_eq!(names, ["git commit"], "the window holds the scratch commit the build ran and no step before it: {record}");
+    let names: Vec<&str> = steps
+        .iter()
+        .map(|step| {
+            return step["name"].as_str().unwrap_or_default();
+        })
+        .collect();
+    assert_eq!(
+        names,
+        ["git commit"],
+        "the window holds the scratch commit the build ran and no step before it: {record}"
+    );
     let steps_in_build: u64 = steps_ms(steps.as_slice());
-    let stated: u64 = parts.values().map(|figure| { return number(figure, "ms"); }).sum();
+    let stated: u64 = parts
+        .values()
+        .map(|figure| {
+            return number(figure, "ms");
+        })
+        .sum();
     assert!(
         stated + steps_in_build <= number(record, "buildMs") + WINDOW_ORIGIN_ROUNDING_MS,
         "the stretches and steps lie inside the stopped build ({} + {steps_in_build} of {}): {record}",
@@ -695,34 +1213,60 @@ fn a_commit_stopped_by_a_failing_git_step_states_the_step_and_its_status() {
     // A tracked file the worktree holds, which this process may not read: `git add -- a.txt` cannot index what it cannot
     //  open, and nothing about the request is the caller's input error.
     std::fs::write(repo.join("a.txt"), b"edit by the timing stop control\n").expect("a.txt");
-    let mut closed: std::fs::Permissions = std::fs::metadata(repo.join("a.txt")).expect("a.txt").permissions();
+    let mut closed: std::fs::Permissions = std::fs::metadata(repo.join("a.txt"))
+        .expect("a.txt")
+        .permissions();
     closed.set_mode(0o000);
-    std::fs::set_permissions(repo.join("a.txt"), closed).expect("a.txt with no permission of its own");
+    std::fs::set_permissions(repo.join("a.txt"), closed)
+        .expect("a.txt with no permission of its own");
     let name: String = format!("timing-stop-step-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
     let refused = super::support::run_direct(&fixture, &repo, &["add", "--", "a.txt"]);
     let status: i64 = i64::from(refused.code.expect("Git's own status"));
     assert_ne!(status, 0, "Git refuses a file it may not read");
-    let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    let mut command: Command =
+        wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
     let served = observe(&mut command, b"");
     let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
     assert_eq!(served.code, Some(2), "{stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]),
+        before,
+        "nothing was committed"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
-    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the stopped commit wrote no record") });
+    let record: &serde_json::Value = found
+        .last()
+        .unwrap_or_else(|| panic!("the stopped commit wrote no record"));
     println!("TIMING RECORD (stopped by a step): {record}");
     assert_eq!(record["outcome"], "stopped", "{record}");
     assert_eq!(record["exitCode"], 2, "{record}");
     assert_eq!(record["stop"]["kind"], "git-step", "{record}");
     assert_eq!(record["stop"]["step"], "git add", "{record}");
-    assert_eq!(record["stop"]["status"], status, "the record states Git's own status: {record}");
+    assert_eq!(
+        record["stop"]["status"], status,
+        "the record states Git's own status: {record}"
+    );
     // The step the reason names is the last one the command started, so the reason and the steps agree.
-    let steps: &Vec<serde_json::Value> = record["steps"].as_array().unwrap_or_else(|| { panic!("the record has no steps: {record}") });
-    assert_eq!(steps.last().map(|step| { return step["name"].clone(); }), Some(serde_json::Value::from("git add")), "{record}");
+    let steps: &Vec<serde_json::Value> = record["steps"]
+        .as_array()
+        .unwrap_or_else(|| panic!("the record has no steps: {record}"));
+    assert_eq!(
+        steps.last().map(|step| {
+            return step["name"].clone();
+        }),
+        Some(serde_json::Value::from("git add")),
+        "{record}"
+    );
     remove_settled(&fixture);
 }
 
@@ -749,20 +1293,35 @@ fn a_commit_refused_by_a_policy_states_the_policy() {
     let name: String = format!("timing-stop-policy-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
-    let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    let mut command: Command =
+        wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
     let served = observe(&mut command, b"");
     let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
     assert_eq!(served.code, Some(1), "{stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]),
+        before,
+        "nothing was committed"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
-    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the refused commit wrote no record") });
+    let record: &serde_json::Value = found
+        .last()
+        .unwrap_or_else(|| panic!("the refused commit wrote no record"));
     println!("TIMING RECORD (stopped by a policy): {record}");
     assert_eq!(record["outcome"], "ended", "{record}");
     assert_eq!(record["stop"]["kind"], "policy", "{record}");
-    assert_eq!(record["stop"]["policy"], "security/forbidden-strings", "{record}");
+    assert_eq!(
+        record["stop"]["policy"], "security/forbidden-strings",
+        "{record}"
+    );
     remove_settled(&fixture);
 }
 
@@ -808,12 +1367,19 @@ fn build_window(record: &serde_json::Value) -> (u64, u64) {
 
 /// The Git steps that began inside a window of the command's own milliseconds,
 /// `from` until `to`.
-fn steps_within(record: &serde_json::Value, from: u64, to: u64) -> Vec<&serde_json::Value> {
+fn steps_within(
+    record: &serde_json::Value,
+    from: u64,
+    to: u64,
+) -> Vec<&serde_json::Value> {
     return record["steps"]
         .as_array()
-        .unwrap_or_else(|| { panic!("the record has no steps: {record}") })
+        .unwrap_or_else(|| panic!("the record has no steps: {record}"))
         .iter()
-        .filter(|step| { let offset: u64 = number(step, "offsetMs"); return offset >= from && offset < to; })
+        .filter(|step| {
+            let offset: u64 = number(step, "offsetMs");
+            return offset >= from && offset < to;
+        })
         .collect();
 }
 
@@ -825,7 +1391,12 @@ fn steps_inside_the_build(record: &serde_json::Value) -> Vec<&serde_json::Value>
 
 /// The whole milliseconds a list of steps states.
 fn steps_ms(steps: &[&serde_json::Value]) -> u64 {
-    return steps.iter().map(|step| { return number(step, "durationMs"); }).sum();
+    return steps
+        .iter()
+        .map(|step| {
+            return number(step, "durationMs");
+        })
+        .sum();
 }
 
 /// What:
@@ -885,27 +1456,68 @@ const STOPPED_RECORD_OF_THE_2026_11_22_GATE: &str = r#"{"routeMs":101,"prepareMs
 ///  so rounding is not its cause.
 #[test]
 fn a_preparations_last_steps_are_not_counted_inside_the_build() {
-    let record: serde_json::Value = serde_json::from_str(STOPPED_RECORD_OF_THE_2026_11_22_GATE).expect("the gate's record");
-    let parts: &serde_json::Map<String, serde_json::Value> = record["buildParts"].as_object().expect("the record's build parts");
-    let stated: u64 = parts.values().map(|figure| { return number(figure, "ms"); }).sum();
+    let record: serde_json::Value =
+        serde_json::from_str(STOPPED_RECORD_OF_THE_2026_11_22_GATE).expect("the gate's record");
+    let parts: &serde_json::Map<String, serde_json::Value> = record["buildParts"]
+        .as_object()
+        .expect("the record's build parts");
+    let stated: u64 = parts
+        .values()
+        .map(|figure| {
+            return number(figure, "ms");
+        })
+        .sum();
     let steps: Vec<&serde_json::Value> = steps_inside_the_build(&record);
     let steps_in_build: u64 = steps_ms(steps.as_slice());
-    assert_eq!(steps.iter().map(|step| { return step["name"].as_str().unwrap_or_default(); }).collect::<Vec<&str>>(), ["git commit"], "the build's steps are the ones it began: {record}");
-    assert!(stated + steps_in_build <= number(&record, "buildMs") + WINDOW_ORIGIN_ROUNDING_MS, "the stretches and steps lie inside the build ({} + {steps_in_build} of {}): {record}", stated, number(&record, "buildMs"));
+    assert_eq!(
+        steps
+            .iter()
+            .map(|step| {
+                return step["name"].as_str().unwrap_or_default();
+            })
+            .collect::<Vec<&str>>(),
+        ["git commit"],
+        "the build's steps are the ones it began: {record}"
+    );
+    assert!(
+        stated + steps_in_build <= number(&record, "buildMs") + WINDOW_ORIGIN_ROUNDING_MS,
+        "the stretches and steps lie inside the build ({} + {steps_in_build} of {}): {record}",
+        stated,
+        number(&record, "buildMs")
+    );
     // Each preparation step began before the window, and the part that ran it states that step's own time.
     let began: u64 = build_window(&record).0;
     for (part, name) in [("index", "git add"), ("policies", "git rev-parse")] {
-        let found: &serde_json::Value = record["steps"].as_array().expect("the record's steps").iter().find(|step| { return step["name"].as_str() == Some(name); }).unwrap_or_else(|| { panic!("the record has no {name}: {record}") });
-        assert!(number(found, "offsetMs") < began, "{name} began before the build did: {record}");
-        assert_eq!(number(&record["prepareParts"][part], "childrenMs"), number(found, "durationMs"), "{part} states the time {name} ran: {record}");
+        let found: &serde_json::Value = record["steps"]
+            .as_array()
+            .expect("the record's steps")
+            .iter()
+            .find(|step| {
+                return step["name"].as_str() == Some(name);
+            })
+            .unwrap_or_else(|| panic!("the record has no {name}: {record}"));
+        assert!(
+            number(found, "offsetMs") < began,
+            "{name} began before the build did: {record}"
+        );
+        assert_eq!(
+            number(&record["prepareParts"][part], "childrenMs"),
+            number(found, "durationMs"),
+            "{part} states the time {name} ran: {record}"
+        );
     }
     // The reading this control replaces: the window began at `prepareMs`, so it counted the preparation's steps again,
     //  and what it states passes even the origin's own bound.
     let prepare_ms: u64 = number(&record, "prepareMs");
-    let from_the_preparation: Vec<&serde_json::Value> = steps_within(&record, prepare_ms, prepare_ms + number(&record, "buildMs"));
-    assert!(from_the_preparation.len() > steps.len(), "the old window counts the preparation's steps: {record}");
+    let from_the_preparation: Vec<&serde_json::Value> =
+        steps_within(&record, prepare_ms, prepare_ms + number(&record, "buildMs"));
     assert!(
-        stated + steps_ms(from_the_preparation.as_slice()) > number(&record, "buildMs") + WINDOW_ORIGIN_ROUNDING_MS,
+        from_the_preparation.len() > steps.len(),
+        "the old window counts the preparation's steps: {record}"
+    );
+    assert!(
+        stated + steps_ms(from_the_preparation.as_slice())
+            > number(&record, "buildMs") + WINDOW_ORIGIN_ROUNDING_MS,
         "the failure's excess passes even the origin's own bound, so it is no rounding: {record}"
     );
 }
@@ -915,13 +1527,21 @@ fn a_preparations_last_steps_are_not_counted_inside_the_build() {
 /// from the lock's own
 ///  age) and ended when the wait ended,
 /// so on any host the wait is at least what was left of the hold.
-fn wait_covers_the_hold(wait_ms: u64, age_ms: u64, hold_ms: u64) -> bool {
+fn wait_covers_the_hold(
+    wait_ms: u64,
+    age_ms: u64,
+    hold_ms: u64,
+) -> bool {
     return wait_ms + age_ms + ROUNDING_MS >= hold_ms;
 }
 
 /// Whether a phase lies beside the wait and not inside it:
 /// the phase and the wait fit in the whole they are both part of.
-fn phase_lies_beside_the_wait(phase_ms: u64, wait_ms: u64, whole_ms: u64) -> bool {
+fn phase_lies_beside_the_wait(
+    phase_ms: u64,
+    wait_ms: u64,
+    whole_ms: u64,
+) -> bool {
     return phase_ms + wait_ms <= whole_ms + ROUNDING_MS;
 }
 
@@ -934,8 +1554,14 @@ fn a_slow_phase_and_a_late_wait_do_not_break_the_attribution() {
     let hold: u64 = 4_000;
     let wait: u64 = 2_100;
     let age: u64 = 1_900;
-    assert!(wait_covers_the_hold(wait, age, hold), "the wait began {age} ms into a hold of {hold} ms");
-    assert!(phase_lies_beside_the_wait(2_681, wait, 2_681 + wait + 50), "a slow phase is not the wait");
+    assert!(
+        wait_covers_the_hold(wait, age, hold),
+        "the wait began {age} ms into a hold of {hold} ms"
+    );
+    assert!(
+        phase_lies_beside_the_wait(2_681, wait, 2_681 + wait + 50),
+        "a slow phase is not the wait"
+    );
 }
 
 /// A wait that is shorter than what was left of the hold means the time went to another phase;
@@ -943,8 +1569,14 @@ fn a_slow_phase_and_a_late_wait_do_not_break_the_attribution() {
 ///  is counted twice.
 #[test]
 fn a_wait_that_lost_time_or_a_phase_that_overlaps_it_is_caught() {
-    assert!(!wait_covers_the_hold(500, 300, 4_000), "3.2 s of the hold went to no wait");
-    assert!(!phase_lies_beside_the_wait(3_000, 2_000, 4_000), "3 s and 2 s do not fit in 4 s");
+    assert!(
+        !wait_covers_the_hold(500, 300, 4_000),
+        "3.2 s of the hold went to no wait"
+    );
+    assert!(
+        !phase_lies_beside_the_wait(3_000, 2_000, 4_000),
+        "3 s and 2 s do not fit in 4 s"
+    );
 }
 
 /// How many holds the wrapped commit is stalled for after the foreign commit took the lock in the control of a late commit:
@@ -970,21 +1602,33 @@ fn a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait() {
 /// the holder is still there and the wait is attributed to it.
 #[test]
 fn a_commit_that_reaches_a_foreign_index_holder_late_is_attributed_to_that_wait() {
-    attributes_the_wait_for_a_foreign_index_holder("timing-lock-late", Duration::from_secs(STALL_HOLDS * u64::from(HOLD_SECONDS)));
+    attributes_the_wait_for_a_foreign_index_holder(
+        "timing-lock-late",
+        Duration::from_secs(STALL_HOLDS * u64::from(HOLD_SECONDS)),
+    );
 }
 
 /// Runs the claim of the two controls:
 /// a wrapped commit starts `stall` after the foreign commit took the lock,
 /// and the foreign
 ///  commit lets go `HOLD_SECONDS` after the wrapped commit's first notice that it waits for it.
-fn attributes_the_wait_for_a_foreign_index_holder(control: &str, stall: Duration) {
+fn attributes_the_wait_for_a_foreign_index_holder(
+    control: &str,
+    stall: Duration,
+) {
     let fixture: Fixture = fixture(control);
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("{control}-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
-    let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, HOLD_SECONDS);
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
+    let (holder, release): (Child, PathBuf) =
+        foreign_commit_until_released(&fixture, &repo, HOLD_SECONDS);
     std::thread::sleep(stall);
     // The service's first notice that the commit waits for a holder it proved alive names the holder's process; the foreign
     //  commit lets go only after that line, so it is there for the wait however late the wrapped commit reaches the lock.
@@ -993,10 +1637,16 @@ fn attributes_the_wait_for_a_foreign_index_holder(control: &str, stall: Duration
         &mut commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path()),
         waiting_for_holder.as_str(),
         1,
-        || { std::fs::write(&release, b"").expect("the foreign commit is told to let go"); },
+        || {
+            std::fs::write(&release, b"").expect("the foreign commit is told to let go");
+        },
     );
     let held = holder.wait_with_output().expect("the foreign commit ends");
-    assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
+    assert!(
+        held.status.success(),
+        "{}",
+        String::from_utf8_lossy(&held.stderr)
+    );
     assert_eq!(served.code, Some(0), "{}", served.stderr);
     let answered: Vec<String> = lines_of(&places.log, "answered");
     assert_eq!(answered.len(), 1, "{answered:?}");
@@ -1004,46 +1654,113 @@ fn attributes_the_wait_for_a_foreign_index_holder(control: &str, stall: Duration
     println!("SERVICE ANSWER (held index): {line}");
     let lock_wait: u64 = ms_of(line, "lock_wait_ms");
     let hold_ms: u64 = u64::from(HOLD_SECONDS) * 1_000;
-    assert!(line.contains("lock_holder=\"Process "), "the holder is named: {line}");
+    assert!(
+        line.contains("lock_holder=\"Process "),
+        "the holder is named: {line}"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
     let record: &serde_json::Value = found.last().expect("the wrapped commit's record");
     println!("TIMING RECORD (held index): {record}");
     // The hold after the notice lasts `HOLD_SECONDS` and the wait began at or before the notice, so the wait covers the hold;
     //  the lock was already `age_ms` old at the first look, which only loosens the bound.
     let age_at_first_look: u64 = ms_of(line, "age_ms");
-    assert!(wait_covers_the_hold(lock_wait, age_at_first_look, hold_ms), "the wait for the lock is what was left of the hold ({hold_ms} ms) after {age_at_first_look} ms: {line}");
+    assert!(
+        wait_covers_the_hold(lock_wait, age_at_first_look, hold_ms),
+        "the wait for the lock is what was left of the hold ({hold_ms} ms) after {age_at_first_look} ms: {line}"
+    );
     // A phase that is slow on a slow host still lies beside the wait: the two fit in the whole they are parts of.
     let landing_total: u64 = ms_of(line, "landing_ms");
-    for other in ["reads_ms", "objects_ms", "journal_ms", "ref_ms", "index_update_ms"] {
-        assert!(phase_lies_beside_the_wait(ms_of(line, other), lock_wait, landing_total), "{other} is not what the time went to: {line}");
+    for other in [
+        "reads_ms",
+        "objects_ms",
+        "journal_ms",
+        "ref_ms",
+        "index_update_ms",
+    ] {
+        assert!(
+            phase_lies_beside_the_wait(ms_of(line, other), lock_wait, landing_total),
+            "{other} is not what the time went to: {line}"
+        );
     }
     for other in ["read_ms", "queued_ms", "settle_ms", "answer_ms"] {
-        assert!(phase_lies_beside_the_wait(ms_of(line, other), lock_wait, ms_of(line, "total_ms")), "{other} is not what the time went to: {line}");
+        assert!(
+            phase_lies_beside_the_wait(ms_of(line, other), lock_wait, ms_of(line, "total_ms")),
+            "{other} is not what the time went to: {line}"
+        );
     }
-    assert!(number(record, "answerWaitMs") >= lock_wait, "the wrapper waited at least as long as the service did for the lock: {record}");
-    for other in ["prepareMs", "buildMs", "provisionMs", "afterLandingMs", "gateMs", "handoffMs", "reachMs"] {
-        assert!(phase_lies_beside_the_wait(number(record, other), number(record, "answerWaitMs"), number(record, "totalMs")), "{other} is not what the time went to: {record}");
+    assert!(
+        number(record, "answerWaitMs") >= lock_wait,
+        "the wrapper waited at least as long as the service did for the lock: {record}"
+    );
+    for other in [
+        "prepareMs",
+        "buildMs",
+        "provisionMs",
+        "afterLandingMs",
+        "gateMs",
+        "handoffMs",
+        "reachMs",
+    ] {
+        assert!(
+            phase_lies_beside_the_wait(
+                number(record, other),
+                number(record, "answerWaitMs"),
+                number(record, "totalMs")
+            ),
+            "{other} is not what the time went to: {record}"
+        );
     }
-    assert!(number(record, "waitingNotices") >= 1, "the service told the wrapper it was waiting: {record}");
+    assert!(
+        number(record, "waitingNotices") >= 1,
+        "the service told the wrapper it was waiting: {record}"
+    );
     // The record states the landing's own figures, which the service cannot put anywhere else: the reads it names, the time it
     //  held the index, and each of its syncs with the time of each.
     let landing: &serde_json::Value = &record["landing"];
-    assert!(landing.is_object(), "the answer carries the landing's figures into the record: {record}");
-    assert!(landing["readsMs"].is_u64() || landing["readsMs"].is_i64() || landing["readsMs"].is_f64(), "{record}");
+    assert!(
+        landing.is_object(),
+        "the answer carries the landing's figures into the record: {record}"
+    );
+    assert!(
+        landing["readsMs"].is_u64() || landing["readsMs"].is_i64() || landing["readsMs"].is_f64(),
+        "{record}"
+    );
     assert!(landing["reads"].is_object(), "{record}");
     assert!(landing["lockHoldMs"].is_number(), "{record}");
     assert!(landing["syncs"].is_array(), "{record}");
-    assert_eq!(record["lockHolderKind"], "proven-alive", "the record says what kind of holder the wait was for: {record}");
+    assert_eq!(
+        record["lockHolderKind"], "proven-alive",
+        "the record says what kind of holder the wait was for: {record}"
+    );
     // The wait is written down when it ends, with what it found: the foreign commit has the lock open.
     let waited: Vec<String> = lines_of(&places.log, "waited for the index lock");
     assert_eq!(waited.len(), 1, "{waited:?}");
     println!("SERVICE WAIT (held index): {}", waited[0]);
-    assert!(waited[0].contains(" result=taken ") && ms_of(waited[0].as_str(), "lock_looks") >= 1, "{}", waited[0]);
+    assert!(
+        waited[0].contains(" result=taken ") && ms_of(waited[0].as_str(), "lock_looks") >= 1,
+        "{}",
+        waited[0]
+    );
     // Native `git commit` keeps its lock without a descriptor through its hooks, so the holder is proven by its PID file and
     //  the lock is described as one with no service marker.
-    assert!(waited[0].contains("lock_found=\"foreign no-marker"), "the holder is described: {}", waited[0]);
-    assert!(wait_covers_the_hold(ms_of(waited[0].as_str(), "lock_place_ms"), ms_of(waited[0].as_str(), "age_ms"), hold_ms), "the wait for the holder is timed apart from the flush: {}", waited[0]);
-    assert!(line.contains("lock_found=") && line.contains(" lock_stage_ms="), "the answer carries it too: {line}");
+    assert!(
+        waited[0].contains("lock_found=\"foreign no-marker"),
+        "the holder is described: {}",
+        waited[0]
+    );
+    assert!(
+        wait_covers_the_hold(
+            ms_of(waited[0].as_str(), "lock_place_ms"),
+            ms_of(waited[0].as_str(), "age_ms"),
+            hold_ms
+        ),
+        "the wait for the holder is timed apart from the flush: {}",
+        waited[0]
+    );
+    assert!(
+        line.contains("lock_found=") && line.contains(" lock_stage_ms="),
+        "the answer carries it too: {line}"
+    );
     remove_settled(&fixture);
 }
 
@@ -1063,22 +1780,50 @@ fn every_service_line_states_the_time_of_its_event() {
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
     let before: u128 = git_policy_cli::service_timing::wall_millis();
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
     let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    assert_eq!(
+        served.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&served.stderr)
+    );
     let after: u128 = git_policy_cli::service_timing::wall_millis();
     let text: String = std::fs::read_to_string(&places.log).expect("service log");
     let read_at: u128 = git_policy_cli::service_timing::wall_millis();
-    let lines: Vec<&str> = text.lines().filter(|line| { return line.starts_with(git_policy_cli::service_timing::LOG_PREFIX); }).collect();
+    let lines: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            return line.starts_with(git_policy_cli::service_timing::LOG_PREFIX);
+        })
+        .collect();
     assert!(lines.len() >= 3, "started, ready, answered: {text}");
     let mut answers: usize = 0;
     for line in lines {
-        let stamp: u128 = line.rsplit_once(" at_ms=").unwrap_or_else(|| { panic!("no time at the end of {line}") }).1.parse::<u128>().unwrap_or_else(|_| { panic!("no number in {line}") });
-        assert!(stamp >= before && stamp <= read_at, "{stamp} is not between {before} and the read at {read_at}: {line}");
-        let event: &str = line.strip_prefix(git_policy_cli::service_timing::LOG_PREFIX).unwrap_or(line);
+        let stamp: u128 = line
+            .rsplit_once(" at_ms=")
+            .unwrap_or_else(|| panic!("no time at the end of {line}"))
+            .1
+            .parse::<u128>()
+            .unwrap_or_else(|_| panic!("no number in {line}"));
+        assert!(
+            stamp >= before && stamp <= read_at,
+            "{stamp} is not between {before} and the read at {read_at}: {line}"
+        );
+        let event: &str = line
+            .strip_prefix(git_policy_cli::service_timing::LOG_PREFIX)
+            .unwrap_or(line);
         if event.starts_with("answered ") {
             answers += 1;
-            assert!(stamp <= after, "the answer {stamp} is stamped after the commit returned at {after}: {line}");
+            assert!(
+                stamp <= after,
+                "the answer {stamp} is stamped after the commit returned at {after}: {line}"
+            );
         }
     }
     assert_eq!(answers, 1, "one answer for one commit: {text}");
@@ -1099,7 +1844,12 @@ fn a_commit_that_meets_another_release_records_the_update_and_both_services_log_
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let current_log: PathBuf = fixture.root.join("current.log");
     let instance: String = instance_argument(&repo);
-    let retiring: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str(), "--release", OTHER_RELEASE]);
+    let retiring: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str(), "--release", OTHER_RELEASE],
+    );
     // What the service manager does on the next connection once the old service has exited: start the current one.
     let successor = {
         let socket: PathBuf = places.socket.clone();
@@ -1109,34 +1859,79 @@ fn a_commit_that_meets_another_release_records_the_update_and_both_services_log_
         std::thread::spawn(move || {
             let mut old: Held = retiring;
             let status = exit_of(&mut old, PATIENCE);
-            let next: Held = spawn_service(root.as_path(), &Places { socket, log }, SAFETY_IDLE_SECONDS, &["--instance", argument.as_str()]);
+            let next: Held = spawn_service(
+                root.as_path(),
+                &Places {
+                    socket,
+                    log,
+                },
+                SAFETY_IDLE_SECONDS,
+                &["--instance", argument.as_str()],
+            );
             return (status, next);
         })
     };
     let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
-    let (old_status, _current): (std::process::ExitStatus, Held) = successor.join().expect("the successor thread");
-    assert!(old_status.success(), "the old service exited by itself: {old_status:?}");
+    assert_eq!(
+        served.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&served.stderr)
+    );
+    let (old_status, _current): (std::process::ExitStatus, Held) =
+        successor.join().expect("the successor thread");
+    assert!(
+        old_status.success(),
+        "the old service exited by itself: {old_status:?}"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
     let record: &serde_json::Value = &found[0];
     println!("TIMING RECORD (other release): {record}");
     assert!(number(record, "updateRounds") >= 1, "{record}");
-    assert_eq!(record["releasesSeen"], serde_json::Value::from(vec![OTHER_RELEASE, RELEASE]));
+    assert_eq!(
+        record["releasesSeen"],
+        serde_json::Value::from(vec![OTHER_RELEASE, RELEASE])
+    );
     assert_eq!(record["answeredByRelease"], RELEASE);
-    assert!(number(record, "connectTries") > number(record, "updateRounds"), "{record}");
-    assert!(number(record, "startWaitMs") <= number(record, "reachMs"), "{record}");
+    assert!(
+        number(record, "connectTries") > number(record, "updateRounds"),
+        "{record}"
+    );
+    assert!(
+        number(record, "startWaitMs") <= number(record, "reachMs"),
+        "{record}"
+    );
     let retired: Vec<String> = lines_of(&places.log, "retire requested");
-    println!("OLD SERVICE: {}", std::fs::read_to_string(&places.log).expect("log"));
+    println!(
+        "OLD SERVICE: {}",
+        std::fs::read_to_string(&places.log).expect("log")
+    );
     // The client sends a retire in every round until the old service exits, and the service logs each one it reads; one it
     //  exited before reading is not logged, so the lines are at least one and at most the rounds the record states.
     let rounds: usize = usize::try_from(number(record, "updateRounds")).expect("a small count");
-    assert!(!retired.is_empty() && retired.len() <= rounds, "{retired:?} against {rounds} rounds");
-    assert!(retired.iter().all(|line| { return line.contains(format!("{OTHER_RELEASE:?}").as_str()); }), "{retired:?}");
+    assert!(
+        !retired.is_empty() && retired.len() <= rounds,
+        "{retired:?} against {rounds} rounds"
+    );
+    assert!(
+        retired.iter().all(|line| {
+            return line.contains(format!("{OTHER_RELEASE:?}").as_str());
+        }),
+        "{retired:?}"
+    );
     let exits: Vec<String> = lines_of(&places.log, "exiting");
     assert_eq!(exits.len(), 1, "{exits:?}");
     assert!(exits[0].contains("reason=retire"), "{}", exits[0]);
-    assert_eq!(lines_of(&current_log, "answered").len(), 1, "the current release landed it");
-    assert_eq!(lines_of(&places.log, "answered").len(), 0, "the old release landed nothing");
+    assert_eq!(
+        lines_of(&current_log, "answered").len(),
+        1,
+        "the current release landed it"
+    );
+    assert_eq!(
+        lines_of(&places.log, "answered").len(),
+        0,
+        "the old release landed nothing"
+    );
     remove_settled(&fixture);
 }
 
@@ -1145,7 +1940,10 @@ fn a_commit_that_meets_another_release_records_the_update_and_both_services_log_
 /// link,
 /// rename or remove a file to `trace`,
 /// in the environment and directory of `inner`.
-fn traced_for_files(inner: &Command, trace: &Path) -> Command {
+fn traced_for_files(
+    inner: &Command,
+    trace: &Path,
+) -> Command {
     let mut outer: Command = Command::new(strace_program().expect("strace is installed"));
     outer
         .arg("--follow-forks")
@@ -1189,8 +1987,11 @@ fn traced_for_files(inner: &Command, trace: &Path) -> Command {
 /// or the disk's.
 /// This is the control for the 5.6 s `lock_wait_ms` of the 0.5.13 upgrade commit.
 #[test]
-fn a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free() {
-    if !strace_available_or_acknowledged("a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free") {
+fn a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free()
+ {
+    if !strace_available_or_acknowledged(
+        "a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free",
+    ) {
         return;
     }
     let fixture: Fixture = fixture("timing-upgrade-lock");
@@ -1199,7 +2000,12 @@ fn a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let current_log: PathBuf = fixture.root.join("current.log");
     let instance: String = instance_argument(&repo);
-    let retiring: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str(), "--release", OTHER_RELEASE]);
+    let retiring: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str(), "--release", OTHER_RELEASE],
+    );
     let successor = {
         let socket: PathBuf = places.socket.clone();
         let root: PathBuf = fixture.root.clone();
@@ -1208,33 +2014,79 @@ fn a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new
         std::thread::spawn(move || {
             let mut old: Held = retiring;
             let status = exit_of(&mut old, PATIENCE);
-            let next: Held = spawn_service(root.as_path(), &Places { socket, log }, SAFETY_IDLE_SECONDS, &["--instance", argument.as_str()]);
+            let next: Held = spawn_service(
+                root.as_path(),
+                &Places {
+                    socket,
+                    log,
+                },
+                SAFETY_IDLE_SECONDS,
+                &["--instance", argument.as_str()],
+            );
             return (status, next);
         })
     };
-    std::fs::write(repo.join("a.txt"), format!("edit by {}\n", std::process::id())).expect("a.txt");
-    let mut inner: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("edit by {}\n", std::process::id()),
+    )
+    .expect("a.txt");
+    let mut inner: Command =
+        wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
     inner.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()));
     let trace: PathBuf = fixture.root.join("client.trace");
     let served = observe(&mut traced_for_files(&inner, trace.as_path()), b"");
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
-    let (_old_status, _current): (std::process::ExitStatus, Held) = successor.join().expect("the successor thread");
+    assert_eq!(
+        served.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&served.stderr)
+    );
+    let (_old_status, _current): (std::process::ExitStatus, Held) =
+        successor.join().expect("the successor thread");
     let text: String = std::fs::read_to_string(&trace).expect("the trace");
     let real_lock: String = format!("{}/.git/index.lock\"", repo.display());
-    let touching: Vec<&str> = text.lines().filter(|line| { return line.contains(real_lock.as_str()); }).collect();
+    let touching: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            return line.contains(real_lock.as_str());
+        })
+        .collect();
     // The positive control: the same trace and the same filter see a program that does take the lock.
     let control_trace: PathBuf = fixture.root.join("control.trace");
     let mut taker: Command = Command::new("/bin/sh");
-    taker.arg("-c").arg("echo held > \"$0/.git/index.lock\" && rm \"$0/.git/index.lock\"").arg(&repo);
-    let control = traced_for_files(&taker, control_trace.as_path()).output().expect("the control runs");
-    assert!(control.status.success(), "{}", String::from_utf8_lossy(&control.stderr));
-    let control_text: String = std::fs::read_to_string(&control_trace).expect("the control's trace");
-    assert!(control_text.lines().any(|line| { return line.contains(real_lock.as_str()); }), "the filter sees a program that takes the lock: {control_text}");
-    assert!(touching.is_empty(), "the client touched the real index lock: {touching:?}");
+    taker
+        .arg("-c")
+        .arg("echo held > \"$0/.git/index.lock\" && rm \"$0/.git/index.lock\"")
+        .arg(&repo);
+    let control = traced_for_files(&taker, control_trace.as_path())
+        .output()
+        .expect("the control runs");
+    assert!(
+        control.status.success(),
+        "{}",
+        String::from_utf8_lossy(&control.stderr)
+    );
+    let control_text: String =
+        std::fs::read_to_string(&control_trace).expect("the control's trace");
+    assert!(
+        control_text.lines().any(|line| {
+            return line.contains(real_lock.as_str());
+        }),
+        "the filter sees a program that takes the lock: {control_text}"
+    );
+    assert!(
+        touching.is_empty(),
+        "the client touched the real index lock: {touching:?}"
+    );
     let answered: Vec<String> = lines_of(&current_log, "answered");
     assert_eq!(answered.len(), 1, "the current release landed it");
     println!("SERVICE ANSWER (upgrade): {}", answered[0]);
-    assert!(!answered[0].contains(" lock_looks="), "the new service found the lock held: {}", answered[0]);
+    assert!(
+        !answered[0].contains(" lock_looks="),
+        "the new service found the lock held: {}",
+        answered[0]
+    );
     assert!(lines_of(&current_log, "waited for the index lock").len() <= 1);
     remove_settled(&fixture);
 }
@@ -1244,8 +2096,12 @@ fn marker_files(repo: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(repo.join(".git"))
         .expect("the git directory")
         .flatten()
-        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|name| { return name.starts_with("index.lock.cli-git-marker"); })
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .filter(|name| {
+            return name.starts_with("index.lock.cli-git-marker");
+        })
         .collect();
     names.sort();
     return names;
@@ -1260,40 +2116,74 @@ fn marker_files(repo: &Path) -> Vec<String> {
 /// and no more files wait in the Git directory between commits than `MARKERS_MADE_AHEAD`,
 /// and none is left when the service retires.
 #[test]
-fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_left_when_it_retires() {
+fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_left_when_it_retires()
+{
     let fixture: Fixture = fixture("timing-prestage");
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("timing-prestage-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let mut service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let mut service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
     let runtime: PathBuf = runtime_for(name.as_str());
     for round in 0..3 {
         let served = commit_a(&fixture, &repo, runtime.as_path());
-        assert_eq!(served.code, Some(0), "round {round}: {}", String::from_utf8_lossy(&served.stderr));
+        assert_eq!(
+            served.code,
+            Some(0),
+            "round {round}: {}",
+            String::from_utf8_lossy(&served.stderr)
+        );
         // The markers of the batches after this one are made while its landing holds the lock and flushed while the service
         //  is idle.
         let began: Instant = Instant::now();
         while marker_files(&repo).len() < MARKERS_MADE_AHEAD {
-            assert!(began.elapsed() < Duration::from_secs(10), "round {round}: {:?}", marker_files(&repo));
+            assert!(
+                began.elapsed() < Duration::from_secs(10),
+                "round {round}: {:?}",
+                marker_files(&repo)
+            );
             std::thread::sleep(Duration::from_millis(10));
         }
         // A file on the disk is not yet a marker the next commit places: the making ends when its flush is handed to the
         //  background task, so one more interval with the same files is what says the making has returned.
         let settled: Vec<String> = marker_files(&repo);
         std::thread::sleep(Duration::from_millis(50));
-        assert_eq!(marker_files(&repo), settled, "round {round}: the markers changed while the commit was about to come");
-        assert!(settled.len() <= MARKERS_MADE_AHEAD, "round {round}: no more files wait than the design makes ahead: {settled:?}");
+        assert_eq!(
+            marker_files(&repo),
+            settled,
+            "round {round}: the markers changed while the commit was about to come"
+        );
+        assert!(
+            settled.len() <= MARKERS_MADE_AHEAD,
+            "round {round}: no more files wait than the design makes ahead: {settled:?}"
+        );
     }
     let answered: Vec<String> = lines_of(&places.log, "answered");
     assert_eq!(answered.len(), 3, "{answered:?}");
     println!("SERVICE ANSWERS (prestage): {answered:#?}");
-    assert!(answered[0].contains(" lock_stage_kind=cold "), "the first commit has nothing made ahead: {}", answered[0]);
-    assert!(answered[1].contains(" lock_stage_kind=pre ") && answered[2].contains(" lock_stage_kind=pre "), "{answered:?}");
+    assert!(
+        answered[0].contains(" lock_stage_kind=cold "),
+        "the first commit has nothing made ahead: {}",
+        answered[0]
+    );
+    assert!(
+        answered[1].contains(" lock_stage_kind=pre ")
+            && answered[2].contains(" lock_stage_kind=pre "),
+        "{answered:?}"
+    );
     ask_to_retire(&Bind::Path(places.socket.clone()));
     let status = exit_of(&mut service, PATIENCE);
     assert!(status.success(), "{status:?}");
-    assert!(marker_files(&repo).is_empty(), "the markers made ahead are removed when the service ends: {:?}", marker_files(&repo));
+    assert!(
+        marker_files(&repo).is_empty(),
+        "the markers made ahead are removed when the service ends: {:?}",
+        marker_files(&repo)
+    );
     remove_settled(&fixture);
 }
 
@@ -1314,15 +2204,29 @@ fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
     let name: String = format!("timing-signal-marker-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let mut service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let mut service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
     let runtime: PathBuf = runtime_for(name.as_str());
     let served: super::support::Observed = commit_a(&fixture, &repo, runtime.as_path());
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    assert_eq!(
+        served.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&served.stderr)
+    );
     // The markers of the batches after this one are made while its landing holds the lock and flushed while the service
     //  is idle.
     let began: Instant = Instant::now();
     while marker_files(&repo).len() < MARKERS_MADE_AHEAD {
-        assert!(began.elapsed() < Duration::from_secs(10), "{:?}", marker_files(&repo));
+        assert!(
+            began.elapsed() < Duration::from_secs(10),
+            "{:?}",
+            marker_files(&repo)
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
     let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
@@ -1330,8 +2234,15 @@ fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
     assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
     let status = exit_of(&mut service, PATIENCE);
     assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
-    assert!(lines_of(&places.log, "exiting")[0].contains(format!("reason=signal-{}", libc::SIGTERM).as_str()));
-    assert!(marker_files(&repo).is_empty(), "the markers made ahead are removed when the service ends by the signal: {:?}", marker_files(&repo));
+    assert!(
+        lines_of(&places.log, "exiting")[0]
+            .contains(format!("reason=signal-{}", libc::SIGTERM).as_str())
+    );
+    assert!(
+        marker_files(&repo).is_empty(),
+        "the markers made ahead are removed when the service ends by the signal: {:?}",
+        marker_files(&repo)
+    );
     remove_settled(&fixture);
 }
 
@@ -1341,15 +2252,27 @@ fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
 fn a_service_says_it_exits_idle_with_its_uptime() {
     let fixture: Fixture = fixture("timing-idle");
     let name: String = format!("timing-idle-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/idle.sock"), log: fixture.root.join("idle.log") };
-    let mut service: Held = spawn_service(fixture.root.as_path(), &places, IDLE_SECONDS.to_string().as_str(), &[]);
+    let places: Places = Places {
+        socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/idle.sock"),
+        log: fixture.root.join("idle.log"),
+    };
+    let mut service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        IDLE_SECONDS.to_string().as_str(),
+        &[],
+    );
     let status = exit_of(&mut service, PATIENCE);
     assert!(status.success(), "{status:?}");
     let exits: Vec<String> = lines_of(&places.log, "exiting");
     println!("SERVICE EXIT (idle): {}", exits.join("\n"));
     assert_eq!(exits.len(), 1, "{exits:?}");
     assert!(exits[0].contains("reason=idle"), "{}", exits[0]);
-    assert!(ms_of(exits[0].as_str(), "uptime_ms") >= IDLE_SECONDS * 1_000, "{}", exits[0]);
+    assert!(
+        ms_of(exits[0].as_str(), "uptime_ms") >= IDLE_SECONDS * 1_000,
+        "{}",
+        exits[0]
+    );
     remove_settled(&fixture);
 }
 
@@ -1358,12 +2281,19 @@ fn a_service_says_it_exits_idle_with_its_uptime() {
 fn a_service_says_it_retires_when_asked() {
     let fixture: Fixture = fixture("timing-retire");
     let name: String = format!("timing-retire-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/retire.sock"), log: fixture.root.join("retire.log") };
-    let mut service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[]);
+    let places: Places = Places {
+        socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/retire.sock"),
+        log: fixture.root.join("retire.log"),
+    };
+    let mut service: Held =
+        spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[]);
     ask_to_retire(&Bind::Path(places.socket.clone()));
     let status = exit_of(&mut service, PATIENCE);
     assert!(status.success(), "{status:?}");
-    println!("SERVICE RETIRE: {}", std::fs::read_to_string(&places.log).expect("log"));
+    println!(
+        "SERVICE RETIRE: {}",
+        std::fs::read_to_string(&places.log).expect("log")
+    );
     assert_eq!(lines_of(&places.log, "retire requested").len(), 1);
     let exits: Vec<String> = lines_of(&places.log, "exiting");
     assert_eq!(exits.len(), 1, "{exits:?}");
@@ -1379,8 +2309,12 @@ fn a_service_says_it_retires_when_asked() {
 fn a_service_stopped_by_a_signal_says_so_and_still_dies_of_it() {
     let fixture: Fixture = fixture("timing-signal");
     let name: String = format!("timing-signal-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/signal.sock"), log: fixture.root.join("signal.log") };
-    let mut service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[]);
+    let places: Places = Places {
+        socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/signal.sock"),
+        log: fixture.root.join("signal.log"),
+    };
+    let mut service: Held =
+        spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[]);
     let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
     // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
     let sent: libc::c_int = unsafe { libc::kill(pid, libc::SIGTERM) };
@@ -1390,7 +2324,11 @@ fn a_service_stopped_by_a_signal_says_so_and_still_dies_of_it() {
     let exits: Vec<String> = lines_of(&places.log, "exiting");
     println!("SERVICE EXIT (signal): {}", exits.join("\n"));
     assert_eq!(exits.len(), 1, "{exits:?}");
-    assert!(exits[0].contains(format!("reason=signal-{}", libc::SIGTERM).as_str()), "{}", exits[0]);
+    assert!(
+        exits[0].contains(format!("reason=signal-{}", libc::SIGTERM).as_str()),
+        "{}",
+        exits[0]
+    );
     remove_settled(&fixture);
 }
 
@@ -1447,10 +2385,17 @@ impl NativeJournal {
     /// ```ts
     /// const entries = journal.received((found) => found.some((entry) => entry.MESSAGE.startsWith('answered ')));
     /// ```
-    fn received(&self, until: impl Fn(&[std::collections::BTreeMap<String, String>]) -> bool) -> Vec<std::collections::BTreeMap<String, String>> {
+    fn received(
+        &self,
+        until: impl Fn(&[std::collections::BTreeMap<String, String>]) -> bool,
+    ) -> Vec<std::collections::BTreeMap<String, String>> {
         let began: Instant = Instant::now();
         loop {
-            let found: Vec<std::collections::BTreeMap<String, String>> = self.taken.lock().expect("the entries the stand-in took").clone();
+            let found: Vec<std::collections::BTreeMap<String, String>> = self
+                .taken
+                .lock()
+                .expect("the entries the stand-in took")
+                .clone();
             if until(found.as_slice()) || began.elapsed() >= PATIENCE {
                 return found;
             }
@@ -1477,24 +2422,55 @@ impl Drop for NativeJournal {
 /// `$JOURNAL_STREAM` names the log's device and
 /// inode,
 /// and the test-only variable names the receiver.
-fn native_journal(places: &Places, name: &str) -> (NativeJournal, Vec<(&'static str, String)>) {
+fn native_journal(
+    places: &Places,
+    name: &str,
+) -> (NativeJournal, Vec<(&'static str, String)>) {
     use std::os::linux::net::SocketAddrExt;
     use std::os::unix::fs::MetadataExt;
-    let abstract_name: String = format!("cli-git-test-journal-binary-{}-{name}", std::process::id());
-    let address = std::os::unix::net::SocketAddr::from_abstract_name(abstract_name.as_bytes()).expect("an abstract address");
-    let receiver = std::os::unix::net::UnixDatagram::bind_addr(&address).expect("bind the journal stand-in");
-    receiver.set_read_timeout(Some(READING_PAUSE)).expect("a read timeout");
+    let abstract_name: String =
+        format!("cli-git-test-journal-binary-{}-{name}", std::process::id());
+    let address = std::os::unix::net::SocketAddr::from_abstract_name(abstract_name.as_bytes())
+        .expect("an abstract address");
+    let receiver =
+        std::os::unix::net::UnixDatagram::bind_addr(&address).expect("bind the journal stand-in");
+    receiver
+        .set_read_timeout(Some(READING_PAUSE))
+        .expect("a read timeout");
     // The service opens the log in append mode when it starts; the file exists once created here.
-    std::fs::OpenOptions::new().create(true).append(true).open(&places.log).expect("the log");
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&places.log)
+        .expect("the log");
     let log = std::fs::metadata(&places.log).expect("log metadata");
     let environment: Vec<(&'static str, String)> = vec![
-        (git_policy_cli::journald_native::STREAM_VARIABLE, format!("{}:{}", log.dev(), log.ino())),
-        (git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@{abstract_name}")),
+        (
+            git_policy_cli::journald_native::STREAM_VARIABLE,
+            format!("{}:{}", log.dev(), log.ino()),
+        ),
+        (
+            git_policy_cli::journald_native::TEST_SOCKET_VARIABLE,
+            format!("@{abstract_name}"),
+        ),
     ];
-    let taken: std::sync::Arc<std::sync::Mutex<Vec<std::collections::BTreeMap<String, String>>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-    let ending: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let reader: std::thread::JoinHandle<()> = read_the_entries(receiver, std::sync::Arc::clone(&taken), std::sync::Arc::clone(&ending));
-    return (NativeJournal { taken, ending, reader: Some(reader) }, environment);
+    let taken: std::sync::Arc<std::sync::Mutex<Vec<std::collections::BTreeMap<String, String>>>> =
+        std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let ending: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let reader: std::thread::JoinHandle<()> = read_the_entries(
+        receiver,
+        std::sync::Arc::clone(&taken),
+        std::sync::Arc::clone(&ending),
+    );
+    return (
+        NativeJournal {
+            taken,
+            ending,
+            reader: Some(reader),
+        },
+        environment,
+    );
 }
 
 /// What:
@@ -1519,13 +2495,22 @@ fn read_the_entries(
     return std::thread::spawn(move || {
         let mut buffer: Vec<u8> = vec![0; ENTRY_BYTES];
         while !ending.load(std::sync::atomic::Ordering::SeqCst) {
-            let Ok(length) = receiver.recv(buffer.as_mut_slice()) else { continue };
+            let Ok(length) = receiver.recv(buffer.as_mut_slice()) else {
+                continue;
+            };
             let text: String = String::from_utf8_lossy(&buffer[..length]).into_owned();
             let entry: std::collections::BTreeMap<String, String> = text
                 .lines()
-                .filter_map(|line| { return line.split_once('=').map(|(name, value)| { return (name.to_string(), value.to_string()); }); })
+                .filter_map(|line| {
+                    return line.split_once('=').map(|(name, value)| {
+                        return (name.to_string(), value.to_string());
+                    });
+                })
                 .collect();
-            taken.lock().expect("the entries the stand-in took").push(entry);
+            taken
+                .lock()
+                .expect("the entries the stand-in took")
+                .push(entry);
         }
     });
 }
@@ -1544,26 +2529,83 @@ fn a_service_on_the_journal_stream_sends_native_entries_that_join_the_clients_re
     let instance: String = instance_argument(&repo);
     let (journal, environment) = native_journal(&places, "send");
     let before: u128 = git_policy_cli::service_timing::wall_millis();
-    let _service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()], environment.as_slice());
+    let _service: Held = spawn_service_with_environment(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+        environment.as_slice(),
+    );
     let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    assert_eq!(
+        served.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&served.stderr)
+    );
     let after: u128 = git_policy_cli::service_timing::wall_millis();
-    let entries = journal.received(|found| { return found.iter().any(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("answered "); }); }); });
+    let entries = journal.received(|found| {
+        return found.iter().any(|entry| {
+            return entry.get("MESSAGE").is_some_and(|message| {
+                return message.starts_with("answered ");
+            });
+        });
+    });
     let record: serde_json::Value = records(&repo).remove(0);
-    let answered = entries.iter().find(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("answered "); }); }).expect("an answered entry");
-    assert_eq!(Some(answered["CLI_GIT_REQUEST_ID"].as_str()), record["requestId"].as_str(), "the key that joins the client's record to the service's entry");
-    assert!(record["requestId"].as_str().is_some_and(|id| { return !id.is_empty(); }), "{record}");
+    let answered = entries
+        .iter()
+        .find(|entry| {
+            return entry.get("MESSAGE").is_some_and(|message| {
+                return message.starts_with("answered ");
+            });
+        })
+        .expect("an answered entry");
+    assert_eq!(
+        Some(answered["CLI_GIT_REQUEST_ID"].as_str()),
+        record["requestId"].as_str(),
+        "the key that joins the client's record to the service's entry"
+    );
+    assert!(
+        record["requestId"].as_str().is_some_and(|id| {
+            return !id.is_empty();
+        }),
+        "{record}"
+    );
     assert_eq!(answered["PRIORITY"], "6");
-    assert_eq!(answered["SYSLOG_IDENTIFIER"], "monochromatic-git-policy-cli-service");
+    assert_eq!(
+        answered["SYSLOG_IDENTIFIER"],
+        "monochromatic-git-policy-cli-service"
+    );
     assert_eq!(answered["CLI_GIT_OUTCOME"], "landed");
     assert_eq!(answered["CLI_GIT_RELEASE"], RELEASE);
     assert_eq!(answered["CLI_GIT_INSTANCE"], instance.as_str());
-    assert!(answered["MESSAGE"].contains(format!("request=\"{}\"", answered["CLI_GIT_REQUEST_ID"]).as_str()), "{answered:?}");
+    assert!(
+        answered["MESSAGE"]
+            .contains(format!("request=\"{}\"", answered["CLI_GIT_REQUEST_ID"]).as_str()),
+        "{answered:?}"
+    );
     let stamp: u128 = answered["CLI_GIT_AT_MS"].parse().expect("a number");
-    assert!(stamp >= before && stamp <= after, "{stamp} is not between {before} and {after}");
-    let words: Vec<&str> = entries.iter().filter_map(|entry| { return entry.get("MESSAGE").and_then(|message| { return message.split(' ').next(); }); }).collect();
-    assert!(words.contains(&"started") && words.contains(&"ready"), "the life of the service is in the journal: {words:?}");
-    assert_eq!(std::fs::read_to_string(&places.log).expect("log"), "", "nothing is also written to standard error");
+    assert!(
+        stamp >= before && stamp <= after,
+        "{stamp} is not between {before} and {after}"
+    );
+    let words: Vec<&str> = entries
+        .iter()
+        .filter_map(|entry| {
+            return entry.get("MESSAGE").and_then(|message| {
+                return message.split(' ').next();
+            });
+        })
+        .collect();
+    assert!(
+        words.contains(&"started") && words.contains(&"ready"),
+        "the life of the service is in the journal: {words:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&places.log).expect("log"),
+        "",
+        "nothing is also written to standard error"
+    );
     remove_settled(&fixture);
 }
 
@@ -1574,22 +2616,55 @@ fn a_service_on_the_journal_stream_sends_native_entries_that_join_the_clients_re
 fn a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket() {
     let fixture: Fixture = fixture("timing-native-signal");
     let name: String = format!("timing-native-signal-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/native-signal.sock"), log: fixture.root.join("native-signal.log") };
+    let places: Places = Places {
+        socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/native-signal.sock"),
+        log: fixture.root.join("native-signal.log"),
+    };
     let (journal, environment) = native_journal(&places, "signal");
-    let mut service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());
+    let mut service: Held = spawn_service_with_environment(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &[],
+        environment.as_slice(),
+    );
     let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
     let before: u128 = git_policy_cli::service_timing::wall_millis();
     // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
     assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
     let status = exit_of(&mut service, PATIENCE);
     assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
-    let entries = journal.received(|found| { return found.iter().any(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("exiting "); }); }); });
-    let exit = entries.iter().find(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("exiting "); }); }).expect("an exiting entry");
-    assert!(exit["MESSAGE"].starts_with(format!("exiting reason=signal-{} ", libc::SIGTERM).as_str()), "{exit:?}");
+    let entries = journal.received(|found| {
+        return found.iter().any(|entry| {
+            return entry.get("MESSAGE").is_some_and(|message| {
+                return message.starts_with("exiting ");
+            });
+        });
+    });
+    let exit = entries
+        .iter()
+        .find(|entry| {
+            return entry.get("MESSAGE").is_some_and(|message| {
+                return message.starts_with("exiting ");
+            });
+        })
+        .expect("an exiting entry");
+    assert!(
+        exit["MESSAGE"].starts_with(format!("exiting reason=signal-{} ", libc::SIGTERM).as_str()),
+        "{exit:?}"
+    );
     assert_eq!(exit["PRIORITY"], "6");
     let stamp: u128 = exit["CLI_GIT_AT_MS"].parse().expect("a number");
-    assert!(stamp >= before && stamp <= git_policy_cli::service_timing::wall_millis(), "{stamp} against {before}");
-    assert!(!std::fs::read_to_string(&places.log).expect("log").contains("exiting"), "the exit is in the journal once");
+    assert!(
+        stamp >= before && stamp <= git_policy_cli::service_timing::wall_millis(),
+        "{stamp} against {before}"
+    );
+    assert!(
+        !std::fs::read_to_string(&places.log)
+            .expect("log")
+            .contains("exiting"),
+        "the exit is in the journal once"
+    );
     remove_settled(&fixture);
 }
 
@@ -1602,18 +2677,42 @@ fn a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket() {
 fn a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority() {
     let fixture: Fixture = fixture("timing-native-gone");
     let name: String = format!("timing-native-gone-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/gone.sock"), log: fixture.root.join("gone.log") };
+    let places: Places = Places {
+        socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/gone.sock"),
+        log: fixture.root.join("gone.log"),
+    };
     let (journal, mut environment) = native_journal(&places, "gone");
     // The abstract name is free again once the stand-in and its reading thread are gone, so the service finds nobody to send to.
     drop(journal);
-    environment.retain(|(variable, _)| { return *variable != git_policy_cli::journald_native::TEST_SOCKET_VARIABLE; });
-    environment.push((git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@cli-git-test-journal-nobody-{}", std::process::id())));
-    let _service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());
+    environment.retain(|(variable, _)| {
+        return *variable != git_policy_cli::journald_native::TEST_SOCKET_VARIABLE;
+    });
+    environment.push((
+        git_policy_cli::journald_native::TEST_SOCKET_VARIABLE,
+        format!("@cli-git-test-journal-nobody-{}", std::process::id()),
+    ));
+    let _service: Held = spawn_service_with_environment(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &[],
+        environment.as_slice(),
+    );
     // The socket answers once the service binds, and `ready` follows it, so the control waits for the line it asserts on.
     let ready: &str = "<6>monochromatic-git-policy-cli-service: ready";
     let text: String = log_until(&places.log, ready);
-    assert!(text.lines().any(|line| { return line.starts_with(ready); }), "{text}");
-    assert!(text.lines().all(|line| { return line.starts_with("<6>") && line.contains(" at_ms="); }), "{text}");
+    assert!(
+        text.lines().any(|line| {
+            return line.starts_with(ready);
+        }),
+        "{text}"
+    );
+    assert!(
+        text.lines().all(|line| {
+            return line.starts_with("<6>") && line.contains(" at_ms=");
+        }),
+        "{text}"
+    );
     remove_settled(&fixture);
 }
 
@@ -1635,14 +2734,27 @@ struct FullablePipe {
 /// A new pipe,
 /// made as two descriptors for each end.
 fn fullable_pipe() -> FullablePipe {
-    use std::os::fd::{FromRawFd, OwnedFd};
+    use std::os::fd::{
+        FromRawFd,
+        OwnedFd,
+    };
     let mut ends: [libc::c_int; 2] = [0; 2];
     // SAFETY: `ends` is valid for the two descriptors `pipe2` writes.
-    assert_eq!(unsafe { libc::pipe2(ends.as_mut_ptr(), libc::O_CLOEXEC) }, 0);
+    assert_eq!(
+        unsafe { libc::pipe2(ends.as_mut_ptr(), libc::O_CLOEXEC) },
+        0
+    );
     // SAFETY: `pipe2` returned two new descriptors that nothing else owns.
-    let (reader, writer) = unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
-    let control_end: OwnedFd = writer.try_clone().expect("a second descriptor of the write end");
-    return FullablePipe { service_end: writer, control_end, _reader: reader };
+    let (reader, writer) =
+        unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
+    let control_end: OwnedFd = writer
+        .try_clone()
+        .expect("a second descriptor of the write end");
+    return FullablePipe {
+        service_end: writer,
+        control_end,
+        _reader: reader,
+    };
 }
 
 impl FullablePipe {
@@ -1653,14 +2765,26 @@ impl FullablePipe {
         use std::os::fd::AsRawFd;
         let page: [u8; 4096] = [b'x'; 4096];
         loop {
-            let mut request: libc::pollfd = libc::pollfd { fd: self.control_end.as_raw_fd(), events: libc::POLLOUT, revents: 0 };
+            let mut request: libc::pollfd = libc::pollfd {
+                fd: self.control_end.as_raw_fd(),
+                events: libc::POLLOUT,
+                revents: 0,
+            };
             // SAFETY: `request` is valid for the call, which reads and writes one `pollfd`.
             let ready: libc::c_int = unsafe { libc::poll(&raw mut request, 1, 0) };
             if ready <= 0 || request.revents & libc::POLLOUT == 0 {
                 return;
             }
             // SAFETY: `page` is valid for its length for the call.
-            assert!(unsafe { libc::write(self.control_end.as_raw_fd(), page.as_ptr().cast(), page.len()) } > 0);
+            assert!(
+                unsafe {
+                    libc::write(
+                        self.control_end.as_raw_fd(),
+                        page.as_ptr().cast(),
+                        page.len(),
+                    )
+                } > 0
+            );
         }
     }
 }
@@ -1669,24 +2793,49 @@ impl FullablePipe {
 /// within a bound:
 /// the handler may lose its line,
 /// never wait for room.
-fn stopped_with_a_full_pipe(name: &str, on_stream: bool) {
+fn stopped_with_a_full_pipe(
+    name: &str,
+    on_stream: bool,
+) {
     use std::os::fd::AsRawFd;
     let fixture: Fixture = fixture(name);
     let unique: String = format!("{name}-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(unique.as_str()).join("monochromatic-git-policy-cli/full-pipe.sock"), log: fixture.root.join("unused.log") };
+    let places: Places = Places {
+        socket: runtime_for(unique.as_str()).join("monochromatic-git-policy-cli/full-pipe.sock"),
+        log: fixture.root.join("unused.log"),
+    };
     let pipe: FullablePipe = fullable_pipe();
     let mut environment: Vec<(&'static str, String)> = Vec::new();
     if on_stream {
         // SAFETY: `stat` is plain data for which all zero bytes is a valid value.
         let mut status: libc::stat = unsafe { std::mem::zeroed() };
         // SAFETY: the descriptor is open and `status` is valid for one `stat`.
-        assert_eq!(unsafe { libc::fstat(pipe.control_end.as_raw_fd(), &raw mut status) }, 0);
-        environment.push((git_policy_cli::journald_native::STREAM_VARIABLE, format!("{}:{}", status.st_dev, status.st_ino)));
+        assert_eq!(
+            unsafe { libc::fstat(pipe.control_end.as_raw_fd(), &raw mut status) },
+            0
+        );
+        environment.push((
+            git_policy_cli::journald_native::STREAM_VARIABLE,
+            format!("{}:{}", status.st_dev, status.st_ino),
+        ));
         // Nobody listens there, so the handler's datagram fails and the line falls back to the pipe.
-        environment.push((git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@cli-git-test-journal-nobody-{unique}")));
+        environment.push((
+            git_policy_cli::journald_native::TEST_SOCKET_VARIABLE,
+            format!("@cli-git-test-journal-nobody-{unique}"),
+        ));
     }
-    let service_end: std::os::fd::OwnedFd = pipe.service_end.try_clone().expect("a descriptor for the service");
-    let mut service: Held = spawn_service_with_stderr(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice(), Stdio::from(service_end));
+    let service_end: std::os::fd::OwnedFd = pipe
+        .service_end
+        .try_clone()
+        .expect("a descriptor for the service");
+    let mut service: Held = spawn_service_with_stderr(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &[],
+        environment.as_slice(),
+        Stdio::from(service_end),
+    );
     pipe.fill();
     let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
     // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
@@ -1728,7 +2877,11 @@ fn slow_signer(fixture: &Fixture) -> PathBuf {
         "#!/bin/sh\n/usr/bin/cat > /dev/null\n/usr/bin/sleep {WAIT_SECONDS}\necho '[GNUPG:] SIG_CREATED D 1 8 00 1 1 ABC' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nZmFrZQ==\\n-----END PGP SIGNATURE-----\\n'\n"
     );
     std::fs::write(&program, source).expect("the signer stand-in");
-    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(
+        &program,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("executable");
     return program;
 }
 
@@ -1737,7 +2890,12 @@ fn slow_signer(fixture: &Fixture) -> PathBuf {
 ///  extra words after `commit`,
 /// and the stand-in Git (when `slow_git`) that sleeps in `commit`;
 /// returns what the command wrote to standard error.
-fn commit_noticing(name: &str, configuration: &[(&str, String)], extra_words: &[&str], slow_git: bool) -> String {
+fn commit_noticing(
+    name: &str,
+    configuration: &[(&str, String)],
+    extra_words: &[&str],
+    slow_git: bool,
+) -> String {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = base_repository(&fixture);
     // A configuration key the service does not embed makes Git build the commit, in the scratch repository.
@@ -1748,22 +2906,43 @@ fn commit_noticing(name: &str, configuration: &[(&str, String)], extra_words: &[
     let service_name: String = format!("{name}-{}", std::process::id());
     let places: Places = places_for(&fixture, service_name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
-    std::fs::write(repo.join("a.txt"), format!("edit by {}\n", std::process::id())).expect("a.txt");
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("edit by {}\n", std::process::id()),
+    )
+    .expect("a.txt");
     let mut arguments: Vec<&str> = vec!["commit"];
     arguments.extend_from_slice(extra_words);
     arguments.extend_from_slice(&["-m", MESSAGE, "--", "a.txt"]);
     let mut command: Command = wrapped_commit(&fixture, &repo, arguments.as_slice());
-    command.env("XDG_RUNTIME_DIR", runtime_for(service_name.as_str())).env("CLI_GIT_WAIT_NOTICE_SECONDS", "1").env("GIT_EDITOR", "/usr/bin/true");
-    command.env(git_policy_cli::native_commit_waiting_notice::SCRATCH_CEILING_VARIABLE, CONTROL_CEILING_SECONDS);
+    command
+        .env("XDG_RUNTIME_DIR", runtime_for(service_name.as_str()))
+        .env("CLI_GIT_WAIT_NOTICE_SECONDS", "1")
+        .env("GIT_EDITOR", "/usr/bin/true");
+    command.env(
+        git_policy_cli::native_commit_waiting_notice::SCRATCH_CEILING_VARIABLE,
+        CONTROL_CEILING_SECONDS,
+    );
     if slow_git {
-        let mut path: std::ffi::OsString = slow_commit_git(&fixture, SLOW_STEP_SECONDS).into_os_string();
+        let mut path: std::ffi::OsString =
+            slow_commit_git(&fixture, SLOW_STEP_SECONDS).into_os_string();
         path.push(":");
         path.push(fixture.root.join("bin"));
         command.env("PATH", path);
     }
     let served = observe(&mut command, b"");
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    assert_eq!(
+        served.code,
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&served.stderr)
+    );
     let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
     remove_settled(&fixture);
     return stderr;
@@ -1783,13 +2962,32 @@ fn commit_noticing(name: &str, configuration: &[(&str, String)], extra_words: &[
 #[test]
 fn a_slow_scratch_commit_says_what_the_command_waits_for() {
     let said: String = commit_noticing("notice-scratch-commit", &[], &[], true);
-    let line: &str = said.lines().find(|line| { return line.contains("`git commit`"); }).unwrap_or_else(|| { panic!("a three second wait said nothing about the commit Git builds: {said}") });
+    let line: &str = said
+        .lines()
+        .find(|line| {
+            return line.contains("`git commit`");
+        })
+        .unwrap_or_else(|| {
+            panic!("a three second wait said nothing about the commit Git builds: {said}")
+        });
     assert!(line.starts_with("monochromatic-git-policy-cli: "), "{line}");
-    assert!(line.contains("`git commit`") && line.contains("scratch repository"), "{line}");
-    assert!(line.contains("stopped if it lasts"), "the line says when the step is stopped: {line}");
-    assert!(!line.contains("no time limit"), "the step has a ceiling now: {line}");
+    assert!(
+        line.contains("`git commit`") && line.contains("scratch repository"),
+        "{line}"
+    );
+    assert!(
+        line.contains("stopped if it lasts"),
+        "the line says when the step is stopped: {line}"
+    );
+    assert!(
+        !line.contains("no time limit"),
+        "the step has a ceiling now: {line}"
+    );
     assert!(!line.contains("signs"), "nothing is signed here: {line}");
-    assert!(!said.contains(MESSAGE), "the person's text is not in a notice: {said}");
+    assert!(
+        !said.contains(MESSAGE),
+        "the person's text is not in a notice: {said}"
+    );
 }
 
 /// With `commit.gpgsign` set the notice says the commit is signed,
@@ -1798,11 +2996,35 @@ fn a_slow_scratch_commit_says_what_the_command_waits_for() {
 fn a_slow_signing_commit_says_it_waits_for_the_signature() {
     let fixture_for_signer: Fixture = fixture("notice-signer-path");
     let signer: PathBuf = slow_signer(&fixture_for_signer);
-    let configuration: Vec<(&str, String)> = vec![("commit.gpgsign", String::from("true")), ("gpg.program", signer.display().to_string()), ("user.signingkey", String::from("ABC"))];
-    let said: String = commit_noticing("notice-signing-commit", configuration.as_slice(), &[], false);
-    let line: &str = said.lines().find(|line| { return line.contains("`git commit`"); }).unwrap_or_else(|| { panic!("a three second wait for a signer said nothing about the commit: {said}") });
-    assert!(line.contains("`git commit`") && line.contains("signs the commit") && line.contains("`commit.gpgsign`"), "{line}");
-    assert!(line.contains("slow-signer"), "the signing program is named while it runs: {line}");
+    let configuration: Vec<(&str, String)> = vec![
+        ("commit.gpgsign", String::from("true")),
+        ("gpg.program", signer.display().to_string()),
+        ("user.signingkey", String::from("ABC")),
+    ];
+    let said: String = commit_noticing(
+        "notice-signing-commit",
+        configuration.as_slice(),
+        &[],
+        false,
+    );
+    let line: &str = said
+        .lines()
+        .find(|line| {
+            return line.contains("`git commit`");
+        })
+        .unwrap_or_else(|| {
+            panic!("a three second wait for a signer said nothing about the commit: {said}")
+        });
+    assert!(
+        line.contains("`git commit`")
+            && line.contains("signs the commit")
+            && line.contains("`commit.gpgsign`"),
+        "{line}"
+    );
+    assert!(
+        line.contains("slow-signer"),
+        "the signing program is named while it runs: {line}"
+    );
     remove_settled(&fixture_for_signer);
 }
 
@@ -1811,7 +3033,10 @@ fn a_slow_signing_commit_says_it_waits_for_the_signature() {
 #[test]
 fn a_commit_that_opens_an_editor_prints_no_waiting_notice() {
     let said: String = commit_noticing("notice-editor", &[], &["--edit"], true);
-    assert!(!said.contains("`git commit`"), "the person at the editor is not told the command waits: {said}");
+    assert!(
+        !said.contains("`git commit`"),
+        "the person at the editor is not told the command waits: {said}"
+    );
 }
 
 /// How long a control waits for a compile the service runs in the background.
@@ -1828,7 +3053,9 @@ fn compiled_rules_in(cache: &Path) -> usize {
     let mut found: usize = 0;
     let mut pending: Vec<PathBuf> = vec![cache.to_path_buf()];
     while let Some(next) = pending.pop() {
-        let Ok(entries) = std::fs::read_dir(next) else { continue };
+        let Ok(entries) = std::fs::read_dir(next) else {
+            continue;
+        };
         for entry in entries.flatten() {
             if entry.path().is_dir() {
                 pending.push(entry.path());
@@ -1861,17 +3088,30 @@ fn repository_with_two_rules_texts(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = base_repository(fixture);
     std::fs::write(repo.join(WARM_RULES_FILE), "FIRST_PLANTED_RULE_TEXT\n").expect("rules text");
     super::support::git(fixture, &repo, &["add", WARM_RULES_FILE]);
-    super::support::git(fixture, &repo, &["commit", "--quiet", "--message=first rules"]);
+    super::support::git(
+        fixture,
+        &repo,
+        &["commit", "--quiet", "--message=first rules"],
+    );
     super::support::git(fixture, &repo, &["checkout", "--quiet", "-b", "other"]);
     std::fs::write(repo.join(WARM_RULES_FILE), "SECOND_PLANTED_RULE_TEXT\n").expect("rules text");
-    super::support::git(fixture, &repo, &["commit", "--quiet", "--all", "--message=second rules"]);
+    super::support::git(
+        fixture,
+        &repo,
+        &["commit", "--quiet", "--all", "--message=second rules"],
+    );
     super::support::git(fixture, &repo, &["checkout", "--quiet", "main"]);
     return repo;
 }
 
 /// A service with its own cache directory in the environment,
 /// serving `repo`.
-fn service_with_cache(fixture: &Fixture, repo: &Path, name: &str, cache: &Path) -> (Held, PathBuf) {
+fn service_with_cache(
+    fixture: &Fixture,
+    repo: &Path,
+    name: &str,
+    cache: &Path,
+) -> (Held, PathBuf) {
     let places: Places = places_for(fixture, name, repo);
     let instance: String = instance_argument(repo);
     let held: Held = spawn_service_with_environment(
@@ -1896,13 +3136,22 @@ fn a_warm_message_makes_the_running_service_compile_the_rules() {
     let repo: PathBuf = repository_with_two_rules_texts(&fixture);
     let cache: PathBuf = fixture.root.join("warm-cache");
     let name: String = format!("warm-message-{}", std::process::id());
-    let (_service, socket): (Held, PathBuf) = service_with_cache(&fixture, &repo, name.as_str(), cache.as_path());
+    let (_service, socket): (Held, PathBuf) =
+        service_with_cache(&fixture, &repo, name.as_str(), cache.as_path());
     assert_eq!(compiled_rules_in(&cache), 0);
     let git_dir: String = repo.join(".git").display().to_string();
-    let line: String = format!("{{\"type\":\"warm\",\"version\":{},\"gitDir\":{git_dir:?},\"repository\":{:?}}}\n", git_policy_cli::service_protocol::PROTOCOL_VERSION, repo.display().to_string());
-    let mut connection = std::os::unix::net::UnixStream::connect(&socket).expect("the service listens");
+    let line: String = format!(
+        "{{\"type\":\"warm\",\"version\":{},\"gitDir\":{git_dir:?},\"repository\":{:?}}}\n",
+        git_policy_cli::service_protocol::PROTOCOL_VERSION,
+        repo.display().to_string()
+    );
+    let mut connection =
+        std::os::unix::net::UnixStream::connect(&socket).expect("the service listens");
     std::io::Write::write_all(&mut connection, line.as_bytes()).expect("the message is sent");
-    assert!(artifact_appears(&cache), "the service did not compile the rules after a warm message");
+    assert!(
+        artifact_appears(&cache),
+        "the service did not compile the rules after a warm message"
+    );
     remove_settled(&fixture);
 }
 
@@ -1918,27 +3167,47 @@ fn a_checkout_that_changes_the_rules_text_asks_the_running_service_to_compile_it
     let cache: PathBuf = fixture.root.join("warm-cache");
     let name: String = format!("warm-checkout-{}", std::process::id());
     let runtime: PathBuf = runtime_for(name.as_str());
-    let (service, _socket): (Held, PathBuf) = service_with_cache(&fixture, &repo, name.as_str(), cache.as_path());
+    let (service, _socket): (Held, PathBuf) =
+        service_with_cache(&fixture, &repo, name.as_str(), cache.as_path());
     let switch = |branch: &str, quiet: bool| {
-        let mut command: Command = wrapped_commit(&fixture, &repo, &["checkout", "--quiet", branch]);
-        command.env("XDG_RUNTIME_DIR", &runtime).env("FORBIDDEN_STRINGS_CACHE_DIR", &cache);
+        let mut command: Command =
+            wrapped_commit(&fixture, &repo, &["checkout", "--quiet", branch]);
+        command
+            .env("XDG_RUNTIME_DIR", &runtime)
+            .env("FORBIDDEN_STRINGS_CACHE_DIR", &cache);
         let done = observe(&mut command, b"");
-        assert_eq!(done.code, Some(0), "{}", String::from_utf8_lossy(&done.stderr));
+        assert_eq!(
+            done.code,
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&done.stderr)
+        );
         let _ = quiet;
     };
     // A switch that leaves the rules file as it is asks for nothing.
     switch("main", true);
     std::thread::sleep(NO_WARM_FOR);
-    assert_eq!(compiled_rules_in(&cache), 0, "a checkout that changed no rules text made the service compile");
+    assert_eq!(
+        compiled_rules_in(&cache),
+        0,
+        "a checkout that changed no rules text made the service compile"
+    );
     // A switch that changes it asks, and the service compiles.
     switch("other", false);
-    assert!(artifact_appears(&cache), "the service did not compile the rules after a checkout changed them");
+    assert!(
+        artifact_appears(&cache),
+        "the service did not compile the rules after a checkout changed them"
+    );
     drop(service);
     // With no service running, the command still succeeds, and nothing starts one.
     std::fs::remove_dir_all(&cache).expect("remove the cache");
     switch("main", false);
     std::thread::sleep(NO_WARM_FOR);
-    assert_eq!(compiled_rules_in(&cache), 0, "a service that was not running compiled the rules");
+    assert_eq!(
+        compiled_rules_in(&cache),
+        0,
+        "a service that was not running compiled the rules"
+    );
     remove_settled(&fixture);
 }
 
@@ -1964,7 +3233,9 @@ const GIVE_UP_SLACK_CEILINGS: u32 = 2;
 /// The rules of one control's repository,
 /// written where its configuration names them.
 fn configuration_naming_the_rules_file(rules_file: &str) -> String {
-    return format!("{{ \"policies\": {{ \"security/forbidden-strings\": [\"error\", {{ \"builtinRules\": false, \"rulesFile\": {rules_file:?} }}] }} }}\n");
+    return format!(
+        "{{ \"policies\": {{ \"security/forbidden-strings\": [\"error\", {{ \"builtinRules\": false, \"rulesFile\": {rules_file:?} }}] }} }}\n"
+    );
 }
 
 /// A repository whose own rules file holds `needle`,
@@ -1972,10 +3243,18 @@ fn configuration_naming_the_rules_file(rules_file: &str) -> String {
 /// Why real Git stages it:
 ///  the policy reads the index,
 /// and the wrapper's own `add` would refuse the same text first.
-fn repository_with_a_staged_match(fixture: &Fixture, name: &OsStr, needle: &str) -> PathBuf {
+fn repository_with_a_staged_match(
+    fixture: &Fixture,
+    name: &OsStr,
+    needle: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, name);
     std::fs::write(repo.join(WARM_RULES_FILE), format!("{needle}\n")).expect("the rules text");
-    std::fs::write(repo.join(CONFIG_FILE_NAME), configuration_naming_the_rules_file(WARM_RULES_FILE)).expect("the configuration");
+    std::fs::write(
+        repo.join(CONFIG_FILE_NAME),
+        configuration_naming_the_rules_file(WARM_RULES_FILE),
+    )
+    .expect("the configuration");
     std::fs::write(repo.join("a.txt"), format!("first\n{needle}\n")).expect("the staged text");
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
     return repo;
@@ -1984,7 +3263,8 @@ fn repository_with_a_staged_match(fixture: &Fixture, name: &OsStr, needle: &str)
 /// Whether a command's standard error carries the forbidden-strings refusal of `a.txt`.
 fn refused_the_match(observed: &Observed) -> bool {
     let text: String = String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
-    return text.contains("\"code\":\"security/forbidden-strings/forbidden-string\"") && text.contains("\"path\":\"a.txt\"");
+    return text.contains("\"code\":\"security/forbidden-strings/forbidden-string\"")
+        && text.contains("\"path\":\"a.txt\"");
 }
 
 /// What:
@@ -2001,28 +3281,56 @@ fn refused_the_match(observed: &Observed) -> bool {
 /// ```ts
 /// const listener = aListenerThatNeverAccepts(path, 0);
 /// ```
-fn a_listener_that_never_accepts(path: &Path, backlog: libc::c_int) -> OwnedFd {
+fn a_listener_that_never_accepts(
+    path: &Path,
+    backlog: libc::c_int,
+) -> OwnedFd {
     use std::os::unix::ffi::OsStrExt as _;
     let bytes: &[u8] = path.as_os_str().as_bytes();
     // SAFETY: `sockaddr_un` is plain data, and all zero bytes of it are a valid value.
     let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
-    assert!(bytes.len() < address.sun_path.len(), "the control's socket path fits one socket address");
+    assert!(
+        bytes.len() < address.sun_path.len(),
+        "the control's socket path fits one socket address"
+    );
     address.sun_family = libc::AF_UNIX as libc::sa_family_t;
     for (slot, byte) in address.sun_path.iter_mut().zip(bytes) {
         *slot = *byte as libc::c_char;
     }
-    let length: libc::socklen_t = (size_of::<libc::sa_family_t>() + bytes.len() + 1) as libc::socklen_t;
+    let length: libc::socklen_t =
+        (size_of::<libc::sa_family_t>() + bytes.len() + 1) as libc::socklen_t;
     // SAFETY: `socket` creates a descriptor of the family and type it is given and touches no memory of this process.
-    let made: libc::c_int = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) };
-    assert!(made >= 0, "the control's socket: {}", std::io::Error::last_os_error());
+    let made: libc::c_int =
+        unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) };
+    assert!(
+        made >= 0,
+        "the control's socket: {}",
+        std::io::Error::last_os_error()
+    );
     // SAFETY: `made` is an open descriptor of this process and nothing else owns it.
     let listener: OwnedFd = unsafe { OwnedFd::from_raw_fd(made) };
     // SAFETY: `bind` reads the address it is given and the length says how much of it; the descriptor is this process's.
-    let bound: libc::c_int = unsafe { libc::bind(listener.as_raw_fd(), std::ptr::from_ref(&address).cast::<libc::sockaddr>(), length) };
-    assert_eq!(bound, 0, "the control's socket is bound: {}", std::io::Error::last_os_error());
+    let bound: libc::c_int = unsafe {
+        libc::bind(
+            listener.as_raw_fd(),
+            std::ptr::from_ref(&address).cast::<libc::sockaddr>(),
+            length,
+        )
+    };
+    assert_eq!(
+        bound,
+        0,
+        "the control's socket is bound: {}",
+        std::io::Error::last_os_error()
+    );
     // SAFETY: `listen` reads the descriptor and the number it is given and touches no memory.
     let listening: libc::c_int = unsafe { libc::listen(listener.as_raw_fd(), backlog) };
-    assert_eq!(listening, 0, "the control's socket listens: {}", std::io::Error::last_os_error());
+    assert_eq!(
+        listening,
+        0,
+        "the control's socket listens: {}",
+        std::io::Error::last_os_error()
+    );
     return listener;
 }
 
@@ -2053,9 +3361,19 @@ fn a_listener_that_never_accepts(path: &Path, backlog: libc::c_int) -> OwnedFd {
 fn a_process_that_looks_like_the_service(instance: &str) -> Held {
     let mut command: Command = Command::new("/bin/sh");
     // The words after the script are the shell's own arguments, so its command line carries the service's start arguments.
-    command.args(["-c", "read ignored", "service", "run", "--instance", instance]);
+    command.args([
+        "-c",
+        "read ignored",
+        "service",
+        "run",
+        "--instance",
+        instance,
+    ]);
     // The read waits for this pipe to close, which happens when this control drops it or ends; a child may not inherit it.
-    command.stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     return Held(spawn_owned(&mut command).expect("the stand-in process starts"));
 }
 
@@ -2068,22 +3386,48 @@ struct Refusal {
 
 /// The refusing commit of `repo`,
 /// under `runtime` and `cache`.
-fn refusing_commit(fixture: &Fixture, repo: &Path, runtime: &Path, cache: &Path) -> Refusal {
+fn refusing_commit(
+    fixture: &Fixture,
+    repo: &Path,
+    runtime: &Path,
+    cache: &Path,
+) -> Refusal {
     return refusing_commit_with(fixture, repo, runtime, cache, &[]);
 }
 
 /// `refusing_commit` with more variables in the commit's otherwise fixed environment,
 /// for a control that arms one of the request's own points.
-fn refusing_commit_with(fixture: &Fixture, repo: &Path, runtime: &Path, cache: &Path, environment: &[(&str, String)]) -> Refusal {
-    let mut command: Command = bounded_for(fixture, fixture.root.join("bin/git").as_path(), wrapper_first_path(fixture).as_os_str(), REFUSAL_BOUND_SECONDS);
-    command.current_dir(repo).args(["commit", "--no-enforce-only", "--message", "a change the rules refuse"]);
-    command.env("XDG_RUNTIME_DIR", runtime).env("FORBIDDEN_STRINGS_CACHE_DIR", cache);
+fn refusing_commit_with(
+    fixture: &Fixture,
+    repo: &Path,
+    runtime: &Path,
+    cache: &Path,
+    environment: &[(&str, String)],
+) -> Refusal {
+    let mut command: Command = bounded_for(
+        fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(fixture).as_os_str(),
+        REFUSAL_BOUND_SECONDS,
+    );
+    command.current_dir(repo).args([
+        "commit",
+        "--no-enforce-only",
+        "--message",
+        "a change the rules refuse",
+    ]);
+    command
+        .env("XDG_RUNTIME_DIR", runtime)
+        .env("FORBIDDEN_STRINGS_CACHE_DIR", cache);
     for (name, value) in environment {
         command.env(name, value);
     }
     let began: Instant = Instant::now();
     let observed: Observed = observe(&mut command, b"");
-    return Refusal { observed, elapsed: began.elapsed() };
+    return Refusal {
+        observed,
+        elapsed: began.elapsed(),
+    };
 }
 
 /// The path a control holds the request's look at the processes at,
@@ -2102,8 +3446,13 @@ struct HeldLook {
 ///  and neither a sleep nor a race decides the order.
 impl HeldLook {
     /// The name of this control's hold under the fixture root.
-    fn named(fixture: &Fixture, name: &str) -> Self {
-        return Self { where_the_control_holds_it: fixture.root.join(name) };
+    fn named(
+        fixture: &Fixture,
+        name: &str,
+    ) -> Self {
+        return Self {
+            where_the_control_holds_it: fixture.root.join(name),
+        };
     }
 
     /// The value the commit's environment carries to arm the hold.
@@ -2126,7 +3475,11 @@ impl HeldLook {
     fn wait_until_answered(&self) {
         let began: Instant = Instant::now();
         while !self.answered().exists() {
-            assert!(began.elapsed() < PATIENCE, "the request never reached the point the control holds: {}", self.answered().display());
+            assert!(
+                began.elapsed() < PATIENCE,
+                "the request never reached the point the control holds: {}",
+                self.answered().display()
+            );
             std::thread::sleep(Duration::from_millis(10));
         }
     }
@@ -2139,9 +3492,18 @@ impl HeldLook {
 
 /// The file a control leaves beside the one it named,
 /// with its own suffix.
-fn beside(where_the_control_holds_it: &Path, what: &str) -> PathBuf {
+fn beside(
+    where_the_control_holds_it: &Path,
+    what: &str,
+) -> PathBuf {
     let mut path: PathBuf = where_the_control_holds_it.to_path_buf();
-    path.set_file_name(format!("{}.{what}", where_the_control_holds_it.file_name().unwrap_or_default().to_string_lossy()));
+    path.set_file_name(format!(
+        "{}.{what}",
+        where_the_control_holds_it
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+    ));
     return path;
 }
 
@@ -2164,32 +3526,86 @@ fn a_commit_whose_rules_are_cold_answers_at_its_usual_time_when_the_service_take
     let fixture: Fixture = fixture("warm-request-full-queue");
     // The usual time: the same commit with a service that accepts, so the warm request is made and the service compiles.
     let served_name: String = format!("warm-request-served-{}", std::process::id());
-    let served_repo: PathBuf = repository_with_a_staged_match(&fixture, OsStr::new("served"), "SERVED_PLANTED_RULE_TEXT");
+    let served_repo: PathBuf =
+        repository_with_a_staged_match(&fixture, OsStr::new("served"), "SERVED_PLANTED_RULE_TEXT");
     let served_cache: PathBuf = fixture.root.join("cache-served");
-    let (_served, _served_socket): (Held, PathBuf) = service_with_cache(&fixture, served_repo.as_path(), served_name.as_str(), served_cache.as_path());
-    let served: Refusal = refusing_commit(&fixture, served_repo.as_path(), runtime_for(served_name.as_str()).as_path(), served_cache.as_path());
-    assert_eq!(served.observed.code, Some(1), "the policy refuses the change: {}", String::from_utf8_lossy(served.observed.stderr.as_slice()));
-    assert!(refused_the_match(&served.observed), "the refusal names the match: {}", String::from_utf8_lossy(served.observed.stderr.as_slice()));
+    let (_served, _served_socket): (Held, PathBuf) = service_with_cache(
+        &fixture,
+        served_repo.as_path(),
+        served_name.as_str(),
+        served_cache.as_path(),
+    );
+    let served: Refusal = refusing_commit(
+        &fixture,
+        served_repo.as_path(),
+        runtime_for(served_name.as_str()).as_path(),
+        served_cache.as_path(),
+    );
+    assert_eq!(
+        served.observed.code,
+        Some(1),
+        "the policy refuses the change: {}",
+        String::from_utf8_lossy(served.observed.stderr.as_slice())
+    );
+    assert!(
+        refused_the_match(&served.observed),
+        "the refusal names the match: {}",
+        String::from_utf8_lossy(served.observed.stderr.as_slice())
+    );
     // The service that answered compiled the rules, so the commit never published them itself.
-    assert!(artifact_appears(served_cache.as_path()), "the service compiled the rules a warm request asked for");
+    assert!(
+        artifact_appears(served_cache.as_path()),
+        "the service compiled the rules a warm request asked for"
+    );
     // The queue nothing accepts: one connection fills a listener of depth zero, and a process that looks like the service
     //  of this worktree is what lets the request out of the process-table guard.
     let blocked_name: String = format!("warm-request-blocked-{}", std::process::id());
-    let blocked_repo: PathBuf = repository_with_a_staged_match(&fixture, OsStr::new("blocked"), "BLOCKED_PLANTED_RULE_TEXT");
+    let blocked_repo: PathBuf = repository_with_a_staged_match(
+        &fixture,
+        OsStr::new("blocked"),
+        "BLOCKED_PLANTED_RULE_TEXT",
+    );
     let blocked_cache: PathBuf = fixture.root.join("cache-blocked");
     let blocked_runtime: PathBuf = runtime_for(blocked_name.as_str());
-    let blocked_socket: PathBuf = socket_for(blocked_runtime.as_path(), blocked_repo.join(".git").as_path());
-    std::fs::create_dir_all(blocked_socket.parent().expect("the socket's directory")).expect("the socket directory");
+    let blocked_socket: PathBuf = socket_for(
+        blocked_runtime.as_path(),
+        blocked_repo.join(".git").as_path(),
+    );
+    std::fs::create_dir_all(blocked_socket.parent().expect("the socket's directory"))
+        .expect("the socket directory");
     let _listener: OwnedFd = a_listener_that_never_accepts(blocked_socket.as_path(), 0);
-    let _filling: UnixStream = UnixStream::connect(blocked_socket.as_path()).expect("a queue of no depth takes one connection");
-    let _stand_in: Held = a_process_that_looks_like_the_service(instance_argument(blocked_repo.as_path()).as_str());
-    assert_eq!(compiled_rules_in(blocked_cache.as_path()), 0, "the cold cache of the blocked commit holds nothing yet");
-    let blocked: Refusal = refusing_commit(&fixture, blocked_repo.as_path(), blocked_runtime.as_path(), blocked_cache.as_path());
-    assert_eq!(blocked.observed.code, Some(1), "the policy refuses the change: {}", String::from_utf8_lossy(blocked.observed.stderr.as_slice()));
-    assert!(refused_the_match(&blocked.observed), "the refusal names the match: {}", String::from_utf8_lossy(blocked.observed.stderr.as_slice()));
+    let _filling: UnixStream = UnixStream::connect(blocked_socket.as_path())
+        .expect("a queue of no depth takes one connection");
+    let _stand_in: Held =
+        a_process_that_looks_like_the_service(instance_argument(blocked_repo.as_path()).as_str());
+    assert_eq!(
+        compiled_rules_in(blocked_cache.as_path()),
+        0,
+        "the cold cache of the blocked commit holds nothing yet"
+    );
+    let blocked: Refusal = refusing_commit(
+        &fixture,
+        blocked_repo.as_path(),
+        blocked_runtime.as_path(),
+        blocked_cache.as_path(),
+    );
+    assert_eq!(
+        blocked.observed.code,
+        Some(1),
+        "the policy refuses the change: {}",
+        String::from_utf8_lossy(blocked.observed.stderr.as_slice())
+    );
+    assert!(
+        refused_the_match(&blocked.observed),
+        "the refusal names the match: {}",
+        String::from_utf8_lossy(blocked.observed.stderr.as_slice())
+    );
     // The stand-in takes no connection and compiles nothing, so an artifact here is the command's own publication,
     //  which happens only when the request was given up (`cache_access`).
-    assert!(compiled_rules_in(blocked_cache.as_path()) > 0, "the command published the rules itself, because its warm request was given up");
+    assert!(
+        compiled_rules_in(blocked_cache.as_path()) > 0,
+        "the command published the rules itself, because its warm request was given up"
+    );
     let allowed: Duration = served.elapsed + WARM_REQUEST_CONNECT_CEILING * GIVE_UP_SLACK_CEILINGS;
     assert!(
         blocked.elapsed < allowed,
@@ -2218,29 +3634,63 @@ fn a_commit_whose_rules_are_cold_answers_at_its_usual_time_when_the_service_take
 /// the FUSE incident),
 ///  and a held answer ends at the ceiling exactly as a read that never returns does.
 #[test]
-fn a_commit_whose_look_at_the_processes_does_not_answer_gives_the_request_up_and_publishes_the_rules() {
+fn a_commit_whose_look_at_the_processes_does_not_answer_gives_the_request_up_and_publishes_the_rules()
+ {
     let fixture: Fixture = fixture("warm-scan-held");
     let name: String = format!("warm-scan-held-{}", std::process::id());
-    let repo: PathBuf = repository_with_a_staged_match(&fixture, OsStr::new("repo"), "HELD_LOOK_PLANTED_RULE_TEXT");
+    let repo: PathBuf =
+        repository_with_a_staged_match(&fixture, OsStr::new("repo"), "HELD_LOOK_PLANTED_RULE_TEXT");
     let cache: PathBuf = fixture.root.join("cache");
     let runtime: PathBuf = runtime_for(name.as_str());
     let socket: PathBuf = socket_for(runtime.as_path(), repo.join(".git").as_path());
-    std::fs::create_dir_all(socket.parent().expect("the socket's directory")).expect("the socket directory");
+    std::fs::create_dir_all(socket.parent().expect("the socket's directory"))
+        .expect("the socket directory");
     // A listener with room, so a request that were sent would be sent in full: only the look's ceiling can give it up.
     let _listener: OwnedFd = a_listener_that_never_accepts(socket.as_path(), 8);
     // A process whose start arguments are the service's, so the look would find one if it answered.
-    let mut stand_in: Held = a_process_that_looks_like_the_service(instance_argument(repo.as_path()).as_str());
+    let mut stand_in: Held =
+        a_process_that_looks_like_the_service(instance_argument(repo.as_path()).as_str());
     let held: HeldLook = HeldLook::named(&fixture, "the-look-is-held");
-    let armed: [(&str, String); 1] = [(git_policy_cli::service_warm_request_control_window::PARK_VARIABLE, held.armed())];
-    let refusal: Refusal = refusing_commit_with(&fixture, repo.as_path(), runtime.as_path(), cache.as_path(), &armed);
-    assert_eq!(refusal.observed.code, Some(1), "the policy refuses the change: {}", String::from_utf8_lossy(refusal.observed.stderr.as_slice()));
-    assert!(refused_the_match(&refusal.observed), "the refusal names the match: {}", String::from_utf8_lossy(refusal.observed.stderr.as_slice()));
+    let armed: [(&str, String); 1] = [(
+        git_policy_cli::service_warm_request_control_window::PARK_VARIABLE,
+        held.armed(),
+    )];
+    let refusal: Refusal = refusing_commit_with(
+        &fixture,
+        repo.as_path(),
+        runtime.as_path(),
+        cache.as_path(),
+        &armed,
+    );
+    assert_eq!(
+        refusal.observed.code,
+        Some(1),
+        "the policy refuses the change: {}",
+        String::from_utf8_lossy(refusal.observed.stderr.as_slice())
+    );
+    assert!(
+        refused_the_match(&refusal.observed),
+        "the refusal names the match: {}",
+        String::from_utf8_lossy(refusal.observed.stderr.as_slice())
+    );
     // The look is held for a minute, so a commit that waited for its answer could not finish inside the bound at all.
-    let allowed: Duration = Duration::from_secs(REFUSAL_BOUND_SECONDS.parse::<u64>().expect("the bound's seconds") / 2);
-    assert!(refusal.elapsed < allowed, "the look's ceiling ends the request, and the commit took {:?}", refusal.elapsed);
+    let allowed: Duration = Duration::from_secs(
+        REFUSAL_BOUND_SECONDS
+            .parse::<u64>()
+            .expect("the bound's seconds")
+            / 2,
+    );
+    assert!(
+        refusal.elapsed < allowed,
+        "the look's ceiling ends the request, and the commit took {:?}",
+        refusal.elapsed
+    );
     // Nothing accepted at the listener, so an artifact here is the command's own publication,
     //  which happens only when the request was given up (`cache_access`).
-    assert!(compiled_rules_in(cache.as_path()) > 0, "the command published the rules itself, because its look did not answer");
+    assert!(
+        compiled_rules_in(cache.as_path()) > 0,
+        "the command published the rules itself, because its look did not answer"
+    );
     // The stand-in is ended here so this control can prove nothing it started outlives it, which is what a leak looks like.
     let group: libc::pid_t = group_of(&stand_in.0);
     kill_with_everything_it_started(&mut stand_in.0);
@@ -2268,37 +3718,58 @@ fn a_commit_whose_look_at_the_processes_does_not_answer_gives_the_request_up_and
 fn a_service_killed_between_the_look_and_the_connection_is_started_by_the_connection() {
     let fixture: Fixture = fixture("warm-service-killed-after-the-look");
     let name: String = format!("warm-service-killed-{}", std::process::id());
-    let repo: PathBuf = repository_with_a_staged_match(&fixture, OsStr::new("repo"), "KILLED_SERVICE_PLANTED_RULE_TEXT");
+    let repo: PathBuf = repository_with_a_staged_match(
+        &fixture,
+        OsStr::new("repo"),
+        "KILLED_SERVICE_PLANTED_RULE_TEXT",
+    );
     let cache: PathBuf = fixture.root.join("cache");
     let runtime: PathBuf = runtime_for(name.as_str());
     let socket: PathBuf = socket_for(runtime.as_path(), repo.join(".git").as_path());
-    std::fs::create_dir_all(socket.parent().expect("the socket's directory")).expect("the socket directory");
+    std::fs::create_dir_all(socket.parent().expect("the socket's directory"))
+        .expect("the socket directory");
     let instance: String = instance_argument(repo.as_path());
     // The service the look finds, and which the control kills while the request waits.
     let stand_in: Held = a_process_that_looks_like_the_service(instance.as_str());
     let stand_in_pid: i32 = i32::try_from(stand_in.0.id()).expect("a process ID fits");
     // The peer that behaves as socket activation does: it starts a service when a connection arrives, and that service reads
     //  the request. No manager is started on this machine; this listener is the control's own stand-in for one.
-    let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("the control's listening socket");
+    let listener: UnixListener =
+        UnixListener::bind(socket.as_path()).expect("the control's listening socket");
     let (started_told, started_heard) = std::sync::mpsc::channel::<Held>();
     let (alive_told, alive_heard) = std::sync::mpsc::channel::<bool>();
     let (line_told, line_heard) = std::sync::mpsc::channel::<String>();
     let serving_instance: String = instance.clone();
     std::thread::spawn(move || {
-        let Ok((accepted, _address)) = listener.accept() else { return };
+        let Ok((accepted, _address)) = listener.accept() else {
+            return;
+        };
         // SAFETY: `kill` with signal 0 asks whether the process is there and sends nothing.
         let _sent_alive = alive_told.send(unsafe { libc::kill(stand_in_pid, 0) } == 0);
         // The manager starts a service on the connection; this is its stand-in, one process with no child,
         //  owned by the thread that starts it so it cannot outlive this control.
-        let _sent_started = started_told.send(a_process_that_looks_like_the_service(serving_instance.as_str()));
+        let _sent_started = started_told.send(a_process_that_looks_like_the_service(
+            serving_instance.as_str(),
+        ));
         let mut line: String = String::new();
         let _read = std::io::BufReader::new(accepted).read_line(&mut line);
         let _sent_line = line_told.send(line);
     });
     let held: HeldLook = HeldLook::named(&fixture, "the-look-is-held");
-    let armed: [(&str, String); 1] = [(git_policy_cli::service_warm_request_control_window::PARK_VARIABLE, held.armed())];
+    let armed: [(&str, String); 1] = [(
+        git_policy_cli::service_warm_request_control_window::PARK_VARIABLE,
+        held.armed(),
+    )];
     let refusal: Refusal = std::thread::scope(|scope| {
-        let committing = scope.spawn(|| return refusing_commit_with(&fixture, repo.as_path(), runtime.as_path(), cache.as_path(), &armed));
+        let committing = scope.spawn(|| {
+            return refusing_commit_with(
+                &fixture,
+                repo.as_path(),
+                runtime.as_path(),
+                cache.as_path(),
+                &armed,
+            );
+        });
         held.wait_until_answered();
         // The look has its answer and has not given it: the service it found dies here, by this control's own hand.
         let mut dying: Held = stand_in;
@@ -2306,12 +3777,38 @@ fn a_service_killed_between_the_look_and_the_connection_is_started_by_the_connec
         held.let_it_go_on();
         return committing.join().expect("the commit's thread ends");
     });
-    assert_eq!(refusal.observed.code, Some(1), "the policy refuses the change: {}", String::from_utf8_lossy(refusal.observed.stderr.as_slice()));
-    let mut started: Held = started_heard.recv_timeout(PATIENCE).expect("the connection was accepted and started a service");
-    let alive_when_accepted: bool = alive_heard.recv_timeout(PATIENCE).expect("the control knows whether the found service was there");
-    assert!(!alive_when_accepted, "the connection was accepted after the service the look found was killed");
-    let line: String = line_heard.recv_timeout(PATIENCE).expect("the started service read the request line");
-    assert_eq!(line, format!("{}\n", git_policy_cli::service_protocol_encode_messages_to_lines::encode_client(&git_policy_cli::service_protocol_messages_and_name_checks::ClientMessage::Warm { git_dir: repo.join(".git"), repository: repo.clone() })), "the line is the client's warm request");
+    assert_eq!(
+        refusal.observed.code,
+        Some(1),
+        "the policy refuses the change: {}",
+        String::from_utf8_lossy(refusal.observed.stderr.as_slice())
+    );
+    let mut started: Held = started_heard
+        .recv_timeout(PATIENCE)
+        .expect("the connection was accepted and started a service");
+    let alive_when_accepted: bool = alive_heard
+        .recv_timeout(PATIENCE)
+        .expect("the control knows whether the found service was there");
+    assert!(
+        !alive_when_accepted,
+        "the connection was accepted after the service the look found was killed"
+    );
+    let line: String = line_heard
+        .recv_timeout(PATIENCE)
+        .expect("the started service read the request line");
+    assert_eq!(
+        line,
+        format!(
+            "{}\n",
+            git_policy_cli::service_protocol_encode_messages_to_lines::encode_client(
+                &git_policy_cli::service_protocol_messages_and_name_checks::ClientMessage::Warm {
+                    git_dir: repo.join(".git"),
+                    repository: repo.clone()
+                }
+            )
+        ),
+        "the line is the client's warm request"
+    );
     // The started service is this control's own stand-in. It is ended here, and the control then proves that nothing it
     //  started is left: a service-shaped process that outlived its control kept this test's scope alive on 2026-11-14.
     let group: libc::pid_t = group_of(&started.0);
@@ -2335,19 +3832,37 @@ fn a_service_killed_between_the_look_and_the_connection_is_started_by_the_connec
 #[test]
 fn a_stand_in_ends_by_itself_when_the_process_that_held_its_input_is_gone() {
     let fixture: Fixture = fixture("warm-stand-in-ends-with-its-holder");
-    let mut stand_in: Held = a_process_that_looks_like_the_service("an-instance-no-service-of-this-fixture-has");
-    assert!(stand_in.0.try_wait().expect("the stand-in's state").is_none(), "the stand-in waits while this control holds its input");
+    let mut stand_in: Held =
+        a_process_that_looks_like_the_service("an-instance-no-service-of-this-fixture-has");
+    assert!(
+        stand_in
+            .0
+            .try_wait()
+            .expect("the stand-in's state")
+            .is_none(),
+        "the stand-in waits while this control holds its input"
+    );
     // Its group is asked while it is there, so the check at the end can name the group it was in.
     let group: libc::pid_t = group_of(&stand_in.0);
     // What a killed test binary leaves: its descriptors close. The pipe's write end is this control's, so dropping it is that ending.
-    let held_input: std::process::ChildStdin = stand_in.0.stdin.take().expect("the stand-in's input pipe");
+    let held_input: std::process::ChildStdin =
+        stand_in.0.stdin.take().expect("the stand-in's input pipe");
     drop(held_input);
     let began: Instant = Instant::now();
     loop {
-        if stand_in.0.try_wait().expect("the stand-in's state").is_some() {
+        if stand_in
+            .0
+            .try_wait()
+            .expect("the stand-in's state")
+            .is_some()
+        {
             break;
         }
-        assert!(began.elapsed() < PATIENCE, "the stand-in ends when the holder of its input went, and it did not in {:?}", began.elapsed());
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the stand-in ends when the holder of its input went, and it did not in {:?}",
+            began.elapsed()
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
     assert_nothing_in_group(group);
@@ -2365,7 +3880,10 @@ enum StandInAnswer {
     Fail(git_policy_cli::service_protocol::FailureCode),
     /// Answer a commit with that failure after waiting,
     /// so a control can send a signal into the wait and see whether the request is still the service's when it answers.
-    FailAfter { code: git_policy_cli::service_protocol::FailureCode, after: Duration },
+    FailAfter {
+        code: git_policy_cli::service_protocol::FailureCode,
+        after: Duration,
+    },
     /// Answer a commit with nothing,
     /// so its client waits,
     /// and answer a withdrawal that it will never land.
@@ -2411,13 +3929,27 @@ impl Drop for StandIn {
 /// `StandIn`:
 /// binds the address,
 /// then greets and answers on a thread of its own.
-fn stand_in(places: &Places, saw: &Path, answer: StandInAnswer) -> StandIn {
-    use std::io::{BufRead as _, BufReader, Write as _};
-    use std::os::unix::net::{UnixListener, UnixStream};
+fn stand_in(
+    places: &Places,
+    saw: &Path,
+    answer: StandInAnswer,
+) -> StandIn {
+    use std::io::{
+        BufRead as _,
+        BufReader,
+        Write as _,
+    };
+    use std::os::unix::net::{
+        UnixListener,
+        UnixStream,
+    };
     std::fs::create_dir_all(places.socket.parent().expect("parent")).expect("socket directory");
     let listener: UnixListener = UnixListener::bind(&places.socket).expect("the stand-in listens");
-    listener.set_nonblocking(true).expect("a listener that does not block");
-    let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    listener
+        .set_nonblocking(true)
+        .expect("a listener that does not block");
+    let stop: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let watched: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&stop);
     let marker: PathBuf = saw.to_path_buf();
     let socket: PathBuf = places.socket.clone();
@@ -2429,10 +3961,12 @@ fn stand_in(places: &Places, saw: &Path, answer: StandInAnswer) -> StandIn {
                 continue;
             };
             let _nonblocking = stream.set_nonblocking(false);
-            let mut greeting: String = git_policy_cli::service_protocol::encode_service(&git_policy_cli::service_protocol::ServiceMessage::Welcome {
-                version: git_policy_cli::service_protocol::PROTOCOL_VERSION,
-                release: Some(String::from(git_policy_cli::service_protocol::RELEASE)),
-            });
+            let mut greeting: String = git_policy_cli::service_protocol::encode_service(
+                &git_policy_cli::service_protocol::ServiceMessage::Welcome {
+                    version: git_policy_cli::service_protocol::PROTOCOL_VERSION,
+                    release: Some(String::from(git_policy_cli::service_protocol::RELEASE)),
+                },
+            );
             greeting.push('\n');
             if (&stream).write_all(greeting.as_bytes()).is_err() {
                 continue;
@@ -2447,14 +3981,30 @@ fn stand_in(places: &Places, saw: &Path, answer: StandInAnswer) -> StandIn {
                 let _written = std::fs::write(&marker, b"the stand-in read a commit");
                 match answer {
                     StandInAnswer::Fail(code) => {
-                        reply = git_policy_cli::service_protocol::encode_service(&git_policy_cli::service_protocol::ServiceMessage::Failed { id: String::new(), code });
+                        reply = git_policy_cli::service_protocol::encode_service(
+                            &git_policy_cli::service_protocol::ServiceMessage::Failed {
+                                id: String::new(),
+                                code,
+                            },
+                        );
                         keep = true;
                     }
-                    StandInAnswer::FailAfter { code, after } => {
-                        let later: UnixStream = stream.try_clone().expect("a second handle on the same connection");
+                    StandInAnswer::FailAfter {
+                        code,
+                        after,
+                    } => {
+                        let later: UnixStream = stream
+                            .try_clone()
+                            .expect("a second handle on the same connection");
                         std::thread::spawn(move || {
                             std::thread::sleep(after);
-                            let mut answering: String = git_policy_cli::service_protocol::encode_service(&git_policy_cli::service_protocol::ServiceMessage::Failed { id: String::new(), code });
+                            let mut answering: String =
+                                git_policy_cli::service_protocol::encode_service(
+                                    &git_policy_cli::service_protocol::ServiceMessage::Failed {
+                                        id: String::new(),
+                                        code,
+                                    },
+                                );
                             answering.push('\n');
                             let _answered = (&later).write_all(answering.as_bytes());
                         });
@@ -2463,7 +4013,11 @@ fn stand_in(places: &Places, saw: &Path, answer: StandInAnswer) -> StandIn {
                     StandInAnswer::Hold => keep = true,
                 }
             } else if line.contains("\"type\":\"withdraw\"") {
-                reply = git_policy_cli::service_protocol::encode_service(&git_policy_cli::service_protocol::ServiceMessage::Withdrawn { id: String::new() });
+                reply = git_policy_cli::service_protocol::encode_service(
+                    &git_policy_cli::service_protocol::ServiceMessage::Withdrawn {
+                        id: String::new(),
+                    },
+                );
             }
             if !reply.is_empty() {
                 reply.push('\n');
@@ -2474,7 +4028,11 @@ fn stand_in(places: &Places, saw: &Path, answer: StandInAnswer) -> StandIn {
             }
         }
     });
-    return StandIn { stop, socket, thread: Some(thread) };
+    return StandIn {
+        stop,
+        socket,
+        thread: Some(thread),
+    };
 }
 
 /// What:
@@ -2494,22 +4052,46 @@ fn a_commit_the_service_answers_with_a_failure_states_what_the_answer_was() {
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("timing-service-refused-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
-    let _stand_in: StandIn = stand_in(&places, &fixture.root.join("saw-commit"), StandInAnswer::Fail(git_policy_cli::service_protocol::FailureCode::Rejected));
+    let _stand_in: StandIn = stand_in(
+        &places,
+        &fixture.root.join("saw-commit"),
+        StandInAnswer::Fail(git_policy_cli::service_protocol::FailureCode::Rejected),
+    );
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
     let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
     let stderr: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
     assert_eq!(served.code, Some(1), "{stderr}");
-    assert!(stderr.contains("refused"), "the person is told what the service answered: {stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed: {stderr}");
+    assert!(
+        stderr.contains("refused"),
+        "the person is told what the service answered: {stderr}"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]),
+        before,
+        "nothing was committed: {stderr}"
+    );
     // What the command was asked to commit is where it was: a commit that was not made costs nothing.
-    assert!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt").contains("edit "), "the worktree file is as it was");
+    assert!(
+        std::fs::read_to_string(repo.join("a.txt"))
+            .expect("a.txt")
+            .contains("edit "),
+        "the worktree file is as it was"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
-    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the stopped commit wrote no record") });
+    let record: &serde_json::Value = found
+        .last()
+        .unwrap_or_else(|| panic!("the stopped commit wrote no record"));
     println!("TIMING RECORD (the service answered a failure): {record}");
     assert_eq!(record["outcome"], "stopped", "{record}");
-    assert_eq!(record["sends"], 1, "the answer is to the one request it sent: {record}");
+    assert_eq!(
+        record["sends"], 1,
+        "the answer is to the one request it sent: {record}"
+    );
     assert_eq!(record["stop"]["kind"], "client-failure", "{record}");
-    assert_eq!(record["stop"]["reason"], "refused", "the record names the answer the service gave: {record}");
+    assert_eq!(
+        record["stop"]["reason"], "refused",
+        "the record names the answer the service gave: {record}"
+    );
     remove_settled(&fixture);
 }
 
@@ -2533,20 +4115,33 @@ fn a_commit_nothing_answers_states_the_bound_that_ran_out() {
     std::fs::create_dir_all(places.socket.parent().expect("parent")).expect("socket directory");
     // A listener that never accepts: its connections wait in the kernel, which is what a service stopped inside its own
     //  process looks like from outside.
-    let _quiet: UnixListener = UnixListener::bind(&places.socket).expect("a listener that accepts nothing");
+    let _quiet: UnixListener =
+        UnixListener::bind(&places.socket).expect("a listener that accepts nothing");
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
     let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
     let stderr: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
     assert_eq!(served.code, Some(1), "{stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed: {stderr}");
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]),
+        before,
+        "nothing was committed: {stderr}"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
-    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the stopped commit wrote no record") });
+    let record: &serde_json::Value = found
+        .last()
+        .unwrap_or_else(|| panic!("the stopped commit wrote no record"));
     println!("TIMING RECORD (nothing answered): {record}");
     assert_eq!(record["outcome"], "stopped", "{record}");
     assert_eq!(record["sends"], 0, "no request was ever written: {record}");
     assert_eq!(record["stop"]["kind"], "client-failure", "{record}");
-    assert_eq!(record["stop"]["reason"], "nothing-answered", "the record names the bound that ran out: {record}");
-    assert!(number(record, "reachMs") >= 9_000, "the record states the wait the bound covered: {record}");
+    assert_eq!(
+        record["stop"]["reason"], "nothing-answered",
+        "the record names the bound that ran out: {record}"
+    );
+    assert!(
+        number(record, "reachMs") >= 9_000,
+        "the record states the wait the bound covered: {record}"
+    );
     remove_settled(&fixture);
 }
 
@@ -2578,19 +4173,43 @@ fn a_commit_whose_session_bus_answers_nothing_states_the_bound_that_ran_out() {
     let stderr: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
     println!("COMMIT WITHOUT AN ANSWER FROM THE MANAGER: {stderr}");
     assert_eq!(served.code, Some(1), "{stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed: {stderr}");
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]),
+        before,
+        "nothing was committed: {stderr}"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
-    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the stopped commit wrote no record") });
+    let record: &serde_json::Value = found
+        .last()
+        .unwrap_or_else(|| panic!("the stopped commit wrote no record"));
     println!("TIMING RECORD (manager answers nothing): {record}");
     assert_eq!(record["outcome"], "stopped", "{record}");
     assert_eq!(record["sends"], 0, "no request was ever written: {record}");
-    assert_eq!(record["reachMs"], 0, "the client never reached a service: {record}");
-    assert!(number(record, "provisionMs") >= 19_000, "the record states the exchange that ran out: {record}");
+    assert_eq!(
+        record["reachMs"], 0,
+        "the client never reached a service: {record}"
+    );
+    assert!(
+        number(record, "provisionMs") >= 19_000,
+        "the record states the exchange that ran out: {record}"
+    );
     assert_eq!(record["stop"]["kind"], "client-failure", "{record}");
-    assert_eq!(record["stop"]["reason"], "manager-did-not-answer", "{record}");
-    assert!(stderr.contains("did not answer"), "the person is told what happened: {stderr}");
-    assert!(stderr.contains("20 seconds"), "the words name the time one exchange is given: {stderr}");
-    assert!(!stderr.contains("cannot start the commit service on demand"), "a busy manager is not an absent one: {stderr}");
+    assert_eq!(
+        record["stop"]["reason"], "manager-did-not-answer",
+        "{record}"
+    );
+    assert!(
+        stderr.contains("did not answer"),
+        "the person is told what happened: {stderr}"
+    );
+    assert!(
+        stderr.contains("20 seconds"),
+        "the words name the time one exchange is given: {stderr}"
+    );
+    assert!(
+        !stderr.contains("cannot start the commit service on demand"),
+        "a busy manager is not an absent one: {stderr}"
+    );
     remove_settled(&fixture);
 }
 
@@ -2617,26 +4236,51 @@ fn a_commit_the_person_stops_states_the_signal_and_who_sent_it() {
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
     // No `timeout` in front of the wrapper: it would forward the stop to the wrapper's whole group and the wrapper's own
     //  answer to it would never be exercised (`binary_fault_run.rs`).
-    let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    let mut command: Command = super::fault_run::unbounded_wrapper(
+        &fixture,
+        repo.as_path(),
+        &["commit", "-m", MESSAGE, "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
     let mut running = super::fault_run::spawn_watched(&fixture, &mut command);
     running.wait_for(saw.as_path());
     let sender: i32 = i32::try_from(std::process::id()).expect("a process ID fits");
     // SAFETY: `kill` takes two numbers and touches no memory of this process; the process is the one the control started.
-    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGTERM) }, 0, "the control sends the stop");
+    assert_eq!(
+        unsafe { libc::kill(running.id(), libc::SIGTERM) },
+        0,
+        "the control sends the stop"
+    );
     let finished = running.finish();
     let stderr: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
     println!("STOPPED COMMIT: status {:?}: {stderr}", finished.status);
-    assert!(stderr.contains("interrupted with signal"), "the person is told in one line: {stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "the commit was not made: {stderr}");
-    assert!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt").contains("edit by the signal control"), "the worktree file is as it was");
+    assert!(
+        stderr.contains("interrupted with signal"),
+        "the person is told in one line: {stderr}"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]),
+        before,
+        "the commit was not made: {stderr}"
+    );
+    assert!(
+        std::fs::read_to_string(repo.join("a.txt"))
+            .expect("a.txt")
+            .contains("edit by the signal control"),
+        "the worktree file is as it was"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
-    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the interrupted commit wrote no record: {stderr}") });
+    let record: &serde_json::Value = found
+        .last()
+        .unwrap_or_else(|| panic!("the interrupted commit wrote no record: {stderr}"));
     println!("TIMING RECORD (interrupted): {record}");
     assert_eq!(record["outcome"], "stopped", "{record}");
     assert_eq!(record["stop"]["kind"], "client-signal", "{record}");
     assert_eq!(record["stop"]["signal"], libc::SIGTERM, "{record}");
-    assert_eq!(record["stop"]["sender"], sender, "the record names the process that sent the stop: {record}");
+    assert_eq!(
+        record["stop"]["sender"], sender,
+        "the record names the process that sent the stop: {record}"
+    );
     remove_settled(&fixture);
 }
 
@@ -2662,27 +4306,56 @@ fn a_commit_the_terminal_hangs_up_on_states_the_signal_and_who_sent_it() {
     let _stand_in: StandIn = stand_in(&places, saw.as_path(), StandInAnswer::Hold);
     std::fs::write(repo.join("a.txt"), b"edit by the hang-up control\n").expect("a.txt");
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
-    let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    let mut command: Command = super::fault_run::unbounded_wrapper(
+        &fixture,
+        repo.as_path(),
+        &["commit", "-m", MESSAGE, "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
     let mut running = super::fault_run::spawn_watched(&fixture, &mut command);
     running.wait_for(saw.as_path());
     let sender: i32 = i32::try_from(std::process::id()).expect("a process ID fits");
     // SAFETY: `kill` takes two numbers and touches no memory of this process; the process is the one the control started.
-    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGHUP) }, 0, "the control hangs up on the commit");
+    assert_eq!(
+        unsafe { libc::kill(running.id(), libc::SIGHUP) },
+        0,
+        "the control hangs up on the commit"
+    );
     let finished = running.finish();
     let stderr: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
     println!("HUNG-UP COMMIT: status {:?}: {stderr}", finished.status);
-    assert!(stderr.contains("interrupted with signal"), "the person is told in one line: {stderr}");
-    assert_eq!(finished.status.signal(), Some(libc::SIGHUP), "the command ends by the signal the terminal sent: {stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "the commit was not made: {stderr}");
-    assert!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt").contains("edit by the hang-up control"), "the worktree file is as it was");
+    assert!(
+        stderr.contains("interrupted with signal"),
+        "the person is told in one line: {stderr}"
+    );
+    assert_eq!(
+        finished.status.signal(),
+        Some(libc::SIGHUP),
+        "the command ends by the signal the terminal sent: {stderr}"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]),
+        before,
+        "the commit was not made: {stderr}"
+    );
+    assert!(
+        std::fs::read_to_string(repo.join("a.txt"))
+            .expect("a.txt")
+            .contains("edit by the hang-up control"),
+        "the worktree file is as it was"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
-    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the hung-up commit wrote no record: {stderr}") });
+    let record: &serde_json::Value = found
+        .last()
+        .unwrap_or_else(|| panic!("the hung-up commit wrote no record: {stderr}"));
     println!("TIMING RECORD (hung up): {record}");
     assert_eq!(record["outcome"], "stopped", "{record}");
     assert_eq!(record["stop"]["kind"], "client-signal", "{record}");
     assert_eq!(record["stop"]["signal"], libc::SIGHUP, "{record}");
-    assert_eq!(record["stop"]["sender"], sender, "the record names the process that hung up: {record}");
+    assert_eq!(
+        record["stop"]["sender"], sender,
+        "the record names the process that hung up: {record}"
+    );
     remove_settled(&fixture);
 }
 
@@ -2716,7 +4389,10 @@ fn a_commit_the_caller_shielded_from_the_hang_up_is_not_stopped_by_it() {
         record["stop"]["kind"], "client-failure",
         "the request stayed the service's after the hang-up the caller ignored, so its answer is what stopped the commit: {record}"
     );
-    assert_eq!(record["stop"]["reason"], "refused", "the record names the answer the service gave: {record}");
+    assert_eq!(
+        record["stop"]["reason"], "refused",
+        "the record names the answer the service gave: {record}"
+    );
 }
 
 /// What:
@@ -2733,7 +4409,10 @@ fn a_commit_the_caller_shielded_from_the_quit_is_not_stopped_by_it() {
         record["stop"]["kind"], "client-failure",
         "the request stayed the service's after the quit the caller ignored: {record}"
     );
-    assert_eq!(record["stop"]["reason"], "refused", "the record names the answer the service gave: {record}");
+    assert_eq!(
+        record["stop"]["reason"], "refused",
+        "the record names the answer the service gave: {record}"
+    );
 }
 
 /// What:
@@ -2760,7 +4439,11 @@ fn a_commit_the_caller_did_not_shield_is_stopped_by_the_stop() {
     let _stand_in: StandIn = stand_in(&places, saw.as_path(), StandInAnswer::Hold);
     std::fs::write(repo.join("a.txt"), b"edit by the unshielded control\n").expect("a.txt");
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
-    let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    let mut command: Command = super::fault_run::unbounded_wrapper(
+        &fixture,
+        repo.as_path(),
+        &["commit", "-m", MESSAGE, "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
     // SAFETY: between fork and exec only `setrlimit`, an async-signal-safe call, runs; a quit could dump core.
     unsafe {
@@ -2772,19 +4455,36 @@ fn a_commit_the_caller_did_not_shield_is_stopped_by_the_stop() {
     let running = super::fault_run::spawn_watched(&fixture, &mut command);
     let began: Instant = Instant::now();
     while !saw.exists() {
-        assert!(began.elapsed() < PATIENCE, "the request never reached the service");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the request never reached the service"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
     // SAFETY: `kill` takes two numbers and touches no memory of this process; the process is the one the control started.
-    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGTERM) }, 0, "the control sends the stop the caller did not ignore");
+    assert_eq!(
+        unsafe { libc::kill(running.id(), libc::SIGTERM) },
+        0,
+        "the control sends the stop the caller did not ignore"
+    );
     let finished = running.finish();
     let stderr: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
     println!("UNSHIELDED COMMIT: status {:?}: {stderr}", finished.status);
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing landed under a stop that was answered: {stderr}");
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]),
+        before,
+        "nothing landed under a stop that was answered: {stderr}"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
-    let record: serde_json::Value = found.last().cloned().unwrap_or_else(|| { panic!("the stopped commit wrote no record: {stderr}") });
+    let record: serde_json::Value = found
+        .last()
+        .cloned()
+        .unwrap_or_else(|| panic!("the stopped commit wrote no record: {stderr}"));
     println!("TIMING RECORD (unshielded): {record}");
-    assert_eq!(record["stop"]["kind"], "client-signal", "the wait answers a stop its caller did not ignore: {record}");
+    assert_eq!(
+        record["stop"]["kind"], "client-signal",
+        "the wait answers a stop its caller did not ignore: {record}"
+    );
     assert_eq!(record["stop"]["signal"], libc::SIGTERM, "{record}");
     remove_settled(&fixture);
 }
@@ -2804,7 +4504,10 @@ fn a_commit_the_caller_did_not_shield_is_stopped_by_the_stop() {
 /// ```ts
 /// const child = spawn(wrapper, ['commit'], {preExec: () => ignore(signal)}); await readRequest(); kill(child, signal); return recordOf(child);
 /// ```
-fn shielded_and_answered(label: &str, signal: libc::c_int) -> serde_json::Value {
+fn shielded_and_answered(
+    label: &str,
+    signal: libc::c_int,
+) -> serde_json::Value {
     use std::os::unix::process::CommandExt as _;
     let fixture: Fixture = fixture(label);
     let repo: PathBuf = base_repository(&fixture);
@@ -2812,10 +4515,21 @@ fn shielded_and_answered(label: &str, signal: libc::c_int) -> serde_json::Value 
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let saw: PathBuf = fixture.root.join("saw-commit");
     // The service answers the request a moment after it read it, which is after the signal was sent.
-    let _stand_in: StandIn = stand_in(&places, saw.as_path(), StandInAnswer::FailAfter { code: git_policy_cli::service_protocol::FailureCode::Rejected, after: Duration::from_millis(1_200) });
+    let _stand_in: StandIn = stand_in(
+        &places,
+        saw.as_path(),
+        StandInAnswer::FailAfter {
+            code: git_policy_cli::service_protocol::FailureCode::Rejected,
+            after: Duration::from_millis(1_200),
+        },
+    );
     std::fs::write(repo.join("a.txt"), b"edit by the shielded control\n").expect("a.txt");
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
-    let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    let mut command: Command = super::fault_run::unbounded_wrapper(
+        &fixture,
+        repo.as_path(),
+        &["commit", "-m", MESSAGE, "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
     // Why the core limit too: without the fix the command ends by the signal it was shielded from, and a quit dumps core;
     //  the control states an ending and never leaves a core file behind for it.
@@ -2831,17 +4545,34 @@ fn shielded_and_answered(label: &str, signal: libc::c_int) -> serde_json::Value 
     let running = super::fault_run::spawn_watched(&fixture, &mut command);
     let began: Instant = Instant::now();
     while !saw.exists() {
-        assert!(began.elapsed() < PATIENCE, "the request never reached the service");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the request never reached the service"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
     // SAFETY: `kill` takes two numbers and touches no memory of this process; the process is the one the control started.
-    assert_eq!(unsafe { libc::kill(running.id(), signal) }, 0, "the control sends signal {signal} to the commit");
+    assert_eq!(
+        unsafe { libc::kill(running.id(), signal) },
+        0,
+        "the control sends signal {signal} to the commit"
+    );
     let finished = running.finish();
     let stderr: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
-    println!("SHIELDED COMMIT (signal {signal}): status {:?}: {stderr}", finished.status);
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing landed in this control: {stderr}");
+    println!(
+        "SHIELDED COMMIT (signal {signal}): status {:?}: {stderr}",
+        finished.status
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]),
+        before,
+        "nothing landed in this control: {stderr}"
+    );
     let found: Vec<serde_json::Value> = records(&repo);
-    let record: serde_json::Value = found.last().cloned().unwrap_or_else(|| { panic!("the commit wrote no record: {stderr}") });
+    let record: serde_json::Value = found
+        .last()
+        .cloned()
+        .unwrap_or_else(|| panic!("the commit wrote no record: {stderr}"));
     println!("TIMING RECORD (signal {signal}, shielded): {record}");
     remove_settled(&fixture);
     return record;
@@ -2869,17 +4600,29 @@ fn a_commit_whose_client_is_killed_while_it_waits_is_not_made() {
     let name: String = format!("timing-client-killed-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
-    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+    let _service: Held = spawn_service(
+        fixture.root.as_path(),
+        &places,
+        SAFETY_IDLE_SECONDS,
+        &["--instance", instance.as_str()],
+    );
+    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     // A change the person staged, so "everything they staged is still staged" is a fact this control can read. It is not the
     //  file the foreign commit names, which that commit takes for itself.
     std::fs::write(repo.join("c.txt"), b"staged by the killed control\n").expect("c.txt");
     super::support::git(&fixture, &repo, &["add", "--", "c.txt"]);
     let staged: String = git_text(&fixture, &repo, &["diff", "--cached", "--name-only"]);
-    assert_eq!(staged.trim(), "c.txt", "the change is staged before the commit");
+    assert_eq!(
+        staged.trim(),
+        "c.txt",
+        "the change is staged before the commit"
+    );
     // A foreign commit holds the repository's index, so this commit waits in the service's landing.
     let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, 0);
-    let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE]);
+    let mut command: Command =
+        super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE]);
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
     let running = super::fault_run::spawn_watched(&fixture, &mut command);
     // What: The commit is given time to prepare and send before the caller gives up on it.
@@ -2887,28 +4630,63 @@ fn a_commit_whose_client_is_killed_while_it_waits_is_not_made() {
     //       a preparation, a build and a send take milliseconds, and five seconds is far beyond any of them.
     std::thread::sleep(Duration::from_secs(5));
     // SAFETY: `kill` takes two numbers and touches no memory of this process; the process is the one the control started.
-    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGKILL) }, 0, "the caller gives up and kills the commit");
+    assert_eq!(
+        unsafe { libc::kill(running.id(), libc::SIGKILL) },
+        0,
+        "the caller gives up and kills the commit"
+    );
     let _finished = running.finish();
     std::fs::write(&release, b"").expect("the foreign commit is told to let go");
     let held = holder.wait_with_output().expect("the foreign commit ends");
-    assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
+    assert!(
+        held.status.success(),
+        "{}",
+        String::from_utf8_lossy(&held.stderr)
+    );
     // The service gets time to land anything it is going to land before the branch is read.
     std::thread::sleep(Duration::from_secs(5));
-    println!("SERVICE LOG: {}", std::fs::read_to_string(&places.log).unwrap_or_default());
+    println!(
+        "SERVICE LOG: {}",
+        std::fs::read_to_string(&places.log).unwrap_or_default()
+    );
     // The foreign commit is the branch's only new commit: the killed commit's own work landed nothing.
-    assert_eq!(git_text(&fixture, &repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\n", "nothing landed after the client was killed");
-    assert_eq!(git_text(&fixture, &repo, &["diff", "--cached", "--name-only"]), staged, "what was staged is still staged");
+    assert_eq!(
+        git_text(
+            &fixture,
+            &repo,
+            &[
+                "log",
+                "--reverse",
+                "--format=%s",
+                format!("{base}..HEAD").as_str()
+            ]
+        ),
+        "foreign\n",
+        "nothing landed after the client was killed"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["diff", "--cached", "--name-only"]),
+        staged,
+        "what was staged is still staged"
+    );
     // Nothing is left for a restart to finish: the intents of the landing are gone.
     let intents: String = format!(".{}", git_policy_cli::service_journal::OPEN_EXTENSION);
     let left: Vec<String> = std::fs::read_dir(fixture.root.join("journal"))
         .map(|entries| {
             return entries
                 .flatten()
-                .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-                .filter(|entry_name| { return entry_name.ends_with(intents.as_str()); })
+                .map(|entry| {
+                    return entry.file_name().to_string_lossy().into_owned();
+                })
+                .filter(|entry_name| {
+                    return entry_name.ends_with(intents.as_str());
+                })
                 .collect();
         })
         .unwrap_or_default();
-    assert!(left.is_empty(), "no batch is left for a restart to finish: {left:?}");
+    assert!(
+        left.is_empty(),
+        "no batch is left for a restart to finish: {left:?}"
+    );
     remove_settled(&fixture);
 }

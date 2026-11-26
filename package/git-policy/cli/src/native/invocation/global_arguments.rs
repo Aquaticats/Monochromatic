@@ -297,7 +297,9 @@ pub fn exec_path_option(global_prefix: &[OsString]) -> Option<OsString> {
             // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
             #[cfg(not(unix))]
             {
-                value = Some(OsString::from(String::from_utf8_lossy(configured).into_owned()));
+                value = Some(OsString::from(
+                    String::from_utf8_lossy(configured).into_owned(),
+                ));
             }
         }
         is_value = takes_value(argument);

@@ -19,12 +19,23 @@
 
 use crate::diagnostic_log::debug;
 use crate::merge_isolation_carry::drop_capture_ref_awaiting;
-use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, LandedFile, carry_awaiting, changes_between_awaiting, restore_awaiting};
+use crate::merge_isolation_carry_apply::{
+    CarryFailure,
+    LandedFile,
+    LockWait,
+    carry_awaiting,
+    changes_between_awaiting,
+    restore_awaiting,
+};
 use crate::merge_isolation_carry_notice::report_lines;
 use crate::merge_isolation_changes::Change;
 use crate::merge_isolation_journal::MergeIntent;
 use crate::merge_isolation_recovery_cleanup::partly_installed;
-use crate::merge_isolation_recovery_steps::{MergeRefusal, RecoveryPlace, merge_changes_awaiting};
+use crate::merge_isolation_recovery_steps::{
+    MergeRefusal,
+    RecoveryPlace,
+    merge_changes_awaiting,
+};
 use crate::recovery_error::RecoveryError;
 use std::io::Write;
 use std::path::Path;
@@ -50,12 +61,28 @@ pub(crate) async fn carry_the_capture_awaiting<W: std::io::Write + ?Sized>(
     landed: &[LandedFile],
     out: &mut W,
 ) -> Result<bool, MergeRefusal> {
-    let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
-    let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
+    let Some(capture) = intent.carried.as_ref() else {
+        return Ok(true);
+    };
+    let changes: Vec<Change> = merge_changes_awaiting(place, root, intent)
+        .await
+        .map_err(partly_installed)?;
     // What the command that moved the checkout read, which is the one thing that tells the file Git wrote from a save whose
     //  bytes accept the whole merge: a reading that names no path leaves the bytes as all the evidence, as before
     //  (`merge_isolation_carry_landed.rs`).
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, landed, intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
+    match carry_awaiting(
+        &place.git,
+        root,
+        place.git_dir.as_path(),
+        changes.as_slice(),
+        capture,
+        landed,
+        intent.owner.transaction_id.as_str(),
+        LockWait::WhileFinishing,
+        out,
+    )
+    .await
+    {
         Ok(report) => {
             for line in report_lines("", &report) {
                 let _noted = out.write_all(format!("{line}\n").as_bytes());
@@ -64,10 +91,18 @@ pub(crate) async fn carry_the_capture_awaiting<W: std::io::Write + ?Sized>(
         }
         // A lock that stays held leaves everything to the next command, which carries the same bytes.
         Err(CarryFailure::IndexHeld(lock)) => {
-            debug("recoverInterruptedMerges", format!("the work a merge carries waits for {lock}").as_str());
+            debug(
+                "recoverInterruptedMerges",
+                format!("the work a merge carries waits for {lock}").as_str(),
+            );
             return Ok(false);
         }
-        Err(other) => return Err(MergeRefusal { error: RecoveryError(the_work_could_not_be_carried(&other)), began: false }),
+        Err(other) => {
+            return Err(MergeRefusal {
+                error: RecoveryError(the_work_could_not_be_carried(&other)),
+                began: false,
+            });
+        }
     }
 }
 
@@ -94,12 +129,18 @@ pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(
     command: &str,
     out: &mut W,
 ) -> Result<bool, MergeRefusal> {
-    let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
+    let Some(capture) = intent.carried.as_ref() else {
+        return Ok(true);
+    };
     let mut changes: Vec<Change> =
-        changes_between_awaiting(&place.git, root, intent.old_oid.as_str(), end).await.map_err(the_changes_could_not_be_read)?;
+        changes_between_awaiting(&place.git, root, intent.old_oid.as_str(), end)
+            .await
+            .map_err(the_changes_could_not_be_read)?;
     // A captured path the moved head left alone is not in that difference, so the merge's own side of it is what the person's
     //  work merges with.
-    let merge: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
+    let merge: Vec<Change> = merge_changes_awaiting(place, root, intent)
+        .await
+        .map_err(partly_installed)?;
     for entry in &capture.paths {
         if the_change_of(changes.as_slice(), entry.path.as_slice()).is_some() {
             continue;
@@ -117,8 +158,21 @@ pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(
     for entry in &capture.paths {
         written_paths.push(entry.path.clone());
     }
-    let written: Vec<LandedFile> = crate::merge_isolation_carry_landed::landed_of(root, written_paths.as_slice());
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, written.as_slice(), intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
+    let written: Vec<LandedFile> =
+        crate::merge_isolation_carry_landed::landed_of(root, written_paths.as_slice());
+    match carry_awaiting(
+        &place.git,
+        root,
+        place.git_dir.as_path(),
+        changes.as_slice(),
+        capture,
+        written.as_slice(),
+        intent.owner.transaction_id.as_str(),
+        LockWait::WhileFinishing,
+        out,
+    )
+    .await
+    {
         Ok(report) => {
             for line in report_lines(command, &report) {
                 let _noted = out.write_all(format!("{line}\n").as_bytes());
@@ -126,10 +180,18 @@ pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(
             return Ok(true);
         }
         Err(CarryFailure::IndexHeld(lock)) => {
-            debug("recoverInterruptedMerges", format!("the work a merge carries waits for {lock}").as_str());
+            debug(
+                "recoverInterruptedMerges",
+                format!("the work a merge carries waits for {lock}").as_str(),
+            );
             return Ok(false);
         }
-        Err(other) => return Err(MergeRefusal { error: RecoveryError(the_work_could_not_be_carried(&other)), began: false }),
+        Err(other) => {
+            return Err(MergeRefusal {
+                error: RecoveryError(the_work_could_not_be_carried(&other)),
+                began: false,
+            });
+        }
     }
 }
 
@@ -152,16 +214,39 @@ pub(crate) async fn restore_the_capture_awaiting<W: std::io::Write + ?Sized>(
     intent: &MergeIntent,
     out: &mut W,
 ) -> Result<bool, MergeRefusal> {
-    let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
-    let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
-    match restore_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
+    let Some(capture) = intent.carried.as_ref() else {
+        return Ok(true);
+    };
+    let changes: Vec<Change> = merge_changes_awaiting(place, root, intent)
+        .await
+        .map_err(partly_installed)?;
+    match restore_awaiting(
+        &place.git,
+        root,
+        place.git_dir.as_path(),
+        changes.as_slice(),
+        capture,
+        intent.owner.transaction_id.as_str(),
+        LockWait::WhileFinishing,
+        out,
+    )
+    .await
+    {
         Ok(()) => return Ok(true),
         // A lock that stays held leaves everything to the next command.
         Err(CarryFailure::IndexHeld(lock)) => {
-            debug("recoverInterruptedMerges", format!("the work a merge puts back waits for {lock}").as_str());
+            debug(
+                "recoverInterruptedMerges",
+                format!("the work a merge puts back waits for {lock}").as_str(),
+            );
             return Ok(false);
         }
-        Err(other) => return Err(MergeRefusal { error: RecoveryError(the_work_could_not_be_carried(&other)), began: false }),
+        Err(other) => {
+            return Err(MergeRefusal {
+                error: RecoveryError(the_work_could_not_be_carried(&other)),
+                began: false,
+            });
+        }
     }
 }
 
@@ -176,7 +261,10 @@ pub(crate) fn the_work_could_not_be_carried(failure: &CarryFailure) -> String {
     let detail: String = match failure {
         CarryFailure::IndexHeld(text) | CarryFailure::Failed(text) => String::from(text.as_str()),
         CarryFailure::Foreign(path) | CarryFailure::Changed(path) => {
-            format!("{} changed after the merge captured it", crate::path_bytes::path_message_text(path.as_slice()))
+            format!(
+                "{} changed after the merge captured it",
+                crate::path_bytes::path_message_text(path.as_slice())
+            )
         }
     };
     return format!(
@@ -199,11 +287,23 @@ pub(crate) fn the_work_could_not_be_carried(failure: &CarryFailure) -> String {
 /// ```ts
 /// function dropCapture({ place, root, intent }): boolean;
 /// ```
-pub(crate) async fn drop_capture_awaiting(place: &RecoveryPlace, root: &Path, record: &Path, intent: &MergeIntent) -> bool {
+pub(crate) async fn drop_capture_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    record: &Path,
+    intent: &MergeIntent,
+) -> bool {
     let Some(capture) = intent.carried.as_ref() else {
         return true;
     };
-    return drop_capture_ref_awaiting(&place.git, place.git_dir.as_path(), root, capture, Some(record)).await;
+    return drop_capture_ref_awaiting(
+        &place.git,
+        place.git_dir.as_path(),
+        root,
+        capture,
+        Some(record),
+    )
+    .await;
 }
 
 /// What:
@@ -260,12 +360,17 @@ pub(crate) async fn drop_the_records_refs_then_the_record(
     if intent.carried.is_some()
         && let Err(error) = crate::merge_isolation_journal::mark_carry_finished(record)
     {
-        return Err(RecoveryError(format!("the finish of the carried work could not be recorded: {error}")));
+        return Err(RecoveryError(format!(
+            "the finish of the carried work could not be recorded: {error}"
+        )));
     }
     if !drop_capture_awaiting(place, root, record, intent).await {
         return Ok(false);
     }
-    if side_ref == SideRef::Drop && !crate::merge_isolation_recovery_cleanup::drop_side_ref_awaiting(place, root, intent).await {
+    if side_ref == SideRef::Drop
+        && !crate::merge_isolation_recovery_cleanup::drop_side_ref_awaiting(place, root, intent)
+            .await
+    {
         return Ok(false);
     }
     crate::merge_isolation_recovery_steps::remove_record(record)?;
@@ -283,7 +388,10 @@ pub(crate) async fn drop_the_records_refs_then_the_record(
 /// ```ts
 /// const theChangeOf = (changes: Change[], path: Uint8Array): Change | undefined => changes.find((change) => sameBytes(change.path, path));
 /// ```
-fn the_change_of<'a>(changes: &'a [Change], path: &[u8]) -> Option<&'a Change> {
+fn the_change_of<'a>(
+    changes: &'a [Change],
+    path: &[u8],
+) -> Option<&'a Change> {
     for change in changes {
         crate::collected_elements_looked_at::note_looked_at(1);
         if change.path == path {
@@ -329,10 +437,16 @@ pub(crate) async fn drop_the_records_refs_then_the_record_or_say<W: Write + ?Siz
     began: bool,
     out: &mut W,
 ) -> Result<(), MergeRefusal> {
-    let cleared: bool = match drop_the_records_refs_then_the_record(place, root, record, intent, side_ref).await {
-        Ok(cleared) => cleared,
-        Err(error) => return Err(MergeRefusal { error, began }),
-    };
+    let cleared: bool =
+        match drop_the_records_refs_then_the_record(place, root, record, intent, side_ref).await {
+            Ok(cleared) => cleared,
+            Err(error) => {
+                return Err(MergeRefusal {
+                    error,
+                    began,
+                });
+            }
+        };
     if !cleared {
         let _noted = out.write_all(a_record_kept_until_its_refs_are_gone(record).as_bytes());
     }

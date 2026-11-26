@@ -27,16 +27,27 @@
 //! const done = takeTheCopyOut(ready, copy);     // after the signals
 //! ```
 
-use crate::fs_mount_options::{MountFacts, parse_mount_table};
+use crate::fs_mount_options::{
+    MountFacts,
+    parse_mount_table,
+};
 use crate::worktree_clone_forced_removal::descriptor_calls::{
-    make_directory_at, open_directory, open_directory_below, remove_directory_at,
+    make_directory_at,
+    open_directory,
+    open_directory_below,
+    remove_directory_at,
 };
 use crate::worktree_clone_forced_removal::forced_removal_words::RefusalWord;
 use crate::worktree_clone_forced_removal::holder_preflight::Route;
-use crate::worktree_clone_forced_removal::mount_namespace_child::{ActReport, run_in};
+use crate::worktree_clone_forced_removal::mount_namespace_child::{
+    ActReport,
+    run_in,
+};
 use crate::worktree_clone_forced_removal::receiver_closure::MountRow;
 use crate::worktree_clone_forced_removal::recorded_handle::{
-    RecordedHandle, mount_id_of, open_from_the_handle,
+    RecordedHandle,
+    mount_id_of,
+    open_from_the_handle,
 };
 use std::ffi::CString;
 use std::os::fd::AsRawFd;
@@ -160,12 +171,27 @@ pub struct CopyRefusal {
 
 impl std::fmt::Display for CopyRefusal {
     /// One sentence naming the word, the call, the errno and what it said.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self.errno {
             Some(errno) => {
-                write!(formatter, "{}: {} answered errno {errno}: {}", self.word.word(), self.calling, self.said)
+                write!(
+                    formatter,
+                    "{}: {} answered errno {errno}: {}",
+                    self.word.word(),
+                    self.calling,
+                    self.said
+                )
             }
-            None => write!(formatter, "{}: {}: {}", self.word.word(), self.calling, self.said),
+            None => write!(
+                formatter,
+                "{}: {}: {}",
+                self.word.word(),
+                self.calling,
+                self.said
+            ),
         };
     }
 }
@@ -188,10 +214,16 @@ pub fn rows_of(table: &str) -> Vec<MountRow> {
         let mut groups: Vec<u32> = Vec::new();
         let mut master: Option<u32> = None;
         for field in &facts.optional_fields {
-            if let Some(number) = field.strip_prefix("shared:").and_then(|text| return text.parse::<u32>().ok()) {
+            if let Some(number) = field
+                .strip_prefix("shared:")
+                .and_then(|text| return text.parse::<u32>().ok())
+            {
                 groups.push(number);
             }
-            if let Some(number) = field.strip_prefix("master:").and_then(|text| return text.parse::<u32>().ok()) {
+            if let Some(number) = field
+                .strip_prefix("master:")
+                .and_then(|text| return text.parse::<u32>().ok())
+            {
                 master = Some(number);
             }
         }
@@ -214,8 +246,14 @@ pub fn rows_of(table: &str) -> Vec<MountRow> {
 /// Why:
 ///  Every stage's read-after compares the kernel's own number,
 ///  and a row found by number is the mount the act changed.
-pub fn row_of(rows: &[MountRow], mount_id: u64) -> Option<MountRow> {
-    return rows.iter().find(|row| return u64::from(row.mount_id) == mount_id).cloned();
+pub fn row_of(
+    rows: &[MountRow],
+    mount_id: u64,
+) -> Option<MountRow> {
+    return rows
+        .iter()
+        .find(|row| return u64::from(row.mount_id) == mount_id)
+        .cloned();
 }
 
 /// What:
@@ -225,7 +263,10 @@ pub fn row_of(rows: &[MountRow], mount_id: u64) -> Option<MountRow> {
 ///  A mount stacked over another is printed after it,
 ///  and the unmount by the handle acts on the topmost one,
 ///  so the act reads the same row the kernel will.
-pub fn topmost_at(rows: &[MountRow], at: &Path) -> Option<MountRow> {
+pub fn topmost_at(
+    rows: &[MountRow],
+    at: &Path,
+) -> Option<MountRow> {
     let wanted: String = at.to_string_lossy().into_owned();
     let mut found: Option<MountRow> = None;
     for row in rows {
@@ -251,27 +292,57 @@ pub fn topmost_at(rows: &[MountRow], at: &Path) -> Option<MountRow> {
 /// the topmost mount at the slot is not the clone's,
 /// the copy's parent is not the checkout's own mount,
 /// the slave change or the directory was refused.
-pub fn make_the_way_ready(route: Route, copy: &NamespaceCopy<'_>) -> Result<Ready, CopyRefusal> {
+pub fn make_the_way_ready(
+    route: Route,
+    copy: &NamespaceCopy<'_>,
+) -> Result<Ready, CopyRefusal> {
     let wanted: Route = route;
-    let report: ActReport = run_in(copy.namespace, || return ready_in_here(wanted, copy))
-        .map_err(|refusal| return CopyRefusal { word: RefusalWord::HolderUnendable, calling: refusal.calling, errno: refusal.errno, said: refusal.said })?;
+    let report: ActReport =
+        run_in(copy.namespace, || return ready_in_here(wanted, copy)).map_err(|refusal| {
+            return CopyRefusal {
+                word: RefusalWord::HolderUnendable,
+                calling: refusal.calling,
+                errno: refusal.errno,
+                said: refusal.said,
+            };
+        })?;
     let mount_id: u64 = match report.outcome {
-        crate::worktree_clone_forced_removal::mount_namespace_child::ActOutcome::Done => {
-            report.detail.split('|').next().and_then(|text| return text.parse::<u64>().ok()).ok_or_else(|| {
-                return CopyRefusal { word: RefusalWord::HolderUnendable, calling: "report", errno: None, said: String::from("the child's report names no copy mount") };
-            })?
-        }
+        crate::worktree_clone_forced_removal::mount_namespace_child::ActOutcome::Done => report
+            .detail
+            .split('|')
+            .next()
+            .and_then(|text| return text.parse::<u64>().ok())
+            .ok_or_else(|| {
+                return CopyRefusal {
+                    word: RefusalWord::HolderUnendable,
+                    calling: "report",
+                    errno: None,
+                    said: String::from("the child's report names no copy mount"),
+                };
+            })?,
         _ => return Err(refused_from(&report)),
     };
     let rows: Vec<MountRow> = rows_of(report.table.as_str());
     let Some(copy_row) = row_of(&rows, mount_id) else {
-        return Err(CopyRefusal { word: RefusalWord::HolderUnendable, calling: "mountinfo", errno: None, said: format!("the copy's mount {mount_id} is not in the table the child read after the stage") });
+        return Err(CopyRefusal {
+            word: RefusalWord::HolderUnendable,
+            calling: "mountinfo",
+            errno: None,
+            said: format!(
+                "the copy's mount {mount_id} is not in the table the child read after the stage"
+            ),
+        });
     };
     let directory: Option<String> = match route {
         Route::InPlaceByTheHandle => None,
         Route::SlaveMoveAndUnmount => Some(String::from(copy.directory)),
     };
-    return Ok(Ready { route, mount_id, parent_id: u64::from(copy_row.parent_id), directory });
+    return Ok(Ready {
+        route,
+        mount_id,
+        parent_id: u64::from(copy_row.parent_id),
+        directory,
+    });
 }
 
 /// What:
@@ -288,18 +359,41 @@ pub fn make_the_way_ready(route: Route, copy: &NamespaceCopy<'_>) -> Result<Read
 /// The namespace could not be entered,
 /// the copy is not where the structural stage left it,
 /// the unmount, the move or the directory's removal was refused.
-pub fn take_the_copy_out(ready: &Ready, copy: &NamespaceCopy<'_>) -> Result<WayOut, CopyRefusal> {
+pub fn take_the_copy_out(
+    ready: &Ready,
+    copy: &NamespaceCopy<'_>,
+) -> Result<WayOut, CopyRefusal> {
     let planned: Ready = ready.clone();
     let report: ActReport = run_in(copy.namespace, || return unmount_in_here(&planned, copy))
-        .map_err(|refusal| return CopyRefusal { word: RefusalWord::HolderUnendable, calling: refusal.calling, errno: refusal.errno, said: refusal.said })?;
-    if report.outcome != crate::worktree_clone_forced_removal::mount_namespace_child::ActOutcome::Done {
+        .map_err(|refusal| {
+            return CopyRefusal {
+                word: RefusalWord::HolderUnendable,
+                calling: refusal.calling,
+                errno: refusal.errno,
+                said: refusal.said,
+            };
+        })?;
+    if report.outcome
+        != crate::worktree_clone_forced_removal::mount_namespace_child::ActOutcome::Done
+    {
         return Err(refused_from(&report));
     }
     let rows: Vec<MountRow> = rows_of(report.table.as_str());
     if row_of(&rows, ready.mount_id).is_some() {
-        return Err(CopyRefusal { word: RefusalWord::HolderUnendable, calling: "mountinfo", errno: None, said: format!("the copy's mount {} is still in the table the child read after the unmount", ready.mount_id) });
+        return Err(CopyRefusal {
+            word: RefusalWord::HolderUnendable,
+            calling: "mountinfo",
+            errno: None,
+            said: format!(
+                "the copy's mount {} is still in the table the child read after the unmount",
+                ready.mount_id
+            ),
+        });
     }
-    return Ok(WayOut { mount_id: ready.mount_id, directory: ready.directory.clone() });
+    return Ok(WayOut {
+        mount_id: ready.mount_id,
+        directory: ready.directory.clone(),
+    });
 }
 
 /// What:
@@ -317,7 +411,12 @@ fn refused_from(report: &ActReport) -> CopyRefusal {
         Some(libc::EPERM) => RefusalWord::HolderUnendable,
         _ => RefusalWord::HolderStructural,
     };
-    return CopyRefusal { word, calling: "the child's act", errno, said: report.detail.clone() };
+    return CopyRefusal {
+        word,
+        calling: "the child's act",
+        errno,
+        said: report.detail.clone(),
+    };
 }
 
 /// What:
@@ -337,9 +436,16 @@ fn refused_from(report: &ActReport) -> CopyRefusal {
 /// else { mount(null, fdPath(checkout), null, MS_SLAVE, null); require(!rowOf(table(), checkoutId).shared.length); mkdirat(checkout, directory, 0700); }
 /// return done(`${row.mountId}|…`);
 /// ```
-fn ready_in_here(route: Route, copy: &NamespaceCopy<'_>) -> ActReport {
+fn ready_in_here(
+    route: Route,
+    copy: &NamespaceCopy<'_>,
+) -> ActReport {
     let step = |calling: &'static str, error: std::io::Error, said: &str| -> ActReport {
-        return ActReport::failed(format!("{calling}: {said}"), error.raw_os_error().unwrap_or(libc::EINVAL), String::new());
+        return ActReport::failed(
+            format!("{calling}: {said}"),
+            error.raw_os_error().unwrap_or(libc::EINVAL),
+            String::new(),
+        );
     };
     let checkout: std::fs::File = match open_directory(copy.checkout) {
         Ok(folder) => folder,
@@ -347,7 +453,13 @@ fn ready_in_here(route: Route, copy: &NamespaceCopy<'_>) -> ActReport {
     };
     let checkout_id: u64 = match mount_id_of(&checkout) {
         Ok(id) => id,
-        Err(refusal) => return ActReport::failed(format!("fdinfo: {}", refusal.said), refusal.errno, String::new()),
+        Err(refusal) => {
+            return ActReport::failed(
+                format!("fdinfo: {}", refusal.said),
+                refusal.errno,
+                String::new(),
+            );
+        }
     };
     let table: String = match read_the_table() {
         Ok(text) => text,
@@ -355,17 +467,30 @@ fn ready_in_here(route: Route, copy: &NamespaceCopy<'_>) -> ActReport {
     };
     let rows: Vec<MountRow> = rows_of(table.as_str());
     let Some(topmost) = topmost_at(&rows, copy.slot) else {
-        return ActReport::refused(format!("no mount sits at {} in this namespace", copy.slot.display()), table);
+        return ActReport::refused(
+            format!("no mount sits at {} in this namespace", copy.slot.display()),
+            table,
+        );
     };
     if topmost.filesystem != "zfs" || topmost.source != copy.dataset {
         return ActReport::refused(
-            format!("the topmost mount at {} is {} of `{}` and not a mount of `{}`", copy.slot.display(), topmost.mount_id, topmost.source, copy.dataset),
+            format!(
+                "the topmost mount at {} is {} of `{}` and not a mount of `{}`",
+                copy.slot.display(),
+                topmost.mount_id,
+                topmost.source,
+                copy.dataset
+            ),
             table,
         );
     }
     if u64::from(topmost.parent_id) != checkout_id {
         return ActReport::refused(
-            format!("the copy at {} sits on mount {} and the checkout's own mount is {checkout_id}", copy.slot.display(), topmost.parent_id),
+            format!(
+                "the copy at {} sits on mount {} and the checkout's own mount is {checkout_id}",
+                copy.slot.display(),
+                topmost.parent_id
+            ),
             table,
         );
     }
@@ -374,14 +499,29 @@ fn ready_in_here(route: Route, copy: &NamespaceCopy<'_>) -> ActReport {
             Ok(covered) => match mount_id_of(&covered) {
                 Ok(id) if id == checkout_id => {}
                 Ok(id) => {
-                    return ActReport::refused(format!("the handle reopened a descriptor on mount {id} and the checkout's own mount is {checkout_id}"), table);
+                    return ActReport::refused(
+                        format!(
+                            "the handle reopened a descriptor on mount {id} and the checkout's own mount is {checkout_id}"
+                        ),
+                        table,
+                    );
                 }
-                Err(refusal) => return ActReport::failed(format!("fdinfo: {}", refusal.said), refusal.errno, String::new()),
+                Err(refusal) => {
+                    return ActReport::failed(
+                        format!("fdinfo: {}", refusal.said),
+                        refusal.errno,
+                        String::new(),
+                    );
+                }
             },
             Err(refusal) => {
                 let errno: i32 = refusal.errno;
                 let said: String = format!("open_by_handle_at: {}", refusal.said);
-                return if errno == libc::EINVAL { ActReport::refused(said, table) } else { ActReport::failed(said, errno, String::new()) };
+                return if errno == libc::EINVAL {
+                    ActReport::refused(said, table)
+                } else {
+                    ActReport::failed(said, errno, String::new())
+                };
             }
         },
         Route::SlaveMoveAndUnmount => {
@@ -396,11 +536,26 @@ fn ready_in_here(route: Route, copy: &NamespaceCopy<'_>) -> ActReport {
             match row_of(&after_rows, checkout_id) {
                 Some(row) if row.shared.is_empty() => {}
                 Some(row) => {
-                    return ActReport::refused(format!("the checkout's mount {checkout_id} still shares with group {:?}", row.shared), after);
+                    return ActReport::refused(
+                        format!(
+                            "the checkout's mount {checkout_id} still shares with group {:?}",
+                            row.shared
+                        ),
+                        after,
+                    );
                 }
-                None => return ActReport::refused(format!("the checkout's mount {checkout_id} is not in the table after the slave change"), after),
+                None => {
+                    return ActReport::refused(
+                        format!(
+                            "the checkout's mount {checkout_id} is not in the table after the slave change"
+                        ),
+                        after,
+                    );
+                }
             }
-            if let Err(error) = make_directory_at(&checkout, copy.directory, DESTINATION_DIRECTORY_MODE) {
+            if let Err(error) =
+                make_directory_at(&checkout, copy.directory, DESTINATION_DIRECTORY_MODE)
+            {
                 return step("mkdirat", error, "way 7's directory in the checkout");
             }
             return ActReport::done(format!("{}|slave-and-directory", topmost.mount_id), after);
@@ -424,9 +579,16 @@ fn ready_in_here(route: Route, copy: &NamespaceCopy<'_>) -> ActReport {
 /// else { move_mount(copyFd, '', destinationFd, '', F_EMPTY_PATH|T_EMPTY_PATH); umount2(fdPath(destination), 0); unlinkat(checkout, directory, AT_REMOVEDIR); }
 /// return done(...);
 /// ```
-fn unmount_in_here(ready: &Ready, copy: &NamespaceCopy<'_>) -> ActReport {
+fn unmount_in_here(
+    ready: &Ready,
+    copy: &NamespaceCopy<'_>,
+) -> ActReport {
     let step = |calling: &'static str, error: std::io::Error, said: &str| -> ActReport {
-        return ActReport::failed(format!("{calling}: {said}"), error.raw_os_error().unwrap_or(libc::EINVAL), String::new());
+        return ActReport::failed(
+            format!("{calling}: {said}"),
+            error.raw_os_error().unwrap_or(libc::EINVAL),
+            String::new(),
+        );
     };
     match ready.route {
         Route::InPlaceByTheHandle => {
@@ -436,7 +598,13 @@ fn unmount_in_here(ready: &Ready, copy: &NamespaceCopy<'_>) -> ActReport {
             };
             let covered: std::fs::File = match open_from_the_handle(&checkout, copy.handle) {
                 Ok(covered) => covered,
-                Err(refusal) => return ActReport::failed(format!("open_by_handle_at: {}", refusal.said), refusal.errno, String::new()),
+                Err(refusal) => {
+                    return ActReport::failed(
+                        format!("open_by_handle_at: {}", refusal.said),
+                        refusal.errno,
+                        String::new(),
+                    );
+                }
             };
             if let Err(error) = unmount_the_descriptor(&covered) {
                 return step("umount2", error, "the copy at the handle's dentry");
@@ -456,7 +624,10 @@ fn unmount_in_here(ready: &Ready, copy: &NamespaceCopy<'_>) -> ActReport {
                 Err(error) => return step("open", error, "the copy at the slot"),
             };
             let Some(directory) = ready.directory.as_deref() else {
-                return ActReport::refused(String::from("way 7 names no directory to move onto"), String::new());
+                return ActReport::refused(
+                    String::from("way 7 names no directory to move onto"),
+                    String::new(),
+                );
             };
             let destination: std::fs::File = match open_directory_below(&checkout, directory) {
                 Ok(folder) => folder,
@@ -476,7 +647,9 @@ fn unmount_in_here(ready: &Ready, copy: &NamespaceCopy<'_>) -> ActReport {
                 return step("unlinkat", error, "way 7's directory");
             }
             return match read_the_table() {
-                Ok(text) => ActReport::done(format!("{}|moved-and-unmounted", ready.mount_id), text),
+                Ok(text) => {
+                    ActReport::done(format!("{}|moved-and-unmounted", ready.mount_id), text)
+                }
                 Err(error) => step("mountinfo", error, "the table after the unmount"),
             };
         }
@@ -489,7 +662,10 @@ fn unmount_in_here(ready: &Ready, copy: &NamespaceCopy<'_>) -> ActReport {
 ///  The table is the kernel's own and this child's, not the handler's,
 ///  which is what makes the read-after a fact about the namespace it changed.
 fn read_the_table() -> Result<String, std::io::Error> {
-    return crate::plain_file::read_plain_text_at(Path::new(MOUNTINFO_PATH), crate::plain_file::MOUNT_TABLE_LIMIT);
+    return crate::plain_file::read_plain_text_at(
+        Path::new(MOUNTINFO_PATH),
+        crate::plain_file::MOUNT_TABLE_LIMIT,
+    );
 }
 
 /// What:
@@ -500,10 +676,19 @@ fn read_the_table() -> Result<String, std::io::Error> {
 ///  because a propagation change requires the path to be a mount root,
 ///  and way 7 needs the parent to stop propagating before the move.
 fn make_the_parent_a_slave(mount: &std::fs::File) -> Result<(), std::io::Error> {
-    let named: CString = CString::new(format!("/proc/self/fd/{}", mount.as_raw_fd())).expect("no NUL in a descriptor path");
+    let named: CString = CString::new(format!("/proc/self/fd/{}", mount.as_raw_fd()))
+        .expect("no NUL in a descriptor path");
     // SAFETY: no source, file system or data is named, the path outlives the call, and the flag asks only for the
     // slave change.
-    let changed: libc::c_int = unsafe { libc::mount(std::ptr::null(), named.as_ptr(), std::ptr::null(), libc::MS_SLAVE, std::ptr::null()) };
+    let changed: libc::c_int = unsafe {
+        libc::mount(
+            std::ptr::null(),
+            named.as_ptr(),
+            std::ptr::null(),
+            libc::MS_SLAVE,
+            std::ptr::null(),
+        )
+    };
     if changed != 0 {
         return Err(std::io::Error::last_os_error());
     }
@@ -515,13 +700,22 @@ fn make_the_parent_a_slave(mount: &std::fs::File) -> Result<(), std::io::Error> 
 /// Why:
 ///  The move names both ends by descriptor,
 ///  and a non-shared destination takes it without propagating the move.
-fn move_the_copy(source: &std::fs::File, destination: &std::fs::File) -> Result<(), std::io::Error> {
+fn move_the_copy(
+    source: &std::fs::File,
+    destination: &std::fs::File,
+) -> Result<(), std::io::Error> {
     let empty: CString = CString::new("").expect("no NUL in an empty path");
     // SAFETY: both descriptors are this child's own, the empty paths outlive the call, and the flag word names both
     // ends as descriptors.
     let moved: libc::c_int = unsafe {
-        libc::syscall(libc::SYS_move_mount, source.as_raw_fd(), empty.as_ptr(), destination.as_raw_fd(), empty.as_ptr(), libc::MOVE_MOUNT_F_EMPTY_PATH | libc::MOVE_MOUNT_T_EMPTY_PATH)
-            as libc::c_int
+        libc::syscall(
+            libc::SYS_move_mount,
+            source.as_raw_fd(),
+            empty.as_ptr(),
+            destination.as_raw_fd(),
+            empty.as_ptr(),
+            libc::MOVE_MOUNT_F_EMPTY_PATH | libc::MOVE_MOUNT_T_EMPTY_PATH,
+        ) as libc::c_int
     };
     if moved != 0 {
         return Err(std::io::Error::last_os_error());
@@ -538,7 +732,8 @@ fn move_the_copy(source: &std::fs::File, destination: &std::fs::File) -> Result<
 ///  and `umount2` on a descriptor's `/proc` path is the one call the design
 ///  allows inside another namespace.
 fn unmount_the_descriptor(mount: &std::fs::File) -> Result<(), std::io::Error> {
-    let named: CString = CString::new(format!("/proc/self/fd/{}", mount.as_raw_fd())).expect("no NUL in a descriptor path");
+    let named: CString = CString::new(format!("/proc/self/fd/{}", mount.as_raw_fd()))
+        .expect("no NUL in a descriptor path");
     // SAFETY: the path outlives the call and no flag asks for force or lazy detach.
     let taken: libc::c_int = unsafe { libc::umount2(named.as_ptr(), 0) };
     if taken != 0 {

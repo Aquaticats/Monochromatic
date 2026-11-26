@@ -31,7 +31,12 @@
 /// ```ts
 /// import { Arity, type OptionSpec, row, UNREAD } from './command_options.ts';
 /// ```
-use crate::command_options::{Arity, OptionSpec, UNREAD, row};
+use crate::command_options::{
+    Arity,
+    OptionSpec,
+    UNREAD,
+    row,
+};
 
 /// `checkout -b <branch>`,
 ///  `switch -c`/`--create <branch>`.
@@ -171,7 +176,13 @@ pub const SWITCH_TABLE: &[OptionSpec] = &[
         true,
     ),
     row(GUESS, None, Some("guess"), Arity::None, true),
-    row(DISCARD_CHANGES, None, Some("discard-changes"), Arity::None, true),
+    row(
+        DISCARD_CHANGES,
+        None,
+        Some("discard-changes"),
+        Arity::None,
+        true,
+    ),
     row(UNREAD, Some(b'q'), Some("quiet"), Arity::None, true),
     row(
         UNREAD,

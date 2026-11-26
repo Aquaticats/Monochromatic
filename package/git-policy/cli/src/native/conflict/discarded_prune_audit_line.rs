@@ -19,7 +19,10 @@
 use crate::discarded_prune_limits::Limits;
 use crate::discarded_prune_plan::Reason;
 use crate::iso_time::format_iso_milliseconds;
-use crate::json_record::{quote, string_array};
+use crate::json_record::{
+    quote,
+    string_array,
+};
 use crate::service_protocol::RELEASE;
 use std::path::PathBuf;
 
@@ -70,13 +73,26 @@ pub struct Removed {
 /// ```ts
 /// JSON.stringify({ schemaVersion: 1, time, form: 'PruneDiscarded', outcome: 'pruned', reason, path, bytes, copies }) + '\n'
 /// ```
-pub fn prune_line(removed: &Removed, copies: &[String], limits: Limits, folder_bytes: u128, now_millis: i64) -> String {
+pub fn prune_line(
+    removed: &Removed,
+    copies: &[String],
+    limits: Limits,
+    folder_bytes: u128,
+    now_millis: i64,
+) -> String {
     return audit_line("pruned", removed, copies, limits, folder_bytes, now_millis);
 }
 
 /// The audit line of one directory with the outcome word `pruned` (all of it went) or `partial` (some of it went and the
 /// rest was kept).
-pub fn audit_line(outcome: &str, removed: &Removed, copies: &[String], limits: Limits, folder_bytes: u128, now_millis: i64) -> String {
+pub fn audit_line(
+    outcome: &str,
+    removed: &Removed,
+    copies: &[String],
+    limits: Limits,
+    folder_bytes: u128,
+    now_millis: i64,
+) -> String {
     let limit: u64 = match removed.reason {
         Reason::Age => limits.max_age_days,
         Reason::Size => limits.max_bytes,

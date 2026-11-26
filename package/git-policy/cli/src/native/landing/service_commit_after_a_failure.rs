@@ -20,19 +20,31 @@
 //! return answerAfterFailure({ failure, sent, ready, invocation, ... }) // the commit the journal names, or the failure's own words
 //! ```
 
-use crate::commit_transaction::{CommitInvocation, TransactionStop};
-use crate::service_commit::ServiceCommit;
-use crate::service_commit_looking_for_what_landed::journal_of_request;
-use crate::service_commit_input_notes_and_embedded_commit::Embedded;
-use crate::service_pruned::the_objects_it_names_are_gone;
-use crate::service_amend_replayed::AmendedCommit;
-use crate::service_landed_aftermath::{LandedAftermath, after_a_silent_or_failed_service};
-use crate::service_messages::ClientFailure;
-use crate::service_prepare::{NativeInputs, Ready};
-use crate::service_protocol::CommitRequest;
-use crate::service_client::ClientConfig;
+use crate::commit_transaction::{
+    CommitInvocation,
+    TransactionStop,
+};
 use crate::policy_events::PolicyEvent;
-use std::path::{Path, PathBuf};
+use crate::service_amend_replayed::AmendedCommit;
+use crate::service_client::ClientConfig;
+use crate::service_commit::ServiceCommit;
+use crate::service_commit_input_notes_and_embedded_commit::Embedded;
+use crate::service_commit_looking_for_what_landed::journal_of_request;
+use crate::service_landed_aftermath::{
+    LandedAftermath,
+    after_a_silent_or_failed_service,
+};
+use crate::service_messages::ClientFailure;
+use crate::service_prepare::{
+    NativeInputs,
+    Ready,
+};
+use crate::service_protocol::CommitRequest;
+use crate::service_pruned::the_objects_it_names_are_gone;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What a commit knows about the attempt the service did not land.
 pub(crate) struct FailedAttempt<'a> {
@@ -98,11 +110,18 @@ pub(crate) fn content_was_pruned() -> TransactionStop {
 /// # Errors
 ///
 /// `TransactionStop` with the failure's own words when nothing landed.
-pub(crate) fn answer_after_a_failure(attempt: FailedAttempt<'_>) -> Result<ServiceCommit, TransactionStop> {
+pub(crate) fn answer_after_a_failure(
+    attempt: FailedAttempt<'_>
+) -> Result<ServiceCommit, TransactionStop> {
     // Content a prune removed is its own ending: the service answered that the commit names an object that is gone, and the
     //  worktree is not read again to make that commit.
     if matches!(attempt.failure, ClientFailure::Unavailable)
-        && the_objects_it_names_are_gone(attempt.invocation.context, attempt.ready.repository.as_path(), attempt.sent, &attempt.native_inputs.capture.layout)
+        && the_objects_it_names_are_gone(
+            attempt.invocation.context,
+            attempt.ready.repository.as_path(),
+            attempt.sent,
+            &attempt.native_inputs.capture.layout,
+        )
     {
         return Err(content_was_pruned());
     }

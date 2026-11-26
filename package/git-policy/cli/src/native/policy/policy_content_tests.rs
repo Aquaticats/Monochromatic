@@ -20,20 +20,42 @@
 
 /// Import the module under test.
 use super::{
-    candidate_read_failure,ContentState, Correction, LifecycleContent, candidate_failure};
-use crate::candidate_error::{CandidateError, CandidateFailure};
+    ContentState,
+    Correction,
+    LifecycleContent,
+    candidate_failure,
+    candidate_read_failure,
+};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 use crate::candidate_object::CandidateMode;
 use crate::candidate_prediction::CandidateRequest;
-use crate::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{
+    Candidate,
+    CandidateVersion,
+};
 use crate::diagnostics::EngineFailureCode;
 use crate::direct_fix_install::InstallChange;
 use crate::policy_engine::PolicyOutcome;
-use crate::policy_test_support::{ScriptedFacts, scripted_facts};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    scripted_facts,
+};
 use crate::scanner_adapter::CandidateScanner;
 use crate::scanner_run::ScanRunError;
 use crate::scanner_selection::rules_source;
-use crate::scanner_test_support::{needle, rules_file, run_isolated};
-use crate::test_support::{fixture, remove, repository};
+use crate::scanner_test_support::{
+    needle,
+    rules_file,
+    run_isolated,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+    repository,
+};
 use forbidden_strings::CandidateScan;
 use std::ffi::OsString;
 use std::path::Path;
@@ -133,7 +155,11 @@ fn candidates_are_prepared_once_and_shared() {
     )
     .expect("remove the rewritten loose object");
     match fresh.bytes(&version.candidates()[0]) {
-        Err(PolicyOutcome::Failed { code, message, .. }) => {
+        Err(PolicyOutcome::Failed {
+            code,
+            message,
+            ..
+        }) => {
             assert_eq!(code, EngineFailureCode::ContentUnavailable);
             assert!(!message.contains("a.txt"), "{message}");
         }
@@ -181,7 +207,10 @@ fn a_candidate_too_large_to_read_is_a_skipped_check_that_names_the_file() {
     assert_eq!(
         candidate_read_failure(
             &candidate,
-            &CandidateError::new(CandidateFailure::GitStopped, "git ls-files showed no sign of work")
+            &CandidateError::new(
+                CandidateFailure::GitStopped,
+                "git ls-files showed no sign of work"
+            )
         ),
         PolicyOutcome::Stopped {
             message: String::from("git ls-files showed no sign of work"),
@@ -279,7 +308,11 @@ fn candidate_failures_carry_the_code_of_their_cause() {
 }
 
 /// A correction of `path` from `before` to `after`.
-fn correction(path: &str, before: &[u8], after: &[u8]) -> Correction {
+fn correction(
+    path: &str,
+    before: &[u8],
+    after: &[u8],
+) -> Correction {
     return Correction {
         path: path.as_bytes().to_vec(),
         mode: CandidateMode::Regular,
@@ -289,7 +322,11 @@ fn correction(path: &str, before: &[u8], after: &[u8]) -> Correction {
 }
 
 /// The install change of `path` from `original` to `replacement`.
-fn change(path: &str, original: &[u8], replacement: &[u8]) -> InstallChange {
+fn change(
+    path: &str,
+    original: &[u8],
+    replacement: &[u8],
+) -> InstallChange {
     return InstallChange {
         path: path.as_bytes().to_vec(),
         mode: CandidateMode::Regular,

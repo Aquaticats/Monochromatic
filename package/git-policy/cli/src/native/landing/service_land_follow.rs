@@ -30,18 +30,27 @@
 //! ```
 
 use crate::autostash_carry::carry_stash;
+use crate::commit_index_stat_refresh::{
+    StatRefresh,
+    refresh_stat_data_when_stale,
+};
+use crate::commit_index_stat_staleness::WorktreeStaging;
 use crate::conclusion_cleanup::reproduce_conclusion_cleanup;
 use crate::diagnostic_log::warn;
-use crate::index_holder_wait::{IndexWait, wait_for_index_release_within};
-use crate::wait_ceilings::RECONCILE_LOCK_CEILING;
-use crate::wait_progress::Cadence;
+use crate::index_holder_wait::{
+    IndexWait,
+    wait_for_index_release_within,
+};
 use crate::service_index_lock::IndexLock;
-use crate::commit_index_stat_refresh::{StatRefresh, refresh_stat_data_when_stale};
-use crate::commit_index_stat_staleness::WorktreeStaging;
 pub use crate::service_land_copy::PrivateCopy;
-use crate::service_protocol::{Cleanup, FailureCode};
+use crate::service_protocol::{
+    Cleanup,
+    FailureCode,
+};
 use crate::transaction_git::GitContext;
 use crate::transaction_journal::RefFormat;
+use crate::wait_ceilings::RECONCILE_LOCK_CEILING;
+use crate::wait_progress::Cadence;
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -78,12 +87,19 @@ const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 /// kept in a file of their own to stay under the file-size limit.
 #[path = "service_land_follow_index_reset.rs"]
 mod index_reset;
-pub use self::index_reset::{IndexPaths, reset_entries, reset_entries_awaiting};
-pub(crate) use self::index_reset::{classify, derived_names};
-use self::index_reset::reset_once;
 /// The awaited derived names, read by the control that compares both faces of the reset.
 #[cfg(test)]
 use self::index_reset::derived_names_awaiting;
+use self::index_reset::reset_once;
+pub use self::index_reset::{
+    IndexPaths,
+    reset_entries,
+    reset_entries_awaiting,
+};
+pub(crate) use self::index_reset::{
+    classify,
+    derived_names,
+};
 
 /// What:
 ///  Updates the index entries of the commit's paths to the commit `new`,
@@ -103,7 +119,13 @@ use self::index_reset::derived_names_awaiting;
 /// ```ts
 /// await updateIndex(git, repository, index, newCommit, paths)
 /// ```
-pub fn update_index(git: &GitContext, repository: &Path, index: &Path, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
+pub fn update_index(
+    git: &GitContext,
+    repository: &Path,
+    index: &Path,
+    new: &str,
+    paths: IndexPaths<'_>,
+) -> Result<(), FailureCode> {
     return update_index_within(git, repository, index, RECONCILE_LOCK_CEILING, new, paths);
 }
 
@@ -113,8 +135,17 @@ pub fn update_index(git: &GitContext, repository: &Path, index: &Path, new: &str
 /// # Errors
 ///
 /// As `update_index`.
-pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ceiling: std::time::Duration, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
-    if matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty()) {
+pub fn update_index_within(
+    git: &GitContext,
+    repository: &Path,
+    index: &Path,
+    ceiling: std::time::Duration,
+    new: &str,
+    paths: IndexPaths<'_>,
+) -> Result<(), FailureCode> {
+    if matches!(paths, IndexPaths::Listed(listed) if listed.is_empty())
+        || matches!(paths, IndexPaths::Named(named) if named.is_empty())
+    {
         return Ok(());
     }
     // Tries that met no holder to wait for: a refusal with the lock already gone, or a failure that is not the lock's.
@@ -129,13 +160,22 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
         };
         if code == FailureCode::IndexInUse {
             // The wait gets what is left of the one ceiling, so a hold that ends and is taken again cannot add a full wait.
-            let left: std::time::Duration = deadline.saturating_duration_since(std::time::Instant::now());
+            let left: std::time::Duration =
+                deadline.saturating_duration_since(std::time::Instant::now());
             if left.is_zero() {
                 return Err(code);
             }
-            match wait_for_index_release_within(index, "commit", left, Cadence::from_environment(), &mut std::io::stderr()) {
+            match wait_for_index_release_within(
+                index,
+                "commit",
+                left,
+                Cadence::from_environment(),
+                &mut std::io::stderr(),
+            ) {
                 // The diagnostic of a wait that ended on an owner this table's numbers do not describe is already written.
-                IndexWait::OwnerGone(_) | IndexWait::GaveUp(_) | IndexWait::HeldByAnotherCommand(_) => return Err(code),
+                IndexWait::OwnerGone(_)
+                | IndexWait::GaveUp(_)
+                | IndexWait::HeldByAnotherCommand(_) => return Err(code),
                 // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well, under the
                 //  same deadline.
                 IndexWait::Released(_) => {
@@ -181,10 +221,18 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
 /// ```ts
 /// const built = await buildIndex(git, repository, newCommit, paths, indexPath, seq)
 /// ```
-pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, lock: &IndexLock, seq: u64) -> Result<PrivateCopy, FailureCode> {
+pub fn build_index(
+    git: &GitContext,
+    repository: &Path,
+    new: &str,
+    paths: IndexPaths<'_>,
+    lock: &IndexLock,
+    seq: u64,
+) -> Result<PrivateCopy, FailureCode> {
     let copy: PrivateCopy = PrivateCopy::make(lock, seq)?;
     let built: std::path::PathBuf = copy.path().to_path_buf();
-    let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty());
+    let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty())
+        || matches!(paths, IndexPaths::Named(named) if named.is_empty());
     let mut written: Vec<Vec<u8>> = Vec::new();
     if !empty {
         match reset_in_process(git, repository, new, paths, (lock, &copy)) {
@@ -255,12 +303,22 @@ pub(crate) fn put_the_live_times_back(copy: &PrivateCopy) {
 /// ```ts
 /// await keepTheStatData({ git, repository, written, copy }) // copy.keepTheLiveTimes(); refresh_if_stale(copy, staging = `written`); copy.keepTheLiveTimes()
 /// ```
-fn keep_the_stat_data(git: &GitContext, repository: &Path, written: &[Vec<u8>], copy: &PrivateCopy) {
+fn keep_the_stat_data(
+    git: &GitContext,
+    repository: &Path,
+    written: &[Vec<u8>],
+    copy: &PrivateCopy,
+) {
     let left_out: Vec<OsString> = exempt_names(written);
     put_the_live_times_back(copy);
     // What the copy looked like before the refresh, so the release flushes it only when the refresh rewrote it.
     let untouched: Option<(u64, std::time::SystemTime)> = file_stamp(copy.path());
-    let _outcome: StatRefresh = refresh_stat_data_when_stale(git, repository, copy.path(), WorktreeStaging::Named(left_out.as_slice()));
+    let _outcome: StatRefresh = refresh_stat_data_when_stale(
+        git,
+        repository,
+        copy.path(),
+        WorktreeStaging::Named(left_out.as_slice()),
+    );
     let rewritten: bool = file_stamp(copy.path()) != untouched;
     // The refresh replaces the copy when it records anything, so the times go back on after it as well.
     put_the_live_times_back(copy);
@@ -327,7 +385,9 @@ fn named_paths(paths: IndexPaths<'_>) -> Vec<Vec<u8>> {
     let listed: &[String] = match paths {
         IndexPaths::Listed(listed) => listed,
         IndexPaths::Named(named) => return named.to_vec(),
-        IndexPaths::Derived { .. } => return Vec::new(),
+        IndexPaths::Derived {
+            ..
+        } => return Vec::new(),
     };
     let mut names: Vec<Vec<u8>> = Vec::with_capacity(listed.len());
     for name in listed {
@@ -339,14 +399,26 @@ fn named_paths(paths: IndexPaths<'_>) -> Vec<Vec<u8>> {
 /// The names the private copy (made from the live index while `lock` is held) was reset at without starting Git,
 /// or nothing when Git's own command has to run.
 #[cfg(target_os = "linux")]
-fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (lock, copy): (&IndexLock, &PrivateCopy)) -> Option<Vec<Vec<u8>>> {
+fn reset_in_process(
+    git: &GitContext,
+    repository: &Path,
+    new: &str,
+    paths: IndexPaths<'_>,
+    (lock, copy): (&IndexLock, &PrivateCopy),
+) -> Option<Vec<Vec<u8>>> {
     return crate::index_reset_file::reset_index_file(git, repository, new, paths, lock, copy);
 }
 
 /// Without the in-process update on this platform,
 /// Git's own command always runs.
 #[cfg(not(target_os = "linux"))]
-fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&IndexLock, &PrivateCopy)) -> Option<Vec<Vec<u8>>> {
+fn reset_in_process(
+    _git: &GitContext,
+    _repository: &Path,
+    _new: &str,
+    _paths: IndexPaths<'_>,
+    _landing: (&IndexLock, &PrivateCopy),
+) -> Option<Vec<Vec<u8>>> {
     return None;
 }
 
@@ -360,8 +432,15 @@ pub fn storage_failure(error: &std::io::Error) -> FailureCode {
     };
 }
 
-pub(crate) fn cleanup_done(git: &GitContext, repository: &Path, intent: &crate::service_journal::Intent, journal: &Path) -> bool {
-    let Some(cleanup) = intent.cleanup.as_ref() else { return true };
+pub(crate) fn cleanup_done(
+    git: &GitContext,
+    repository: &Path,
+    intent: &crate::service_journal::Intent,
+    journal: &Path,
+) -> bool {
+    let Some(cleanup) = intent.cleanup.as_ref() else {
+        return true;
+    };
     // The client's own scratch directory is the service's to remove when that client is gone, so the copy the landing kept in
     //  the journal is what the comparison reads once it is: a cleanup that failed once would otherwise remove nothing and answer
     //  success, and the next commit would conclude the same merge again.
@@ -384,7 +463,12 @@ pub(crate) fn cleanup_done(git: &GitContext, repository: &Path, intent: &crate::
 /// ```ts
 /// await removeConclusionState(git, repository, cleanup)
 /// ```
-pub fn remove_conclusion_state(git: &GitContext, repository: &Path, cleanup: &Cleanup, surviving: Option<&Path>) -> bool {
+pub fn remove_conclusion_state(
+    git: &GitContext,
+    repository: &Path,
+    cleanup: &Cleanup,
+    surviving: Option<&Path>,
+) -> bool {
     // The scratch directory is the client's, and the service removes it when that client is gone; the copy the landing kept in its
     //  journal is what the comparison reads then, and without either nothing can be compared, so nothing is removed.
     let compared: &Path = if cleanup.scratch.exists() {
@@ -406,17 +490,31 @@ pub fn remove_conclusion_state(git: &GitContext, repository: &Path, cleanup: &Cl
             }
         }
     };
-    let format: RefFormat = if cleanup.reftable { RefFormat::Reftable } else { RefFormat::Files };
+    let format: RefFormat = if cleanup.reftable {
+        RefFormat::Reftable
+    } else {
+        RefFormat::Files
+    };
     let shadow: std::path::PathBuf = compared.join("shadow");
     // The stash Git stored in the scratch repository when its apply conflicted is stored in the repository before the cleanup
     //  removes the pseudoref that named it; if that fails the state stays, so the cleanup runs again.
     if !carry_stash(git, repository, cleanup) {
         return false;
     }
-    return match reproduce_conclusion_cleanup(git, repository, cleanup.git_dir.as_path(), shadow.as_path(), compared, format) {
+    return match reproduce_conclusion_cleanup(
+        git,
+        repository,
+        cleanup.git_dir.as_path(),
+        shadow.as_path(),
+        compared,
+        format,
+    ) {
         Ok(()) => true,
         Err(error) => {
-            warn("serviceLandFollow", format!("removing the conclusion state failed: {}", error.0).as_str());
+            warn(
+                "serviceLandFollow",
+                format!("removing the conclusion state failed: {}", error.0).as_str(),
+            );
             false
         }
     };

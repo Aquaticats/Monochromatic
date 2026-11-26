@@ -12,13 +12,29 @@
 
 /// Import the query helpers under test and shared fixtures.
 use super::{
-    MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git, run_metadata_git_within,
+    MetadataOutput,
+    path_from_git_bytes,
+    read_stopped_text,
+    run_metadata_git,
+    run_metadata_git_within,
     strip_git_line,
 };
-use crate::test_support::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, REAL_GIT, executable, fixture, real_git_within, remove};
+use crate::test_support::{
+    FIXTURE_GIT_BOUND,
+    QueryAnswer,
+    QueryEnding,
+    REAL_GIT,
+    executable,
+    fixture,
+    real_git_within,
+    remove,
+};
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Exactly one final LF or CRLF is removed;
 ///  everything else is value bytes.
@@ -56,11 +72,27 @@ fn path_bytes_round_trip_without_decoding() {
 /// The bytes the Git at `git` prints for `--version`,
 ///  run under `bound` seconds so a Git that never answers ends this control
 ///  with a verdict that names the query and the bound.
-fn version_bytes_of_the_git_under_test(git: &Path, bound: std::time::Duration) -> Vec<u8> {
-    let answer: QueryAnswer = real_git_within(git, None, &[], &[OsString::from("--version")], None, bound);
-    assert_eq!(answer.ending, QueryEnding::Itself, "the `git --version` query did not answer within {} s: the bound ended it", bound.as_secs());
-    assert!(!answer.held_open, "the `git --version` query ended, and a descendant of it still holds its output");
-    assert!(answer.output.status.success(), "the `git --version` query failed: {}", String::from_utf8_lossy(&answer.output.stderr));
+fn version_bytes_of_the_git_under_test(
+    git: &Path,
+    bound: std::time::Duration,
+) -> Vec<u8> {
+    let answer: QueryAnswer =
+        real_git_within(git, None, &[], &[OsString::from("--version")], None, bound);
+    assert_eq!(
+        answer.ending,
+        QueryEnding::Itself,
+        "the `git --version` query did not answer within {} s: the bound ended it",
+        bound.as_secs()
+    );
+    assert!(
+        !answer.held_open,
+        "the `git --version` query ended, and a descendant of it still holds its output"
+    );
+    assert!(
+        answer.output.status.success(),
+        "the `git --version` query failed: {}",
+        String::from_utf8_lossy(&answer.output.stderr)
+    );
     return answer.output.stdout;
 }
 
@@ -74,14 +106,20 @@ fn a_version_query_that_never_answers_ends_at_its_bound() {
     let hanging: PathBuf = root.join("hanging-git");
     executable(hanging.as_path(), b"#!/bin/sh\nsleep 5\n");
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        return version_bytes_of_the_git_under_test(hanging.as_path(), std::time::Duration::from_secs(1));
+        return version_bytes_of_the_git_under_test(
+            hanging.as_path(),
+            std::time::Duration::from_secs(1),
+        );
     }));
     let payload = caught.expect_err("the bound must end the query");
     let message: String = match payload.downcast_ref::<String>() {
         Some(text) => text.clone(),
         None => String::from("<the verdict was not text>"),
     };
-    assert!(message.contains("the `git --version` query did not answer within 1 s"), "{message}");
+    assert!(
+        message.contains("the `git --version` query did not answer within 1 s"),
+        "{message}"
+    );
     remove(root.as_path());
 }
 
@@ -94,7 +132,8 @@ fn a_version_query_that_never_answers_ends_at_its_bound() {
 /// instead of holding the suite.
 #[test]
 fn queries_capture_output_and_exit_state() {
-    let asked_directly: Vec<u8> = version_bytes_of_the_git_under_test(Path::new(REAL_GIT), FIXTURE_GIT_BOUND);
+    let asked_directly: Vec<u8> =
+        version_bytes_of_the_git_under_test(Path::new(REAL_GIT), FIXTURE_GIT_BOUND);
     let version: MetadataOutput =
         run_metadata_git(Path::new(REAL_GIT), &[OsString::from("--version")], &[])
             .expect("Git starts");
@@ -204,7 +243,11 @@ fn a_read_the_wrapper_parses_runs_in_the_c_locale() {
         &[],
     )
     .expect("the probe starts");
-    assert!(output.success, "{}", String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(
+        output.success,
+        "{}",
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
     assert_eq!(output.stdout, b"Would remove nested/\n".to_vec());
     assert_eq!(
         std::fs::read_to_string(recorded.as_path()).expect("the probe recorded its locale"),
@@ -241,23 +284,15 @@ fn a_read_that_never_returns_is_ended_at_its_ceiling() {
     executable(hang.as_path(), b"#!/bin/sh\nsleep 60\n");
     let ceiling: std::time::Duration = std::time::Duration::from_millis(300);
     // The positive control: the same ceiling leaves a read that answers alone.
-    let answered: MetadataOutput = run_metadata_git_within(
-        quick.as_path(),
-        &[OsString::from("ls-files")],
-        &[],
-        ceiling,
-    )
-    .expect("a read that answers");
+    let answered: MetadataOutput =
+        run_metadata_git_within(quick.as_path(), &[OsString::from("ls-files")], &[], ceiling)
+            .expect("a read that answers");
     assert_eq!(answered.stdout, b"answer\n".to_vec());
     assert!(answered.success);
     let started: std::time::Instant = std::time::Instant::now();
-    let ended: std::io::Error = run_metadata_git_within(
-        hang.as_path(),
-        &[OsString::from("ls-files")],
-        &[],
-        ceiling,
-    )
-    .expect_err("a read that never returns");
+    let ended: std::io::Error =
+        run_metadata_git_within(hang.as_path(), &[OsString::from("ls-files")], &[], ceiling)
+            .expect_err("a read that never returns");
     let took: std::time::Duration = started.elapsed();
     assert_eq!(ended.kind(), std::io::ErrorKind::TimedOut, "{ended}");
     let text: String = ended.to_string();
@@ -268,7 +303,10 @@ fn a_read_that_never_returns_is_ended_at_its_ceiling() {
         text.starts_with(format!("{} ls-files ", hang.display()).as_str()),
         "the read is named by the program and its subcommand: {text}"
     );
-    assert!(text.contains("the longest the wrapper lets one step run"), "{text}");
+    assert!(
+        text.contains("the longest the wrapper lets one step run"),
+        "{text}"
+    );
     // The read is ended at the ceiling, not left until the script's own minute is over.
     assert!(took < std::time::Duration::from_secs(30), "{took:?}");
     // How the person is told about it: the sentence each caller reports.
@@ -290,13 +328,9 @@ fn a_read_that_never_returns_is_ended_at_its_ceiling() {
         "{sentence}"
     );
     // Any other failure keeps the wording its caller already had.
-    let unstartable: std::io::Error = run_metadata_git_within(
-        root.join("missing").as_path(),
-        &[],
-        &[],
-        ceiling,
-    )
-    .expect_err("a program that is not there");
+    let unstartable: std::io::Error =
+        run_metadata_git_within(root.join("missing").as_path(), &[], &[], ceiling)
+            .expect_err("a program that is not there");
     assert_eq!(read_stopped_text("the staging area", &unstartable), None);
     remove(root.as_path());
 }
@@ -324,11 +358,17 @@ fn a_read_the_in_process_readers_decline_is_noted_as_a_step() {
         std::time::Duration::from_secs(30),
     )
     .expect("the read runs");
-    assert!(output.success, "{}", String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(
+        output.success,
+        "{}",
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
     let (steps, dropped) = crate::transaction_step_durations::drain_steps(began);
     assert_eq!(dropped, 0);
     assert!(
-        steps.iter().any(|step| { return step.name == "git ls-files"; }),
+        steps.iter().any(|step| {
+            return step.name == "git ls-files";
+        }),
         "the child the readers declined is a step of the record: {steps:?}"
     );
     remove(root.as_path());
@@ -353,13 +393,21 @@ fn an_answer_larger_than_the_capture_keeps_comes_back_whole() {
     let root: PathBuf = fixture("git-metadata-whole-answer");
     let big: PathBuf = root.join("big");
     let too_many: usize = crate::output_capture::STEP_OUTPUT_LIMIT + 1;
-    executable(big.as_path(), format!("#!/bin/sh\nhead -c {too_many} /dev/zero\n").as_bytes());
+    executable(
+        big.as_path(),
+        format!("#!/bin/sh\nhead -c {too_many} /dev/zero\n").as_bytes(),
+    );
     let arguments: [OsString; 1] = [OsString::from("ls-files")];
     let ceiling: std::time::Duration = std::time::Duration::from_secs(60);
-    let answer: MetadataOutput = run_metadata_git_within(big.as_path(), &arguments, &[], ceiling).expect("a large answer");
+    let answer: MetadataOutput =
+        run_metadata_git_within(big.as_path(), &arguments, &[], ceiling).expect("a large answer");
     remove(root.as_path());
     assert!(answer.success, "the read answered");
-    assert_eq!(answer.stdout.len(), too_many, "the answer comes back whole, byte for byte");
+    assert_eq!(
+        answer.stdout.len(),
+        too_many,
+        "the answer comes back whole, byte for byte"
+    );
 }
 
 /// What:
@@ -413,7 +461,10 @@ fn a_read_named_after_a_global_option_is_announced_by_its_subcommand() {
     )
     .expect_err("a read that never returns");
     let unnamed_text: String = unnamed.to_string();
-    assert!(unnamed_text.contains("(a read-only Git query)"), "{unnamed_text}");
+    assert!(
+        unnamed_text.contains("(a read-only Git query)"),
+        "{unnamed_text}"
+    );
     assert!(!unnamed_text.contains("/some/where"), "{unnamed_text}");
     remove(root.as_path());
 }
@@ -436,8 +487,12 @@ fn has_ended(number: u32) -> bool {
     loop {
         let state: Option<char> = std::fs::read_to_string(format!("/proc/{number}/stat"))
             .ok()
-            .and_then(|text| { return text.get(text.rfind(')')? + 2..)?.chars().next(); });
-        if state.is_none_or(|letter| { return letter == 'Z'; }) {
+            .and_then(|text| {
+                return text.get(text.rfind(')')? + 2..)?.chars().next();
+            });
+        if state.is_none_or(|letter| {
+            return letter == 'Z';
+        }) {
             return true;
         }
         if began.elapsed() > std::time::Duration::from_secs(2) {
@@ -501,6 +556,9 @@ fn a_read_whose_git_ignores_the_request_to_end_returns_at_its_ceiling() {
         .trim()
         .parse()
         .expect("a process number");
-    assert!(has_ended(number), "the program the read started still runs after the read returned");
+    assert!(
+        has_ended(number),
+        "the program the read started still runs after the read returned"
+    );
     remove(root.as_path());
 }

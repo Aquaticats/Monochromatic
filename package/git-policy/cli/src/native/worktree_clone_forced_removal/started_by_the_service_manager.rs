@@ -178,7 +178,12 @@ pub struct ManagerReads<'a> {
 /// if (command === 'systemd' && cgroup === `/user.slice/user-${uid}.slice/user@${uid}.service/init.scope`) return 'user';
 /// return undefined;
 /// ```
-pub fn manager_of(pid: i32, command: Option<&str>, cgroup: Option<&str>, uid: u32) -> Option<ManagerKind> {
+pub fn manager_of(
+    pid: i32,
+    command: Option<&str>,
+    cgroup: Option<&str>,
+    uid: u32,
+) -> Option<ManagerKind> {
     if pid == THE_FIRST_PROCESS {
         return Some(ManagerKind::System);
     }
@@ -186,7 +191,8 @@ pub fn manager_of(pid: i32, command: Option<&str>, cgroup: Option<&str>, uid: u3
         return None;
     }
     let path: &str = cgroup?;
-    let user_manager_init: String = format!("/user.slice/user-{uid}.slice/user@{uid}.service/init.scope");
+    let user_manager_init: String =
+        format!("/user.slice/user-{uid}.slice/user@{uid}.service/init.scope");
     if path == user_manager_init {
         return Some(ManagerKind::User);
     }
@@ -239,16 +245,38 @@ pub fn unified_cgroup_path(text: &str) -> Option<String> {
 /// if (reads.leaderParent === undefined) return refusalOf({ kind: 'orphan', leader: reads.sessionLeaderPid });
 /// ```
 pub fn started_by_the_service_manager(reads: &ManagerReads<'_>) -> Option<ManagerRefusal> {
-    if let Some(manager) = manager_of(reads.parent_pid, reads.parent_command, reads.parent_cgroup, reads.uid) {
-        return Some(ManagerRefusal { place: ManagerPlace::Parent { pid: reads.parent_pid, manager } });
+    if let Some(manager) = manager_of(
+        reads.parent_pid,
+        reads.parent_command,
+        reads.parent_cgroup,
+        reads.uid,
+    ) {
+        return Some(ManagerRefusal {
+            place: ManagerPlace::Parent {
+                pid: reads.parent_pid,
+                manager,
+            },
+        });
     }
     let Some(leader_parent) = reads.leader_parent else {
         // The session leader's own record was refused or has gone: nothing proves what started the session.
-        return Some(ManagerRefusal { place: ManagerPlace::Orphan { leader: reads.session_leader_pid } });
-    };
-    if let Some(manager) = manager_of(leader_parent, reads.leader_parent_command, reads.leader_parent_cgroup, reads.uid) {
         return Some(ManagerRefusal {
-            place: ManagerPlace::SessionLeaderParent { pid: leader_parent, manager },
+            place: ManagerPlace::Orphan {
+                leader: reads.session_leader_pid,
+            },
+        });
+    };
+    if let Some(manager) = manager_of(
+        leader_parent,
+        reads.leader_parent_command,
+        reads.leader_parent_cgroup,
+        reads.uid,
+    ) {
+        return Some(ManagerRefusal {
+            place: ManagerPlace::SessionLeaderParent {
+                pid: leader_parent,
+                manager,
+            },
         });
     }
     return None;
@@ -266,16 +294,32 @@ pub fn started_by_the_service_manager(reads: &ManagerReads<'_>) -> Option<Manage
 /// ```ts
 /// console.error(theRefusalText(slot, refusal));
 /// ```
-pub fn the_refusal_text(slot: &str, refusal: &ManagerRefusal) -> String {
+pub fn the_refusal_text(
+    slot: &str,
+    refusal: &ManagerRefusal,
+) -> String {
     let place: String = match &refusal.place {
-        ManagerPlace::Parent { pid, manager } => {
+        ManagerPlace::Parent {
+            pid,
+            manager,
+        } => {
             format!("its parent is the manager (pid {pid}, {})", manager.words())
         }
-        ManagerPlace::SessionLeaderParent { pid, manager } => {
-            format!("its session leader's parent is the manager (pid {pid}, {})", manager.words())
+        ManagerPlace::SessionLeaderParent {
+            pid,
+            manager,
+        } => {
+            format!(
+                "its session leader's parent is the manager (pid {pid}, {})",
+                manager.words()
+            )
         }
-        ManagerPlace::Orphan { leader } => {
-            format!("its session leader (pid {leader}) has no record this command could read, so nothing proves what started the session")
+        ManagerPlace::Orphan {
+            leader,
+        } => {
+            format!(
+                "its session leader (pid {leader}) has no record this command could read, so nothing proves what started the session"
+            )
         }
     };
     return format!(

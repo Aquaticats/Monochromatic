@@ -43,12 +43,31 @@
 //! const outcome = attachStep.attach({ checkout, slot, clone, store }); // attached | already-standing | rolled-back | retained | refused
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::fs_beneath_mount_facts::mount_id_of;
 use crate::start_probe::probe_errno_names::ErrnoWord;
 use crate::worktree_clone_mount::{
-    AttachOutcome, AttachPostCheck, AttachRefusal, AttachedMount, CloneSlotRefusal, HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, MountIdentity, RollbackPlan, WalkRefusalReason, attach_the_clone,
-    hold_clone_slot_under_root_control, look_again_at_the_slot, mount_id_at_the_held_target, plan_rollback_of, post_attach_check, unmount_through_descriptor,
+    AttachOutcome,
+    AttachPostCheck,
+    AttachRefusal,
+    AttachedMount,
+    CloneSlotRefusal,
+    HeldCloneSlot,
+    HoldCloneSlotRequest,
+    LookAgainAtSlotRequest,
+    MountIdentity,
+    RollbackPlan,
+    WalkRefusalReason,
+    attach_the_clone,
+    hold_clone_slot_under_root_control,
+    look_again_at_the_slot,
+    mount_id_at_the_held_target,
+    plan_rollback_of,
+    post_attach_check,
+    unmount_through_descriptor,
 };
 use crate::worktree_clone_mount_handler::sweep_standing_mounts::StandingMounts;
 use std::path::Path;
@@ -167,11 +186,17 @@ pub enum AttachStepOutcome {
 /// ```
 pub trait RollbackCalls {
     /// Take the planned mount down through the descriptor the attach acted on.
-    fn unmount(&self, target: &std::fs::File) -> Result<(), crate::worktree_clone_mount::AttachRefusal>;
+    fn unmount(
+        &self,
+        target: &std::fs::File,
+    ) -> Result<(), crate::worktree_clone_mount::AttachRefusal>;
 
     /// The mount the canonical slot is on now,
     /// which is the parent folder's own mount when the slot holds none.
-    fn slot_mount(&self, request: &AttachRequest<'_>) -> Result<u64, String>;
+    fn slot_mount(
+        &self,
+        request: &AttachRequest<'_>,
+    ) -> Result<u64, String>;
 }
 
 /// What:
@@ -189,12 +214,22 @@ pub trait RollbackCalls {
 pub struct RealRollbackCalls;
 
 impl RollbackCalls for RealRollbackCalls {
-    fn unmount(&self, target: &std::fs::File) -> Result<(), crate::worktree_clone_mount::AttachRefusal> {
+    fn unmount(
+        &self,
+        target: &std::fs::File,
+    ) -> Result<(), crate::worktree_clone_mount::AttachRefusal> {
         return unmount_through_descriptor(target);
     }
 
-    fn slot_mount(&self, request: &AttachRequest<'_>) -> Result<u64, String> {
-        let fresh = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: request.checkout, slot: request.slot }).map_err(|refusal| return refusal.message())?;
+    fn slot_mount(
+        &self,
+        request: &AttachRequest<'_>,
+    ) -> Result<u64, String> {
+        let fresh = look_again_at_the_slot(&LookAgainAtSlotRequest {
+            checkout: request.checkout,
+            slot: request.slot,
+        })
+        .map_err(|refusal| return refusal.message())?;
         return Ok(fresh.mount_id);
     }
 }
@@ -214,7 +249,10 @@ impl RollbackCalls for RealRollbackCalls {
 /// ```
 pub trait CloneAttachStep {
     /// Attach one clone at the slot its name gave.
-    fn attach(&self, request: &AttachRequest<'_>) -> AttachStepOutcome;
+    fn attach(
+        &self,
+        request: &AttachRequest<'_>,
+    ) -> AttachStepOutcome;
 }
 
 /// What:
@@ -233,7 +271,11 @@ pub trait CloneAttachStep {
 /// ```
 pub trait CloneMountCall {
     /// Attach one clone's dataset to the target the walk held.
-    fn attach_the_mount(&self, source: &str, target: &std::fs::File) -> Result<AttachedMount, AttachRefusal>;
+    fn attach_the_mount(
+        &self,
+        source: &str,
+        target: &std::fs::File,
+    ) -> Result<AttachedMount, AttachRefusal>;
 }
 
 /// What:
@@ -248,7 +290,11 @@ pub trait CloneMountCall {
 pub struct RealCloneMountCall;
 
 impl CloneMountCall for RealCloneMountCall {
-    fn attach_the_mount(&self, source: &str, target: &std::fs::File) -> Result<AttachedMount, AttachRefusal> {
+    fn attach_the_mount(
+        &self,
+        source: &str,
+        target: &std::fs::File,
+    ) -> Result<AttachedMount, AttachRefusal> {
         return attach_the_clone(source, target);
     }
 }
@@ -273,7 +319,11 @@ impl CloneMountCall for RealCloneMountCall {
 /// const outcome = RealAttachStep.release(standing).attach(request);
 /// ```
 #[derive(Clone)]
-pub struct RealAttachStep<'standing, Calls: RollbackCalls = RealRollbackCalls, Mount: CloneMountCall = RealCloneMountCall> {
+pub struct RealAttachStep<
+    'standing,
+    Calls: RollbackCalls = RealRollbackCalls,
+    Mount: CloneMountCall = RealCloneMountCall,
+> {
     /// The rollback's two calls.
     pub calls: Calls,
     /// The one mount call.
@@ -296,7 +346,11 @@ impl<'standing> RealAttachStep<'standing, RealRollbackCalls, RealCloneMountCall>
     /// const step = RealAttachStep.release(standing);
     /// ```
     pub fn release(standing: &'standing dyn StandingMounts) -> Self {
-        return Self { calls: RealRollbackCalls, mount_call: RealCloneMountCall, standing };
+        return Self {
+            calls: RealRollbackCalls,
+            mount_call: RealCloneMountCall,
+            standing,
+        };
     }
 }
 
@@ -321,11 +375,22 @@ impl<'standing> RealAttachStep<'standing, RealRollbackCalls, RealCloneMountCall>
 fn the_walk_stopped_at_the_slots_mount(refusal: &CloneSlotRefusal) -> bool {
     return match refusal {
         CloneSlotRefusal::Walk(walk) => walk.reason == WalkRefusalReason::BoundaryCrossed,
-        CloneSlotRefusal::Store(_) | CloneSlotRefusal::ParentIdentity { .. } | CloneSlotRefusal::SlotIdentity { .. } | CloneSlotRefusal::TargetAnotherObject { .. } => false,
+        CloneSlotRefusal::Store(_)
+        | CloneSlotRefusal::ParentIdentity {
+            ..
+        }
+        | CloneSlotRefusal::SlotIdentity {
+            ..
+        }
+        | CloneSlotRefusal::TargetAnotherObject {
+            ..
+        } => false,
     };
 }
 
-impl<'standing, Calls: RollbackCalls, Mount: CloneMountCall> RealAttachStep<'standing, Calls, Mount> {
+impl<'standing, Calls: RollbackCalls, Mount: CloneMountCall>
+    RealAttachStep<'standing, Calls, Mount>
+{
     /// What:
     ///  The answer a walk that stopped before the slot gets:
     ///  this clone's own mount where the walk stopped at the slot's mount,
@@ -346,27 +411,52 @@ impl<'standing, Calls: RollbackCalls, Mount: CloneMountCall> RealAttachStep<'sta
     /// ```ts
     /// const outcome = step.theAnswerARefusedWalkGets(request, walkRefusal);
     /// ```
-    fn the_answer_a_refused_walk_gets(&self, request: &AttachRequest<'_>, refusal: &CloneSlotRefusal) -> AttachStepOutcome {
+    fn the_answer_a_refused_walk_gets(
+        &self,
+        request: &AttachRequest<'_>,
+        refusal: &CloneSlotRefusal,
+    ) -> AttachStepOutcome {
         if the_walk_stopped_at_the_slots_mount(refusal) {
-            let at_the_slot: LookAgainAtSlotRequest<'_> = LookAgainAtSlotRequest { checkout: request.checkout, slot: request.slot };
+            let at_the_slot: LookAgainAtSlotRequest<'_> = LookAgainAtSlotRequest {
+                checkout: request.checkout,
+                slot: request.slot,
+            };
             if let Some(mount) = self.standing.standing_mount_of(&at_the_slot, request.clone) {
                 debug(TAG, format!("the clone `{}` already holds its own mount {} at slot `{}`, so nothing was attached", request.clone, mount.mount_id, request.slot).as_str());
-                return AttachStepOutcome::AlreadyStanding { mount };
+                return AttachStepOutcome::AlreadyStanding {
+                    mount,
+                };
             }
         }
         let (step, errno): (&str, Option<String>) = the_step_of_a_walk_refusal(refusal);
-        return AttachStepOutcome::Refused { step: String::from(step), errno, said: refusal.message() };
+        return AttachStepOutcome::Refused {
+            step: String::from(step),
+            errno,
+            said: refusal.message(),
+        };
     }
 }
 
-impl<'standing, Calls: RollbackCalls, Mount: CloneMountCall> CloneAttachStep for RealAttachStep<'standing, Calls, Mount> {
-    fn attach(&self, request: &AttachRequest<'_>) -> AttachStepOutcome {
-        let walk: HoldCloneSlotRequest<'_> = HoldCloneSlotRequest { checkout: request.checkout, slot: request.slot, store: request.store };
+impl<'standing, Calls: RollbackCalls, Mount: CloneMountCall> CloneAttachStep
+    for RealAttachStep<'standing, Calls, Mount>
+{
+    fn attach(
+        &self,
+        request: &AttachRequest<'_>,
+    ) -> AttachStepOutcome {
+        let walk: HoldCloneSlotRequest<'_> = HoldCloneSlotRequest {
+            checkout: request.checkout,
+            slot: request.slot,
+            store: request.store,
+        };
         let held: HeldCloneSlot = match hold_clone_slot_under_root_control(&walk) {
             Ok(held) => held,
             Err(refusal) => return self.the_answer_a_refused_walk_gets(request, &refusal),
         };
-        let attached_mount_id: u64 = match self.mount_call.attach_the_mount(request.clone, &held.target) {
+        let attached_mount_id: u64 = match self
+            .mount_call
+            .attach_the_mount(request.clone, &held.target)
+        {
             Ok(attached) => attached.mount_id,
             Err(refusal) => return the_outcome_of_a_refused_attach(&refusal),
         };
@@ -387,11 +477,19 @@ impl<'standing, Calls: RollbackCalls, Mount: CloneMountCall> CloneAttachStep for
 /// ```ts
 /// const outcome = theOutcomeOfARefusedAttach(refusal); // refused | retained
 /// ```
-pub fn the_outcome_of_a_refused_attach(refusal: &crate::worktree_clone_mount::AttachRefusal) -> AttachStepOutcome {
+pub fn the_outcome_of_a_refused_attach(
+    refusal: &crate::worktree_clone_mount::AttachRefusal
+) -> AttachStepOutcome {
     if refusal.placement == crate::worktree_clone_mount::Placement::PlacedAndRetained {
-        return AttachStepOutcome::Retained { said: refusal.message() };
+        return AttachStepOutcome::Retained {
+            said: refusal.message(),
+        };
     }
-    return AttachStepOutcome::Refused { step: String::from(refusal.call.word()), errno: the_errno_name(refusal.errno), said: refusal.message() };
+    return AttachStepOutcome::Refused {
+        step: String::from(refusal.call.word()),
+        errno: the_errno_name(refusal.errno),
+        said: refusal.message(),
+    };
 }
 
 /// The step and errno one walk refusal is written as.
@@ -403,9 +501,16 @@ pub fn the_outcome_of_a_refused_attach(refusal: &crate::worktree_clone_mount::At
 fn the_step_of_a_walk_refusal(refusal: &CloneSlotRefusal) -> (&'static str, Option<String>) {
     return match refusal {
         CloneSlotRefusal::Walk(_walk) => (WALK_STEP, None),
-        CloneSlotRefusal::Store(_) | CloneSlotRefusal::ParentIdentity { .. } | CloneSlotRefusal::SlotIdentity { .. } | CloneSlotRefusal::TargetAnotherObject { .. } => {
-            (IDENTITY_COMPARE_STEP, None)
+        CloneSlotRefusal::Store(_)
+        | CloneSlotRefusal::ParentIdentity {
+            ..
         }
+        | CloneSlotRefusal::SlotIdentity {
+            ..
+        }
+        | CloneSlotRefusal::TargetAnotherObject {
+            ..
+        } => (IDENTITY_COMPARE_STEP, None),
     };
 }
 
@@ -417,7 +522,11 @@ fn the_step_of_a_walk_refusal(refusal: &CloneSlotRefusal) -> (&'static str, Opti
 /// const name = refusal.errno ? errnoName(refusal.errno) : undefined;
 /// ```
 fn the_errno_name(errno: i32) -> Option<String> {
-    return if errno == 0 { None } else { Some(ErrnoWord::of_number(Some(errno)).text()) };
+    return if errno == 0 {
+        None
+    } else {
+        Some(ErrnoWord::of_number(Some(errno)).text())
+    };
 }
 
 /// What:
@@ -433,7 +542,12 @@ fn the_errno_name(errno: i32) -> Option<String> {
 /// ```ts
 /// const outcome = checkPlace(request, held(slot), attachedMountId, calls);
 /// ```
-fn check_place_the_mount<Calls: RollbackCalls>(request: &AttachRequest<'_>, held: &HeldCloneSlot, attached_mount_id: u64, calls: &Calls) -> AttachStepOutcome {
+fn check_place_the_mount<Calls: RollbackCalls>(
+    request: &AttachRequest<'_>,
+    held: &HeldCloneSlot,
+    attached_mount_id: u64,
+    calls: &Calls,
+) -> AttachStepOutcome {
     let held_parent_mount_id: u64 = match mount_id_of(&held.parent) {
         Ok(found) => found,
         Err(error) => {
@@ -449,9 +563,21 @@ fn check_place_the_mount<Calls: RollbackCalls>(request: &AttachRequest<'_>, held
     };
     let held_target_mount_id: u64 = match mount_id_at_the_held_target(&held.parent, request.slot) {
         Ok(found) => found,
-        Err(refusal) => return roll_back_a_mount(request, held, attached_mount_id, held_parent_mount_id, refusal.message(), calls),
+        Err(refusal) => {
+            return roll_back_a_mount(
+                request,
+                held,
+                attached_mount_id,
+                held_parent_mount_id,
+                refusal.message(),
+                calls,
+            );
+        }
     };
-    let fresh = look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: request.checkout, slot: request.slot });
+    let fresh = look_again_at_the_slot(&LookAgainAtSlotRequest {
+        checkout: request.checkout,
+        slot: request.slot,
+    });
     let check: AttachPostCheck<'_> = AttachPostCheck {
         held_parent_identity: &held.parent_identity,
         held_parent_mount_id,
@@ -460,12 +586,35 @@ fn check_place_the_mount<Calls: RollbackCalls>(request: &AttachRequest<'_>, held
         canonical_slot: &held.canonical_slot,
     };
     return match post_attach_check(&check, fresh) {
-        Ok(AttachOutcome::Attached { mount, .. }) => {
-            debug(TAG, format!("a clone's mount is at its canonical slot as mount {attached_mount_id}").as_str());
-            AttachStepOutcome::Attached { mount }
+        Ok(AttachOutcome::Attached {
+            mount,
+            ..
+        }) => {
+            debug(
+                TAG,
+                format!("a clone's mount is at its canonical slot as mount {attached_mount_id}")
+                    .as_str(),
+            );
+            AttachStepOutcome::Attached {
+                mount,
+            }
         }
-        Ok(AttachOutcome::Misplaced(misplaced)) => roll_back_a_mount(request, held, misplaced.attached_mount_id, held_parent_mount_id, misplaced.reason.message(), calls),
-        Err(refusal) => roll_back_a_mount(request, held, attached_mount_id, held_parent_mount_id, refusal.message(), calls),
+        Ok(AttachOutcome::Misplaced(misplaced)) => roll_back_a_mount(
+            request,
+            held,
+            misplaced.attached_mount_id,
+            held_parent_mount_id,
+            misplaced.reason.message(),
+            calls,
+        ),
+        Err(refusal) => roll_back_a_mount(
+            request,
+            held,
+            attached_mount_id,
+            held_parent_mount_id,
+            refusal.message(),
+            calls,
+        ),
     };
 }
 
@@ -488,27 +637,52 @@ fn check_place_the_mount<Calls: RollbackCalls>(request: &AttachRequest<'_>, held
 /// ```ts
 /// const outcome = rollBackAMount(request, held, attachedMountId, parentMountId, why, calls);
 /// ```
-pub fn roll_back_a_mount<Calls: RollbackCalls>(request: &AttachRequest<'_>, held: &HeldCloneSlot, attached_mount_id: u64, parent_mount_id: u64, why: String, calls: &Calls) -> AttachStepOutcome {
-    warn(TAG, format!("a clone's mount is not where the attach intended it: {why}").as_str());
+pub fn roll_back_a_mount<Calls: RollbackCalls>(
+    request: &AttachRequest<'_>,
+    held: &HeldCloneSlot,
+    attached_mount_id: u64,
+    parent_mount_id: u64,
+    why: String,
+    calls: &Calls,
+) -> AttachStepOutcome {
+    warn(
+        TAG,
+        format!("a clone's mount is not where the attach intended it: {why}").as_str(),
+    );
     let target: std::fs::File = match held.target.try_clone() {
         Ok(target) => target,
         Err(error) => {
             return AttachStepOutcome::Retained {
-                said: format!("{why} The attach made mount {attached_mount_id}, whose target's descriptor could not be held for the rollback ({error}), so nothing was tried."),
+                said: format!(
+                    "{why} The attach made mount {attached_mount_id}, whose target's descriptor could not be held for the rollback ({error}), so nothing was tried."
+                ),
             };
         }
     };
-    let plan: RollbackPlan = match plan_rollback_of(attached_mount_id, held.canonical_slot.clone(), target, parent_mount_id) {
+    let plan: RollbackPlan = match plan_rollback_of(
+        attached_mount_id,
+        held.canonical_slot.clone(),
+        target,
+        parent_mount_id,
+    ) {
         Ok(plan) => plan,
-        Err(refusal) => return AttachStepOutcome::Retained { said: format!("{why} {}", refusal.message()) },
+        Err(refusal) => {
+            return AttachStepOutcome::Retained {
+                said: format!("{why} {}", refusal.message()),
+            };
+        }
     };
-    let unmounted: Result<(), crate::worktree_clone_mount::AttachRefusal> = calls.unmount(&plan.target);
+    let unmounted: Result<(), crate::worktree_clone_mount::AttachRefusal> =
+        calls.unmount(&plan.target);
     return match unmounted {
         Ok(()) => {
             let observed: Result<u64, String> = calls.slot_mount(request);
             return match observed {
                 Ok(mount_id) if mount_id == parent_mount_id => {
-                    debug(TAG, "a misplaced mount left the kernel through the descriptor the attach acted on, and the slot holds no mount");
+                    debug(
+                        TAG,
+                        "a misplaced mount left the kernel through the descriptor the attach acted on, and the slot holds no mount",
+                    );
                     AttachStepOutcome::RolledBack {
                         said: format!(
                             "{why} The mount {attached_mount_id} left the kernel through the descriptor the attach acted on, and the slot {} holds no mount.",

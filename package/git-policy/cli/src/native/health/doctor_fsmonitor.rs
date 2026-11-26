@@ -32,7 +32,10 @@
 
 use crate::config_snapshot::canonical_bool;
 use crate::diagnostic_log::debug;
-use crate::transaction_git::{GitContext, GitRequest};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use std::path::Path;
 
@@ -174,7 +177,10 @@ pub fn parse_fsmonitor_entries(listing: &[u8]) -> Option<Vec<FsmonitorEntry>> {
 /// ```
 fn remedy(entry: &FsmonitorEntry) -> String {
     if WRITABLE_SCOPES.contains(&entry.scope.as_str()) {
-        return format!("Turn it off with: git config --{} core.fsmonitor false", entry.scope);
+        return format!(
+            "Turn it off with: git config --{} core.fsmonitor false",
+            entry.scope
+        );
     }
     return String::from(
         "No configuration file sets it: remove the `-c core.fsmonitor=...` option or the GIT_CONFIG_COUNT or \
@@ -220,7 +226,8 @@ pub fn render_fsmonitor(entries: &[FsmonitorEntry]) -> String {
     let state: Option<bool> = canonical_bool(deciding.value.as_deref());
     if state == Some(false) {
         // The value is named as written; a spelling other than `false` also says how Git reads it.
-        let written: String = String::from_utf8_lossy(deciding.value.as_deref().unwrap_or_default()).into_owned();
+        let written: String =
+            String::from_utf8_lossy(deciding.value.as_deref().unwrap_or_default()).into_owned();
         let value: String = if written == "false" {
             String::from("false")
         } else if written.is_empty() {
@@ -236,8 +243,14 @@ pub fn render_fsmonitor(entries: &[FsmonitorEntry]) -> String {
     // A value that is not a boolean word or a number is the path of a hook program, which also turns fsmonitor on.
     let setting: String = match (state, deciding.value.as_deref()) {
         (Some(_), None) => format!("core.fsmonitor is true (the key has no value) in {place}"),
-        (Some(_), Some(value)) => format!("core.fsmonitor is {} in {place}", String::from_utf8_lossy(value)),
-        (None, Some(value)) => format!("core.fsmonitor names the hook {} in {place}", String::from_utf8_lossy(value)),
+        (Some(_), Some(value)) => format!(
+            "core.fsmonitor is {} in {place}",
+            String::from_utf8_lossy(value)
+        ),
+        (None, Some(value)) => format!(
+            "core.fsmonitor names the hook {} in {place}",
+            String::from_utf8_lossy(value)
+        ),
         (None, None) => unreachable!("a key without a value always reads as true"),
     };
     return format!(
@@ -259,22 +272,44 @@ pub fn render_fsmonitor(entries: &[FsmonitorEntry]) -> String {
 /// ```ts
 /// await fsmonitorReport({ context, cwd });
 /// ```
-pub async fn fsmonitor_report(context: &GitContext, cwd: &Path) -> String {
-    let request: GitRequest = GitRequest::new(cwd, &["config", "--list", "--show-origin", "--show-scope", "-z"]);
+pub async fn fsmonitor_report(
+    context: &GitContext,
+    cwd: &Path,
+) -> String {
+    let request: GitRequest = GitRequest::new(
+        cwd,
+        &["config", "--list", "--show-origin", "--show-scope", "-z"],
+    );
     let output = match run_git_awaiting(context, &request).await {
         Ok(finished) => finished,
         Err(error) => {
-            debug("fsmonitorReport", format!("git config --list could not start: {error}").as_str());
-            return format!("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list could not start: {error}\n");
+            debug(
+                "fsmonitorReport",
+                format!("git config --list could not start: {error}").as_str(),
+            );
+            return format!(
+                "git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list could not start: {error}\n"
+            );
         }
     };
     if !output.succeeded() {
-        debug("fsmonitorReport", format!("git config --list failed: {}", output.error_text()).as_str());
-        return format!("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list failed: {}\n", output.error_text());
+        debug(
+            "fsmonitorReport",
+            format!("git config --list failed: {}", output.error_text()).as_str(),
+        );
+        return format!(
+            "git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list failed: {}\n",
+            output.error_text()
+        );
     }
     let Some(entries) = parse_fsmonitor_entries(output.stdout.as_slice()) else {
-        debug("fsmonitorReport", "the configuration listing has an unexpected shape");
-        return String::from("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list printed an unexpected shape\n");
+        debug(
+            "fsmonitorReport",
+            "the configuration listing has an unexpected shape",
+        );
+        return String::from(
+            "git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list printed an unexpected shape\n",
+        );
     };
     return render_fsmonitor(entries.as_slice());
 }

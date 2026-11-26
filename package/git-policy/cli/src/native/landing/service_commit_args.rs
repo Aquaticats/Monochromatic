@@ -26,9 +26,15 @@
 //! const parsed = parseServiceCommit(args); // undefined when the line needs native git commit
 //! ```
 
+use crate::commit_args_token_bytes::{
+    is_an_equals_sign,
+    is_one_of,
+};
+use crate::path_bytes::{
+    argument_bytes,
+    os_from_path_bytes,
+};
 pub use crate::service_commit_args_editor_opening::opens_editor;
-use crate::commit_args_token_bytes::{is_an_equals_sign, is_one_of};
-use crate::path_bytes::{argument_bytes, os_from_path_bytes};
 use std::ffi::OsString;
 
 /// What a covered command line asked for.
@@ -93,17 +99,46 @@ const FLAG_LETTERS: [char; 7] = ['q', 'n', 'o', 'a', 's', 'i', 'p'];
 
 /// Long options that take no value and change nothing the service must do.
 const FLAG_WORDS: [&str; 16] = [
-    "--quiet", "--no-verify", "--only", "--no-status", "--no-post-rewrite", "--no-edit", "--no-gpg-sign", "--all", "--signoff", "--allow-empty",
-    "--amend", "--reset-author", "--include", "--patch", "--interactive", "--pathspec-file-nul",
+    "--quiet",
+    "--no-verify",
+    "--only",
+    "--no-status",
+    "--no-post-rewrite",
+    "--no-edit",
+    "--no-gpg-sign",
+    "--all",
+    "--signoff",
+    "--allow-empty",
+    "--amend",
+    "--reset-author",
+    "--include",
+    "--patch",
+    "--interactive",
+    "--pathspec-file-nul",
 ];
 
 /// Long options that take one value,
 /// with the field they fill.
-const VALUE_WORDS: [&str; 9] = ["--message", "--file", "--author", "--date", "--trailer", "--cleanup", "--reuse-message", "--fixup", "--pathspec-from-file"];
+const VALUE_WORDS: [&str; 9] = [
+    "--message",
+    "--file",
+    "--author",
+    "--date",
+    "--trailer",
+    "--cleanup",
+    "--reuse-message",
+    "--fixup",
+    "--pathspec-from-file",
+];
 
 /// The value of a long option given as `--name=value` or `--name value`;
 /// `index` moves past a separate value.
-fn long_value<'a>(token: &'a str, name: &str, arguments: &'a [OsString], index: &mut usize) -> Option<Option<&'a str>> {
+fn long_value<'a>(
+    token: &'a str,
+    name: &str,
+    arguments: &'a [OsString],
+    index: &mut usize,
+) -> Option<Option<&'a str>> {
     if token == name {
         let value: &str = arguments.get(*index)?.to_str()?;
         *index += 1;
@@ -149,7 +184,9 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
             } else {
                 let mut matched: bool = false;
                 for name in VALUE_WORDS {
-                    let Some(Some(value)) = long_value(token, name, arguments, &mut index) else { continue };
+                    let Some(Some(value)) = long_value(token, name, arguments, &mut index) else {
+                        continue;
+                    };
                     matched = true;
                     match name {
                         "--message" => parsed.messages.push(value.to_string()),
@@ -231,10 +268,19 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
         None => true,
     };
     // `-C` takes the author and its date from the reused commit, and `--reset-author` is not covered.
-    let reuse_ok: bool = parsed.reuse.is_none() || (parsed.author.is_none() && parsed.date.is_none());
+    let reuse_ok: bool =
+        parsed.reuse.is_none() || (parsed.author.is_none() && parsed.date.is_none());
     // `--reset-author` names its own author, so it is covered only for an amend that sets no author, no date and no reused commit.
-    let reset_ok: bool = !parsed.reset_author || (parsed.amend && parsed.reuse.is_none() && parsed.author.is_none() && parsed.date.is_none());
-    return if has_text && reuse_ok && reset_ok && author_ok && file_ok { Some(parsed) } else { None };
+    let reset_ok: bool = !parsed.reset_author
+        || (parsed.amend
+            && parsed.reuse.is_none()
+            && parsed.author.is_none()
+            && parsed.date.is_none());
+    return if has_text && reuse_ok && reset_ok && author_ok && file_ok {
+        Some(parsed)
+    } else {
+        None
+    };
 }
 
 /// What:
@@ -275,7 +321,13 @@ pub fn cleanup_message(messages: &[String]) -> Option<String> {
 /// Long options that name where the message comes from,
 /// or edit it,
 /// or add to it.
-const MESSAGE_VALUE_LONG: [&str; 5] = ["--message", "--file", "--template", "--trailer", "--cleanup"];
+const MESSAGE_VALUE_LONG: [&str; 5] = [
+    "--message",
+    "--file",
+    "--template",
+    "--trailer",
+    "--cleanup",
+];
 
 /// Long options without a value that open the editor or add a sign-off.
 const MESSAGE_FLAG_LONG: [&str; 4] = ["--edit", "--no-edit", "--signoff", "--no-signoff"];
@@ -283,7 +335,13 @@ const MESSAGE_FLAG_LONG: [&str; 4] = ["--edit", "--no-edit", "--signoff", "--no-
 /// Long options that take the author,
 /// or the parents,
 /// or the whole commit from another commit.
-const BORROWING_LONG: [&str; 5] = ["--reedit-message", "--reuse-message", "--squash", "--fixup", "--amend"];
+const BORROWING_LONG: [&str; 5] = [
+    "--reedit-message",
+    "--reuse-message",
+    "--squash",
+    "--fixup",
+    "--amend",
+];
 
 /// What:
 ///  Whether a name is the start of one of the known long options.
@@ -295,7 +353,10 @@ const BORROWING_LONG: [&str; 5] = ["--reedit-message", "--reuse-message", "--squ
 /// ```ts
 /// known.some((option) => option.startsWith(name))
 /// ```
-fn abbreviates_a_known_option(known: &[&str], name: &[u8]) -> bool {
+fn abbreviates_a_known_option(
+    known: &[&str],
+    name: &[u8],
+) -> bool {
     for option in known {
         if option.as_bytes().starts_with(name) {
             return true;
@@ -328,9 +389,15 @@ fn abbreviates_a_known_option(known: &[&str], name: &[u8]) -> bool {
 /// ```ts
 /// withFixedMessage(args, subcommandIndex, file) // undefined when the line cannot be rebuilt from the message alone
 /// ```
-pub fn with_fixed_message(arguments: &[OsString], subcommand_index: usize, file: &std::path::Path) -> Option<Vec<OsString>> {
-    let region: Vec<OsString> = crate::commit_args::normalise_commit_args(arguments.get(subcommand_index + 1..)?);
-    let split: usize = crate::commit_args::separator_index(region.as_slice()).unwrap_or(region.len());
+pub fn with_fixed_message(
+    arguments: &[OsString],
+    subcommand_index: usize,
+    file: &std::path::Path,
+) -> Option<Vec<OsString>> {
+    let region: Vec<OsString> =
+        crate::commit_args::normalise_commit_args(arguments.get(subcommand_index + 1..)?);
+    let split: usize =
+        crate::commit_args::separator_index(region.as_slice()).unwrap_or(region.len());
     let (options, tail): (&[OsString], &[OsString]) = region.split_at(split);
     let mut kept: Vec<OsString> = arguments[..=subcommand_index].to_vec();
     let mut index: usize = 0;
@@ -345,8 +412,16 @@ pub fn with_fixed_message(arguments: &[OsString], subcommand_index: usize, file:
                 Some(at) => (&bytes[..at], true),
                 None => (bytes, false),
             };
-            let all: Vec<&str> = MESSAGE_VALUE_LONG.iter().chain(&MESSAGE_FLAG_LONG).chain(&BORROWING_LONG).copied().collect();
-            if is_one_of(rest, &BORROWING_LONG) || (!is_one_of(rest, all.as_slice()) && abbreviates_a_known_option(all.as_slice(), rest)) {
+            let all: Vec<&str> = MESSAGE_VALUE_LONG
+                .iter()
+                .chain(&MESSAGE_FLAG_LONG)
+                .chain(&BORROWING_LONG)
+                .copied()
+                .collect();
+            if is_one_of(rest, &BORROWING_LONG)
+                || (!is_one_of(rest, all.as_slice())
+                    && abbreviates_a_known_option(all.as_slice(), rest))
+            {
                 return None;
             }
             if is_one_of(rest, &MESSAGE_VALUE_LONG) {

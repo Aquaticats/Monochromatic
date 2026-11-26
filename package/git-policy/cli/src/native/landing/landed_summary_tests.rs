@@ -4,7 +4,14 @@
 //! and the name it carries.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 
 const NAME: &str = "30b2211a4c";
 
@@ -12,12 +19,52 @@ const NAME: &str = "30b2211a4c";
 /// a root commit and a detached head are worded as `git commit` words them.
 #[test]
 fn the_line_words_the_branch_the_root_and_the_detached_head_as_git_does() {
-    assert_eq!(summary_line(&crate::ref_name::RefName::from_text("refs/heads/main"), "abc", NAME, "subject"), format!("[main {NAME}] subject"));
-    assert_eq!(summary_line(&crate::ref_name::RefName::from_text("refs/heads/feature/x"), "abc", NAME, "s"), format!("[feature/x {NAME}] s"));
-    assert_eq!(summary_line(&crate::ref_name::RefName::from_text("refs/heads/main"), "", NAME, "s"), format!("[main (root-commit) {NAME}] s"));
+    assert_eq!(
+        summary_line(
+            &crate::ref_name::RefName::from_text("refs/heads/main"),
+            "abc",
+            NAME,
+            "subject"
+        ),
+        format!("[main {NAME}] subject")
+    );
+    assert_eq!(
+        summary_line(
+            &crate::ref_name::RefName::from_text("refs/heads/feature/x"),
+            "abc",
+            NAME,
+            "s"
+        ),
+        format!("[feature/x {NAME}] s")
+    );
+    assert_eq!(
+        summary_line(
+            &crate::ref_name::RefName::from_text("refs/heads/main"),
+            "",
+            NAME,
+            "s"
+        ),
+        format!("[main (root-commit) {NAME}] s")
+    );
     let zero: String = "0".repeat(40);
-    assert_eq!(summary_line(&crate::ref_name::RefName::from_text("refs/heads/main"), zero.as_str(), NAME, "s"), format!("[main (root-commit) {NAME}] s"));
-    assert_eq!(summary_line(&crate::ref_name::RefName::from_text("HEAD"), "abc", NAME, "s"), format!("[detached HEAD {NAME}] s"));
+    assert_eq!(
+        summary_line(
+            &crate::ref_name::RefName::from_text("refs/heads/main"),
+            zero.as_str(),
+            NAME,
+            "s"
+        ),
+        format!("[main (root-commit) {NAME}] s")
+    );
+    assert_eq!(
+        summary_line(
+            &crate::ref_name::RefName::from_text("HEAD"),
+            "abc",
+            NAME,
+            "s"
+        ),
+        format!("[detached HEAD {NAME}] s")
+    );
 }
 
 /// The subject is the first paragraph on one line,
@@ -26,7 +73,10 @@ fn the_line_words_the_branch_the_root_and_the_detached_head_as_git_does() {
 fn the_subject_is_the_first_paragraph_on_one_line() {
     assert_eq!(subject_of("one\n"), "one");
     assert_eq!(subject_of("one\ntwo\n\nbody\n"), "one two");
-    assert_eq!(subject_of("\n\n  padded  \n  twice\n\nbody"), "padded twice");
+    assert_eq!(
+        subject_of("\n\n  padded  \n  twice\n\nbody"),
+        "padded twice"
+    );
     assert_eq!(subject_of(""), "");
 }
 
@@ -40,17 +90,32 @@ fn the_name_equals_gits_with_the_key_unset_and_set() {
     std::fs::write(repo.join("a.txt"), "one\n").expect("file");
     git(repo.as_path(), &["add", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
-    let commit: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let commit: String = git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     let context = git_context();
     let objects = repo.join(".git/objects");
     for setting in [None, Some("12"), Some("auto"), Some("no")] {
         if let Some(value) = setting {
             git(repo.as_path(), &["config", "core.abbrev", value]);
         }
-        let listing: Vec<u8> = git_text(repo.as_path(), &["config", "--list", "-z", "--show-scope"]).into_bytes();
+        let listing: Vec<u8> =
+            git_text(repo.as_path(), &["config", "--list", "-z", "--show-scope"]).into_bytes();
         let snapshot = ConfigSnapshot::parse(listing.as_slice(), true).expect("a snapshot");
-        let expected: String = git_text(repo.as_path(), &["rev-parse", "--short", commit.as_str()]).trim().to_string();
-        assert_eq!(short_name(&context, repo.as_path(), objects.as_path(), Some(&snapshot), commit.as_str()), expected, "core.abbrev {setting:?}");
+        let expected: String = git_text(repo.as_path(), &["rev-parse", "--short", commit.as_str()])
+            .trim()
+            .to_string();
+        assert_eq!(
+            short_name(
+                &context,
+                repo.as_path(),
+                objects.as_path(),
+                Some(&snapshot),
+                commit.as_str()
+            ),
+            expected,
+            "core.abbrev {setting:?}"
+        );
     }
     remove(root.as_path());
 }
@@ -64,8 +129,16 @@ fn without_a_snapshot_git_is_asked() {
     git(repo.as_path(), &["add", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
     git(repo.as_path(), &["config", "core.abbrev", "13"]);
-    let commit: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
-    let named: String = short_name(&git_context(), repo.as_path(), repo.join(".git/objects").as_path(), None, commit.as_str());
+    let commit: String = git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
+    let named: String = short_name(
+        &git_context(),
+        repo.as_path(),
+        repo.join(".git/objects").as_path(),
+        None,
+        commit.as_str(),
+    );
     assert_eq!(named.len(), 13, "{named}");
     assert!(commit.starts_with(named.as_str()));
     remove(root.as_path());
@@ -76,7 +149,13 @@ fn without_a_snapshot_git_is_asked() {
 #[test]
 fn the_last_resort_is_seven_characters() {
     let root = fixture("landed-summary-last-resort");
-    let named: String = short_name(&git_context(), root.as_path(), root.join("no-objects").as_path(), None, "0123456789abcdef0123456789abcdef01234567");
+    let named: String = short_name(
+        &git_context(),
+        root.as_path(),
+        root.join("no-objects").as_path(),
+        None,
+        "0123456789abcdef0123456789abcdef01234567",
+    );
     assert_eq!(named.len(), LAST_RESORT_LENGTH, "{named}");
     remove(root.as_path());
 }
@@ -86,7 +165,14 @@ fn the_last_resort_is_seven_characters() {
 /// and the commit that did.
 #[test]
 fn the_rebuilt_note_names_each_build_that_did_not_land_and_the_one_that_did() {
-    let names = |words: &[&str]| -> Vec<String> { return words.iter().map(|word| { return (*word).to_string(); }).collect() };
+    let names = |words: &[&str]| -> Vec<String> {
+        return words
+            .iter()
+            .map(|word| {
+                return (*word).to_string();
+            })
+            .collect();
+    };
     assert_eq!(
         rebuilt_note(&names(&["1a2b3c4"]), "5d6e7f8"),
         "monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did."

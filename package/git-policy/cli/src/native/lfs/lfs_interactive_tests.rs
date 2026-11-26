@@ -4,9 +4,16 @@
 
 use super::*;
 
-use crate::test_support::{executable, fixture, remove};
+use crate::test_support::{
+    executable,
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The stall window these controls give the questions,
 /// in whole seconds.
@@ -35,7 +42,10 @@ const HOLD_SECONDS: u32 = 3_000;
 fn request(root: &std::path::Path) -> (PathBuf, Vec<(OsString, OsString)>, Vec<OsString>) {
     let real: PathBuf = root.join("real");
     std::fs::create_dir_all(real.as_path()).expect("real git directory");
-    executable(real.join("git").as_path(), format!("#!/bin/sh\nexec /usr/bin/sleep {HOLD_SECONDS}\n").as_bytes());
+    executable(
+        real.join("git").as_path(),
+        format!("#!/bin/sh\nexec /usr/bin/sleep {HOLD_SECONDS}\n").as_bytes(),
+    );
     let bin: PathBuf = root.join("bin");
     std::fs::create_dir_all(bin.as_path()).expect("bin directory");
     executable(bin.join("git-lfs").as_path(), b"#!/bin/sh\nexit 0\n");
@@ -43,8 +53,14 @@ fn request(root: &std::path::Path) -> (PathBuf, Vec<(OsString, OsString)>, Vec<O
     let path: OsString = std::env::join_paths([bin.as_path()]).expect("a PATH");
     let environment: Vec<(OsString, OsString)> = vec![
         (OsString::from("PATH"), path),
-        (OsString::from("XDG_STATE_HOME"), root.join("state").into_os_string()),
-        (OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE), OsString::from(STALL_SECONDS)),
+        (
+            OsString::from("XDG_STATE_HOME"),
+            root.join("state").into_os_string(),
+        ),
+        (
+            OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE),
+            OsString::from(STALL_SECONDS),
+        ),
     ];
     let region: Vec<OsString> = [OsString::from("origin"), OsString::from("main")].to_vec();
     return (real.join("git"), environment, region);
@@ -69,9 +85,18 @@ fn a_configuration_question_that_never_answers_is_stopped_and_reported() {
     let started: Instant = Instant::now();
     let code: Option<i32> = upload_first(&upload);
     let elapsed: Duration = started.elapsed();
-    assert_eq!(code, Some(1), "a question that never answers refuses the push");
+    assert_eq!(
+        code,
+        Some(1),
+        "a question that never answers refuses the push"
+    );
     assert!(
-        elapsed < Duration::from_secs(STALL_SECONDS.parse::<u64>().expect("a whole number") + STOP_GRACE.as_secs() + LOAD_ALLOWANCE_SECONDS),
+        elapsed
+            < Duration::from_secs(
+                STALL_SECONDS.parse::<u64>().expect("a whole number")
+                    + STOP_GRACE.as_secs()
+                    + LOAD_ALLOWANCE_SECONDS
+            ),
         "the question was stopped at its window and its grace, not when the program chose to end: {elapsed:?}"
     );
     remove(root.as_path());

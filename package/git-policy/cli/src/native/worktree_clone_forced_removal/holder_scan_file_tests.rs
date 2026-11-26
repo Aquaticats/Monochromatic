@@ -13,14 +13,19 @@ use std::path::PathBuf;
 
 /// The GUID and the nonce a control's result answers.
 fn a_request() -> (DatasetGuid, RequestNonce) {
-    let dataset: DatasetGuid = DatasetGuid::parse("11709359031163289601").expect("a canonical GUID");
-    let nonce: RequestNonce = RequestNonce::parse("0123456789abcdef0123456789abcdef").expect("a nonce");
+    let dataset: DatasetGuid =
+        DatasetGuid::parse("11709359031163289601").expect("a canonical GUID");
+    let nonce: RequestNonce =
+        RequestNonce::parse("0123456789abcdef0123456789abcdef").expect("a nonce");
     return (dataset, nonce);
 }
 
 /// An empty scan under one request,
 /// which is the result its own writer makes.
-fn a_clear_scan(dataset: DatasetGuid, nonce: RequestNonce) -> HolderScan {
+fn a_clear_scan(
+    dataset: DatasetGuid,
+    nonce: RequestNonce,
+) -> HolderScan {
     return HolderScan {
         dataset,
         source: String::from("tank/one"),
@@ -41,7 +46,8 @@ fn a_folder(name: &str) -> (PathBuf, ScanFile) {
     let tree: PathBuf = crate::testing::test_support::fixture_root().join(name);
     let _removed: std::io::Result<()> = std::fs::remove_dir_all(&tree);
     std::fs::create_dir_all(&tree).expect("the fixture folder");
-    std::fs::set_permissions(&tree, std::fs::Permissions::from_mode(0o755)).expect("the folder's mode");
+    std::fs::set_permissions(&tree, std::fs::Permissions::from_mode(0o755))
+        .expect("the folder's mode");
     let scan_file: ScanFile = ScanFile::at(tree.clone(), libc_uid());
     return (tree, scan_file);
 }
@@ -63,9 +69,15 @@ fn a_written_result_reads_back() {
     let scan: HolderScan = a_clear_scan(dataset, nonce.clone());
     let path: PathBuf = tree.join(scan_file.entry_name(dataset));
     std::fs::write(&path, scan.text()).expect("the result is written");
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("the file's mode");
-    assert_eq!(scan_file.entry_name(dataset), format!("{}.holder-scan", dataset.file_name()));
-    let read: HolderScan = scan_file.read_the_scan_file(dataset, &nonce).expect("the result reads");
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644))
+        .expect("the file's mode");
+    assert_eq!(
+        scan_file.entry_name(dataset),
+        format!("{}.holder-scan", dataset.file_name())
+    );
+    let read: HolderScan = scan_file
+        .read_the_scan_file(dataset, &nonce)
+        .expect("the result reads");
     assert_eq!(read, scan);
     assert!(read.is_clear());
 }
@@ -78,7 +90,9 @@ fn a_missing_file_is_a_refusal() {
     let (dataset, nonce) = a_request();
     let path: PathBuf = tree.join(scan_file.entry_name(dataset));
     match scan_file.read_the_scan_file(dataset, &nonce) {
-        Err(ScanFileRefusal::Absent { path: found }) => assert_eq!(found, path),
+        Err(ScanFileRefusal::Absent {
+            path: found,
+        }) => assert_eq!(found, path),
         other => panic!("a missing file is a refusal, not {other:?}"),
     }
 }
@@ -93,11 +107,19 @@ fn a_result_for_another_request_is_stale() {
     let scan: HolderScan = a_clear_scan(dataset, nonce.clone());
     let path: PathBuf = tree.join(scan_file.entry_name(dataset));
     std::fs::write(&path, scan.text()).expect("the result is written");
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("the file's mode");
-    let other: RequestNonce = RequestNonce::parse("fedcba9876543210fedcba9876543210").expect("a nonce");
-    assert!(matches!(scan_file.read_the_scan_file(dataset, &other), Err(ScanFileRefusal::Stale { .. })));
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644))
+        .expect("the file's mode");
+    let other: RequestNonce =
+        RequestNonce::parse("fedcba9876543210fedcba9876543210").expect("a nonce");
+    assert!(matches!(
+        scan_file.read_the_scan_file(dataset, &other),
+        Err(ScanFileRefusal::Stale { .. })
+    ));
     let elsewhere: DatasetGuid = DatasetGuid::parse("11709359031163289602").expect("a GUID");
-    assert!(matches!(scan_file.read_the_scan_file(elsewhere, &nonce), Err(ScanFileRefusal::Absent { .. })));
+    assert!(matches!(
+        scan_file.read_the_scan_file(elsewhere, &nonce),
+        Err(ScanFileRefusal::Absent { .. })
+    ));
 }
 
 /// A file of another mode,
@@ -108,14 +130,26 @@ fn a_wrong_mode_or_a_foreign_text_is_refused() {
     let (tree, scan_file) = a_folder("scan-file-modes");
     let (dataset, nonce) = a_request();
     let path: PathBuf = tree.join(scan_file.entry_name(dataset));
-    std::fs::write(&path, a_clear_scan(dataset, nonce.clone()).text()).expect("the result is written");
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).expect("a mode the design does not give");
-    assert!(matches!(scan_file.read_the_scan_file(dataset, &nonce), Err(ScanFileRefusal::Mode { .. })));
+    std::fs::write(&path, a_clear_scan(dataset, nonce.clone()).text())
+        .expect("the result is written");
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+        .expect("a mode the design does not give");
+    assert!(matches!(
+        scan_file.read_the_scan_file(dataset, &nonce),
+        Err(ScanFileRefusal::Mode { .. })
+    ));
     std::fs::write(&path, "not a scan result\n").expect("a foreign text is written");
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("the file's mode");
-    assert!(matches!(scan_file.read_the_scan_file(dataset, &nonce), Err(ScanFileRefusal::NotAResult { .. })));
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644))
+        .expect("the file's mode");
+    assert!(matches!(
+        scan_file.read_the_scan_file(dataset, &nonce),
+        Err(ScanFileRefusal::NotAResult { .. })
+    ));
     // A folder that is not there at all is a folder refusal and not an absent file.
     let gone: PathBuf = tree.join("no-such-folder");
     let elsewhere: ScanFile = ScanFile::at(gone, libc_uid());
-    assert!(matches!(elsewhere.read_the_scan_file(dataset, &nonce), Err(ScanFileRefusal::Folder { .. })));
+    assert!(matches!(
+        elsewhere.read_the_scan_file(dataset, &nonce),
+        Err(ScanFileRefusal::Folder { .. })
+    ));
 }

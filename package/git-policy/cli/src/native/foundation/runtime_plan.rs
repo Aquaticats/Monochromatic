@@ -15,7 +15,11 @@
 //! const plan = planRuntime(host, limits); // { kind: 'current' } | { kind: 'multi', workers, blockingThreads }
 //! ```
 
-use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use crate::parallel_budget::{
+    BudgetRequest,
+    HostResources,
+    worker_budget,
+};
 use crate::runtime_limits::RuntimeLimits;
 
 /// The stack of every worker and blocking-pool thread,
@@ -108,7 +112,10 @@ fn workers_by_address_space(left: u64) -> usize {
 /// ```ts
 /// const workers = Math.min(workerBudget(...), (threadsLeft - 1) / 2, (addressLeft - reserve) / (2 * threadBytes));
 /// ```
-pub fn budgeted_workers(host: &HostResources, limits: &RuntimeLimits) -> usize {
+pub fn budgeted_workers(
+    host: &HostResources,
+    limits: &RuntimeLimits,
+) -> usize {
     // A control can give this process more room than the CPUs allow, so a control that proves its work overlaps
     //  runs at any CPU quota (`room_for_blocking_jobs_in_a_control.rs`).
     #[cfg(test)]
@@ -124,7 +131,9 @@ pub fn budgeted_workers(host: &HostResources, limits: &RuntimeLimits) -> usize {
     });
     // Each worker comes with a blocking-pool thread, and one more thread builds the runtime.
     let by_threads: usize = limits.threads_left.map_or(usize::MAX, workers_by_threads);
-    let by_address_space: usize = limits.address_space_left.map_or(usize::MAX, workers_by_address_space);
+    let by_address_space: usize = limits
+        .address_space_left
+        .map_or(usize::MAX, workers_by_address_space);
     return by_budget.min(by_threads).min(by_address_space);
 }
 
@@ -145,12 +154,18 @@ pub fn budgeted_workers(host: &HostResources, limits: &RuntimeLimits) -> usize {
 /// const workers = Math.min(budget, (threadsLeft - 1) / 2, (addressLeft - reserve) / (2 * threadBytes));
 /// return workers < 1 ? { kind: 'current' } : { kind: 'multi', workers, blockingThreads: workers };
 /// ```
-pub fn plan_runtime(host: &HostResources, limits: &RuntimeLimits) -> RuntimePlan {
+pub fn plan_runtime(
+    host: &HostResources,
+    limits: &RuntimeLimits,
+) -> RuntimePlan {
     let workers: usize = budgeted_workers(host, limits);
     if workers < 1 {
         return RuntimePlan::CurrentThread;
     }
-    return RuntimePlan::MultiThread { workers, blocking_threads: workers };
+    return RuntimePlan::MultiThread {
+        workers,
+        blocking_threads: workers,
+    };
 }
 
 /// Plan controls stay out of the release executable.
@@ -167,9 +182,18 @@ pub fn plan_runtime(host: &HostResources, limits: &RuntimeLimits) -> RuntimePlan
 /// ```ts
 /// const capped = plan.kind === 'multi' ? { ...plan, workers: Math.min(plan.workers, cap), blockingThreads: Math.min(plan.blockingThreads, cap) } : plan;
 /// ```
-pub fn capped_at(plan: RuntimePlan, cap: usize) -> RuntimePlan {
+pub fn capped_at(
+    plan: RuntimePlan,
+    cap: usize,
+) -> RuntimePlan {
     return match plan {
-        RuntimePlan::MultiThread { workers, blocking_threads } => RuntimePlan::MultiThread { workers: workers.min(cap), blocking_threads: blocking_threads.min(cap) },
+        RuntimePlan::MultiThread {
+            workers,
+            blocking_threads,
+        } => RuntimePlan::MultiThread {
+            workers: workers.min(cap),
+            blocking_threads: blocking_threads.min(cap),
+        },
         RuntimePlan::CurrentThread => RuntimePlan::CurrentThread,
     };
 }

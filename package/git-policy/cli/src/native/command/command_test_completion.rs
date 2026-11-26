@@ -13,7 +13,10 @@
 //! ```
 
 /// Table row types and the real-Git fixture helper.
-use crate::command_options::{Arity, OptionSpec};
+use crate::command_options::{
+    Arity,
+    OptionSpec,
+};
 use crate::command_test_support::git;
 use std::path::Path;
 use std::process::Output;
@@ -78,7 +81,10 @@ pub(crate) fn render_completion(table: &[OptionSpec]) -> String {
 }
 
 /// Ask the real binary for one command's complete long-option table.
-pub(crate) fn git_completion(directory: &Path, command: &[&str]) -> String {
+pub(crate) fn git_completion(
+    directory: &Path,
+    command: &[&str],
+) -> String {
     let mut arguments: Vec<&str> = command.to_vec();
     arguments.push("--git-completion-helper-all");
     let output: Output = git(directory, arguments.as_slice());

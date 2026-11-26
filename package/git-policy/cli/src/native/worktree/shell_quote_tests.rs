@@ -18,8 +18,14 @@ use std::process::Command;
 #[test]
 fn each_kind_of_value_gets_its_form() {
     assert_eq!(shell_quote(b""), "''");
-    assert_eq!(shell_quote(b"/mnt/work-1_a.b,c=d:e@f%g+h"), "/mnt/work-1_a.b,c=d:e@f%g+h");
-    assert_eq!(shell_quote(b"/mnt/work; sudo reboot"), "'/mnt/work; sudo reboot'");
+    assert_eq!(
+        shell_quote(b"/mnt/work-1_a.b,c=d:e@f%g+h"),
+        "/mnt/work-1_a.b,c=d:e@f%g+h"
+    );
+    assert_eq!(
+        shell_quote(b"/mnt/work; sudo reboot"),
+        "'/mnt/work; sudo reboot'"
+    );
     assert_eq!(shell_quote(b"it's"), "'it'\\''s'");
     assert_eq!(shell_quote("naïve dir".as_bytes()), "'naïve dir'");
     assert_eq!(shell_quote(b"$(id)`id`\"x\" \\y"), "'$(id)`id`\"x\" \\y'");
@@ -52,10 +58,23 @@ fn a_real_shell_reads_each_hostile_value_back_unchanged() {
     for value in values {
         let quoted: String = shell_quote(value);
         let script: String = format!("printf '%s\\0' {quoted}");
-        let output = Command::new("bash").arg("-c").arg(script).output().expect("bash runs");
+        let output = Command::new("bash")
+            .arg("-c")
+            .arg(script)
+            .output()
+            .expect("bash runs");
         assert!(output.status.success(), "{quoted}");
-        let words: Vec<&[u8]> = output.stdout.split(|byte: &u8| { return *byte == 0; }).collect();
-        assert_eq!(words.len(), 2, "one word and the empty tail after the last NUL: {quoted}");
+        let words: Vec<&[u8]> = output
+            .stdout
+            .split(|byte: &u8| {
+                return *byte == 0;
+            })
+            .collect();
+        assert_eq!(
+            words.len(),
+            2,
+            "one word and the empty tail after the last NUL: {quoted}"
+        );
         assert_eq!(words[0], value, "{quoted}");
         assert_eq!(std::ffi::OsStr::from_bytes(words[0]).as_bytes(), value);
     }

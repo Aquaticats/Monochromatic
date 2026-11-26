@@ -5,8 +5,14 @@
 //! and a name outside the worktree at all.
 
 use super::*;
-use crate::test_support::{fixture, remove};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A worktree with a directory a link leaves,
@@ -28,16 +34,34 @@ fn a_directory_is_the_worktrees_own_only_when_its_links_stay_inside_it() {
     let root: PathBuf = fixture("own-directory");
     let worktree: PathBuf = root.join("worktree");
     let elsewhere: PathBuf = root.join("elsewhere");
-    std::fs::create_dir_all(worktree.join("target/debug")).expect("the worktree's own build directory");
+    std::fs::create_dir_all(worktree.join("target/debug"))
+        .expect("the worktree's own build directory");
     std::fs::create_dir_all(elsewhere.join("debug")).expect("a directory outside the worktree");
     std::fs::create_dir_all(worktree.join("inside")).expect("a directory inside the worktree");
-    std::os::unix::fs::symlink(elsewhere.as_path(), worktree.join("linked-target")).expect("a link out of the worktree");
-    std::os::unix::fs::symlink(worktree.join("inside"), worktree.join("linked-inside")).expect("a link inside the worktree");
-    assert!(is_inside_the_worktree(worktree.as_path(), worktree.join("target").as_path()), "a directory of the worktree's own is its own");
-    assert!(!is_inside_the_worktree(worktree.as_path(), worktree.join("linked-target").as_path()), "a link out of the worktree reaches another directory's files");
-    assert!(is_inside_the_worktree(worktree.as_path(), worktree.join("linked-inside").as_path()), "a link that stays inside the worktree is the worktree's own");
-    assert!(is_inside_the_worktree(worktree.as_path(), worktree.join("not-made-yet").as_path()), "a directory the worktree has not made yet is its own place to make");
-    assert!(!is_inside_the_worktree(worktree.as_path(), elsewhere.as_path()), "a directory outside the worktree is never its own");
+    std::os::unix::fs::symlink(elsewhere.as_path(), worktree.join("linked-target"))
+        .expect("a link out of the worktree");
+    std::os::unix::fs::symlink(worktree.join("inside"), worktree.join("linked-inside"))
+        .expect("a link inside the worktree");
+    assert!(
+        is_inside_the_worktree(worktree.as_path(), worktree.join("target").as_path()),
+        "a directory of the worktree's own is its own"
+    );
+    assert!(
+        !is_inside_the_worktree(worktree.as_path(), worktree.join("linked-target").as_path()),
+        "a link out of the worktree reaches another directory's files"
+    );
+    assert!(
+        is_inside_the_worktree(worktree.as_path(), worktree.join("linked-inside").as_path()),
+        "a link that stays inside the worktree is the worktree's own"
+    );
+    assert!(
+        is_inside_the_worktree(worktree.as_path(), worktree.join("not-made-yet").as_path()),
+        "a directory the worktree has not made yet is its own place to make"
+    );
+    assert!(
+        !is_inside_the_worktree(worktree.as_path(), elsewhere.as_path()),
+        "a directory outside the worktree is never its own"
+    );
     remove(&root);
 }
 
@@ -54,5 +78,8 @@ fn a_directory_is_the_worktrees_own_only_when_its_links_stay_inside_it() {
 #[test]
 fn a_worktree_that_cannot_be_resolved_has_no_inside() {
     let absent: &Path = Path::new("/nonexistent/monochromatic-prewarm-control/worktree");
-    assert!(!is_inside_the_worktree(absent, absent.join("target").as_path()), "nothing is the own directory of a worktree that is not there");
+    assert!(
+        !is_inside_the_worktree(absent, absent.join("target").as_path()),
+        "nothing is the own directory of a worktree that is not there"
+    );
 }

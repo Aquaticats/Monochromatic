@@ -1,14 +1,26 @@
 //! Controls for the lines the isolated merge's apply writes when another program holds the index.
 
 use super::*;
-/// The fixtures a linked worktree needs,
-/// and the identity of a Git context.
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 /// The words a saved merge prints,
 /// and what the endings state about the bytes the settle left where they are.
 use crate::merge_isolation_apply_findings::{
-    BytesAfterAFailedMerge, a_deferred_save_finding, a_merge_in_the_branch_whose_carry_waits, a_merge_partly_installed_behind_the_lock,
-    a_merge_that_could_not_be_kept, a_merge_the_branch_moved_before_its_save, a_merge_the_branch_moved_under,
+    BytesAfterAFailedMerge,
+    a_deferred_save_finding,
+    a_merge_in_the_branch_whose_carry_waits,
+    a_merge_partly_installed_behind_the_lock,
+    a_merge_that_could_not_be_kept,
+    a_merge_the_branch_moved_before_its_save,
+    a_merge_the_branch_moved_under,
+};
+/// The fixtures a linked worktree needs,
+/// and the identity of a Git context.
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
 };
 
 /// What:
@@ -30,7 +42,10 @@ use crate::merge_isolation_apply_findings::{
 /// ```
 #[test]
 fn the_line_of_a_saved_merge_names_the_side_ref_and_what_finishes_the_checkout() {
-    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge { the_paths_were_cleared: true, kept_on: Some("refs/cli-git/carried/1") };
+    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge {
+        the_paths_were_cleared: true,
+        kept_on: Some("refs/cli-git/carried/1"),
+    };
     let said: String = a_deferred_save_finding(
         "feature",
         Path::new("/r/.git/index.lock"),
@@ -38,27 +53,66 @@ fn the_line_of_a_saved_merge_names_the_side_ref_and_what_finishes_the_checkout()
         &WhyTheMergeIsSaved::TheWaitEnded(std::time::Duration::from_secs(60)),
         &bytes,
     );
-    assert!(said.starts_with("monochromatic-git-policy-cli: git merge feature: "), "{said}");
-    assert!(said.contains("/r/.git/index.lock"), "the lock is named: {said}");
-    assert!(said.contains("did not let go within 60 seconds"), "the wait is named: {said}");
-    assert!(said.contains("saved on refs/cli-git/kept/1794200000000"), "the side ref is named: {said}");
-    assert!(said.contains("The branch has not moved and nothing of the merge is in the checkout"), "the state is stated: {said}");
-    assert!(said.contains("hold the branch's content where your own bytes were"), "the files' state is stated: {said}");
-    assert!(said.contains("refs/cli-git/carried/1"), "where the bytes are is stated: {said}");
+    assert!(
+        said.starts_with("monochromatic-git-policy-cli: git merge feature: "),
+        "{said}"
+    );
+    assert!(
+        said.contains("/r/.git/index.lock"),
+        "the lock is named: {said}"
+    );
+    assert!(
+        said.contains("did not let go within 60 seconds"),
+        "the wait is named: {said}"
+    );
+    assert!(
+        said.contains("saved on refs/cli-git/kept/1794200000000"),
+        "the side ref is named: {said}"
+    );
+    assert!(
+        said.contains("The branch has not moved and nothing of the merge is in the checkout"),
+        "the state is stated: {said}"
+    );
+    assert!(
+        said.contains("hold the branch's content where your own bytes were"),
+        "the files' state is stated: {said}"
+    );
+    assert!(
+        said.contains("refs/cli-git/carried/1"),
+        "where the bytes are is stated: {said}"
+    );
     assert!(said.contains("exits 0"), "{said}");
-    assert!(said.contains("The next git command in this worktree finishes the checkout"), "{said}");
-    assert!(said.contains("If no program is using this repository"), "the way out of a lock nothing releases: {said}");
+    assert!(
+        said.contains("The next git command in this worktree finishes the checkout"),
+        "{said}"
+    );
+    assert!(
+        said.contains("If no program is using this repository"),
+        "the way out of a lock nothing releases: {said}"
+    );
     // A lock this command may not clear at all waited no ceiling, so no seconds are claimed.
     let untouched: String = a_deferred_save_finding(
         "feature",
         Path::new("/r/.git/index.lock"),
         "refs/cli-git/kept/1",
         &WhyTheMergeIsSaved::NotTheCommandsToClear,
-        &BytesAfterAFailedMerge { the_paths_were_cleared: false, kept_on: None },
+        &BytesAfterAFailedMerge {
+            the_paths_were_cleared: false,
+            kept_on: None,
+        },
     );
-    assert!(untouched.contains("is not one this command may clear"), "{untouched}");
-    assert!(!untouched.contains("seconds"), "no wait is claimed: {untouched}");
-    assert!(!untouched.contains("hold the branch's content"), "a merge that changed nothing claims no cleared path: {untouched}");
+    assert!(
+        untouched.contains("is not one this command may clear"),
+        "{untouched}"
+    );
+    assert!(
+        !untouched.contains("seconds"),
+        "no wait is claimed: {untouched}"
+    );
+    assert!(
+        !untouched.contains("hold the branch's content"),
+        "a merge that changed nothing claims no cleared path: {untouched}"
+    );
 }
 
 /// What:
@@ -80,15 +134,35 @@ fn the_line_of_a_saved_merge_names_the_side_ref_and_what_finishes_the_checkout()
 /// ```
 #[test]
 fn the_line_of_a_merge_that_could_not_be_kept_says_what_stands() {
-    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge { the_paths_were_cleared: true, kept_on: Some("refs/cli-git/carried/1") };
-    let said: String = a_merge_that_could_not_be_kept("feature", Path::new("/r/.git/index.lock"), &bytes);
+    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge {
+        the_paths_were_cleared: true,
+        kept_on: Some("refs/cli-git/carried/1"),
+    };
+    let said: String =
+        a_merge_that_could_not_be_kept("feature", Path::new("/r/.git/index.lock"), &bytes);
     assert!(said.contains("/r/.git/index.lock"), "{said}");
     assert!(said.contains("not saved for a later command"), "{said}");
-    assert!(said.contains("The branch has not moved and nothing of the merge is in the checkout"), "{said}");
-    assert!(said.contains("hold the branch's content where your own bytes were") && said.contains("refs/cli-git/carried/1"), "{said}");
-    assert!(said.contains("The next git command in this worktree puts your own bytes back"), "{said}");
-    assert!(said.contains("`git merge feature`"), "the command that repeats the merge is named: {said}");
-    assert!(!said.contains("Nothing was changed"), "no line claims a checkout the clear changed: {said}");
+    assert!(
+        said.contains("The branch has not moved and nothing of the merge is in the checkout"),
+        "{said}"
+    );
+    assert!(
+        said.contains("hold the branch's content where your own bytes were")
+            && said.contains("refs/cli-git/carried/1"),
+        "{said}"
+    );
+    assert!(
+        said.contains("The next git command in this worktree puts your own bytes back"),
+        "{said}"
+    );
+    assert!(
+        said.contains("`git merge feature`"),
+        "the command that repeats the merge is named: {said}"
+    );
+    assert!(
+        !said.contains("Nothing was changed"),
+        "no line claims a checkout the clear changed: {said}"
+    );
 }
 
 /// What:
@@ -108,14 +182,30 @@ fn the_line_of_a_merge_that_could_not_be_kept_says_what_stands() {
 /// ```
 #[test]
 fn the_line_of_a_merge_whose_branch_moved_states_the_move() {
-    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge { the_paths_were_cleared: true, kept_on: Some("refs/cli-git/carried/1") };
-    let said: String = a_merge_the_branch_moved_under("feature", Path::new("/r/.git/index.lock"), &bytes);
-    assert!(said.contains("the branch moved while this merge was prepared"), "{said}");
+    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge {
+        the_paths_were_cleared: true,
+        kept_on: Some("refs/cli-git/carried/1"),
+    };
+    let said: String =
+        a_merge_the_branch_moved_under("feature", Path::new("/r/.git/index.lock"), &bytes);
+    assert!(
+        said.contains("the branch moved while this merge was prepared"),
+        "{said}"
+    );
     assert!(said.contains("this merge does not land"), "{said}");
-    assert!(!said.contains("has not moved"), "the line never claims an unmoved branch: {said}");
+    assert!(
+        !said.contains("has not moved"),
+        "the line never claims an unmoved branch: {said}"
+    );
     assert!(said.contains("refs/cli-git/carried/1"), "{said}");
-    assert!(said.contains("running the merge again is safe"), "the line says the next run is safe: {said}");
-    assert!(said.contains("onto the branch as it is now"), "the line says what a run merges onto: {said}");
+    assert!(
+        said.contains("running the merge again is safe"),
+        "the line says the next run is safe: {said}"
+    );
+    assert!(
+        said.contains("onto the branch as it is now"),
+        "the line says what a run merges onto: {said}"
+    );
 }
 
 /// What:
@@ -135,12 +225,21 @@ fn the_line_of_a_merge_whose_branch_moved_states_the_move() {
 #[test]
 fn the_line_of_a_merge_the_branch_moved_under_before_its_save_names_the_branch_and_the_next_run() {
     let said: String = a_merge_the_branch_moved_before_its_save("fix/feature", "main");
-    assert!(said.contains("main moved while this merge was prepared"), "{said}");
+    assert!(
+        said.contains("main moved while this merge was prepared"),
+        "{said}"
+    );
     assert!(said.contains("this merge does not land"), "{said}");
-    assert!(said.contains("nothing of the merge is in the checkout"), "{said}");
+    assert!(
+        said.contains("nothing of the merge is in the checkout"),
+        "{said}"
+    );
     assert!(said.contains("Nothing of yours was changed"), "{said}");
     assert!(said.contains("running the merge again is safe"), "{said}");
-    assert!(said.contains("merges fix/feature onto main as it is now"), "{said}");
+    assert!(
+        said.contains("merges fix/feature onto main as it is now"),
+        "{said}"
+    );
 }
 
 /// What:
@@ -156,15 +255,35 @@ fn the_line_of_a_merge_the_branch_moved_under_before_its_save_names_the_branch_a
 /// ```
 #[test]
 fn the_lines_of_a_landed_merge_and_a_partly_installed_one_say_which_stands() {
-    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge { the_paths_were_cleared: false, kept_on: Some("refs/cli-git/carried/1") };
-    let landed: String = a_merge_in_the_branch_whose_carry_waits("feature", Path::new("/r/.git/index.lock"), &bytes);
+    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge {
+        the_paths_were_cleared: false,
+        kept_on: Some("refs/cli-git/carried/1"),
+    };
+    let landed: String =
+        a_merge_in_the_branch_whose_carry_waits("feature", Path::new("/r/.git/index.lock"), &bytes);
     assert!(landed.contains("the merge is in the branch"), "{landed}");
     assert!(landed.contains("carried into the files yet"), "{landed}");
-    assert!(!landed.contains("nothing of the merge"), "a landed merge is in the checkout: {landed}");
-    let partly: String = a_merge_partly_installed_behind_the_lock("feature", Path::new("/r/.git/index.lock"), &bytes);
-    assert!(partly.contains("part of the merge is in the index and the worktree"), "{partly}");
-    assert!(partly.contains("The next git command in this worktree finishes it"), "{partly}");
-    assert!(!partly.contains("nothing of the merge"), "a partly installed merge is in the checkout: {partly}");
+    assert!(
+        !landed.contains("nothing of the merge"),
+        "a landed merge is in the checkout: {landed}"
+    );
+    let partly: String = a_merge_partly_installed_behind_the_lock(
+        "feature",
+        Path::new("/r/.git/index.lock"),
+        &bytes,
+    );
+    assert!(
+        partly.contains("part of the merge is in the index and the worktree"),
+        "{partly}"
+    );
+    assert!(
+        partly.contains("The next git command in this worktree finishes it"),
+        "{partly}"
+    );
+    assert!(
+        !partly.contains("nothing of the merge"),
+        "a partly installed merge is in the checkout: {partly}"
+    );
 }
 
 /// What:
@@ -190,17 +309,56 @@ fn a_settlement_place_names_the_repositorys_common_git_directory() {
     let root: PathBuf = fixture("merge-apply-common-dir");
     let repo: PathBuf = repository(root.as_path(), "main");
     let worktree: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", worktree.to_str().expect("a text path"), "--detach"]);
-    let git_dir: PathBuf = PathBuf::from(git_text(worktree.as_path(), &["rev-parse", "--absolute-git-dir"]));
-    let common_dir: PathBuf = PathBuf::from(git_text(worktree.as_path(), &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
-    assert_ne!(git_dir, common_dir, "a linked worktree keeps its own Git directory apart from the shared one");
-    let session: Session = Session { context: GitContext { common_dir: Some(common_dir.clone()), ..git_context() } };
-    let place: RecoveryPlace = RecoveryPlace::settling(&session.context, git_dir.as_path(), worktree.as_path());
-    assert_eq!(place.common_dir, common_dir, "the shared directory is what the session named");
-    assert_eq!(place.git_dir, git_dir, "the worktree's own directory is what recovery writes through");
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            worktree.to_str().expect("a text path"),
+            "--detach",
+        ],
+    );
+    let git_dir: PathBuf = PathBuf::from(git_text(
+        worktree.as_path(),
+        &["rev-parse", "--absolute-git-dir"],
+    ));
+    let common_dir: PathBuf = PathBuf::from(git_text(
+        worktree.as_path(),
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    ));
+    assert_ne!(
+        git_dir, common_dir,
+        "a linked worktree keeps its own Git directory apart from the shared one"
+    );
+    let session: Session = Session {
+        context: GitContext {
+            common_dir: Some(common_dir.clone()),
+            ..git_context()
+        },
+    };
+    let place: RecoveryPlace =
+        RecoveryPlace::settling(&session.context, git_dir.as_path(), worktree.as_path());
+    assert_eq!(
+        place.common_dir, common_dir,
+        "the shared directory is what the session named"
+    );
+    assert_eq!(
+        place.git_dir, git_dir,
+        "the worktree's own directory is what recovery writes through"
+    );
     // A session built without the invocation's answer reads the `commondir` file the worktree's Git directory holds.
-    let bare: Session = Session { context: GitContext { common_dir: None, ..git_context() } };
-    let read: RecoveryPlace = RecoveryPlace::settling(&bare.context, git_dir.as_path(), worktree.as_path());
-    assert_eq!(read.common_dir, common_dir, "the worktree's own Git directory names the common one in its `commondir` file");
+    let bare: Session = Session {
+        context: GitContext {
+            common_dir: None,
+            ..git_context()
+        },
+    };
+    let read: RecoveryPlace =
+        RecoveryPlace::settling(&bare.context, git_dir.as_path(), worktree.as_path());
+    assert_eq!(
+        read.common_dir, common_dir,
+        "the worktree's own Git directory names the common one in its `commondir` file"
+    );
     remove(root.as_path());
 }

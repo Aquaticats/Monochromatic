@@ -14,24 +14,46 @@
 /// its reasons,
 /// its messages and the real-index listing.
 use super::{
-    ADDED_PATH_HEAD_REASON, ADDED_PATH_MISSING_REASON, ADDED_PATH_STAGED_REASON,
-    ADDED_PATH_UNSTAGED_REASON, CommitAddedPath, Entry, added_path_message, commit_added_path_message,
-    commit_refusal, head_mode, real_index_entries, worktree_refusal,
+    ADDED_PATH_HEAD_REASON,
+    ADDED_PATH_MISSING_REASON,
+    ADDED_PATH_STAGED_REASON,
+    ADDED_PATH_UNSTAGED_REASON,
+    CommitAddedPath,
+    Entry,
+    added_path_message,
+    commit_added_path_message,
+    commit_refusal,
+    head_mode,
+    real_index_entries,
+    worktree_refusal,
 };
 /// The modes and object names entries carry.
-use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    parse_object_id,
+};
 /// Shared fixture directories and real Git.
 use crate::policy_test_support::main_worktree;
 /// The repository location Git answers for an invocation.
 use crate::repository_location::RepositoryLocation;
 /// Shared fixture directories and real Git.
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 /// The repository shape a location carries.
 use crate::worktree_identity::WorktreeIdentity;
 /// Unix permission bits.
 use std::os::unix::fs::PermissionsExt;
 /// Owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The object named by forty copies of one hexadecimal digit.
 fn object(digit: u8) -> ObjectId {
@@ -39,7 +61,10 @@ fn object(digit: u8) -> ObjectId {
 }
 
 /// An entry of `mode` naming the object of one digit.
-fn entry(mode: CandidateMode, digit: u8) -> Entry {
+fn entry(
+    mode: CandidateMode,
+    digit: u8,
+) -> Entry {
     return (mode, object(digit));
 }
 
@@ -198,38 +223,53 @@ fn a_commit_adds_a_path_only_while_every_copy_agrees() {
         };
     };
     assert_eq!(
-        commit_refusal(&added(Some(head.clone()), head.clone(), Some(head.clone()))).expect("the copies are read"),
+        commit_refusal(&added(Some(head.clone()), head.clone(), Some(head.clone())))
+            .expect("the copies are read"),
         None,
         "every copy holds the file the bump was computed against"
     );
     assert_eq!(
-        commit_refusal(&added(None, head.clone(), Some(head.clone()))).expect("the copies are read"),
+        commit_refusal(&added(None, head.clone(), Some(head.clone())))
+            .expect("the copies are read"),
         Some(ADDED_PATH_HEAD_REASON)
     );
     assert_eq!(
-        commit_refusal(&added(Some(head.clone()), head.clone(), None)).expect("the copies are read"),
+        commit_refusal(&added(Some(head.clone()), head.clone(), None))
+            .expect("the copies are read"),
         Some(ADDED_PATH_STAGED_REASON),
         "the real index holds no entry for it"
     );
     assert_eq!(
-        commit_refusal(&added(Some(head.clone()), head.clone(), Some(other.clone()))).expect("the copies are read"),
+        commit_refusal(&added(
+            Some(head.clone()),
+            head.clone(),
+            Some(other.clone())
+        ))
+        .expect("the copies are read"),
         Some(ADDED_PATH_STAGED_REASON),
         "the real index holds another entry for it"
     );
     assert_eq!(
-        commit_refusal(&added(Some(other.clone()), head.clone(), Some(head.clone()))).expect("the copies are read"),
+        commit_refusal(&added(
+            Some(other.clone()),
+            head.clone(),
+            Some(head.clone())
+        ))
+        .expect("the copies are read"),
         Some(ADDED_PATH_HEAD_REASON),
         "the commit's own entry is not HEAD's"
     );
     std::fs::write(&file, b"mine\n").expect("edit");
     assert_eq!(
-        commit_refusal(&added(Some(head.clone()), head.clone(), Some(head.clone()))).expect("the copies are read"),
+        commit_refusal(&added(Some(head.clone()), head.clone(), Some(head.clone())))
+            .expect("the copies are read"),
         Some(ADDED_PATH_UNSTAGED_REASON),
         "the worktree copy holds an edit"
     );
     std::fs::remove_file(&file).expect("remove");
     assert_eq!(
-        commit_refusal(&added(Some(head.clone()), head.clone(), Some(head.clone()))).expect("the copies are read"),
+        commit_refusal(&added(Some(head.clone()), head.clone(), Some(head.clone())))
+            .expect("the copies are read"),
         Some(ADDED_PATH_MISSING_REASON),
         "the worktree has no copy"
     );
@@ -250,10 +290,14 @@ fn the_real_index_entries_are_listed_for_the_paths_asked_about() {
     std::fs::write(repo.join("b.json"), b"{\"version\":\"2.0.0\"}\n").expect("b");
     git(repo.as_path(), &["add", "--", "a.json", "b.json"]);
     let index: PathBuf = repo.join(".git/index");
-    let asked: Vec<Vec<u8>> = [b"a.json".as_slice(), b"absent.json".as_slice(), b"b.json".as_slice()]
-        .iter()
-        .map(|path| return path.to_vec())
-        .collect();
+    let asked: Vec<Vec<u8>> = [
+        b"a.json".as_slice(),
+        b"absent.json".as_slice(),
+        b"b.json".as_slice(),
+    ]
+    .iter()
+    .map(|path| return path.to_vec())
+    .collect();
     let listed = real_index_entries(
         &git_context(),
         &main_worktree(repo.to_str().expect("a text path"), ""),
@@ -263,7 +307,9 @@ fn the_real_index_entries_are_listed_for_the_paths_asked_about() {
     .expect("the real index is listed");
     assert_eq!(listed.len(), 2, "{listed:?}");
     for name in ["a.json", "b.json"] {
-        let entry: &Entry = listed.get(name.as_bytes()).expect("the asked path is listed");
+        let entry: &Entry = listed
+            .get(name.as_bytes())
+            .expect("the asked path is listed");
         assert_eq!(entry.0, CandidateMode::Regular);
         assert_eq!(
             git_context_index_object(repo.as_path(), name),
@@ -277,7 +323,10 @@ fn the_real_index_entries_are_listed_for_the_paths_asked_about() {
 /// The object the real index holds for `name`,
 /// asked of real Git directly,
 /// as the oracle of the listing.
-fn git_context_index_object(repo: &Path, name: &str) -> String {
+fn git_context_index_object(
+    repo: &Path,
+    name: &str,
+) -> String {
     let output = git(repo, &["ls-files", "--stage", "--", name]);
     let text: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     let mut fields = text.split(' ');
@@ -327,7 +376,9 @@ fn the_real_index_is_listed_in_the_repository_the_command_line_named() {
     let mut context = git_context();
     context.global_prefix = ["-C", "wt", "--git-dir=../cfg.git", "--work-tree=."]
         .iter()
-        .map(|option| { return std::ffi::OsString::from(option); })
+        .map(|option| {
+            return std::ffi::OsString::from(option);
+        })
         .collect();
     // Git's discovery stops above the work tree, as it does in a person's home directory, so a listing that names no
     //  repository reads none; the fixture's own holder would otherwise answer for it.
@@ -348,7 +399,9 @@ fn the_real_index_is_listed_in_the_repository_the_command_line_named() {
     let asked: Vec<Vec<u8>> = vec![b"a.json".to_vec()];
     let listed = real_index_entries(&context, &location, index.as_path(), asked.as_slice())
         .expect("the real index is listed in the repository the location names");
-    let entry: &Entry = listed.get(b"a.json".as_slice()).expect("the asked path is listed");
+    let entry: &Entry = listed
+        .get(b"a.json".as_slice())
+        .expect("the asked path is listed");
     assert_eq!(entry.0, CandidateMode::Regular);
     let mut oracle: Vec<String> = options;
     oracle.extend(["ls-files", "--stage", "--", "a.json"].map(str::to_string));
@@ -383,8 +436,7 @@ fn a_location_without_a_work_tree_is_refused() {
     let refused = real_index_entries(&git_context(), &bare, index.as_path(), asked.as_slice())
         .expect_err("a repository with no work tree cannot be listed");
     assert_eq!(
-        refused,
-        "the repository holds no work tree to list the real index in",
+        refused, "the repository holds no work tree to list the real index in",
         "the refusal names what stands in the way"
     );
 }

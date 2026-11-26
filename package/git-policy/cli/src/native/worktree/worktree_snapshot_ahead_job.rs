@@ -34,15 +34,29 @@
 use crate::diagnostic_log::debug;
 use crate::fs_btrfs_ioctl::snapshot_create_at;
 use crate::fs_kind::FilesystemKind::Btrfs;
-use crate::fs_kind::{filesystem_kind, is_subvolume_root};
+use crate::fs_kind::{
+    filesystem_kind,
+    is_subvolume_root,
+};
 use crate::fs_primitive_error::PrimitiveError;
+use crate::private_storage::create_private_directory_all;
 use crate::service_work::Verdict;
 use crate::work_item::WorkItem;
-use crate::private_storage::create_private_directory_all;
-use crate::worktree_snapshot_ahead::{AHEAD_KEPT, ahead_name, kept_in, pool_folder};
+use crate::worktree_snapshot_ahead::{
+    AHEAD_KEPT,
+    ahead_name,
+    kept_in,
+    pool_folder,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::time::{Instant, SystemTime};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Instant,
+    SystemTime,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "snapshotAheadJob";
@@ -74,7 +88,9 @@ const TAG: &str = "snapshotAheadJob";
 /// ```
 fn git_directory_of_worktree(root: &Path) -> Option<PathBuf> {
     let pointer: PathBuf = root.join(".git");
-    if std::fs::metadata(pointer.as_path()).is_ok_and(|found| { return found.is_dir(); }) {
+    if std::fs::metadata(pointer.as_path()).is_ok_and(|found| {
+        return found.is_dir();
+    }) {
         return Some(pointer);
     }
     // A `.git` pointer that is a named pipe is no pointer, and it answers at once rather than waiting for a writer.
@@ -84,7 +100,11 @@ fn git_directory_of_worktree(root: &Path) -> Option<PathBuf> {
         return None;
     }
     let target: &Path = Path::new(named);
-    return Some(if target.is_absolute() { target.to_path_buf() } else { root.join(target) });
+    return Some(if target.is_absolute() {
+        target.to_path_buf()
+    } else {
+        root.join(target)
+    });
 }
 
 /// What:
@@ -105,7 +125,10 @@ fn git_directory_of_worktree(root: &Path) -> Option<PathBuf> {
 fn planned(item: &WorkItem) -> Result<(PathBuf, PathBuf), String> {
     let root: PathBuf = item.repository.clone();
     let Some(named) = git_directory_of_worktree(root.as_path()) else {
-        return Err(format!("{} is no worktree this service can name: it has no Git directory", root.display()));
+        return Err(format!(
+            "{} is no worktree this service can name: it has no Git directory",
+            root.display()
+        ));
     };
     if named != item.git_dir {
         return Err(format!(
@@ -118,13 +141,23 @@ fn planned(item: &WorkItem) -> Result<(PathBuf, PathBuf), String> {
     //  its choosing; the record names it for a reader, and a record that names another folder is refused.
     let pool: PathBuf = pool_folder(item.git_dir.as_path());
     if Path::new(item.parent.as_str()) != pool {
-        return Err(format!("the record names {} as the folder of a snapshot, and this repository's is {}", item.parent, pool.display()));
+        return Err(format!(
+            "the record names {} as the folder of a snapshot, and this repository's is {}",
+            item.parent,
+            pool.display()
+        ));
     }
     if filesystem_kind(root.as_path()) != Ok(Btrfs) {
-        return Err(format!("{} is not on a btrfs filesystem, so nothing can share its data", root.display()));
+        return Err(format!(
+            "{} is not on a btrfs filesystem, so nothing can share its data",
+            root.display()
+        ));
     }
     if !is_subvolume_root(root.as_path()).unwrap_or(false) {
-        return Err(format!("{} is not a btrfs subvolume, so nothing can copy it in one step", root.display()));
+        return Err(format!(
+            "{} is not a btrfs subvolume, so nothing can copy it in one step",
+            root.display()
+        ));
     }
     return Ok((root, pool));
 }
@@ -148,11 +181,17 @@ fn planned(item: &WorkItem) -> Result<(PathBuf, PathBuf), String> {
 /// ```ts
 /// const keptOrLeaving = (pool, root, queued) => keptIn(pool, root).filter((name) => !queued.has(deletionOf(pool, name).id));
 /// ```
-fn copies_that_stay(git_dir: &Path, pool: &Path, root: &Path) -> usize {
-    let queued: std::collections::HashSet<String> = crate::work_item::queued_ids(crate::service_work::work_directory(git_dir).as_path());
+fn copies_that_stay(
+    git_dir: &Path,
+    pool: &Path,
+    root: &Path,
+) -> usize {
+    let queued: std::collections::HashSet<String> =
+        crate::work_item::queued_ids(crate::service_work::work_directory(git_dir).as_path());
     let mut staying: usize = 0;
     for name in kept_in(pool, root) {
-        let leaving: crate::work_item::WorkItem = crate::worktree_snapshot_ahead::deletion_item(git_dir, pool, name.as_os_str());
+        let leaving: crate::work_item::WorkItem =
+            crate::worktree_snapshot_ahead::deletion_item(git_dir, pool, name.as_os_str());
         if !queued.contains(leaving.id().as_str()) {
             staying += 1;
         }
@@ -190,12 +229,26 @@ pub fn snapshot_ahead(item: &WorkItem) -> Verdict {
         Err(why) => return Verdict::Failed(why),
     };
     if let Err(error) = create_private_directory_all(pool.as_path()) {
-        return Verdict::Retry(format!("the folder of the snapshots ahead, {}, cannot be made ({error})", pool.display()));
+        return Verdict::Retry(format!(
+            "the folder of the snapshots ahead, {}, cannot be made ({error})",
+            pool.display()
+        ));
     }
     let held: usize = copies_that_stay(item.git_dir.as_path(), pool.as_path(), root.as_path());
     if held >= AHEAD_KEPT {
-        debug(TAG, format!("{}: {} snapshot(s) ahead are already there, so none more is made", root.display(), held).as_str());
-        return Verdict::Skipped(format!("{held} snapshots ahead are already waiting in {}, and an add keeps {AHEAD_KEPT}", pool.display()));
+        debug(
+            TAG,
+            format!(
+                "{}: {} snapshot(s) ahead are already there, so none more is made",
+                root.display(),
+                held
+            )
+            .as_str(),
+        );
+        return Verdict::Skipped(format!(
+            "{held} snapshots ahead are already waiting in {}, and an add keeps {AHEAD_KEPT}",
+            pool.display()
+        ));
     }
     let made_in: OsString = match ahead_name(root.as_path(), SystemTime::now()) {
         Ok(name) => name,
@@ -204,19 +257,30 @@ pub fn snapshot_ahead(item: &WorkItem) -> Verdict {
     };
     let destination: PathBuf = pool.join(&made_in);
     let began: Instant = Instant::now();
-    let outcome: Result<(), PrimitiveError> = snapshot_create_at(root.as_path(), destination.as_path());
+    let outcome: Result<(), PrimitiveError> =
+        snapshot_create_at(root.as_path(), destination.as_path());
     return match outcome {
         Ok(()) => {
-            crate::service_log!("made a snapshot ahead of {} in {} snapshot_ms={}", root.display(), destination.display(), began.elapsed().as_millis());
+            crate::service_log!(
+                "made a snapshot ahead of {} in {} snapshot_ms={}",
+                root.display(),
+                destination.display(),
+                began.elapsed().as_millis()
+            );
             Verdict::Done
         }
         // The kernel's own refusal of a source it cannot snapshot is worth no second try, and its words name the reason.
-        Err(error) if matches!(error.errno, libc::EINVAL | libc::EXDEV | libc::EPERM) => Verdict::Failed(format!(
-            "{} cannot be snapshotted into {} ({error}), so every add of it takes its own snapshot",
-            root.display(),
-            pool.display()
+        Err(error) if matches!(error.errno, libc::EINVAL | libc::EXDEV | libc::EPERM) => {
+            Verdict::Failed(format!(
+                "{} cannot be snapshotted into {} ({error}), so every add of it takes its own snapshot",
+                root.display(),
+                pool.display()
+            ))
+        }
+        Err(error) => Verdict::Retry(format!(
+            "the snapshot of {} could not be made ({error})",
+            root.display()
         )),
-        Err(error) => Verdict::Retry(format!("the snapshot of {} could not be made ({error})", root.display())),
     };
 }
 

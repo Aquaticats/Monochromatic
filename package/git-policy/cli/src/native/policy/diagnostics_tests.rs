@@ -13,19 +13,37 @@
 
 /// Import the rendering under test.
 use super::{
-    EngineFailureCode, LEGACY_CONFIG_IGNORED_CODE, SCHEMA_VERSION, engine_failure_code_name,
-    json_string, render_configuration_warning, render_engine_failure,
+    EngineFailureCode,
+    LEGACY_CONFIG_IGNORED_CODE,
+    SCHEMA_VERSION,
+    engine_failure_code_name,
+    json_string,
+    render_configuration_warning,
+    render_engine_failure,
 };
 
 /// The engine failure line without its additive hint field,
 /// which the incumbent's shape does not have.
-fn bare_engine_failure(sequence: u64, code: EngineFailureCode, message: &str) -> String {
-    return crate::test_support::strip_hint_fields(render_engine_failure(sequence, code, message).as_str());
+fn bare_engine_failure(
+    sequence: u64,
+    code: EngineFailureCode,
+    message: &str,
+) -> String {
+    return crate::test_support::strip_hint_fields(
+        render_engine_failure(sequence, code, message).as_str(),
+    );
 }
 
 /// The configuration warning line without its additive hint field.
-fn bare_configuration_warning(sequence: u64, code: &str, message: &str, path: &str) -> String {
-    return crate::test_support::strip_hint_fields(render_configuration_warning(sequence, code, message, path).as_str());
+fn bare_configuration_warning(
+    sequence: u64,
+    code: &str,
+    message: &str,
+    path: &str,
+) -> String {
+    return crate::test_support::strip_hint_fields(
+        render_configuration_warning(sequence, code, message, path).as_str(),
+    );
 }
 
 /// Every code has the incumbent's wire spelling.

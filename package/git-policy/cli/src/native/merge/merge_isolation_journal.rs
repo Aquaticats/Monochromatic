@@ -20,23 +20,45 @@
 //! await writeFile(join(gitDir, 'monochromatic-git-policy-cli-merges', `${id}.json`), encodeMergeIntent(intent), { flag: 'wx' });
 //! ```
 
-/// Record writers and readers.
-use crate::wrapper_names_old_and_new::MERGE_INTENT_FOLDER;
-use crate::json_record::{ObjectWriter, decode_fatal, number_equals, parse_object, safe_integer_field, string_field};
+use crate::json_record::{
+    ObjectWriter,
+    decode_fatal,
+    number_equals,
+    parse_object,
+    safe_integer_field,
+    string_field,
+};
 /// The person's own work in the paths a merge changes,
 /// as the record holds it.
-use crate::merge_isolation_carry_parts::{Capture, decode, encode};
+use crate::merge_isolation_carry_parts::{
+    Capture,
+    decode,
+    encode,
+};
 /// The owner of a record.
 use crate::path_bytes_in_records as path_bytes;
-use crate::transaction_owner::TransactionOwner;
 /// Exclusive,
 /// synced,
 /// private files and directories.
-use crate::private_storage::{create_private_directory, sync_directory, write_exclusive_synced, write_private_file_unsynced};
+use crate::private_storage::{
+    create_private_directory,
+    sync_directory,
+    write_exclusive_synced,
+    write_private_file_unsynced,
+};
 /// The fail-closed recovery failure.
-use crate::recovery_error::{RecoveryError, io_failure};
+use crate::recovery_error::{
+    RecoveryError,
+    io_failure,
+};
+use crate::transaction_owner::TransactionOwner;
+/// Record writers and readers.
+use crate::wrapper_names_old_and_new::MERGE_INTENT_FOLDER;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Directory,
 /// inside the worktree's Git directory,
@@ -123,7 +145,10 @@ pub fn intent_directory(git_dir: &Path) -> PathBuf {
 /// ```ts
 /// `${id}.json`
 /// ```
-pub fn intent_path(git_dir: &Path, transaction_id: &str) -> PathBuf {
+pub fn intent_path(
+    git_dir: &Path,
+    transaction_id: &str,
+) -> PathBuf {
     return intent_directory(git_dir).join(format!("{transaction_id}{RECORD_SUFFIX}"));
 }
 
@@ -152,8 +177,14 @@ pub fn encode_merge_intent(intent: &MergeIntent) -> String {
     let plain_root: String = intent.repository_root.display().to_string();
     writer
         .string("repositoryRoot", plain_root.as_str())
-        .string("repositoryRootHex", path_bytes::hex_of_path(intent.repository_root.as_path()).as_str())
-        .string("targetRef", intent.target_ref.as_deref().unwrap_or_default())
+        .string(
+            "repositoryRootHex",
+            path_bytes::hex_of_path(intent.repository_root.as_path()).as_str(),
+        )
+        .string(
+            "targetRef",
+            intent.target_ref.as_deref().unwrap_or_default(),
+        )
         .string("oldOid", intent.old_oid.as_str())
         .string("newOid", intent.new_oid.as_str());
     if let Some(side_ref) = &intent.side_ref {
@@ -171,7 +202,10 @@ pub fn encode_merge_intent(intent: &MergeIntent) -> String {
 ///   An earlier record carries the same fields,
 ///  so the version it names is what decides it,
 ///  never the shape of its bytes.
-fn an_earlier_schema_version(map: &serde_json::Map<String, serde_json::Value>, earlier: &[i64]) -> bool {
+fn an_earlier_schema_version(
+    map: &serde_json::Map<String, serde_json::Value>,
+    earlier: &[i64],
+) -> bool {
     for version in earlier {
         if number_equals(map, "schemaVersion", *version) {
             return true;
@@ -202,11 +236,16 @@ pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
     let old_oid: &str = string_field(&map, "oldOid")?;
     let new_oid: &str = string_field(&map, "newOid")?;
     let repository_root: PathBuf = match map.get("repositoryRootHex") {
-        Some(serde_json::Value::String(hexadecimal)) => path_bytes::path_of_hex(hexadecimal.as_str())?,
+        Some(serde_json::Value::String(hexadecimal)) => {
+            path_bytes::path_of_hex(hexadecimal.as_str())?
+        }
         Some(_not_text) => return None,
         None => PathBuf::from(string_field(&map, "repositoryRoot")?),
     };
-    if owner_pid < 1 || owner_identity.is_empty() || old_oid.is_empty() || new_oid.is_empty()
+    if owner_pid < 1
+        || owner_identity.is_empty()
+        || old_oid.is_empty()
+        || new_oid.is_empty()
         || repository_root.as_os_str().is_empty()
     {
         return None;
@@ -224,7 +263,11 @@ pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
             },
         },
         repository_root,
-        target_ref: if target_ref.is_empty() { None } else { Some(String::from(target_ref)) },
+        target_ref: if target_ref.is_empty() {
+            None
+        } else {
+            Some(String::from(target_ref))
+        },
         old_oid: String::from(old_oid),
         new_oid: String::from(new_oid),
         // A record of this release's first form holds none, and a merge it names is applied in its own command.
@@ -252,7 +295,10 @@ pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
 /// ```ts
 /// await mkdir(directory, { mode: 0o700 }); await writeExclusiveSynced(path, bytes); await syncDirectory(directory);
 /// ```
-pub fn write_merge_intent(git_dir: &Path, intent: &MergeIntent) -> std::io::Result<PathBuf> {
+pub fn write_merge_intent(
+    git_dir: &Path,
+    intent: &MergeIntent,
+) -> std::io::Result<PathBuf> {
     let directory: PathBuf = intent_directory(git_dir);
     match create_private_directory(directory.as_path()) {
         Ok(()) => {}

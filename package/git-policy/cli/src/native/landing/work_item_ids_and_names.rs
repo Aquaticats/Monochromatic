@@ -34,13 +34,24 @@ pub(crate) const MAX_OBJECT_NAME_LENGTH: usize = 64;
 /// so it
 /// holds no separator of a claim's name and no character a file name treats specially.
 pub(crate) fn is_object_name(object_name: &str) -> bool {
-    return !object_name.is_empty() && object_name.len() <= MAX_OBJECT_NAME_LENGTH && object_name.as_bytes().iter().all(u8::is_ascii_alphanumeric);
+    return !object_name.is_empty()
+        && object_name.len() <= MAX_OBJECT_NAME_LENGTH
+        && object_name.as_bytes().iter().all(u8::is_ascii_alphanumeric);
 }
 
 /// Whether `id` is a kind and an object name,
 /// which makes every name built from it fit in a file name.
 pub(crate) fn is_valid_id(id: &str) -> bool {
-    for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead] {
+    for kind in [
+        WorkKind::Review,
+        WorkKind::Push,
+        WorkKind::Maintenance,
+        WorkKind::Trash,
+        WorkKind::Prewarm,
+        WorkKind::Relink,
+        WorkKind::SubvolumeDelete,
+        WorkKind::SnapshotAhead,
+    ] {
         if let Some(rest) = id.strip_prefix(format!("{}-", kind.name()).as_str())
             && crate::work_item_ids_and_names::is_id_suffix(&kind, rest)
         {
@@ -49,7 +60,6 @@ pub(crate) fn is_valid_id(id: &str) -> bool {
     }
     return false;
 }
-
 
 /// The most characters the part of an id after its kind may have:
 /// an object name,
@@ -124,7 +134,8 @@ pub(crate) fn parent_digest(parent: &str) -> String {
 /// Whether `digest` is a digest as `digest_of` writes one:
 /// `BRANCH_DIGEST_LENGTH` lowercase hexadecimal digits.
 fn is_join_digest(digest: &str) -> bool {
-    return digest.len() == BRANCH_DIGEST_LENGTH && digest.as_bytes().iter().all(is_lowercase_hexadecimal_digit);
+    return digest.len() == BRANCH_DIGEST_LENGTH
+        && digest.as_bytes().iter().all(is_lowercase_hexadecimal_digit);
 }
 
 /// Whether a byte is a lowercase hexadecimal digit,
@@ -164,7 +175,10 @@ fn carries_a_digest(kind: &WorkKind) -> bool {
 /// ```ts
 /// (kind) => (suffix) => carriesDigest(kind) ? /^[\w]{1,64}(-[0-9a-f]{16})?$/.test(suffix) : /^[\w]{1,64}$/.test(suffix)
 /// ```
-pub(crate) fn is_id_suffix(kind: &WorkKind, suffix: &str) -> bool {
+pub(crate) fn is_id_suffix(
+    kind: &WorkKind,
+    suffix: &str,
+) -> bool {
     if carries_a_digest(kind)
         && let Some((object_name, digest)) = suffix.split_once('-')
     {
@@ -213,7 +227,9 @@ pub(crate) fn object_of_a_record_name(name: &str) -> Option<&str> {
 /// ```
 pub(crate) fn names_a_trash_record(name: &str) -> bool {
     let kind: String = format!("{}-", WorkKind::Trash.name());
-    let Some(rest) = name.strip_prefix(kind.as_str()) else { return false };
+    let Some(rest) = name.strip_prefix(kind.as_str()) else {
+        return false;
+    };
     return !rest.is_empty();
 }
 

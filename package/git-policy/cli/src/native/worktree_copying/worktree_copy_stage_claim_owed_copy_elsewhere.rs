@@ -14,9 +14,18 @@
 //! const owedElsewhere = owedCopyToAnotherWorktree({ commonDir, claim, record, destinations });
 //! ```
 
-use crate::worktree_copy_interrupted_add_settlement::{add_is_finished, registration_directory};
-use crate::worktree_copy_recovery::{RecoveryDestinations, finishes_destination};
-use std::path::{Path, PathBuf};
+use crate::worktree_copy_interrupted_add_settlement::{
+    add_is_finished,
+    registration_directory,
+};
+use crate::worktree_copy_recovery::{
+    RecoveryDestinations,
+    finishes_destination,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Whether an interrupted add's record still owes a copy into a worktree other than the one the command runs
@@ -63,7 +72,10 @@ pub(crate) fn copy_owed_to_another_worktree(
     }
     // A destination holding the object the add's own snapshot became received the ignored state with it,
     // so no copy is owed anywhere: the records settle here, and no command says the worktree is missing files it holds.
-    if crate::worktree_copy_stage_made_object::the_made_object_stands_at(claim, destination.as_path()) {
+    if crate::worktree_copy_stage_made_object::the_made_object_stands_at(
+        claim,
+        destination.as_path(),
+    ) {
         return false;
     }
     // The same answer where a kill removed that record of the object before this command read the claim: the

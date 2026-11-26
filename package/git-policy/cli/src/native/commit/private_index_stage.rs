@@ -18,7 +18,12 @@
 use crate::candidate_object::CandidateMode;
 use crate::path_bytes::os_from_path_bytes;
 use crate::policy_content::Correction;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use std::path::Path;
 
 /// What:
@@ -72,7 +77,10 @@ pub fn git_mode(mode: CandidateMode) -> &'static str {
 /// ```ts
 /// await stageCorrection({ indexPath, correction });
 /// ```
-pub fn stage_correction(stage: &PrivateStage<'_>, correction: &Correction) -> Result<(), String> {
+pub fn stage_correction(
+    stage: &PrivateStage<'_>,
+    correction: &Correction,
+) -> Result<(), String> {
     let blob: String = write_blob(stage, correction.after.as_ref())?;
     let mode: &str = git_mode(correction.mode);
     return update_entry(stage, mode, blob.as_str(), correction.path.as_slice());
@@ -87,11 +95,17 @@ pub fn stage_correction(stage: &PrivateStage<'_>, correction: &Correction) -> Re
 /// ```ts
 /// const oid = await git(['hash-object', '-w', '--stdin'], { input: bytes });
 /// ```
-fn write_blob(stage: &PrivateStage<'_>, bytes: &[u8]) -> Result<String, String> {
+fn write_blob(
+    stage: &PrivateStage<'_>,
+    bytes: &[u8],
+) -> Result<String, String> {
     // A correction's bytes become a blob before any entry can name them; the write is the preparation's own work and is named.
     let began: std::time::Instant = std::time::Instant::now();
     let written: Result<String, String> = write_blob_through_git(stage, bytes);
-    crate::prepare_work_spans::note_span(crate::prepare_work_spans::POLICY_BLOB_WRITE, began.elapsed());
+    crate::prepare_work_spans::note_span(
+        crate::prepare_work_spans::POLICY_BLOB_WRITE,
+        began.elapsed(),
+    );
     return written;
 }
 
@@ -104,16 +118,24 @@ fn write_blob(stage: &PrivateStage<'_>, bytes: &[u8]) -> Result<String, String> 
 /// ```ts
 /// const oid = await git(['hash-object', '-w', '--stdin'], { input: bytes });
 /// ```
-fn write_blob_through_git(stage: &PrivateStage<'_>, bytes: &[u8]) -> Result<String, String> {
+fn write_blob_through_git(
+    stage: &PrivateStage<'_>,
+    bytes: &[u8],
+) -> Result<String, String> {
     let mut request: GitRequest = GitRequest::new(stage.cwd, &["hash-object", "-w", "--stdin"]);
     request.without_prefix = true;
     // The private state is the invocation's, and so is the repository: a Git directory beside its work tree is named here, because
     //  this write keeps none of the caller's other options.
-    request.repository_selection = crate::repository_selection::from_global_options(stage.cwd, stage.context.global_prefix.as_slice());
+    request.repository_selection = crate::repository_selection::from_global_options(
+        stage.cwd,
+        stage.context.global_prefix.as_slice(),
+    );
     request.object_directory = stage.object_directory.map(Path::to_path_buf);
     request.input = Some(bytes.to_vec());
     let output: GitOutput = private_git(stage, &request, "hash-object")?;
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+    return Ok(String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_string());
 }
 
 /// What:
@@ -126,11 +148,19 @@ fn write_blob_through_git(stage: &PrivateStage<'_>, bytes: &[u8]) -> Result<Stri
 /// ```ts
 /// await git(['update-index', '--add', '--cacheinfo', mode, oid, path], { indexPath });
 /// ```
-fn update_entry(stage: &PrivateStage<'_>, mode: &str, oid: &str, path: &[u8]) -> Result<(), String> {
+fn update_entry(
+    stage: &PrivateStage<'_>,
+    mode: &str,
+    oid: &str,
+    path: &[u8],
+) -> Result<(), String> {
     // One `git update-index` per corrected path per pass, so a record that names it says whether the rewrites are the cost.
     let began: std::time::Instant = std::time::Instant::now();
     let pointed: Result<(), String> = update_entry_through_git(stage, mode, oid, path);
-    crate::prepare_work_spans::note_span(crate::prepare_work_spans::POLICY_ENTRY_WRITE, began.elapsed());
+    crate::prepare_work_spans::note_span(
+        crate::prepare_work_spans::POLICY_ENTRY_WRITE,
+        began.elapsed(),
+    );
     return pointed;
 }
 
@@ -143,7 +173,12 @@ fn update_entry(stage: &PrivateStage<'_>, mode: &str, oid: &str, path: &[u8]) ->
 /// ```ts
 /// await git(['update-index', '--add', '--cacheinfo', mode, oid, path], { indexPath });
 /// ```
-fn update_entry_through_git(stage: &PrivateStage<'_>, mode: &str, oid: &str, path: &[u8]) -> Result<(), String> {
+fn update_entry_through_git(
+    stage: &PrivateStage<'_>,
+    mode: &str,
+    oid: &str,
+    path: &[u8],
+) -> Result<(), String> {
     let mut request: GitRequest = GitRequest::new(
         stage.cwd,
         &["update-index", "--add", "--cacheinfo", mode, oid],
@@ -151,7 +186,10 @@ fn update_entry_through_git(stage: &PrivateStage<'_>, mode: &str, oid: &str, pat
     // The path is the exact bytes Git reported, so a name that is not UTF-8 reaches Git unchanged.
     request.arguments.push(os_from_path_bytes(path));
     request.without_prefix = true;
-    request.repository_selection = crate::repository_selection::from_global_options(stage.cwd, stage.context.global_prefix.as_slice());
+    request.repository_selection = crate::repository_selection::from_global_options(
+        stage.cwd,
+        stage.context.global_prefix.as_slice(),
+    );
     request.index = Some(stage.index.to_path_buf());
     request.object_directory = stage.object_directory.map(Path::to_path_buf);
     private_git(stage, &request, "update-index")?;
@@ -168,7 +206,11 @@ fn update_entry_through_git(stage: &PrivateStage<'_>, mode: &str, oid: &str, pat
 /// ```ts
 /// const output = await git(args, { indexPath });
 /// ```
-fn private_git(stage: &PrivateStage<'_>, request: &GitRequest, name: &str) -> Result<GitOutput, String> {
+fn private_git(
+    stage: &PrivateStage<'_>,
+    request: &GitRequest,
+    name: &str,
+) -> Result<GitOutput, String> {
     let output: GitOutput = match run_git(stage.context, request) {
         Ok(found) => found,
         Err(error) => return Err(format!("starting git {name}: {error}")),

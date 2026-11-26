@@ -94,18 +94,38 @@ impl ReceiptRefusal {
     /// naming the file's field and the way forward.
     pub fn message(&self) -> String {
         let reason: String = match self {
-            ReceiptRefusal::TooLarge { bytes, bound } => format!("the file is {bytes} bytes and a receipt is at most {bound}"),
+            ReceiptRefusal::TooLarge {
+                bytes,
+                bound,
+            } => format!("the file is {bytes} bytes and a receipt is at most {bound}"),
             ReceiptRefusal::NotText => String::from("the file is not UTF-8 text"),
-            ReceiptRefusal::LineCount { found, expected } => format!("the file holds {found} lines and a receipt holds exactly {expected}"),
-            ReceiptRefusal::Key { number, expected, found } => format!("line {number} begins with `{found}` and a receipt has `{expected}` there"),
-            ReceiptRefusal::Value { key, shown } => format!("`{key}` holds `{shown}`, which does not fit that field"),
+            ReceiptRefusal::LineCount {
+                found,
+                expected,
+            } => format!("the file holds {found} lines and a receipt holds exactly {expected}"),
+            ReceiptRefusal::Key {
+                number,
+                expected,
+                found,
+            } => {
+                format!("line {number} begins with `{found}` and a receipt has `{expected}` there")
+            }
+            ReceiptRefusal::Value {
+                key,
+                shown,
+            } => format!("`{key}` holds `{shown}`, which does not fit that field"),
             ReceiptRefusal::Dataset(refusal) => refusal.message(),
             ReceiptRefusal::Nonce(refusal) => refusal.message(),
-            ReceiptRefusal::MountField { key, wanted } => format!(
+            ReceiptRefusal::MountField {
+                key,
+                wanted,
+            } => format!(
                 "`{key}` {} on a receipt of this outcome",
                 if *wanted { "is missing" } else { "is present" }
             ),
-            ReceiptRefusal::Time { value } => format!("`time {value}` is not an ISO 8601 time with an offset"),
+            ReceiptRefusal::Time {
+                value,
+            } => format!("`time {value}` is not an ISO 8601 time with an offset"),
         };
         return format!(
             "the file under the clone-mount results directory is not a receipt this route wrote: {reason}. Nothing was matched, mounted or unmounted on its answer. Ways forward: read the handler's journal (`journalctl -u reconcile-git-worktree-clone-mounts.service`) for the result it filed, and let the next sweep replace the file; do not hand-edit it."

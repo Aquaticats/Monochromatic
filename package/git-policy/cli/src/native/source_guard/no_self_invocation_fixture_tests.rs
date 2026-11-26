@@ -6,8 +6,16 @@
 //! identity of a finding are exercised on nested modules rather than assumed from the flat layout.
 
 use super::rules::Allowed;
-use super::{Finding, findings_in, stale, unexplained};
-use crate::source_scan_tests::{release_root, write_tree};
+use super::{
+    Finding,
+    findings_in,
+    stale,
+    unexplained,
+};
+use crate::source_scan_tests::{
+    release_root,
+    write_tree,
+};
 use crate::test_support::fixture;
 
 /// A line the `own-executable` rule matches.
@@ -28,7 +36,10 @@ const OWN_EXECUTABLE: &str = "let exe = std::env::current_exe();\n";
 /// ```ts
 /// function scan(name: string, files: [string, string][]): Finding[]  // throws Error
 /// ```
-fn scan(name: &str, files: &[(&str, &str)]) -> Result<Vec<Finding>, String> {
+fn scan(
+    name: &str,
+    files: &[(&str, &str)],
+) -> Result<Vec<Finding>, String> {
     let root = fixture(name);
     write_tree(&root, files);
     return findings_in(&root, &[release_root("lib.rs")]);
@@ -39,13 +50,23 @@ fn scan(name: &str, files: &[(&str, &str)]) -> Result<Vec<Finding>, String> {
 fn a_forbidden_text_in_a_nested_production_file_is_found_and_rejected() {
     let found: Vec<Finding> = scan(
         "self-scan-nested-production",
-        &[("lib.rs", "mod engine;\n"), ("engine/mod.rs", "mod launch;\n"), ("engine/launch.rs", OWN_EXECUTABLE)],
+        &[
+            ("lib.rs", "mod engine;\n"),
+            ("engine/mod.rs", "mod launch;\n"),
+            ("engine/launch.rs", OWN_EXECUTABLE),
+        ],
     )
     .expect("a resolvable layout");
-    assert_eq!(found, vec![(String::from("engine/launch.rs"), "own-executable", 1)]);
+    assert_eq!(
+        found,
+        vec![(String::from("engine/launch.rs"), "own-executable", 1)]
+    );
     let rejected: Vec<String> = unexplained(found.as_slice(), &[]);
     assert_eq!(rejected.len(), 1, "{rejected:?}");
-    assert!(rejected[0].starts_with("engine/launch.rs:1 [own-executable]"), "{rejected:?}");
+    assert!(
+        rejected[0].starts_with("engine/launch.rs:1 [own-executable]"),
+        "{rejected:?}"
+    );
 }
 
 /// A release file in a subdirectory whose name equals the name of a test-only module elsewhere is still scanned,
@@ -63,7 +84,10 @@ fn a_nested_release_file_with_the_name_of_test_support_is_still_scanned() {
         ],
     )
     .expect("a resolvable layout");
-    assert_eq!(found, vec![(String::from("real/helper.rs"), "own-executable", 1)]);
+    assert_eq!(
+        found,
+        vec![(String::from("real/helper.rs"), "own-executable", 1)]
+    );
 }
 
 /// An exception that names one relative path excuses that file only,
@@ -71,7 +95,11 @@ fn a_nested_release_file_with_the_name_of_test_support_is_still_scanned() {
 /// same name with the same finding.
 #[test]
 fn an_exception_for_one_path_does_not_excuse_another_file_with_the_same_name() {
-    const ONLY_A: &[Allowed] = &[Allowed { file: "a/real_git.rs", rule: "own-executable", why: "identification only" }];
+    const ONLY_A: &[Allowed] = &[Allowed {
+        file: "a/real_git.rs",
+        rule: "own-executable",
+        why: "identification only",
+    }];
     let found: Vec<Finding> = scan(
         "self-scan-exception-by-path",
         &[
@@ -86,7 +114,11 @@ fn an_exception_for_one_path_does_not_excuse_another_file_with_the_same_name() {
     let rejected: Vec<String> = unexplained(found.as_slice(), ONLY_A);
     assert_eq!(rejected.len(), 1, "{rejected:?}");
     assert!(rejected[0].starts_with("b/real_git.rs:1"), "{rejected:?}");
-    assert_eq!(stale(found.as_slice(), ONLY_A), Vec::<String>::new(), "the exception for a/real_git.rs still matches");
+    assert_eq!(
+        stale(found.as_slice(), ONLY_A),
+        Vec::<String>::new(),
+        "the exception for a/real_git.rs still matches"
+    );
 }
 
 /// Test-only support in a subdirectory (a gated module and every module it declares) is classified as test-only,
@@ -94,7 +126,11 @@ fn an_exception_for_one_path_does_not_excuse_another_file_with_the_same_name() {
 /// a genuine violation in a release file still fails and an exception that matches nothing is reported as stale.
 #[test]
 fn nested_test_support_is_skipped_while_genuine_violations_and_stale_exceptions_fail() {
-    const GONE: &[Allowed] = &[Allowed { file: "engine/gone.rs", rule: "own-executable", why: "its code was removed" }];
+    const GONE: &[Allowed] = &[Allowed {
+        file: "engine/gone.rs",
+        rule: "own-executable",
+        why: "its code was removed",
+    }];
     let found: Vec<Finding> = scan(
         "self-scan-nested-support",
         &[
@@ -106,11 +142,22 @@ fn nested_test_support_is_skipped_while_genuine_violations_and_stale_exceptions_
         ],
     )
     .expect("a resolvable layout");
-    assert_eq!(found, vec![(String::from("engine/launch.rs"), "own-executable", 1)], "support/inner.rs is test-only");
-    assert_eq!(unexplained(found.as_slice(), GONE).len(), 1, "the genuine violation is not excused");
+    assert_eq!(
+        found,
+        vec![(String::from("engine/launch.rs"), "own-executable", 1)],
+        "support/inner.rs is test-only"
+    );
+    assert_eq!(
+        unexplained(found.as_slice(), GONE).len(),
+        1,
+        "the genuine violation is not excused"
+    );
     let stale_entries: Vec<String> = stale(found.as_slice(), GONE);
     assert_eq!(stale_entries.len(), 1, "{stale_entries:?}");
-    assert!(stale_entries[0].starts_with("engine/gone.rs [own-executable]"), "{stale_entries:?}");
+    assert!(
+        stale_entries[0].starts_with("engine/gone.rs [own-executable]"),
+        "{stale_entries:?}"
+    );
 }
 
 /// A module declared in the tree whose file is not there cannot be scanned,
@@ -125,7 +172,10 @@ fn a_declared_module_without_a_file_is_an_error() {
 /// so the scan is an error and not a pass.
 #[test]
 fn a_source_file_no_declaration_reaches_is_an_error() {
-    let outcome = scan("self-scan-orphan", &[("lib.rs", ""), ("engine/forgotten.rs", OWN_EXECUTABLE)]);
+    let outcome = scan(
+        "self-scan-orphan",
+        &[("lib.rs", ""), ("engine/forgotten.rs", OWN_EXECUTABLE)],
+    );
     let error: String = outcome.expect_err("an unreached file is an error");
     assert!(error.contains("engine/forgotten.rs"), "{error}");
 }
@@ -145,7 +195,8 @@ fn a_tree_without_source_files_is_an_error() {
 fn a_link_in_the_tree_is_an_error() {
     let root = fixture("self-scan-link");
     write_tree(&root, &[("lib.rs", "")]);
-    std::os::unix::fs::symlink(root.join("nowhere.rs"), root.join("dangling.rs")).expect("a dangling link");
+    std::os::unix::fs::symlink(root.join("nowhere.rs"), root.join("dangling.rs"))
+        .expect("a dangling link");
     let outcome = findings_in(&root, &[release_root("lib.rs")]);
     assert!(outcome.is_err(), "{outcome:?}");
 }

@@ -16,20 +16,45 @@
 #![cfg(unix)]
 
 /// Import the reader under test and shared fixtures.
-use super::{ObjectReader, start_object_reader, start_object_reader_with};
-use crate::candidate_error::{CandidateError, CandidateFailure};
-use crate::candidate_object::{ObjectId, parse_object_id};
-use crate::child_watch::{WatchTerms, reader_subject};
-use crate::test_support::{SharedSink, executable, fixture, remove};
+use super::{
+    ObjectReader,
+    start_object_reader,
+    start_object_reader_with,
+};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use crate::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
+use crate::child_watch::{
+    WatchTerms,
+    reader_subject,
+};
+use crate::test_support::{
+    SharedSink,
+    executable,
+    fixture,
+    remove,
+};
 use crate::wait_progress::Cadence;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// A stand-in `git` that waits for one request line,
 ///  answers with fixed bytes,
 ///  and exits.
 /// Waiting first keeps the request write from racing the stand-in's exit.
-fn stand_in(root: &Path, name: &str, reply: &str) -> PathBuf {
+fn stand_in(
+    root: &Path,
+    name: &str,
+    reply: &str,
+) -> PathBuf {
     let path: PathBuf = root.join(name);
     executable(
         path.as_path(),
@@ -63,7 +88,10 @@ fn wait_until_exited(process: u32) {
 fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
     let root: PathBuf = fixture("reader-stalls");
     let program: PathBuf = root.join("git");
-    executable(program.as_path(), b"#!/bin/sh\nread -r request\nexec sleep 3600\n");
+    executable(
+        program.as_path(),
+        b"#!/bin/sh\nread -r request\nexec sleep 3600\n",
+    );
     let sink: SharedSink = SharedSink::default();
     let mut subject: ObjectReader = start_object_reader_with(
         program.as_path(),
@@ -71,7 +99,10 @@ fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
         &[],
         WatchTerms {
             limit: Duration::from_secs(1),
-            cadence: Cadence { grace: Duration::from_millis(200), interval: Duration::from_millis(200) },
+            cadence: Cadence {
+                grace: Duration::from_millis(200),
+                interval: Duration::from_millis(200),
+            },
             notices: Box::new(sink.clone()),
         },
     )
@@ -79,14 +110,32 @@ fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
     let error: CandidateError = subject.head_commit().expect_err("never answers");
     assert_eq!(error.failure, CandidateFailure::ReaderEnded);
     assert!(
-        error.message.contains(format!("{} showed no sign of work for 1 seconds and was stopped", reader_subject()).as_str()),
+        error.message.contains(
+            format!(
+                "{} showed no sign of work for 1 seconds and was stopped",
+                reader_subject()
+            )
+            .as_str()
+        ),
         "{error}"
     );
-    assert!(error.message.contains("CLI_GIT_CHILD_WAIT_SECONDS"), "{error}");
+    assert!(
+        error.message.contains("CLI_GIT_CHILD_WAIT_SECONDS"),
+        "{error}"
+    );
     let text: String = sink.text();
     // The notice that is due goes out before the bound is checked, so a stopped process was announced at least once.
     assert!(text.lines().count() >= 1, "{text}");
-    assert!(text.starts_with(format!("monochromatic-git-policy-cli: still waiting for {} (process ", reader_subject()).as_str()), "{text}");
+    assert!(
+        text.starts_with(
+            format!(
+                "monochromatic-git-policy-cli: still waiting for {} (process ",
+                reader_subject()
+            )
+            .as_str()
+        ),
+        "{text}"
+    );
     let later: CandidateError = subject.head_commit().expect_err("closed");
     assert_eq!(later.failure, CandidateFailure::ReaderEnded);
     drop(subject);

@@ -3,8 +3,14 @@
 //! and every refusal the decoder promises is real.
 
 use super::*;
-use crate::command_test_support::{fixture, remove};
-use crate::service_protocol::{LandingFigures, LandingSync};
+use crate::command_test_support::{
+    fixture,
+    remove,
+};
+use crate::service_protocol::{
+    LandingFigures,
+    LandingSync,
+};
 use crate::service_review_key::ReviewKey;
 use std::path::PathBuf;
 
@@ -19,8 +25,16 @@ fn request() -> CommitRequest {
         reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: String::from(BLOB),
         changes: vec![
-            Change { path: PathBuf::from("src/a \"b\".txt"), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) },
-            Change { path: PathBuf::from("old.txt"), mode: ALLOWED_MODES[0], blob: None },
+            Change {
+                path: PathBuf::from("src/a \"b\".txt"),
+                mode: ALLOWED_MODES[0],
+                blob: Some(String::from(BLOB)),
+            },
+            Change {
+                path: PathBuf::from("old.txt"),
+                mode: ALLOWED_MODES[0],
+                blob: None,
+            },
         ],
         message: String::from("subject\n\nbody with \"quotes\" and a\ttab\n"),
         author: None,
@@ -30,7 +44,9 @@ fn request() -> CommitRequest {
         commit: None,
         cleanup: None,
         index: PathBuf::from("/work/repo/.git/index"),
-        scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-4e5f-0"),
+        scratch: PathBuf::from(
+            "/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-4e5f-0",
+        ),
         shadow: None,
         captured: 7_000_000_000,
         holder: String::new(),
@@ -45,7 +61,10 @@ fn a_commit_request_round_trips() {
     let sent: CommitRequest = request();
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
     assert!(!line.contains('\n'), "one line per message");
-    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(sent))));
+    assert_eq!(
+        decode_client(line.as_str()),
+        Ok(ClientMessage::Commit(Box::new(sent)))
+    );
 }
 
 /// What:
@@ -62,30 +81,61 @@ fn a_commit_request_round_trips() {
 #[test]
 fn a_request_carries_the_programs_its_command_set_and_refuses_anything_else() {
     use std::ffi::OsString;
-    let carried: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[
-        (OsString::from("PATH"), OsString::from("/opt/lfs/bin:/usr/bin")),
-        (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /nowhere/key")),
-    ]);
-    let with: CommitRequest = CommitRequest { programs: Some(carried.clone()), ..request() };
+    let carried: crate::service_push_programs_held_in_memory::PushPrograms =
+        crate::service_push_programs_held_in_memory::of(&[
+            (
+                OsString::from("PATH"),
+                OsString::from("/opt/lfs/bin:/usr/bin"),
+            ),
+            (
+                OsString::from("GIT_SSH_COMMAND"),
+                OsString::from("ssh -i /nowhere/key"),
+            ),
+        ]);
+    let with: CommitRequest = CommitRequest {
+        programs: Some(carried.clone()),
+        ..request()
+    };
     let line: String = encode_client(&ClientMessage::Commit(Box::new(with.clone())));
-    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(with))));
+    assert_eq!(
+        decode_client(line.as_str()),
+        Ok(ClientMessage::Commit(Box::new(with)))
+    );
     // A request of an earlier release names no programs, and its push searches the service's own list.
     let plain: String = encode_client(&ClientMessage::Commit(Box::new(request())));
-    assert!(matches!(decode_client(plain.as_str()), Ok(ClientMessage::Commit(sent)) if sent.programs.is_none()));
+    assert!(
+        matches!(decode_client(plain.as_str()), Ok(ClientMessage::Commit(sent)) if sent.programs.is_none())
+    );
     // Every other shape of the field is refused, and each of these is a line this control writes.
-    let parsed = |text: &str| -> serde_json::Value { return serde_json::from_str(text).expect("a value this control wrote"); };
+    let parsed = |text: &str| -> serde_json::Value {
+        return serde_json::from_str(text).expect("a value this control wrote");
+    };
     let rewritten = |variables: serde_json::Value, transport: serde_json::Value| -> String {
-        let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("a JSON line");
-        let programs = value.get_mut("programs").expect("the request carries programs").as_object_mut().expect("an object");
+        let mut value: serde_json::Value =
+            serde_json::from_str(line.as_str()).expect("a JSON line");
+        let programs = value
+            .get_mut("programs")
+            .expect("the request carries programs")
+            .as_object_mut()
+            .expect("an object");
         programs.insert(String::from("variables"), variables);
         programs.insert(String::from("transport"), transport);
         return value.to_string();
     };
     for (why, variables) in [
-        ("a name outside the five", parsed(r#"[["SSH_AUTH_SOCK", "/run/agent.sock"]]"#)),
+        (
+            "a name outside the five",
+            parsed(r#"[["SSH_AUTH_SOCK", "/run/agent.sock"]]"#),
+        ),
         ("a value that is not text", parsed(r#"[["PATH", 7]]"#)),
-        ("a value holding a NUL", parsed(r#"[["PATH", "/a\u0000b"]]"#)),
-        ("a pair that is not a name and a value", parsed(r#"[["PATH"]]"#)),
+        (
+            "a value holding a NUL",
+            parsed(r#"[["PATH", "/a\u0000b"]]"#),
+        ),
+        (
+            "a pair that is not a name and a value",
+            parsed(r#"[["PATH"]]"#),
+        ),
         ("no list at all", serde_json::Value::Null),
     ] {
         let bad: String = rewritten(variables, serde_json::Value::Bool(false));
@@ -109,33 +159,51 @@ fn a_request_carries_the_programs_its_command_set_and_refuses_anything_else() {
 fn a_request_carries_the_names_whose_value_could_not_travel_and_refuses_anything_else() {
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
-    let carried: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[
-        (OsString::from("PATH"), OsString::from_vec(b"/opt/lfs/bin:/usr/bin:\xff".to_vec())),
-        (OsString::from("GIT_SSH_COMMAND"), OsString::from_vec(b"ssh -i /nowhere/key-\xff".to_vec())),
-    ]);
+    let carried: crate::service_push_programs_held_in_memory::PushPrograms =
+        crate::service_push_programs_held_in_memory::of(&[
+            (
+                OsString::from("PATH"),
+                OsString::from_vec(b"/opt/lfs/bin:/usr/bin:\xff".to_vec()),
+            ),
+            (
+                OsString::from("GIT_SSH_COMMAND"),
+                OsString::from_vec(b"ssh -i /nowhere/key-\xff".to_vec()),
+            ),
+        ]);
     assert_eq!(
         carried.not_text,
         vec![String::from("PATH"), String::from("GIT_SSH_COMMAND")],
         "the control sets up two names whose value cannot travel"
     );
-    let with: CommitRequest = CommitRequest { programs: Some(carried.clone()), ..request() };
+    let with: CommitRequest = CommitRequest {
+        programs: Some(carried.clone()),
+        ..request()
+    };
     let line: String = encode_client(&ClientMessage::Commit(Box::new(with.clone())));
-    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(with))), "the names travel whole");
+    assert_eq!(
+        decode_client(line.as_str()),
+        Ok(ClientMessage::Commit(Box::new(with))),
+        "the names travel whole"
+    );
     // Built without `serde_json::json!`: the macro's expansion calls `Result::unwrap`,
     // which this crate's `disallowed_methods` lint refuses
     // (`doc/troubleshooting/serde-json-macro-clippy-disallowed-unwrap.md`).
     let outside_the_five: serde_json::Value =
         serde_json::Value::Array(vec![serde_json::Value::from("SSH_AUTH_SOCK")]);
-    let not_text_number: serde_json::Value = serde_json::Value::Array(vec![serde_json::Value::from(7)]);
+    let not_text_number: serde_json::Value =
+        serde_json::Value::Array(vec![serde_json::Value::from(7)]);
     let not_text_string: serde_json::Value = serde_json::Value::from("PATH");
     for (why, not_text) in [
         ("a name outside the five", outside_the_five),
         ("a name that is not text", not_text_number),
         ("a name that is not text", not_text_string),
     ] {
-        let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("a JSON line");
-        let programs: &mut serde_json::Map<String, serde_json::Value> =
-            value.get_mut("programs").and_then(serde_json::Value::as_object_mut).expect("the request carries programs");
+        let mut value: serde_json::Value =
+            serde_json::from_str(line.as_str()).expect("a JSON line");
+        let programs: &mut serde_json::Map<String, serde_json::Value> = value
+            .get_mut("programs")
+            .and_then(serde_json::Value::as_object_mut)
+            .expect("the request carries programs");
         programs.insert(String::from("not_text"), not_text);
         assert!(decode_client(value.to_string().as_str()).is_err(), "{why}");
     }
@@ -155,14 +223,33 @@ fn a_change_path_that_is_not_text_round_trips() {
     let name: PathBuf = PathBuf::from(OsStr::from_bytes(b"caf\xff.txt"));
     let mut sent: CommitRequest = request();
     sent.changes = vec![
-        Change { path: name.clone(), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) },
-        Change { path: PathBuf::from("gone.txt"), mode: ALLOWED_MODES[0], blob: None },
+        Change {
+            path: name.clone(),
+            mode: ALLOWED_MODES[0],
+            blob: Some(String::from(BLOB)),
+        },
+        Change {
+            path: PathBuf::from("gone.txt"),
+            mode: ALLOWED_MODES[0],
+            blob: None,
+        },
     ];
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
     let value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
-    assert_eq!(value["changes"][0]["path"].as_str(), Some("caf\u{fffd}.txt"), "the plain field is the readable spelling");
-    assert_eq!(value["changes"][0]["pathHex"].as_str(), Some("636166ff2e747874"), "the bytes are the name");
-    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(sent))));
+    assert_eq!(
+        value["changes"][0]["path"].as_str(),
+        Some("caf\u{fffd}.txt"),
+        "the plain field is the readable spelling"
+    );
+    assert_eq!(
+        value["changes"][0]["pathHex"].as_str(),
+        Some("636166ff2e747874"),
+        "the bytes are the name"
+    );
+    assert_eq!(
+        decode_client(line.as_str()),
+        Ok(ClientMessage::Commit(Box::new(sent)))
+    );
 }
 
 /// What:
@@ -177,11 +264,20 @@ fn a_change_path_that_is_not_text_round_trips() {
 fn a_commit_request_carries_the_version_that_knows_a_changed_paths_bytes() {
     let sent: CommitRequest = request();
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
-    let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
-    assert_eq!(value["version"].as_u64(), Some(u64::from(PROTOCOL_VERSION)), "the request names this release's protocol");
+    let mut value: serde_json::Value =
+        serde_json::from_str(line.as_str()).expect("one JSON object");
+    assert_eq!(
+        value["version"].as_u64(),
+        Some(u64::from(PROTOCOL_VERSION)),
+        "the request names this release's protocol"
+    );
     // The version of the build that ignores `pathHex`: a request in it is served, so this release must not speak it.
     value["version"] = serde_json::Value::from(7);
-    assert_eq!(decode_client(value.to_string().as_str()), Err(String::from("unsupported version")), "the version before refuses it");
+    assert_eq!(
+        decode_client(value.to_string().as_str()),
+        Err(String::from("unsupported version")),
+        "the version before refuses it"
+    );
 }
 
 /// Every service message survives encoding,
@@ -189,12 +285,28 @@ fn a_commit_request_carries_the_version_that_knows_a_changed_paths_bytes() {
 #[test]
 fn service_messages_round_trip() {
     let mut messages: Vec<ServiceMessage> = vec![
-        ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) },
-        ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: None },
-        ServiceMessage::Position { number: 3, of: 7 },
+        ServiceMessage::Welcome {
+            version: PROTOCOL_VERSION,
+            release: Some(String::from(RELEASE)),
+        },
+        ServiceMessage::Welcome {
+            version: PROTOCOL_VERSION,
+            release: None,
+        },
+        ServiceMessage::Position {
+            number: 3,
+            of: 7,
+        },
         ServiceMessage::Heartbeat,
-        ServiceMessage::Withdrawn { id: String::from("x") },
-        ServiceMessage::Landed { id: String::from("x"), commit: String::from(BLOB), already: true, landing: None },
+        ServiceMessage::Withdrawn {
+            id: String::from("x"),
+        },
+        ServiceMessage::Landed {
+            id: String::from("x"),
+            commit: String::from(BLOB),
+            already: true,
+            landing: None,
+        },
         ServiceMessage::Landed {
             id: String::from("x"),
             commit: String::from(BLOB),
@@ -204,19 +316,52 @@ fn service_messages_round_trip() {
                 queued_behind: 3,
                 reads_ms: 53,
                 reads: vec![(String::from("branch"), 2), (String::from("witness"), 5)],
-                syncs: vec![LandingSync { what: String::from("built-index"), waited: true, ms: 7 }, LandingSync { what: String::from("intent-file"), waited: false, ms: 0 }],
+                syncs: vec![
+                    LandingSync {
+                        what: String::from("built-index"),
+                        waited: true,
+                        ms: 7,
+                    },
+                    LandingSync {
+                        what: String::from("intent-file"),
+                        waited: false,
+                        ms: 0,
+                    },
+                ],
             }),
         },
-        ServiceMessage::RetryPrepare { id: String::from("x"), base: String::from(BLOB), landed: Vec::new() },
         ServiceMessage::RetryPrepare {
             id: String::from("x"),
             base: String::from(BLOB),
-            landed: vec![LandedCapture { commit: String::from(BLOB), captured: 5 }, LandedCapture { commit: String::from(BLOB), captured: 0 }],
+            landed: Vec::new(),
+        },
+        ServiceMessage::RetryPrepare {
+            id: String::from("x"),
+            base: String::from(BLOB),
+            landed: vec![
+                LandedCapture {
+                    commit: String::from(BLOB),
+                    captured: 5,
+                },
+                LandedCapture {
+                    commit: String::from(BLOB),
+                    captured: 0,
+                },
+            ],
         },
     ];
-    messages.extend(FailureCode::ALL.map(|code| { return ServiceMessage::Failed { id: String::from("x"), code }; }));
+    messages.extend(FailureCode::ALL.map(|code| {
+        return ServiceMessage::Failed {
+            id: String::from("x"),
+            code,
+        };
+    }));
     for message in messages {
-        assert_eq!(decode_service(encode_service(&message).as_str()), Ok(message.clone()), "{message:?}");
+        assert_eq!(
+            decode_service(encode_service(&message).as_str()),
+            Ok(message.clone()),
+            "{message:?}"
+        );
     }
 }
 
@@ -229,10 +374,16 @@ fn service_messages_round_trip() {
 ///  so its absence must read as no figures and never as an error.
 #[test]
 fn an_answer_without_landing_figures_decodes_as_none() {
-    let line: String = format!("{{\"type\":\"landed\",\"id\":\"x\",\"commit\":\"{BLOB}\",\"already\":false}}");
+    let line: String =
+        format!("{{\"type\":\"landed\",\"id\":\"x\",\"commit\":\"{BLOB}\",\"already\":false}}");
     assert_eq!(
         decode_service(line.as_str()),
-        Ok(ServiceMessage::Landed { id: String::from("x"), commit: String::from(BLOB), already: false, landing: None })
+        Ok(ServiceMessage::Landed {
+            id: String::from("x"),
+            commit: String::from(BLOB),
+            already: false,
+            landing: None
+        })
     );
 }
 
@@ -240,12 +391,20 @@ fn an_answer_without_landing_figures_decodes_as_none() {
 /// never guessed.
 #[test]
 fn damaged_landing_figures_are_refused() {
-    let line: String =
-        format!("{{\"type\":\"landed\",\"id\":\"x\",\"commit\":\"{BLOB}\",\"already\":false,\"landing\":{{\"lockHoldMs\":-1,\"queuedBehind\":0,\"readsMs\":0,\"reads\":{{}},\"syncs\":[]}}}}");
-    assert!(decode_service(line.as_str()).is_err(), "a negative figure is not a whole number");
-    let no_reads: String =
-        format!("{{\"type\":\"landed\",\"id\":\"x\",\"commit\":\"{BLOB}\",\"already\":false,\"landing\":{{\"lockHoldMs\":1,\"queuedBehind\":0,\"readsMs\":0,\"syncs\":[]}}}}");
-    assert!(decode_service(no_reads.as_str()).is_err(), "figures that name no reads are refused");
+    let line: String = format!(
+        "{{\"type\":\"landed\",\"id\":\"x\",\"commit\":\"{BLOB}\",\"already\":false,\"landing\":{{\"lockHoldMs\":-1,\"queuedBehind\":0,\"readsMs\":0,\"reads\":{{}},\"syncs\":[]}}}}"
+    );
+    assert!(
+        decode_service(line.as_str()).is_err(),
+        "a negative figure is not a whole number"
+    );
+    let no_reads: String = format!(
+        "{{\"type\":\"landed\",\"id\":\"x\",\"commit\":\"{BLOB}\",\"already\":false,\"landing\":{{\"lockHoldMs\":1,\"queuedBehind\":0,\"readsMs\":0,\"syncs\":[]}}}}"
+    );
+    assert!(
+        decode_service(no_reads.as_str()).is_err(),
+        "figures that name no reads are refused"
+    );
 }
 
 /// Unknown words,
@@ -256,7 +415,16 @@ fn damaged_lines_are_refused() {
     let good: String = encode_client(&ClientMessage::Commit(Box::new(request())));
     assert!(decode_client(&good[..good.len() / 2]).is_err());
     assert!(decode_client("").is_err());
-    assert!(decode_client(good.replace(&format!("\"version\":{PROTOCOL_VERSION}"), "\"version\":999").as_str()).is_err());
+    assert!(
+        decode_client(
+            good.replace(
+                &format!("\"version\":{PROTOCOL_VERSION}"),
+                "\"version\":999"
+            )
+            .as_str()
+        )
+        .is_err()
+    );
     assert!(decode_client(good.replace("\"commit\"", "\"surprise\"").as_str()).is_err());
     assert!(decode_client("x".repeat(MAX_LINE_BYTES + 1).as_str()).is_err());
     assert!(decode_service("{\"type\":\"failed\",\"id\":\"x\",\"code\":\"made-up\"}").is_err());
@@ -267,29 +435,61 @@ fn damaged_lines_are_refused() {
 /// object names and identities are refused.
 #[test]
 fn unacceptable_requests_are_refused() {
-    let hostile_paths = ["/etc/passwd", "../up", "a/../b", "a//b", "a/./b", ".git/config", "dir/.git/x", "", "a\nb"];
+    let hostile_paths = [
+        "/etc/passwd",
+        "../up",
+        "a/../b",
+        "a//b",
+        "a/./b",
+        ".git/config",
+        "dir/.git/x",
+        "",
+        "a\nb",
+    ];
     for path in hostile_paths {
         let mut bad: CommitRequest = request();
         bad.changes[0].path = PathBuf::from(path);
-        assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(), "{path:?}");
+        assert!(
+            decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(),
+            "{path:?}"
+        );
     }
     let mut bad_mode: CommitRequest = request();
     bad_mode.changes[0].mode = 0o040_000;
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_mode))).as_str()).is_err());
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_mode))).as_str()).is_err()
+    );
     let mut bad_blob: CommitRequest = request();
     bad_blob.changes[0].blob = Some(String::from("not-an-object"));
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_blob))).as_str()).is_err());
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_blob))).as_str()).is_err()
+    );
     let mut bad_id: CommitRequest = request();
     bad_id.id = String::from("a b");
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_id))).as_str()).is_err());
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_id))).as_str()).is_err()
+    );
     let mut relative: CommitRequest = request();
     relative.repository = PathBuf::from("relative/repo");
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err());
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err()
+    );
     let mut empty: CommitRequest = request();
     empty.changes.clear();
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(empty))).as_str()).is_ok(), "an empty commit changes no path");
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(empty))).as_str()).is_ok(),
+        "an empty commit changes no path"
+    );
     let mut many: CommitRequest = request();
-    many.changes = (0..=MAX_CHANGES).map(|n| { return Change { path: PathBuf::from(format!("f{n}")), mode: ALLOWED_MODES[0], blob: None }; }).collect();
+    many.changes = (0..=MAX_CHANGES)
+        .map(|n| {
+            return Change {
+                path: PathBuf::from(format!("f{n}")),
+                mode: ALLOWED_MODES[0],
+                blob: None,
+            };
+        })
+        .collect();
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(many))).as_str()).is_err());
 }
 
@@ -306,23 +506,37 @@ fn a_request_names_only_the_wrapper_scratch_tree_it_wants_removed() {
     let sent: CommitRequest = request();
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
     let value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
-    assert_eq!(value["scratch"].as_str(), sent.scratch.to_str(), "the request says where its tree is");
+    assert_eq!(
+        value["scratch"].as_str(),
+        sent.scratch.to_str(),
+        "the request says where its tree is"
+    );
     let without: serde_json::Value = {
-        let mut fields: serde_json::Map<String, serde_json::Value> = value.as_object().expect("an object").clone();
+        let mut fields: serde_json::Map<String, serde_json::Value> =
+            value.as_object().expect("an object").clone();
         fields.remove("scratch");
         fields.remove("scratchHex");
         serde_json::Value::Object(fields)
     };
-    assert!(decode_client(without.to_string().as_str()).is_err(), "a request that names no tree");
+    assert!(
+        decode_client(without.to_string().as_str()).is_err(),
+        "a request that names no tree"
+    );
     for refused in [
         PathBuf::from("/etc/passwd"),
         PathBuf::from("/work/repo/.git/notes"),
-        PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-"),
+        PathBuf::from(
+            "/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-",
+        ),
         PathBuf::from("/work/repo/.git/deeper/monochromatic-git-policy-cli-service-0a1b"),
     ] {
         let mut bad: CommitRequest = request();
         bad.scratch = refused.clone();
-        assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(), "{}", refused.display());
+        assert!(
+            decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(),
+            "{}",
+            refused.display()
+        );
     }
 }
 
@@ -338,11 +552,20 @@ fn a_request_names_only_the_wrapper_scratch_tree_it_wants_removed() {
 fn a_commit_request_carries_the_version_that_names_its_tree() {
     let sent: CommitRequest = request();
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
-    let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
-    assert_eq!(value["version"].as_u64(), Some(u64::from(PROTOCOL_VERSION)), "the request names this release's protocol");
+    let mut value: serde_json::Value =
+        serde_json::from_str(line.as_str()).expect("one JSON object");
+    assert_eq!(
+        value["version"].as_u64(),
+        Some(u64::from(PROTOCOL_VERSION)),
+        "the request names this release's protocol"
+    );
     // The version before the field, which served a request without it.
     value["version"] = serde_json::Value::from(8);
-    assert_eq!(decode_client(value.to_string().as_str()), Err(String::from("unsupported version")), "the version before refuses it");
+    assert_eq!(
+        decode_client(value.to_string().as_str()),
+        Err(String::from("unsupported version")),
+        "the version before refuses it"
+    );
 }
 
 /// The retire message round trips,
@@ -354,7 +577,10 @@ fn a_commit_request_carries_the_version_that_names_its_tree() {
 fn retire_round_trips_and_crosses_protocol_versions() {
     let line: String = encode_client(&ClientMessage::Retire);
     assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Retire));
-    let other: String = line.replace(&format!("\"version\":{PROTOCOL_VERSION}"), "\"version\":999");
+    let other: String = line.replace(
+        &format!("\"version\":{PROTOCOL_VERSION}"),
+        "\"version\":999",
+    );
     assert_eq!(decode_client(other.as_str()), Ok(ClientMessage::Retire));
 }
 
@@ -368,7 +594,10 @@ fn retire_is_written_in_the_version_the_service_announced() {
     let line: String = encode_retire(earlier);
     assert!(line.contains(&format!("\"version\":{earlier}")), "{line}");
     assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Retire));
-    assert_eq!(encode_retire(PROTOCOL_VERSION), encode_client(&ClientMessage::Retire));
+    assert_eq!(
+        encode_retire(PROTOCOL_VERSION),
+        encode_client(&ClientMessage::Retire)
+    );
 }
 
 /// A welcome without a release,
@@ -377,7 +606,13 @@ fn retire_is_written_in_the_version_the_service_announced() {
 #[test]
 fn a_welcome_without_a_release_reads_as_none() {
     let line: String = format!("{{\"type\":\"welcome\",\"version\":{PROTOCOL_VERSION}}}");
-    assert_eq!(decode_service(line.as_str()), Ok(ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: None }));
+    assert_eq!(
+        decode_service(line.as_str()),
+        Ok(ServiceMessage::Welcome {
+            version: PROTOCOL_VERSION,
+            release: None
+        })
+    );
 }
 
 /// A work message survives encoding;
@@ -386,11 +621,25 @@ fn a_welcome_without_a_release_reads_as_none() {
 /// are refused.
 #[test]
 fn a_work_message_round_trips_and_hostile_directories_are_refused() {
-    let sent: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None, push_programs: Vec::new()};
-    assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
+    let sent: ClientMessage = ClientMessage::Work {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        review_key: None,
+        push_programs: Vec::new(),
+    };
+    assert_eq!(
+        decode_client(encode_client(&sent).as_str()),
+        Ok(sent.clone())
+    );
     for bad in ["relative/.git", "", "/\u{0}/.git"] {
-        let hostile: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from(bad), review_key: None, push_programs: Vec::new()};
-        assert!(decode_client(encode_client(&hostile).as_str()).is_err(), "{bad:?}");
+        let hostile: ClientMessage = ClientMessage::Work {
+            git_dir: PathBuf::from(bad),
+            review_key: None,
+            push_programs: Vec::new(),
+        };
+        assert!(
+            decode_client(encode_client(&hostile).as_str()).is_err(),
+            "{bad:?}"
+        );
     }
     let missing: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION}}}");
     assert!(decode_client(missing.as_str()).is_err());
@@ -408,10 +657,11 @@ fn a_work_message_round_trips_and_hostile_directories_are_refused() {
 #[test]
 fn a_wake_carries_the_programs_of_each_record_it_announces_and_refuses_anything_else() {
     use std::ffi::OsString;
-    let carried: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[(
-        OsString::from("PATH"),
-        OsString::from("/opt/lfs/bin:/usr/bin"),
-    )]);
+    let carried: crate::service_push_programs_held_in_memory::PushPrograms =
+        crate::service_push_programs_held_in_memory::of(&[(
+            OsString::from("PATH"),
+            OsString::from("/opt/lfs/bin:/usr/bin"),
+        )]);
     let id: String = String::from("push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374");
     let sent: ClientMessage = ClientMessage::Work {
         git_dir: PathBuf::from("/srv/repo/.git"),
@@ -419,9 +669,15 @@ fn a_wake_carries_the_programs_of_each_record_it_announces_and_refuses_anything_
         push_programs: vec![(id.clone(), carried.clone())],
     };
     assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent));
-    let nothing: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None, push_programs: Vec::new() };
+    let nothing: ClientMessage = ClientMessage::Work {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        review_key: None,
+        push_programs: Vec::new(),
+    };
     assert_eq!(decode_client(encode_client(&nothing).as_str()), Ok(nothing));
-    let parsed = |text: &str| -> serde_json::Value { return serde_json::from_str(text).expect("a value this control wrote"); };
+    let parsed = |text: &str| -> serde_json::Value {
+        return serde_json::from_str(text).expect("a value this control wrote");
+    };
     let rewritten = |entries: serde_json::Value| -> String {
         let mut value: serde_json::Value = serde_json::from_str(
             encode_client(&ClientMessage::Work {
@@ -432,15 +688,26 @@ fn a_wake_carries_the_programs_of_each_record_it_announces_and_refuses_anything_
             .as_str(),
         )
         .expect("a JSON line");
-        value.as_object_mut().expect("an object").insert(String::from("pushPrograms"), entries);
+        value
+            .as_object_mut()
+            .expect("an object")
+            .insert(String::from("pushPrograms"), entries);
         return value.to_string();
     };
     for (why, entries) in [
-        ("a record id that is no work record", parsed(r#"[{"id": "maintenance", "programs": {"transport": false, "variables": []}}]"#)),
-        ("an entry with no programs", parsed(r#"[{"id": "push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374"}]"#)),
+        (
+            "a record id that is no work record",
+            parsed(r#"[{"id": "maintenance", "programs": {"transport": false, "variables": []}}]"#),
+        ),
+        (
+            "an entry with no programs",
+            parsed(r#"[{"id": "push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374"}]"#),
+        ),
         (
             "a name outside the five",
-            parsed(r#"[{"id": "push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374", "programs": {"transport": false, "variables": [["SSH_AUTH_SOCK", "/run/agent.sock"]]}}]"#),
+            parsed(
+                r#"[{"id": "push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374", "programs": {"transport": false, "variables": [["SSH_AUTH_SOCK", "/run/agent.sock"]]}}]"#,
+            ),
         ),
         ("a list that is not a list", parsed("{}")),
     ] {
@@ -456,15 +723,35 @@ fn a_wake_carries_the_programs_of_each_record_it_announces_and_refuses_anything_
 /// are refused.
 #[test]
 fn a_warm_message_round_trips_and_hostile_paths_are_refused() {
-    let sent: ClientMessage = ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") };
-    assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
+    let sent: ClientMessage = ClientMessage::Warm {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        repository: PathBuf::from("/srv/repo"),
+    };
+    assert_eq!(
+        decode_client(encode_client(&sent).as_str()),
+        Ok(sent.clone())
+    );
     for bad in ["relative/.git", "", "/\u{0}/.git"] {
-        let hostile: ClientMessage = ClientMessage::Warm { git_dir: PathBuf::from(bad), repository: PathBuf::from("/srv/repo") };
-        assert!(decode_client(encode_client(&hostile).as_str()).is_err(), "{bad:?}");
-        let hostile_repository: ClientMessage = ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from(bad) };
-        assert!(decode_client(encode_client(&hostile_repository).as_str()).is_err(), "{bad:?}");
+        let hostile: ClientMessage = ClientMessage::Warm {
+            git_dir: PathBuf::from(bad),
+            repository: PathBuf::from("/srv/repo"),
+        };
+        assert!(
+            decode_client(encode_client(&hostile).as_str()).is_err(),
+            "{bad:?}"
+        );
+        let hostile_repository: ClientMessage = ClientMessage::Warm {
+            git_dir: PathBuf::from("/srv/repo/.git"),
+            repository: PathBuf::from(bad),
+        };
+        assert!(
+            decode_client(encode_client(&hostile_repository).as_str()).is_err(),
+            "{bad:?}"
+        );
     }
-    let missing: String = format!("{{\"type\":\"warm\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\"}}");
+    let missing: String = format!(
+        "{{\"type\":\"warm\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\"}}"
+    );
     assert!(decode_client(missing.as_str()).is_err());
 }
 
@@ -490,13 +777,28 @@ fn a_message_of_a_repository_that_is_not_text_round_trips() {
     sent.scratch = git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d");
     // A cleanup belongs to a commit built elsewhere, which is the only request that names one.
     sent.commit = Some(String::from(BLOB));
-    sent.cleanup = Some(Cleanup { git_dir: git_dir.clone(), scratch: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d"), reftable: false });
+    sent.cleanup = Some(Cleanup {
+        git_dir: git_dir.clone(),
+        scratch: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d"),
+        reftable: false,
+    });
     for message in [
-        ClientMessage::Work { git_dir: git_dir.clone(), review_key: None, push_programs: Vec::new()},
-        ClientMessage::Warm { git_dir: git_dir.clone(), repository },
+        ClientMessage::Work {
+            git_dir: git_dir.clone(),
+            review_key: None,
+            push_programs: Vec::new(),
+        },
+        ClientMessage::Warm {
+            git_dir: git_dir.clone(),
+            repository,
+        },
         ClientMessage::Commit(Box::new(sent)),
     ] {
-        assert_eq!(decode_client(encode_client(&message).as_str()), Ok(message.clone()), "{message:?}");
+        assert_eq!(
+            decode_client(encode_client(&message).as_str()),
+            Ok(message.clone()),
+            "{message:?}"
+        );
     }
 }
 
@@ -507,10 +809,27 @@ fn a_message_of_a_repository_that_is_not_text_round_trips() {
 /// and the plain field is the whole path whenever the path is text.
 #[test]
 fn a_line_of_an_earlier_release_is_read_as_its_plain_paths() {
-    let warm: String = format!("{{\"type\":\"warm\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\",\"repository\":\"/srv/repo\"}}");
-    assert_eq!(decode_client(warm.as_str()), Ok(ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") }));
-    let work: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\"}}");
-    assert_eq!(decode_client(work.as_str()), Ok(ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None, push_programs: Vec::new()}));
+    let warm: String = format!(
+        "{{\"type\":\"warm\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\",\"repository\":\"/srv/repo\"}}"
+    );
+    assert_eq!(
+        decode_client(warm.as_str()),
+        Ok(ClientMessage::Warm {
+            git_dir: PathBuf::from("/srv/repo/.git"),
+            repository: PathBuf::from("/srv/repo")
+        })
+    );
+    let work: String = format!(
+        "{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\"}}"
+    );
+    assert_eq!(
+        decode_client(work.as_str()),
+        Ok(ClientMessage::Work {
+            git_dir: PathBuf::from("/srv/repo/.git"),
+            review_key: None,
+            push_programs: Vec::new()
+        })
+    );
 }
 
 /// A commit built elsewhere is named whole,
@@ -522,17 +841,29 @@ fn a_prebuilt_commit_is_named_whole_and_never_with_a_tree() {
     let mut plain: CommitRequest = request();
     plain.commit = Some(String::from(BLOB));
     let line: String = encode_client(&ClientMessage::Commit(Box::new(plain.clone())));
-    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(plain.clone()))));
+    assert_eq!(
+        decode_client(line.as_str()),
+        Ok(ClientMessage::Commit(Box::new(plain.clone())))
+    );
     assert!(plain.lands_alone());
     let mut amend: CommitRequest = plain.clone();
     amend.amend = true;
-    assert_eq!(decode_client(encode_client(&ClientMessage::Commit(Box::new(amend.clone()))).as_str()), Ok(ClientMessage::Commit(Box::new(amend))));
+    assert_eq!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(amend.clone()))).as_str()),
+        Ok(ClientMessage::Commit(Box::new(amend)))
+    );
     let mut with_tree: CommitRequest = plain.clone();
     with_tree.tree = Some(String::from(BLOB));
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(with_tree))).as_str()).is_err(), "a tree beside a prebuilt commit");
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(with_tree))).as_str()).is_err(),
+        "a tree beside a prebuilt commit"
+    );
     let mut bad: CommitRequest = plain;
     bad.commit = Some(String::from("not-an-object"));
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(), "a commit that is no object name");
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(),
+        "a commit that is no object name"
+    );
     assert!(!request().lands_alone());
 }
 
@@ -546,16 +877,30 @@ fn an_amend_carries_its_tree_and_only_an_amend_does() {
     amend.amend = true;
     amend.tree = Some(String::from(BLOB));
     let line: String = encode_client(&ClientMessage::Commit(Box::new(amend.clone())));
-    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(amend.clone()))));
+    assert_eq!(
+        decode_client(line.as_str()),
+        Ok(ClientMessage::Commit(Box::new(amend.clone())))
+    );
     let mut without_tree: CommitRequest = amend.clone();
     without_tree.tree = None;
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(without_tree))).as_str()).is_err(), "an amend without a tree");
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(without_tree))).as_str())
+            .is_err(),
+        "an amend without a tree"
+    );
     let mut plain_with_tree: CommitRequest = request();
     plain_with_tree.tree = Some(String::from(BLOB));
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(plain_with_tree))).as_str()).is_err(), "a tree without an amend");
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(plain_with_tree))).as_str())
+            .is_err(),
+        "a tree without an amend"
+    );
     let mut bad_tree: CommitRequest = amend;
     bad_tree.tree = Some(String::from("not-an-object"));
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_tree))).as_str()).is_err(), "a tree that is no object name");
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_tree))).as_str()).is_err(),
+        "a tree that is no object name"
+    );
 }
 
 /// A work message carries the review key when it has one and nothing otherwise;
@@ -565,17 +910,29 @@ fn an_amend_carries_its_tree_and_only_an_amend_does() {
 #[test]
 fn a_work_message_carries_the_review_key_and_hides_it_when_printed() {
     const SECRET: &str = "test-key-not-a-secret";
-    let with_key: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: ReviewKey::new(SECRET) , push_programs: Vec::new()};
+    let with_key: ClientMessage = ClientMessage::Work {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        review_key: ReviewKey::new(SECRET),
+        push_programs: Vec::new(),
+    };
     let line: String = encode_client(&with_key);
     assert!(line.contains(SECRET), "the key travels in the message");
     assert_eq!(decode_client(line.as_str()), Ok(with_key.clone()));
     assert!(!format!("{with_key:?}").contains(SECRET));
-    let without_key: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None, push_programs: Vec::new()};
+    let without_key: ClientMessage = ClientMessage::Work {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        review_key: None,
+        push_programs: Vec::new(),
+    };
     assert!(!encode_client(&without_key).contains("reviewKey"));
     let wrong_type: String = line.replace(&format!("\"{SECRET}\""), "42");
     assert!(decode_client(wrong_type.as_str()).is_err());
     let empty: String = line.replace(SECRET, "");
-    assert_eq!(decode_client(empty.as_str()), Ok(without_key), "an empty key is no key");
+    assert_eq!(
+        decode_client(empty.as_str()),
+        Ok(without_key),
+        "an empty key is no key"
+    );
 }
 
 /// A service that sends no list of landed captures,
@@ -584,18 +941,31 @@ fn a_work_message_carries_the_review_key_and_hides_it_when_printed() {
 #[test]
 fn a_retry_without_a_usable_list_of_landed_captures_reads_as_an_empty_one() {
     let bare: String = format!("{{\"type\":\"retry-prepare\",\"id\":\"x\",\"base\":\"{BLOB}\"}}");
-    let damaged: String = format!("{{\"type\":\"retry-prepare\",\"id\":\"x\",\"base\":\"{BLOB}\",\"landed\":[{{\"commit\":\"nope\",\"captured\":1}},{{\"commit\":\"{BLOB}\"}}]}}");
+    let damaged: String = format!(
+        "{{\"type\":\"retry-prepare\",\"id\":\"x\",\"base\":\"{BLOB}\",\"landed\":[{{\"commit\":\"nope\",\"captured\":1}},{{\"commit\":\"{BLOB}\"}}]}}"
+    );
     for line in [bare, damaged] {
-        assert_eq!(decode_service(line.as_str()), Ok(ServiceMessage::RetryPrepare { id: String::from("x"), base: String::from(BLOB), landed: Vec::new() }));
+        assert_eq!(
+            decode_service(line.as_str()),
+            Ok(ServiceMessage::RetryPrepare {
+                id: String::from("x"),
+                base: String::from(BLOB),
+                landed: Vec::new()
+            })
+        );
     }
 }
 
 /// A request from a client that sends no capture stamp reads as an unknown one.
 #[test]
 fn a_request_without_a_capture_stamp_has_an_unknown_one() {
-    let mut value: serde_json::Value = serde_json::from_str(encode_client(&ClientMessage::Commit(Box::new(request()))).as_str()).expect("json");
+    let mut value: serde_json::Value =
+        serde_json::from_str(encode_client(&ClientMessage::Commit(Box::new(request()))).as_str())
+            .expect("json");
     value.as_object_mut().expect("object").remove("captured");
-    let Ok(ClientMessage::Commit(decoded)) = decode_client(value.to_string().as_str()) else { panic!("the request is refused") };
+    let Ok(ClientMessage::Commit(decoded)) = decode_client(value.to_string().as_str()) else {
+        panic!("the request is refused")
+    };
     assert_eq!(decoded.captured, 0);
 }
 
@@ -612,10 +982,18 @@ fn a_scratch_path_names_only_a_scratch_directory_of_the_worktree() {
     std::fs::create_dir_all(&git_dir).expect("worktree git directory");
     std::fs::write(git_dir.join("commondir"), b"../..\n").expect("commondir");
     let swept: PathBuf = common.join("monochromatic-git-policy-cli-scratch");
-    let accepted = |path: PathBuf| -> bool { return is_scratch_path(path.as_path(), git_dir.as_path()); };
+    let accepted = |path: PathBuf| -> bool {
+        return is_scratch_path(path.as_path(), git_dir.as_path());
+    };
     let name: &str = "monochromatic-git-policy-cli-service-0a1b-2c";
-    assert!(accepted(swept.join(name)), "the place this release makes the tree in");
-    assert!(accepted(git_dir.join(name)), "the place a release before this one made it in");
+    assert!(
+        accepted(swept.join(name)),
+        "the place this release makes the tree in"
+    );
+    assert!(
+        accepted(git_dir.join(name)),
+        "the place a release before this one made it in"
+    );
     for refused in [
         swept.join("monochromatic-git-policy-cli-service-"),
         swept.join("monochromatic-git-policy-cli-service-a b"),
@@ -636,7 +1014,10 @@ fn a_scratch_path_names_only_a_scratch_directory_of_the_worktree() {
     ] {
         assert!(!accepted(refused.clone()), "{}", refused.display());
     }
-    assert!(!accepted(root.join("precious")), "a directory the wrapper did not make is never accepted");
+    assert!(
+        !accepted(root.join("precious")),
+        "a directory the wrapper did not make is never accepted"
+    );
     remove(root.as_path());
 }
 
@@ -660,12 +1041,24 @@ fn a_cleanup_names_only_a_scratch_directory_of_the_worktree() {
         request.scratch = common.join(name);
         request.commit = Some(String::from(BLOB));
         request.base = String::from(BLOB);
-        request.cleanup = Some(Cleanup { git_dir: common.clone(), scratch, reftable: false });
+        request.cleanup = Some(Cleanup {
+            git_dir: common.clone(),
+            scratch,
+            reftable: false,
+        });
         return encode_client(&ClientMessage::Commit(Box::new(request)));
     };
-    let accepted = |scratch: PathBuf| -> bool { return decode_client(asked(scratch).as_str()).is_ok(); };
-    assert!(accepted(swept.join(name)), "the place this release makes the tree in");
-    assert!(accepted(common.join(name)), "the place a release before this one made it in");
+    let accepted = |scratch: PathBuf| -> bool {
+        return decode_client(asked(scratch).as_str()).is_ok();
+    };
+    assert!(
+        accepted(swept.join(name)),
+        "the place this release makes the tree in"
+    );
+    assert!(
+        accepted(common.join(name)),
+        "the place a release before this one made it in"
+    );
     for refused in [
         swept.join("monochromatic-git-policy-cli-service-"),
         swept.join("monochromatic-git-policy-cli-service-a b"),
@@ -684,13 +1077,25 @@ fn a_cleanup_names_only_a_scratch_directory_of_the_worktree() {
     // A cleanup belongs to a commit built elsewhere, so a request that names no commit names no cleanup either.
     let mut without: CommitRequest = request();
     without.commit = None;
-    without.cleanup = Some(Cleanup { git_dir: common.clone(), scratch: swept.join(name), reftable: false });
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(without))).as_str()).is_err());
+    without.cleanup = Some(Cleanup {
+        git_dir: common.clone(),
+        scratch: swept.join(name),
+        reftable: false,
+    });
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(without))).as_str()).is_err()
+    );
     // A cleanup whose own Git directory is relative cannot name a place inside it.
     let mut relative: CommitRequest = request();
     relative.commit = Some(String::from(BLOB));
-    relative.cleanup = Some(Cleanup { git_dir: PathBuf::from("repo/.git"), scratch: swept.join(name), reftable: false });
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err());
+    relative.cleanup = Some(Cleanup {
+        git_dir: PathBuf::from("repo/.git"),
+        scratch: swept.join(name),
+        reftable: false,
+    });
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err()
+    );
     remove(root.as_path());
 }
 
@@ -707,10 +1112,16 @@ fn a_commit_request_names_its_worktrees_git_directory() {
     let fields = value.as_object_mut().expect("an object");
     fields.remove("gitDir");
     fields.remove("gitDirHex");
-    assert!(decode_client(value.to_string().as_str()).is_err(), "missing");
+    assert!(
+        decode_client(value.to_string().as_str()).is_err(),
+        "missing"
+    );
     let mut relative: CommitRequest = sent;
     relative.git_dir = PathBuf::from("relative/.git");
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err(), "relative");
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err(),
+        "relative"
+    );
 }
 
 /// A request that changes as many paths as one may,
@@ -722,10 +1133,26 @@ fn a_commit_request_names_its_worktrees_git_directory() {
 fn a_request_of_the_most_changes_at_the_ninety_ninth_percentile_path_fits_one_line() {
     let mut sent: CommitRequest = request();
     let path: String = "p".repeat(P99_CHANGED_PATH_CHARACTERS);
-    sent.changes = (0..MAX_CHANGES).map(|_number: usize| { return Change { path: PathBuf::from(path.clone()), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
-    assert_eq!(sent.changes[0].path.to_str(), Some(path.as_str()), "the control's names are text, so they take the plain field only");
+    sent.changes = (0..MAX_CHANGES)
+        .map(|_number: usize| {
+            return Change {
+                path: PathBuf::from(path.clone()),
+                mode: ALLOWED_MODES[0],
+                blob: Some(String::from(BLOB)),
+            };
+        })
+        .collect();
+    assert_eq!(
+        sent.changes[0].path.to_str(),
+        Some(path.as_str()),
+        "the control's names are text, so they take the plain field only"
+    );
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
-    assert!(line.len() <= MAX_LINE_BYTES, "{} bytes must fit {MAX_LINE_BYTES}", line.len());
+    assert!(
+        line.len() <= MAX_LINE_BYTES,
+        "{} bytes must fit {MAX_LINE_BYTES}",
+        line.len()
+    );
 }
 
 /// What:
@@ -748,15 +1175,25 @@ fn the_most_changes_fit_one_line_only_while_their_names_are_text() {
                 if let Some(byte) = ending {
                     bytes.push(byte);
                 }
-                return Change { path: PathBuf::from(OsStr::from_bytes(bytes.as_slice())), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) };
+                return Change {
+                    path: PathBuf::from(OsStr::from_bytes(bytes.as_slice())),
+                    mode: ALLOWED_MODES[0],
+                    blob: Some(String::from(BLOB)),
+                };
             })
             .collect();
     };
     let mut sent: CommitRequest = request();
     sent.changes = of_names(Some(0xff));
-    assert!(!commit_request_fits(&sent), "the bytes beside the readable spelling are more than one line holds");
+    assert!(
+        !commit_request_fits(&sent),
+        "the bytes beside the readable spelling are more than one line holds"
+    );
     sent.changes = of_names(None);
-    assert!(commit_request_fits(&sent), "a text name of the same length fits the line the ceiling was measured for");
+    assert!(
+        commit_request_fits(&sent),
+        "a text name of the same length fits the line the ceiling was measured for"
+    );
 }
 
 /// What:
@@ -771,25 +1208,50 @@ fn the_most_changes_fit_one_line_only_while_their_names_are_text() {
 #[test]
 fn a_request_at_the_ceiling_is_measured_with_the_programs_this_command_sends() {
     let plain: usize = commit_line(&request()).len();
-    let carried: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of_this_process();
-    let with_programs: usize = commit_line(&CommitRequest { programs: Some(carried), ..request() }).len();
+    let carried: crate::service_push_programs_held_in_memory::PushPrograms =
+        crate::service_push_programs_held_in_memory::of_this_process();
+    let with_programs: usize = commit_line(&CommitRequest {
+        programs: Some(carried),
+        ..request()
+    })
+    .len();
     let room: usize = with_programs - plain;
-    assert!(room > 2, "the positive control: this command's list takes room on the line ({room} bytes), so the measurement can see it");
+    assert!(
+        room > 2,
+        "the positive control: this command's list takes room on the line ({room} bytes), so the measurement can see it"
+    );
     // A line that fits with less room to spare than the list takes: without the list it is inside the ceiling, with it outside.
     let aimed: usize = MAX_LINE_BYTES - room / 2;
     let named = |length: usize| -> CommitRequest {
         return CommitRequest {
-            changes: vec![Change { path: PathBuf::from("p".repeat(length)), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }],
+            changes: vec![Change {
+                path: PathBuf::from("p".repeat(length)),
+                mode: ALLOWED_MODES[0],
+                blob: Some(String::from(BLOB)),
+            }],
             ..request()
         };
     };
     let near: CommitRequest = named(aimed - commit_line(&named(0)).len());
-    assert_eq!(commit_line(&near).len(), aimed, "the control's line is the length it aimed for");
-    assert!(aimed + 1 <= MAX_LINE_BYTES && aimed + 1 + room > MAX_LINE_BYTES, "the two arms straddle the ceiling by construction");
-    assert!(!commit_request_fits(&near), "the line the service is sent is over the ceiling, so the commit must not be measured as fitting");
+    assert_eq!(
+        commit_line(&near).len(),
+        aimed,
+        "the control's line is the length it aimed for"
+    );
+    assert!(
+        aimed + 1 <= MAX_LINE_BYTES && aimed + 1 + room > MAX_LINE_BYTES,
+        "the two arms straddle the ceiling by construction"
+    );
+    assert!(
+        !commit_request_fits(&near),
+        "the line the service is sent is over the ceiling, so the commit must not be measured as fitting"
+    );
     // The other arm: the same request with room for the list fits, so the answer is about the list and not about a broken fixture.
     let roomy: CommitRequest = named(aimed - commit_line(&named(0)).len() - room - 1);
-    assert!(commit_request_fits(&roomy), "a request with room for this command's list fits");
+    assert!(
+        commit_request_fits(&roomy),
+        "a request with room for this command's list fits"
+    );
 }
 
 /// The most changes a request may carry is the most the decoder accepts,
@@ -797,9 +1259,24 @@ fn a_request_at_the_ceiling_is_measured_with_the_programs_this_command_sends() {
 #[test]
 fn the_decoder_accepts_the_most_changes_and_refuses_one_more() {
     let mut sent: CommitRequest = request();
-    sent.changes = (0..MAX_CHANGES).map(|number: usize| { return Change { path: PathBuf::from(format!("f{number}")), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
-    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(sent.clone()))).as_str()).is_ok());
-    sent.changes.push(Change { path: PathBuf::from("one-more"), mode: ALLOWED_MODES[0], blob: None });
+    sent.changes = (0..MAX_CHANGES)
+        .map(|number: usize| {
+            return Change {
+                path: PathBuf::from(format!("f{number}")),
+                mode: ALLOWED_MODES[0],
+                blob: Some(String::from(BLOB)),
+            };
+        })
+        .collect();
+    assert!(
+        decode_client(encode_client(&ClientMessage::Commit(Box::new(sent.clone()))).as_str())
+            .is_ok()
+    );
+    sent.changes.push(Change {
+        path: PathBuf::from("one-more"),
+        mode: ALLOWED_MODES[0],
+        blob: None,
+    });
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(sent))).as_str()).is_err());
 }
 
@@ -807,10 +1284,14 @@ fn the_decoder_accepts_the_most_changes_and_refuses_one_more() {
 /// and an empty or oversized identity in one is refused.
 #[test]
 fn a_withdrawal_round_trips_and_a_hostile_identity_is_refused() {
-    let sent: ClientMessage = ClientMessage::Withdraw { id: String::from("0f0e0d0c-aaaa-bbbb-cccc-000000000001") };
+    let sent: ClientMessage = ClientMessage::Withdraw {
+        id: String::from("0f0e0d0c-aaaa-bbbb-cccc-000000000001"),
+    };
     assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent));
     for id in [String::new(), "x".repeat(MAX_ID_BYTES + 1)] {
-        let line: String = encode_client(&ClientMessage::Withdraw { id });
+        let line: String = encode_client(&ClientMessage::Withdraw {
+            id,
+        });
         assert!(decode_client(line.as_str()).is_err(), "{line}");
     }
 }
@@ -826,16 +1307,40 @@ fn a_withdrawal_round_trips_and_a_hostile_identity_is_refused() {
 /// because neither side needs the other to know the field.
 #[test]
 fn an_inside_write_notice_is_a_waiting_line_with_one_extra_field() {
-    let inside: ServiceMessage = ServiceMessage::InsideWrite { text: String::from("monochromatic-git-policy-cli: the commit service has been inside a write") };
+    let inside: ServiceMessage = ServiceMessage::InsideWrite {
+        text: String::from(
+            "monochromatic-git-policy-cli: the commit service has been inside a write",
+        ),
+    };
     let line: String = encode_service(&inside);
     assert_eq!(decode_service(line.as_str()), Ok(inside));
     let value: serde_json::Value = serde_json::from_str(line.as_str()).expect("a JSON line");
-    assert_eq!(value.get("type").and_then(serde_json::Value::as_str), Some("waiting"));
-    assert_eq!(value.get("text").and_then(serde_json::Value::as_str), Some("monochromatic-git-policy-cli: the commit service has been inside a write"));
-    assert_eq!(value.get("inside_write").and_then(serde_json::Value::as_bool), Some(true));
+    assert_eq!(
+        value.get("type").and_then(serde_json::Value::as_str),
+        Some("waiting")
+    );
+    assert_eq!(
+        value.get("text").and_then(serde_json::Value::as_str),
+        Some("monochromatic-git-policy-cli: the commit service has been inside a write")
+    );
+    assert_eq!(
+        value
+            .get("inside_write")
+            .and_then(serde_json::Value::as_bool),
+        Some(true)
+    );
     // What an older service sends, and what the same line reads as when the field is false.
-    for older in [r#"{"type":"waiting","text":"t"}"#, r#"{"type":"waiting","text":"t","inside_write":false}"#] {
-        assert_eq!(decode_service(older), Ok(ServiceMessage::Waiting { text: String::from("t") }), "{older}");
+    for older in [
+        r#"{"type":"waiting","text":"t"}"#,
+        r#"{"type":"waiting","text":"t","inside_write":false}"#,
+    ] {
+        assert_eq!(
+            decode_service(older),
+            Ok(ServiceMessage::Waiting {
+                text: String::from("t")
+            }),
+            "{older}"
+        );
     }
 }
 
@@ -851,26 +1356,55 @@ fn an_inside_write_notice_is_a_waiting_line_with_one_extra_field() {
 #[test]
 fn the_message_that_gives_up_a_records_programs_travels_and_refuses_anything_else() {
     let id: String = String::from("push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374");
-    let sent: ClientMessage = ClientMessage::ForgetPrograms { git_dir: PathBuf::from("/srv/repo/.git"), records: vec![id.clone()] };
+    let sent: ClientMessage = ClientMessage::ForgetPrograms {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        records: vec![id.clone()],
+    };
     assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent));
-    let empty: ClientMessage = ClientMessage::ForgetPrograms { git_dir: PathBuf::from("/srv/repo/.git"), records: Vec::new() };
+    let empty: ClientMessage = ClientMessage::ForgetPrograms {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        records: Vec::new(),
+    };
     assert_eq!(
         decode_client(encode_client(&empty).as_str()),
         Ok(empty),
         "a message that names no record is read as one that forgets nothing"
     );
-    let parsed = |text: &str| -> serde_json::Value { return serde_json::from_str(text).expect("a value this control wrote"); };
+    let parsed = |text: &str| -> serde_json::Value {
+        return serde_json::from_str(text).expect("a value this control wrote");
+    };
     let rewritten = |records: serde_json::Value| -> String {
-        let mut value: serde_json::Value =
-            serde_json::from_str(encode_client(&ClientMessage::ForgetPrograms { git_dir: PathBuf::from("/srv/repo/.git"), records: vec![id.clone()] }).as_str())
-                .expect("a JSON line");
-        value.as_object_mut().expect("an object").insert(String::from("records"), records);
+        let mut value: serde_json::Value = serde_json::from_str(
+            encode_client(&ClientMessage::ForgetPrograms {
+                git_dir: PathBuf::from("/srv/repo/.git"),
+                records: vec![id.clone()],
+            })
+            .as_str(),
+        )
+        .expect("a JSON line");
+        value
+            .as_object_mut()
+            .expect("an object")
+            .insert(String::from("records"), records);
         return value.to_string();
     };
     for (why, records) in [
         ("an id that is no work record", parsed(r#"["maintenance"]"#)),
         ("an entry that is not text", parsed(r#"[7]"#)),
-        ("a list past the ceiling", parsed(format!("[{}]", vec![format!("\"{id}\""); crate::service_protocol_messages_and_name_checks::MAX_FORGOTTEN_RECORDS + 1].join(",")).as_str())),
+        (
+            "a list past the ceiling",
+            parsed(
+                format!(
+                    "[{}]",
+                    vec![
+                        format!("\"{id}\"");
+                        crate::service_protocol_messages_and_name_checks::MAX_FORGOTTEN_RECORDS + 1
+                    ]
+                    .join(",")
+                )
+                .as_str(),
+            ),
+        ),
         ("no list at all", parsed("{}")),
     ] {
         let bad: String = rewritten(records);

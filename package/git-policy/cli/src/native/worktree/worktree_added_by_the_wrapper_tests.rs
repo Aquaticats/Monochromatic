@@ -10,8 +10,17 @@
 //! expect(addedByTheWrapper(admin, worktree)).toBe(true);
 //! ```
 
-use crate::test_support::{fixture, git, git_text, repository};
-use crate::worktree_added_by_the_wrapper::{ADDED_RECORD_NAME, added_by_the_wrapper, record};
+use crate::test_support::{
+    fixture,
+    git,
+    git_text,
+    repository,
+};
+use crate::worktree_added_by_the_wrapper::{
+    ADDED_RECORD_NAME,
+    added_by_the_wrapper,
+    record,
+};
 use std::path::PathBuf;
 
 /// A repository and one linked worktree of it.
@@ -35,8 +44,21 @@ fn a_repository_with_one_worktree(name: &str) -> Added {
     let root: PathBuf = fixture(name);
     let main: PathBuf = repository(root.as_path(), "main");
     let worktree: PathBuf = root.join("worktree");
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", worktree.to_str().expect("a UTF-8 fixture path")]);
-    return Added { common: main.join(".git"), worktree };
+    git(
+        main.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            worktree.to_str().expect("a UTF-8 fixture path"),
+        ],
+    );
+    return Added {
+        common: main.join(".git"),
+        worktree,
+    };
 }
 
 /// The one registration below a common directory.
@@ -44,7 +66,7 @@ fn only_registration(common: &std::path::Path) -> PathBuf {
     let found: Vec<PathBuf> = std::fs::read_dir(common.join("worktrees"))
         .expect("the registrations")
         .flatten()
-        .map(|entry| { return entry.path() })
+        .map(|entry| return entry.path())
         .collect();
     assert_eq!(found.len(), 1, "{found:?}");
     return found.into_iter().next().expect("one registration");
@@ -55,8 +77,14 @@ fn the_record_names_the_worktree_the_wrapper_made() {
     let added: Added = a_repository_with_one_worktree("added-record");
     record(added.common.as_path(), added.worktree.as_path()).expect("the record is written");
     let admin: PathBuf = only_registration(added.common.as_path());
-    assert!(added_by_the_wrapper(admin.as_path(), added.worktree.as_path()), "the record answers for this worktree");
-    assert!(admin.join(ADDED_RECORD_NAME).exists(), "the record sits beside the registration");
+    assert!(
+        added_by_the_wrapper(admin.as_path(), added.worktree.as_path()),
+        "the record answers for this worktree"
+    );
+    assert!(
+        admin.join(ADDED_RECORD_NAME).exists(),
+        "the record sits beside the registration"
+    );
 }
 
 #[test]
@@ -64,14 +92,23 @@ fn a_record_of_another_worktree_answers_no() {
     let added: Added = a_repository_with_one_worktree("added-other");
     record(added.common.as_path(), added.worktree.as_path()).expect("the record is written");
     let admin: PathBuf = only_registration(added.common.as_path());
-    assert!(!added_by_the_wrapper(admin.as_path(), added.worktree.join("somewhere else").as_path()), "another path is not this worktree");
+    assert!(
+        !added_by_the_wrapper(
+            admin.as_path(),
+            added.worktree.join("somewhere else").as_path()
+        ),
+        "another path is not this worktree"
+    );
 }
 
 #[test]
 fn an_absent_record_answers_no() {
     let added: Added = a_repository_with_one_worktree("added-absent");
     let admin: PathBuf = only_registration(added.common.as_path());
-    assert!(!added_by_the_wrapper(admin.as_path(), added.worktree.as_path()), "no record, no proof");
+    assert!(
+        !added_by_the_wrapper(admin.as_path(), added.worktree.as_path()),
+        "no record, no proof"
+    );
 }
 
 #[test]
@@ -79,9 +116,13 @@ fn a_directory_that_is_no_worktree_gets_no_record() {
     let root: PathBuf = fixture("added-plain");
     let plain: PathBuf = root.join("plain");
     std::fs::create_dir(plain.as_path()).expect("a plain directory");
-    let failure: String = record(root.as_path(), plain.as_path()).expect_err("a plain directory is no linked worktree");
+    let failure: String = record(root.as_path(), plain.as_path())
+        .expect_err("a plain directory is no linked worktree");
     assert!(failure.contains("the worktree's pointer"), "{failure}");
-    assert!(!plain.join(ADDED_RECORD_NAME).exists(), "nothing is written");
+    assert!(
+        !plain.join(ADDED_RECORD_NAME).exists(),
+        "nothing is written"
+    );
 }
 
 /// The record must never be taken for a worktree Git does not register there.
@@ -89,9 +130,16 @@ fn a_directory_that_is_no_worktree_gets_no_record() {
 fn the_registration_is_read_from_the_worktree_pointer() {
     let added: Added = a_repository_with_one_worktree("added-pointer");
     record(added.common.as_path(), added.worktree.as_path()).expect("the record is written");
-    let pointer: String = git_text(added.worktree.as_path(), &["rev-parse", "--absolute-git-dir"]);
+    let pointer: String = git_text(
+        added.worktree.as_path(),
+        &["rev-parse", "--absolute-git-dir"],
+    );
     let admin: PathBuf = std::fs::canonicalize(pointer).expect("the administrative directory");
-    assert!(admin.join(ADDED_RECORD_NAME).exists(), "the record sits in the directory the worktree names: {}", admin.display());
+    assert!(
+        admin.join(ADDED_RECORD_NAME).exists(),
+        "the record sits in the directory the worktree names: {}",
+        admin.display()
+    );
 }
 
 /// What:
@@ -107,7 +155,14 @@ fn a_worktree_whose_path_ends_in_a_space_answers_its_record() {
     let worktree: PathBuf = root.join("spaced ");
     git(
         main.as_path(),
-        &["worktree", "add", "--quiet", "-b", "feature", worktree.to_str().expect("a UTF-8 fixture path")],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            worktree.to_str().expect("a UTF-8 fixture path"),
+        ],
     );
     let common: PathBuf = main.join(".git");
     record(common.as_path(), worktree.as_path()).expect("the record is written");
@@ -130,11 +185,16 @@ fn the_registration_is_read_from_a_pointer_that_ends_in_a_space() {
     let added: Added = a_repository_with_one_worktree("added-pointer-space");
     let administration: PathBuf = only_registration(added.common.as_path());
     let spaced: PathBuf = administration.with_file_name("spaced ");
-    std::fs::rename(administration.as_path(), spaced.as_path()).expect("the administrative directory is renamed");
+    std::fs::rename(administration.as_path(), spaced.as_path())
+        .expect("the administrative directory is renamed");
     let mut pointer: Vec<u8> = Vec::from(b"gitdir: ".as_slice());
     pointer.extend_from_slice(crate::path_bytes::path_bytes_of(spaced.as_path()));
     pointer.push(b'\n');
     std::fs::write(added.worktree.join(".git"), pointer).expect("pointer file");
-    record(added.common.as_path(), added.worktree.as_path()).expect("the record is written beside the registration the pointer names");
-    assert!(spaced.join(ADDED_RECORD_NAME).exists(), "the record sits in the renamed registration");
+    record(added.common.as_path(), added.worktree.as_path())
+        .expect("the record is written beside the registration the pointer names");
+    assert!(
+        spaced.join(ADDED_RECORD_NAME).exists(),
+        "the record sits in the renamed registration"
+    );
 }

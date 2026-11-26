@@ -17,18 +17,18 @@
 //! // relayWhenSshCarries(git, argv, env) : { outcome, code } | undefined  // undefined = keep today's process replacement
 //! ```
 
-/// The four command words, the remote URL Git would use, and whether ssh carries it.
-pub mod the_remote_a_typed_command_names;
-/// The first of a command's words that is not an option, read with Git's own option table.
-pub mod the_options_before_the_remote;
 /// The host a remote names as the person typed it, and the words an `ssh` command needs to connect there.
 pub mod a_target_the_sentence_may_name;
-/// The child started with its error stream on a terminal or a pipe, and the wait that reads it to the child's end.
-pub mod git_error_stream_relayed_as_it_arrives;
 /// The pseudo-terminal a child writes its error stream to when this process's standard error is a terminal.
 pub mod a_terminal_the_child_writes_its_error_stream_to;
+/// The child started with its error stream on a terminal or a pipe, and the wait that reads it to the child's end.
+pub mod git_error_stream_relayed_as_it_arrives;
+/// The first of a command's words that is not an option, read with Git's own option table.
+pub mod the_options_before_the_remote;
 /// The relayed bytes: read as they arrive, written on, and kept as a bounded tail.
 pub mod the_relayed_bytes;
+/// The four command words, the remote URL Git would use, and whether ssh carries it.
+pub mod the_remote_a_typed_command_names;
 /// The sentence printed after a refusal, and the record that one was printed.
 pub mod the_sentence_after_the_refusal;
 
@@ -47,14 +47,27 @@ use crate::hooks_off::StartOwner;
 // What: The start of a real Git, with the marker and the hooks-off prefix every start carries.
 use crate::forwarding::git_command;
 // What: The guard that owns this process's relaying handlers, and how the child ended.
-use crate::signal_relay::SignalGuard;
 use crate::forwarding::ChildOutcome;
+use crate::signal_relay::SignalGuard;
 // What: The two halves of the error-stream relay, and the shape K2 decides between.
-use git_error_stream_relayed_as_it_arrives::{ErrorStreamShape, RelayedErrorStream, read_to_the_child_s_end, shape_of_this_process, start_relaying};
+use git_error_stream_relayed_as_it_arrives::{
+    ErrorStreamShape,
+    RelayedErrorStream,
+    read_to_the_child_s_end,
+    shape_of_this_process,
+    start_relaying,
+};
 // What: The refusal reading, the sentence, and the record of printing one.
 use the_sentence_after_the_refusal::print_after_a_refusal;
 // What: The command, its remote read and the host the sentence names, plus whether ssh carries the remote.
-use the_remote_a_typed_command_names::{RemoteRead, TypedNetworkCommand, remote_read_for, remote_url, ssh_carries, typed_command};
+use the_remote_a_typed_command_names::{
+    RemoteRead,
+    TypedNetworkCommand,
+    remote_read_for,
+    remote_url,
+    ssh_carries,
+    typed_command,
+};
 // What: The host the sentence names, built from the URL's own grammar.
 // Why:  A sentence without a host it may print names no next step.
 //
@@ -62,7 +75,10 @@ use the_remote_a_typed_command_names::{RemoteRead, TypedNetworkCommand, remote_r
 // ```ts
 // import { type Target, targetOf } from './a-target-the-sentence-may-name';
 // ```
-use a_target_the_sentence_may_name::{Target, target_of};
+use a_target_the_sentence_may_name::{
+    Target,
+    target_of,
+};
 
 /// What:
 ///  How a typed network command ended when the wrapper kept Git as its child.
@@ -99,7 +115,9 @@ impl TypedNetworkCommandEnding {
         // `match` picks by variant and binds the number the variant carries.
         return match self {
             TypedNetworkCommandEnding::Ran(code) => code,
-            TypedNetworkCommandEnding::Signalled(signal) => crate::forwarding::end_as_git_ended(signal),
+            TypedNetworkCommandEnding::Signalled(signal) => {
+                crate::forwarding::end_as_git_ended(signal)
+            }
         };
     }
 }
@@ -130,20 +148,24 @@ pub fn relay_when_ssh_carries(
     // ```ts
     // const typed = typedCommand(argv); if (!typed) return undefined;
     // ```
-    let (command, region, prefix): (TypedNetworkCommand, &[OsString], &[OsString]) = match typed_command(arguments) {
-        Some(named) => named,
-        // What: `None` ends this function with no relay, and the line says which command word was read.
-        // Why:   A decision that nothing relays must be readable when a person asks why a command named no next step.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // debug('typedNetworkCommandRelay', 'not one of the four network commands'); return undefined;
-        // ```
-        None => {
-            crate::diagnostic_log::debug("typedNetworkCommandRelay", "not one of the four typed network commands, so the process replacement it has stays");
-            return None;
-        }
-    };
+    let (command, region, prefix): (TypedNetworkCommand, &[OsString], &[OsString]) =
+        match typed_command(arguments) {
+            Some(named) => named,
+            // What: `None` ends this function with no relay, and the line says which command word was read.
+            // Why:   A decision that nothing relays must be readable when a person asks why a command named no next step.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // debug('typedNetworkCommandRelay', 'not one of the four network commands'); return undefined;
+            // ```
+            None => {
+                crate::diagnostic_log::debug(
+                    "typedNetworkCommandRelay",
+                    "not one of the four typed network commands, so the process replacement it has stays",
+                );
+                return None;
+            }
+        };
     // What: `RemoteRead` says where the URL comes from: a clone's own word, or a remote the repository knows.
     // Why:   The two need different questions to Git.
     //
@@ -154,7 +176,10 @@ pub fn relay_when_ssh_carries(
     let read: RemoteRead<'_> = match remote_read_for(command, region) {
         Some(named) => named,
         None => {
-            crate::diagnostic_log::debug("typedNetworkCommandRelay", "the command's remote could not be read from its words, so the process replacement it has stays");
+            crate::diagnostic_log::debug(
+                "typedNetworkCommandRelay",
+                "the command's remote could not be read from its words, so the process replacement it has stays",
+            );
             return None;
         }
     };
@@ -168,13 +193,22 @@ pub fn relay_when_ssh_carries(
     let url: String = match remote_url(command, &read, prefix, real_git, overlay) {
         Some(read_url) => read_url,
         None => {
-            crate::diagnostic_log::debug("typedNetworkCommandRelay", "Git answered no URL for this command's remote, so the process replacement it has stays");
+            crate::diagnostic_log::debug(
+                "typedNetworkCommandRelay",
+                "Git answered no URL for this command's remote, so the process replacement it has stays",
+            );
             return None;
         }
     };
-    crate::diagnostic_log::debug("typedNetworkCommandRelay", format!("the remote is {url}").as_str());
+    crate::diagnostic_log::debug(
+        "typedNetworkCommandRelay",
+        format!("the remote is {url}").as_str(),
+    );
     if !ssh_carries(url.as_str()) {
-        crate::diagnostic_log::debug("typedNetworkCommandRelay", "ssh does not carry this remote, so the process replacement it has stays");
+        crate::diagnostic_log::debug(
+            "typedNetworkCommandRelay",
+            "ssh does not carry this remote, so the process replacement it has stays",
+        );
         return None;
     }
     // What: `Target` is the host as the person's remote names it, and the words an `ssh` command needs.
@@ -187,7 +221,10 @@ pub fn relay_when_ssh_carries(
     let target: Target = match target_of(url.as_str()) {
         Some(named) => named,
         None => {
-            crate::diagnostic_log::debug("typedNetworkCommandRelay", "the remote names no host a sentence may print, so the process replacement it has stays");
+            crate::diagnostic_log::debug(
+                "typedNetworkCommandRelay",
+                "the remote names no host a sentence may print, so the process replacement it has stays",
+            );
             return None;
         }
     };
@@ -233,10 +270,11 @@ pub fn relay_when_ssh_carries(
     // ```ts
     // let start; try { start = startRelaying(shape, guard, command); } catch (error) { return { error }; }
     // ```
-    let started: git_error_stream_relayed_as_it_arrives::RelayedStart = match start_relaying(shape, Some(&guard), &mut git_to_run) {
-        Ok(running) => running,
-        Err(error) => return Some(Err(error)),
-    };
+    let started: git_error_stream_relayed_as_it_arrives::RelayedStart =
+        match start_relaying(shape, Some(&guard), &mut git_to_run) {
+            Ok(running) => running,
+            Err(error) => return Some(Err(error)),
+        };
     // What: `RelayedErrorStream` is the child's end and the tail of what it wrote.
     // Why:   The sentence reads that tail, and the end is Git's answer to the person.
     //
@@ -244,7 +282,8 @@ pub fn relay_when_ssh_carries(
     // ```ts
     // const relayed = readToTheChildSEnd(start);
     // ```
-    let relayed: RelayedErrorStream = match read_to_the_child_s_end(started, &mut std::io::stderr()) {
+    let relayed: RelayedErrorStream = match read_to_the_child_s_end(started, &mut std::io::stderr())
+    {
         Ok(finished) => finished,
         Err(error) => return Some(Err(error)),
     };
@@ -261,7 +300,10 @@ pub fn relay_when_ssh_carries(
     // ```
     let (ended_with, ending): (i32, TypedNetworkCommandEnding) = match relayed.outcome {
         ChildOutcome::Exited(code) => (code, TypedNetworkCommandEnding::Ran(code)),
-        ChildOutcome::Signaled(signal) => (crate::forwarding::SIGNAL_EXIT_BASE.saturating_add(signal), TypedNetworkCommandEnding::Signalled(signal)),
+        ChildOutcome::Signaled(signal) => (
+            crate::forwarding::SIGNAL_EXIT_BASE.saturating_add(signal),
+            TypedNetworkCommandEnding::Signalled(signal),
+        ),
     };
     print_after_a_refusal(relayed.kept.as_slice(), ended_with, &target);
     // What: `Some(Ok(..))` says the command ran the relayed way; the ending says how it ended.
@@ -313,7 +355,8 @@ pub fn sentence_after_a_refused_probe_of_a_push(
     // ```ts
     // const url = remoteUrl('push', read, prefix, git, overlay); if (!url || !sshCarries(url)) return;
     // ```
-    let (command, region, _own_prefix): (TypedNetworkCommand, &[OsString], &[OsString]) = typed_command(arguments.as_slice())?;
+    let (command, region, _own_prefix): (TypedNetworkCommand, &[OsString], &[OsString]) =
+        typed_command(arguments.as_slice())?;
     let read: RemoteRead<'_> = remote_read_for(command, region)?;
     let url: String = remote_url(command, &read, prefix.as_slice(), real_git, overlay)?;
     if !ssh_carries(url.as_str()) {
@@ -327,7 +370,10 @@ pub fn sentence_after_a_refused_probe_of_a_push(
     // ```ts
     // const refusal = refusalIn(said); const sentence = sentenceFor(refusal, target);
     // ```
-    let refusal: the_sentence_after_the_refusal::Refusal = the_sentence_after_the_refusal::refusal_in(said)?;
+    let refusal: the_sentence_after_the_refusal::Refusal =
+        the_sentence_after_the_refusal::refusal_in(said)?;
     the_sentence_after_the_refusal::remember_printed();
-    return Some(the_sentence_after_the_refusal::sentence_for(refusal, &target));
+    return Some(the_sentence_after_the_refusal::sentence_for(
+        refusal, &target,
+    ));
 }

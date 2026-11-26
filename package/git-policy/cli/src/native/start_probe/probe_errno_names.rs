@@ -121,13 +121,19 @@ impl ErrnoWord {
 /// The errno names a status line may carry,
 /// one per word.
 pub fn errno_name(word: &str) -> Option<&'static str> {
-    return ERRNO_NAMES.iter().find(|(name, _)| return *name == word).map(|(name, _)| return *name);
+    return ERRNO_NAMES
+        .iter()
+        .find(|(name, _)| return *name == word)
+        .map(|(name, _)| return *name);
 }
 
 /// The errno name one call's answer stands for,
 /// or nothing when this build does not name it.
 pub fn errno_of(number: i32) -> Option<&'static str> {
-    return ERRNO_NAMES.iter().find(|(_, value)| return *value == number).map(|(name, _)| return *name);
+    return ERRNO_NAMES
+        .iter()
+        .find(|(_, value)| return *value == number)
+        .map(|(name, _)| return *name);
 }
 
 /// The reason words a step that did not run may carry.
@@ -153,9 +159,11 @@ pub const REASON_WORDS: [&str; 17] = [
 
 /// Whether a reason word is one this build writes.
 pub fn known_reason_word(word: &str) -> Option<&'static str> {
-    return REASON_WORDS.iter().copied().find(|known| return *known == word);
+    return REASON_WORDS
+        .iter()
+        .copied()
+        .find(|known| return *known == word);
 }
-
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

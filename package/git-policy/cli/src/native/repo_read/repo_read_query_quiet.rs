@@ -29,41 +29,90 @@
 //! ```
 
 use crate::repo_read_diff::PathFilter;
-use crate::repo_read_index::{INTENT_TO_ADD, IndexEntry, ParsedIndex};
-use crate::repo_read_object::{ObjectKind, from_hex};
+use crate::repo_read_index::{
+    INTENT_TO_ADD,
+    IndexEntry,
+    ParsedIndex,
+};
+use crate::repo_read_object::{
+    ObjectKind,
+    from_hex,
+};
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_query_request_answer_and_context::{Answer, Context, Parsed, flags_are};
-use crate::repo_read_refs::{RefValue, Refs};
-use crate::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree_shared, parse_commit};
-use crate::repo_read_tree_cached::{UnequalParts, outside, unequal_parts};
+use crate::repo_read_query_request_answer_and_context::{
+    Answer,
+    Context,
+    Parsed,
+    flags_are,
+};
+use crate::repo_read_refs::{
+    RefValue,
+    Refs,
+};
+use crate::repo_read_tree::{
+    FlatEntry,
+    MODE_GITLINK,
+    flatten_tree_shared,
+    parse_commit,
+};
+use crate::repo_read_tree_cached::{
+    UnequalParts,
+    outside,
+    unequal_parts,
+};
 
 /// The commit `HEAD` names,
 /// for a branch under `refs/heads/` or a detached head.
 fn head_commit(context: &Context) -> Option<String> {
-    let refs: Refs = Refs::new(context.layout.common_dir.as_path(), context.layout.object_format.hex_length());
+    let refs: Refs = Refs::new(
+        context.layout.common_dir.as_path(),
+        context.layout.object_format.hex_length(),
+    );
     return match refs.lookup_head(context.layout.git_dir.as_path())? {
         RefValue::Direct(object) => Some(object),
-        RefValue::Symbolic(target) if target.starts_with("refs/heads/") => refs.resolve(target.as_str()),
+        RefValue::Symbolic(target) if target.starts_with("refs/heads/") => {
+            refs.resolve(target.as_str())
+        }
         RefValue::Symbolic(_) => None,
     };
 }
 
 /// The root tree of the commit or tree `operand` names (a hexadecimal name or `HEAD`).
-fn tree_of_operand(context: &Context, database: &ObjectDatabase, operand: &[u8]) -> Option<Vec<u8>> {
-    let hex: Vec<u8> = if operand == b"HEAD" { head_commit(context)?.into_bytes() } else { operand.to_vec() };
+fn tree_of_operand(
+    context: &Context,
+    database: &ObjectDatabase,
+    operand: &[u8],
+) -> Option<Vec<u8>> {
+    let hex: Vec<u8> = if operand == b"HEAD" {
+        head_commit(context)?.into_bytes()
+    } else {
+        operand.to_vec()
+    };
     let name: Vec<u8> = from_hex(hex.as_slice(), context.layout.object_format)?;
     let object = database.read(name.as_slice())?;
     return match object.kind {
         ObjectKind::Tree => Some(name),
-        ObjectKind::Commit => Some(parse_commit(object.bytes.as_slice(), context.layout.object_format)?.tree),
+        ObjectKind::Commit => {
+            Some(parse_commit(object.bytes.as_slice(), context.layout.object_format)?.tree)
+        }
         ObjectKind::Blob | ObjectKind::Tag => None,
     };
 }
 
 /// Whether a `.gitmodules` file is in the worktree or in either list,
 /// so a submodule difference might be configured away.
-fn has_gitmodules(context: &Context, tree: &[FlatEntry], index: &[IndexEntry]) -> bool {
-    if context.layout.worktree_root.join(".gitmodules").symlink_metadata().is_ok() {
+fn has_gitmodules(
+    context: &Context,
+    tree: &[FlatEntry],
+    index: &[IndexEntry],
+) -> bool {
+    if context
+        .layout
+        .worktree_root
+        .join(".gitmodules")
+        .symlink_metadata()
+        .is_ok()
+    {
         return true;
     }
     for entry in tree {
@@ -88,14 +137,21 @@ fn is_link(mode: u32) -> bool {
 /// no output,
 /// and the exit code `1` when the two sides differ.
 fn quiet_answer(differs: bool) -> Option<Answer> {
-    return Some(Answer { stdout: Vec::new(), stderr: Vec::new(), code: i32::from(differs) });
+    return Some(Answer {
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+        code: i32::from(differs),
+    });
 }
 
 /// How the two sorted lists differ:
 /// whether a difference Git always reports exists,
 /// and whether one that only a submodule
 /// setting could hide exists.
-fn compare(tree: &[&FlatEntry], index: &[&IndexEntry]) -> (bool, bool) {
+fn compare(
+    tree: &[&FlatEntry],
+    index: &[&IndexEntry],
+) -> (bool, bool) {
     let (mut left, mut right): (usize, usize) = (0, 0);
     let mut hideable: bool = false;
     while left < tree.len() || right < index.len() {
@@ -138,11 +194,15 @@ fn compare(tree: &[&FlatEntry], index: &[&IndexEntry]) -> (bool, bool) {
 }
 
 /// `diff-index --cached --quiet <commit> [-- <paths>]`.
-pub(crate) fn diff_index_quiet(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+pub(crate) fn diff_index_quiet(
+    context: &Context,
+    parsed: &Parsed<'_>,
+) -> Option<Answer> {
     if !flags_are(&parsed.flags, &["--cached", "--quiet"], &[]) || parsed.operands.len() != 1 {
         return None;
     }
-    let filter: PathFilter = PathFilter::parse(parsed.specs.as_slice(), context.layout.prefix.is_empty())?;
+    let filter: PathFilter =
+        PathFilter::parse(parsed.specs.as_slice(), context.layout.prefix.is_empty())?;
     let database: ObjectDatabase = context.database()?;
     let tree_name: Vec<u8> = tree_of_operand(context, &database, parsed.operands[0])?;
     let whole_index: ParsedIndex = context.index_with_tree()?;
@@ -158,13 +218,23 @@ pub(crate) fn diff_index_quiet(context: &Context, parsed: &Parsed<'_>) -> Option
     }
     let mut unequal: Option<UnequalParts> = None;
     if trusted && let Some(nodes) = whole_index.tree.as_ref() {
-        unequal = unequal_parts(&database, tree_name.as_slice(), context.layout.object_format, nodes, paths.as_slice());
+        unequal = unequal_parts(
+            &database,
+            tree_name.as_slice(),
+            context.layout.object_format,
+            nodes,
+            paths.as_slice(),
+        );
     }
     let whole_tree: std::rc::Rc<Vec<FlatEntry>>;
     let tree: &[FlatEntry] = if let Some(parts) = &unequal {
         parts.tree.as_slice()
     } else {
-        whole_tree = flatten_tree_shared(&database, tree_name.as_slice(), context.layout.object_format)?;
+        whole_tree = flatten_tree_shared(
+            &database,
+            tree_name.as_slice(),
+            context.layout.object_format,
+        )?;
         whole_tree.as_slice()
     };
     let mut kept: Vec<IndexEntry> = Vec::new();
@@ -173,7 +243,11 @@ pub(crate) fn diff_index_quiet(context: &Context, parsed: &Parsed<'_>) -> Option
             kept.push(entry.clone());
         }
     }
-    let index: &[IndexEntry] = if unequal.is_some() { kept.as_slice() } else { whole_index.entries.as_slice() };
+    let index: &[IndexEntry] = if unequal.is_some() {
+        kept.as_slice()
+    } else {
+        whole_index.entries.as_slice()
+    };
     let mut wanted_index: Vec<&IndexEntry> = Vec::new();
     for entry in index {
         if filter.matches(entry.path.as_slice()) {

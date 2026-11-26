@@ -14,9 +14,18 @@
 use crate::auto_push_single_flight::PushGit;
 use crate::manual_push_cause::ManualPushCause;
 use crate::manual_push_probe::PushUpdate;
-use crate::manual_push_range::{ManualPushRangeError, lines_of, range_error, run_git_bytes};
+use crate::manual_push_range::{
+    ManualPushRangeError,
+    lines_of,
+    range_error,
+    run_git_bytes,
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+    HashSet,
+};
 use std::ffi::OsString;
-use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Remote-tracking ref namespace Git's default fetch refspec writes.
 const TRACKING_NAMESPACE: &str = "refs/remotes/";
@@ -67,9 +76,10 @@ pub fn peel_commits(
         }
         let fields: Vec<&str> = record.split(' ').collect();
         if fields.len() != 2 {
-            return Err(range_error(ManualPushCause::UnexpectedOutput, format!(
-                "Git object batch-check returned malformed record: {record}"
-            )));
+            return Err(range_error(
+                ManualPushCause::UnexpectedOutput,
+                format!("Git object batch-check returned malformed record: {record}"),
+            ));
         }
         if fields[1] == "commit" {
             commits.insert(oid.clone(), fields[0].to_owned());
@@ -95,7 +105,9 @@ pub fn peel_commits(
 pub(crate) fn oids_by_ref(listing: &str) -> HashMap<&str, &str> {
     let mut by_ref: HashMap<&str, &str> = HashMap::new();
     for line in listing.lines() {
-        let Some((oid, name)) = line.split_once('\t') else { continue };
+        let Some((oid, name)) = line.split_once('\t') else {
+            continue;
+        };
         crate::collected_elements_looked_at::note_looked_at(1);
         by_ref.entry(name).or_insert(oid);
     }
@@ -151,9 +163,10 @@ pub fn tracking_commits(
         for record in &refs {
             let fields: Vec<&str> = record.split(' ').collect();
             if fields.len() != 3 {
-                return Err(range_error(ManualPushCause::UnexpectedOutput, format!(
-                    "Git for-each-ref returned malformed record: {record}"
-                )));
+                return Err(range_error(
+                    ManualPushCause::UnexpectedOutput,
+                    format!("Git for-each-ref returned malformed record: {record}"),
+                ));
             }
             if fields[1] == "commit" && fields[2].starts_with(&prefix) {
                 commits.push(fields[0].to_owned());
@@ -188,11 +201,15 @@ pub fn published_tips(
         let remote: &String = &update.remote_name;
         let entry = match tips.entry(remote.clone()) {
             std::collections::btree_map::Entry::Occupied(present) => present.into_mut(),
-            std::collections::btree_map::Entry::Vacant(absent) => absent.insert(tracking.get(remote).cloned().unwrap_or_default()),
+            std::collections::btree_map::Entry::Vacant(absent) => {
+                absent.insert(tracking.get(remote).cloned().unwrap_or_default())
+            }
         };
         let seen: &mut HashSet<String> = match collected.entry(remote.clone()) {
             std::collections::btree_map::Entry::Occupied(present) => present.into_mut(),
-            std::collections::btree_map::Entry::Vacant(absent) => absent.insert(entry.iter().cloned().collect()),
+            std::collections::btree_map::Entry::Vacant(absent) => {
+                absent.insert(entry.iter().cloned().collect())
+            }
         };
         if let Some(prior) = update.remote_oid.as_ref()
             && let Some(commit) = prior_commits.get(prior)

@@ -15,13 +15,23 @@
 //! await applyEntryModes({ root: stageRoot, entries });
 //! ```
 
-use crate::worktree_copy_error::raw_failure_of;
-use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_ceiling::CopyCeiling;
+use crate::worktree_copy_error::WorktreeCopyError;
+use crate::worktree_copy_error::raw_failure_of;
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_selection::{by_repository_path_order, filesystem_path, join_repository_path};
-use crate::worktree_copy_vanished_entry::{lstat_or_absent, names_or_absent};
-use std::path::{Path, PathBuf};
+use crate::worktree_copy_selection::{
+    by_repository_path_order,
+    filesystem_path,
+    join_repository_path,
+};
+use crate::worktree_copy_vanished_entry::{
+    lstat_or_absent,
+    names_or_absent,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The permission and special-mode bits the copy contract retains.
@@ -199,7 +209,10 @@ pub fn retained_mode(_metadata: &std::fs::Metadata) -> u32 {
 /// await access(path, directory ? R_OK | X_OK : R_OK).then(() => true, () => false)
 /// ```
 #[cfg(unix)]
-fn readable_by_user(path: &Path, kind: EntryKind) -> bool {
+fn readable_by_user(
+    path: &Path,
+    kind: EntryKind,
+) -> bool {
     use std::os::unix::ffi::OsStrExt;
     if kind == EntryKind::Symlink {
         return true;
@@ -207,7 +220,11 @@ fn readable_by_user(path: &Path, kind: EntryKind) -> bool {
     let Ok(name) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
         return false;
     };
-    let mode: libc::c_int = if kind == EntryKind::Directory { libc::R_OK | libc::X_OK } else { libc::R_OK };
+    let mode: libc::c_int = if kind == EntryKind::Directory {
+        libc::R_OK | libc::X_OK
+    } else {
+        libc::R_OK
+    };
     // SAFETY: `name` is a NUL-terminated string that outlives the call, and `access` only reads it.
     return unsafe { libc::access(name.as_ptr(), mode) } == 0;
 }
@@ -224,7 +241,10 @@ fn readable_by_user(path: &Path, kind: EntryKind) -> bool {
 /// ```
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
-fn readable_by_user(_path: &Path, _kind: EntryKind) -> bool {
+fn readable_by_user(
+    _path: &Path,
+    _kind: EntryKind,
+) -> bool {
     return true;
 }
 
@@ -246,7 +266,14 @@ pub fn collect_entry_manifest(
     excluded_roots: &[PathBuf],
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
     let mut left_out: LeftOut = LeftOut::default();
-    return collect_pruned_manifest(root, selected_roots, excluded_roots, Prune::Never, &mut left_out, &CopyCeiling::unbounded());
+    return collect_pruned_manifest(
+        root,
+        selected_roots,
+        excluded_roots,
+        Prune::Never,
+        &mut left_out,
+        &CopyCeiling::unbounded(),
+    );
 }
 
 /// What:
@@ -285,7 +312,9 @@ pub fn collect_pruned_manifest(
         if ceiling.reached() {
             return Err(ceiling.stopped_error());
         }
-        if lies_within_any(item.filesystem_path.as_path(), excluded_roots) || prune.skips_path(item.relative_path.as_slice()) {
+        if lies_within_any(item.filesystem_path.as_path(), excluded_roots)
+            || prune.skips_path(item.relative_path.as_slice())
+        {
             continue;
         }
         // An entry the source removed since the listing has nothing left to copy, and the copy contract leaves exactly
@@ -325,7 +354,8 @@ pub fn collect_pruned_manifest(
         });
         names.sort_by(by_repository_path_order);
         for name in names.iter().rev() {
-            let child_relative: Vec<u8> = join_repository_path(item.relative_path.as_slice(), name.as_slice());
+            let child_relative: Vec<u8> =
+                join_repository_path(item.relative_path.as_slice(), name.as_slice());
             pending.push(WalkItem {
                 filesystem_path: filesystem_path(root, child_relative.as_slice())?,
                 relative_path: child_relative,
@@ -415,7 +445,10 @@ pub fn stamp_of(_metadata: &std::fs::Metadata) -> Option<FileStamp> {
 /// ```ts
 /// roots.some((root) => path.startsWith(root))
 /// ```
-fn lies_within_any(path: &Path, roots: &[PathBuf]) -> bool {
+fn lies_within_any(
+    path: &Path,
+    roots: &[PathBuf],
+) -> bool {
     for root in roots {
         if path.starts_with(root.as_path()) {
             return true;
@@ -434,10 +467,14 @@ fn lies_within_any(path: &Path, roots: &[PathBuf]) -> bool {
 /// chmodSync(join(root, entry.relativePath), entry.mode)
 /// ```
 #[cfg(unix)]
-fn set_entry_mode(root: &Path, entry: &WorktreeCopyEntry) -> Result<(), WorktreeCopyError> {
+fn set_entry_mode(
+    root: &Path,
+    entry: &WorktreeCopyEntry,
+) -> Result<(), WorktreeCopyError> {
     use std::os::unix::fs::PermissionsExt;
     let path: PathBuf = filesystem_path(root, entry.relative_path.as_slice())?;
-    return std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(entry.mode)).map_err(raw_failure_of);
+    return std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(entry.mode))
+        .map_err(raw_failure_of);
 }
 
 /// What:

@@ -14,21 +14,33 @@
 //! ```
 
 /// Import the sibling modules the decision combines.
-use crate::action::{Action, PushForward};
+use crate::action::{
+    Action,
+    PushForward,
+};
+use crate::child_environment::environment_value;
+use crate::command_push::parse_push_region;
 use crate::command_push::stackable_option_tokens;
+use crate::config_snapshot::{
+    ConfigSnapshot,
+    read_config_snapshot,
+};
 use crate::external_hooks::external_hooks_warning;
+use crate::forwarded_command::{
+    ResolvedCommand,
+    resolve_forwarded_command,
+};
+use crate::forwarded_lock_notice::{
+    forwarded_lock_notice,
+    is_covered,
+};
 /// The branches the push's discovery already read from its destination.
 use crate::lfs_destination_confirms_tracking_refs::DestinationHeads;
 /// Whether this repository asks for the upload at all.
 use crate::lfs_pre_push::uses_lfs;
 use crate::lfs_upload_plan::settings_from_snapshot;
-use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use crate::push_stacking::STACKED_PUSH_MARKER;
-use crate::command_push::parse_push_region;
-use crate::child_environment::environment_value;
-use crate::forwarded_lock_notice::{forwarded_lock_notice, is_covered};
 use crate::stale_ref_lock_judge::Judge;
-use crate::forwarded_command::{ResolvedCommand, resolve_forwarded_command};
 use crate::transaction_git::GitContext;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
@@ -99,7 +111,11 @@ fn needs_lfs_upload(
         Some(found) => {
             let uses: bool = uses_lfs(&found);
             // The settings are read only for a repository that uses LFS.
-            let settings: Option<Vec<(String, String)>> = if uses { Some(settings_from_snapshot(&found)) } else { None };
+            let settings: Option<Vec<(String, String)>> = if uses {
+                Some(settings_from_snapshot(&found))
+            } else {
+                None
+            };
             (uses, warning, settings)
         }
         None => (true, warning, None),
@@ -154,13 +170,15 @@ pub(crate) fn stack_if_push(
         // These queries send no input, so no scratch directory is needed.
         common_dir: None,
     };
-    let command: ResolvedCommand = resolve_forwarded_command(&context, environment, arguments.as_slice(), start.path());
+    let command: ResolvedCommand =
+        resolve_forwarded_command(&context, environment, arguments.as_slice(), start.path());
     let (lfs, hook_warning, lfs_settings): (bool, String, Option<Vec<(String, String)>>) =
         needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice(), start);
     let stderr_with_warning: String = format!("{stderr}{hook_warning}");
     let stacked_already: bool = environment_value(environment, STACKED_PUSH_MARKER).is_some();
-    let stack: bool =
-        !stacked_already && command.word() == b"push" && stackable_option_tokens(command.region()).is_some();
+    let stack: bool = !stacked_already
+        && command.word() == b"push"
+        && stackable_option_tokens(command.region()).is_some();
     // A push that uploads LFS objects runs as a child like a stackable one: the parent that owns the push is the one
     // that explains a failed upload, and no wrapper is started for it.
     if stack || lfs {
@@ -184,7 +202,12 @@ pub(crate) fn stack_if_push(
     }
     // A plain forwarded fetch or push becomes Git itself, so the reference locks of a killed Git are judged here, before.
     let lock_notice: String = if is_covered(command.word()) {
-        forwarded_lock_notice(command.word(), &command.arguments[..command.subcommand_index], environment, &Judge::here())
+        forwarded_lock_notice(
+            command.word(),
+            &command.arguments[..command.subcommand_index],
+            environment,
+            &Judge::here(),
+        )
     } else {
         String::new()
     };

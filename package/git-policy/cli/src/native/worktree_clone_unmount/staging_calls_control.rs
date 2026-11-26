@@ -14,7 +14,11 @@
 //! const calls = new RecordingCalls(); calls.mountId = 41; expect(calls.calls).toEqual(['mount-id']);
 //! ```
 
-use super::staging_calls::{StagingCall, StagingCallRefusal, StagingCalls};
+use super::staging_calls::{
+    StagingCall,
+    StagingCallRefusal,
+    StagingCalls,
+};
 use crate::fs_mount_options::MountFacts;
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -97,37 +101,72 @@ impl Default for RecordingCalls {
 
 impl RecordingCalls {
     /// Record one call.
-    fn note(&self, call: StagingCall, detail: String) {
-        self.made.borrow_mut().push(Recorded { call: call.word(), detail });
+    fn note(
+        &self,
+        call: StagingCall,
+        detail: String,
+    ) {
+        self.made.borrow_mut().push(Recorded {
+            call: call.word(),
+            detail,
+        });
     }
 
     /// The call words,
     /// in order.
     #[allow(dead_code, reason = "the unmount arms read the order back")]
     pub fn words(&self) -> Vec<&'static str> {
-        return self.made.borrow().iter().map(|made| return made.call).collect();
+        return self
+            .made
+            .borrow()
+            .iter()
+            .map(|made| return made.call)
+            .collect();
     }
 
     /// Whether a call ran.
-    pub fn ran(&self, call: StagingCall) -> bool {
-        return self.made.borrow().iter().any(|made| return made.call == call.word());
+    pub fn ran(
+        &self,
+        call: StagingCall,
+    ) -> bool {
+        return self
+            .made
+            .borrow()
+            .iter()
+            .any(|made| return made.call == call.word());
     }
 }
 
 impl StagingCalls for RecordingCalls {
-    fn bind_the_folder(&self, _folder: &std::fs::File, _cache: &std::fs::File, name: &OsStr) -> Result<std::fs::File, StagingCallRefusal> {
+    fn bind_the_folder(
+        &self,
+        _folder: &std::fs::File,
+        _cache: &std::fs::File,
+        name: &OsStr,
+    ) -> Result<std::fs::File, StagingCallRefusal> {
         self.note(StagingCall::Bind, name.to_string_lossy().to_string());
         return self.bind.borrow_mut().take().unwrap_or_else(|| {
-            return Err(StagingCallRefusal { call: StagingCall::Bind, errno: libc::EIO, detail: String::from("the control scripted no bind") });
+            return Err(StagingCallRefusal {
+                call: StagingCall::Bind,
+                errno: libc::EIO,
+                detail: String::from("the control scripted no bind"),
+            });
         });
     }
 
-    fn make_private(&self, _bind: &std::fs::File) -> Result<(), StagingCallRefusal> {
+    fn make_private(
+        &self,
+        _bind: &std::fs::File,
+    ) -> Result<(), StagingCallRefusal> {
         self.note(StagingCall::MakePrivate, String::new());
         return Ok(());
     }
 
-    fn move_clone(&self, _clone: &std::fs::File, _bind: &std::fs::File) -> Result<(), StagingCallRefusal> {
+    fn move_clone(
+        &self,
+        _clone: &std::fs::File,
+        _bind: &std::fs::File,
+    ) -> Result<(), StagingCallRefusal> {
         self.note(StagingCall::Move, String::new());
         return match self.move_result.borrow().as_ref() {
             Some(refusal) => Err(refusal.clone()),
@@ -135,8 +174,16 @@ impl StagingCalls for RecordingCalls {
         };
     }
 
-    fn unmount_top(&self, held: &std::fs::File) -> Result<(), StagingCallRefusal> {
-        self.note(StagingCall::Unmount, super::staging_calls::descriptor_path(held).to_string_lossy().to_string());
+    fn unmount_top(
+        &self,
+        held: &std::fs::File,
+    ) -> Result<(), StagingCallRefusal> {
+        self.note(
+            StagingCall::Unmount,
+            super::staging_calls::descriptor_path(held)
+                .to_string_lossy()
+                .to_string(),
+        );
         let mut scripted = self.unmount_results.borrow_mut();
         return match scripted.pop_front().flatten() {
             Some(refusal) => Err(refusal),
@@ -144,46 +191,96 @@ impl StagingCalls for RecordingCalls {
         };
     }
 
-    fn name_handle(&self, _folder: &std::fs::File) -> Result<(i32, Vec<u8>), StagingCallRefusal> {
+    fn name_handle(
+        &self,
+        _folder: &std::fs::File,
+    ) -> Result<(i32, Vec<u8>), StagingCallRefusal> {
         self.note(StagingCall::NameHandle, String::new());
         return self.name_handle.borrow_mut().take().unwrap_or_else(|| {
-            return Err(StagingCallRefusal { call: StagingCall::NameHandle, errno: libc::EIO, detail: String::from("the control scripted no handle") });
+            return Err(StagingCallRefusal {
+                call: StagingCall::NameHandle,
+                errno: libc::EIO,
+                detail: String::from("the control scripted no handle"),
+            });
         });
     }
 
-    fn open_from_handle(&self, _cache: &std::fs::File, _handle_type: i32, _handle: &[u8]) -> Result<std::fs::File, StagingCallRefusal> {
+    fn open_from_handle(
+        &self,
+        _cache: &std::fs::File,
+        _handle_type: i32,
+        _handle: &[u8],
+    ) -> Result<std::fs::File, StagingCallRefusal> {
         self.note(StagingCall::OpenHandle, String::new());
         return self.open_handle.borrow_mut().take().unwrap_or_else(|| {
-            return Err(StagingCallRefusal { call: StagingCall::OpenHandle, errno: libc::ESTALE, detail: String::from("the control scripted a stale handle") });
+            return Err(StagingCallRefusal {
+                call: StagingCall::OpenHandle,
+                errno: libc::ESTALE,
+                detail: String::from("the control scripted a stale handle"),
+            });
         });
     }
 
-    fn open_by_name(&self, _cache: &std::fs::File, name: &OsStr) -> Result<std::fs::File, StagingCallRefusal> {
+    fn open_by_name(
+        &self,
+        _cache: &std::fs::File,
+        name: &OsStr,
+    ) -> Result<std::fs::File, StagingCallRefusal> {
         self.note(StagingCall::OpenBind, name.to_string_lossy().to_string());
-        return self.open_by_name.borrow_mut().pop_front().unwrap_or_else(|| {
-            return Err(StagingCallRefusal { call: StagingCall::OpenBind, errno: libc::EIO, detail: String::from("the control scripted no by-name open") });
-        });
+        return self
+            .open_by_name
+            .borrow_mut()
+            .pop_front()
+            .unwrap_or_else(|| {
+                return Err(StagingCallRefusal {
+                    call: StagingCall::OpenBind,
+                    errno: libc::EIO,
+                    detail: String::from("the control scripted no by-name open"),
+                });
+            });
     }
 
-    fn mount_id(&self, _file: &std::fs::File) -> Result<u64, StagingCallRefusal> {
+    fn mount_id(
+        &self,
+        _file: &std::fs::File,
+    ) -> Result<u64, StagingCallRefusal> {
         self.note(StagingCall::MountId, String::new());
-        return Ok(self.mount_ids.borrow_mut().pop_front().unwrap_or(self.mount_id));
+        return Ok(self
+            .mount_ids
+            .borrow_mut()
+            .pop_front()
+            .unwrap_or(self.mount_id));
     }
 
-    fn observed_path(&self, _file: &std::fs::File) -> Result<PathBuf, StagingCallRefusal> {
+    fn observed_path(
+        &self,
+        _file: &std::fs::File,
+    ) -> Result<PathBuf, StagingCallRefusal> {
         self.note(StagingCall::MountId, String::new());
         return Ok(self.observed.clone());
     }
 
-    fn mount_facts(&self, mount_id: u64) -> Result<MountFacts, StagingCallRefusal> {
+    fn mount_facts(
+        &self,
+        mount_id: u64,
+    ) -> Result<MountFacts, StagingCallRefusal> {
         self.note(StagingCall::MountTable, String::new());
-        let named = self.facts_by_id.borrow().iter().find(|(id, _)| return *id == mount_id).map(|(_, facts)| return facts.clone());
+        let named = self
+            .facts_by_id
+            .borrow()
+            .iter()
+            .find(|(id, _)| return *id == mount_id)
+            .map(|(_, facts)| return facts.clone());
         if let Some(facts) = named {
             return Ok(facts);
         }
         return match self.facts.borrow().clone() {
             Some(facts) => Ok(facts),
-            None => Err(StagingCallRefusal { call: StagingCall::MountTable, errno: libc::ENOENT, detail: String::from("the control scripted no mount facts") }),
+            None => Err(StagingCallRefusal {
+                call: StagingCall::MountTable,
+                errno: libc::ENOENT,
+                detail: String::from("the control scripted no mount facts"),
+            }),
         };
     }
 

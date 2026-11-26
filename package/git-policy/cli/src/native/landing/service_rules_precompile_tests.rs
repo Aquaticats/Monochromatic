@@ -8,7 +8,10 @@
 #![cfg(unix)]
 
 use super::*;
-use crate::scanner_test_support::{needle, run_isolated};
+use crate::scanner_test_support::{
+    needle,
+    run_isolated,
+};
 use std::time::Instant;
 
 /// How long a control waits for the service's own warm job to end:
@@ -24,7 +27,9 @@ const RULES_FILE: &str = "forbidden-strings.local.txt";
 
 /// The cache directory of the isolated control.
 fn cache_directory() -> PathBuf {
-    return PathBuf::from(std::env::var_os("FORBIDDEN_STRINGS_CACHE_DIR").expect("isolated cache directory"));
+    return PathBuf::from(
+        std::env::var_os("FORBIDDEN_STRINGS_CACHE_DIR").expect("isolated cache directory"),
+    );
 }
 
 /// Every compiled artifact in the cache.
@@ -32,7 +37,9 @@ fn artifacts() -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![cache_directory()];
     while let Some(next) = pending.pop() {
-        let Ok(entries) = std::fs::read_dir(next) else { continue };
+        let Ok(entries) = std::fs::read_dir(next) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path: PathBuf = entry.path();
             if path.is_dir() {
@@ -69,7 +76,10 @@ struct Warms {
 
 /// What the service's warm jobs have answered so far.
 fn warms() -> Warms {
-    return Warms { ended: WARM_JOBS_ENDED.load(Ordering::SeqCst), made: WARMS_MADE.load(Ordering::SeqCst) };
+    return Warms {
+        ended: WARM_JOBS_ENDED.load(Ordering::SeqCst),
+        made: WARMS_MADE.load(Ordering::SeqCst),
+    };
 }
 
 impl Warms {
@@ -81,7 +91,10 @@ impl Warms {
     /// a job records its end before the runtime task that owns the claim releases it,
     /// and a landing that arrives in that window is skipped as one more warm is still running,
     /// so a control that read the news alone could make a landing nothing would judge.
-    fn after(&self, count: usize) -> Option<Warms> {
+    fn after(
+        &self,
+        count: usize,
+    ) -> Option<Warms> {
         let began: Instant = Instant::now();
         loop {
             let ended: usize = WARM_JOBS_ENDED.load(Ordering::SeqCst);
@@ -120,7 +133,11 @@ fn precompile_publishes_body(directory: &Path) {
 /// The warm publishes what the client would look for.
 #[test]
 fn the_precompile_publishes_the_compiled_rules() {
-    run_isolated("landing::service_rules_precompile::tests::the_precompile_publishes_the_compiled_rules", "rules-precompile", precompile_publishes_body);
+    run_isolated(
+        "landing::service_rules_precompile::tests::the_precompile_publishes_the_compiled_rules",
+        "rules-precompile",
+        precompile_publishes_body,
+    );
 }
 
 /// Body:
@@ -138,30 +155,57 @@ fn landing_triggers_body(directory: &Path) {
     std::fs::create_dir_all(&journal).expect("journal");
     let first: Warms = warms();
     after_landing(&journal, &repository, &[String::from("src/a.rs")]);
-    let warmed: Warms = first.after(1).expect("the first landing of a repository asks the service for a warm");
-    assert!(warmed.made > first.made, "the first landing of a repository warms its rules");
+    let warmed: Warms = first
+        .after(1)
+        .expect("the first landing of a repository asks the service for a warm");
+    assert!(
+        warmed.made > first.made,
+        "the first landing of a repository warms its rules"
+    );
     assert_eq!(artifacts().len(), 1, "the compiled rules are in the cache");
-    let remembered: String = std::fs::read_to_string(journal.join(REMEMBERED_FILE)).expect("the repository is remembered");
+    let remembered: String = std::fs::read_to_string(journal.join(REMEMBERED_FILE))
+        .expect("the repository is remembered");
     assert_eq!(remembered.trim(), repository.to_string_lossy());
     // Another landing that changes no path of the rules warms nothing, even with the cache gone.
     let quiet: Warms = warms();
     std::fs::remove_dir_all(cache_directory()).expect("remove the cache");
     after_landing(&journal, &repository, &[String::from("src/b.rs")]);
-    let answered: Warms = quiet.after(1).expect("the landing asks the service about the rules");
-    assert_eq!(answered.made, quiet.made, "a landing that changed no rules path warmed the cache");
-    assert!(artifacts().is_empty(), "a landing that changed no rules path warmed the cache");
+    let answered: Warms = quiet
+        .after(1)
+        .expect("the landing asks the service about the rules");
+    assert_eq!(
+        answered.made, quiet.made,
+        "a landing that changed no rules path warmed the cache"
+    );
+    assert!(
+        artifacts().is_empty(),
+        "a landing that changed no rules path warmed the cache"
+    );
     // A landing that changes the rules file warms again.
     let changed: Warms = warms();
     after_landing(&journal, &repository, &[String::from(RULES_FILE)]);
-    let warmed_again: Warms = changed.after(1).expect("the landing asks the service about the rules");
-    assert!(warmed_again.made > changed.made, "a landing that changed the rules file warms them");
-    assert_eq!(artifacts().len(), 1, "the compiled rules are in the cache again");
+    let warmed_again: Warms = changed
+        .after(1)
+        .expect("the landing asks the service about the rules");
+    assert!(
+        warmed_again.made > changed.made,
+        "a landing that changed the rules file warms them"
+    );
+    assert_eq!(
+        artifacts().len(),
+        1,
+        "the compiled rules are in the cache again"
+    );
 }
 
 /// The triggers of a landing.
 #[test]
 fn a_landing_warms_the_first_time_and_when_the_rules_change() {
-    run_isolated("landing::service_rules_precompile::tests::a_landing_warms_the_first_time_and_when_the_rules_change", "rules-landing", landing_triggers_body);
+    run_isolated(
+        "landing::service_rules_precompile::tests::a_landing_warms_the_first_time_and_when_the_rules_change",
+        "rules-landing",
+        landing_triggers_body,
+    );
 }
 
 /// Body:
@@ -170,19 +214,32 @@ fn restart_warms_body(directory: &Path) {
     let repository: PathBuf = repository_in(directory);
     let journal: PathBuf = directory.join("journal");
     std::fs::create_dir_all(&journal).expect("journal");
-    std::fs::write(journal.join(REMEMBERED_FILE), format!("{}\n", repository.display())).expect("the remembered repository");
+    std::fs::write(
+        journal.join(REMEMBERED_FILE),
+        format!("{}\n", repository.display()),
+    )
+    .expect("the remembered repository");
     assert!(artifacts().is_empty());
     let before: Warms = warms();
     warm_remembered(&journal);
-    let answered: Warms = before.after(1).expect("a restarted service asks for the warm it remembers");
-    assert!(answered.made > before.made, "a restarted service warms the repository it remembers");
+    let answered: Warms = before
+        .after(1)
+        .expect("a restarted service asks for the warm it remembers");
+    assert!(
+        answered.made > before.made,
+        "a restarted service warms the repository it remembers"
+    );
     assert_eq!(artifacts().len(), 1, "the compiled rules are in the cache");
 }
 
 /// The restart.
 #[test]
 fn a_restarted_service_warms_the_repository_it_remembers() {
-    run_isolated("landing::service_rules_precompile::tests::a_restarted_service_warms_the_repository_it_remembers", "rules-restart", restart_warms_body);
+    run_isolated(
+        "landing::service_rules_precompile::tests::a_restarted_service_warms_the_repository_it_remembers",
+        "rules-restart",
+        restart_warms_body,
+    );
 }
 
 /// A warm is skipped when a limit on the address space leaves less room than a compile needs,

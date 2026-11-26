@@ -13,7 +13,11 @@
 //! ```
 
 use crate::child_awaited_through_a_pidfd::OwnedChild;
-use crate::stop_of_the_service_noticed_by_its_children::{StopArm, Unfinished, begin_unfinished_work};
+use crate::stop_of_the_service_noticed_by_its_children::{
+    StopArm,
+    Unfinished,
+    begin_unfinished_work,
+};
 use std::process::ExitStatus;
 
 /// What:
@@ -28,7 +32,11 @@ use std::process::ExitStatus;
 /// ```ts
 /// return await Promise.race([child.exited, stopTold(arm).then(() => { await stopChild(child, STOP_GRACE); throw endedByTheStop(what); })]);
 /// ```
-pub async fn wait_until_exit_or_stop(mut owned: OwnedChild, mut stop: Option<StopArm>, what: &str) -> std::io::Result<ExitStatus> {
+pub async fn wait_until_exit_or_stop(
+    mut owned: OwnedChild,
+    mut stop: Option<StopArm>,
+    what: &str,
+) -> std::io::Result<ExitStatus> {
     let Some(arm) = stop.as_mut() else {
         return owned.wait().await;
     };

@@ -16,13 +16,32 @@
 #![cfg(unix)]
 
 /// Import the reader under test and shared fixtures.
-use super::{ObjectReader, start_object_reader, start_object_reader_within};
-use crate::candidate_error::{CandidateError, CandidateFailure};
-use crate::candidate_object::{ObjectId, parse_object_id};
+use super::{
+    ObjectReader,
+    start_object_reader,
+    start_object_reader_within,
+};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use crate::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
 use crate::git_metadata::strip_git_line;
-use crate::test_support::{REAL_GIT, fixture, git, remove, repository};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// The global prefix selecting one repository:
@@ -39,7 +58,10 @@ fn reader(directory: &Path) -> ObjectReader {
 
 /// Store exact bytes as a blob by writing a file and hashing it,
 ///  and return its object name.
-fn store_blob(repository: &Path, bytes: &[u8]) -> ObjectId {
+fn store_blob(
+    repository: &Path,
+    bytes: &[u8],
+) -> ObjectId {
     let file: PathBuf = repository.join("blob-source");
     std::fs::write(&file, bytes).expect("blob source");
     let output: std::process::Output = git(repository, &["hash-object", "-w", "blob-source"]);
@@ -48,7 +70,10 @@ fn store_blob(repository: &Path, bytes: &[u8]) -> ObjectId {
 }
 
 /// The object name a revision expression resolves to.
-fn rev_parse(repository: &Path, revision: &str) -> ObjectId {
+fn rev_parse(
+    repository: &Path,
+    revision: &str,
+) -> ObjectId {
     let output: std::process::Output = git(repository, &["rev-parse", "--verify", revision]);
     return parse_object_id(strip_git_line(output.stdout.as_slice())).expect("object name");
 }
@@ -263,7 +288,14 @@ fn an_oversized_head_is_still_the_commit_it_names() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join("a.txt"), b"a\n").expect("file");
     git(repo.as_path(), &["add", "--", "a.txt"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=a commit whose object is over the ceiling"]);
+    git(
+        repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "--message=a commit whose object is over the ceiling",
+        ],
+    );
     let head: Vec<u8> = git(repo.as_path(), &["rev-parse", "HEAD"]).stdout;
     let expected: ObjectId = parse_object_id(strip_git_line(head.as_slice())).expect("head name");
     // Four bytes cannot hold a commit object, so every reply above the ceiling takes the refusable path.
@@ -275,9 +307,15 @@ fn an_oversized_head_is_still_the_commit_it_names() {
         4,
     )
     .expect("reader starts");
-    assert_eq!(small.head_commit().expect("a commit is named"), Some(expected.clone()));
+    assert_eq!(
+        small.head_commit().expect("a commit is named"),
+        Some(expected.clone())
+    );
     // The positive control: the same question under the real ceiling answers the same name.
     let mut whole: ObjectReader = reader(repo.as_path());
-    assert_eq!(whole.head_commit().expect("a commit is named"), Some(expected));
+    assert_eq!(
+        whole.head_commit().expect("a commit is named"),
+        Some(expected)
+    );
     remove(root.as_path());
 }

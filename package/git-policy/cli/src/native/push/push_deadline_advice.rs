@@ -17,7 +17,10 @@
 
 use crate::push_deadline_and_patience_settings::PUSH_DEADLINE_VARIABLE;
 use crate::service_messages::RESTART_COMMAND;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// The stall window the service advice gives as its example,
 /// in seconds.

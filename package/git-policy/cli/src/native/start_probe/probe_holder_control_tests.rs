@@ -15,15 +15,27 @@
 //! const holder = Holder.start(place, 'pool/ds@ready'); expect(holder.drain(feed, report)).toEqual({ kind: 'attach', passed: false });
 //! ```
 
-use super::{Arrival, Holder};
 use super::super::probe_record_files::RecordPlace;
 use super::super::probe_report::ProbeReport;
 use super::super::probe_status_line::LineFeed;
-use std::cell::{Cell, RefCell};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use crate::testing::test_support::{fixture, wait_until};
+use super::{
+    Arrival,
+    Holder,
+};
+use crate::testing::test_support::{
+    fixture,
+    wait_until,
+};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// A holder started without mount authority reports its attach as failed,
 /// and its pipe then ends.
@@ -38,16 +50,33 @@ fn a_holder_without_mount_authority_reports_a_failed_attach() {
     let report: RefCell<ProbeReport> = RefCell::new(ProbeReport::new());
     let arrival: Cell<Arrival> = Cell::new(Arrival::Nothing);
     let answered: bool = wait_until(&|| {
-        let next: Arrival = held.borrow_mut().drain(&mut feed.borrow_mut(), &mut report.borrow_mut());
+        let next: Arrival = held
+            .borrow_mut()
+            .drain(&mut feed.borrow_mut(), &mut report.borrow_mut());
         if next == Arrival::Nothing {
             return false;
         }
         arrival.set(next);
         return true;
     });
-    assert!(answered, "the holder did not answer within the control's deadline");
-    assert_eq!(arrival.get(), Arrival::Attach { passed: false }, "a holder that cannot unshare must not pass");
-    assert!(report.borrow().lines().iter().any(|line| return line.step == super::super::probe_arms::ProbeStep::HolderAttach));
+    assert!(
+        answered,
+        "the holder did not answer within the control's deadline"
+    );
+    assert_eq!(
+        arrival.get(),
+        Arrival::Attach {
+            passed: false
+        },
+        "a holder that cannot unshare must not pass"
+    );
+    assert!(
+        report
+            .borrow()
+            .lines()
+            .iter()
+            .any(|line| return line.step == super::super::probe_arms::ProbeStep::HolderAttach)
+    );
     let mut finished: Holder = held.into_inner();
     finished.stop();
     let _ = finished.reap();
@@ -77,8 +106,14 @@ fn a_late_answer_is_missed_by_a_count_of_polls_and_seen_by_the_deadline() {
             break;
         }
     }
-    assert!(!seen, "the count of polls saw an answer that had not arrived when the count began");
+    assert!(
+        !seen,
+        "the count of polls saw an answer that had not arrived when the count began"
+    );
     drop(count_finished);
-    assert!(wait_until(&|| return answered.load(Ordering::SeqCst)), "the deadline wait did not see the late answer");
+    assert!(
+        wait_until(&|| return answered.load(Ordering::SeqCst)),
+        "the deadline wait did not see the late answer"
+    );
     answer.join().expect("the late answer's thread ends");
 }

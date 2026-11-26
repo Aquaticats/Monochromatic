@@ -14,7 +14,11 @@
 //! makeScratchTree(scratch, slot, moveTarget); const id = walkToSlot(scratch, slot);
 //! ```
 
-use super::{make_scratch_tree, open_checkout, walk_to_slot};
+use super::{
+    make_scratch_tree,
+    open_checkout,
+    walk_to_slot,
+};
 use crate::testing::test_support::fixture;
 use std::path::PathBuf;
 
@@ -28,9 +32,14 @@ fn the_tree_is_made_and_the_walk_reaches_the_slot() {
     std::fs::create_dir_all(scratch.as_path()).expect("the scratch root is made");
     let slot: PathBuf = scratch.join("slot");
     let move_target: PathBuf = scratch.join("move-target");
-    make_scratch_tree(scratch.as_path(), slot.as_path(), move_target.as_path()).expect("the tree is made");
-    make_scratch_tree(scratch.as_path(), slot.as_path(), move_target.as_path()).expect("a second make keeps it");
-    assert!(scratch.join("refusal/bound/slot").is_dir(), "the refusal tree is made");
+    make_scratch_tree(scratch.as_path(), slot.as_path(), move_target.as_path())
+        .expect("the tree is made");
+    make_scratch_tree(scratch.as_path(), slot.as_path(), move_target.as_path())
+        .expect("a second make keeps it");
+    assert!(
+        scratch.join("refusal/bound/slot").is_dir(),
+        "the refusal tree is made"
+    );
     let first = walk_to_slot(scratch.as_path(), slot.as_path()).expect("the walk reaches the slot");
     let again = walk_to_slot(scratch.as_path(), slot.as_path()).expect("the walk reaches it again");
     assert_eq!(first, again);

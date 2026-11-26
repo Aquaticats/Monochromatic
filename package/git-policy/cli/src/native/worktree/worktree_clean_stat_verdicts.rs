@@ -15,8 +15,15 @@
 //! const verdict = metadataVerdict(entry, metadata, indexSeconds); // 'agrees' | { unproven } | { differs }
 //! ```
 
-use crate::subvolume_index::{StatFields, StoredStat};
-use crate::subvolume_index_files::{fields_of, matches_stored, matches_stored_exactly};
+use crate::subvolume_index::{
+    StatFields,
+    StoredStat,
+};
+use crate::subvolume_index_files::{
+    fields_of,
+    matches_stored,
+    matches_stored_exactly,
+};
 use std::os::unix::fs::MetadataExt;
 
 /// The flags bit of an index entry that tells Git to trust the file without looking (`CE_VALID`).
@@ -84,7 +91,10 @@ impl CleanRefusalKind {
     /// not an operation in progress or a state Git
     ///  keeps outside the tree and the files.
     pub fn restorable(self) -> bool {
-        return matches!(self, Self::StagedChange | Self::FileChanged | Self::StatStale | Self::Racy | Self::Untracked);
+        return matches!(
+            self,
+            Self::StagedChange | Self::FileChanged | Self::StatStale | Self::Racy | Self::Untracked
+        );
     }
 }
 
@@ -110,8 +120,14 @@ pub struct CleanRefusal {
 
 impl CleanRefusal {
     /// A refusal of `kind` with its reason.
-    pub fn new(kind: CleanRefusalKind, reason: impl Into<String>) -> CleanRefusal {
-        return CleanRefusal { kind, reason: reason.into() };
+    pub fn new(
+        kind: CleanRefusalKind,
+        reason: impl Into<String>,
+    ) -> CleanRefusal {
+        return CleanRefusal {
+            kind,
+            reason: reason.into(),
+        };
     }
 
     /// A refusal because something could not be read.
@@ -121,7 +137,10 @@ impl CleanRefusal {
 }
 
 impl std::fmt::Display for CleanRefusal {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.reason.as_str());
     }
 }
@@ -209,9 +228,16 @@ pub enum StatVerdict {
 /// ```ts
 /// function metadataVerdict(entry: StatEntry, metadata: Stats, indexSeconds: number): StatVerdict;
 /// ```
-pub fn metadata_verdict(entry: &StatEntry, metadata: &std::fs::Metadata, index_seconds: u32) -> StatVerdict {
+pub fn metadata_verdict(
+    entry: &StatEntry,
+    metadata: &std::fs::Metadata,
+    index_seconds: u32,
+) -> StatVerdict {
     return match stat_finding(entry, metadata, index_seconds) {
-        Some(CleanRefusal { kind: CleanRefusalKind::Racy | CleanRefusalKind::StatStale, reason }) => StatVerdict::Unproven(reason),
+        Some(CleanRefusal {
+            kind: CleanRefusalKind::Racy | CleanRefusalKind::StatStale,
+            reason,
+        }) => StatVerdict::Unproven(reason),
         Some(refusal) => StatVerdict::Differs(refusal.reason),
         None if matches_stored_exactly(&fields_of(metadata), &entry.stored) => StatVerdict::Agrees,
         None => StatVerdict::Unproven(format!(
@@ -242,25 +268,51 @@ pub fn metadata_verdict(entry: &StatEntry, metadata: &std::fs::Metadata, index_s
 /// ```ts
 /// function statFinding(entry: StatEntry, metadata: Stats, indexSeconds: number): CleanRefusal | undefined;
 /// ```
-pub fn stat_finding(entry: &StatEntry, metadata: &std::fs::Metadata, index_seconds: u32) -> Option<CleanRefusal> {
-    let StatEntry { path, flags, mode, stored }: &StatEntry = entry;
+pub fn stat_finding(
+    entry: &StatEntry,
+    metadata: &std::fs::Metadata,
+    index_seconds: u32,
+) -> Option<CleanRefusal> {
+    let StatEntry {
+        path,
+        flags,
+        mode,
+        stored,
+    }: &StatEntry = entry;
     let shown: String = String::from_utf8_lossy(path).into_owned();
     if flags & ASSUME_VALID != 0 {
-        return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{shown} is marked assume-unchanged")));
+        return Some(CleanRefusal::new(
+            CleanRefusalKind::NotPlain,
+            format!("{shown} is marked assume-unchanged"),
+        ));
     }
     let symbolic: bool = *mode & 0o170_000 == 0o120_000;
-    if symbolic != metadata.file_type().is_symlink() || (!symbolic && !metadata.file_type().is_file()) {
-        return Some(CleanRefusal::new(CleanRefusalKind::FileChanged, format!("{shown} changed its type")));
+    if symbolic != metadata.file_type().is_symlink()
+        || (!symbolic && !metadata.file_type().is_file())
+    {
+        return Some(CleanRefusal::new(
+            CleanRefusalKind::FileChanged,
+            format!("{shown} changed its type"),
+        ));
     }
     if !symbolic && (*mode & 0o100 != 0) != (metadata.mode() & 0o100 != 0) {
-        return Some(CleanRefusal::new(CleanRefusalKind::FileChanged, format!("{shown} changed its executable bit")));
+        return Some(CleanRefusal::new(
+            CleanRefusalKind::FileChanged,
+            format!("{shown} changed its executable bit"),
+        ));
     }
     if stored.mtime_seconds >= index_seconds {
-        return Some(CleanRefusal::new(CleanRefusalKind::Racy, format!("{shown} is as new as the index, so its stat fields prove nothing")));
+        return Some(CleanRefusal::new(
+            CleanRefusalKind::Racy,
+            format!("{shown} is as new as the index, so its stat fields prove nothing"),
+        ));
     }
     let now: StatFields = fields_of(metadata);
     if !matches_stored(&now, stored) {
-        return Some(CleanRefusal::new(CleanRefusalKind::StatStale, format!("{shown} differs from its index entry by size, times or inode")));
+        return Some(CleanRefusal::new(
+            CleanRefusalKind::StatStale,
+            format!("{shown} differs from its index entry by size, times or inode"),
+        ));
     }
     return None;
 }
@@ -276,7 +328,11 @@ pub fn stat_finding(entry: &StatEntry, metadata: &std::fs::Metadata, index_secon
 /// ```ts
 /// function metadataDiffersFromEntry(entry: StatEntry, metadata: Stats, indexSeconds: number): string | undefined;
 /// ```
-pub fn metadata_differs_from_entry(entry: &StatEntry, metadata: &std::fs::Metadata, index_seconds: u32) -> Option<String> {
+pub fn metadata_differs_from_entry(
+    entry: &StatEntry,
+    metadata: &std::fs::Metadata,
+    index_seconds: u32,
+) -> Option<String> {
     return match metadata_verdict(entry, metadata, index_seconds) {
         StatVerdict::Agrees => None,
         StatVerdict::Unproven(reason) | StatVerdict::Differs(reason) => Some(reason),

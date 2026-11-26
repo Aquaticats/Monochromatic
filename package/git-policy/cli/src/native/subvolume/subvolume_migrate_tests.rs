@@ -15,14 +15,30 @@
 
 use super::*;
 use crate::fs_kind::FilesystemKind;
-use crate::subvolume_arguments::{MigrateArguments, MigrateMode, MIGRATE_RISK_NOTICE};
+use crate::subvolume_arguments::{
+    MIGRATE_RISK_NOTICE,
+    MigrateArguments,
+    MigrateMode,
+};
 use crate::subvolume_error::Interrupt;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_preflight::layout_of;
 use crate::subvolume_run::Run;
 use crate::subvolume_sync_attrs::make_fifo;
-use crate::subvolume_test_support::{Hooked, PlainPlatform, checkout_with_worktree, index_inode, make_checkout, migrate_arguments, run_command};
-use crate::test_support::{fixture, git_text, remove};
+use crate::subvolume_test_support::{
+    Hooked,
+    PlainPlatform,
+    checkout_with_worktree,
+    index_inode,
+    make_checkout,
+    migrate_arguments,
+    run_command,
+};
+use crate::test_support::{
+    fixture,
+    git_text,
+    remove,
+};
 use std::os::unix::fs::MetadataExt;
 
 /// The exit status the command gives a finished,
@@ -45,15 +61,48 @@ fn running_as_root() -> bool {
 /// The files whose bytes,
 /// modes and links the migrated tree must carry,
 /// compared with the old tree.
-fn assert_same_tree(original: &Path, copy: &Path) {
-    for path in ["README.md", "src/main.rs", "src/deep/er/leaf.txt", "empty", "script.sh", ".gitignore", "ignored/node_modules/pkg/index.js"] {
-        assert_eq!(std::fs::read(original.join(path)).expect("original"), std::fs::read(copy.join(path)).expect("copy"), "{path}");
-        let (left, right) = (std::fs::metadata(original.join(path)).expect("original"), std::fs::metadata(copy.join(path)).expect("copy"));
+fn assert_same_tree(
+    original: &Path,
+    copy: &Path,
+) {
+    for path in [
+        "README.md",
+        "src/main.rs",
+        "src/deep/er/leaf.txt",
+        "empty",
+        "script.sh",
+        ".gitignore",
+        "ignored/node_modules/pkg/index.js",
+    ] {
+        assert_eq!(
+            std::fs::read(original.join(path)).expect("original"),
+            std::fs::read(copy.join(path)).expect("copy"),
+            "{path}"
+        );
+        let (left, right) = (
+            std::fs::metadata(original.join(path)).expect("original"),
+            std::fs::metadata(copy.join(path)).expect("copy"),
+        );
         assert_eq!(left.mode(), right.mode(), "{path} mode");
-        assert_eq!((left.mtime(), left.mtime_nsec()), (right.mtime(), right.mtime_nsec()), "{path} modification time");
+        assert_eq!(
+            (left.mtime(), left.mtime_nsec()),
+            (right.mtime(), right.mtime_nsec()),
+            "{path} modification time"
+        );
     }
-    assert_eq!(std::fs::read_link(copy.join("link")).expect("link"), PathBuf::from("src/main.rs"));
-    assert_eq!(std::fs::metadata(copy.join("src/main.rs")).expect("main").ino(), std::fs::metadata(copy.join("ignored/main-link.rs")).expect("link").ino(), "hard links stay one file");
+    assert_eq!(
+        std::fs::read_link(copy.join("link")).expect("link"),
+        PathBuf::from("src/main.rs")
+    );
+    assert_eq!(
+        std::fs::metadata(copy.join("src/main.rs"))
+            .expect("main")
+            .ino(),
+        std::fs::metadata(copy.join("ignored/main-link.rs"))
+            .expect("link")
+            .ino(),
+        "hard links stay one file"
+    );
 }
 
 /// A migrated tree:
@@ -61,14 +110,26 @@ fn assert_same_tree(original: &Path, copy: &Path) {
 /// Git-clean,
 /// with its index stat fields refreshed,
 /// and no lock left.
-fn assert_migrated(platform: &PlainPlatform, root: &Path, old: &Path) {
+fn assert_migrated(
+    platform: &PlainPlatform,
+    root: &Path,
+    old: &Path,
+) {
     assert_eq!(platform.is_subvolume_root(root), Ok(true));
     assert_same_tree(old, root);
     // Before the first status, which refreshes the index file itself and would hide a missing rewrite.
     for path in ["README.md", "src/main.rs", "script.sh"] {
-        assert_eq!(index_inode(root, path), std::fs::metadata(root.join(path)).expect("file").ino(), "{path} index inode");
+        assert_eq!(
+            index_inode(root, path),
+            std::fs::metadata(root.join(path)).expect("file").ino(),
+            "{path} index inode"
+        );
     }
-    assert_eq!(git_text(root, &["status", "--porcelain"]), "", "the first status finds nothing dirty");
+    assert_eq!(
+        git_text(root, &["status", "--porcelain"]),
+        "",
+        "the first status finds nothing dirty"
+    );
     assert!(!root.join(".git/index.lock").exists());
     assert!(!old.join(".git/index.lock").exists());
 }
@@ -81,17 +142,43 @@ fn assert_migrated(platform: &PlainPlatform, root: &Path, old: &Path) {
 fn a_checkout_with_a_linked_worktree_is_migrated_and_stays_clean() {
     let (parent, root) = checkout_with_worktree("migrate-happy");
     let platform: PlainPlatform = PlainPlatform::new();
-    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (code, lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::never(),
+    );
     assert_eq!(code, DONE, "{lines:#?}");
     let layout = layout_of(root.as_path()).expect("layout");
     assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
-    assert_eq!(platform.is_subvolume_root(root.join("wt").as_path()), Ok(true), "the linked worktree is a nested subvolume");
-    assert_eq!(git_text(root.join("wt").as_path(), &["status", "--porcelain"]), "");
-    assert!(git_text(root.as_path(), &["worktree", "list"]).contains(root.join("wt").to_str().expect("path")));
-    assert!(layout.old_path.join("README.md").exists(), "the old tree is kept");
+    assert_eq!(
+        platform.is_subvolume_root(root.join("wt").as_path()),
+        Ok(true),
+        "the linked worktree is a nested subvolume"
+    );
+    assert_eq!(
+        git_text(root.join("wt").as_path(), &["status", "--porcelain"]),
+        ""
+    );
+    assert!(
+        git_text(root.as_path(), &["worktree", "list"])
+            .contains(root.join("wt").to_str().expect("path"))
+    );
+    assert!(
+        layout.old_path.join("README.md").exists(),
+        "the old tree is kept"
+    );
     assert!(layout.journal_path.exists() && !layout.new_path.exists());
     let text: String = lines.join("\n");
-    for expected in ["first delta", "last delta (under the lock)", "catch-up", "index stat rewrite", "is now a btrfs subvolume", "--remove-old", "--rollback"] {
+    for expected in [
+        "first delta",
+        "last delta (under the lock)",
+        "catch-up",
+        "index stat rewrite",
+        "is now a btrfs subvolume",
+        "--remove-old",
+        "--rollback",
+    ] {
         assert!(text.contains(expected), "{expected} missing from {text}");
     }
     remove(parent.as_path());
@@ -104,14 +191,24 @@ fn a_checkout_with_a_linked_worktree_is_migrated_and_stays_clean() {
 fn the_dry_run_changes_nothing() {
     let (parent, root) = checkout_with_worktree("migrate-dry");
     let platform: PlainPlatform = PlainPlatform::new();
-    let arguments: MigrateArguments = MigrateArguments { dry_run: true, ..migrate_arguments() };
+    let arguments: MigrateArguments = MigrateArguments {
+        dry_run: true,
+        ..migrate_arguments()
+    };
     let (code, lines) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
     assert_eq!(code, DONE, "{lines:#?}");
     let layout = layout_of(root.as_path()).expect("layout");
-    assert!(!layout.new_path.exists() && !layout.old_path.exists() && !layout.journal_path.exists());
+    assert!(
+        !layout.new_path.exists() && !layout.old_path.exists() && !layout.journal_path.exists()
+    );
     assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(false));
     let text: String = lines.join("\n");
-    assert!(text.contains("dry run complete") && text.contains("linked worktrees inside the checkout that become nested subvolumes: 1"), "{text}");
+    assert!(
+        text.contains("dry run complete")
+            && text
+                .contains("linked worktrees inside the checkout that become nested subvolumes: 1"),
+        "{text}"
+    );
     remove(parent.as_path());
 }
 
@@ -120,13 +217,26 @@ fn the_dry_run_changes_nothing() {
 #[test]
 fn a_filesystem_other_than_btrfs_is_refused_with_its_name() {
     let (parent, root) = checkout_with_worktree("migrate-not-btrfs");
-    for (kind, word) in [(FilesystemKind::Overlayfs, "overlayfs"), (FilesystemKind::Other, "a filesystem other than btrfs")] {
+    for (kind, word) in [
+        (FilesystemKind::Overlayfs, "overlayfs"),
+        (FilesystemKind::Other, "a filesystem other than btrfs"),
+    ] {
         let mut platform: PlainPlatform = PlainPlatform::new();
         platform.kind = kind;
-        let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+        let (code, lines) = run_command(
+            &platform,
+            &migrate_arguments(),
+            root.as_path(),
+            &Interrupt::never(),
+        );
         assert_eq!(code, REFUSED);
         let text: String = lines.join("\n");
-        assert!(text.contains(word) && text.contains("What to do:") && text.contains("Nothing was changed."), "{text}");
+        assert!(
+            text.contains(word)
+                && text.contains("What to do:")
+                && text.contains("Nothing was changed."),
+            "{text}"
+        );
     }
     let layout = layout_of(root.as_path()).expect("layout");
     assert!(!layout.new_path.exists() && !layout.journal_path.exists());
@@ -140,16 +250,42 @@ fn a_filesystem_other_than_btrfs_is_refused_with_its_name() {
 fn an_already_migrated_checkout_is_reported_and_left_alone() {
     let (parent, root) = checkout_with_worktree("migrate-again");
     let platform: PlainPlatform = PlainPlatform::new();
-    assert_eq!(run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never()).0, DONE);
-    let (again_code, again_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(
+        run_command(
+            &platform,
+            &migrate_arguments(),
+            root.as_path(),
+            &Interrupt::never()
+        )
+        .0,
+        DONE
+    );
+    let (again_code, again_lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::never(),
+    );
     assert_eq!(again_code, DONE);
     let text: String = again_lines.join("\n");
-    assert!(text.contains("already a btrfs subvolume") && text.contains("--remove-old"), "{text}");
+    assert!(
+        text.contains("already a btrfs subvolume") && text.contains("--remove-old"),
+        "{text}"
+    );
     let layout = layout_of(root.as_path()).expect("layout");
     std::fs::remove_file(layout.journal_path.as_path()).expect("forget the journal");
-    let (forgotten_code, forgotten_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (forgotten_code, forgotten_lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::never(),
+    );
     assert_eq!(forgotten_code, DONE, "{forgotten_lines:#?}");
-    assert!(forgotten_lines.join("\n").contains("already a btrfs subvolume"));
+    assert!(
+        forgotten_lines
+            .join("\n")
+            .contains("already a btrfs subvolume")
+    );
     remove(parent.as_path());
 }
 
@@ -190,7 +326,12 @@ fn a_rerun_after_a_simulated_kill_at_every_step_completes() {
             .map(|(index, killed_at)| {
                 let (stop_at, after): (&str, u64) = *killed_at;
                 let name: String = format!("migrate-kill-{index}");
-                return (stop_at, scope.spawn(move || { return kill_point_at(name.as_str(), stop_at, after); }));
+                return (
+                    stop_at,
+                    scope.spawn(move || {
+                        return kill_point_at(name.as_str(), stop_at, after);
+                    }),
+                );
             })
             .collect();
         for (point, handle) in handles {
@@ -206,18 +347,42 @@ fn a_rerun_after_a_simulated_kill_at_every_step_completes() {
 /// a fresh checkout,
 /// the run stopped at `point`,
 /// and the rerun that resumes it and ends migrated.
-fn kill_point_at(name: &str, point: &str, after: u64) {
+fn kill_point_at(
+    name: &str,
+    point: &str,
+    after: u64,
+) {
     let (parent, root) = checkout_with_worktree(name);
     let platform: PlainPlatform = PlainPlatform::new();
-    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at(point, after));
+    let (code, lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::at(point, after),
+    );
     assert_eq!(code, FAILED, "{point}: {lines:#?}");
-    assert!(lines.join("\n").contains("Run the command again to resume"), "{point}");
-    let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert!(
+        lines.join("\n").contains("Run the command again to resume"),
+        "{point}"
+    );
+    let (resumed_code, resumed_lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::never(),
+    );
     assert_eq!(resumed_code, DONE, "{point}: {resumed_lines:#?}");
     let layout = layout_of(root.as_path()).expect("layout");
     assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
-    assert_eq!(platform.is_subvolume_root(root.join("wt").as_path()), Ok(true), "{point}: nested worktree");
-    assert!(!layout.new_path.exists(), "{point}: the new path is renamed away");
+    assert_eq!(
+        platform.is_subvolume_root(root.join("wt").as_path()),
+        Ok(true),
+        "{point}: nested worktree"
+    );
+    assert!(
+        !layout.new_path.exists(),
+        "{point}: the new path is renamed away"
+    );
     remove(parent.as_path());
 }
 
@@ -230,18 +395,44 @@ fn unreadable_files_stay_in_the_old_tree_and_are_listed() {
     }
     let (parent, root) = checkout_with_worktree("migrate-unreadable-file");
     std::fs::write(root.join("ignored/root-owned.log"), b"secret").expect("log");
-    std::fs::set_permissions(root.join("ignored/root-owned.log"), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("unreadable");
+    std::fs::set_permissions(
+        root.join("ignored/root-owned.log"),
+        std::os::unix::fs::PermissionsExt::from_mode(0o000),
+    )
+    .expect("unreadable");
     std::fs::write(root.join("wt/ignored-log"), b"secret").expect("worktree log");
-    std::fs::set_permissions(root.join("wt/ignored-log"), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("unreadable");
+    std::fs::set_permissions(
+        root.join("wt/ignored-log"),
+        std::os::unix::fs::PermissionsExt::from_mode(0o000),
+    )
+    .expect("unreadable");
     let platform: PlainPlatform = PlainPlatform::new();
-    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (code, lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::never(),
+    );
     assert_eq!(code, DONE, "{lines:#?}");
     let layout = layout_of(root.as_path()).expect("layout");
-    assert!(!root.join("ignored/root-owned.log").exists() && layout.old_path.join("ignored/root-owned.log").exists());
+    assert!(
+        !root.join("ignored/root-owned.log").exists()
+            && layout.old_path.join("ignored/root-owned.log").exists()
+    );
     let list: String = std::fs::read_to_string(layout.unreadable_path.as_path()).expect("the list");
-    assert!(list.lines().any(|line| { return line == "ignored/root-owned.log"; }) && list.lines().any(|line| { return line == "wt/ignored-log"; }), "{list}");
+    assert!(
+        list.lines().any(|line| {
+            return line == "ignored/root-owned.log";
+        }) && list.lines().any(|line| {
+            return line == "wt/ignored-log";
+        }),
+        "{list}"
+    );
     let text: String = lines.join("\n");
-    assert!(text.contains("may not read") && text.contains("exist only in the old tree"), "{text}");
+    assert!(
+        text.contains("may not read") && text.contains("exist only in the old tree"),
+        "{text}"
+    );
     assert_eq!(git_text(root.as_path(), &["status", "--porcelain"]), "");
     remove(parent.as_path());
 }
@@ -257,15 +448,33 @@ fn an_unreadable_directory_stops_the_run_before_the_exchange() {
     let (parent, root) = checkout_with_worktree("migrate-unreadable-dir");
     std::fs::create_dir(root.join("ignored/locked")).expect("directory");
     std::fs::write(root.join("ignored/locked/file"), b"x").expect("file");
-    std::fs::set_permissions(root.join("ignored/locked"), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("unlistable");
+    std::fs::set_permissions(
+        root.join("ignored/locked"),
+        std::os::unix::fs::PermissionsExt::from_mode(0o000),
+    )
+    .expect("unlistable");
     let platform: PlainPlatform = PlainPlatform::new();
-    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (code, lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::never(),
+    );
     // The directory stays closed, so the fixture goes closed: the teardown gives this user the permission back before it
     // removes the tree (`test_support::settle_fixture`).
     assert_eq!(code, FAILED, "{lines:#?}");
     let text: String = lines.join("\n");
-    assert!(text.contains("ignored/locked") && text.contains("cannot be listed or searched") && text.contains("--rollback"), "{text}");
-    assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(false), "the checkout was not exchanged");
+    assert!(
+        text.contains("ignored/locked")
+            && text.contains("cannot be listed or searched")
+            && text.contains("--rollback"),
+        "{text}"
+    );
+    assert_eq!(
+        platform.is_subvolume_root(root.as_path()),
+        Ok(false),
+        "the checkout was not exchanged"
+    );
     assert!(root.join("README.md").exists());
     remove(parent.as_path());
 }
@@ -275,13 +484,30 @@ fn an_unreadable_directory_stops_the_run_before_the_exchange() {
 fn a_write_to_the_old_tree_after_the_exchange_is_carried_over() {
     let (parent, root) = checkout_with_worktree("migrate-catchup");
     let platform: PlainPlatform = PlainPlatform::new();
-    let (stopped_code, _stopped_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-rename", 0));
+    let (stopped_code, _stopped_lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::at("after-rename", 0),
+    );
     assert_eq!(stopped_code, FAILED);
     let layout = layout_of(root.as_path()).expect("layout");
-    std::fs::write(layout.old_path.join("late.txt"), b"written by a straggler\n").expect("late file");
-    let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    std::fs::write(
+        layout.old_path.join("late.txt"),
+        b"written by a straggler\n",
+    )
+    .expect("late file");
+    let (resumed_code, resumed_lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::never(),
+    );
     assert_eq!(resumed_code, DONE, "{resumed_lines:#?}");
-    assert_eq!(std::fs::read(root.join("late.txt")).expect("carried over"), b"written by a straggler\n");
+    assert_eq!(
+        std::fs::read(root.join("late.txt")).expect("carried over"),
+        b"written by a straggler\n"
+    );
     remove(parent.as_path());
 }
 
@@ -293,10 +519,18 @@ fn a_write_to_the_old_tree_after_the_exchange_is_carried_over() {
 fn the_index_rewrite_can_be_switched_off_and_then_the_inodes_differ() {
     let (parent, root) = checkout_with_worktree("migrate-no-refresh");
     let platform: PlainPlatform = PlainPlatform::new();
-    let arguments: MigrateArguments = MigrateArguments { refresh_indexes: false, ..migrate_arguments() };
+    let arguments: MigrateArguments = MigrateArguments {
+        refresh_indexes: false,
+        ..migrate_arguments()
+    };
     let (code, lines) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
     assert_eq!(code, DONE, "{lines:#?}");
-    assert_ne!(index_inode(root.as_path(), "README.md"), std::fs::metadata(root.join("README.md")).expect("file").ino());
+    assert_ne!(
+        index_inode(root.as_path(), "README.md"),
+        std::fs::metadata(root.join("README.md"))
+            .expect("file")
+            .ino()
+    );
     remove(parent.as_path());
 }
 
@@ -305,11 +539,17 @@ fn the_index_rewrite_can_be_switched_off_and_then_the_inodes_differ() {
 fn the_nested_worktree_switch_keeps_worktrees_ordinary() {
     let (parent, root) = checkout_with_worktree("migrate-no-nested");
     let platform: PlainPlatform = PlainPlatform::new();
-    let arguments: MigrateArguments = MigrateArguments { nested_worktrees: false, ..migrate_arguments() };
+    let arguments: MigrateArguments = MigrateArguments {
+        nested_worktrees: false,
+        ..migrate_arguments()
+    };
     let (code, lines) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
     assert_eq!(code, DONE, "{lines:#?}");
     assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(true));
-    assert_eq!(platform.is_subvolume_root(root.join("wt").as_path()), Ok(false));
+    assert_eq!(
+        platform.is_subvolume_root(root.join("wt").as_path()),
+        Ok(false)
+    );
     assert!(root.join("wt/README.md").exists());
     remove(parent.as_path());
 }
@@ -318,16 +558,27 @@ fn the_nested_worktree_switch_keeps_worktrees_ordinary() {
 #[test]
 fn a_process_inside_the_checkout_is_named_in_the_warning() {
     let (parent, root) = checkout_with_worktree("migrate-process-warning");
-    let mut child: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("60").current_dir(root.as_path())).expect("sleep");
+    let mut child: std::process::Child = crate::test_support::spawn_owned(
+        std::process::Command::new("sleep")
+            .arg("60")
+            .current_dir(root.as_path()),
+    )
+    .expect("sleep");
     let platform: PlainPlatform = PlainPlatform::new();
-    let arguments: MigrateArguments = MigrateArguments { dry_run: true, ..migrate_arguments() };
+    let arguments: MigrateArguments = MigrateArguments {
+        dry_run: true,
+        ..migrate_arguments()
+    };
     let (code, lines) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
     let pid: String = child.id().to_string();
     child.kill().expect("stop the sleeper");
     child.wait().expect("reap the sleeper");
     assert_eq!(code, DONE);
     let text: String = lines.join("\n");
-    assert!(text.contains("WARNING") && text.contains(format!("pid {pid} (sleep)").as_str()), "{text}");
+    assert!(
+        text.contains("WARNING") && text.contains(format!("pid {pid} (sleep)").as_str()),
+        "{text}"
+    );
     remove(parent.as_path());
 }
 
@@ -349,20 +600,51 @@ fn lock_taker(lock: PathBuf) -> Hooked {
 #[test]
 fn an_index_lock_taken_by_another_git_command_after_the_preflight_stops_the_migration() {
     for relative in [".git/index.lock", ".git/worktrees/wt/index.lock"] {
-        let (parent, root) = checkout_with_worktree(format!("migrate-foreign-lock-{}", relative.replace('/', "-")).as_str());
+        let (parent, root) = checkout_with_worktree(
+            format!("migrate-foreign-lock-{}", relative.replace('/', "-")).as_str(),
+        );
         let platform: Hooked = lock_taker(root.join(relative));
-        let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+        let (code, lines) = run_command(
+            &platform,
+            &migrate_arguments(),
+            root.as_path(),
+            &Interrupt::never(),
+        );
         assert_eq!(code, FAILED, "{relative}: {lines:#?}");
         let text: String = lines.join("\n");
-        assert!(text.contains("is not this migration's lock") && text.contains("index.lock"), "{relative}: {text}");
+        assert!(
+            text.contains("is not this migration's lock") && text.contains("index.lock"),
+            "{relative}: {text}"
+        );
         let layout = layout_of(root.as_path()).expect("layout");
-        assert_eq!(platform.inner.is_subvolume_root(root.as_path()), Ok(false), "{relative}: the trees were not exchanged");
+        assert_eq!(
+            platform.inner.is_subvolume_root(root.as_path()),
+            Ok(false),
+            "{relative}: the trees were not exchanged"
+        );
         assert!(!layout.old_path.exists(), "{relative}");
-        assert_eq!(std::fs::read(root.join(relative)).expect("foreign lock kept"), b"git add is writing here\n", "{relative}");
-        let (refused, _lines) = run_command(&platform.inner, &migrate_arguments(), root.as_path(), &Interrupt::never());
-        assert_eq!(refused, REFUSED, "{relative}: the preflight refuses while the other command's lock stands");
+        assert_eq!(
+            std::fs::read(root.join(relative)).expect("foreign lock kept"),
+            b"git add is writing here\n",
+            "{relative}"
+        );
+        let (refused, _lines) = run_command(
+            &platform.inner,
+            &migrate_arguments(),
+            root.as_path(),
+            &Interrupt::never(),
+        );
+        assert_eq!(
+            refused, REFUSED,
+            "{relative}: the preflight refuses while the other command's lock stands"
+        );
         std::fs::remove_file(root.join(relative)).expect("the other command finishes");
-        let (done, lines2) = run_command(&platform.inner, &migrate_arguments(), root.as_path(), &Interrupt::never());
+        let (done, lines2) = run_command(
+            &platform.inner,
+            &migrate_arguments(),
+            root.as_path(),
+            &Interrupt::never(),
+        );
         assert_eq!(done, DONE, "{relative}: {lines2:#?}");
         assert_migrated(&platform.inner, root.as_path(), layout.old_path.as_path());
         remove(parent.as_path());
@@ -380,20 +662,39 @@ fn the_new_checkout_holds_the_index_locks_until_the_indexes_are_rewritten() {
     for point in ["after-exchange", "after-catchup", "after-indexes"] {
         let platform: PlainPlatform = PlainPlatform::new();
         let (parent, root) = checkout_with_worktree(format!("migrate-held-{point}").as_str());
-        let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at(point, 0));
+        let (code, lines) = run_command(
+            &platform,
+            &migrate_arguments(),
+            root.as_path(),
+            &Interrupt::at(point, 0),
+        );
         assert_eq!(code, FAILED, "{point}: {lines:#?}");
         let layout = layout_of(root.as_path()).expect("layout");
         for lock in [main, linked] {
             let content: Vec<u8> = std::fs::read(root.join(lock)).unwrap_or_default();
-            assert!(content.starts_with(b"monochromatic-git-policy-cli migrate-to-subvolume"), "{point}: {lock} is held by the migration in the new checkout");
+            assert!(
+                content.starts_with(b"monochromatic-git-policy-cli migrate-to-subvolume"),
+                "{point}: {lock} is held by the migration in the new checkout"
+            );
         }
         if point != "after-exchange" {
-            assert!(!layout.old_path.join(main).exists() && !layout.old_path.join(linked).exists(), "{point}: the old tree's locks are dropped");
+            assert!(
+                !layout.old_path.join(main).exists() && !layout.old_path.join(linked).exists(),
+                "{point}: the old tree's locks are dropped"
+            );
         }
-        let (code2, lines2) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+        let (code2, lines2) = run_command(
+            &platform,
+            &migrate_arguments(),
+            root.as_path(),
+            &Interrupt::never(),
+        );
         assert_eq!(code2, DONE, "{point}: {lines2:#?}");
         assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
-        assert!(!root.join(linked).exists() && !layout.old_path.join(linked).exists(), "{point}");
+        assert!(
+            !root.join(linked).exists() && !layout.old_path.join(linked).exists(),
+            "{point}"
+        );
         remove(parent.as_path());
     }
 }
@@ -405,7 +706,12 @@ fn the_new_checkout_holds_the_index_locks_until_the_indexes_are_rewritten() {
 fn the_linked_worktrees_index_locks_are_held_in_both_trees_before_the_exchange() {
     let platform: PlainPlatform = PlainPlatform::new();
     let (parent, root) = checkout_with_worktree("migrate-worktree-lock");
-    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("before-exchange", 0));
+    let (code, lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::at("before-exchange", 0),
+    );
     assert_eq!(code, FAILED, "{lines:#?}");
     let layout = layout_of(root.as_path()).expect("layout");
     for tree in [root.as_path(), layout.new_path.as_path()] {
@@ -417,8 +723,16 @@ fn the_linked_worktrees_index_locks_are_held_in_both_trees_before_the_exchange()
 }
 
 /// How often a notice stands among the lines a run said.
-fn said(lines: &[String], notice: &str) -> usize {
-    return lines.iter().filter(|line: &&String| { return line.as_str() == notice; }).count();
+fn said(
+    lines: &[String],
+    notice: &str,
+) -> usize {
+    return lines
+        .iter()
+        .filter(|line: &&String| {
+            return line.as_str() == notice;
+        })
+        .count();
 }
 
 /// A run that changes the checkout says the risk once,
@@ -429,11 +743,31 @@ fn said(lines: &[String], notice: &str) -> usize {
 fn a_run_says_the_risk_once_before_it_changes_anything() {
     let (parent, root) = checkout_with_worktree("migrate-risk");
     let platform: PlainPlatform = PlainPlatform::new();
-    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (code, lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::never(),
+    );
     assert_eq!(code, DONE, "{lines:#?}");
-    assert_eq!(lines.first().map(String::as_str), Some(MIGRATE_RISK_NOTICE), "before anything is changed: {lines:#?}");
-    assert_eq!(said(lines.as_slice(), MIGRATE_RISK_NOTICE), 1, "said once: {lines:#?}");
-    assert_eq!(said(lines.as_slice(), crate::worktree_convert_arguments::RISK_NOTICE), 0, "the conversion's notice is not this command's: {lines:#?}");
+    assert_eq!(
+        lines.first().map(String::as_str),
+        Some(MIGRATE_RISK_NOTICE),
+        "before anything is changed: {lines:#?}"
+    );
+    assert_eq!(
+        said(lines.as_slice(), MIGRATE_RISK_NOTICE),
+        1,
+        "said once: {lines:#?}"
+    );
+    assert_eq!(
+        said(
+            lines.as_slice(),
+            crate::worktree_convert_arguments::RISK_NOTICE
+        ),
+        0,
+        "the conversion's notice is not this command's: {lines:#?}"
+    );
     remove(parent.as_path());
 }
 
@@ -443,15 +777,32 @@ fn a_run_says_the_risk_once_before_it_changes_anything() {
 fn a_preview_and_a_refusal_say_no_risk() {
     let (parent, root) = checkout_with_worktree("migrate-risk-none");
     let platform: PlainPlatform = PlainPlatform::new();
-    let preview: MigrateArguments = MigrateArguments { dry_run: true, ..migrate_arguments() };
-    let (preview_code, preview_lines) = run_command(&platform, &preview, root.as_path(), &Interrupt::never());
+    let preview: MigrateArguments = MigrateArguments {
+        dry_run: true,
+        ..migrate_arguments()
+    };
+    let (preview_code, preview_lines) =
+        run_command(&platform, &preview, root.as_path(), &Interrupt::never());
     assert_eq!(preview_code, DONE, "{preview_lines:#?}");
-    assert_eq!(said(preview_lines.as_slice(), MIGRATE_RISK_NOTICE), 0, "a preview changes nothing: {preview_lines:#?}");
+    assert_eq!(
+        said(preview_lines.as_slice(), MIGRATE_RISK_NOTICE),
+        0,
+        "a preview changes nothing: {preview_lines:#?}"
+    );
     let mut unsuitable: PlainPlatform = PlainPlatform::new();
     unsuitable.kind = FilesystemKind::Overlayfs;
-    let (refused_code, refused_lines) = run_command(&unsuitable, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (refused_code, refused_lines) = run_command(
+        &unsuitable,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::never(),
+    );
     assert_eq!(refused_code, REFUSED, "{refused_lines:#?}");
-    assert_eq!(said(refused_lines.as_slice(), MIGRATE_RISK_NOTICE), 0, "a refusal leaves the checkout alone: {refused_lines:#?}");
+    assert_eq!(
+        said(refused_lines.as_slice(), MIGRATE_RISK_NOTICE),
+        0,
+        "a refusal leaves the checkout alone: {refused_lines:#?}"
+    );
     remove(parent.as_path());
 }
 
@@ -461,18 +812,66 @@ fn a_preview_and_a_refusal_say_no_risk() {
 fn the_deleting_modes_say_the_risk_once() {
     let (parent, root) = checkout_with_worktree("migrate-risk-delete");
     let platform: PlainPlatform = PlainPlatform::new();
-    assert_eq!(run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never()).0, DONE);
-    let rollback: MigrateArguments = MigrateArguments { mode: MigrateMode::Rollback, ..migrate_arguments() };
-    let (rollback_code, rollback_lines) = run_command(&platform, &rollback, root.as_path(), &Interrupt::never());
+    assert_eq!(
+        run_command(
+            &platform,
+            &migrate_arguments(),
+            root.as_path(),
+            &Interrupt::never()
+        )
+        .0,
+        DONE
+    );
+    let rollback: MigrateArguments = MigrateArguments {
+        mode: MigrateMode::Rollback,
+        ..migrate_arguments()
+    };
+    let (rollback_code, rollback_lines) =
+        run_command(&platform, &rollback, root.as_path(), &Interrupt::never());
     assert_eq!(rollback_code, DONE, "{rollback_lines:#?}");
-    assert_eq!(said(rollback_lines.as_slice(), MIGRATE_RISK_NOTICE), 1, "said once by a rollback: {rollback_lines:#?}");
-    assert_eq!(said(rollback_lines.as_slice(), crate::worktree_convert_arguments::RISK_NOTICE), 0, "{rollback_lines:#?}");
-    assert_eq!(run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never()).0, DONE);
-    let remove_old: MigrateArguments = MigrateArguments { mode: MigrateMode::RemoveOld, ..migrate_arguments() };
-    let (remove_code, remove_lines) = run_command(&platform, &remove_old, root.as_path(), &Interrupt::never());
+    assert_eq!(
+        said(rollback_lines.as_slice(), MIGRATE_RISK_NOTICE),
+        1,
+        "said once by a rollback: {rollback_lines:#?}"
+    );
+    assert_eq!(
+        said(
+            rollback_lines.as_slice(),
+            crate::worktree_convert_arguments::RISK_NOTICE
+        ),
+        0,
+        "{rollback_lines:#?}"
+    );
+    assert_eq!(
+        run_command(
+            &platform,
+            &migrate_arguments(),
+            root.as_path(),
+            &Interrupt::never()
+        )
+        .0,
+        DONE
+    );
+    let remove_old: MigrateArguments = MigrateArguments {
+        mode: MigrateMode::RemoveOld,
+        ..migrate_arguments()
+    };
+    let (remove_code, remove_lines) =
+        run_command(&platform, &remove_old, root.as_path(), &Interrupt::never());
     assert_eq!(remove_code, DONE, "{remove_lines:#?}");
-    assert_eq!(said(remove_lines.as_slice(), MIGRATE_RISK_NOTICE), 1, "said once by a removal of the old tree: {remove_lines:#?}");
-    assert_eq!(said(remove_lines.as_slice(), crate::worktree_convert_arguments::RISK_NOTICE), 0, "{remove_lines:#?}");
+    assert_eq!(
+        said(remove_lines.as_slice(), MIGRATE_RISK_NOTICE),
+        1,
+        "said once by a removal of the old tree: {remove_lines:#?}"
+    );
+    assert_eq!(
+        said(
+            remove_lines.as_slice(),
+            crate::worktree_convert_arguments::RISK_NOTICE
+        ),
+        0,
+        "{remove_lines:#?}"
+    );
     remove(parent.as_path());
 }
 
@@ -501,8 +900,13 @@ fn a_named_pipe_where_the_unreadable_list_belongs_ends_the_run_at_once() {
             Err(error) => error.to_string(),
         };
     });
-    let Some(message) = read else { panic!("reading the list did not finish within five seconds") };
-    assert!(message.contains("not a plain file") && message.contains("unreadable"), "{message}");
+    let Some(message) = read else {
+        panic!("reading the list did not finish within five seconds")
+    };
+    assert!(
+        message.contains("not a plain file") && message.contains("unreadable"),
+        "{message}"
+    );
     remove(parent.as_path());
 }
 
@@ -520,19 +924,41 @@ fn a_named_pipe_where_the_unreadable_list_belongs_ends_the_run_at_once() {
 fn a_resume_refuses_a_stage_that_is_not_the_subvolume_the_journal_recorded() {
     let platform: PlainPlatform = PlainPlatform::new();
     let (parent, root) = checkout_with_worktree("migrate-foreign-stage");
-    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-create", 0));
+    let (code, lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::at("after-create", 0),
+    );
     assert_eq!(code, FAILED, "{lines:#?}");
     let layout = layout_of(root.as_path()).expect("layout");
     let aside: PathBuf = parent.join("staged-aside");
     std::fs::rename(layout.new_path.as_path(), aside.as_path()).expect("move the stage aside");
-    platform.create_subvolume(layout.new_path.as_path()).expect("another subvolume at the stage's name");
+    platform
+        .create_subvolume(layout.new_path.as_path())
+        .expect("another subvolume at the stage's name");
     std::fs::write(layout.new_path.join("theirs"), b"their data").expect("their file");
-    let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (resumed_code, resumed_lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::never(),
+    );
     assert_eq!(resumed_code, REFUSED, "{resumed_lines:#?}");
     let said: String = resumed_lines.join("\n");
-    assert!(said.contains("not the subvolume this migration created"), "{said}");
-    assert_eq!(std::fs::read(layout.new_path.join("theirs")).expect("their file"), b"their data", "their data survives");
-    assert!(aside.exists(), "the stage this migration made is left where it was moved");
+    assert!(
+        said.contains("not the subvolume this migration created"),
+        "{said}"
+    );
+    assert_eq!(
+        std::fs::read(layout.new_path.join("theirs")).expect("their file"),
+        b"their data",
+        "their data survives"
+    );
+    assert!(
+        aside.exists(),
+        "the stage this migration made is left where it was moved"
+    );
     remove(parent.as_path());
 }
 
@@ -545,16 +971,35 @@ fn record_the_creation_without_the_stage(journal: &Path) {
     let text: String = std::fs::read_to_string(journal).expect("the journal");
     let mut value: serde_json::Value = serde_json::from_str(text.as_str()).expect("a journal");
     let document = value.as_object_mut().expect("a journal is an object");
-    let steps = document.get_mut("steps").and_then(serde_json::Value::as_object_mut).expect("a journal records steps");
-    let create = steps.get_mut("create").and_then(serde_json::Value::as_object_mut).expect("the journal records the creation");
-    create.insert(String::from("state"), serde_json::Value::String(String::from("started")));
-    let values = document.get_mut("values").and_then(serde_json::Value::as_object_mut).expect("the journal records values");
+    let steps = document
+        .get_mut("steps")
+        .and_then(serde_json::Value::as_object_mut)
+        .expect("a journal records steps");
+    let create = steps
+        .get_mut("create")
+        .and_then(serde_json::Value::as_object_mut)
+        .expect("the journal records the creation");
+    create.insert(
+        String::from("state"),
+        serde_json::Value::String(String::from("started")),
+    );
+    let values = document
+        .get_mut("values")
+        .and_then(serde_json::Value::as_object_mut)
+        .expect("the journal records values");
     let identity = values.remove(crate::subvolume_journal::STAGE_ROOT);
-    assert!(identity.is_some(), "the control starts from a journal that records the stage");
+    assert!(
+        identity.is_some(),
+        "the control starts from a journal that records the stage"
+    );
     if values.is_empty() {
         document.remove("values");
     }
-    std::fs::write(journal, serde_json::to_string_pretty(&value).expect("a journal")).expect("write the journal");
+    std::fs::write(
+        journal,
+        serde_json::to_string_pretty(&value).expect("a journal"),
+    )
+    .expect("write the journal");
 }
 
 /// What:
@@ -571,11 +1016,21 @@ fn record_the_creation_without_the_stage(journal: &Path) {
 fn a_resume_adopts_an_empty_stage_the_journal_records_no_identity_for() {
     let platform: PlainPlatform = PlainPlatform::new();
     let (parent, root) = checkout_with_worktree("migrate-unrecorded-stage");
-    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-create", 0));
+    let (code, lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::at("after-create", 0),
+    );
     assert_eq!(code, FAILED, "{lines:#?}");
     let layout = layout_of(root.as_path()).expect("layout");
     record_the_creation_without_the_stage(layout.journal_path.as_path());
-    let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (resumed_code, resumed_lines) = run_command(
+        &platform,
+        &migrate_arguments(),
+        root.as_path(),
+        &Interrupt::never(),
+    );
     assert_eq!(resumed_code, DONE, "{resumed_lines:#?}");
     assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
     remove(parent.as_path());

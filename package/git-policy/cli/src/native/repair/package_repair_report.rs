@@ -17,7 +17,10 @@
 //! process.stderr.write(render(destination, findings, quiet));
 //! ```
 
-use crate::package_repair_command::{ToolEnd, ToolRun};
+use crate::package_repair_command::{
+    ToolEnd,
+    ToolRun,
+};
 use std::path::Path;
 
 /// What:
@@ -99,14 +102,34 @@ pub struct Finding {
 /// ```ts
 /// function findingFrom(tool: Tool, run: ToolRun, detail: string, runInstead: string): Finding;
 /// ```
-pub fn finding_from(tool: Tool, run: &ToolRun, detail: &str, run_instead: &str) -> Finding {
+pub fn finding_from(
+    tool: Tool,
+    run: &ToolRun,
+    detail: &str,
+    run_instead: &str,
+) -> Finding {
     let outcome: Outcome = match &run.end {
-        ToolEnd::Succeeded => Outcome::Repaired { detail: detail.to_owned(), millis: run.millis },
-        ToolEnd::Failed(reason) => Outcome::Failed { reason: reason.clone(), run_instead: run_instead.to_owned() },
-        ToolEnd::TimedOut => Outcome::Failed { reason: String::from("it showed no sign of work for the quiet window and was stopped"), run_instead: run_instead.to_owned() },
-        ToolEnd::CeilingReached(ceiling) => Outcome::Failed { reason: ceiling_reason(tool, *ceiling), run_instead: run_instead.to_owned() },
+        ToolEnd::Succeeded => Outcome::Repaired {
+            detail: detail.to_owned(),
+            millis: run.millis,
+        },
+        ToolEnd::Failed(reason) => Outcome::Failed {
+            reason: reason.clone(),
+            run_instead: run_instead.to_owned(),
+        },
+        ToolEnd::TimedOut => Outcome::Failed {
+            reason: String::from("it showed no sign of work for the quiet window and was stopped"),
+            run_instead: run_instead.to_owned(),
+        },
+        ToolEnd::CeilingReached(ceiling) => Outcome::Failed {
+            reason: ceiling_reason(tool, *ceiling),
+            run_instead: run_instead.to_owned(),
+        },
     };
-    return Finding { tool, outcome };
+    return Finding {
+        tool,
+        outcome,
+    };
 }
 
 /// What:
@@ -129,7 +152,10 @@ pub fn finding_from(tool: Tool, run: &ToolRun, detail: &str, run_instead: &str) 
 /// ```ts
 /// function ceilingReason(tool: Tool, ceilingMs: number): string;
 /// ```
-pub fn ceiling_reason(tool: Tool, ceiling: std::time::Duration) -> String {
+pub fn ceiling_reason(
+    tool: Tool,
+    ceiling: std::time::Duration,
+) -> String {
     let doing: &str = match tool {
         Tool::Pnpm => "pnpm, relinking node_modules",
         Tool::Cargo => "cargo, cloning and cleaning build state",
@@ -151,8 +177,18 @@ pub fn ceiling_reason(tool: Tool, ceiling: std::time::Duration) -> String {
 /// ```ts
 /// function missingTool(tool: Tool, program: string, runInstead: string): Finding;
 /// ```
-pub fn missing_tool(tool: Tool, program: &str, run_instead: &str) -> Finding {
-    return Finding { tool, outcome: Outcome::Failed { reason: format!("{program} was not found on the search path"), run_instead: run_instead.to_owned() } };
+pub fn missing_tool(
+    tool: Tool,
+    program: &str,
+    run_instead: &str,
+) -> Finding {
+    return Finding {
+        tool,
+        outcome: Outcome::Failed {
+            reason: format!("{program} was not found on the search path"),
+            run_instead: run_instead.to_owned(),
+        },
+    };
 }
 
 /// What:
@@ -196,23 +232,40 @@ fn single_line(text: &str) -> String {
 /// ```ts
 /// function render(destination: string, findings: Finding[], quiet: boolean): string;
 /// ```
-pub fn render(destination: &Path, findings: &[Finding], quiet: bool) -> String {
+pub fn render(
+    destination: &Path,
+    findings: &[Finding],
+    quiet: bool,
+) -> String {
     let shown: String = destination.display().to_string();
     let mut text: String = String::new();
     let mut worked: Vec<String> = Vec::new();
     let mut partial: bool = false;
     for finding in findings {
         match &finding.outcome {
-            Outcome::Repaired { detail, millis } => worked.push(format!("{detail} in {}", seconds(*millis))),
-            Outcome::Failed { .. } => partial = true,
+            Outcome::Repaired {
+                detail,
+                millis,
+            } => worked.push(format!("{detail} in {}", seconds(*millis))),
+            Outcome::Failed {
+                ..
+            } => partial = true,
         }
     }
     if !worked.is_empty() && !quiet {
-        let scope: &str = if partial { "part of the package-manager state" } else { "the package-manager state" };
+        let scope: &str = if partial {
+            "part of the package-manager state"
+        } else {
+            "the package-manager state"
+        };
         text.push_str(format!("monochromatic-git-policy-cli: made {scope} of {shown} work at its new location: {}.\n", worked.join("; ")).as_str());
     }
     for finding in findings {
-        if let Outcome::Failed { reason, run_instead } = &finding.outcome {
+        if let Outcome::Failed {
+            reason,
+            run_instead,
+        } = &finding.outcome
+        {
             text.push_str(format!("monochromatic-git-policy-cli: the worktree {shown} still needs one step ({}); run {}.\n", single_line(reason), single_line(run_instead)).as_str());
         }
     }

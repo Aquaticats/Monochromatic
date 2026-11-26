@@ -24,14 +24,46 @@
 //! expect(killed.signal).toBe(9); await wrapped(['status']); expect(read('a.txt')).toContain('the person line');
 //! ```
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::merge_carries_edits::{FEATURE_THIRD, PERSON_LINE, assert_merged, diverged, on_main_a, records, said, side_refs, status, text_at};
-use super::support::{Fixture, Observed, fixture, git, observe};
+use super::commit::{
+    git_text,
+    remove_settled,
+    wrapped_commit,
+};
+use super::merge_carries_edits::{
+    FEATURE_THIRD,
+    PERSON_LINE,
+    assert_merged,
+    diverged,
+    on_main_a,
+    records,
+    said,
+    side_refs,
+    status,
+    text_at,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    observe,
+};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::os::unix::process::ExitStatusExt;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The line the person staged,
 /// which the index holds and the worktree no longer shows as the only layer.
@@ -62,10 +94,17 @@ struct Held {
 
 /// The checkout as the person left it,
 /// which a merge that did not land must not change.
-fn held(fixture: &Fixture, repo: &Path) -> Held {
+fn held(
+    fixture: &Fixture,
+    repo: &Path,
+) -> Held {
     return Held {
         head: git_text(fixture, repo, &["rev-parse", "HEAD"]),
-        index: git_text(fixture, repo, &["--no-optional-locks", "ls-files", "--stage"]),
+        index: git_text(
+            fixture,
+            repo,
+            &["--no-optional-locks", "ls-files", "--stage"],
+        ),
         status: status(fixture, repo),
         person: text_at(repo, "a.txt"),
     };
@@ -73,7 +112,11 @@ fn held(fixture: &Fixture, repo: &Path) -> Held {
 
 /// Kill a merge at one phase,
 /// and say that the phase was reached.
-fn killed_at(fixture: &Fixture, repo: &Path, phase: &str) {
+fn killed_at(
+    fixture: &Fixture,
+    repo: &Path,
+    phase: &str,
+) {
     killed_at_occurrence(fixture, repo, phase, None);
 }
 
@@ -81,7 +124,12 @@ fn killed_at(fixture: &Fixture, repo: &Path, phase: &str) {
 /// the variable names the phase,
 /// and the marker file carries the number,
 /// as `transaction_phase.rs` spells both.
-fn killed_at_occurrence(fixture: &Fixture, repo: &Path, phase: &str, occurrence: Option<u64>) {
+fn killed_at_occurrence(
+    fixture: &Fixture,
+    repo: &Path,
+    phase: &str,
+    occurrence: Option<u64>,
+) {
     let stem: String = match occurrence {
         Some(number) => format!("{phase}-{number}"),
         None => String::from(phase),
@@ -99,15 +147,29 @@ fn killed_at_occurrence(fixture: &Fixture, repo: &Path, phase: &str, occurrence:
         output.status,
         String::from_utf8_lossy(output.stderr.as_slice())
     );
-    assert!(markers.join(format!("{stem}.reached")).exists(), "{stem} was reached");
+    assert!(
+        markers.join(format!("{stem}.reached")).exists(),
+        "{stem} was reached"
+    );
 }
 
 /// Run a command that reads the repository,
 /// which is what finishes or puts back a killed merge,
 /// and give what it said.
-fn after_the_kill(fixture: &Fixture, repo: &Path) -> Observed {
-    let observed: Observed = observe(&mut wrapped_commit(fixture, repo, &["status", "--porcelain=v1"]), b"");
-    assert_eq!(observed.code, Some(0), "the next command runs: {}", String::from_utf8_lossy(observed.stderr.as_slice()));
+fn after_the_kill(
+    fixture: &Fixture,
+    repo: &Path,
+) -> Observed {
+    let observed: Observed = observe(
+        &mut wrapped_commit(fixture, repo, &["status", "--porcelain=v1"]),
+        b"",
+    );
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the next command runs: {}",
+        String::from_utf8_lossy(observed.stderr.as_slice())
+    );
     return observed;
 }
 
@@ -115,9 +177,16 @@ fn after_the_kill(fixture: &Fixture, repo: &Path) -> Observed {
 /// Why:
 ///   The two layers are what a kill between the index step of a carry and its file step can separate:
 /// one is written before the other.
-fn staged_and_unsaved(fixture: &Fixture, name: &str) -> PathBuf {
+fn staged_and_unsaved(
+    fixture: &Fixture,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = diverged(fixture, name);
-    std::fs::write(repo.join("a.txt"), format!("{}{STAGED_LINE}\n", on_main_a())).expect("the person's staged edit");
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("{}{STAGED_LINE}\n", on_main_a()),
+    )
+    .expect("the person's staged edit");
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
     std::fs::write(repo.join("a.txt"), unsaved_text()).expect("the person's unsaved edit");
     return repo;
@@ -145,8 +214,14 @@ pub(super) struct Paused {
 
 /// Start a merge that stops at one phase,
 /// with the marker written and the merge waiting.
-pub(super) fn paused_at(fixture: &Fixture, repo: &Path, phase: &str) -> Paused {
-    let markers: PathBuf = fixture.root.join(format!("markers-{phase}-{}", std::process::id()));
+pub(super) fn paused_at(
+    fixture: &Fixture,
+    repo: &Path,
+    phase: &str,
+) -> Paused {
+    let markers: PathBuf = fixture
+        .root
+        .join(format!("markers-{phase}-{}", std::process::id()));
     std::fs::create_dir(&markers).expect("marker directory");
     let signal: String = format!("{phase}:pause:{}", markers.display());
     let mut command: Command = wrapped_commit(fixture, repo, &["merge", "--no-edit", "feature"]);
@@ -156,7 +231,10 @@ pub(super) fn paused_at(fixture: &Fixture, repo: &Path, phase: &str) -> Paused {
         .stderr(Stdio::piped())
         .spawn()
         .expect("the merge starts");
-    let paused: Paused = Paused { child, markers };
+    let paused: Paused = Paused {
+        child,
+        markers,
+    };
     paused.wait_for(phase);
     return paused;
 }
@@ -164,26 +242,44 @@ pub(super) fn paused_at(fixture: &Fixture, repo: &Path, phase: &str) -> Paused {
 impl Paused {
     /// Wait until the merge reached its marker,
     /// which is what says the test may act before the merge goes on.
-    fn wait_for(&self, phase: &str) {
+    fn wait_for(
+        &self,
+        phase: &str,
+    ) {
         let marker: PathBuf = self.markers.join(format!("{phase}.reached"));
         let began: Instant = Instant::now();
         while !marker.exists() {
-            assert!(began.elapsed() < MARKER_PATIENCE, "{phase} was not reached within {} seconds", MARKER_PATIENCE.as_secs());
+            assert!(
+                began.elapsed() < MARKER_PATIENCE,
+                "{phase} was not reached within {} seconds",
+                MARKER_PATIENCE.as_secs()
+            );
             std::thread::sleep(MARKER_POLL);
         }
     }
 
     /// Let the merge go on and read everything it said.
-    pub(super) fn released(self, phase: &str) -> Output {
-        std::fs::write(self.markers.join(format!("{phase}.release")), b"").expect("the release file");
+    pub(super) fn released(
+        self,
+        phase: &str,
+    ) -> Output {
+        std::fs::write(self.markers.join(format!("{phase}.release")), b"")
+            .expect("the release file");
         return self.child.wait_with_output().expect("the merge ends");
     }
 }
 
 /// A repository whose `a.txt` holds the person's unsaved line after `main`'s own text.
-pub(super) fn edited(fixture: &Fixture, name: &str) -> PathBuf {
+pub(super) fn edited(
+    fixture: &Fixture,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = diverged(fixture, name);
-    std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", on_main_a())).expect("the person's edit");
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("{}{PERSON_LINE}\n", on_main_a()),
+    )
+    .expect("the person's edit");
     return repo;
 }
 
@@ -197,10 +293,26 @@ fn a_kill_after_the_capture_leaves_the_checkout_as_it_was() {
     let before: Held = held(&fixture, repo.as_path());
     killed_at(&fixture, repo.as_path(), "merge-carried");
     after_the_kill(&fixture, repo.as_path());
-    assert_ne!(before.person, Some(on_main_a()), "the person's edit is in the fixture");
-    assert_eq!(held(&fixture, repo.as_path()), before, "the checkout is what the person left");
-    assert_eq!(records(repo.as_path()), "", "the record went with the merge that did not start");
-    assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
+    assert_ne!(
+        before.person,
+        Some(on_main_a()),
+        "the person's edit is in the fixture"
+    );
+    assert_eq!(
+        held(&fixture, repo.as_path()),
+        before,
+        "the checkout is what the person left"
+    );
+    assert_eq!(
+        records(repo.as_path()),
+        "",
+        "the record went with the merge that did not start"
+    );
+    assert_eq!(
+        side_refs(&fixture, repo.as_path()),
+        "",
+        "the captured bytes are not left on a ref nothing names"
+    );
     remove_settled(&fixture);
 }
 
@@ -213,11 +325,23 @@ fn a_kill_after_the_clear_puts_the_edits_back() {
     let repo: PathBuf = edited(&fixture, "repo");
     let before: Held = held(&fixture, repo.as_path());
     killed_at(&fixture, repo.as_path(), "merge-cleared");
-    assert_eq!(text_at(repo.as_path(), "a.txt").as_deref(), Some(on_main_a().as_str()), "the path was cleared for the merge");
+    assert_eq!(
+        text_at(repo.as_path(), "a.txt").as_deref(),
+        Some(on_main_a().as_str()),
+        "the path was cleared for the merge"
+    );
     after_the_kill(&fixture, repo.as_path());
-    assert_eq!(held(&fixture, repo.as_path()), before, "the person's edits are back, and the branch did not move");
+    assert_eq!(
+        held(&fixture, repo.as_path()),
+        before,
+        "the person's edits are back, and the branch did not move"
+    );
     assert_eq!(records(repo.as_path()), "", "the record went");
-    assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
+    assert_eq!(
+        side_refs(&fixture, repo.as_path()),
+        "",
+        "the captured bytes are not left on a ref nothing names"
+    );
     remove_settled(&fixture);
 }
 
@@ -231,9 +355,19 @@ fn a_kill_after_the_branch_moved_carries_the_edits() {
     after_the_kill(&fixture, repo.as_path());
     assert_merged(&fixture, repo.as_path(), "kill after the branch moved");
     let after: String = text_at(repo.as_path(), "a.txt").expect("a.txt is there");
-    assert!(after.contains(FEATURE_THIRD), "the merge's line is there: {after:?}");
-    assert!(after.contains(PERSON_LINE), "the person's line is there: {after:?}");
-    assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "the edit is still unsaved");
+    assert!(
+        after.contains(FEATURE_THIRD),
+        "the merge's line is there: {after:?}"
+    );
+    assert!(
+        after.contains(PERSON_LINE),
+        "the person's line is there: {after:?}"
+    );
+    assert_eq!(
+        status(&fixture, repo.as_path()),
+        " M a.txt\n",
+        "the edit is still unsaved"
+    );
     remove_settled(&fixture);
 }
 
@@ -263,15 +397,33 @@ fn a_save_after_the_kill_that_accepts_the_whole_merge_stands() {
     let repo: PathBuf = edited(&fixture, "repo");
     killed_at(&fixture, repo.as_path(), "merge-applied");
     let merged: String = text_at(repo.as_path(), "a.txt").expect("a.txt holds the merge");
-    assert!(merged.contains(FEATURE_THIRD), "the fixture holds the merge's line: {merged:?}");
-    assert!(!merged.contains(PERSON_LINE), "the merge's own write is what stands before any save: {merged:?}");
+    assert!(
+        merged.contains(FEATURE_THIRD),
+        "the fixture holds the merge's line: {merged:?}"
+    );
+    assert!(
+        !merged.contains(PERSON_LINE),
+        "the merge's own write is what stands before any save: {merged:?}"
+    );
     // The editor's newer decision accepts the whole merge: exactly the bytes Git's own update left,
     //  and the older captured line deliberately gone.
     std::fs::write(repo.join("a.txt"), merged.as_bytes()).expect("the save that accepts the merge");
     let recovered: Observed = after_the_kill(&fixture, repo.as_path());
-    assert_eq!(text_at(repo.as_path(), "a.txt"), Some(merged), "the newer save stands, and the older captured line does not come back");
-    assert!(said(&recovered).contains("changed while the merge ran"), "the command says the path was written under the merge: {}", said(&recovered));
-    assert_eq!(status(&fixture, repo.as_path()), "", "the checkout holds the merge's own file, with nothing left over");
+    assert_eq!(
+        text_at(repo.as_path(), "a.txt"),
+        Some(merged),
+        "the newer save stands, and the older captured line does not come back"
+    );
+    assert!(
+        said(&recovered).contains("changed while the merge ran"),
+        "the command says the path was written under the merge: {}",
+        said(&recovered)
+    );
+    assert_eq!(
+        status(&fixture, repo.as_path()),
+        "",
+        "the checkout holds the merge's own file, with nothing left over"
+    );
     assert_merged(&fixture, repo.as_path(), "a save that accepts the merge");
     remove_settled(&fixture);
 }
@@ -286,8 +438,15 @@ fn a_kill_after_the_carry_keeps_the_carried_bytes() {
     after_the_kill(&fixture, repo.as_path());
     assert_merged(&fixture, repo.as_path(), "kill after the carry");
     let after: String = text_at(repo.as_path(), "a.txt").expect("a.txt is there");
-    assert!(after.contains(PERSON_LINE) && after.contains(FEATURE_THIRD), "the carried bytes are still there: {after:?}");
-    assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "the edit is still unsaved");
+    assert!(
+        after.contains(PERSON_LINE) && after.contains(FEATURE_THIRD),
+        "the carried bytes are still there: {after:?}"
+    );
+    assert_eq!(
+        status(&fixture, repo.as_path()),
+        " M a.txt\n",
+        "the edit is still unsaved"
+    );
     remove_settled(&fixture);
 }
 
@@ -301,16 +460,34 @@ fn an_edit_survives_a_branch_that_moved_after_the_merge_landed() {
     killed_at(&fixture, repo.as_path(), "merge-applied");
     std::fs::write(repo.join("other.txt"), b"another session's file\n").expect("other session");
     git(&fixture, repo.as_path(), &["add", "--", "other.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=another session's commit"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=another session's commit"],
+    );
     after_the_kill(&fixture, repo.as_path());
     assert_eq!(
         text_at(repo.as_path(), "a.txt").as_deref(),
-        Some(format!("{}{PERSON_LINE}\n", on_main_a().replace("three", FEATURE_THIRD)).as_str()),
+        Some(
+            format!(
+                "{}{PERSON_LINE}\n",
+                on_main_a().replace("three", FEATURE_THIRD)
+            )
+            .as_str()
+        ),
         "the merge's line and the person's line"
     );
-    assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "the edit is still unsaved");
+    assert_eq!(
+        status(&fixture, repo.as_path()),
+        " M a.txt\n",
+        "the edit is still unsaved"
+    );
     assert_eq!(records(repo.as_path()), "", "the record went");
-    assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
+    assert_eq!(
+        side_refs(&fixture, repo.as_path()),
+        "",
+        "the captured bytes are not left on a ref nothing names"
+    );
     remove_settled(&fixture);
 }
 
@@ -322,16 +499,42 @@ fn an_edit_survives_a_branch_that_moved_after_the_merge_landed() {
 ///  written in two steps of one carry;
 ///  a kill between those steps loses the later one unless recovery writes it,
 ///  and a test that looks only at the file cannot tell.
-fn assert_both_layers(fixture: &Fixture, repo: &Path, label: &str) {
+fn assert_both_layers(
+    fixture: &Fixture,
+    repo: &Path,
+    label: &str,
+) {
     let worktree: String = text_at(repo, "a.txt").expect("a.txt is there");
-    assert!(worktree.contains(FEATURE_THIRD), "{label}: the merge's line is in the file: {worktree:?}");
-    assert!(worktree.contains(STAGED_LINE), "{label}: the staged line is back in the file: {worktree:?}");
-    assert!(worktree.contains(UNSAVED_LINE), "{label}: the unsaved line is back in the file, not lost: {worktree:?}");
+    assert!(
+        worktree.contains(FEATURE_THIRD),
+        "{label}: the merge's line is in the file: {worktree:?}"
+    );
+    assert!(
+        worktree.contains(STAGED_LINE),
+        "{label}: the staged line is back in the file: {worktree:?}"
+    );
+    assert!(
+        worktree.contains(UNSAVED_LINE),
+        "{label}: the unsaved line is back in the file, not lost: {worktree:?}"
+    );
     let index: String = git_text(fixture, repo, &["show", ":a.txt"]);
-    assert!(index.contains(FEATURE_THIRD), "{label}: the index holds the staged layer over the merge: {index:?}");
-    assert!(index.contains(STAGED_LINE), "{label}: the staged line is still staged: {index:?}");
-    assert!(!index.contains(UNSAVED_LINE), "{label}: the unsaved line is not staged: {index:?}");
-    assert_eq!(status(fixture, repo), "MM a.txt\n", "{label}: one layer is staged and the other is unsaved");
+    assert!(
+        index.contains(FEATURE_THIRD),
+        "{label}: the index holds the staged layer over the merge: {index:?}"
+    );
+    assert!(
+        index.contains(STAGED_LINE),
+        "{label}: the staged line is still staged: {index:?}"
+    );
+    assert!(
+        !index.contains(UNSAVED_LINE),
+        "{label}: the unsaved line is not staged: {index:?}"
+    );
+    assert_eq!(
+        status(fixture, repo),
+        "MM a.txt\n",
+        "{label}: one layer is staged and the other is unsaved"
+    );
 }
 
 /// A kill between the index step of the carry back and its first worktree file:
@@ -346,9 +549,17 @@ fn a_kill_between_the_index_step_and_the_file_keeps_every_layer() {
     assert_merged(&fixture, repo.as_path(), "kill between the layers");
     // The bytes come first: a line that says the right thing about a file whose layer never came back is the worse failure.
     assert_both_layers(&fixture, repo.as_path(), "kill between the layers");
-    assert!(!said(&recovered).contains("was written again while the merge ran"), "nothing changed under the next command, so it must not claim one did: {}", said(&recovered));
+    assert!(
+        !said(&recovered).contains("was written again while the merge ran"),
+        "nothing changed under the next command, so it must not claim one did: {}",
+        said(&recovered)
+    );
     assert_eq!(records(repo.as_path()), "", "the record went");
-    assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
+    assert_eq!(
+        side_refs(&fixture, repo.as_path()),
+        "",
+        "the captured bytes are not left on a ref nothing names"
+    );
     remove_settled(&fixture);
 }
 
@@ -361,12 +572,24 @@ fn a_kill_before_the_clear_writes_anything_keeps_every_layer() {
     let fixture: Fixture = fixture("carry-kill-before-clear");
     let repo: PathBuf = staged_and_unsaved(&fixture, "repo");
     let before: Held = held(&fixture, repo.as_path());
-    assert_eq!(before.person.as_deref(), Some(unsaved_text().as_str()), "the fixture holds both layers");
+    assert_eq!(
+        before.person.as_deref(),
+        Some(unsaved_text().as_str()),
+        "the fixture holds both layers"
+    );
     killed_at(&fixture, repo.as_path(), "merge-intent");
     after_the_kill(&fixture, repo.as_path());
-    assert_eq!(held(&fixture, repo.as_path()), before, "both layers are what the person left, and the branch did not move");
+    assert_eq!(
+        held(&fixture, repo.as_path()),
+        before,
+        "both layers are what the person left, and the branch did not move"
+    );
     assert_eq!(records(repo.as_path()), "", "the record went");
-    assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
+    assert_eq!(
+        side_refs(&fixture, repo.as_path()),
+        "",
+        "the captured bytes are not left on a ref nothing names"
+    );
     remove_settled(&fixture);
 }
 
@@ -377,20 +600,35 @@ fn a_kill_before_the_clear_writes_anything_keeps_every_layer() {
 fn a_kill_between_two_carried_files_keeps_every_layer() {
     let fixture: Fixture = fixture("carry-kill-between-files");
     let repo: PathBuf = diverged(&fixture, "repo");
-    std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", on_main_a())).expect("the person's edit");
-    std::fs::write(repo.join("gone.txt"), format!("gone base\n{} edited\n", PERSON_LINE)).expect("the person's edit of a file the merge deletes");
+    std::fs::write(
+        repo.join("a.txt"),
+        format!("{}{PERSON_LINE}\n", on_main_a()),
+    )
+    .expect("the person's edit");
+    std::fs::write(
+        repo.join("gone.txt"),
+        format!("gone base\n{} edited\n", PERSON_LINE),
+    )
+    .expect("the person's edit of a file the merge deletes");
     killed_at_occurrence(&fixture, repo.as_path(), "merge-carry-file", Some(1));
     after_the_kill(&fixture, repo.as_path());
     assert_merged(&fixture, repo.as_path(), "kill between two carried files");
     let after: String = text_at(repo.as_path(), "a.txt").expect("a.txt is there");
-    assert!(after.contains(FEATURE_THIRD) && after.contains(PERSON_LINE), "a.txt holds the merge and the person's edit: {after:?}");
+    assert!(
+        after.contains(FEATURE_THIRD) && after.contains(PERSON_LINE),
+        "a.txt holds the merge and the person's edit: {after:?}"
+    );
     assert_eq!(
         text_at(repo.as_path(), "gone.txt").unwrap_or_default(),
         format!("gone base\n{} edited\n", PERSON_LINE),
         "the file the merge deletes keeps the person's bytes"
     );
     assert_eq!(records(repo.as_path()), "", "the record went");
-    assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
+    assert_eq!(
+        side_refs(&fixture, repo.as_path()),
+        "",
+        "the captured bytes are not left on a ref nothing names"
+    );
     remove_settled(&fixture);
 }
 
@@ -403,10 +641,18 @@ fn a_kill_after_the_carried_files_keeps_every_layer() {
     killed_at(&fixture, repo.as_path(), "merge-carried-back");
     let recovered: Observed = after_the_kill(&fixture, repo.as_path());
     assert_merged(&fixture, repo.as_path(), "kill after the carried files");
-    assert!(!said(&recovered).contains("was written again while the merge ran"), "nothing changed under the next command, so it must not claim one did: {}", said(&recovered));
+    assert!(
+        !said(&recovered).contains("was written again while the merge ran"),
+        "nothing changed under the next command, so it must not claim one did: {}",
+        said(&recovered)
+    );
     assert_both_layers(&fixture, repo.as_path(), "kill after the carried files");
     assert_eq!(records(repo.as_path()), "", "the record went");
-    assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
+    assert_eq!(
+        side_refs(&fixture, repo.as_path()),
+        "",
+        "the captured bytes are not left on a ref nothing names"
+    );
     remove_settled(&fixture);
 }
 
@@ -423,16 +669,40 @@ fn a_save_between_the_index_step_and_the_file_is_kept() {
     std::fs::write(repo.join("a.txt"), &saved).expect("the save that lands while the merge runs");
     let output: Output = paused.released("merge-clear-index");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    assert_eq!(output.status.code(), Some(0), "the merge exits 0 with the person's save kept: {said}");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the merge exits 0 with the person's save kept: {said}"
+    );
     assert_merged(&fixture, repo.as_path(), "save during the clear");
     let after: String = text_at(repo.as_path(), "a.txt").expect("a.txt is there");
-    assert!(after.contains(SAVED_DURING_THE_MERGE), "the save is kept rather than replaced: {after:?}");
-    assert!(after.contains(STAGED_LINE), "the staged line is still in the file: {after:?}");
-    assert!(after.contains(FEATURE_THIRD), "the merge's line reaches the file: {after:?}");
-    assert!(said.contains("a.txt"), "the command says which file it is about: {said}");
-    assert_eq!(status(&fixture, repo.as_path()), "MM a.txt\n", "one layer is staged and the other is unsaved: {said}");
+    assert!(
+        after.contains(SAVED_DURING_THE_MERGE),
+        "the save is kept rather than replaced: {after:?}"
+    );
+    assert!(
+        after.contains(STAGED_LINE),
+        "the staged line is still in the file: {after:?}"
+    );
+    assert!(
+        after.contains(FEATURE_THIRD),
+        "the merge's line reaches the file: {after:?}"
+    );
+    assert!(
+        said.contains("a.txt"),
+        "the command says which file it is about: {said}"
+    );
+    assert_eq!(
+        status(&fixture, repo.as_path()),
+        "MM a.txt\n",
+        "one layer is staged and the other is unsaved: {said}"
+    );
     assert_eq!(records(repo.as_path()), "", "the record went");
-    assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
+    assert_eq!(
+        side_refs(&fixture, repo.as_path()),
+        "",
+        "the captured bytes are not left on a ref nothing names"
+    );
     remove_settled(&fixture);
 }
 
@@ -443,11 +713,18 @@ fn a_save_between_the_index_step_and_the_file_is_kept() {
 fn a_save_that_keeps_the_length_and_the_time_is_kept() {
     let fixture: Fixture = fixture("carry-save-same-identity");
     let repo: PathBuf = staged_and_unsaved(&fixture, "repo");
-    let held: std::time::SystemTime = std::fs::metadata(repo.join("a.txt")).expect("a.txt").modified().expect("the modification time");
+    let held: std::time::SystemTime = std::fs::metadata(repo.join("a.txt"))
+        .expect("a.txt")
+        .modified()
+        .expect("the modification time");
     let paused: Paused = paused_at(&fixture, repo.as_path(), "merge-clear-index");
     // The same length as the line it replaces, written over the same inode, with the time put back.
     let saved: String = unsaved_text().replace(UNSAVED_LINE, "the unsaved LINE");
-    assert_eq!(saved.len(), unsaved_text().len(), "the control writes the same length");
+    assert_eq!(
+        saved.len(),
+        unsaved_text().len(),
+        "the control writes the same length"
+    );
     std::fs::write(repo.join("a.txt"), &saved).expect("the save that lands while the merge runs");
     std::fs::File::options()
         .write(true)
@@ -457,12 +734,30 @@ fn a_save_that_keeps_the_length_and_the_time_is_kept() {
         .expect("the modification time put back");
     let output: Output = paused.released("merge-clear-index");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    assert_eq!(output.status.code(), Some(0), "the merge exits 0 with the save kept: {said}");
-    assert_merged(&fixture, repo.as_path(), "save with the same length and time");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the merge exits 0 with the save kept: {said}"
+    );
+    assert_merged(
+        &fixture,
+        repo.as_path(),
+        "save with the same length and time",
+    );
     let after: String = text_at(repo.as_path(), "a.txt").expect("a.txt is there");
-    assert!(after.contains("the unsaved LINE"), "the bytes are what the control wrote, not the old line: {after:?}");
-    assert!(after.contains(FEATURE_THIRD), "the merge's line reaches the file: {after:?}");
-    assert_eq!(status(&fixture, repo.as_path()), "MM a.txt\n", "one layer is staged and the other is unsaved");
+    assert!(
+        after.contains("the unsaved LINE"),
+        "the bytes are what the control wrote, not the old line: {after:?}"
+    );
+    assert!(
+        after.contains(FEATURE_THIRD),
+        "the merge's line reaches the file: {after:?}"
+    );
+    assert_eq!(
+        status(&fixture, repo.as_path()),
+        "MM a.txt\n",
+        "one layer is staged and the other is unsaved"
+    );
     remove_settled(&fixture);
 }
 
@@ -489,10 +784,24 @@ fn a_path_deleted_while_the_merge_runs_is_named_as_changed() {
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     assert_eq!(output.status.code(), Some(0), "the merge exits 0: {said}");
     assert_merged(&fixture, repo.as_path(), "deletion during the merge");
-    assert_eq!(text_at(repo.as_path(), "a.txt"), None, "the deletion stands");
-    assert_eq!(status(&fixture, repo.as_path()), " D a.txt\n", "the checkout holds the deletion the person made");
-    assert!(said.contains("changed while the merge ran"), "the line says the path changed: {said}");
-    assert!(!said.contains("the file holds"), "the line claims no file the person's bytes are in: {said}");
+    assert_eq!(
+        text_at(repo.as_path(), "a.txt"),
+        None,
+        "the deletion stands"
+    );
+    assert_eq!(
+        status(&fixture, repo.as_path()),
+        " D a.txt\n",
+        "the checkout holds the deletion the person made"
+    );
+    assert!(
+        said.contains("changed while the merge ran"),
+        "the line says the path changed: {said}"
+    );
+    assert!(
+        !said.contains("the file holds"),
+        "the line claims no file the person's bytes are in: {said}"
+    );
     remove_settled(&fixture);
 }
 
@@ -517,9 +826,19 @@ fn a_kill_after_the_clear_names_a_path_deleted_since_the_capture() {
     killed_at(&fixture, repo.as_path(), "merge-cleared");
     std::fs::remove_file(repo.join("a.txt")).expect("the person's deletion after the clear");
     let observed: Observed = after_the_kill(&fixture, repo.as_path());
-    assert_eq!(text_at(repo.as_path(), "a.txt"), None, "the deletion stands");
+    assert_eq!(
+        text_at(repo.as_path(), "a.txt"),
+        None,
+        "the deletion stands"
+    );
     let said: String = String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
-    assert!(said.contains("changed after this merge captured it"), "the line says the path changed: {said}");
-    assert!(!said.contains("it holds your bytes"), "the line claims no file that holds their bytes: {said}");
+    assert!(
+        said.contains("changed after this merge captured it"),
+        "the line says the path changed: {said}"
+    );
+    assert!(
+        !said.contains("it holds your bytes"),
+        "the line claims no file that holds their bytes: {said}"
+    );
     remove_settled(&fixture);
 }

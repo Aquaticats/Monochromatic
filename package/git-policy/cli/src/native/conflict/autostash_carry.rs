@@ -26,19 +26,29 @@
 //! if (await scratchStash(cleanup) === copiedAutostash(cleanup)) { await storeStash(repository, oid); stages = await unmergedStages(cleanup); }
 //! ```
 
+/// Diagnostics for the log.
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 /// The fail-closed recovery failure,
 /// for the listing that cannot be read.
 use crate::recovery_files::read_optional;
-/// Scratch repository commands.
-use crate::shadow_git::shadow_request;
 /// The record of the commit's scratch directory.
 use crate::service_protocol::Cleanup;
+/// Scratch repository commands.
+use crate::shadow_git::shadow_request;
 /// Running real Git.
-use crate::transaction_git::{GitContext, GitRequest, run_git};
-/// Diagnostics for the log.
-use crate::diagnostic_log::{debug, warn};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
 /// Borrowed filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The file of the conclusion state a merge's autostash is recorded in.
 const AUTOSTASH_FILE: &str = "MERGE_AUTOSTASH";
@@ -60,15 +70,36 @@ const STASH_MESSAGE: &str = "autostash";
 /// ```ts
 /// async function conflictedAutostash(git, cleanup): Promise<string | undefined>;
 /// ```
-fn conflicted_autostash(git: &GitContext, cleanup: &Cleanup) -> Option<String> {
-    let copy: Vec<u8> = read_optional(cleanup.scratch.join("conclusion").join(AUTOSTASH_FILE).as_path()).ok().flatten()?;
+fn conflicted_autostash(
+    git: &GitContext,
+    cleanup: &Cleanup,
+) -> Option<String> {
+    let copy: Vec<u8> = read_optional(
+        cleanup
+            .scratch
+            .join("conclusion")
+            .join(AUTOSTASH_FILE)
+            .as_path(),
+    )
+    .ok()
+    .flatten()?;
     let recorded: String = String::from_utf8_lossy(copy.as_slice()).trim().to_owned();
     let shadow: PathBuf = cleanup.scratch.join("shadow");
-    let stored = run_git(git, &shadow_request(shadow.as_path(), shadow.as_path(), &["rev-parse", "--verify", "--quiet", "refs/stash"])).ok()?;
+    let stored = run_git(
+        git,
+        &shadow_request(
+            shadow.as_path(),
+            shadow.as_path(),
+            &["rev-parse", "--verify", "--quiet", "refs/stash"],
+        ),
+    )
+    .ok()?;
     if !stored.succeeded() {
         return None;
     }
-    let kept: String = String::from_utf8_lossy(stored.stdout.as_slice()).trim().to_owned();
+    let kept: String = String::from_utf8_lossy(stored.stdout.as_slice())
+        .trim()
+        .to_owned();
     if recorded.is_empty() || kept != recorded {
         return None;
     }
@@ -78,7 +109,10 @@ fn conflicted_autostash(git: &GitContext, cleanup: &Cleanup) -> Option<String> {
 /// Whether the text of `git stash list --format=%H` has a line equal to `stash`.
 /// The first match settles it,
 /// as `any` did.
-fn lists_stash(listing: &str, stash: &str) -> bool {
+fn lists_stash(
+    listing: &str,
+    stash: &str,
+) -> bool {
     for line in listing.lines() {
         if line == stash {
             return true;
@@ -117,22 +151,48 @@ fn is_tab_byte(byte: &u8) -> bool {
 /// ```ts
 /// async function carryStash(git, repository, cleanup): Promise<boolean>;
 /// ```
-pub fn carry_stash(git: &GitContext, repository: &Path, cleanup: &Cleanup) -> bool {
-    let Some(stash) = conflicted_autostash(git, cleanup) else { return true };
-    let listed = run_git(git, &GitRequest::new(repository, &["stash", "list", "--format=%H"]));
+pub fn carry_stash(
+    git: &GitContext,
+    repository: &Path,
+    cleanup: &Cleanup,
+) -> bool {
+    let Some(stash) = conflicted_autostash(git, cleanup) else {
+        return true;
+    };
+    let listed = run_git(
+        git,
+        &GitRequest::new(repository, &["stash", "list", "--format=%H"]),
+    );
     if let Ok(output) = &listed
         && output.succeeded()
-        && lists_stash(String::from_utf8_lossy(output.stdout.as_slice()).as_ref(), stash.as_str())
+        && lists_stash(
+            String::from_utf8_lossy(output.stdout.as_slice()).as_ref(),
+            stash.as_str(),
+        )
     {
         return true;
     }
-    return match run_git(git, &GitRequest::new(repository, &["stash", "store", "-m", STASH_MESSAGE, stash.as_str()])) {
+    return match run_git(
+        git,
+        &GitRequest::new(
+            repository,
+            &["stash", "store", "-m", STASH_MESSAGE, stash.as_str()],
+        ),
+    ) {
         Ok(output) if output.succeeded() => {
-            debug("autostashCarry", format!("the stash {stash} the apply conflicted on was stored in the repository").as_str());
+            debug(
+                "autostashCarry",
+                format!("the stash {stash} the apply conflicted on was stored in the repository")
+                    .as_str(),
+            );
             true
         }
         other => {
-            warn("autostashCarry", format!("the stash {stash} could not be stored in the repository: {other:?}").as_str());
+            warn(
+                "autostashCarry",
+                format!("the stash {stash} could not be stored in the repository: {other:?}")
+                    .as_str(),
+            );
             false
         }
     };
@@ -154,13 +214,20 @@ pub fn carry_stash(git: &GitContext, repository: &Path, cleanup: &Cleanup) -> bo
 /// ```ts
 /// async function carryStages(git, repository, cleanup, built): Promise<boolean>;
 /// ```
-pub fn carry_stages(git: &GitContext, repository: &Path, cleanup: &Cleanup, built: &Path) -> bool {
+pub fn carry_stages(
+    git: &GitContext,
+    repository: &Path,
+    cleanup: &Cleanup,
+    built: &Path,
+) -> bool {
     if conflicted_autostash(git, cleanup).is_none() || !built.exists() {
         return true;
     }
     let mut listing: GitRequest = GitRequest::new(repository, &["ls-files", "--unmerged", "-z"]);
     listing.index = Some(cleanup.scratch.join("commit.index"));
-    let Ok(stages) = run_git(git, &listing) else { return false };
+    let Ok(stages) = run_git(git, &listing) else {
+        return false;
+    };
     if !stages.succeeded() {
         return false;
     }
@@ -195,13 +262,20 @@ pub fn carry_stages(git: &GitContext, repository: &Path, cleanup: &Cleanup, buil
         input.extend_from_slice(entry);
         input.push(0);
     }
-    let mut placing: GitRequest = GitRequest::new(repository, &["update-index", "-z", "--index-info"]);
+    let mut placing: GitRequest =
+        GitRequest::new(repository, &["update-index", "-z", "--index-info"]);
     placing.index = Some(built.to_path_buf());
     placing.input = Some(input);
     return match run_git(git, &placing) {
         Ok(output) if output.succeeded() => true,
         other => {
-            warn("autostashCarry", format!("the conflict stages of the stash could not be put into the index: {other:?}").as_str());
+            warn(
+                "autostashCarry",
+                format!(
+                    "the conflict stages of the stash could not be put into the index: {other:?}"
+                )
+                .as_str(),
+            );
             false
         }
     };

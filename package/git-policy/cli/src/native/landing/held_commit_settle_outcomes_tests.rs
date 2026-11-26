@@ -13,9 +13,15 @@
 //! expect(settledWords(7, held, { waitsForLocks: ['/repo/.git/refs/heads/main.lock'] })).toContain('in the repository at /repo');
 //! ```
 
-use super::{Settled, settled_words};
+use super::{
+    Settled,
+    settled_words,
+};
 use crate::held_commit_record::Held;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The batch every control here writes a line about.
 const SEQ: u64 = 7;
@@ -49,7 +55,9 @@ fn held() -> Held {
         commits: vec![String::from(COMMIT)],
         index: PathBuf::from("/home/a person/repo/.git/index"),
         reflog: b"commit: the held edit".to_vec(),
-        locks: vec![PathBuf::from("/home/a person/repo/.git/refs/heads/main.lock")],
+        locks: vec![PathBuf::from(
+            "/home/a person/repo/.git/refs/heads/main.lock",
+        )],
         created: String::from("2026-11-12T00:00:00+00:00"),
     };
 }
@@ -75,8 +83,14 @@ fn names_the_repository(line: &str) -> bool {
 fn a_lock_that_still_stands_says_nothing_about_where_the_branch_is() {
     let lock: PathBuf = Path::new("/home/a person/repo/.git/refs/heads/main.lock").to_path_buf();
     let line: String = settled_words(SEQ, &held(), &Settled::WaitsForLocks(vec![lock]));
-    assert!(!line.contains("has not moved yet"), "no read of the branch stands behind that claim: {line}");
-    assert!(line.contains(&format!("the move of {BRANCH} waits for")), "the move that waits is named: {line}");
+    assert!(
+        !line.contains("has not moved yet"),
+        "no read of the branch stands behind that claim: {line}"
+    );
+    assert!(
+        line.contains(&format!("the move of {BRANCH} waits for")),
+        "the move that waits is named: {line}"
+    );
 }
 
 /// What:
@@ -91,11 +105,26 @@ fn a_lock_that_still_stands_says_nothing_about_where_the_branch_is() {
 fn a_lock_that_still_stands_is_said_as_a_commit_that_is_kept() {
     let lock: PathBuf = Path::new("/home/a person/repo/.git/refs/heads/main.lock").to_path_buf();
     let line: String = settled_words(SEQ, &held(), &Settled::WaitsForLocks(vec![lock]));
-    assert!(names_the_repository(line.as_str()), "the repository is named: {line}");
-    assert!(line.contains(&format!("the commit {COMMIT} is kept")), "the commit is kept: {line}");
-    assert!(line.contains(&format!("the move of {BRANCH} waits for")), "the move that waits is named: {line}");
-    assert!(line.contains("refs/heads/main.lock"), "the lock it waits for is named: {line}");
-    assert!(line.contains("removing the lock with `rm -- "), "what the person may do is said, and only when no Git process uses the repository: {line}");
+    assert!(
+        names_the_repository(line.as_str()),
+        "the repository is named: {line}"
+    );
+    assert!(
+        line.contains(&format!("the commit {COMMIT} is kept")),
+        "the commit is kept: {line}"
+    );
+    assert!(
+        line.contains(&format!("the move of {BRANCH} waits for")),
+        "the move that waits is named: {line}"
+    );
+    assert!(
+        line.contains("refs/heads/main.lock"),
+        "the lock it waits for is named: {line}"
+    );
+    assert!(
+        line.contains("removing the lock with `rm -- "),
+        "what the person may do is said, and only when no Git process uses the repository: {line}"
+    );
     assert!(!line.contains("refus"), "nothing was refused: {line}");
 }
 
@@ -106,10 +135,25 @@ fn a_lock_that_still_stands_is_said_as_a_commit_that_is_kept() {
 ///  so the person has nothing to wait for and needs to know which commit it is.
 #[test]
 fn a_commit_that_landed_is_said_as_landed() {
-    let line: String = settled_words(SEQ, &held(), &Settled::Landed { commit: String::from(COMMIT) });
-    assert!(names_the_repository(line.as_str()), "the repository is named: {line}");
-    assert!(line.contains("was held: the lock is gone"), "the lock is gone: {line}");
-    assert!(line.contains(&format!("the commit {COMMIT} is on {BRANCH} now")), "the branch names the commit: {line}");
+    let line: String = settled_words(
+        SEQ,
+        &held(),
+        &Settled::Landed {
+            commit: String::from(COMMIT),
+        },
+    );
+    assert!(
+        names_the_repository(line.as_str()),
+        "the repository is named: {line}"
+    );
+    assert!(
+        line.contains("was held: the lock is gone"),
+        "the lock is gone: {line}"
+    );
+    assert!(
+        line.contains(&format!("the commit {COMMIT} is on {BRANCH} now")),
+        "the branch names the commit: {line}"
+    );
 }
 
 /// What:
@@ -120,9 +164,21 @@ fn a_commit_that_landed_is_said_as_landed() {
 ///  and the line is where they learn why.
 #[test]
 fn a_commit_that_landed_with_the_index_owed_is_said_with_the_next_command() {
-    let line: String = settled_words(SEQ, &held(), &Settled::LandedTheIndexWaits { commit: String::from(COMMIT) });
-    assert!(names_the_repository(line.as_str()), "the repository is named: {line}");
-    assert!(line.contains("the index catches up on the next command"), "the index is said to catch up: {line}");
+    let line: String = settled_words(
+        SEQ,
+        &held(),
+        &Settled::LandedTheIndexWaits {
+            commit: String::from(COMMIT),
+        },
+    );
+    assert!(
+        names_the_repository(line.as_str()),
+        "the repository is named: {line}"
+    );
+    assert!(
+        line.contains("the index catches up on the next command"),
+        "the index is said to catch up: {line}"
+    );
 }
 
 /// What:
@@ -132,11 +188,23 @@ fn a_commit_that_landed_with_the_index_owed_is_said_with_the_next_command() {
 ///  and the commit is never dropped over one.
 #[test]
 fn a_commit_that_cannot_be_carried_over_names_the_paths_and_is_kept() {
-    let settled: Settled = Settled::Conflicts { commit: String::from(COMMIT), paths: vec![b"a.txt".to_vec(), b"b.txt".to_vec()] };
+    let settled: Settled = Settled::Conflicts {
+        commit: String::from(COMMIT),
+        paths: vec![b"a.txt".to_vec(), b"b.txt".to_vec()],
+    };
     let line: String = settled_words(SEQ, &held(), &settled);
-    assert!(names_the_repository(line.as_str()), "the repository is named: {line}");
-    assert!(line.contains(&format!("the commit {COMMIT} is kept")), "the commit is kept: {line}");
-    assert!(line.contains("a.txt, b.txt"), "every path that conflicts is named: {line}");
+    assert!(
+        names_the_repository(line.as_str()),
+        "the repository is named: {line}"
+    );
+    assert!(
+        line.contains(&format!("the commit {COMMIT} is kept")),
+        "the commit is kept: {line}"
+    );
+    assert!(
+        line.contains("a.txt, b.txt"),
+        "every path that conflicts is named: {line}"
+    );
 }
 
 /// What:
@@ -146,11 +214,23 @@ fn a_commit_that_cannot_be_carried_over_names_the_paths_and_is_kept() {
 /// a branch another session created or a signature is no reason to lose a commit.
 #[test]
 fn a_state_this_command_cannot_move_says_so_and_keeps_the_commit() {
-    let settled: Settled = Settled::Cannot { commit: String::from(COMMIT), because: String::from("a signed commit is not signed again by a command") };
+    let settled: Settled = Settled::Cannot {
+        commit: String::from(COMMIT),
+        because: String::from("a signed commit is not signed again by a command"),
+    };
     let line: String = settled_words(SEQ, &held(), &settled);
-    assert!(names_the_repository(line.as_str()), "the repository is named: {line}");
-    assert!(line.contains("this command cannot move refs/heads/main"), "the branch it cannot move is named: {line}");
-    assert!(line.contains("a signed commit is not signed again"), "the reason is given: {line}");
+    assert!(
+        names_the_repository(line.as_str()),
+        "the repository is named: {line}"
+    );
+    assert!(
+        line.contains("this command cannot move refs/heads/main"),
+        "the branch it cannot move is named: {line}"
+    );
+    assert!(
+        line.contains("a signed commit is not signed again"),
+        "the reason is given: {line}"
+    );
     assert!(!line.contains("refus"), "nothing was refused: {line}");
 }
 
@@ -161,10 +241,25 @@ fn a_state_this_command_cannot_move_says_so_and_keeps_the_commit() {
 ///  and saying so keeps a person from looking for the commit twice.
 #[test]
 fn a_record_whose_commit_is_there_says_nothing_waits() {
-    let line: String = settled_words(SEQ, &held(), &Settled::AlreadyThere { commit: String::from(COMMIT) });
-    assert!(names_the_repository(line.as_str()), "the repository is named: {line}");
-    assert!(line.contains("is not held any more"), "nothing waits: {line}");
-    assert!(line.contains(&format!("{BRANCH} already names {COMMIT}")), "the branch names the commit: {line}");
+    let line: String = settled_words(
+        SEQ,
+        &held(),
+        &Settled::AlreadyThere {
+            commit: String::from(COMMIT),
+        },
+    );
+    assert!(
+        names_the_repository(line.as_str()),
+        "the repository is named: {line}"
+    );
+    assert!(
+        line.contains("is not held any more"),
+        "nothing waits: {line}"
+    );
+    assert!(
+        line.contains(&format!("{BRANCH} already names {COMMIT}")),
+        "the branch names the commit: {line}"
+    );
 }
 
 /// What:
@@ -181,9 +276,25 @@ fn a_record_whose_commit_is_there_says_nothing_waits() {
 #[test]
 fn a_commit_this_command_made_and_no_reference_holds_is_not_called_kept() {
     let carried: String = String::from("bc170e0026769785b4bee16a6a803a092e30518a");
-    let settled: Settled = Settled::Cannot { commit: carried.clone(), because: String::from("Git refused the branch write (the lock stands), and the settlement waits for the next command") };
+    let settled: Settled = Settled::Cannot {
+        commit: carried.clone(),
+        because: String::from(
+            "Git refused the branch write (the lock stands), and the settlement waits for the next command",
+        ),
+    };
     let line: String = settled_words(SEQ, &held(), &settled);
-    assert!(!line.contains(&format!("the commit {carried} is kept")), "no reference keeps the commit this command made: {line}");
-    assert!(line.contains(&format!("the commit {carried} this command made is kept by no reference")), "the line says what became of it: {line}");
-    assert!(line.contains("the next command makes it again"), "and that nothing is lost: {line}");
+    assert!(
+        !line.contains(&format!("the commit {carried} is kept")),
+        "no reference keeps the commit this command made: {line}"
+    );
+    assert!(
+        line.contains(&format!(
+            "the commit {carried} this command made is kept by no reference"
+        )),
+        "the line says what became of it: {line}"
+    );
+    assert!(
+        line.contains("the next command makes it again"),
+        "and that nothing is lost: {line}"
+    );
 }
