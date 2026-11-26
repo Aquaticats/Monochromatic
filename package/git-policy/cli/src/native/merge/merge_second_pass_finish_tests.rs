@@ -190,3 +190,23 @@ fn autostash_is_a_known_option_of_merge_and_pull() {
     assert!(merge_of(&["--autostash", "topic"]).is_some());
     assert!(merge_stops(words(&["--autostash", "--rebase", "origin"]).as_slice(), true).is_some());
 }
+
+/// A todo list that is a named pipe asks for no editor,
+/// and it answers at once:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// which held the finish of every rebase in such a repository before the list was read as a plain file.
+#[test]
+fn a_todo_list_that_is_a_named_pipe_asks_for_no_editor_at_once() {
+    let root: PathBuf = crate::test_support::fixture("finish-todo-named-pipe");
+    std::fs::create_dir_all(root.join("rebase-merge")).expect("directory");
+    let list: PathBuf = root.join("rebase-merge/git-rebase-todo");
+    crate::subvolume_sync_attrs::make_fifo(list.as_path(), 0o600).expect("a named pipe where a todo list goes");
+    let inside: PathBuf = root.clone();
+    let asked = crate::test_support::finished_within(move || return todo_needs_editor(inside.as_path()));
+    let Some(needs) = asked else { panic!("a todo list that is a named pipe held the finish") };
+    assert!(!needs, "a pipe is no list of commands, so no later step asks for an editor");
+    // The read this module made before, on the same fixture under the same bound, so the bound above is shown to see a wait.
+    let read = crate::test_support::finished_within(move || return std::fs::read_to_string(list).ok());
+    assert!(read.is_none(), "a plain read of the same name waits, so the bound above can see a wait");
+    crate::test_support::remove(root.as_path());
+}
