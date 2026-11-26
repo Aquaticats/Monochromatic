@@ -68,6 +68,12 @@ mod no_self_invocation_tests;
 #[path = "no_test_changes_the_process_directory_tests.rs"]
 mod no_test_changes_the_process_directory_tests;
 
+/// The ban on a control taking the runner the whole service process shares:
+/// a control that reviews a commit declares one of its own and reaches the review through `review_item_in`.
+#[cfg(test)]
+#[path = "no_control_takes_the_production_runner_tests.rs"]
+mod no_control_takes_the_production_runner_tests;
+
 /// The ban on a fake service manager answering from a value the whole process shares:
 /// a control writes the word it wants into the folder its own watch names.
 #[cfg(test)]

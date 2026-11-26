@@ -60,6 +60,17 @@ so a control that judges the run's own figures runs its reading in a helper proc
 (`testing/helper_process_test_support.rs`),
 as issue 6478's descriptor-room control and the `run_progress` controls of issue 6486 do.
 
+The service's review runner is one more such fact,
+and a control hands the code its own instead of starting a child:
+`review_item` and its three siblings run the review in `standards_review_run::RUNNER`,
+which admits one job and answers every other caller with `Contained::Busy`,
+so a threaded run of `service::service_review::tests` failed seven of its sixteen controls
+while the gate starts each test in a process of its own and never showed it (issue 6499).
+A control declares `static OWN: Containment`
+and calls `review_item_in(&OWN, ..)`,
+and `source_guard/no_control_takes_the_production_runner_tests.rs` refuses a test-only source that takes the
+production runner instead.
+
 A control that gives this process room for blocking jobs,
 holds its bound on them,
 or sets any other fact that belongs
@@ -84,6 +95,23 @@ The four share one comparison,
 `the_figures_did_not_move` in `testing/run_progress_tests.rs`,
 which refuses a look where a task that is not the control's own moved between two looks
 and says which helper runs the body alone.
+
+A control that holds a fault point of the service
+(`service_fault_hooks_test_support.rs`)
+names the instance it owns in the point itself:
+the directory whose instance is read,
+the plan the start reads,
+the request whose beat reads its note,
+or the repository a note is written about
+(`instance_read_point`,
+`note_read_point`,
+`read_at_a_start_point`,
+`next_service_note_point`).
+The holds are a list of the whole process,
+so one slot for a run held nothing of a second control,
+and the module of three heartbeat controls failed all three (issue 6497);
+the registry refuses a second live hold of one point and names the composition the control must make,
+so a control that names one point twice fails at its own first line instead of in another control's wait.
 
 ## One fixture folder per test
 
@@ -124,6 +152,16 @@ and nowhere else: `ChildTest` is the request (`started` hands back the running c
 and `testing/test_process_owner.rs` is the ownership it stands on.
 Six bodies built that command their own way until 2026-11-25,
 and most of their children were owned by nothing (debt ledger item 10).
+The guard a body starts with reads `if <starter>(...) { return; }`:
+`started_within_a_child_of_its_own` and `ran_in_child` answer true in the process that started the child,
+so an inverted guard runs the body there as well,
+and a body that sets what belongs to the whole process then sets it for every test of the run
+(issue 6496 lowered the run's own thread limit,
+so three other controls failed at their fixture's first Git start).
+The setters refuse outside the child and name the starter,
+so an inverted guard fails at its own first line,
+which is what the two refusals in `testing/no_threads_child_test_support.rs` and
+`subvolume/subvolume_file_write_steps_sync_counts_test_support.rs` are for.
 A child whose ending is the assertion, such as one that dies by a signal, takes `finished`
 and judges the ending itself; a child a control keeps and talks to takes `started`,
 and its own waits carry the bounds.
