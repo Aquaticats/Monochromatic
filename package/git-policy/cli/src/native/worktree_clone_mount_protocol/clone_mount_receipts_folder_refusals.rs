@@ -36,12 +36,13 @@ pub const RECEIPT_MODE: u32 = 0o644;
 ///  Plan steps 18 and 19 are built ahead:
 ///  `doctor` reaches none of the route's checks and nothing installs the boot
 ///  unit,
-///  so a sentence that sends a person to `doctor` for a record or to that unit's
-///  journal sends them to a line no command prints and a journal no unit writes
+///  so a sentence that sends a person to `doctor` for a receipt, a readiness
+///  record, a claim or a slot's records, or to that unit's journal, sends them to
+///  a line no command prints and a journal no unit writes
 ///  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
 ///  The round that wires either one deletes this claim,
 ///  and every sentence that prints it follows from one place.
-pub const NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT: &str = "This release prints no `doctor` line for a receipt or a readiness record and installs no handler unit, so `git monochromatic-git-policy-cli doctor` reports neither and `journalctl -u reconcile-git-worktree-clone-mounts.service` has rows only where an administrator installed that unit";
+pub const NO_DOCTOR_LINE_AND_NO_INSTALLED_UNIT: &str = "This release prints no `doctor` line for a receipt, a readiness record, a slot's claim or a slot's records and installs no handler unit, so `git monochromatic-git-policy-cli doctor` reports none of them and `journalctl -u reconcile-git-worktree-clone-mounts.service` has rows only where an administrator installed that unit";
 
 /// What:
 ///  Why the results directory or one receipt could not be used.
