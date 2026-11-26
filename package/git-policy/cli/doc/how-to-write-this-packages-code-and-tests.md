@@ -272,6 +272,15 @@ block (not a named pipe, not a device; the type checked through the open handle,
 and has a size bound (issues 6415 and 6433).
 No blocking work runs on the commit's own thread or on the async runtime (`source_guard`'s runtime guard; issue 6421).
 
+A control that needs two file times to differ states the difference instead of hoping the clock moved between them
+(issue 6520:
+the copy compare stamp control wrote the source 0.34 to 0.79 ms after taking its stamp,
+this host's ZFS takes a write's change and modification times from the kernel's coarse clock,
+and that clock advances once per 1 ms tick,
+so the write left the stamp exactly as it was and the final check rightly passed in 6 runs of 6).
+`stamped_pair` gives its source a modification time `RECENT_CHANGE_NANOS` before now for that reason,
+and the measurement is in `doc/troubleshooting/openzfs-file-times-advance-in-one-millisecond-steps.md`.
+
 ## Write less code
 
 Reuse what `testing/test_support.rs` and the package's modules already have before writing a helper
