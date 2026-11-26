@@ -107,29 +107,30 @@ and each stays in force until the owner changes it.
 
 `main` was `7bc2c0d820`.
 
-### Rounds open tonight
+### Rounds open (2026-11-26T02:45-05:00)
 
-- Step 17's forced kernel calls,
-  window `zfs-step-17-forced-arm-ends-holders-and-measures-its-wait`,
-  branch `feat/git-policy-cli-zfs-step-17-forced-arm-act-proven-in-a-guest`,
-  started at 23:11.
-- Step 22's guest half,
-  window `zfs-step-22-guest-half-waits-sweep-and-add-against-git`,
-  branch `docs/git-policy-cli-zfs-step-22-guest-half-measurements`,
-  started at 22:54.
-- The linter's alpha.9 release-pass fixes,
-  window `monochromatic-lint-alpha-9-release-pass-fixes`,
-  started at 23:16 and merged after this read;
-  `alpha.10` carries them (`6cfbcbb5f4`)
-  and `toolchain.lock.json` still locks `alpha.9`.
-- The layout rules' stale lists,
-  window `layout-rules-on-with-a-shrinking-allow-list`,
-  branch `chore/git-policy-cli-layout-rules-on-with-a-shrinking-allow-list`,
-  built and waiting to merge inside the window "The crate split,
-  and the layout rules that land before it"
-  describes.
+Writers:
+OpenCode Go refused every request from about 02:35 with its monthly usage limit,
+so every round now starts with `WRITER_POOL=neuralwatt-flex`,
+the owner's second writer pool (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/writer-pool-for-a-round.ts`);
+standard Neuralwatt stays closed.
+Three rounds the limit ended (the split rescan, step 23, issue 6494) restart on flex with a note to continue from their worktree.
+The thirteen starts run three minutes apart behind the memory test,
+logged in `~/temp/agent/rounds-on-neuralwatt-flex-launch-2026-11-26.log`.
 
-The first two are what that window waits for.
+- The crate split's move order step 1, the rescan of `main` after the reformat,
+  window `cli-git-split-rescan-after-the-reformat`;
+  it also places debt ledger items 7, 12 and 15 in the split's order.
+- Plan step 23, the host-kernel qualification guest,
+  window `zfs-step-23-host-kernel-qualification`.
+- Issue 6494, the no-threads child helper read the wrong way,
+  window `no-threads-child-helper-read-the-right-way`.
+- Issues 6483, 6484, 6485, 6486, 6487, 6489, 6493 and 6495,
+  one window each, `issue-<number>-<words>`.
+- Debt ledger item 19, window `fixed-length-lists-become-slices`.
+- The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`.
+- The linter's `alpha.12`: fixes merged as `a48f7bac54`, the release running;
+  then its Sonnet release pass and the lock bump (no list line changes, measured).
 
 ### Merged tonight
 
