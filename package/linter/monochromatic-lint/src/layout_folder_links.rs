@@ -363,11 +363,14 @@ fn loops_of_each_folder(
 ///  An entry loop holds a use only when the use reaches outside its entry:
 ///  two folders of one group share that group as their entry,
 ///  so a use between them makes no edge of the entry graph and no entry loop can hold it.
-///  A group's own code makes no use at all:
+///  A group's own code makes no edge of the entry graph:
 ///  the shelf rule reports the file that holds the code,
 ///  a group's summary is what its child folders use,
 ///  and `entry_uses` skips such a folder as a source too,
 ///  so a use from a group's own file joins no entry loop and owes no `uses` line.
+///  The folder graph still sees that use,
+///  because the group folder is one of the package's folders;
+///  a loop of plain folders through it is reported by the folder loop check.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

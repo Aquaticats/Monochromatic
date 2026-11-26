@@ -909,15 +909,16 @@ so a finding is never reported twice.
   including a `pub use` re-export,
   which would make a path through the group name the group instead of the folder that defines the item.
   The finding names the file and the item.
-- A group's own code makes no use and needs no link:
+- A group's own code owes its group no summary and makes no edge of the entry graph:
   the finding above reports the file that holds it,
   and a group's summary is what its child folders use.
-  A use written in a group's own file, to another entry and to a folder inside one,
-  is therefore not a use of either layout rule:
-  it joins no loop of folders or of entries,
-  no `uses` link is owed for it,
-  and a `uses` line naming it tolerates nothing and fails the run.
-  Every use that is a finding is a use of a child folder's code.
+  A `uses` line naming a use written in a group's own file therefore tolerates nothing,
+  unless a loop of folders holds that use.
+  The loop of folders does still see the use:
+  the group folder is a folder of the package,
+  so a use from its own file into a folder that uses the group back is reported as a loop of folders.
+  It joins no loop of entries,
+  and no `uses` link is owed for it.
 - A group's `uses` folder holds one link for every other entry that a folder inside the group uses,
   and no other link.
   A folder inside the group uses an entry when the folder's code names a folder of that entry
@@ -990,7 +991,26 @@ Findings:
 
 - Files use each other in a loop.
   One finding lists the files and one reference per use inside the loop.
-- A folder has module files but no `mod.rs` to hold the top doc.
+- A folder has module files but no `mod.rs` to hold the top doc,
+  and each of those files is then a finding of its own,
+  because the missing doc lists nothing and tolerates nothing else.
+- A folder's index file exists and cannot be read.
+  One finding says so,
+  and each file of the folder is a finding of its own for the same reason:
+  an unreadable doc lists nothing.
+  An index that is not UTF-8 reaches this finding,
+  and so does one whose permission bits allow no read.
+  A folder reaches it when the module tree finds that folder's files without reading its index,
+  for example when a `#[path]` declaration in another folder names them;
+  when the module tree itself must read the index to find them,
+  an unreadable index ends the package with a `core/processing-failure` naming it instead.
+- A file's name holds a space,
+  which a `#[path]` attribute can declare.
+  The finding names the file and its folder,
+  its key names only the folder (`space-in-file-name src`),
+  and the file stays out of the list and loop checks until it is renamed,
+  because a key and a `file-uses` line separate their words by spaces
+  and could not name it without ambiguity.
 - An index file holds code (see "Index files hold only the index").
 - The top doc has no file list,
   and a doc with no list then reports every file of its folder as missing from the list,
@@ -1002,6 +1022,14 @@ Findings:
 - A file uses a file that is listed after it
   (the finding names both and the proving reference).
   Uses inside a loop are not reported again here.
+
+The layout rules answer the line of each finding by reading the file once per run,
+up to two mebibytes.
+A file of exactly two mebibytes is read whole,
+so even an unterminated last line keeps its span.
+A longer file reports the file start for a line whose bytes the bound did not reach
+and for a line the bound cuts off,
+because a guessed length would point at the wrong bytes.
 
 The top doc is the `//!` lines at the start of the folder's `mod.rs`
 (`lib.rs`,
@@ -1167,8 +1195,10 @@ so `uses ./src/a/ -> src/b` is the same entry as `uses src/a -> src/b` and the s
 A `uses` or `file-uses` path that holds a backslash is refused too,
 because a key writes `/` on every machine and a backslash would name a folder no finding names.
 A line that is a key may hold a backslash,
-because no rule prints one in a key:
-such a line is read as the key it spells and reported as tolerating nothing any more.
+because a macro call's key keeps the escapes of its arguments as the source writes them:
+such a line is read as the key it spells,
+matches the finding whose key it is,
+and is reported as tolerating nothing any more when no finding prints it.
 
 A rule reports the key of each finding it makes in `--debug`,
 as a note that reads `allow-list key: <key>`,
@@ -1186,13 +1216,21 @@ Every key names exactly one finding:
     sorted,
     such as `impl-std::fmt::Display for Holder fmt` or `impl-Holder one two`,
     with the members left out when the block declares none.
-  - `private-use-<the tree as written>`,
-    such as `private-use-std::fmt`,
+  - `private-use-<the tree, with every run of whitespace squeezed to one space>`,
+    such as `private-use-std::fmt` or `private-use-std::{ fmt::Debug, }`,
     or `private-use-anonymous`.
-  - `macro-call-<path>!<the delimiter and arguments as written>`,
-    such as `macro-call-vec![1, 2]` or `macro-call-thread_local!{ ... }`,
-    or `macro-call-<path>!` for a call with no arguments,
-    or `macro-call-anonymous`.
+  - `macro-call-<path>!<the delimiter and its arguments>`.
+    Every run of whitespace in the arguments becomes one space,
+    even inside a string,
+    and every escape stays as the source writes it,
+    so `foo!("a\n", b)` gives `macro-call-foo!("a\n", b)`,
+    `vec![1, 2]` gives `macro-call-vec![1, 2]`
+    and `thread_local!{ static X: u8 = 0; }` gives
+    `macro-call-thread_local!{ static X: u8 = 0; }`.
+    A call written without a delimiter keeps the bare form `macro-call-<path>!`,
+    which is what `bar!;` prints;
+    an empty call keeps its parentheses,
+    so `foo!()` gives `macro-call-foo!()`.
   - `extern-crate-<name>`,
     such as `extern-crate-alloc`,
     and `extern-crate-<name>-<the rename as written>`,
@@ -1200,8 +1238,7 @@ Every key names exactly one finding:
     and `extern-block-<the ABI string as written, quotes kept>`,
     such as `extern-block-"C"`,
     or `extern-block-unstated` for a block that names none.
-  - `assembly-block` for an assembly block,
-    and `<kind>-<name>` for every other item,
+  - `<kind>-<name>` for every other item,
     where the kind is `function`,
     `struct`,
     `enum`,
@@ -1216,6 +1253,13 @@ Every key names exactly one finding:
 - A key about an entry of a `uses` folder carries the fault,
   such as `link src/a/uses/b broken`,
   because one entry can go wrong in ten ways.
+- A key about a file or a folder writes its path relative to the package folder,
+  and a module file outside the package,
+  which a `#[path]` attribute can declare,
+  is written by the walk from the package folder:
+  `missing-entry ../outside x.rs`.
+  No key holds an absolute path,
+  so a key line reads the same in every checkout.
 - Two findings a rule still cannot tell apart,
   such as two blocks of one type that declare the same members
   or two glob re-exports of one module,
@@ -1274,9 +1318,10 @@ so the two rules of a crate take two lists.
 
 #### How a list written before alpha.11 maps
 
-An `impl` block's key changed shape,
+An `impl` block's key gained the members it declares,
 a numbered key carries its number in a new place,
-and a folder whose top doc cannot be read reports a new line per file it holds,
+a folder whose top doc cannot be read reports a new line per file it holds,
+and two `uses` shapes that alpha.10 held are no longer tolerated,
 so a list written for alpha.10 needs one regeneration,
 and every other line stays as it is.
 A list written before alpha.10 first needs the mapping in that release's note.
@@ -1288,6 +1333,8 @@ A list written before alpha.10 first needs the mapping in that release's note.
   What the block implements is printed as the trait first and the type after ` for `,
   with no ` for ` when the block names no trait.
   A block that declares no member keeps the plain key.
+  A member added to a block later renames its key the same way,
+  so the line for the old key tolerates nothing and the block reports a new finding.
 - A numbered key now carries the number in its first word,
   right after the shape it repeats:
   `listed-twice src/a/mod.rs one.rs#2` became `listed-twice#2 src/a/mod.rs one.rs`,
@@ -1299,6 +1346,16 @@ A list written before alpha.10 first needs the mapping in that release's note.
   `missing-entry <folder> <file>` for a folder with no `mod.rs`,
   and `missing-entry <index> <file>` for an index file that cannot be read.
   A `no-top-doc` or `unreadable-index` line therefore tolerates only its own finding.
+- A `uses` line between two members of one group is dead,
+  unless a loop of folders holds the two folders together:
+  an entry loop holds a use only when it reaches outside its entry,
+  and two members of one group share that group as their entry.
+  alpha.10 kept such a line alive through the group's entry loop.
+- A `uses <group> -> <folder>` line for a use written in the group's own file is dead,
+  unless a loop of folders holds that use:
+  a group's own code adds no edge to the graph of the entries,
+  and its group's summary is what the child folders use.
+  alpha.10 kept such a line alive through the group's entry loop.
 
 A `link` key holds the fault of the entry,
 and one entry of a `uses` folder can go wrong in ten ways:
@@ -1313,8 +1370,33 @@ and one entry of a `uses` folder can go wrong in ten ways:
 `uses-is-not-a-folder`,
 and `uses-unlistable`.
 
+#### How a list written before alpha.12 maps
+
+No key shape changed between alpha.11 and alpha.12,
+and this repository's two lists need no edit.
+Measured on 2026-11-26 against `main`'s `package/git-policy/cli`:
+both releases report the same 2,008 layout findings and the same 1,939 keys,
+and with the repository's own configuration and the committed lists both report none.
+Two finding shapes are new,
+and neither occurs in this repository's tree:
+
+- A module file whose name holds a space is reported once,
+  keyed `space-in-file-name <folder>`,
+  and the file stays out of the list and loop checks until it is renamed.
+- Two glob re-exports written on one line are two findings,
+  so a line naming only the first no longer tolerates the second.
+
+A key about a `#[path]` module outside the package now writes the walk from the package folder
+(`missing-entry ../outside x.rs`) instead of an absolute path,
+so a line that held an absolute path is dead and is rewritten relative.
+
 ### Known limits
 
+- An `asm!` call written where an item may sit is a macro call,
+  so it is keyed `macro-call-asm!("nop")`;
+  the parser gives the index check no assembly-block item.
+- A macro call that names no macro is never an item:
+  `!();` written where an item may sit produces no finding and no key.
 - A group is recognised by its child folders,
   so a folder that holds child folders must be a shelf;
   the rules have no way to say that a folder with code and child folders is on purpose.
