@@ -189,6 +189,11 @@ fn check_one_folder(
 ///  One line can hold two of them (`pub use crate::{a::*, b::*};`),
 ///  so a finding is keyed by the module it names and not by the line it sits on:
 ///  a list line for the first glob must never tolerate the second.
+///  One source line is one finding however many `mod` declarations reach its file:
+///  a library and an executable that declare the same modules give the tree two nodes
+///  that hold the same reference at the same byte offset,
+///  so references are told apart by the file and the offset in it,
+///  and never by the module node that reached them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,7 +204,23 @@ fn glob_reexports(
     base: &Path,
 ) -> Vec<LayoutFinding> {
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
+    // What: the node shapes this rule has already read, a shape being the file and every reference offset in it.
+    // Why: a file two `mod` declarations reach is read once per declaration, and one node of it is one module.
+    let mut seen: BTreeSet<(PathBuf, Vec<usize>)> = BTreeSet::<(PathBuf, Vec<usize>)>::new();
     for (index, module) in tree.modules.iter().enumerate() {
+        // What: this node's file and the offsets it holds references at, which no other module node of the file shares.
+        // Why: a repeated module scans the same bytes at the same offsets and reports the same globs again.
+        let shape: (PathBuf, Vec<usize>) = (
+            module.file.clone(),
+            module
+                .references
+                .iter()
+                .map(|reference| return reference.raw.offset)
+                .collect::<Vec<usize>>(),
+        );
+        if !seen.insert(shape) {
+            continue;
+        }
         for reference in &module.references {
             if !(reference.raw.glob && reference.raw.reexport) {
                 continue;

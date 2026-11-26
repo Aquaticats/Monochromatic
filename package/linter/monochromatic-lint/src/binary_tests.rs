@@ -1718,6 +1718,72 @@ fn layout_rules_run_in_the_built_executable_and_do_not_follow_links() {
     );
 }
 
+/// A module file that two `mod` declarations reach is one module,
+///  so one glob re-export in it is one finding with one key,
+///  while two globs written on one line stay two findings.
+#[test]
+fn layout_a_module_file_reached_twice_reports_each_glob_once() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    // The library and the executable both declare the same three modules,
+    // which is what a package whose two roots share its module tree looks like.
+    fixture.write(
+        "src/lib.rs",
+        "//! Index.\npub mod a;\npub mod b;\npub mod shared;\n",
+    );
+    fixture.write(
+        "src/main.rs",
+        "//! Entry.\nfn main() {}\npub mod a;\npub mod b;\npub mod shared;\n",
+    );
+    fixture.write("src/a.rs", "pub struct X;\n");
+    fixture.write("src/b.rs", "pub struct Y;\n");
+    fixture.write("src/shared.rs", "pub use crate::a::*;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error" } } }]"#,
+    );
+    // One source line, reached through both declarations, is one finding.
+    let found: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    assert_eq!(
+        located(found.stdout.as_str()),
+        [String::from("src/shared.rs rust/folder-uses-links 1 1")],
+        "{}",
+        found.stdout
+    );
+    assert_eq!(
+        found
+            .stderr
+            .lines()
+            .filter(|line| return line.contains("allow-list key:"))
+            .collect::<Vec<&str>>(),
+        [
+            "monochromatic-lint: debug: rust/folder-uses-links: allow-list key: glob src/shared.rs crate::a"
+        ],
+        "{}",
+        found.stderr
+    );
+    // Two globs on that one line stay two findings, each with its own key, once each.
+    fixture.write("src/shared.rs", "pub use crate::{a::*, b::*};\n");
+    let two: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(two.status, 1, "{}", two.stderr);
+    assert_eq!(
+        two.stderr
+            .lines()
+            .filter(|line| return line.contains("allow-list key:"))
+            .collect::<Vec<&str>>(),
+        [
+            "monochromatic-lint: debug: rust/folder-uses-links: allow-list key: glob src/shared.rs crate::a",
+            "monochromatic-lint: debug: rust/folder-uses-links: allow-list key: glob src/shared.rs crate::b",
+        ],
+        "{}",
+        two.stderr
+    );
+}
+
 /// Two glob re-exports written on one line are two findings with two keys,
 ///  so a list line recorded for the first never tolerates the second,
 ///  and that line stays alive while its own glob exists.
