@@ -219,6 +219,9 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- The alpha.47 ZFS pass's guards round as `62ba6c6bf6`: the three unheld guards each have a control that fails without them,
+  the add preflight's host controls open no `/dev/zfs`, an inherited `legacy` container is refused before any write,
+  and `doctor`'s group-drop report appears only on a ZFS checkout. It found 6518 (an add-index control failed once).
 - 6512 as `cafd22a1ab`: 48 folder docs spell the file-list marker the linter reads and list every file in dependency order,
   so the layout allow list's `file-rule.txt` shrank from 1949 lines to 582 with none added.
 - 6514 as `7ca3772424`: the started-as-git control's child closes the chain record it inherited before it makes its own.
