@@ -5163,6 +5163,18 @@ when a decided permission is effective only through a wider ancestor grant,
 reaches the account through a named set,
 is granted to everyone,
 or is one of the lineage-changing grants the route must not have.
+A creation-time grant (`zfs allow -c`) of a lineage-changing permission,
+and a lineage-changing permission inside a named set the account can hold,
+are ones the account holds or will hold:
+the kernel copies a creation-time grant onto every dataset its creator makes
+below the dataset that carries it,
+as a local grant to that creator,
+so the check refuses them too,
+naming the `zfs unallow -c` or `zfs unallow -s` command that clears the
+permission.
+A named set's members come from the kernel's own entry for the set,
+so a set the account can come to hold is expanded and its permission named
+rather than reported only as unreadable.
 The permissions the add's own steps use are the six the unprivileged lifecycle
 needs
 (`snapshot` on the checkout,
