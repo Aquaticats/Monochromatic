@@ -124,7 +124,12 @@ systemctl --user enable --now rclone-bisync-garage-watch.service
 
 `mise run //package/garage-file-sync/linux-client:check:installed` compares every
 installed copy with its source and fails, naming the file, when a copy is missing,
-is a link, or differs.
+cannot be read, differs, or is a link: a symbolic link into the checkout, or a hard link
+that shares the source file's inode.
+It also names every unit file and drop-in under `~/.config/systemd/user` that starts with
+`rclone-bisync-garage` and that this package does not ship,
+because the user manager loads those too and a stale one keeps acting beside the current
+ones.
 
 The install writes into `$HOME`; `-- --home=<folder>` installs into another home folder,
 which is how the tests run it.
