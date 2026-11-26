@@ -171,6 +171,17 @@ A child must not keep the test's standard output or error open after the test:
 close or redirect the streams it does not need.
 `lfs::lfs_upload`'s `git-lfs` stand-in, which writes its process number and `exec`s `/usr/bin/sleep {HOLD_SECONDS}`,
 is the shape that leaked.
+A child a shipped call starts itself is still the test's to end:
+a control of the relay's end rule starts the child with `process_group(0)`,
+has that child write down the number of the group it leads,
+hands the number to `testing/test_process_owner.rs`'s `own_group_of_number`,
+and ends the group before it returns.
+The read answers `0` for a child no `SignalGuard` started,
+and the owner refuses `0` as well as a number whose group holds no process,
+so a control that owned the wrong number fails at that line instead of at the run's end.
+Without any of it the control returned with the `sleep` the child had started holding its stream,
+and the container gate counted the test as one that leaks (issue 6501,
+`source_guard/relay_controls_own_the_child_s_group_tests.rs`).
 
 A child that is this test binary running one named test goes through `testing/child_test_process.rs`
 and nowhere else: `ChildTest` is the request (`started` hands back the running child,

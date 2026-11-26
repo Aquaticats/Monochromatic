@@ -209,6 +209,13 @@ pub(crate) mod test_children_owned_ledger_tests;
 #[path = "test_children_owned_tests.rs"]
 mod test_children_owned_tests;
 
+/// The control that refuses a control of the relay's end rule which never owns the group of the child it reads:
+/// the relay ends with the child,
+/// and what the child left is the test's to end (issue 6501).
+#[cfg(test)]
+#[path = "relay_controls_own_the_child_s_group_tests.rs"]
+mod relay_controls_own_the_child_s_group_tests;
+
 /// The owner's rule that nothing of the wrapper starts at system startup or at login:
 /// no install line,
 /// no enabling call,
