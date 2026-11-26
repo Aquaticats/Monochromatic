@@ -52,7 +52,7 @@ impl CacheWarning {
         return Self {
             reason: reason_token(reason),
             recovery: "compile-from-text",
-        }
+        };
     }
 
     /// Builds only warning recovered by retaining already compiled rules.
@@ -60,7 +60,7 @@ impl CacheWarning {
         return Self {
             reason: "write-failed",
             recovery: "continue-with-compiled-rules",
-        }
+        };
     }
 }
 
@@ -81,19 +81,21 @@ fn reason_token(reason: CacheWarningReason) -> &'static str {
     if reason == CacheWarningReason::Incompatible {
         return "incompatible";
     }
-    return "invalid"
+    return "invalid";
 }
 
 /// Renders compact single-line JSON without accepting arbitrary values.
 impl std::fmt::Display for CacheWarning {
     /// Writes exact schema-version-1 protocol record.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return write!(
             formatter,
             "{{\"type\":\"forbidden-strings/cache-warning\",\"schemaVersion\":1,\"reason\":\"{}\",\"recovery\":\"{}\"}}",
-            self.reason,
-            self.recovery,
-        )
+            self.reason, self.recovery,
+        );
     }
 }
 

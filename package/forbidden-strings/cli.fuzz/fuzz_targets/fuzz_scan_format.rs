@@ -19,8 +19,15 @@
 
 use libfuzzer_sys::fuzz_target;
 
-use forbidden_strings::fuzz_api::{load_from_text, scan_file, scan_path_for_fuzzing};
-use forbidden_strings_fuzz::generators::{redacted_fingerprint, RuleFileAndContent};
+use forbidden_strings::fuzz_api::{
+    load_from_text,
+    scan_file,
+    scan_path_for_fuzzing,
+};
+use forbidden_strings_fuzz::generators::{
+    RuleFileAndContent,
+    redacted_fingerprint,
+};
 use std::sync::OnceLock;
 
 // The fixed path handed to `scan_file`; findings must interpolate exactly this and two
@@ -33,10 +40,18 @@ static NAME_CONTROL: OnceLock<forbidden_strings::fuzz_api::LoadedRules> = OnceLo
 // What:  parse one finding and assert the columnless format, returning its line index.
 // Why:   the redaction check is the reconstruction at the end: a finding equal to the
 //        fixed template plus its two parsed integers cannot carry any content byte.
-fn check_format(hit: &str, content: &[u8], max_line: usize) -> usize {
+fn check_format(
+    hit: &str,
+    content: &[u8],
+    max_line: usize,
+) -> usize {
     // Split at the trailing ` rule=` marker (paths never contain it because PATH is fixed).
     let Some(rule_pos) = hit.rfind(" rule=") else {
-        panic!("finding missing ' rule=': {} ({})", hit.len(), redacted_fingerprint(content));
+        panic!(
+            "finding missing ' rule=': {} ({})",
+            hit.len(),
+            redacted_fingerprint(content)
+        );
     };
     // The rule token is a numeric id (legacy rules; digits are inside the name
     // alphabet) or a tail-format section name over `[a-z0-9.-]`. Anything outside
@@ -50,7 +65,10 @@ fn check_format(hit: &str, content: &[u8], max_line: usize) -> usize {
                 || byte == b'-';
         });
     if !token_ok {
-        panic!("finding rule token outside name alphabet ({})", redacted_fingerprint(content));
+        panic!(
+            "finding rule token outside name alphabet ({})",
+            redacted_fingerprint(content)
+        );
     }
 
     // The prefix is `PATH:LINE`; split at the last colon (PATH itself has no colon).
@@ -59,13 +77,26 @@ fn check_format(hit: &str, content: &[u8], max_line: usize) -> usize {
         panic!("finding missing ':' ({})", redacted_fingerprint(content));
     };
     let path = &prefix[..colon_pos];
-    assert_eq!(path, PATH, "finding path mismatch ({})", redacted_fingerprint(content));
+    assert_eq!(
+        path,
+        PATH,
+        "finding path mismatch ({})",
+        redacted_fingerprint(content)
+    );
     let line_str = &prefix[colon_pos + 1..];
     let Ok(line) = line_str.parse::<usize>() else {
-        panic!("finding line not numeric ({})", redacted_fingerprint(content));
+        panic!(
+            "finding line not numeric ({})",
+            redacted_fingerprint(content)
+        );
     };
 
-    assert!(line >= 1, "line index not 1-based: {} ({})", line, redacted_fingerprint(content));
+    assert!(
+        line >= 1,
+        "line index not 1-based: {} ({})",
+        line,
+        redacted_fingerprint(content)
+    );
     assert!(
         line <= max_line,
         "line index {} exceeds {} lines ({})",
@@ -78,9 +109,14 @@ fn check_format(hit: &str, content: &[u8], max_line: usize) -> usize {
     // integer and the alphabet-bounded rule token. Any other byte would make this
     // reconstruction unequal, so equality proves nothing else was interpolated.
     let expected = format!("{PATH}:{line} rule={rule_str}");
-    assert_eq!(hit, expected.as_str(), "finding carries unexpected bytes ({})", redacted_fingerprint(content));
+    assert_eq!(
+        hit,
+        expected.as_str(),
+        "finding carries unexpected bytes ({})",
+        redacted_fingerprint(content)
+    );
 
-    return line
+    return line;
 }
 
 fuzz_target!(|input: RuleFileAndContent| {
@@ -120,22 +156,37 @@ fuzz_target!(|input: RuleFileAndContent| {
     // Apply the same compiled rules to a generated pathname with actual segment
     // separators and adversarial content bytes; all name findings must use the
     // shared masked label and carry a valid one-based component position.
-    let control = NAME_CONTROL.get_or_init(|| return load_from_text("VAULTTOKEN_LONG\n")
-        .expect("compile name positive control"));
+    let control = NAME_CONTROL.get_or_init(|| {
+        return load_from_text("VAULTTOKEN_LONG\n").expect("compile name positive control");
+    });
     let (masked, positive_hits) = scan_path_for_fuzzing("prefix/VAULTTOKEN_LONG/tail", control);
     assert_eq!(masked, "prefix/[REDACTED]/tail", "positive control failed");
-    assert_eq!(positive_hits, vec!["prefix/[REDACTED]/tail:name:2 rule=0"], "positive control missed hit");
+    assert_eq!(
+        positive_hits,
+        vec!["prefix/[REDACTED]/tail:name:2 rule=0"],
+        "positive control missed hit"
+    );
 
     let generated_name = format!("prefix/{}/tail", String::from_utf8_lossy(content));
     let (display, name_hits) = scan_path_for_fuzzing(&generated_name, &loaded);
-    assert!(!display.contains('\n'), "pathname injected newline ({})", redacted_fingerprint(content));
+    assert!(
+        !display.contains('\n'),
+        "pathname injected newline ({})",
+        redacted_fingerprint(content)
+    );
     if generated_name.contains('\n') || generated_name.contains('\r') {
         // A name with a line break cannot satisfy the engine's single-line
         // contract; the scanner masks its entire path and fails closed.
         assert_eq!(display, "[REDACTED]", "line-break name was not masked");
-        assert_eq!(name_hits, vec!["[REDACTED]: unsupported pathname line break"]);
+        assert_eq!(
+            name_hits,
+            vec!["[REDACTED]: unsupported pathname line break"]
+        );
     } else {
-        let segment_count = generated_name.split('/').filter(|name| return !name.is_empty() && *name != "." && *name != "..").count();
+        let segment_count = generated_name
+            .split('/')
+            .filter(|name| return !name.is_empty() && *name != "." && *name != "..")
+            .count();
         for hit in &name_hits {
             if hit == "[REDACTED]: engine error" {
                 assert_eq!(display, "[REDACTED]", "engine failure path was not masked");
@@ -144,16 +195,33 @@ fuzz_target!(|input: RuleFileAndContent| {
             let Some((reported, suffix)) = hit.rsplit_once(":name:") else {
                 panic!("missing name locator ({})", redacted_fingerprint(content));
             };
-            assert_eq!(reported, display, "name finding used wrong display path ({})", redacted_fingerprint(content));
+            assert_eq!(
+                reported,
+                display,
+                "name finding used wrong display path ({})",
+                redacted_fingerprint(content)
+            );
             let Some((number, token)) = suffix.split_once(" rule=") else {
                 panic!("missing name rule ({})", redacted_fingerprint(content));
             };
             let index = number.parse::<usize>().expect("numeric name position");
-            assert!(index > 0 && index <= segment_count, "invalid segment position ({})", redacted_fingerprint(content));
-            assert!(!token.is_empty(), "empty rule identity ({})", redacted_fingerprint(content));
+            assert!(
+                index > 0 && index <= segment_count,
+                "invalid segment position ({})",
+                redacted_fingerprint(content)
+            );
+            assert!(
+                !token.is_empty(),
+                "empty rule identity ({})",
+                redacted_fingerprint(content)
+            );
         }
     }
     for hit in scan_file(&display, content, &loaded) {
-        assert!(hit.starts_with(&display), "content finding used raw path ({})", redacted_fingerprint(content));
+        assert!(
+            hit.starts_with(&display),
+            "content finding used raw path ({})",
+            redacted_fingerprint(content)
+        );
     }
 });

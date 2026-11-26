@@ -19,10 +19,17 @@ use crate::diagnostic::Diagnostic;
 /// Imports `Change`,
 /// `Rule`,
 /// `RulePlan` from `crate::rule`.
-use crate::rule::{Change, Rule, RulePlan};
+use crate::rule::{
+    Change,
+    Rule,
+    RulePlan,
+};
 /// Imports `Vars`,
 /// `evaluate_text` from `crate::value_eval`.
-use crate::value_eval::{Vars, evaluate_text};
+use crate::value_eval::{
+    Vars,
+    evaluate_text,
+};
 /// Imports `View` from `crate::view`.
 use crate::view::View;
 
@@ -68,9 +75,19 @@ impl ConcatRule {
     /// ```ts
     /// new ConcatRule(id, output, parts, mode)
     /// ```
-    pub fn new(id: &str, output: &str, parts: &[ValueExpr], mode: &Option<String>) -> ConcatRule {
+    pub fn new(
+        id: &str,
+        output: &str,
+        parts: &[ValueExpr],
+        mode: &Option<String>,
+    ) -> ConcatRule {
         let parsed_mode = mode.as_deref().map(parse_mode);
-        return ConcatRule { id: id.to_string(), output: output.to_string(), parts: parts.to_vec(), mode: parsed_mode };
+        return ConcatRule {
+            id: id.to_string(),
+            output: output.to_string(),
+            parts: parts.to_vec(),
+            mode: parsed_mode,
+        };
     }
 }
 
@@ -107,13 +124,23 @@ impl Rule for ConcatRule {
     /// ```ts
     /// plan(view: View): RulePlan
     /// ```
-    fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
+    fn plan(
+        &self,
+        view: &mut View,
+    ) -> Result<RulePlan, Diagnostic> {
         let vars = Vars::new();
         let mut joined = String::new();
         for part in &self.parts {
             joined.push_str(&evaluate_text(view, part, &vars)?);
         }
-        let change = Change::Write { path: self.output.clone(), content: joined.into_bytes(), mode: self.mode };
-        return Ok(RulePlan { changes: vec![change], warnings: Vec::new() });
+        let change = Change::Write {
+            path: self.output.clone(),
+            content: joined.into_bytes(),
+            mode: self.mode,
+        };
+        return Ok(RulePlan {
+            changes: vec![change],
+            warnings: Vec::new(),
+        });
     }
 }

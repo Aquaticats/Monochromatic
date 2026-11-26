@@ -13,7 +13,10 @@ use dylint_testing::ui::Test;
 /// Import file system operations used to stage the fixtures.
 use std::fs;
 /// Import the path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Copy a fixture directory,
@@ -31,7 +34,10 @@ use std::path::{Path, PathBuf};
 ///   for (const entry of readdirSync(source)) { /* copy, padding .stderr files; recurse into directories */ }
 /// }
 /// ```
-fn stage(source: &Path, target: &Path) {
+fn stage(
+    source: &Path,
+    target: &Path,
+) {
     fs::create_dir_all(target).expect("staging directory is created");
     for entry in fs::read_dir(source).expect("fixture directory reads") {
         let path: PathBuf = entry.expect("a directory entry reads").path();

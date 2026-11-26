@@ -3,15 +3,24 @@
 
 use std::cmp::Ordering;
 
-use crate::version_order::{caret_compatible, compare_texts};
+use crate::version_order::{
+    caret_compatible,
+    compare_texts,
+};
 
 #[test]
 fn ordering_follows_semver_including_prereleases() {
     assert_eq!(compare_texts("1.2.3", "1.2.3"), Ordering::Equal);
     assert_eq!(compare_texts("1.10.0", "1.9.0"), Ordering::Greater);
     assert_eq!(compare_texts("1.0.0-rc.1", "1.0.0"), Ordering::Less);
-    assert_eq!(compare_texts("1.0.0-alpha", "1.0.0-alpha.1"), Ordering::Less);
-    assert_eq!(compare_texts("1.0.0-alpha.2", "1.0.0-alpha.10"), Ordering::Less);
+    assert_eq!(
+        compare_texts("1.0.0-alpha", "1.0.0-alpha.1"),
+        Ordering::Less
+    );
+    assert_eq!(
+        compare_texts("1.0.0-alpha.2", "1.0.0-alpha.10"),
+        Ordering::Less
+    );
     assert_eq!(compare_texts("1.0.0-1", "1.0.0-alpha"), Ordering::Less);
 }
 

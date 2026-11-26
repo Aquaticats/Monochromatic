@@ -88,9 +88,12 @@ pub fn parse_test_switch(value: Option<&str>) -> TestSwitch {
     };
 }
 
-/// The switch this process's environment asks for.
+/// The switch this process's environment asks for,
+/// which a release build never reads.
 pub fn test_switch_from_environment() -> TestSwitch {
-    return parse_test_switch(std::env::var(TEST_SWITCH_VARIABLE).ok().as_deref());
+    // The switch a control set, or nothing in every shipped build.
+    let word: Option<String> = crate::test_only_switches::text(TEST_SWITCH_VARIABLE);
+    return parse_test_switch(word.as_deref());
 }
 
 /// Whether this run keeps one descriptor on the attached mount,
@@ -100,9 +103,12 @@ pub fn keep_descriptor_from_words(value: Option<&str>) -> bool {
 }
 
 /// Whether this process's environment keeps one descriptor on the attached
-/// mount.
+/// mount,
+/// which a release build never reads.
 pub fn keep_descriptor_from_environment() -> bool {
-    return keep_descriptor_from_words(std::env::var(KEEP_DESCRIPTOR_VARIABLE).ok().as_deref());
+    // The value a control set, or nothing in every shipped build.
+    let word: Option<String> = crate::test_only_switches::text(KEEP_DESCRIPTOR_VARIABLE);
+    return keep_descriptor_from_words(word.as_deref());
 }
 
 /// Controls stay out of the release executable.

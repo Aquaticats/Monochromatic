@@ -25,6 +25,14 @@
 // ```ts
 // // TS has one type for this: string
 // ```
+/// Imports the exclusive rename the stand-in is taken with.
+use rustix::fs::{
+    CWD,
+    RenameFlags,
+    renameat_with,
+};
+/// Imports the error code of a name that exists or a path that does not.
+use rustix::io::Errno;
 /// What:
 /// `use std::ffi::OsString;` imports `OsString` from the standard library so this file can name it unqualified.
 /// Why:
@@ -47,10 +55,6 @@ use std::ffi::OsString;
 /// import { Write } from 'std/io';
 /// ```
 use std::io::Write;
-/// Imports the exclusive rename the stand-in is taken with.
-use rustix::fs::{CWD, RenameFlags, renameat_with};
-/// Imports the error code of a name that exists or a path that does not.
-use rustix::io::Errno;
 /// What:
 /// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
 /// Why:
@@ -63,6 +67,16 @@ use rustix::io::Errno;
 /// ```
 use std::path::Path;
 
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `check_direct`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
 /// What:
 /// `use crate::commands::{print_findings, print_install_report, print_update_report};` imports `print_findings`,
 /// `print_install_report`,
@@ -77,7 +91,11 @@ use std::path::Path;
 /// ```ts
 /// import { print_findings, print_install_report, print_update_report } from 'crate/commands';
 /// ```
-use crate::commands::{print_findings, print_install_report, print_update_report};
+use crate::commands::{
+    print_findings,
+    print_install_report,
+    print_update_report,
+};
 /// What:
 /// `use crate::constants::{CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE, LOCKFILE_NAME};` imports `CATALOG_MARKER`,
 /// `INSTALL_FAILED_EXIT_CODE`,
@@ -94,7 +112,21 @@ use crate::commands::{print_findings, print_install_report, print_update_report}
 /// ```ts
 /// import { CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE, LOCKFILE_NAME } from 'crate/constants';
 /// ```
-use crate::constants::{CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE, LOCKFILE_NAME};
+use crate::constants::{
+    CATALOG_MARKER,
+    INSTALL_FAILED_EXIT_CODE,
+    LOCKFILE_NAME,
+};
+/// What:
+/// `use crate::crates::LockSnapshot;` imports `LockSnapshot` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `LockSnapshot` is used by `check_direct`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockSnapshot } from 'crate/crates';
+/// ```
+use crate::crates::LockSnapshot;
 /// What:
 /// `use crate::crates::read_locks;` imports `read_locks` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -118,7 +150,11 @@ use crate::crates::read_locks;
 /// ```ts
 /// import { InstallReport, InstallRequest, install_rust_lockfiles } from 'crate/install';
 /// ```
-use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles};
+use crate::install::{
+    InstallReport,
+    InstallRequest,
+    install_rust_lockfiles,
+};
 /// What:
 /// `use crate::lockfile::direct_dependency_names;` imports `direct_dependency_names` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -145,7 +181,11 @@ use crate::lockfile::direct_dependency_names;
 /// ```ts
 /// import { Prepared, now_millis, prepare } from 'crate/shadow_step';
 /// ```
-use crate::shadow_step::{Prepared, now_millis, prepare};
+use crate::shadow_step::{
+    Prepared,
+    now_millis,
+    prepare,
+};
 /// What:
 /// `use crate::tighten::FileEnforcer;` imports `FileEnforcer` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -173,7 +213,12 @@ use crate::tighten::FileEnforcer;
 /// ```ts
 /// import { UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles } from 'crate/update';
 /// ```
-use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};
+use crate::update::{
+    UpdateKind,
+    UpdateReport,
+    UpdateRequest,
+    update_rust_lockfiles,
+};
 /// What:
 /// `use crate::update_plan::{UpdatePlan, plan_update};` imports `UpdatePlan`,
 /// `plan_update` from another module of this crate so this file can name them unqualified.
@@ -185,27 +230,10 @@ use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfil
 /// ```ts
 /// import { UpdatePlan, plan_update } from 'crate/update_plan';
 /// ```
-use crate::update_plan::{UpdatePlan, plan_update};
-/// What:
-/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `text_of` is used by `check_direct`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { text_of } from 'crate/adapt';
-/// ```
-use crate::adapt::text_of;
-/// What:
-/// `use crate::crates::LockSnapshot;` imports `LockSnapshot` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `LockSnapshot` is used by `check_direct`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { LockSnapshot } from 'crate/crates';
-/// ```
-use crate::crates::LockSnapshot;
+use crate::update_plan::{
+    UpdatePlan,
+    plan_update,
+};
 
 /// The lockfile text that stands in for a missing lockfile while a full update creates it.
 const EMPTY_LOCK: &str = "version = 4\n";
@@ -354,10 +382,15 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
     let mut sink = std::io::stderr();
     // `match`: picks the arm whose pattern fits the value.
     match planned.plan {
-        UpdatePlan::FrozenCheck | UpdatePlan::Install { .. } if lock_exists => {
+        UpdatePlan::FrozenCheck
+        | UpdatePlan::Install {
+            ..
+        } if lock_exists => {
             // `match`: picks the arm whose pattern fits the value.
             let (frozen, dry_run) = match planned.plan {
-                UpdatePlan::Install { dry_run } => (prepared.frozen && !dry_run, dry_run),
+                UpdatePlan::Install {
+                    dry_run,
+                } => (prepared.frozen && !dry_run, dry_run),
                 _ => (true, false),
             };
             // `match`: picks the arm whose pattern fits the value.
@@ -384,7 +417,12 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
             // Borrow `&mut sink`: lends the value without copying or giving it away.
             return Some(report_install(outcome, dry_run, &mut sink));
         }
-        UpdatePlan::Targeted { dry_run, cargo_args, names, precise } => {
+        UpdatePlan::Targeted {
+            dry_run,
+            cargo_args,
+            names,
+            precise,
+        } => {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Borrow `&crate_dir`: lends the value without copying or giving it away.
             if precise && let Err(message) = check_direct(root, &crate_dir, &names) {
@@ -395,16 +433,41 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
             }
             // `Some`: the present or the absent value of an `Option`.
             // Borrow `&prepared`: lends the value without copying or giving it away.
-            return Some(run_update(&prepared, &crate_dirs, dry_run, &UpdateKind::Targeted { cargo_args: &cargo_args }, &planned.forward, &mut sink));
+            return Some(run_update(
+                &prepared,
+                &crate_dirs,
+                dry_run,
+                &UpdateKind::Targeted {
+                    cargo_args: &cargo_args,
+                },
+                &planned.forward,
+                &mut sink,
+            ));
         }
-        UpdatePlan::Full { dry_run } => {
+        UpdatePlan::Full {
+            dry_run,
+        } => {
             // `Some`: the present or the absent value of an `Option`.
             // Borrow `&prepared`: lends the value without copying or giving it away.
-            return Some(run_full_update(&prepared, &crate_dirs, dry_run, &planned.forward, &mut sink));
+            return Some(run_full_update(
+                &prepared,
+                &crate_dirs,
+                dry_run,
+                &planned.forward,
+                &mut sink,
+            ));
         }
-        UpdatePlan::Install { dry_run } => {
+        UpdatePlan::Install {
+            dry_run,
+        } => {
             // A missing lockfile: pnpm install --lockfile-only creates it, and here the full update does, under the policy.
-            return Some(run_full_update(&prepared, &crate_dirs, dry_run, &planned.forward, &mut sink));
+            return Some(run_full_update(
+                &prepared,
+                &crate_dirs,
+                dry_run,
+                &planned.forward,
+                &mut sink,
+            ));
         }
         UpdatePlan::FrozenCheck => {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.
@@ -427,7 +490,11 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
 /// ```ts
 /// function checkDirect(root: string, crateDir: string, names: string[]): void  // throws
 /// ```
-fn check_direct(root: &Path, crate_dir: &str, names: &[String]) -> Result<(), String> {
+fn check_direct(
+    root: &Path,
+    crate_dir: &str,
+    names: &[String],
+) -> Result<(), String> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
     // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
@@ -469,7 +536,12 @@ fn check_direct(root: &Path, crate_dir: &str, names: &[String]) -> Result<(), St
     // ```ts
     // list.map(f).filter(g)
     // ```
-    let direct = direct_dependency_names(snapshots.first().map(LockSnapshot::source_str).unwrap_or(""))?;
+    let direct = direct_dependency_names(
+        snapshots
+            .first()
+            .map(LockSnapshot::source_str)
+            .unwrap_or(""),
+    )?;
     for name in names {
         if !direct.contains(name) {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
@@ -494,7 +566,11 @@ fn check_direct(root: &Path, crate_dir: &str, names: &[String]) -> Result<(), St
 /// ```ts
 /// function reportInstall(outcome, dryRun: boolean, sink: Writable): number
 /// ```
-fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, dry_run: bool, sink: &mut dyn Write) -> i32 {
+fn report_install(
+    outcome: Result<InstallReport, crate::install::InstallError>,
+    dry_run: bool,
+    sink: &mut dyn Write,
+) -> i32 {
     // `match`: picks the arm whose pattern fits the value.
     return match outcome {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -505,7 +581,10 @@ fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, 
                 0
             } else {
                 // Borrow `&report.problems`: lends the value without copying or giving it away.
-                print_findings("Install refused; no Cargo.lock was left changed", &report.problems);
+                print_findings(
+                    "Install refused; no Cargo.lock was left changed",
+                    &report.problems,
+                );
                 INSTALL_FAILED_EXIT_CODE
             }
         }
@@ -528,10 +607,30 @@ fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, 
 /// ```ts
 /// function runFullUpdate(args): number
 /// ```
-fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, forward: &[String], sink: &mut dyn Write) -> i32 {
-    let lock_path = prepared.catalog_root.join(&crate_dirs[0]).join(LOCKFILE_NAME);
+fn run_full_update(
+    prepared: &Prepared,
+    crate_dirs: &[String],
+    dry_run: bool,
+    forward: &[String],
+    sink: &mut dyn Write,
+) -> i32 {
+    let lock_path = prepared
+        .catalog_root
+        .join(&crate_dirs[0])
+        .join(LOCKFILE_NAME);
     // Borrow `&lock_path`: lends the value without copying or giving it away.
-    return run_with_placeholder_lock(&lock_path, &prepared.catalog_root.join(crate::journal::QUARANTINE_DIR), dry_run, &mut FullUpdate { prepared, crate_dirs, dry_run, forward, sink });
+    return run_with_placeholder_lock(
+        &lock_path,
+        &prepared.catalog_root.join(crate::journal::QUARANTINE_DIR),
+        dry_run,
+        &mut FullUpdate {
+            prepared,
+            crate_dirs,
+            dry_run,
+            forward,
+            sink,
+        },
+    );
 }
 
 /// What:
@@ -596,7 +695,14 @@ impl PlaceholderBody for FullUpdate<'_> {
     /// Why:
     /// The exit status is the update's.
     fn run(&mut self) -> i32 {
-        return run_update(self.prepared, self.crate_dirs, self.dry_run, &UpdateKind::Full, self.forward, self.sink);
+        return run_update(
+            self.prepared,
+            self.crate_dirs,
+            self.dry_run,
+            &UpdateKind::Full,
+            self.forward,
+            self.sink,
+        );
     }
 }
 
@@ -620,7 +726,12 @@ impl PlaceholderBody for FullUpdate<'_> {
 /// ```ts
 /// export function runWithPlaceholderLock(lockPath: string, dryRun: boolean, body: () => number): number
 /// ```
-pub fn run_with_placeholder_lock(lock_path: &Path, keep_dir: &Path, dry_run: bool, body: &mut dyn PlaceholderBody) -> i32 {
+pub fn run_with_placeholder_lock(
+    lock_path: &Path,
+    keep_dir: &Path,
+    dry_run: bool,
+    body: &mut dyn PlaceholderBody,
+) -> i32 {
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
     // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
     //
@@ -628,7 +739,13 @@ pub fn run_with_placeholder_lock(lock_path: &Path, keep_dir: &Path, dry_run: boo
     // ```ts
     // (a, b) => body
     // ```
-    return run_with_placeholder_lock_hooked(lock_path, keep_dir, dry_run, body, &crate::journal_replace::no_hook);
+    return run_with_placeholder_lock_hooked(
+        lock_path,
+        keep_dir,
+        dry_run,
+        body,
+        &crate::journal_replace::no_hook,
+    );
 }
 
 /// What:
@@ -651,7 +768,10 @@ pub fn run_with_placeholder_lock(lock_path: &Path, keep_dir: &Path, dry_run: boo
 /// ```ts
 /// function removePlaceholder(lockPath: string, keepDir: string): void  // rename (no replace), read, keep, then unlink the taken name
 /// ```
-fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
+fn remove_placeholder(
+    lock_path: &Path,
+    keep_dir: &Path,
+) {
     // `None`: the present or the absent value of an `Option`.
     // `let mut`: a binding that may change.
     // Typed binding: `taken: Option<std::path::PathBuf>`.
@@ -687,7 +807,10 @@ fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(code) => {
                 // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                eprintln!("cargo-shadow: warning: the stand-in {} could not be taken for removal: {code}", lock_path.display());
+                eprintln!(
+                    "cargo-shadow: warning: the stand-in {} could not be taken for removal: {code}",
+                    lock_path.display()
+                );
                 return;
             }
         }
@@ -702,20 +825,33 @@ fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
     // ```
     let Some(taken) = taken_name else {
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
-        eprintln!("cargo-shadow: warning: no free name to take the stand-in {} under; it was left in place", lock_path.display());
+        eprintln!(
+            "cargo-shadow: warning: no free name to take the stand-in {} under; it was left in place",
+            lock_path.display()
+        );
         return;
     };
     let is_placeholder: bool = match crate::file_owner::observe(&taken) {
         Ok(Some(seen)) => seen.text == EMPTY_LOCK,
         Ok(None) => return,
         Err(error) => {
-            eprintln!("cargo-shadow: warning: {} could not be read, so it is kept: {error}", taken.display());
+            eprintln!(
+                "cargo-shadow: warning: {} could not be read, so it is kept: {error}",
+                taken.display()
+            );
             false
         }
     };
     // One rule for both branches (review finding 4c F3): the taken inode gets a surviving name in the kept directory before its
     // taken name is removed; linking it back to the live path is not a preservation name, because the path is writable by others.
-    let keep: crate::journal::KeepAs = crate::journal::KeepAs::in_directory(keep_dir, if is_placeholder { ".placeholder" } else { ".lockfile" });
+    let keep: crate::journal::KeepAs = crate::journal::KeepAs::in_directory(
+        keep_dir,
+        if is_placeholder {
+            ".placeholder"
+        } else {
+            ".lockfile"
+        },
+    );
     // `match`: picks the arm whose pattern fits the value.
     // Borrow `&taken`: lends the value without copying or giving it away.
     let kept = match crate::journal_replace::keep_name(&taken, lock_path, &keep) {
@@ -724,7 +860,11 @@ fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) => {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.
-            eprintln!("cargo-shadow: warning: the lockfile taken from {} is kept as {} because it could not be given a kept name ({error})", lock_path.display(), taken.display());
+            eprintln!(
+                "cargo-shadow: warning: the lockfile taken from {} is kept as {} because it could not be given a kept name ({error})",
+                lock_path.display(),
+                taken.display()
+            );
             if !is_placeholder {
                 // Borrow `&taken`: lends the value without copying or giving it away.
                 // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
@@ -743,14 +883,21 @@ fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
     // Borrow `&taken`: lends the value without copying or giving it away.
     if !is_placeholder && let Err(error) = std::fs::hard_link(&taken, lock_path) {
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
-        eprintln!("cargo-shadow: warning: a lockfile written during the run is kept as {} ({error})", kept.display());
+        eprintln!(
+            "cargo-shadow: warning: a lockfile written during the run is kept as {} ({error})",
+            kept.display()
+        );
     }
     // `Err(...)`: builds the success or the failure variant of a `Result`.
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     // Borrow `&taken`: lends the value without copying or giving it away.
     if let Err(error) = std::fs::remove_file(&taken) {
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
-        eprintln!("cargo-shadow: warning: {} could not be removed after it was kept as {}: {error}", taken.display(), kept.display());
+        eprintln!(
+            "cargo-shadow: warning: {} could not be removed after it was kept as {}: {error}",
+            taken.display(),
+            kept.display()
+        );
     }
 }
 
@@ -774,10 +921,20 @@ const MAX_TAKEN_NAMES: u32 = 100;
 /// ```ts
 /// export function runWithPlaceholderLockHooked(lockPath: string, dryRun: boolean, body: () => number, beforeCleanup: (path: string) => void): number
 /// ```
-pub fn run_with_placeholder_lock_hooked(lock_path: &Path, keep_dir: &Path, dry_run: bool, body: &mut dyn PlaceholderBody, before_cleanup: &dyn Fn(&Path)) -> i32 {
+pub fn run_with_placeholder_lock_hooked(
+    lock_path: &Path,
+    keep_dir: &Path,
+    dry_run: bool,
+    body: &mut dyn PlaceholderBody,
+    before_cleanup: &dyn Fn(&Path),
+) -> i32 {
     // `create_new(true)` fails with `AlreadyExists` instead of truncating (the exclusive-create flag `wx` of Node), so the
     // check and the creation are one step another writer cannot slip into.
-    let created_placeholder: bool = match std::fs::OpenOptions::new().write(true).create_new(true).open(lock_path) {
+    let created_placeholder: bool = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(lock_path)
+    {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(mut file) => file.write_all(EMPTY_LOCK.as_bytes()).is_ok(),
         // `Err(...)`: builds the success or the failure variant of a `Result`.
@@ -808,7 +965,14 @@ pub fn run_with_placeholder_lock_hooked(lock_path: &Path, keep_dir: &Path, dry_r
 /// ```ts
 /// function runUpdate(args): number
 /// ```
-fn run_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, kind: &UpdateKind, forward: &[String], sink: &mut dyn Write) -> i32 {
+fn run_update(
+    prepared: &Prepared,
+    crate_dirs: &[String],
+    dry_run: bool,
+    kind: &UpdateKind,
+    forward: &[String],
+    sink: &mut dyn Write,
+) -> i32 {
     let catalog_path = prepared.catalog_root.join(CATALOG_MARKER);
     let outcome = update_rust_lockfiles(
         // Borrow `&UpdateRequest`: lends the value without copying or giving it away.
@@ -846,7 +1010,10 @@ fn run_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, kind: &
                 0
             } else {
                 // Borrow `&finished.problems`: lends the value without copying or giving it away.
-                print_findings("Update refused; every Cargo.lock was restored", &finished.problems);
+                print_findings(
+                    "Update refused; every Cargo.lock was restored",
+                    &finished.problems,
+                );
                 INSTALL_FAILED_EXIT_CODE
             }
         }

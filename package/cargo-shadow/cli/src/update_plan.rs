@@ -100,7 +100,11 @@ use std::ffi::OsString;
 /// ```ts
 /// import { find_verb, words_before_double_dash } from 'crate/verb';
 /// ```
-use crate::verb::{find_verb, words_before_double_dash, find_verb_position};
+use crate::verb::{
+    find_verb,
+    find_verb_position,
+    words_before_double_dash,
+};
 
 /// What the command line stands for.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -147,13 +151,30 @@ pub struct Planned {
 }
 
 /// Options of `cargo update` that take the next word as their value.
-const VALUE_OPTIONS: [&str; 9] = ["--precise", "-m", "--manifest-path", "--color", "--config", "-Z", "-p", "--package", "-C"];
+const VALUE_OPTIONS: [&str; 9] = [
+    "--precise",
+    "-m",
+    "--manifest-path",
+    "--color",
+    "--config",
+    "-Z",
+    "-p",
+    "--package",
+    "-C",
+];
 
 /// Value options that are forwarded to every cargo call together with their value.
 const FORWARDED_VALUE_OPTIONS: [&str; 3] = ["--color", "--config", "-Z"];
 
 /// Flags that are forwarded to every cargo call.
-const FORWARDED_FLAGS: [&str; 6] = ["--offline", "--ignore-rust-version", "-q", "--quiet", "-v", "--verbose"];
+const FORWARDED_FLAGS: [&str; 6] = [
+    "--offline",
+    "--ignore-rust-version",
+    "-q",
+    "--quiet",
+    "-v",
+    "--verbose",
+];
 
 /// What:
 /// `pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String>` maps a `cargo update` or
@@ -201,7 +222,9 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
         if takes_value && index + 1 >= words.len() {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("`{word}` needs a value and none was given, so the command was not run"));
+            return Err(format!(
+                "`{word}` needs a value and none was given, so the command was not run"
+            ));
         }
         // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
@@ -227,12 +250,18 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
         // ```ts
         // // TS has one type for this: string
         // ```
-        let value: String = if takes_value { words[index + 1].clone() } else { String::new() };
+        let value: String = if takes_value {
+            words[index + 1].clone()
+        } else {
+            String::new()
+        };
         // Review finding (3c 9): an attached value that is empty (`--manifest-path=`, `-m=`, `--precise=`) is a missing value too.
         if matches!(word, "--manifest-path=" | "-m=" | "--precise=") {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("`{word}` needs a value and none was given, so the command was not run"));
+            return Err(format!(
+                "`{word}` needs a value and none was given, so the command was not run"
+            ));
         }
         if word == "-n" || word == "--dry-run" {
             dry_run = true;
@@ -246,13 +275,23 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
         } else if let Some(attached) = word.strip_prefix("--precise=") {
             precise = true;
             cargo_args.push(format!("--precise={attached}"));
-        } else if word == "-m" || word == "--manifest-path" || word.starts_with("--manifest-path=") || word == "-C" || (word.starts_with("-m") && word.len() > 2) {
+        } else if word == "-m"
+            || word == "--manifest-path"
+            || word.starts_with("--manifest-path=")
+            || word == "-C"
+            || (word.starts_with("-m") && word.len() > 2)
+        {
             // The workspace these select is found before the plan runs (`options.rs`, `shadow_step.rs`), and each cargo call
             // runs inside it, so the option itself is dropped.
         } else if FORWARDED_VALUE_OPTIONS.contains(&word) {
             forward.extend([word.to_string(), value.clone()]);
         // Borrow `&word`: lends the value without copying or giving it away.
-        } else if FORWARDED_FLAGS.contains(&word) || word == "-vv" || word.starts_with("--color=") || word.starts_with("--config=") || (word.starts_with("-Z") && word.len() > 2) {
+        } else if FORWARDED_FLAGS.contains(&word)
+            || word == "-vv"
+            || word.starts_with("--color=")
+            || word.starts_with("--config=")
+            || (word.starts_with("-Z") && word.len() > 2)
+        {
             forward.push(word.to_string());
         } else if word == "-p" || word == "--package" {
             // Borrow `&value`: lends the value without copying or giving it away.
@@ -310,13 +349,25 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
     let plan: UpdatePlan = if frozen {
         UpdatePlan::FrozenCheck
     } else if verb == "generate-lockfile" || (workspace && names.is_empty()) {
-        UpdatePlan::Install { dry_run }
+        UpdatePlan::Install {
+            dry_run,
+        }
     } else if !names.is_empty() || precise || breaking {
-        UpdatePlan::Targeted { dry_run, cargo_args, names, precise }
+        UpdatePlan::Targeted {
+            dry_run,
+            cargo_args,
+            names,
+            precise,
+        }
     } else {
-        UpdatePlan::Full { dry_run }
+        UpdatePlan::Full {
+            dry_run,
+        }
     };
-    return Ok(Planned { plan, forward });
+    return Ok(Planned {
+        plan,
+        forward,
+    });
 }
 
 /// What:

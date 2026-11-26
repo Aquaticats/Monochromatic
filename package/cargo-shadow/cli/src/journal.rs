@@ -68,7 +68,10 @@ use std::fs;
 /// ```ts
 /// // errors are thrown in Node
 /// ```
-use std::io::{self, Write};
+use std::io::{
+    self,
+    Write,
+};
 /// What:
 /// `use std::os::unix::ffi::{OsStrExt, OsStringExt};` imports the traits that turn an operating-system string into bytes and back.
 /// Why:
@@ -89,8 +92,21 @@ use std::os::unix::ffi::OsStringExt;
 /// ```ts
 /// // TS has one type for this: string
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
+/// Re-exports the recovery entry points,
+/// which live in `journal_recover.rs`.
+pub use crate::journal_recover::{
+    Judge,
+    RecoveryReport,
+    recover,
+    recover_report,
+    recover_report_with,
+    recover_with,
+};
 /// What:
 /// `pub use crate::journal_replace::{...};` imports and re-exports the replacement protocol,
 /// so callers keep writing `crate::journal::replace_if_holds`.
@@ -102,13 +118,28 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// export { KeepAs, ReplaceOutcome, replaceIfHolds } from './journal-replace.ts';
 /// ```
-pub use crate::journal_replace::{create_directories_synced, create_directories_with, create_exclusive, unique_suffix, KeepAs, ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks, replace_keeping, replace_keeping_with_hook, replace_with_swap, sync_directory};
-/// Re-exports the recovery entry points,
-/// which live in `journal_recover.rs`.
-pub use crate::journal_recover::{Judge, RecoveryReport, recover, recover_report, recover_report_with, recover_with};
+pub use crate::journal_replace::{
+    KeepAs,
+    ReplaceOutcome,
+    create_directories_synced,
+    create_directories_with,
+    create_exclusive,
+    file_name_text,
+    no_hook,
+    replace_if_holds,
+    replace_if_holds_with_hooks,
+    replace_keeping,
+    replace_keeping_with_hook,
+    replace_with_swap,
+    sync_directory,
+    unique_suffix,
+};
 /// Re-exports the transaction handle,
 /// which lives in `journal_transaction.rs`.
-pub use crate::journal_transaction::{Transaction, begin};
+pub use crate::journal_transaction::{
+    Transaction,
+    begin,
+};
 
 /// What:
 /// `use crate::constants::LOCKFILE_NAME;` imports the lockfile's file name.
@@ -140,7 +171,13 @@ use crate::crates::LockSnapshot;
 /// ```ts
 /// import { Claim, Window, claimOutput, observe, timed } from 'crate/file_owner';
 /// ```
-use crate::file_owner::{Claim, Window, claim_output, observe, timed};
+use crate::file_owner::{
+    Claim,
+    Window,
+    claim_output,
+    observe,
+    timed,
+};
 
 /// Where journals live,
 /// relative to the repository root.
@@ -227,7 +264,10 @@ pub(crate) const MANIFEST_INDEX_FILE: &str = "manifests.txt";
 /// ```ts
 /// function writeSynced(path: string, text: string): void  // openSync, writeSync, fsyncSync
 /// ```
-pub(crate) fn write_synced(path: &Path, text: &str) -> io::Result<()> {
+pub(crate) fn write_synced(
+    path: &Path,
+    text: &str,
+) -> io::Result<()> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
@@ -237,7 +277,10 @@ pub(crate) fn write_synced(path: &Path, text: &str) -> io::Result<()> {
     // let x = ...;   // plain Rust `let` is TS `const`
     // ```
     // Typed binding: `file: fs::File`.
-    let mut file: fs::File = fs::OpenOptions::new().write(true).create_new(true).open(path)?;
+    let mut file: fs::File = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     file.write_all(text.as_bytes())?;
     return file.sync_all();
@@ -264,7 +307,9 @@ thread_local! {
 /// ```
 #[cfg(test)]
 pub(crate) fn before_publish_for_test(hook: Option<std::rc::Rc<dyn Fn()>>) {
-    BEFORE_PUBLISH.with(|slot| { *slot.borrow_mut() = hook; });
+    BEFORE_PUBLISH.with(|slot| {
+        *slot.borrow_mut() = hook;
+    });
 }
 
 /// What:
@@ -279,7 +324,10 @@ pub(crate) fn before_publish_for_test(hook: Option<std::rc::Rc<dyn Fn()>>) {
 /// ```ts
 /// export function atomicWrite(target: string, text: string): void
 /// ```
-pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
+pub fn atomic_write(
+    target: &Path,
+    text: &str,
+) -> io::Result<()> {
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `directory: PathBuf`.
     // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
@@ -305,7 +353,13 @@ pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    let (temp, _device, _inode): (PathBuf, u64, u64) = create_exclusive(&directory, &file_name_text(target), text, 0o644, &mut unique_suffix)?;
+    let (temp, _device, _inode): (PathBuf, u64, u64) = create_exclusive(
+        &directory,
+        &file_name_text(target),
+        text,
+        0o644,
+        &mut unique_suffix,
+    )?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&temp`: lends the value without copying or giving it away.
     // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
@@ -325,7 +379,9 @@ pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
     // ```
     // Borrow `&temp`: lends the value without copying or giving it away.
     #[cfg(test)]
-    if let Some(hook) = BEFORE_PUBLISH.with(|slot| { return slot.borrow().clone(); }) {
+    if let Some(hook) = BEFORE_PUBLISH.with(|slot| {
+        return slot.borrow().clone();
+    }) {
         hook();
     }
     if let Err(error) = fs::rename(&temp, target) {
@@ -346,7 +402,10 @@ pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
 /// ```ts
 /// const snapshotOf = (snapshots: LockSnapshot[], crateDir: string) => snapshots.find((s) => s.crateDir === crateDir);
 /// ```
-fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a LockSnapshot> {
+fn snapshot_of<'a>(
+    snapshots: &'a [LockSnapshot],
+    crate_dir: &str,
+) -> Option<&'a LockSnapshot> {
     for candidate in snapshots {
         if candidate.crate_dir == crate_dir {
             return Some(candidate);
@@ -370,7 +429,11 @@ fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a
 /// ```ts
 /// export function restoreIfUnchanged(root: string, snapshots: LockSnapshot[], produced: LockSnapshot[]): string[]
 /// ```
-pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot]) -> (Vec<String>, Option<io::Error>) {
+pub fn restore_if_unchanged(
+    root: &Path,
+    snapshots: &[LockSnapshot],
+    produced: &[LockSnapshot],
+) -> (Vec<String>, Option<io::Error>) {
     return restore_if_unchanged_with(root, snapshots, produced, &no_hook);
 }
 
@@ -386,10 +449,18 @@ pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &
 /// ```ts
 /// export function restoreIfUnchangedWith(root: string, snapshots: LockSnapshot[], produced: LockSnapshot[], between: Hook): [string[], Error | undefined]
 /// ```
-pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot], between: &dyn Fn(&Path)) -> (Vec<String>, Option<io::Error>) {
+pub fn restore_if_unchanged_with(
+    root: &Path,
+    snapshots: &[LockSnapshot],
+    produced: &[LockSnapshot],
+    between: &dyn Fn(&Path),
+) -> (Vec<String>, Option<io::Error>) {
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::Restore) {
-        return (Vec::new(), Some(io::Error::other("injected restore failure")));
+        return (
+            Vec::new(),
+            Some(io::Error::other("injected restore failure")),
+        );
     }
     let mut warnings: Vec<String> = Vec::new();
     let mut first_failure: Option<io::Error> = None;
@@ -397,7 +468,10 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
     // path is reported (round 6, 5b 2).
     for snapshot in snapshots {
         if let Err(error) = restore_one(root, snapshot, produced, between, &mut warnings) {
-            warnings.push(format!("{}/{LOCKFILE_NAME} could not be restored: {error}", snapshot.crate_dir));
+            warnings.push(format!(
+                "{}/{LOCKFILE_NAME} could not be restored: {error}",
+                snapshot.crate_dir
+            ));
             first_failure.get_or_insert(error);
         }
     }
@@ -413,52 +487,64 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
 /// ```ts
 /// function restoreOne(root: string, snapshot: LockSnapshot, produced: LockSnapshot[], between: Hook, warnings: string[]): void
 /// ```
-fn restore_one(root: &Path, snapshot: &LockSnapshot, produced: &[LockSnapshot], between: &dyn Fn(&Path), warnings: &mut Vec<String>) -> io::Result<()> {
-        let path: PathBuf = root.join(&snapshot.crate_dir).join(LOCKFILE_NAME);
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // `match`: picks the arm whose pattern fits the value.
-        // Borrow `&path`: lends the value without copying or giving it away.
-        // Typed binding: `live: String`.
-        let live: String = match observe(&path)? {
-            // `Some`: the present or the absent value of an `Option`.
-            Some(found) => found.text,
-            // `None`: the present or the absent value of an `Option`.
-            None => {
-                // Macro `format!`: builds or prints text (or a list) from a template.
-                warnings.push(format!("{}/{LOCKFILE_NAME} is missing; it was not restored", snapshot.crate_dir));
-                return Ok(());
-            }
-        };
-        if live == snapshot.source {
+fn restore_one(
+    root: &Path,
+    snapshot: &LockSnapshot,
+    produced: &[LockSnapshot],
+    between: &dyn Fn(&Path),
+    warnings: &mut Vec<String>,
+) -> io::Result<()> {
+    let path: PathBuf = root.join(&snapshot.crate_dir).join(LOCKFILE_NAME);
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&path`: lends the value without copying or giving it away.
+    // Typed binding: `live: String`.
+    let live: String = match observe(&path)? {
+        // `Some`: the present or the absent value of an `Option`.
+        Some(found) => found.text,
+        // `None`: the present or the absent value of an `Option`.
+        None => {
+            // Macro `format!`: builds or prints text (or a list) from a template.
+            warnings.push(format!(
+                "{}/{LOCKFILE_NAME} is missing; it was not restored",
+                snapshot.crate_dir
+            ));
             return Ok(());
         }
-        // `match`: picks the arm whose pattern fits the value.
-        // Borrow `&snapshot.crate_dir`: lends the value without copying or giving it away.
-        match snapshot_of(produced, &snapshot.crate_dir) {
-            Some(found) if found.source == live => {}
-            Some(_) => {
-                warnings.push(format!(
+    };
+    if live == snapshot.source {
+        return Ok(());
+    }
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&snapshot.crate_dir`: lends the value without copying or giving it away.
+    match snapshot_of(produced, &snapshot.crate_dir) {
+        Some(found) if found.source == live => {}
+        Some(_) => {
+            warnings.push(format!(
                     "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
                     snapshot.crate_dir
                 ));
-                return Ok(());
-            }
-            None => {
-                warnings.push(format!(
+            return Ok(());
+        }
+        None => {
+            warnings.push(format!(
                     "{}/{LOCKFILE_NAME} differs from the snapshot, but this run did not write it, so another process did; it was left as it is, not restored",
                     snapshot.crate_dir
                 ));
-                return Ok(());
-            }
+            return Ok(());
         }
-        // Borrow `&root.join`: lends the value without copying or giving it away.
-        // Typed binding: `keep: KeepAs`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        let keep: KeepAs = KeepAs::in_directory(&root.join(QUARANTINE_DIR), &format!(".{}.displaced", snapshot.crate_dir.replace('/', "__")));
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // `match`: picks the arm whose pattern fits the value.
-        // Borrow `&path`: lends the value without copying or giving it away.
-        match replace_keeping_with_hook(&path, &live, &snapshot.source, &keep, between)? {
+    }
+    // Borrow `&root.join`: lends the value without copying or giving it away.
+    // Typed binding: `keep: KeepAs`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
+    let keep: KeepAs = KeepAs::in_directory(
+        &root.join(QUARANTINE_DIR),
+        &format!(".{}.displaced", snapshot.crate_dir.replace('/', "__")),
+    );
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&path`: lends the value without copying or giving it away.
+    match replace_keeping_with_hook(&path, &live, &snapshot.source, &keep, between)? {
             ReplaceOutcome::Replaced(_) => {}
             ReplaceOutcome::LeftAlone => warnings.push(format!(
                 "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
@@ -495,7 +581,12 @@ fn restore_one(root: &Path, snapshot: &LockSnapshot, produced: &[LockSnapshot], 
 /// ```ts
 /// export function runRecording<T>(root, crateDir, produced, run: () => T): [T, Claim]
 /// ```
-pub fn run_recording<T>(root: &Path, crate_dir: &str, produced: &RefCell<Vec<LockSnapshot>>, run: impl crate::file_owner::RecordedWork<T>) -> io::Result<(T, Claim)> {
+pub fn run_recording<T>(
+    root: &Path,
+    crate_dir: &str,
+    produced: &RefCell<Vec<LockSnapshot>>,
+    run: impl crate::file_owner::RecordedWork<T>,
+) -> io::Result<(T, Claim)> {
     // Typed binding: `path: PathBuf`.
     let path: PathBuf = root.join(crate_dir).join(LOCKFILE_NAME);
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -556,7 +647,10 @@ pub fn run_recording<T>(root: &Path, crate_dir: &str, produced: &RefCell<Vec<Loc
         // ```ts
         // String(value)  // JS strings are always owned values
         // ```
-        list.push(LockSnapshot { crate_dir: crate_dir.to_string(), source: text.clone() });
+        list.push(LockSnapshot {
+            crate_dir: crate_dir.to_string(),
+            source: text.clone(),
+        });
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok((result, claim));
@@ -624,7 +718,9 @@ pub fn make_durable(path: &Path) -> io::Result<()> {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         Ok(file) => {
             #[cfg(test)]
-            if crate::failpoints::fires(crate::failpoints::Point::OutputFileSync) || crate::failpoints::output_file_sync_of(path) {
+            if crate::failpoints::fires(crate::failpoints::Point::OutputFileSync)
+                || crate::failpoints::output_file_sync_of(path)
+            {
                 return Err(io::Error::other("injected failure to sync an output file"));
             }
             file.sync_all()?;
@@ -639,8 +735,12 @@ pub fn make_durable(path: &Path) -> io::Result<()> {
         // `Some`: the present or the absent value of an `Option`.
         Some(parent) if !parent.as_os_str().is_empty() => {
             #[cfg(test)]
-            if crate::failpoints::fires(crate::failpoints::Point::OutputDirectorySync) || crate::failpoints::output_directory_sync_of(path) {
-                return Err(io::Error::other("injected failure to sync the directory of an output file"));
+            if crate::failpoints::fires(crate::failpoints::Point::OutputDirectorySync)
+                || crate::failpoints::output_directory_sync_of(path)
+            {
+                return Err(io::Error::other(
+                    "injected failure to sync the directory of an output file",
+                ));
             }
             sync_directory(parent)
         }
@@ -651,7 +751,14 @@ pub fn make_durable(path: &Path) -> io::Result<()> {
     // recovery sees the real output barrier succeed, and not a callback of its own (certification, third and fourth passes, A4, V5).
     #[cfg(test)]
     if directory_synced.is_ok() {
-        crate::bounded_run::trace_text(format!("durable {}", path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default()));
+        crate::bounded_run::trace_text(format!(
+            "durable {}",
+            path.file_name()
+                .map(|name| {
+                    return name.to_string_lossy().into_owned();
+                })
+                .unwrap_or_default()
+        ));
     }
     return directory_synced;
 }

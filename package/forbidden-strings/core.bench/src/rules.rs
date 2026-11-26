@@ -53,7 +53,7 @@ pub fn load_rules() -> Vec<(String, String)> {
             }
         }
     }
-    return pairs
+    return pairs;
 }
 
 /// Extracts the pattern body of a `/PATTERN/FLAGS` rule line.
@@ -93,5 +93,5 @@ fn extract_pattern(line: &str) -> Option<&str> {
         }
         i += 1;
     }
-    return None
+    return None;
 }

@@ -32,7 +32,10 @@
 /// ```ts
 /// import { Deserialize, Serialize } from "serde";
 /// ```
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// What:
 ///     Imports the node algebra the builder reads.
@@ -105,7 +108,12 @@ use crate::counting::nfa::CountingNfa;
 ///   step_into,
 /// } from "crate/counting/sim";
 /// ```
-use crate::counting::sim::{State, boundary_ctx, closure, step_into};
+use crate::counting::sim::{
+    State,
+    boundary_ctx,
+    closure,
+    step_into,
+};
 
 /// What:
 ///     Imports the error type for validating a decoded program.
@@ -195,8 +203,11 @@ impl ProductProgram {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn is_match(&self, line: &[u8]) -> bool {
-        return run_product(self, line)
+    pub fn is_match(
+        &self,
+        line: &[u8],
+    ) -> bool {
+        return run_product(self, line);
     }
 
     /// Checks that a decoded product program is safe to run on untrusted input.
@@ -222,7 +233,7 @@ impl ProductProgram {
         for operand in self.positives.iter().chain(&self.negatives) {
             operand.validate()?;
         }
-        return Ok(())
+        return Ok(());
     }
 }
 
@@ -267,7 +278,10 @@ pub fn build_product(node: &Node) -> Option<ProductProgram> {
     if positives.is_empty() {
         return None;
     }
-    return Some(ProductProgram { positives, negatives })
+    return Some(ProductProgram {
+        positives,
+        negatives,
+    });
 }
 
 /// The per-operand simulation states for one side of a thread at one instant.
@@ -383,7 +397,10 @@ struct Thread {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn run_product(prog: &ProductProgram, line: &[u8]) -> bool {
+fn run_product(
+    prog: &ProductProgram,
+    line: &[u8],
+) -> bool {
     let mut threads: Vec<Thread> = Vec::new();
     for i in 0..=line.len() {
         threads.push(new_thread(prog));
@@ -400,7 +417,7 @@ fn run_product(prog: &ProductProgram, line: &[u8]) -> bool {
         let b = line[i];
         keep_advancing_threads(prog, &mut threads, b);
     }
-    return false
+    return false;
 }
 
 /// Builds a thread seeded for a start at the current boundary.
@@ -430,7 +447,7 @@ fn new_thread(prog: &ProductProgram) -> Thread {
             positives: empty_states(&prog.positives),
             negatives: empty_states(&prog.negatives),
         },
-    }
+    };
 }
 
 /// The state of one operand with its start positions seeded.
@@ -457,7 +474,11 @@ fn any_thread_accepts(threads: &[Thread]) -> bool {
 
 /// Advances every thread by a byte and drops the ones that died,
 /// keeping the survivors in their order and allocating nothing.
-fn keep_advancing_threads(prog: &ProductProgram, threads: &mut Vec<Thread>, b: u8) {
+fn keep_advancing_threads(
+    prog: &ProductProgram,
+    threads: &mut Vec<Thread>,
+    b: u8,
+) {
     let mut kept: usize = 0;
     for index in 0..threads.len() {
         if advance_thread(prog, &mut threads[index], b) {
@@ -483,7 +504,7 @@ fn keep_advancing_threads(prog: &ProductProgram, threads: &mut Vec<Thread>, b: u
 /// }
 /// ```
 fn seeded_states(operands: &[CountingNfa]) -> Vec<State> {
-    return operands.iter().map(seeded_state).collect()
+    return operands.iter().map(seeded_state).collect();
 }
 
 /// Builds an empty state for each operand.
@@ -501,7 +522,7 @@ fn seeded_states(operands: &[CountingNfa]) -> Vec<State> {
 /// }
 /// ```
 fn empty_states(operands: &[CountingNfa]) -> Vec<State> {
-    return operands.iter().map(empty_state).collect()
+    return operands.iter().map(empty_state).collect();
 }
 
 /// Takes the zero-width closure of every operand in one side.
@@ -517,7 +538,11 @@ fn empty_states(operands: &[CountingNfa]) -> Vec<State> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn close_operands(prog: &ProductProgram, ops: &mut Operands, ctx: Ctx) {
+fn close_operands(
+    prog: &ProductProgram,
+    ops: &mut Operands,
+    ctx: Ctx,
+) {
     for (state, nfa) in ops.positives.iter_mut().zip(&prog.positives) {
         closure(&nfa.elements, &nfa.follow, state, ctx);
     }
@@ -542,7 +567,7 @@ fn close_operands(prog: &ProductProgram, ops: &mut Operands, ctx: Ctx) {
 /// }
 /// ```
 fn accepts(ops: &Operands) -> bool {
-    return ops.positives.iter().all(State::accepts) && !ops.negatives.iter().any(State::accepts)
+    return ops.positives.iter().all(State::accepts) && !ops.negatives.iter().any(State::accepts);
 }
 
 /// Advances one thread by a byte,
@@ -565,14 +590,28 @@ fn accepts(ops: &Operands) -> bool {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn advance_thread(prog: &ProductProgram, thread: &mut Thread, b: u8) -> bool {
-    step_states(&prog.positives, &thread.cur.positives, &mut thread.next.positives, b);
+fn advance_thread(
+    prog: &ProductProgram,
+    thread: &mut Thread,
+    b: u8,
+) -> bool {
+    step_states(
+        &prog.positives,
+        &thread.cur.positives,
+        &mut thread.next.positives,
+        b,
+    );
     if thread.next.positives.iter().any(State::is_dead) {
         return false;
     }
-    step_states(&prog.negatives, &thread.cur.negatives, &mut thread.next.negatives, b);
+    step_states(
+        &prog.negatives,
+        &thread.cur.negatives,
+        &mut thread.next.negatives,
+        b,
+    );
     std::mem::swap(&mut thread.cur, &mut thread.next);
-    return true
+    return true;
 }
 
 /// Steps every operand state of one side from `src` into `dst`.
@@ -590,7 +629,12 @@ fn advance_thread(prog: &ProductProgram, thread: &mut Thread, b: u8) -> bool {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn step_states(operands: &[CountingNfa], src: &[State], dst: &mut [State], b: u8) {
+fn step_states(
+    operands: &[CountingNfa],
+    src: &[State],
+    dst: &mut [State],
+    b: u8,
+) {
     for ((nfa, source), destination) in operands.iter().zip(src).zip(dst.iter_mut()) {
         step_into(&nfa.elements, &nfa.follow, source, b, destination);
     }

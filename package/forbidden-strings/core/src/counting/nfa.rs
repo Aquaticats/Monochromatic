@@ -25,7 +25,10 @@
 /// ```ts
 /// import { Deserialize, Serialize } from "serde";
 /// ```
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// What:
 ///     Imports the position kind and its decode-time check.
@@ -40,7 +43,10 @@ use serde::{Deserialize, Serialize};
 /// ```ts
 /// import { Element, validate_element } from "crate/counting/element";
 /// ```
-use crate::counting::element::{Element, validate_element};
+use crate::counting::element::{
+    Element,
+    validate_element,
+};
 
 /// What:
 ///     Imports the error type for validating a decoded NFA.
@@ -153,8 +159,11 @@ impl CountingNfa {
     /// let nfa = build_nfa(&parse("(?:(?:AKIA)|(?:ASIA))[A-Z2-7]{4}").unwrap()).unwrap();
     /// assert!(nfa.is_match(b"xxAKIAB2C7"));
     /// ```
-    pub fn is_match(&self, line: &[u8]) -> bool {
-        return crate::counting::run::run(self, line)
+    pub fn is_match(
+        &self,
+        line: &[u8],
+    ) -> bool {
+        return crate::counting::run::run(self, line);
     }
 
     /// Checks that a decoded NFA is safe to run against untrusted input.
@@ -198,7 +207,7 @@ impl CountingNfa {
                 });
             }
         }
-        return Ok(())
+        return Ok(());
     }
 }
 

@@ -67,8 +67,14 @@ impl Entry {
     /// ```
     pub fn package(&self) -> Option<&str> {
         return match self {
-            Entry::Registry { package, .. } => package.as_deref(),
-            Entry::Git { package, .. } => package.as_deref(),
+            Entry::Registry {
+                package,
+                ..
+            } => package.as_deref(),
+            Entry::Git {
+                package,
+                ..
+            } => package.as_deref(),
         };
     }
 }
@@ -98,12 +104,17 @@ pub struct EntryMap {
 impl EntryMap {
     /// Creates an empty map.
     pub fn new() -> EntryMap {
-        return EntryMap { pairs: Vec::new() };
+        return EntryMap {
+            pairs: Vec::new(),
+        };
     }
 
     /// Looks a name up,
     /// returning a borrowed entry or `None`.
-    pub fn get(&self, name: &str) -> Option<&Entry> {
+    pub fn get(
+        &self,
+        name: &str,
+    ) -> Option<&Entry> {
         for (key, entry) in &self.pairs {
             if key == name {
                 return Some(entry);
@@ -113,13 +124,20 @@ impl EntryMap {
     }
 
     /// Whether the name is present.
-    pub fn contains(&self, name: &str) -> bool {
+    pub fn contains(
+        &self,
+        name: &str,
+    ) -> bool {
         return self.get(name).is_some();
     }
 
     /// Inserts or replaces an entry,
     /// keeping the first position of an existing name.
-    pub fn insert(&mut self, name: &str, entry: Entry) {
+    pub fn insert(
+        &mut self,
+        name: &str,
+        entry: Entry,
+    ) {
         for pair in &mut self.pairs {
             if pair.0 == name {
                 pair.1 = entry;
@@ -229,7 +247,10 @@ pub struct CatalogDocument {
 /// Methods of `CatalogDocument`.
 impl CatalogDocument {
     /// Looks a named catalog up.
-    pub fn named(&self, name: &str) -> Option<&EntryMap> {
+    pub fn named(
+        &self,
+        name: &str,
+    ) -> Option<&EntryMap> {
         for (key, entries) in &self.catalogs {
             if key == name {
                 return Some(entries);

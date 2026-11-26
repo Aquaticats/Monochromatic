@@ -103,7 +103,10 @@ pub fn millis_of(elapsed: Duration) -> i64 {
 /// ```ts
 /// export const positionOfText = (texts: string[], wanted: string) => { const at = texts.indexOf(wanted); return at === -1 ? undefined : at; };
 /// ```
-pub fn position_of_text(texts: &[String], wanted: &str) -> Option<usize> {
+pub fn position_of_text(
+    texts: &[String],
+    wanted: &str,
+) -> Option<usize> {
     for (index, text) in texts.iter().enumerate() {
         if text == wanted {
             return Some(index);
@@ -124,6 +127,9 @@ pub fn position_of_text(texts: &[String], wanted: &str) -> Option<usize> {
 /// ```ts
 /// export const containsText = (texts: string[], wanted: string) => texts.includes(wanted);
 /// ```
-pub fn contains_text(texts: &[String], wanted: &str) -> bool {
+pub fn contains_text(
+    texts: &[String],
+    wanted: &str,
+) -> bool {
     return position_of_text(texts, wanted).is_some();
 }

@@ -11,9 +11,15 @@
 // });
 // ```
 
-use super::{Dfa, accept_bit};
+use super::{
+    Dfa,
+    accept_bit,
+};
 use crate::charset::ByteSet;
-use crate::dfa::{build_dfa_within, minimize};
+use crate::dfa::{
+    build_dfa_within,
+    minimize,
+};
 use crate::parse::parse;
 
 // What:    Builds a minimized anchored DFA for a pattern (no Sigma* prefix, matches a prefix).
@@ -28,7 +34,7 @@ use crate::parse::parse;
 // ```
 fn anchored_dfa(pattern: &str) -> Dfa {
     let node = parse(pattern).expect("test pattern parses");
-    return minimize(&build_dfa_within(node, 10_000).expect("builds under cap"))
+    return minimize(&build_dfa_within(node, 10_000).expect("builds under cap"));
 }
 
 #[test]
@@ -274,7 +280,7 @@ fn uniform_dfa(nclasses: u32) -> Dfa {
         // // Same assertion or value, with the important expectation named above.
         // ```
         1,
-    )
+    );
 }
 
 #[test]
@@ -330,8 +336,14 @@ fn mark_first_bytes_reads_the_start_states_row() {
     );
     let mut set = ByteSet::empty();
     dfa.mark_first_bytes(&mut set);
-    assert!(set.contains(b'a'), "byte a steps off the dead sink from the start row");
-    assert!(!set.contains(b'b'), "byte b steps straight to the dead sink");
+    assert!(
+        set.contains(b'a'),
+        "byte a steps off the dead sink from the start row"
+    );
+    assert!(
+        !set.contains(b'b'),
+        "byte b steps straight to the dead sink"
+    );
 }
 
 #[test]
@@ -347,8 +359,14 @@ fn validate_class_count_bounds_are_inclusive_of_256_and_exclusive_above() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert!(uniform_dfa(256).validate().is_ok(), "256 classes is the inclusive maximum");
-    assert!(uniform_dfa(300).validate().is_err(), "more than 256 classes is out of range");
+    assert!(
+        uniform_dfa(256).validate().is_ok(),
+        "256 classes is the inclusive maximum"
+    );
+    assert!(
+        uniform_dfa(300).validate().is_err(),
+        "more than 256 classes is out of range"
+    );
     assert!(uniform_dfa(1).validate().is_ok());
 }
 
@@ -368,11 +386,21 @@ fn a_built_dfa_with_a_real_dead_sink_validates_and_the_sink_is_well_formed() {
     let dfa = anchored_dfa("abc");
     let dead = dfa.dead as usize;
     let nc = dfa.nclasses as usize;
-    assert_ne!(dfa.dead, dfa.num_states, "an anchored literal must have a real dead sink");
-    assert!(dfa.validate().is_ok(), "a DFA with a sound dead sink must validate");
+    assert_ne!(
+        dfa.dead, dfa.num_states,
+        "an anchored literal must have a real dead sink"
+    );
+    assert!(
+        dfa.validate().is_ok(),
+        "a DFA with a sound dead sink must validate"
+    );
     assert_eq!(dfa.accept[dead], 0, "the dead sink must be non-accepting");
     for class in 0..nc {
-        assert_eq!(dfa.trans[dead * nc + class] as usize, dead, "the dead sink must self-loop");
+        assert_eq!(
+            dfa.trans[dead * nc + class] as usize,
+            dead,
+            "the dead sink must self-loop"
+        );
     }
 }
 
@@ -386,7 +414,8 @@ fn minimization_preserves_matching() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    let raw = build_dfa_within(parse("(?:(?:ab)|(?:ac))d").expect("parses"), 10_000).expect("builds");
+    let raw =
+        build_dfa_within(parse("(?:(?:ab)|(?:ac))d").expect("parses"), 10_000).expect("builds");
     let min = minimize(&raw);
     for input in [&b"abd"[..], b"acd", b"abc", b"ad", b"abdx"] {
         assert_eq!(raw.is_match(input), min.is_match(input), "input {input:?}");

@@ -17,7 +17,12 @@
 /// ```ts
 /// import { emitJsoncValue, parseJsonc, JsoncKind, JsoncValue } from 'monochromatic-jsonc-edit';
 /// ```
-use monochromatic_jsonc_edit::{emit_jsonc_value, parse_jsonc, JsoncKind, JsoncValue};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncValue,
+    emit_jsonc_value,
+    parse_jsonc,
+};
 
 /// What:
 ///      The accepted container nesting limit.
@@ -45,9 +50,11 @@ pub(crate) const ACCEPTED_DEPTH: usize = 512;
 /// export function assertCanonicalStability(source: string): void;
 /// ```
 pub fn assert_canonical_stability(source: &str) {
-    let first = parse_jsonc(source).unwrap_or_else(|error| panic!("generated source must parse: {error}"));
+    let first =
+        parse_jsonc(source).unwrap_or_else(|error| panic!("generated source must parse: {error}"));
     let once = emit_jsonc_value(&first);
-    let second = parse_jsonc(&once).unwrap_or_else(|error| panic!("emission must reparse: {error}\n{once}"));
+    let second =
+        parse_jsonc(&once).unwrap_or_else(|error| panic!("emission must reparse: {error}\n{once}"));
     let twice = emit_jsonc_value(&second);
     assert_eq!(once, twice, "canonical emission is not a fixed point");
     assert_trees_equal(&first, &second);
@@ -71,7 +78,10 @@ pub fn collect_comments(value: &JsoncValue) -> Vec<String> {
         if let Some(comment) = &current.comment {
             found.push(comment.text.clone());
         }
-        if let JsoncKind::Record { entries } = &current.kind {
+        if let JsoncKind::Record {
+            entries,
+        } = &current.kind
+        {
             for entry in entries.iter().rev() {
                 if let Some(key_comment) = &entry.key.comment {
                     found.push(key_comment.text.clone());
@@ -79,7 +89,10 @@ pub fn collect_comments(value: &JsoncValue) -> Vec<String> {
                 stack.push(&entry.value);
             }
         }
-        if let JsoncKind::Array { elements } = &current.kind {
+        if let JsoncKind::Array {
+            elements,
+        } = &current.kind
+        {
             for element in elements.iter().rev() {
                 stack.push(element);
             }
@@ -101,7 +114,10 @@ pub fn collect_comments(value: &JsoncValue) -> Vec<String> {
 /// ```ts
 /// export function assertCommentsPreserved(value: JsoncValue, emitted: string): void;
 /// ```
-pub fn assert_comments_preserved(value: &JsoncValue, emitted: &str) {
+pub fn assert_comments_preserved(
+    value: &JsoncValue,
+    emitted: &str,
+) {
     for body in collect_comments(value) {
         // What: Check every body line rather than the whole body as one substring.
         // Why: Canonical emission renders a merged multi-line body as one `//` line per body line,
@@ -109,7 +125,10 @@ pub fn assert_comments_preserved(value: &JsoncValue, emitted: &str) {
         //      the output. Content loss is still caught: a dropped line has no counterpart.
         let normalized = body.replace("\r\n", "\n");
         for line in normalized.split(['\n', '\r']) {
-            assert!(emitted.contains(line), "emission dropped part of the comment body {body:?}:\n{emitted}");
+            assert!(
+                emitted.contains(line),
+                "emission dropped part of the comment body {body:?}:\n{emitted}"
+            );
         }
     }
 }
@@ -135,13 +154,17 @@ pub fn depth_of(value: &JsoncValue) -> usize {
         // Only containers count toward the nesting bound: a scalar member sits inside its parent's
         // container rather than opening another one, which is how the parser counts too.
         match &current.kind {
-            JsoncKind::Record { entries } => {
+            JsoncKind::Record {
+                entries,
+            } => {
                 deepest = deepest.max(depth);
                 for entry in entries {
                     stack.push((depth + 1, &entry.value));
                 }
             }
-            JsoncKind::Array { elements } => {
+            JsoncKind::Array {
+                elements,
+            } => {
                 deepest = deepest.max(depth);
                 for element in elements {
                     stack.push((depth + 1, element));
@@ -165,7 +188,10 @@ pub fn depth_of(value: &JsoncValue) -> usize {
 /// ```
 pub fn assert_depth_bound(value: &JsoncValue) {
     let measured = depth_of(value);
-    assert!(measured <= ACCEPTED_DEPTH, "parsed depth {measured} exceeds the accepted bound {ACCEPTED_DEPTH}");
+    assert!(
+        measured <= ACCEPTED_DEPTH,
+        "parsed depth {measured} exceeds the accepted bound {ACCEPTED_DEPTH}"
+    );
 }
 
 /// What:
@@ -185,38 +211,100 @@ pub fn assert_depth_bound(value: &JsoncValue) {
 /// ```ts
 /// export function assertTreesEqual(left: JsoncValue, right: JsoncValue): void;
 /// ```
-pub fn assert_trees_equal(left: &JsoncValue, right: &JsoncValue) {
+pub fn assert_trees_equal(
+    left: &JsoncValue,
+    right: &JsoncValue,
+) {
     let mut stack: Vec<(&JsoncValue, &JsoncValue)> = vec![(left, right)];
     while let Some((mine, theirs)) = stack.pop() {
         assert_eq!(
-            mine.comment.as_ref().map(|comment| return comment.text.clone()),
-            theirs.comment.as_ref().map(|comment| return comment.text.clone()),
+            mine.comment
+                .as_ref()
+                .map(|comment| return comment.text.clone()),
+            theirs
+                .comment
+                .as_ref()
+                .map(|comment| return comment.text.clone()),
             "comment bodies differ"
         );
         match (&mine.kind, &theirs.kind) {
             (JsoncKind::Null, JsoncKind::Null) => {}
-            (JsoncKind::Boolean { value: one }, JsoncKind::Boolean { value: two }) => assert_eq!(one, two, "boolean values differ"),
-            (JsoncKind::Number { identity: one, .. }, JsoncKind::Number { identity: two, .. }) => assert_eq!(one, two, "number identities differ"),
-            (JsoncKind::Text { units: one, .. }, JsoncKind::Text { units: two, .. }) => assert_eq!(one, two, "text code units differ"),
-            (JsoncKind::Array { elements: one }, JsoncKind::Array { elements: two }) => {
+            (
+                JsoncKind::Boolean {
+                    value: one,
+                },
+                JsoncKind::Boolean {
+                    value: two,
+                },
+            ) => assert_eq!(one, two, "boolean values differ"),
+            (
+                JsoncKind::Number {
+                    identity: one,
+                    ..
+                },
+                JsoncKind::Number {
+                    identity: two,
+                    ..
+                },
+            ) => assert_eq!(one, two, "number identities differ"),
+            (
+                JsoncKind::Text {
+                    units: one,
+                    ..
+                },
+                JsoncKind::Text {
+                    units: two,
+                    ..
+                },
+            ) => assert_eq!(one, two, "text code units differ"),
+            (
+                JsoncKind::Array {
+                    elements: one,
+                },
+                JsoncKind::Array {
+                    elements: two,
+                },
+            ) => {
                 assert_eq!(one.len(), two.len(), "array lengths differ");
                 for index in 0..one.len() {
                     stack.push((&one[index], &two[index]));
                 }
             }
-            (JsoncKind::Record { entries: one }, JsoncKind::Record { entries: two }) => {
+            (
+                JsoncKind::Record {
+                    entries: one,
+                },
+                JsoncKind::Record {
+                    entries: two,
+                },
+            ) => {
                 assert_eq!(one.len(), two.len(), "record member counts differ");
                 for index in 0..one.len() {
-                    assert_eq!(one[index].key.units, two[index].key.units, "member keys differ at position {index}");
                     assert_eq!(
-                        one[index].key.comment.as_ref().map(|comment| return comment.text.clone()),
-                        two[index].key.comment.as_ref().map(|comment| return comment.text.clone()),
+                        one[index].key.units, two[index].key.units,
+                        "member keys differ at position {index}"
+                    );
+                    assert_eq!(
+                        one[index]
+                            .key
+                            .comment
+                            .as_ref()
+                            .map(|comment| return comment.text.clone()),
+                        two[index]
+                            .key
+                            .comment
+                            .as_ref()
+                            .map(|comment| return comment.text.clone()),
                         "key comment bodies differ at position {index}"
                     );
                     stack.push((&one[index].value, &two[index].value));
                 }
             }
-            _ => panic!("value kinds differ: {} versus {}", kind_name(&mine.kind), kind_name(&theirs.kind)),
+            _ => panic!(
+                "value kinds differ: {} versus {}",
+                kind_name(&mine.kind),
+                kind_name(&theirs.kind)
+            ),
         }
     }
 }

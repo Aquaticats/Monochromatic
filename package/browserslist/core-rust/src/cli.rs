@@ -33,7 +33,10 @@ use crate::api::render_browserslistrc;
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `DataLock` from `crate::lock::DataLock`.
 /// Why:
@@ -53,7 +56,11 @@ use crate::lock::DataLock;
 /// ```ts
 /// import { DataSource, pinnedTarball, writeAtomically } from './source';
 /// ```
-use crate::source::{DataSource, pinned_tarball, write_atomically};
+use crate::source::{
+    DataSource,
+    pinned_tarball,
+    write_atomically,
+};
 /// What:
 ///  Import `MOZILLA_PRODUCT_DETAILS, build_lock` from `crate::update`.
 /// Why:
@@ -63,7 +70,10 @@ use crate::source::{DataSource, pinned_tarball, write_atomically};
 /// ```ts
 /// import { MOZILLA_PRODUCT_DETAILS, buildLock } from './update';
 /// ```
-use crate::update::{MOZILLA_PRODUCT_DETAILS, build_lock};
+use crate::update::{
+    MOZILLA_PRODUCT_DETAILS,
+    build_lock,
+};
 /// What:
 ///  Import `HashMap` from `std::collections::HashMap`.
 /// Why:
@@ -94,7 +104,10 @@ use std::fs;
 /// ```ts
 /// import { Path, PathBuf } from 'std/path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The lock file name,
 /// relative to the directory the command runs in
@@ -116,7 +129,10 @@ fn usage(message: &str) -> BrowserslistError {
 
 /// Split `--name value` pairs into a map,
 /// refusing options the command does not take.
-fn parse_options(arguments: &[String], allowed: &[&str]) -> Outcome<HashMap<String, String>> {
+fn parse_options(
+    arguments: &[String],
+    allowed: &[&str],
+) -> Outcome<HashMap<String, String>> {
     let mut options: HashMap<String, String> = HashMap::new();
     let mut index = 0;
     while index < arguments.len() {
@@ -126,7 +142,10 @@ fn parse_options(arguments: &[String], allowed: &[&str]) -> Outcome<HashMap<Stri
             return Err(usage(&format!("unknown option {:?}", arguments[index])));
         }
         let Some(value) = arguments.get(index + 1) else {
-            return Err(usage(&format!("option {:?} needs a value", arguments[index])));
+            return Err(usage(&format!(
+                "option {:?} needs a value",
+                arguments[index]
+            )));
         };
         options.insert(name.to_string(), value.clone());
         index += 2;
@@ -138,7 +157,12 @@ fn parse_options(arguments: &[String], allowed: &[&str]) -> Outcome<HashMap<Stri
 fn read_text(path: &Path) -> Outcome<String> {
     match fs::read_to_string(path) {
         Ok(text) => return Ok(text),
-        Err(error) => return Err(BrowserslistError::Io { path: path.display().to_string(), message: error.to_string() }),
+        Err(error) => {
+            return Err(BrowserslistError::Io {
+                path: path.display().to_string(),
+                message: error.to_string(),
+            });
+        }
     }
 }
 
@@ -158,7 +182,11 @@ fn source_from(options: &HashMap<String, String>) -> Outcome<DataSource> {
 /// The lock path from `--lock`,
 /// or the default.
 fn lock_path(options: &HashMap<String, String>) -> PathBuf {
-    return PathBuf::from(options.get("lock").map_or(DEFAULT_LOCK_PATH, String::as_str));
+    return PathBuf::from(
+        options
+            .get("lock")
+            .map_or(DEFAULT_LOCK_PATH, String::as_str),
+    );
 }
 
 /// `update`:
@@ -166,7 +194,9 @@ fn lock_path(options: &HashMap<String, String>) -> PathBuf {
 fn run_update(options: &HashMap<String, String>) -> Outcome<String> {
     let path = lock_path(options);
     let source = source_from(options)?;
-    let mozilla = options.get("mozilla").map_or(MOZILLA_PRODUCT_DETAILS, String::as_str);
+    let mozilla = options
+        .get("mozilla")
+        .map_or(MOZILLA_PRODUCT_DETAILS, String::as_str);
     let lock = build_lock(&source, mozilla)?;
     write_atomically(&path, lock.to_json().as_bytes())?;
     return Ok(format!(
@@ -188,9 +218,15 @@ fn run_export(options: &HashMap<String, String>) -> Outcome<String> {
     let source = source_from(options)?;
     for package in [&lock.caniuse_lite, &lock.node_releases] {
         let bytes = pinned_tarball(package, &source)?;
-        write_atomically(&Path::new(out).join(format!("{}-{}.tgz", package.name, package.version)), &bytes)?;
+        write_atomically(
+            &Path::new(out).join(format!("{}-{}.tgz", package.name, package.version)),
+            &bytes,
+        )?;
     }
-    return Ok(format!("exported caniuse-lite {} and node-releases {} to {out}\n", lock.caniuse_lite.version, lock.node_releases.version));
+    return Ok(format!(
+        "exported caniuse-lite {} and node-releases {} to {out}\n",
+        lock.caniuse_lite.version, lock.node_releases.version
+    ));
 }
 
 /// `resolve`:
@@ -200,7 +236,11 @@ fn run_resolve(options: &HashMap<String, String>) -> Outcome<String> {
         return Err(usage("resolve needs --config PATH"));
     };
     let lock = DataLock::from_json(&read_text(&lock_path(options))?)?;
-    return render_browserslistrc(&read_text(Path::new(config))?, &lock, &source_from(options)?);
+    return render_browserslistrc(
+        &read_text(Path::new(config))?,
+        &lock,
+        &source_from(options)?,
+    );
 }
 
 /// What:
@@ -219,9 +259,24 @@ pub fn run(arguments: &[String]) -> Outcome<String> {
     };
     let rest = &arguments[1..];
     match command.as_str() {
-        "update" => return run_update(&parse_options(rest, &["lock", "cache-dir", "registry", "mozilla"])?),
-        "export" => return run_export(&parse_options(rest, &["lock", "cache-dir", "registry", "out"])?),
-        "resolve" => return run_resolve(&parse_options(rest, &["lock", "cache-dir", "registry", "config"])?),
+        "update" => {
+            return run_update(&parse_options(
+                rest,
+                &["lock", "cache-dir", "registry", "mozilla"],
+            )?);
+        }
+        "export" => {
+            return run_export(&parse_options(
+                rest,
+                &["lock", "cache-dir", "registry", "out"],
+            )?);
+        }
+        "resolve" => {
+            return run_resolve(&parse_options(
+                rest,
+                &["lock", "cache-dir", "registry", "config"],
+            )?);
+        }
         other => return Err(usage(&format!("unknown command {other:?}"))),
     }
 }

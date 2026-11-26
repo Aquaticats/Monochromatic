@@ -125,7 +125,7 @@ impl Prefilter {
     pub(crate) fn from_seeds(seeds: &[Vec<u8>]) -> Prefilter {
         return Prefilter {
             finders: seeds.iter().map(Vec::as_slice).map(owned_finder).collect(),
-        }
+        };
     }
 
     /// Reports whether `line` could contain a match,
@@ -145,7 +145,10 @@ impl Prefilter {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub(crate) fn allows(&self, line: &[u8]) -> bool {
+    pub(crate) fn allows(
+        &self,
+        line: &[u8],
+    ) -> bool {
         if self.finders.is_empty() {
             return true;
         }
@@ -175,7 +178,7 @@ impl Prefilter {
     /// ```
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
-        return self.finders.len()
+        return self.finders.len();
     }
 }
 
@@ -197,11 +200,14 @@ impl Prefilter {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn filter_min(seeds: Vec<Vec<u8>>, min: usize) -> Vec<Vec<u8>> {
+fn filter_min(
+    seeds: Vec<Vec<u8>>,
+    min: usize,
+) -> Vec<Vec<u8>> {
     if seeds.is_empty() || min_len(&seeds) < min {
-        return Vec::new()
+        return Vec::new();
     } else {
-        return seeds
+        return seeds;
     }
 }
 
@@ -223,7 +229,7 @@ fn filter_min(seeds: Vec<Vec<u8>>, min: usize) -> Vec<Vec<u8>> {
 /// }
 /// ```
 pub(crate) fn seeds_from_node(node: &Node) -> Vec<Vec<u8>> {
-    return seeds_from_node_min(node, MIN_SEED_LEN)
+    return seeds_from_node_min(node, MIN_SEED_LEN);
 }
 
 /// Derives required-literal seeds with a caller-chosen minimum length.
@@ -243,8 +249,11 @@ pub(crate) fn seeds_from_node(node: &Node) -> Vec<Vec<u8>> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub(crate) fn seeds_from_node_min(node: &Node, min: usize) -> Vec<Vec<u8>> {
-    return filter_min(required_literal(node), min)
+pub(crate) fn seeds_from_node_min(
+    node: &Node,
+    min: usize,
+) -> Vec<Vec<u8>> {
+    return filter_min(required_literal(node), min);
 }
 
 /// The one-byte literal a class stands for when it holds a single byte,
@@ -314,7 +323,7 @@ fn alt_literal(branches: &[Node]) -> Vec<Vec<u8>> {
             }
         }
     }
-    return all
+    return all;
 }
 
 /// Returns the required literals of the first positive operand of an intersection.
@@ -341,7 +350,7 @@ fn inter_literal(operands: &[Node]) -> Vec<Vec<u8>> {
             }
         }
     }
-    return Vec::new()
+    return Vec::new();
 }
 
 /// Returns the literals every match of `node` must begin with,
@@ -393,7 +402,7 @@ pub(crate) fn leading_literals(node: &Node) -> Vec<Vec<u8>> {
 /// }
 /// ```
 pub(crate) fn leading_seeds(node: &Node) -> Vec<Vec<u8>> {
-    return leading_seeds_min(node, MIN_SEED_LEN)
+    return leading_seeds_min(node, MIN_SEED_LEN);
 }
 
 /// Returns the leading literals with a caller-chosen minimum length.
@@ -411,8 +420,11 @@ pub(crate) fn leading_seeds(node: &Node) -> Vec<Vec<u8>> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub(crate) fn leading_seeds_min(node: &Node, min: usize) -> Vec<Vec<u8>> {
-    return filter_min(leading_literals(node), min)
+pub(crate) fn leading_seeds_min(
+    node: &Node,
+    min: usize,
+) -> Vec<Vec<u8>> {
+    return filter_min(leading_literals(node), min);
 }
 
 /// Returns the leading literals of a concatenation,
@@ -456,7 +468,7 @@ fn concat_leading(parts: &[Node]) -> Vec<Vec<u8>> {
             prefix.push(b);
         }
     }
-    return prefixes
+    return prefixes;
 }
 
 /// Unions the leading literals of every alternation branch.
@@ -489,7 +501,7 @@ fn alt_leading(branches: &[Node]) -> Vec<Vec<u8>> {
             }
         }
     }
-    return all
+    return all;
 }
 
 /// Returns the leading literal of the first positive operand of an intersection.
@@ -516,7 +528,7 @@ fn inter_leading(operands: &[Node]) -> Vec<Vec<u8>> {
             }
         }
     }
-    return Vec::new()
+    return Vec::new();
 }
 
 /// Returns the most selective mandatory literal anywhere in a concatenation.
@@ -551,7 +563,7 @@ fn concat_literal(parts: &[Node]) -> Vec<Vec<u8>> {
         run.clear();
         best = better_seed(best, required_literal(part));
     }
-    return better_seed(best, vec![run])
+    return better_seed(best, vec![run]);
 }
 
 /// Picks the more selective of two candidate seed sets.
@@ -571,11 +583,14 @@ fn concat_literal(parts: &[Node]) -> Vec<Vec<u8>> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn better_seed(best: Vec<Vec<u8>>, candidate: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+fn better_seed(
+    best: Vec<Vec<u8>>,
+    candidate: Vec<Vec<u8>>,
+) -> Vec<Vec<u8>> {
     if !candidate.is_empty() && min_len(&candidate) > min_len(&best) {
-        return candidate
+        return candidate;
     } else {
-        return best
+        return best;
     }
 }
 
@@ -596,7 +611,7 @@ fn better_seed(best: Vec<Vec<u8>>, candidate: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
 /// }
 /// ```
 fn min_len(seeds: &[Vec<u8>]) -> usize {
-    return seeds.iter().map(Vec::len).min().unwrap_or(0)
+    return seeds.iter().map(Vec::len).min().unwrap_or(0);
 }
 
 /// What:

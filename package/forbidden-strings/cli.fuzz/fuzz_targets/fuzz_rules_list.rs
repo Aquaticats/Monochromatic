@@ -6,7 +6,10 @@
 use libfuzzer_sys::fuzz_target;
 
 /// Imports the shared oracle and the token generator.
-use forbidden_strings_fuzz::rules_list::{check_rules_list_value, generated_rules_list};
+use forbidden_strings_fuzz::rules_list::{
+    check_rules_list_value,
+    generated_rules_list,
+};
 
 // What:     `fuzz_target!(|data: &[u8]| { ... })` declares the libFuzzer entry.
 // Why:      The grammar must never panic, must agree with an independently written reference parse,

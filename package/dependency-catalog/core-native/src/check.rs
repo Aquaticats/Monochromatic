@@ -16,7 +16,12 @@
 /// Imports `crate::error::Error`.
 use crate::error::Error;
 /// Imports `crate::sync::{FileResult, SyncInput, SyncOutput, sync}`.
-use crate::sync::{FileResult, SyncInput, SyncOutput, sync};
+use crate::sync::{
+    FileResult,
+    SyncInput,
+    SyncOutput,
+    sync,
+};
 
 /// What:
 /// `pub struct DriftReport { ... }` lists the files that differ from the sync's expected contents.

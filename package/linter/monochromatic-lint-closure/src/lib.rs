@@ -52,18 +52,32 @@ mod verdict_tests;
 /// Import the capture-name list builder.
 use crate::capture::captured_names;
 /// Import the lint declaration and the pass struct that the macro generated.
-use crate::declaration::{AVOIDABLE_CLOSURE, AvoidableClosure};
+use crate::declaration::{
+    AVOIDABLE_CLOSURE,
+    AvoidableClosure,
+};
 /// Import the diagnostic value.
 use crate::diagnostic::ClosureFound;
 /// Import the ownership test that skips generated and foreign files.
 use crate::own_source::OwnSource;
 /// Import the placement classifier.
-use crate::placement::{Placement, classify_placement};
+use crate::placement::{
+    Placement,
+    classify_placement,
+};
 /// Import the compiler's high-level IR node types:
 /// expressions and closure kinds.
-use rustc_hir::{ClosureKind, Expr, ExprKind};
+use rustc_hir::{
+    ClosureKind,
+    Expr,
+    ExprKind,
+};
 /// Import the lint traits and the context passed to every check.
-use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_lint::{
+    LateContext,
+    LateLintPass,
+    LintContext,
+};
 /// Import the path of a source file as the compiler's source map records it.
 use rustc_span::FileName;
 
@@ -97,7 +111,10 @@ fn is_closure_expression(kind: ClosureKind) -> bool {
 /// ```ts
 /// function spanIsGeneratedOrForeign(expr: Expr): boolean { return ownSource.excludes(fileOf(expr.span)); }
 /// ```
-fn span_is_generated_or_foreign(cx: &LateContext<'_>, expr: &Expr<'_>) -> bool {
+fn span_is_generated_or_foreign(
+    cx: &LateContext<'_>,
+    expr: &Expr<'_>,
+) -> bool {
     let name: FileName = cx.sess().source_map().span_to_filename(expr.span);
     let Some(path) = name.into_local_path() else {
         return false;
@@ -130,7 +147,11 @@ impl<'tcx> LateLintPass<'tcx> for AvoidableClosure {
     ///   report(expr, captures, placement);
     /// }
     /// ```
-    fn check_expr(&mut self, cx: &LateContext<'tcx>, expr: &'tcx Expr<'tcx>) {
+    fn check_expr(
+        &mut self,
+        cx: &LateContext<'tcx>,
+        expr: &'tcx Expr<'tcx>,
+    ) {
         let ExprKind::Closure(closure) = expr.kind else {
             return;
         };

@@ -28,7 +28,8 @@ use std::path::PathBuf;
 /// function main(): void
 /// ```
 fn main() {
-    let target: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../file-enforcer.schema.json");
+    let target: PathBuf =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../file-enforcer.schema.json");
     std::fs::write(&target, config_schema_text()).expect("the schema file is writable");
     println!("wrote {}", target.display());
 }

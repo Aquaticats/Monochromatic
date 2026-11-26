@@ -125,8 +125,11 @@ pub fn split_cmdline(text: &str) -> Option<Vec<OsString>> {
 
 /// The commands of a todo file:
 /// its lines that are neither blank nor comments.
+///  The file is read as a plain one and to a bound (`crate::plain_file::SMALL_FILE_LIMIT`, one line per commit,
+/// so a list past it is more than 13,000 commits),
+/// because a named pipe at a todo file holds the finish for ever otherwise.
 fn todo_commands(path: &Path) -> usize {
-    let Ok(text) = std::fs::read_to_string(path) else {
+    let Ok(text) = crate::plain_file::read_plain_text_at(path, crate::plain_file::SMALL_FILE_LIMIT) else {
         return 0;
     };
     let mut commands: usize = 0;
@@ -409,7 +412,9 @@ fn invocation(command: &ResolvedCommand, words: &[&str]) -> Vec<OsString> {
 /// function todoNeedsEditor(gitDir: string): boolean;
 /// ```
 fn todo_needs_editor(git_dir: &Path) -> bool {
-    let Ok(todo) = std::fs::read_to_string(git_dir.join("rebase-merge/git-rebase-todo")) else { return false };
+    // The todo list is read as a plain file and to a bound, so a named pipe at its name answers as a list that asks for no
+    //  editor rather than holding the finish (`merge_second_pass_finish_tests`).
+    let Ok(todo) = crate::plain_file::read_plain_text_at(git_dir.join("rebase-merge/git-rebase-todo").as_path(), crate::plain_file::SMALL_FILE_LIMIT) else { return false };
     for line in todo.lines() {
         let mut words = line.split_whitespace();
         let command: &str = words.next().unwrap_or_default();

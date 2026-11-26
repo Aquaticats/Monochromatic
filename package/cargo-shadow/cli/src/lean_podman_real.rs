@@ -19,12 +19,23 @@
 //! ```
 
 /// Child processes and time.
-use std::{process::Command, time::Duration};
+use std::{
+    process::Command,
+    time::Duration,
+};
 
 /// The bounded run.
-use crate::bounded_run::{Bound, RunError, output_within};
+use crate::bounded_run::{
+    Bound,
+    RunError,
+    output_within,
+};
 /// The cleanup's interface and records.
-use crate::lean_podman_cleanup::{Image, PodmanApi, Volume};
+use crate::lean_podman_cleanup::{
+    Image,
+    PodmanApi,
+    Volume,
+};
 /// Timestamps with an offset.
 use crate::time_text::parse_rfc3339_millis;
 
@@ -40,7 +51,14 @@ pub const REMOVE_LIMIT: Duration = Duration::from_secs(900);
 /// which a plain `podman ps --all` does not list (measured 2026-11-08,
 /// buildah 1.45.1 and podman 6.1.3,
 /// in a throwaway storage root).
-pub const CONTAINER_LIST_ARGUMENTS: [&str; 6] = ["ps", "--all", "--external", "--no-trunc", "--format", "{{.ImageID}}"];
+pub const CONTAINER_LIST_ARGUMENTS: [&str; 6] = [
+    "ps",
+    "--all",
+    "--external",
+    "--no-trunc",
+    "--format",
+    "{{.ImageID}}",
+];
 
 /// Real Podman.
 pub struct RealPodman;
@@ -54,12 +72,28 @@ pub struct RealPodman;
 /// ```ts
 /// function run(args: string[], limit: number): string  // throws
 /// ```
-fn run(arguments: &[&str], limit: Duration) -> Result<String, String> {
-    let bound: Bound = Bound { limit, what: format!("podman {}", arguments.join(" ")), rerun: String::from("cargo-shadow lean") };
+fn run(
+    arguments: &[&str],
+    limit: Duration,
+) -> Result<String, String> {
+    let bound: Bound = Bound {
+        limit,
+        what: format!("podman {}", arguments.join(" ")),
+        rerun: String::from("cargo-shadow lean"),
+    };
     return match output_within(Command::new("podman").args(arguments), None, &bound) {
-        Ok(output) if output.status.success() => Ok(String::from_utf8_lossy(&output.stdout).to_string()),
+        Ok(output) if output.status.success() => {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        }
         Ok(output) => Err(String::from_utf8_lossy(&output.stderr).trim().to_string()),
-        Err(RunError::TimedOut { what, limit: passed, .. }) => Err(format!("{what} did not finish within {} s", passed.as_secs())),
+        Err(RunError::TimedOut {
+            what,
+            limit: passed,
+            ..
+        }) => Err(format!(
+            "{what} did not finish within {} s",
+            passed.as_secs()
+        )),
         Err(other) => Err(format!("{other:?}")),
     };
 }
@@ -79,24 +113,45 @@ pub fn parse_images(text: &str) -> Result<Vec<Image>, String> {
         Ok(parsed) => parsed,
         Err(error) => return Err(error.to_string()),
     };
-    let Some(list) = value.as_array() else { return Err(String::from("the image list is not an array")) };
+    let Some(list) = value.as_array() else {
+        return Err(String::from("the image list is not an array"));
+    };
     let mut images: Vec<Image> = Vec::new();
     for entry in list {
-        let id: String = entry.get("Id").and_then(serde_json::Value::as_str).unwrap_or_default().chars().take(12).collect();
-        let created: i64 = entry.get("Created").and_then(serde_json::Value::as_i64).unwrap_or(0);
+        let id: String = entry
+            .get("Id")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .chars()
+            .take(12)
+            .collect();
+        let created: i64 = entry
+            .get("Created")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
         let mut named: bool = false;
         if let Some(names) = entry.get("Names").and_then(serde_json::Value::as_array) {
             for name in names.iter().filter_map(serde_json::Value::as_str) {
                 if let Some((repository, tag)) = name.rsplit_once(':')
                     && !tag.contains('/')
                 {
-                    images.push(Image { id: id.clone(), repository: repository.to_string(), tag: tag.to_string(), created });
+                    images.push(Image {
+                        id: id.clone(),
+                        repository: repository.to_string(),
+                        tag: tag.to_string(),
+                        created,
+                    });
                     named = true;
                 }
             }
         }
         if !named {
-            images.push(Image { id, repository: String::from("<none>"), tag: String::from("<none>"), created });
+            images.push(Image {
+                id,
+                repository: String::from("<none>"),
+                tag: String::from("<none>"),
+                created,
+            });
         }
     }
     return Ok(images);
@@ -116,16 +171,29 @@ pub fn parse_volumes(text: &str) -> Result<Vec<Volume>, String> {
         Ok(parsed) => parsed,
         Err(error) => return Err(error.to_string()),
     };
-    let Some(list) = value.as_array() else { return Err(String::from("the volume list is not an array")) };
+    let Some(list) = value.as_array() else {
+        return Err(String::from("the volume list is not an array"));
+    };
     let mut volumes: Vec<Volume> = Vec::new();
     for entry in list {
-        let name: String = entry.get("Name").and_then(serde_json::Value::as_str).unwrap_or_default().to_string();
-        let created: i64 = match entry.get("CreatedAt").and_then(serde_json::Value::as_str).and_then(parse_rfc3339_millis) {
+        let name: String = entry
+            .get("Name")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let created: i64 = match entry
+            .get("CreatedAt")
+            .and_then(serde_json::Value::as_str)
+            .and_then(parse_rfc3339_millis)
+        {
             Some(millis) => millis / 1_000,
             None => i64::MAX,
         };
         if !name.is_empty() {
-            volumes.push(Volume { name, created });
+            volumes.push(Volume {
+                name,
+                created,
+            });
         }
     }
     return Ok(volumes);
@@ -155,7 +223,17 @@ impl PodmanApi for RealPodman {
 
     /// Lists the volumes no container uses.
     fn dangling_volumes(&self) -> Result<Vec<Volume>, String> {
-        return parse_volumes(&run(&["volume", "ls", "--filter", "dangling=true", "--format", "json"], LIST_LIMIT)?);
+        return parse_volumes(&run(
+            &[
+                "volume",
+                "ls",
+                "--filter",
+                "dangling=true",
+                "--format",
+                "json",
+            ],
+            LIST_LIMIT,
+        )?);
     }
 
     /// Removes one image through every reference that names it with a plain `podman rmi`,
@@ -163,7 +241,10 @@ impl PodmanApi for RealPodman {
     /// Why:
     /// Podman refuses an image with more than one tag when it is named by id,
     /// and untags it rather than deleting it while another tag of it remains.
-    fn remove_image(&self, references: &[String]) -> Result<(), String> {
+    fn remove_image(
+        &self,
+        references: &[String],
+    ) -> Result<(), String> {
         let mut arguments: Vec<&str> = vec!["rmi"];
         arguments.extend(references.iter().map(String::as_str));
         run(&arguments, REMOVE_LIMIT)?;
@@ -172,7 +253,10 @@ impl PodmanApi for RealPodman {
 
     /// Removes a volume with a plain `podman volume rm`,
     /// never forcing.
-    fn remove_volume(&self, name: &str) -> Result<(), String> {
+    fn remove_volume(
+        &self,
+        name: &str,
+    ) -> Result<(), String> {
         run(&["volume", "rm", name], REMOVE_LIMIT)?;
         return Ok(());
     }

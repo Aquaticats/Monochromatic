@@ -20,9 +20,15 @@
 /// Imports ordinary filesystem operations for isolated fixtures.
 use std::fs;
 /// Imports the absolute path type for disposable fixtures.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports the process runner to exercise the actual CLI.
-use std::process::{Command, Output};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// Binary artifact built by Cargo for this integration test.
 const BIN: &str = env!("CARGO_BIN_EXE_forbidden-strings");
@@ -42,24 +48,30 @@ const SENTINEL: &str = "VAULTTOKEN_ISSUE_1232";
 /// so the platform's own location wins when it exists.
 fn git_binary() -> &'static str {
     if Path::new("/usr/bin/git").exists() {
-        return "/usr/bin/git"
+        return "/usr/bin/git";
     }
-    return "git"
+    return "git";
 }
 
 /// Creates one disposable fixture directory under the test target directory.
 fn fixture(label: &str) -> PathBuf {
-    let root: PathBuf = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("fs-walk-index-{}-{}", label, std::process::id()));
+    let root: PathBuf = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!(
+        "fs-walk-index-{}-{}",
+        label,
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("create fixture root");
-    return root
+    return root;
 }
 
 /// Runs the real Git binary in `directory`,
 /// failing the test on a non-zero
 /// exit.
-fn run_git(directory: &Path, args: &[&str]) {
+fn run_git(
+    directory: &Path,
+    args: &[&str],
+) {
     let status = Command::new(git_binary())
         .args(args)
         .current_dir(directory)
@@ -72,20 +84,31 @@ fn run_git(directory: &Path, args: &[&str]) {
 ///  using a disposable cache root beside the rules file,
 ///  which is outside every scanned directory and keeps the developer's cache
 ///  untouched.
-fn scan_all(directory: &Path, rules: &Path) -> Output {
-    return configured(directory, rules, None)
+fn scan_all(
+    directory: &Path,
+    rules: &Path,
+) -> Output {
+    return configured(directory, rules, None);
 }
 
 /// Runs the scanner with `--all` and an explicit child environment,
 ///  the only way to exercise a variable that is process-global.
-fn scan_all_with(directory: &Path, rules: &Path, variable: (&str, &Path)) -> Output {
-    return configured(directory, rules, Some(variable))
+fn scan_all_with(
+    directory: &Path,
+    rules: &Path,
+    variable: (&str, &Path),
+) -> Output {
+    return configured(directory, rules, Some(variable));
 }
 
 /// Runs the scanner with `--all`,
 /// optionally setting one environment variable
 ///  on the child only.
-fn configured(directory: &Path, rules: &Path, variable: Option<(&str, &Path)>) -> Output {
+fn configured(
+    directory: &Path,
+    rules: &Path,
+    variable: Option<(&str, &Path)>,
+) -> Output {
     let cache_root: PathBuf = rules.parent().expect("rules parent").join("cache");
     let mut command = Command::new(BIN);
     command
@@ -102,7 +125,7 @@ fn configured(directory: &Path, rules: &Path, variable: Option<(&str, &Path)>) -
 fn write_rules(root: &Path) -> PathBuf {
     let rules: PathBuf = root.join("rules.txt");
     fs::write(&rules, format!("{}\n", SENTINEL)).expect("write the fixture rules");
-    return rules
+    return rules;
 }
 
 /// Creates a repository whose `.gitignore` hides `*.ignored`,
@@ -115,12 +138,26 @@ fn seed_repository(repository: &Path) {
     run_git(repository, &["config", "user.name", "t"]);
     fs::write(repository.join(".gitignore"), "*.ignored\n").expect("write .gitignore");
     fs::write(repository.join("plain.txt"), format!("{}\n", SENTINEL)).expect("write plain.txt");
-    fs::write(repository.join("tracked.ignored"), format!("{}\n", SENTINEL))
-        .expect("write tracked.ignored");
-    run_git(repository, &["add", "-f", ".gitignore", "plain.txt", "tracked.ignored"]);
+    fs::write(
+        repository.join("tracked.ignored"),
+        format!("{}\n", SENTINEL),
+    )
+    .expect("write tracked.ignored");
     run_git(
         repository,
-        &["commit", "-q", "-m", "initial", ".gitignore", "plain.txt", "tracked.ignored"],
+        &["add", "-f", ".gitignore", "plain.txt", "tracked.ignored"],
+    );
+    run_git(
+        repository,
+        &[
+            "commit",
+            "-q",
+            "-m",
+            "initial",
+            ".gitignore",
+            "plain.txt",
+            "tracked.ignored",
+        ],
     );
 }
 
@@ -134,7 +171,14 @@ fn all_reports_the_tracked_ignored_file_of_a_linked_worktree() {
     let worktree: PathBuf = root.join("wt");
     run_git(
         &main,
-        &["worktree", "add", "-q", worktree.to_str().expect("worktree utf8"), "-b", "wt-branch"],
+        &[
+            "worktree",
+            "add",
+            "-q",
+            worktree.to_str().expect("worktree utf8"),
+            "-b",
+            "wt-branch",
+        ],
     );
     assert!(
         worktree.join(".git").is_file(),
@@ -174,10 +218,26 @@ fn all_reports_the_tracked_ignored_file_below_a_repository_subfolder() {
     run_git(&repository, &["config", "user.email", "t@t"]);
     run_git(&repository, &["config", "user.name", "t"]);
     fs::write(repository.join(".gitignore"), "*.ignored\n").expect("write .gitignore");
-    fs::write(repository.join("sub/tracked.ignored"), format!("{}\n", SENTINEL))
-        .expect("write the ignored tracked file");
-    run_git(&repository, &["add", "-f", ".gitignore", "sub/tracked.ignored"]);
-    run_git(&repository, &["commit", "-q", "-m", "initial", ".gitignore", "sub/tracked.ignored"]);
+    fs::write(
+        repository.join("sub/tracked.ignored"),
+        format!("{}\n", SENTINEL),
+    )
+    .expect("write the ignored tracked file");
+    run_git(
+        &repository,
+        &["add", "-f", ".gitignore", "sub/tracked.ignored"],
+    );
+    run_git(
+        &repository,
+        &[
+            "commit",
+            "-q",
+            "-m",
+            "initial",
+            ".gitignore",
+            "sub/tracked.ignored",
+        ],
+    );
     let rules: PathBuf = write_rules(&root);
 
     let output: Output = scan_all(&repository.join("sub"), &rules);
@@ -239,8 +299,11 @@ fn all_reads_the_index_that_git_index_file_names() {
     // This entry goes into a separate index file only, so the repository's own
     // index holds no record of it: the two indexes answer differently, which
     // is what makes the scan's choice observable.
-    fs::write(repository.join("index-only.ignored"), format!("{}\n", SENTINEL))
-        .expect("write the ignored tracked file");
+    fs::write(
+        repository.join("index-only.ignored"),
+        format!("{}\n", SENTINEL),
+    )
+    .expect("write the ignored tracked file");
     let alternate: PathBuf = root.join("alternate-index");
     let status = Command::new(git_binary())
         .args(["add", "-f", "index-only.ignored"])
@@ -285,12 +348,26 @@ fn all_exits_clean_but_says_the_union_is_unavailable_when_only_the_index_hides_a
     run_git(&repository, &["config", "user.name", "t"]);
     fs::write(repository.join(".gitignore"), "*.ignored\n").expect("write .gitignore");
     fs::write(repository.join("clean.txt"), "ordinary content\n").expect("write clean.txt");
-    fs::write(repository.join("tracked.ignored"), format!("{}\n", SENTINEL))
-        .expect("write the ignored tracked file");
-    run_git(&repository, &["add", "-f", ".gitignore", "clean.txt", "tracked.ignored"]);
+    fs::write(
+        repository.join("tracked.ignored"),
+        format!("{}\n", SENTINEL),
+    )
+    .expect("write the ignored tracked file");
     run_git(
         &repository,
-        &["commit", "-q", "-m", "initial", ".gitignore", "clean.txt", "tracked.ignored"],
+        &["add", "-f", ".gitignore", "clean.txt", "tracked.ignored"],
+    );
+    run_git(
+        &repository,
+        &[
+            "commit",
+            "-q",
+            "-m",
+            "initial",
+            ".gitignore",
+            "clean.txt",
+            "tracked.ignored",
+        ],
     );
     fs::remove_file(repository.join(".git/index")).expect("remove the index");
     let rules: PathBuf = write_rules(&root);

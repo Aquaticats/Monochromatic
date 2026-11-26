@@ -45,7 +45,10 @@ use std::fs;
 /// ```ts
 /// import { Path, PathBuf } from 'std/path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `use toml_edit::DocumentMut;` imports `DocumentMut` from the external crate `toml_edit` so this file can name it unqualified.
@@ -69,7 +72,10 @@ use toml_edit::DocumentMut;
 /// ```ts
 /// import { CATALOG_MARKER, MANIFEST_NAME } from 'crate/constants';
 /// ```
-use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};
+use crate::constants::{
+    CATALOG_MARKER,
+    MANIFEST_NAME,
+};
 
 /// The nearest ancestor (the directory itself included) that holds `rust-catalog.toml`.
 pub fn find_catalog_root(start: &Path) -> Option<PathBuf> {

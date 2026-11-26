@@ -16,10 +16,19 @@
 
 /// The metadata fields that carry device and inode.
 use std::os::unix::fs::MetadataExt;
-/// Paths and the file system error type.
-use std::{fs, io, path::Path};
 /// Instants for deadlines and the system clock for ages.
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{
+    Duration,
+    Instant,
+    SystemTime,
+    UNIX_EPOCH,
+};
+/// Paths and the file system error type.
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// The device and inode of one entry.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -43,7 +52,10 @@ pub struct Identity {
 /// ```
 pub fn identity_of(path: &Path) -> io::Result<Identity> {
     let metadata: fs::Metadata = fs::symlink_metadata(path)?;
-    return Ok(Identity { device: metadata.dev(), inode: metadata.ino() });
+    return Ok(Identity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    });
 }
 
 /// What:
@@ -111,7 +123,9 @@ pub struct Deadline {
 impl Deadline {
     /// A deadline `limit` from now.
     pub fn after(limit: Duration) -> Deadline {
-        return Deadline { at: Instant::now() + limit };
+        return Deadline {
+            at: Instant::now() + limit,
+        };
     }
 
     /// Whether the deadline has passed.

@@ -11,7 +11,11 @@
 //! ```
 
 use crate::error::BrowserslistError;
-use crate::js_literal::{JsValue, object_get, parse_module_exports};
+use crate::js_literal::{
+    JsValue,
+    object_get,
+    parse_module_exports,
+};
 
 /// Parse `module.exports=<body>;\n` with a fixed file name.
 fn parse(body: &str) -> Result<JsValue, BrowserslistError> {
@@ -19,11 +23,16 @@ fn parse(body: &str) -> Result<JsValue, BrowserslistError> {
 }
 
 /// Assert the body fails and the message names the file and the expected offset (counted from the body start).
-fn assert_rejected(body: &str, offset_in_body: usize) {
+fn assert_rejected(
+    body: &str,
+    offset_in_body: usize,
+) {
     let error = parse(body).expect_err("body must be rejected");
     let expected_offset = "module.exports=".len() + offset_in_body;
     assert!(
-        error.to_string().contains(&format!("byte offset {expected_offset}")),
+        error
+            .to_string()
+            .contains(&format!("byte offset {expected_offset}")),
         "{body:?} gave {error}"
     );
     assert!(error.to_string().starts_with("agents.js: "), "{error}");
@@ -33,13 +42,23 @@ fn assert_rejected(body: &str, offset_in_body: usize) {
 /// with keys in source order.
 #[test]
 fn accepts_the_subset() {
-    let value = parse(r#"{A:{"0":0.074518,B:"ms",C:["","I","oB"],D:null,E:"Opera Mini",F:0},Z:[]}"#)
-        .expect("subset literal parses");
+    let value =
+        parse(r#"{A:{"0":0.074518,B:"ms",C:["","I","oB"],D:null,E:"Opera Mini",F:0},Z:[]}"#)
+            .expect("subset literal parses");
     let browser = object_get(&value, "A").expect("A present");
-    assert_eq!(object_get(browser, "B"), Some(&JsValue::Text("ms".to_string())));
-    assert_eq!(object_get(browser, "0"), Some(&JsValue::Number("0.074518".to_string())));
+    assert_eq!(
+        object_get(browser, "B"),
+        Some(&JsValue::Text("ms".to_string()))
+    );
+    assert_eq!(
+        object_get(browser, "0"),
+        Some(&JsValue::Number("0.074518".to_string()))
+    );
     assert_eq!(object_get(browser, "D"), Some(&JsValue::Null));
-    assert_eq!(object_get(browser, "E"), Some(&JsValue::Text("Opera Mini".to_string())));
+    assert_eq!(
+        object_get(browser, "E"),
+        Some(&JsValue::Text("Opera Mini".to_string()))
+    );
     assert_eq!(
         object_get(browser, "C"),
         Some(&JsValue::Array(vec![
@@ -62,8 +81,14 @@ fn object_get_absent_cases() {
 /// The empty object and array are valid.
 #[test]
 fn accepts_empty_containers() {
-    assert_eq!(parse("{}").expect("empty object"), JsValue::Object(Vec::new()));
-    assert_eq!(parse("[]").expect("empty array"), JsValue::Array(Vec::new()));
+    assert_eq!(
+        parse("{}").expect("empty object"),
+        JsValue::Object(Vec::new())
+    );
+    assert_eq!(
+        parse("[]").expect("empty array"),
+        JsValue::Array(Vec::new())
+    );
 }
 
 /// Envelope violations name offset zero or the offending byte.
@@ -81,7 +106,10 @@ fn rejects_bad_envelopes() {
         ("module.exports=", 15),
     ] {
         let error = parse_module_exports("agents.js", source).expect_err("envelope");
-        assert!(error.to_string().contains(&format!("byte offset {offset}")), "{source:?} gave {error}");
+        assert!(
+            error.to_string().contains(&format!("byte offset {offset}")),
+            "{source:?} gave {error}"
+        );
     }
 }
 
@@ -140,9 +168,17 @@ fn rejects_other_keywords() {
 /// one level deeper is rejected before deeper state is built.
 #[test]
 fn bounds_nesting_depth() {
-    let at_cap = format!("{}{}", "[".repeat(super::MAX_DEPTH), "]".repeat(super::MAX_DEPTH));
+    let at_cap = format!(
+        "{}{}",
+        "[".repeat(super::MAX_DEPTH),
+        "]".repeat(super::MAX_DEPTH)
+    );
     assert!(parse(&at_cap).is_ok());
-    let over_cap = format!("{}{}", "[".repeat(super::MAX_DEPTH + 1), "]".repeat(super::MAX_DEPTH + 1));
+    let over_cap = format!(
+        "{}{}",
+        "[".repeat(super::MAX_DEPTH + 1),
+        "]".repeat(super::MAX_DEPTH + 1)
+    );
     assert_rejected(&over_cap, super::MAX_DEPTH);
 }
 

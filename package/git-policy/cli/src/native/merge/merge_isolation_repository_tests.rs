@@ -90,16 +90,16 @@ fn unmerge(repo: &Path, path: &str, stages: &[u8]) {
         lines.push_str(format!("100644 {blob} {stage}\t{path}\n").as_str());
     }
     git(repo, &["rm", "--quiet", "--cached", "--force", "--ignore-unmatch", "--", path]);
-    let mut child = std::process::Command::new(REAL_GIT)
+    let mut command: std::process::Command = std::process::Command::new(REAL_GIT);
+    command
         .current_dir(repo)
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
         .args(["update-index", "--index-info"])
-        .stdin(std::process::Stdio::piped())
-        .spawn()
-        .expect("git starts");
+        .stdin(std::process::Stdio::piped());
+    let mut child = crate::test_support::spawn_owned(&mut command).expect("git starts");
     std::io::Write::write_all(&mut child.stdin.take().expect("piped input"), lines.as_bytes()).expect("entries written");
     assert!(child.wait().expect("git finishes").success(), "the entries of {path} were written");
 }
@@ -1110,15 +1110,9 @@ const HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR: std::time::Duration = std::time::Dur
 ///  The control waits on the same scan the wrapper reads,
 /// so it waits on the fact the wrapper will find.
 fn hold_the_index_open_until_the_scan_sees_it(lock: &Path) -> Helper {
-    let holder: Helper = Helper(
-        std::process::Command::new("sh")
-            .args(["-c", "exec 3<\"$0\"; exec sleep 30", lock.to_str().expect("a UTF-8 lock path")])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .expect("a holder starts"),
-    );
+    let mut command: std::process::Command = std::process::Command::new("sh");
+    command.args(["-c", "exec 3<\"$0\"; exec sleep 30", lock.to_str().expect("a UTF-8 lock path")]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    let holder: Helper = Helper(crate::test_support::spawn_owned(&mut command).expect("a holder starts"));
     let began: std::time::Instant = std::time::Instant::now();
     while !the_scan_sees(lock, holder.pid()) {
         assert!(began.elapsed() < HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR, "the scan never saw the holder {}", holder.pid());

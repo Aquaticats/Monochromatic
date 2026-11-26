@@ -27,7 +27,13 @@ fn a_fresh_state_is_dead_and_a_seeded_state_is_not() {
     // ```
     let elements = vec![Element::Class(singleton(b'a'))];
     let mut state = State::new(&elements);
-    assert!(state.is_dead(), "a fresh state has no active position and no live count");
+    assert!(
+        state.is_dead(),
+        "a fresh state has no active position and no live count"
+    );
     state.seed(&[0]);
-    assert!(!state.is_dead(), "a state with an active position is not dead");
+    assert!(
+        !state.is_dead(),
+        "a state with an active position is not dead"
+    );
 }

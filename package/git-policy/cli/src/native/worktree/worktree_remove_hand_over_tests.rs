@@ -3,13 +3,20 @@
 //! the rename and the record the removal writes,
 //! the service's own delete of it,
 //! and the removal that waits for neither.
+//!
+//! Every control that runs the service's own removal of a whole worktree hands it
+//! a process table of the fixture's own (`an_empty_process_table`):
+//! the removal otherwise reads every process of the account to see whether one works in the worktree,
+//! and a container gate refused this removal over another test's process,
+//! so the control expecting Git's own sentence read the holder scan's instead
+//! (issue 6475).
 
 use super::*;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::service_work::Verdict;
 use crate::shadow_pool::pool_root_for;
-use crate::test_support::{fixture, git_context, remove};
+use crate::test_support::{an_empty_process_table, fixture, git_context, remove};
 use crate::worktree_remove::{Held, RemoveOperations, RemoveOutcome, RemoveRequest, remove_with};
 use crate::worktree_remove_hand_over as test_support;
 use crate::worktree_remove_plan::RemovePlan;
@@ -646,11 +653,12 @@ fn the_service_removes_the_worktree_a_record_names_and_a_gone_one_is_done() {
     let registration: PathBuf = linked.common.join("worktrees").join("topic");
     let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), Some(linked.repo_root().as_path()), &|_: &GitContext, _: &Path| { return Ok(()); })
         .expect("handed over");
-    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "Git removes the worktree the record names");
+    let table: PathBuf = an_empty_process_table(linked.root.as_path());
+    assert_eq!(delete_subvolume_of_with(&item, table.as_path()), Verdict::Done, "Git removes the worktree the record names");
     assert!(!linked.worktree.exists(), "the worktree directory is gone");
     assert!(!linked.common.join("worktrees/topic").exists(), "and its registration with it");
     assert!(!pool.exists(), "and the pool its commits filled");
-    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "a path that is gone is nothing to remove");
+    assert_eq!(delete_subvolume_of_with(&item, table.as_path()), Verdict::Done, "a path that is gone is nothing to remove");
     remove(linked.root.as_path());
 }
 
@@ -669,7 +677,8 @@ fn the_service_leaves_a_worktree_git_would_keep_and_says_whose_sentence_refused_
     let registration: PathBuf = linked.common.join("worktrees").join("topic");
     let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), Some(linked.repo_root().as_path()), &|_: &GitContext, _: &Path| { return Ok(()); })
         .expect("handed over");
-    let verdict: Verdict = delete_subvolume_of(&item);
+    let table: PathBuf = an_empty_process_table(linked.root.as_path());
+    let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
     match &verdict {
         Verdict::Failed(words) => assert!(words.contains("modified or untracked files"), "Git's own sentence is the reason: {words}"),
         other => panic!("Git refuses a worktree holding a file it would keep: {other:?}"),
@@ -695,6 +704,7 @@ fn the_service_leaves_a_worktree_git_would_keep_and_says_whose_sentence_refused_
 fn the_service_keeps_a_worktree_another_worktree_was_added_inside_after_the_hand_over() {
     let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-nested", ".claude/\n");
     let item: WorkItem = handed_over(&linked, Some(linked.root.as_path()));
+    let table: PathBuf = an_empty_process_table(linked.root.as_path());
     // A command that adds a worktree inside this one finishes after the record was written and exits.
     let inside: PathBuf = linked.worktree.join(".claude/worktrees/b");
     crate::test_support::git(linked.worktree.as_path(), &["worktree", "add", "--quiet", "-b", "sub", inside.to_str().expect("utf8")]);
@@ -702,7 +712,7 @@ fn the_service_keeps_a_worktree_another_worktree_was_added_inside_after_the_hand
     std::fs::write(changed.as_path(), b"the person changed this in the nested worktree\n").expect("a tracked file the person changed there");
     let notes: PathBuf = inside.join("notes.txt");
     std::fs::write(notes.as_path(), b"work the person has not committed\n").expect("an untracked file the person wrote there");
-    let verdict: Verdict = delete_subvolume_of(&item);
+    let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
     assert!(
         matches!(&verdict, Verdict::Failed(words) if words.contains("another worktree this repository registers is inside it")),
         "the worktree that holds another one stays, and the reason names it: {verdict:?}"
@@ -732,9 +742,10 @@ fn the_service_keeps_a_worktree_another_worktree_was_added_inside_after_the_hand
 fn the_service_keeps_a_worktree_whose_ignored_file_was_written_after_the_hand_over() {
     let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-ignored", "*.log\n");
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    let table: PathBuf = an_empty_process_table(linked.root.as_path());
     let written: PathBuf = linked.worktree.join("person.log");
     std::fs::write(written.as_path(), b"what the person wrote after the hand over\n").expect("an ignored file the person wrote");
-    let verdict: Verdict = delete_subvolume_of(&item);
+    let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
     assert!(
         matches!(&verdict, Verdict::Failed(words) if words.contains("person.log")),
         "the worktree stays and the reason names the ignored file: {verdict:?}"
@@ -756,10 +767,11 @@ fn the_service_keeps_a_worktree_whose_ignored_file_was_written_after_the_hand_ov
 fn the_service_removes_a_worktree_whose_ignored_file_the_compared_worktree_also_holds() {
     let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-ignored-same", "*.log\n");
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    let table: PathBuf = an_empty_process_table(linked.root.as_path());
     let both: PathBuf = linked.worktree.join("build.log");
     std::fs::write(both.as_path(), b"the same words in both trees\n").expect("an ignored file the add carried");
     std::fs::write(linked.repo_root().join("build.log").as_path(), b"the same words in both trees\n").expect("the source's copy");
-    let verdict: Verdict = delete_subvolume_of(&item);
+    let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
     assert_eq!(verdict, Verdict::Done, "a copy the other tree also holds is nothing to lose");
     assert!(!linked.worktree.exists(), "the worktree is gone");
     assert!(kept_notice_texts(linked.common.as_path()).is_empty(), "nothing was kept, so nothing is said: {}", linked.root.display());
@@ -787,6 +799,7 @@ fn the_service_keeps_a_commit_held_after_the_hand_over_on_a_side_reference() {
     crate::test_support::git(linked.worktree.as_path(), &["add", "--", "tracked.txt"]);
     crate::test_support::git(linked.worktree.as_path(), &["commit", "--quiet", "--message=the branch's own work"]);
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    let table: PathBuf = an_empty_process_table(linked.root.as_path());
     // The hold is recorded after the hand-over, as a commit whose branch move met a reference lock leaves it.
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
     let tree: String = crate::test_support::git_text(linked.worktree.as_path(), &["rev-parse", "HEAD^{tree}"]);
@@ -815,7 +828,7 @@ fn the_service_keeps_a_commit_held_after_the_hand_over_on_a_side_reference() {
         reference,
         "nothing but the worktree's own reference names the held commit"
     );
-    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the commit is kept, so the worktree may go");
+    assert_eq!(delete_subvolume_of_with(&item, table.as_path()), Verdict::Done, "the commit is kept, so the worktree may go");
     assert!(!linked.worktree.exists(), "the worktree is gone");
     assert_eq!(
         crate::test_support::git_text(linked.common.as_path(), &["rev-parse", "--verify", "refs/cli-git/kept/7"]).trim(),
@@ -857,6 +870,7 @@ fn the_service_keeps_a_commit_held_after_the_hand_over_on_a_side_reference() {
 fn the_service_carries_a_push_failure_recorded_after_the_hand_over_to_the_person() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-push-record");
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    let table: PathBuf = an_empty_process_table(linked.root.as_path());
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
     let commit: String = crate::test_support::git_text(linked.worktree.as_path(), &["rev-parse", "HEAD"]);
     crate::push_failure_notice::record_push_failure(
@@ -867,7 +881,7 @@ fn the_service_carries_a_push_failure_recorded_after_the_hand_over_to_the_person
         "refused after the hand over",
     )
     .expect("a failed push nobody has seen yet, recorded after the hand over");
-    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "Git removes the worktree the record names");
+    assert_eq!(delete_subvolume_of_with(&item, table.as_path()), Verdict::Done, "Git removes the worktree the record names");
     assert!(!admin.exists(), "the removal took the record's original with the Git directory");
     // What the next command does with the removal this one made.
     crate::worktree_removal_rescue::settle_removals(linked.common.as_path());
@@ -896,6 +910,7 @@ fn the_service_carries_a_push_failure_recorded_after_the_hand_over_to_the_person
 fn a_record_of_a_removal_whose_worktree_is_gone_removes_nothing_at_the_path_it_named() {
     let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-reused-path", "*.log\n");
     let item: WorkItem = handed_over(&linked, Some(linked.root.as_path()));
+    let table: PathBuf = an_empty_process_table(linked.root.as_path());
     // The person takes the README's advice and removes the handed-over worktree by hand.
     crate::test_support::git(linked.repo_root().as_path(), &["worktree", "remove", "--force", linked.worktree.to_str().expect("utf8")]);
     assert!(!linked.worktree.exists(), "the worktree the record names is gone");
@@ -903,7 +918,7 @@ fn a_record_of_a_removal_whose_worktree_is_gone_removes_nothing_at_the_path_it_n
     crate::test_support::git(linked.repo_root().as_path(), &["worktree", "add", "--quiet", "-b", "hotfix", linked.worktree.to_str().expect("utf8")]);
     let written: PathBuf = linked.worktree.join("build.log");
     std::fs::write(written.as_path(), b"the new worktree's own ignored state\n").expect("an ignored file of the new worktree");
-    let verdict: Verdict = delete_subvolume_of(&item);
+    let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
     assert!(
         matches!(&verdict, Verdict::Skipped(words) if words.contains("nothing proves the worktree standing at") && words.contains(linked.worktree.display().to_string().as_str())),
         "the record's worktree is gone, and the one standing there now is nothing to it: {verdict:?}"
@@ -943,6 +958,7 @@ fn a_removal_an_earlier_service_refused_is_queued_once_more() {
     // What the release before this one left: the record it queued, with no identity beside the registration, settled in
     // `failed` by a service that read its `oid` as a subvolume number.
     let item: WorkItem = worktree_removal_item(linked.common.as_path(), linked.worktree.as_path(), linked.common.join("worktrees/topic").as_path());
+    let table: PathBuf = an_empty_process_table(linked.root.as_path());
     put_a_record(linked.common.as_path(), "failed", &item);
     let said: Vec<String> = requeue_removals_an_earlier_release_refused(linked.common.as_path());
     assert_eq!(said.len(), 1, "the person is told once: {said:?}");
@@ -956,7 +972,7 @@ fn a_removal_an_earlier_service_refused_is_queued_once_more() {
     // What this release's service makes of it: the record of that release carries no identity and no worktree its ignored
     // files were compared with, so nothing proves them again, and the worktree is kept and named rather than removed in
     // silence.
-    assert!(matches!(delete_subvolume_of(&again), Verdict::Failed(_)), "a record an earlier release wrote is not re-proven, so it is kept");
+    assert!(matches!(delete_subvolume_of_with(&again, table.as_path()), Verdict::Failed(_)), "a record an earlier release wrote is not re-proven, so it is kept");
     assert!(linked.worktree.is_dir(), "the worktree the merge landed stays");
     let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
     assert_eq!(texts.len(), 1, "and the person reads why: {texts:?}");
@@ -1046,12 +1062,13 @@ fn a_record_of_a_later_release_is_left_queued_for_it() {
 fn a_removal_a_kill_cut_short_is_finished_by_the_next_attempt() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-killed");
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    let table: PathBuf = an_empty_process_table(linked.root.as_path());
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
     // The state a service killed inside `git worktree remove` leaves: the record of a begun removal, and the tracked
     // files Git had already deleted.
     test_support::record_begun(linked.common.as_path(), item.id().as_str(), test_support::identity_standing_there(linked.worktree.as_path(), admin.as_path()).as_str());
     std::fs::remove_file(linked.worktree.join("tracked.txt").as_path()).expect("a tracked file Git's own removal deleted before the kill");
-    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the next attempt finishes this program's own half-done removal");
+    assert_eq!(delete_subvolume_of_with(&item, table.as_path()), Verdict::Done, "the next attempt finishes this program's own half-done removal");
     assert!(!linked.worktree.exists(), "the worktree is gone");
     assert!(!linked.common.join(super::BEGUN_FOLDER).join(item.id()).exists(), "and the record of the beginning goes with it");
     remove(linked.root.as_path());
@@ -1068,12 +1085,13 @@ fn a_removal_a_kill_cut_short_is_finished_by_the_next_attempt() {
 fn a_half_deleted_worktree_holding_a_persons_file_is_kept_and_said() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-killed-with-a-file");
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    let table: PathBuf = an_empty_process_table(linked.root.as_path());
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
     test_support::record_begun(linked.common.as_path(), item.id().as_str(), test_support::identity_standing_there(linked.worktree.as_path(), admin.as_path()).as_str());
     std::fs::remove_file(linked.worktree.join("tracked.txt").as_path()).expect("a tracked file Git's own removal deleted before the kill");
     let theirs: PathBuf = linked.worktree.join("notes.txt");
     std::fs::write(theirs.as_path(), b"what the person wrote after the kill\n").expect("a file the person wrote there");
-    let verdict: Verdict = delete_subvolume_of(&item);
+    let verdict: Verdict = delete_subvolume_of_with(&item, table.as_path());
     assert!(
         matches!(&verdict, Verdict::Failed(words) if words.contains("began and a kill cut it short")),
         "the worktree stays and the reason names the started removal: {verdict:?}"

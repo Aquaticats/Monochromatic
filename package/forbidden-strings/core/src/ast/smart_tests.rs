@@ -9,7 +9,15 @@
 // });
 // ```
 
-use super::{alt, class, comp, concat, inter, optional, repeat};
+use super::{
+    alt,
+    class,
+    comp,
+    concat,
+    inter,
+    optional,
+    repeat,
+};
 use crate::ast::node::Node;
 use crate::charset::singleton;
 
@@ -24,7 +32,7 @@ use crate::charset::singleton;
 // }
 // ```
 fn lit(b: u8) -> Node {
-    return Node::Class(singleton(b))
+    return Node::Class(singleton(b));
 }
 
 #[test]
@@ -33,7 +41,10 @@ fn concat_drops_empty_and_collapses_arity() {
     assert_eq!(concat(vec![Node::Empty, Node::Empty]), Node::Empty);
     assert_eq!(concat(vec![lit(b'a')]), lit(b'a'));
     assert_eq!(concat(vec![Node::Empty, lit(b'a'), Node::Empty]), lit(b'a'));
-    assert_eq!(concat(vec![lit(b'a'), lit(b'b')]), Node::Concat(vec![lit(b'a'), lit(b'b')]));
+    assert_eq!(
+        concat(vec![lit(b'a'), lit(b'b')]),
+        Node::Concat(vec![lit(b'a'), lit(b'b')])
+    );
 }
 
 #[test]
@@ -57,7 +68,10 @@ fn alt_is_commutative_idempotent_and_sorted() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert_eq!(alt(vec![lit(b'b'), lit(b'a')]), alt(vec![lit(b'a'), lit(b'b')]));
+    assert_eq!(
+        alt(vec![lit(b'b'), lit(b'a')]),
+        alt(vec![lit(b'a'), lit(b'b')])
+    );
     assert_eq!(alt(vec![lit(b'a'), lit(b'a')]), lit(b'a'));
 }
 
@@ -84,7 +98,10 @@ fn inter_identity_and_absorbing() {
 
 #[test]
 fn inter_is_commutative_idempotent_and_flattened() {
-    assert_eq!(inter(vec![lit(b'b'), lit(b'a')]), inter(vec![lit(b'a'), lit(b'b')]));
+    assert_eq!(
+        inter(vec![lit(b'b'), lit(b'a')]),
+        inter(vec![lit(b'a'), lit(b'b')])
+    );
     assert_eq!(inter(vec![lit(b'a'), lit(b'a')]), lit(b'a'));
     let nested = inter(vec![inter(vec![lit(b'a'), lit(b'b')]), lit(b'c')]);
     assert!(matches!(nested, Node::Inter(ref v) if v.len() == 3));
@@ -104,7 +121,11 @@ fn repeat_collapses_trivial_arities() {
     assert_eq!(repeat(lit(b'a'), 1, 1), lit(b'a'));
     assert_eq!(
         repeat(lit(b'a'), 2, 5),
-        Node::Repeat { node: Box::new(lit(b'a')), min: 2, max: 5 },
+        Node::Repeat {
+            node: Box::new(lit(b'a')),
+            min: 2,
+            max: 5
+        },
     );
 }
 
@@ -116,7 +137,14 @@ fn repeat_handles_fail_body() {
 
 #[test]
 fn optional_is_zero_to_one() {
-    assert_eq!(optional(lit(b'a')), Node::Repeat { node: Box::new(lit(b'a')), min: 0, max: 1 });
+    assert_eq!(
+        optional(lit(b'a')),
+        Node::Repeat {
+            node: Box::new(lit(b'a')),
+            min: 0,
+            max: 1
+        }
+    );
 }
 
 #[test]

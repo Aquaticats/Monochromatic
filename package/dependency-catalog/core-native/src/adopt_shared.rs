@@ -30,17 +30,36 @@ use crate::types::Entry;
 /// ```ts
 /// export function sameEntry(args: { left: Entry; right: Entry }): boolean
 /// ```
-pub fn same_entry(left: &Entry, right: &Entry) -> bool {
+pub fn same_entry(
+    left: &Entry,
+    right: &Entry,
+) -> bool {
     if left.package() != right.package() {
         return false;
     }
     return match (left, right) {
-        (Entry::Git { git: left_git, rev: left_rev, .. }, Entry::Git { git: right_git, rev: right_rev, .. }) => {
-            left_git == right_git && left_rev == right_rev
-        }
-        (Entry::Registry { version: left_version, .. }, Entry::Registry { version: right_version, .. }) => {
-            left_version == right_version
-        }
+        (
+            Entry::Git {
+                git: left_git,
+                rev: left_rev,
+                ..
+            },
+            Entry::Git {
+                git: right_git,
+                rev: right_rev,
+                ..
+            },
+        ) => left_git == right_git && left_rev == right_rev,
+        (
+            Entry::Registry {
+                version: left_version,
+                ..
+            },
+            Entry::Registry {
+                version: right_version,
+                ..
+            },
+        ) => left_version == right_version,
         _ => false,
     };
 }
@@ -55,7 +74,10 @@ pub fn same_entry(left: &Entry, right: &Entry) -> bool {
 /// ```ts
 /// export function namedCatalogRemedy(args: { site: UseSite; requirement: string }): string
 /// ```
-pub fn named_catalog_remedy(site: &UseSite, requirement: &str) -> String {
+pub fn named_catalog_remedy(
+    site: &UseSite,
+    requirement: &str,
+) -> String {
     return format!(
         "add `{} = {}` to a named catalog in rust-catalog.toml (for example `[catalogs.pinned]`) and select it in {} with `[package.metadata.rust-catalog.catalogs]` `{} = \"pinned\"`",
         site.name,

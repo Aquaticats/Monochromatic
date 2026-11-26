@@ -11,7 +11,10 @@
 #![no_main]
 
 /// Import the libFuzzer entry macro and the sidecar's shared generators and checks.
-use git_policy_cli_fuzz::content::{check_final_newline, generated_text};
+use git_policy_cli_fuzz::content::{
+    check_final_newline,
+    generated_text,
+};
 use libfuzzer_sys::fuzz_target;
 
 // Raw bytes are mostly not text; generated text reaches every correction.

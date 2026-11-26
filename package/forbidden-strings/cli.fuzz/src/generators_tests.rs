@@ -8,12 +8,17 @@
 
 use super::*;
 
-use forbidden_strings::fuzz_api::{load_from_text, scan_file};
+use forbidden_strings::fuzz_api::{
+    load_from_text,
+    scan_file,
+};
 
 // Builds a one-literal file and confirms it matches at boundaries, not inside a word.
 #[test]
 fn literal_line_loads_and_matches() {
-    let file = RuleFile { lines: vec![RuleLine::Literal(SafeBytes(b"abc".to_vec()))] };
+    let file = RuleFile {
+        lines: vec![RuleLine::Literal(SafeBytes(b"abc".to_vec()))],
+    };
     let source = file.render();
     assert_eq!(source, "abc");
     let loaded = load_from_text(&source).expect("bare literal must load");
@@ -25,7 +30,10 @@ fn literal_line_loads_and_matches() {
 #[test]
 fn mx_flags_are_noops() {
     let file = RuleFile {
-        lines: vec![RuleLine::Regex { body: AlnumBytes(b"abc".to_vec()), flags: FlagRun::Both }],
+        lines: vec![RuleLine::Regex {
+            body: AlnumBytes(b"abc".to_vec()),
+            flags: FlagRun::Both,
+        }],
     };
     assert!(!file.has_bad_flag());
     let loaded = load_from_text(&file.render()).expect("m/x flags are no-ops");
@@ -44,15 +52,23 @@ fn bad_flag_line_fails_closed() {
     };
     assert!(file.has_bad_flag());
     assert_eq!(file.render(), "/abc/i");
-    assert!(load_from_text(&file.render()).is_err(), "a rejected flag must not load");
+    assert!(
+        load_from_text(&file.render()).is_err(),
+        "a rejected flag must not load"
+    );
 }
 
 // A comment-only file has no loadable rule, so the strict loader returns NoRules.
 #[test]
 fn comment_only_file_has_no_rules() {
-    let file = RuleFile { lines: vec![RuleLine::Comment(SafeBytes(b"note".to_vec()))] };
+    let file = RuleFile {
+        lines: vec![RuleLine::Comment(SafeBytes(b"note".to_vec()))],
+    };
     assert_eq!(file.render(), "#note");
-    assert!(load_from_text(&file.render()).is_err(), "a comment-only file loads no rules");
+    assert!(
+        load_from_text(&file.render()).is_err(),
+        "a comment-only file loads no rules"
+    );
 }
 
 // Reversing the render reverses line order, the rule-order-invariance oracle.
@@ -72,7 +88,10 @@ fn reversed_render_reverses_lines() {
 #[test]
 fn fingerprint_is_redacted() {
     let fingerprint = redacted_fingerprint(b"secret-token-value");
-    assert!(!fingerprint.contains("secret"), "fingerprint must not echo content: {fingerprint}");
+    assert!(
+        !fingerprint.contains("secret"),
+        "fingerprint must not echo content: {fingerprint}"
+    );
     assert!(fingerprint.contains("len=18"));
     assert!(fingerprint.contains("sha256="));
 }

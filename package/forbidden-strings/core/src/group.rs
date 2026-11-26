@@ -42,7 +42,10 @@ use crate::ast::node::Node;
 /// ```ts
 /// import { alt, concat } from "crate/ast/smart";
 /// ```
-use crate::ast::smart::{alt, concat};
+use crate::ast::smart::{
+    alt,
+    concat,
+};
 
 /// What:
 ///     Imports the DFA builder and minimizer for each group.
@@ -57,7 +60,10 @@ use crate::ast::smart::{alt, concat};
 /// ```ts
 /// import { build_dfa_within, minimize } from "crate/dfa";
 /// ```
-use crate::dfa::{build_dfa_within, minimize};
+use crate::dfa::{
+    build_dfa_within,
+    minimize,
+};
 
 /// What:
 ///     Imports the engine wrapper each group DFA becomes.
@@ -71,7 +77,10 @@ use crate::dfa::{build_dfa_within, minimize};
 /// ```ts
 /// import { Engine, EngineKind } from "crate/engine";
 /// ```
-use crate::engine::{Engine, EngineKind};
+use crate::engine::{
+    Engine,
+    EngineKind,
+};
 
 /// Largest combined DFA a group of seedless rules may form.
 ///
@@ -106,7 +115,7 @@ const GROUP_DFA_CAP: usize = 6_000;
 /// }
 /// ```
 fn search_wrap(node: Node) -> Node {
-    return concat(vec![Node::Top, node])
+    return concat(vec![Node::Top, node]);
 }
 
 /// The table engine of a built automaton after minimization,
@@ -133,7 +142,7 @@ fn minimized_engine(dfa: crate::dfa::table::Dfa) -> Engine {
 fn group_engine(node: Node) -> Option<Engine> {
     return build_dfa_within(search_wrap(node), GROUP_DFA_CAP)
         .ok()
-        .map(minimized_engine)
+        .map(minimized_engine);
 }
 
 /// One candidate union group:
@@ -217,9 +226,12 @@ fn grow_groups(nodes: &[Node]) -> Vec<Group> {
                 continue 'rule;
             }
         }
-        groups.push(Group { union: node.clone(), members: vec![index] });
+        groups.push(Group {
+            union: node.clone(),
+            members: vec![index],
+        });
     }
-    return groups
+    return groups;
 }
 
 /// Combines literal-free rule nodes into as few union DFAs as the cap allows.
@@ -254,7 +266,10 @@ fn grow_groups(nodes: &[Node]) -> Vec<Group> {
 /// let engines = group_seedless(&nodes, &[&per_rule[0]]);
 /// assert_eq!(engines.len(), 1);
 /// ```
-pub(crate) fn group_seedless(nodes: &[Node], per_rule: &[&Engine]) -> Vec<Engine> {
+pub(crate) fn group_seedless(
+    nodes: &[Node],
+    per_rule: &[&Engine],
+) -> Vec<Engine> {
     let mut engines: Vec<Engine> = Vec::new();
     for group in grow_groups(nodes) {
         match group_engine(group.union) {
@@ -271,7 +286,7 @@ pub(crate) fn group_seedless(nodes: &[Node], per_rule: &[&Engine]) -> Vec<Engine
             }
         }
     }
-    return engines
+    return engines;
 }
 
 /// What:

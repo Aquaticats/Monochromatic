@@ -72,7 +72,9 @@ pub fn verify(parent: &Path) -> io::Result<()> {
     let period_value = period.parse::<u64>().map_err(io::Error::other)?;
     if quota_value == 0 || period_value == 0 || fields.next().is_some() {
         // Keep explicit CPU increases possible, but reject unbounded or malformed controls.
-        return Err(io::Error::other("Worker cpu.max must contain a finite positive quota and period."));
+        return Err(io::Error::other(
+            "Worker cpu.max must contain a finite positive quota and period.",
+        ));
     }
     // What: `Ok(())` returns successful completion without a payload.
     // Why: Verification supplies no authority to change the limits.
@@ -105,7 +107,9 @@ pub fn initialize(parent: &Path) -> io::Result<()> {
             .status()?;
         if !status.success() {
             // Preserve the failed startup as a setup failure.
-            return Err(io::Error::other("systemctl could not start the worker slice."));
+            return Err(io::Error::other(
+                "systemctl could not start the worker slice.",
+            ));
         }
     }
     // Reuse verification before creating a writable child under this parent.

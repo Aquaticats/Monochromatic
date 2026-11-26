@@ -56,15 +56,12 @@ fn warm_runtime() {
 }
 
 /// A child whose status is `code`,
-/// started with inherited streams so the start needs only its error-report pipe.
+/// started with inherited streams so the start needs only its error-report pipe,
+/// and owned by the test thread's fixtures so a started child is ended however the test ends.
 fn quick_child(code: i32) -> std::io::Result<std::process::Child> {
-    return Command::new("/bin/sh")
-        .arg("-c")
-        .arg(format!("sleep 0.05; exit {code}"))
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn();
+    let mut command: Command = Command::new("/bin/sh");
+    command.arg("-c").arg(format!("sleep 0.05; exit {code}")).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    return crate::test_support::spawn_owned(&mut command);
 }
 
 /// When the limit leaves no descriptor for `pidfd_open`,

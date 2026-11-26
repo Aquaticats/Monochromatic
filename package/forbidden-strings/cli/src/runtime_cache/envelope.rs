@@ -7,13 +7,20 @@
 //!  The decoder accepts no trailing bytes.
 
 /// Imports hybrid runtime rule bundle reconstructed by cache decoder.
-use crate::runtime_matcher::{LiteralGroup, RuntimeRules};
+use crate::runtime_matcher::{
+    LiteralGroup,
+    RuntimeRules,
+};
 /// Imports regex-only engine type for artifact serialization.
 use forbidden_regex::RegexSet;
 
 /// Imports content digest and compile compatibility identities.
 use super::path::{
-    digest_bytes, platform_identity, scanner_version, source_digest, SourceDigest,
+    SourceDigest,
+    digest_bytes,
+    platform_identity,
+    scanner_version,
+    source_digest,
 };
 /// Imports redacted warning reason mapping.
 use super::warning::CacheWarningReason;
@@ -64,7 +71,7 @@ impl EnvelopeError {
         if self == EnvelopeError::SourceMismatch {
             return CacheWarningReason::SourceMismatch;
         }
-        return CacheWarningReason::Invalid
+        return CacheWarningReason::Invalid;
     }
 }
 
@@ -86,15 +93,27 @@ fn invalid_envelope<Cause>(_cause: Cause) -> EnvelopeError {
 impl<'a> Cursor<'a> {
     /// Creates cursor at beginning of artifact bytes.
     fn new(bytes: &'a [u8]) -> Self {
-        return Self { bytes, position: 0 }
+        return Self {
+            bytes,
+            position: 0,
+        };
     }
 
     /// Borrows exact next byte count or rejects truncation and overflow.
-    fn take(&mut self, count: usize) -> Result<&'a [u8], EnvelopeError> {
-        let end = self.position.checked_add(count).ok_or(EnvelopeError::Invalid)?;
-        let value = self.bytes.get(self.position..end).ok_or(EnvelopeError::Invalid)?;
+    fn take(
+        &mut self,
+        count: usize,
+    ) -> Result<&'a [u8], EnvelopeError> {
+        let end = self
+            .position
+            .checked_add(count)
+            .ok_or(EnvelopeError::Invalid)?;
+        let value = self
+            .bytes
+            .get(self.position..end)
+            .ok_or(EnvelopeError::Invalid)?;
         self.position = end;
-        return Ok(value)
+        return Ok(value);
     }
 
     /// Reads one byte.
@@ -106,19 +125,19 @@ impl<'a> Cursor<'a> {
     /// Reads little-endian 16-bit integer.
     fn read_u16(&mut self) -> Result<u16, EnvelopeError> {
         let bytes: [u8; 2] = self.take(2)?.try_into().map_err(invalid_envelope)?;
-        return Ok(u16::from_le_bytes(bytes))
+        return Ok(u16::from_le_bytes(bytes));
     }
 
     /// Reads little-endian 32-bit integer.
     fn read_u32(&mut self) -> Result<u32, EnvelopeError> {
         let bytes: [u8; 4] = self.take(4)?.try_into().map_err(invalid_envelope)?;
-        return Ok(u32::from_le_bytes(bytes))
+        return Ok(u32::from_le_bytes(bytes));
     }
 
     /// Reads little-endian 64-bit integer.
     fn read_u64(&mut self) -> Result<u64, EnvelopeError> {
         let bytes: [u8; 8] = self.take(8)?.try_into().map_err(invalid_envelope)?;
-        return Ok(u64::from_le_bytes(bytes))
+        return Ok(u64::from_le_bytes(bytes));
     }
 
     /// Reads bounded UTF-8 identity string.
@@ -127,25 +146,27 @@ impl<'a> Cursor<'a> {
         if length == 0 || length > MAX_IDENTITY_BYTES {
             return Err(EnvelopeError::Invalid);
         }
-        return std::str::from_utf8(self.take(usize::from(length))?)
-            .map_err(invalid_envelope)
+        return std::str::from_utf8(self.take(usize::from(length))?).map_err(invalid_envelope);
     }
 
     /// Reports whether all artifact bytes were consumed.
     fn is_finished(&self) -> bool {
-        return self.position == self.bytes.len()
+        return self.position == self.bytes.len();
     }
 }
 
 /// Appends length-prefixed compatibility identity.
-fn append_identity(output: &mut Vec<u8>, value: &str) -> Result<(), EnvelopeError> {
+fn append_identity(
+    output: &mut Vec<u8>,
+    value: &str,
+) -> Result<(), EnvelopeError> {
     let length = u16::try_from(value.len()).map_err(invalid_envelope)?;
     if length == 0 || length > MAX_IDENTITY_BYTES {
         return Err(EnvelopeError::Invalid);
     }
     output.extend_from_slice(&length.to_le_bytes());
     output.extend_from_slice(value.as_bytes());
-    return Ok(())
+    return Ok(());
 }
 
 /// Reports whether decoded name obeys strict tail-format section-name grammar.
@@ -162,7 +183,10 @@ fn valid_rule_name(name: &str) -> bool {
 
 /// Whether one character after the first may appear in a rule name.
 fn is_rule_name_character(character: char) -> bool {
-    return character.is_ascii_lowercase() || character.is_ascii_digit() || character == '.' || character == '-';
+    return character.is_ascii_lowercase()
+        || character.is_ascii_digit()
+        || character == '.'
+        || character == '-';
 }
 
 /// Encodes hybrid literal data and regex-only engine bytes into one artifact.
@@ -204,8 +228,7 @@ pub(super) fn encode(
         }
     }
 
-    let literal_count = u32::try_from(compiled.literal_groups().len())
-        .map_err(invalid_envelope)?;
+    let literal_count = u32::try_from(compiled.literal_groups().len()).map_err(invalid_envelope)?;
     output.extend_from_slice(&literal_count.to_le_bytes());
     for group in compiled.literal_groups() {
         let literal_length = u32::try_from(group.bytes.len()).map_err(invalid_envelope)?;
@@ -222,8 +245,8 @@ pub(super) fn encode(
         }
     }
 
-    let regex_id_count = u32::try_from(compiled.regex_rule_ids().len())
-        .map_err(invalid_envelope)?;
+    let regex_id_count =
+        u32::try_from(compiled.regex_rule_ids().len()).map_err(invalid_envelope)?;
     output.extend_from_slice(&regex_id_count.to_le_bytes());
     for &rule_id in compiled.regex_rule_ids() {
         let encoded_id = u32::try_from(rule_id).map_err(invalid_envelope)?;
@@ -236,13 +259,12 @@ pub(super) fn encode(
             .to_le_bytes(),
     );
     output.extend_from_slice(&engine_bytes);
-    let payload_digest = source_digest(&output[payload_start..])
-        .map_err(invalid_envelope)?;
+    let payload_digest = source_digest(&output[payload_start..]).map_err(invalid_envelope)?;
     output.extend_from_slice(&digest_bytes(payload_digest));
     if u64::try_from(output.len()).map_err(invalid_envelope)? > MAX_ARTIFACT_BYTES {
         return Err(EnvelopeError::Invalid);
     }
-    return Ok(output)
+    return Ok(output);
 }
 
 /// Decodes and validates one complete hybrid envelope against source identity.
@@ -260,7 +282,9 @@ pub(super) fn decode(
     if header_cursor.read_u32()? != SCHEMA_VERSION {
         return Err(EnvelopeError::Incompatible);
     }
-    if header_cursor.read_identity()? != scanner_version() || header_cursor.read_identity()? != platform_identity() {
+    if header_cursor.read_identity()? != scanner_version()
+        || header_cursor.read_identity()? != platform_identity()
+    {
         return Err(EnvelopeError::Incompatible);
     }
     if header_cursor.take(32)? != digest_bytes(expected_digest) {
@@ -271,11 +295,10 @@ pub(super) fn decode(
     if payload_end < payload_start {
         return Err(EnvelopeError::Invalid);
     }
-    let expected_payload_digest: [u8; 32] = bytes[payload_end..]
-        .try_into()
-        .map_err(invalid_envelope)?;
-    let actual_payload_digest = source_digest(&bytes[payload_start..payload_end])
-        .map_err(invalid_envelope)?;
+    let expected_payload_digest: [u8; 32] =
+        bytes[payload_end..].try_into().map_err(invalid_envelope)?;
+    let actual_payload_digest =
+        source_digest(&bytes[payload_start..payload_end]).map_err(invalid_envelope)?;
     if digest_bytes(actual_payload_digest) != expected_payload_digest {
         return Err(EnvelopeError::Invalid);
     }
@@ -328,7 +351,10 @@ pub(super) fn decode(
         for _ in 0..id_count {
             rule_ids.push(usize::try_from(cursor.read_u32()?).map_err(invalid_envelope)?);
         }
-        literal_groups.push(LiteralGroup { bytes: literal, rule_ids });
+        literal_groups.push(LiteralGroup {
+            bytes: literal,
+            rule_ids,
+        });
     }
 
     let regex_id_count = cursor.read_u32()?;
@@ -339,10 +365,7 @@ pub(super) fn decode(
     for _ in 0..regex_id_count {
         regex_rule_ids.push(usize::try_from(cursor.read_u32()?).map_err(invalid_envelope)?);
     }
-    let expected_engine_digest: [u8; 32] = cursor
-        .take(32)?
-        .try_into()
-        .map_err(invalid_envelope)?;
+    let expected_engine_digest: [u8; 32] = cursor.take(32)?.try_into().map_err(invalid_envelope)?;
     let engine_length = cursor.read_u64()?;
     if engine_length > MAX_ARTIFACT_BYTES {
         return Err(EnvelopeError::Invalid);
@@ -361,7 +384,7 @@ pub(super) fn decode(
         Some(crate::load_precompiled(engine_bytes).map_err(invalid_envelope)?)
     };
     return RuntimeRules::from_artifact(names, literal_groups, regex_set, regex_rule_ids)
-        .map_err(invalid_envelope)
+        .map_err(invalid_envelope);
 }
 
 /// Registers envelope framing and corruption tests.

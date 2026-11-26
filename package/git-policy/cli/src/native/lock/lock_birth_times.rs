@@ -62,6 +62,7 @@ pub enum BirthTimes {
 /// in a child process:
 /// `none`,
 /// or a tick size in whole milliseconds.
+///  A release build holds no read of it.
 pub const BIRTH_TIME_VARIABLE: &str = "CLI_GIT_TEST_ONLY_BIRTH_TIME";
 
 /// What:
@@ -128,17 +129,19 @@ pub fn with_birth_times<T>(times: BirthTimes, body: impl FnOnce() -> T) -> T {
 /// Why:
 ///  One order decides,
 ///  so a unit control's arm wins over an inherited variable and a run with neither reads the file system.
+///  A control asks this directly to show that a build without the switches reads no variable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const times = threadArm ?? birthTimesOf(process.env[BIRTH_TIME_VARIABLE] ?? '') ?? { kind: 'recorded' };
 /// ```
-fn times_in_force() -> BirthTimes {
+pub(crate) fn times_in_force() -> BirthTimes {
     #[cfg(test)]
     if let Some(armed) = TIMES_FOR_THIS_THREAD.with(std::cell::Cell::get) {
         return armed;
     }
-    let Ok(setting) = std::env::var(BIRTH_TIME_VARIABLE) else {
+    // The setting a control armed, which a release build never reads.
+    let Some(setting) = crate::test_only_switches::text(BIRTH_TIME_VARIABLE) else {
         return BirthTimes::Recorded;
     };
     return birth_times_of(setting.as_str()).unwrap_or(BirthTimes::Recorded);

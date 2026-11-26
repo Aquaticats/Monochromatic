@@ -9,11 +9,17 @@
 // });
 // ```
 
-use super::{SHENG2_MAX_CLASSES, SHENG2_MAX_STATES};
+use super::{
+    SHENG2_MAX_CLASSES,
+    SHENG2_MAX_STATES,
+};
 use crate::ast::node::Node;
 use crate::ast::smart::concat;
 use crate::dfa::table::Dfa;
-use crate::dfa::{build_dfa_within, minimize};
+use crate::dfa::{
+    build_dfa_within,
+    minimize,
+};
 use crate::parse::parse;
 
 // What:    Builds the same unanchored search DFA an engine would for `pattern`.
@@ -28,7 +34,7 @@ use crate::parse::parse;
 // ```
 fn search_dfa(pattern: &str) -> Dfa {
     let node = concat(vec![Node::Top, parse(pattern).expect("pattern parses")]);
-    return minimize(&build_dfa_within(node, 10_000).expect("builds under cap"))
+    return minimize(&build_dfa_within(node, 10_000).expect("builds under cap"));
 }
 
 // What:    Asserts the two-byte kernel agrees with the per-line scalar oracle on `lines`.
@@ -41,7 +47,10 @@ fn search_dfa(pattern: &str) -> Dfa {
 //   // Rust body below is the implementation.
 // }
 // ```
-fn sheng2_agrees(pattern: &str, lines: &[&[u8]]) {
+fn sheng2_agrees(
+    pattern: &str,
+    lines: &[&[u8]],
+) {
     let dfa = search_dfa(pattern);
     let oracle: Vec<bool> = lines.iter().map(|line| return dfa.is_match(line)).collect();
     let mut out = vec![false; lines.len()];
@@ -121,7 +130,10 @@ fn a_match_ending_at_an_odd_offset_is_accumulated() {
 //   // Rust body below is the implementation.
 // }
 // ```
-fn flat_dfa(num_states: u16, nclasses: u32) -> Dfa {
+fn flat_dfa(
+    num_states: u16,
+    nclasses: u32,
+) -> Dfa {
     let nc = nclasses as usize;
     let class_map: Vec<u8> = (0..256usize).map(|b| return (b % nc) as u8).collect();
     return Dfa::from_parts(
@@ -133,7 +145,7 @@ fn flat_dfa(num_states: u16, nclasses: u32) -> Dfa {
         vec![0u8; num_states as usize],
         0,
         num_states,
-    )
+    );
 }
 
 #[test]
@@ -149,22 +161,33 @@ fn build_sheng2_eligibility_bounds_states_classes_and_acceptance() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert!(search_dfa("[0-9a-f]{8}").build_sheng2().is_some(), "a small hex run qualifies");
     assert!(
-        flat_dfa(SHENG2_MAX_STATES as u16, 2).build_sheng2().is_some(),
+        search_dfa("[0-9a-f]{8}").build_sheng2().is_some(),
+        "a small hex run qualifies"
+    );
+    assert!(
+        flat_dfa(SHENG2_MAX_STATES as u16, 2)
+            .build_sheng2()
+            .is_some(),
         "{SHENG2_MAX_STATES} states is the inclusive maximum"
     );
     assert!(
-        flat_dfa(10, SHENG2_MAX_CLASSES as u32).build_sheng2().is_some(),
+        flat_dfa(10, SHENG2_MAX_CLASSES as u32)
+            .build_sheng2()
+            .is_some(),
         "{SHENG2_MAX_CLASSES} classes is the inclusive maximum"
     );
     assert!(
-        flat_dfa(SHENG2_MAX_STATES as u16 + 1, 2).build_sheng2().is_none(),
+        flat_dfa(SHENG2_MAX_STATES as u16 + 1, 2)
+            .build_sheng2()
+            .is_none(),
         "{} states is over the limit",
         SHENG2_MAX_STATES + 1
     );
     assert!(
-        flat_dfa(10, SHENG2_MAX_CLASSES as u32 + 1).build_sheng2().is_none(),
+        flat_dfa(10, SHENG2_MAX_CLASSES as u32 + 1)
+            .build_sheng2()
+            .is_none(),
         "{} classes is over the limit",
         SHENG2_MAX_CLASSES + 1
     );
