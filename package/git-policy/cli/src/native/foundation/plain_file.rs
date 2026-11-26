@@ -39,13 +39,19 @@ use std::path::Path;
 /// How many bytes of a small file this reads:
 /// a journal,
 /// a registration's `gitdir`,
-/// a repository's configuration or a list of paths.
+/// a repository's configuration or a list of paths,
+/// a Git directory's `commondir` or `HEAD` file,
+/// a fetched-heads list or a todo list.
 ///  A file past the bound is refused with its path named rather than read whole,
 /// so no record beside a checkout decides how much memory a command reads.
 ///  The measurement beside the value,
 /// on this repository on 2026-11-09:
 /// its `.git/config` is 74,878 bytes and
-///  its longest registration `gitdir` 122.
+///  its longest registration `gitdir` 122;
+/// and on 2026-11-25 its `.git/config` had grown to 164,616 bytes,
+/// its `.git/FETCH_HEAD` was 183,958 bytes,
+///  a linked worktree's `commondir` was 6 bytes
+/// and a `HEAD` file 21 to 81.
 ///  A list of unreadable files has no measurement:
 /// it holds one path per entry the migration
 ///  could not read.

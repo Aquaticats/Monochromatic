@@ -596,7 +596,9 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
             return PullStep::Ended(CoordinatedRun::Failed { stderr: recovery_words(orig_head.as_str(), &in_the_way), code: 128 });
         }
     }
-    let fetched: String = std::fs::read_to_string(git_dir.join("FETCH_HEAD")).unwrap_or_default();
+    // The fetched head is read as a plain file and to a bound, so a named pipe at its name sends this pull to native Git
+    //  rather than holding it for a writer that may never come; a file past the bound is no list of heads to merge here.
+    let fetched: String = crate::plain_file::read_plain_text_at(git_dir.join("FETCH_HEAD").as_path(), crate::plain_file::SMALL_FILE_LIMIT).unwrap_or_default();
     let heads: Vec<String> = fetch_head_merge_heads(fetched.as_str());
     if heads.len() != 1 {
         debug(TAG, "native Git runs the whole pull again: FETCH_HEAD does not list exactly one head to merge");

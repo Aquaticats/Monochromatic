@@ -25,6 +25,9 @@
 //!  because `std::io::stderr()` is one lock for the whole process:
 //!  a thread blocked in a write through it would hold every other writer of this process
 //!  (`standard_error_descriptor.rs`).
+//!  The queue and its thread are `foundation/lines_written_by_a_thread.rs`,
+//!  which the service's own log lines share;
+//!  this file is the policy that makes that mechanism the diagnostics' queue.
 //!  A process about to end waits,
 //!  once and bounded,
 //!  for the lines it handed over,
@@ -34,26 +37,34 @@
 //!  and says once which limit refused it:
 //! a commit at its process limit failed on 2026-11-25 saying nothing at all,
 //!  because its refusal waited in a queue that no thread would ever write (issue 6476).
+//!  That answer is the queue's own (`lines_written_by_a_thread.rs`), because the service's log lines
+//!  meet the same refusal from the same limit;
+//!  this file asks for it, and names what its lines are for.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! hand(`[warn] ...\n`); // waits for the line to reach the stream, at most WARNING_WRITE_CEILING
 //! ```
 
-/// Writing one line into the stream,
-/// and the error it may give.
-use std::io::Write;
-/// The queue,
-/// the condition the thread waits on,
-/// and the one-time start.
-use std::sync::{Condvar, Mutex, OnceLock};
-/// The lines waiting for the stream.
-use std::collections::VecDeque;
+/// The bounded queue, its thread and its control hooks,
+/// which this file gives the diagnostics' words and rules.
+use crate::lines_written_by_a_thread::{QueuePolicy, SharedQueue, hand, start_the_queue, wait_until_written, write_what_waits as queue_write_what_waits};
+/// The queue's control hooks,
+/// which only a control reads.
+#[cfg(test)]
+use crate::lines_written_by_a_thread::{
+    dropped_so_far as queue_dropped_so_far, give_the_thread as queue_give_the_thread, queued as queue_queued, the_reader_stopped as queue_the_reader_stopped,
+};
 /// The bound of one write,
 /// measured beside that constant.
 use crate::wait_ceilings::WARNING_WRITE_CEILING;
 /// The stream that is this process's standard error without the shared lock.
 use crate::standard_error_descriptor::StandardErrorDescriptor;
+/// Writing one line into the stream,
+/// which a control of the queue gives the thread.
+use std::io::Write;
+/// The one-time start of the queue.
+use std::sync::OnceLock;
 
 /// The tag of this module's own lines.
 const TAG: &str = "diagnosticLines";
@@ -69,7 +80,7 @@ const TAG: &str = "diagnosticLines";
 /// "Writes to the caller's own streams".
 pub const QUEUED_LINES: usize = 256;
 
-/// What the queue says before the next line when lines were dropped.
+/// What a line says before the next line when lines were dropped.
 const DROPPED_NOTICE: &str = "monochromatic-git-policy-cli: diagnostic lines were dropped because the reader of standard error was not taking them: ";
 
 /// What it says after the count.
@@ -97,268 +108,81 @@ const DROPPED_NOTICE_TAIL: &str = "\n";
 /// ```
 pub const WAIT_BEFORE_AN_EXIT: std::time::Duration = WARNING_WRITE_CEILING;
 
-/// One line waiting for the stream,
-/// with the number the caller waits for.
-struct Pending {
-    /// Which line this is,
-    /// in the order the callers handed their lines over.
-    ticket: u64,
-    /// The bytes of the line,
-    /// which are written whole or not at all.
-    line: Vec<u8>,
+/// What a gap in the diagnostics says, built from the count.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const droppedNotice = (dropped) => new TextEncoder().encode(DROPPED_NOTICE + dropped + DROPPED_NOTICE_TAIL);
+/// ```
+fn dropped_notice(dropped: u64) -> Vec<u8> {
+    // What:     `format!` builds the sentence with the count inside it, and `into_bytes()` takes the UTF-8 bytes the
+    //           queue keeps.
+    // Why:      The queue writes bytes, and the person reads how many lines the gap holds.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return encoder.encode(`${DROPPED_NOTICE}${dropped}${DROPPED_NOTICE_TAIL}`);
+    // ```
+    return format!("{DROPPED_NOTICE}{dropped}{DROPPED_NOTICE_TAIL}").into_bytes();
 }
 
-/// What the queue of one process holds,
-/// and where the lines of a control go.
-struct Queue {
-    /// The lines waiting for the stream,
-    /// oldest first.
-    lines: VecDeque<Pending>,
-    /// The number the next line handed over takes.
-    next_ticket: u64,
-    /// The number of the last line whose every byte is in the stream.
-    written: u64,
-    /// How many lines found no room since the last one that got through.
-    dropped: u64,
-    /// Whether the thread holds a line it has not written yet.
-    writing: bool,
-    /// Whether a reader has stopped taking lines:
-    /// the first caller whose line did not leave its hands within `WARNING_WRITE_CEILING` set it,
-    /// and from then on no caller waits.
-    reader_stopped: bool,
-    /// Whether the stream takes nothing more:
-    /// a write that failed for any reason other than a momentary lack of room
-    /// leaves a stream that no wait can bring back.
-    stream_is_gone: bool,
-    /// Whether the system refused the thread that writes these lines,
-    /// so every line is written on the thread that says it.
-    /// Why the refusal is kept and not retried:
-    ///  a process limit that refused the thread once refuses every later start too,
-    ///  so a line waiting for a new one would never reach the person.
-    thread_refused: bool,
-    /// The line that says which limit refused that thread,
-    /// or nothing once it is said.
-    /// Why it waits here:
-    ///  the queue is made before a control's stream is given to it,
-    ///  so the sentence is said with the first line the process says.
-    thread_refusal: Option<String>,
-    /// Where a control's lines go,
-    /// or nothing when they go to this process's standard error.
-    writer: Option<Box<dyn Write + Send>>,
+/// The stream the lines go to when no control gave one:
+/// this process's standard error written through its own descriptor.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const defaultStream = () => new StandardErrorDescriptor();
+/// ```
+fn default_stream() -> Box<dyn Write + Send> {
+    // What:     `Box::new(StandardErrorDescriptor)` puts the descriptor writer behind the one shape the queue writes
+    //           through: an owning writer that may travel to the thread.
+    // Why:      The thread writes the lines, so the stream must be its own and must not be the process's shared handle.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return new StandardErrorDescriptor();
+    // ```
+    return Box::new(StandardErrorDescriptor);
 }
 
-/// The queue of this process and the condition its thread waits on,
-/// as the one value the process keeps,
-/// and the one lock of this file.
-/// Lock kept:
-///  the lines waiting for the diagnostic stream,
-///  how many found no room,
-///  and which line the stream has reached,
-///  because a caller hands a line and goes on while one thread takes lines and waits on the stream,
-///  so the hand and the take are the two ends of one queue and neither may see the other's half.
-///  Under it one line is pushed or popped and one number is moved;
-///  the write itself,
-///  which may wait for the reader as long as the reader takes,
-///  runs outside it,
-///  and no Git process,
-///  no file and no other lock runs under it.
-type TheQueueOfThisProcess = (Mutex<Queue>, Condvar);
+/// The diagnostics' queue:
+///  its caller waits for its own line,
+///  its thread retries a refused write on a tick,
+///  and a stream that is gone ends the thread.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_POLICY = { threadName: 'cli-git-diagnostic-lines', droppedNotice, defaultStream, callersWaitForTheirLine: true, retriesOnATick: true, endsWhenTheStreamIsGone: true, threadRefused: undefined, tag: TAG };
+/// ```
+static THE_POLICY: QueuePolicy = QueuePolicy {
+    thread_name: "cli-git-diagnostic-lines",
+    dropped_notice,
+    default_stream,
+    callers_wait_for_their_line: true,
+    retries_on_a_tick: true,
+    ends_when_the_stream_is_gone: true,
+    // The refusal is said on this command's own standard error, which is the stream the refused thread would have written to:
+    //  a commit at its process limit failed on 2026-11-25 saying nothing at all (issue 6476), so the answer a refusal needs
+    //  is the lines themselves rather than a line about them.
+    refused_thread_purpose: Some("write this command's own lines"),
+    tag: TAG,
+};
 
 /// The one queue of this process,
 /// made on the first line.
-static QUEUE: OnceLock<&'static TheQueueOfThisProcess> = OnceLock::new();
+static QUEUE: OnceLock<SharedQueue> = OnceLock::new();
 
 /// The queue,
 /// started on the first line.
-fn queue() -> &'static TheQueueOfThisProcess {
-    return QUEUE.get_or_init(start_the_queue);
-}
-
-/// What:
-///  The queue of this process,
-///  made once and given its thread.
-/// Why:
-///   The thread waits on the same queue for as long as the process runs,
-/// so the value has to outlive the call that made it.
-///  A process that says no diagnostic line starts no thread and pays nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const startTheQueue = () => { const queue = { lines: [], written: 0, dropped: 0 }; spawn(() => writeEveryLine(queue)); return queue }
-/// ```
-fn start_the_queue() -> &'static TheQueueOfThisProcess {
-    let started: &'static TheQueueOfThisProcess = Box::leak(Box::new((
-        Mutex::new(Queue {
-            lines: VecDeque::new(),
-            // The first line handed over is line 1, so that "the stream has reached this line" is a number that only a
-            //  written line reaches.
-            next_ticket: 1,
-            written: 0,
-            dropped: 0,
-            writing: false,
-            reader_stopped: false,
-            stream_is_gone: false,
-            thread_refused: false,
-            thread_refusal: None,
-            writer: None,
-        }),
-        Condvar::new(),
-    )));
-    // What: the start of the one thread that writes these lines, whose refusal is a value here rather than a panic.
-    let started_writing = std::thread::Builder::new().name(String::from("cli-git-diagnostic-lines")).spawn(move || {
-        write_every_line(started);
-    });
-    // A refusal leaves every line of this process unwritten if nothing answers it, which is how the refusal of a commit
-    //  at its process limit was lost (issue 6476), so the refusal is kept here and every line is written where it is said.
-    if let Err(refusal) = started_writing {
-        let said: String = format!(
-            "monochromatic-git-policy-cli: {}. Every line this command says is written on the thread that says it, so nothing \
-             it says is lost while this limit stands.\n",
-            crate::scoped_start::refused_thread_sentence("write this command's own lines", &refusal)
-        );
-        let mut held = started.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        held.thread_refused = true;
-        held.thread_refusal = Some(said);
-    }
-    return started;
-}
-
-/// What:
-///  Writes the lines of the queue for as long as the process runs,
-///  and keeps whatever a stream did not take.
-/// Why:
-///   This thread may wait for the stream as long as the stream takes;
-/// the caller that said the line does not.
-///  A line leaves this thread only when all of its bytes are in the stream,
-/// because the caller that waits for it waits for exactly that much,
-/// and a write can end short.
-///  A stream that is gone takes nothing ever again,
-/// so the rest of the line is dropped and the queue answers from then on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (;;) { const line = take(); while (line.hasBytes) { const wrote = tryWrite(line.bytes); if (gone) return } markWritten(line.ticket); wakeCallers() }
-/// ```
-fn write_every_line(started: &'static TheQueueOfThisProcess) {
-    let (queue, ready) = started;
-    loop {
-        let next: Option<Pending> = {
-            let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            loop {
-                if let Some(line) = held.lines.pop_front() {
-                    held.writing = true;
-                    break Some(line);
-                }
-                held = match ready.wait(held) {
-                    Ok(ready_now) => ready_now,
-                    Err(poisoned) => poisoned.into_inner(),
-                };
-            }
-        };
-        let Some(line) = next else {
-            return;
-        };
-        let (mut writer, reported): (Box<dyn Write + Send>, u64) = {
-            let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            let dropped: u64 = std::mem::take(&mut held.dropped);
-            let writer: Box<dyn Write + Send> = match held.writer.take() {
-                Some(writer) => writer,
-                // No control owns the stream, so the lines are this process's own standard error.
-                None => Box::new(StandardErrorDescriptor),
-            };
-            (writer, dropped)
-        };
-        if reported > 0 {
-            let notice: String = format!("{DROPPED_NOTICE}{reported}{DROPPED_NOTICE_TAIL}");
-            if write_whole(&mut writer, notice.as_bytes(), queue, ready).is_err() {
-                give_back(queue, ready, writer, line.ticket, true);
-                return;
-            }
-        }
-        let outcome: std::io::Result<()> = write_whole(&mut writer, line.line.as_slice(), queue, ready);
-        let _flushed = writer.flush();
-        give_back(queue, ready, writer, line.ticket, outcome.is_err());
-        if outcome.is_err() {
-            return;
-        }
-    }
-}
-
-/// What:
-///  Puts the stream back where the next line takes it,
-///  moves the number the stream has reached,
-///  and wakes every caller waiting for a line.
-/// Why:
-///   A caller waits for the number of its own line,
-/// so exactly one movement of that number is what ends the wait,
-///  and the wake has to come after the stream took the line rather than before.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const giveBack = (writer, ticket, gone) => { lock(); queue.writer ??= writer; queue.written = ticket; queue.writing = false; if (gone) queue.stream_is_gone = true; unlock(); notifyAll() }
-/// ```
-fn give_back(queue: &'static Mutex<Queue>, ready: &'static Condvar, writer: Box<dyn Write + Send>, ticket: u64, stream_is_gone: bool) {
-    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    if held.writer.is_none() {
-        held.writer = Some(writer);
-    }
-    held.written = ticket;
-    held.writing = false;
-    if stream_is_gone {
-        held.stream_is_gone = true;
-    }
-    drop(held);
-    ready.notify_all();
-}
-
-/// What:
-///  Writes every byte of `bytes`,
-///  and answers the first failure that is not a signal.
-/// Why:
-///   A caller's wait is over only when all of its line is in the stream,
-/// and a short write leaves the rest here rather than in the middle of the next line.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// while (bytes.length > 0) { const took = write(bytes); if (took === 0) await nextAsk(); bytes = bytes.slice(took) }
-/// ```
-fn write_whole(writer: &mut Box<dyn Write + Send>, bytes: &[u8], queue: &'static Mutex<Queue>, ready: &'static Condvar) -> std::io::Result<()> {
-    let mut left: &[u8] = bytes;
-    while !left.is_empty() {
-        match writer.write(left) {
-            // A stream that took nothing at once is asked again after a tick rather than in a loop of its own: this process's
-            //  standard error is a blocking descriptor and never answers this, so it is a stream of a control, and a control's
-            //  full pipe must not become load this process puts on the machine.
-            Ok(0) => wait_to_be_asked_again(queue, ready),
-            Ok(taken) => left = &left[taken..],
-            // A signal ended the call and nothing about the stream changed.
-            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
-            // A stream with no room now takes the rest of the line when the reader makes room, which is what a blocking
-            //  descriptor does by itself; a control's stream that answers this enjoys the same tick.
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => wait_to_be_asked_again(queue, ready),
-            Err(error) => return Err(error),
-        }
-    }
-    return Ok(());
-}
-
-/// What:
-///  Waits on the queue's own condition for the tick the end of a process asks at,
-///  and goes on.
-/// Why:
-///   The thread keeps a line a stream refused and tries again,
-/// and between two attempts it must sleep somewhere that is not a loop of its own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await sleep(THE_END_ASKS_AGAIN_EVERY)
-/// ```
-fn wait_to_be_asked_again(queue: &'static Mutex<Queue>, ready: &'static Condvar) {
-    let held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let _woken = match ready.wait_timeout(held, THE_END_ASKS_AGAIN_EVERY) {
-        Ok((ready_now, _its_time_was_up)) => ready_now,
-        Err(poisoned) => poisoned.into_inner().0,
-    };
+fn queue() -> SharedQueue {
+    // What:     `get_or_init` makes the queue on the first line and answers the one the process keeps afterwards.
+    // Why:      A second start would give the process two threads writing two queues, so the queue is made once.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return QUEUE.value ??= startTheQueue(THE_POLICY);
+    // ```
+    return QUEUE.get_or_init(|| return start_the_queue(&THE_POLICY));
 }
 
 /// What:
@@ -375,7 +199,7 @@ fn wait_to_be_asked_again(queue: &'static Mutex<Queue>, ready: &'static Condvar)
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const write = (line) => { const ticket = hand(line); if (ticket !== undefined && !stopped) waitFor(ticket, WARNING_WRITE_CEILING) }
+/// const write = (line) => { const ticket = hand(line); if (ticket !== undefined) waitFor(ticket, WARNING_WRITE_CEILING) }
 /// ```
 pub fn write(line: &str) {
     write_bytes(line.as_bytes());
@@ -393,153 +217,28 @@ pub fn write(line: &str) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const writeBytes = (line: Uint8Array) => { const ticket = hand(line); if (ticket !== undefined && !stopped) waitFor(ticket, WARNING_WRITE_CEILING) }
+/// const writeBytes = (line: Uint8Array) => { const ticket = hand(line); if (ticket !== undefined) waitFor(ticket, WARNING_WRITE_CEILING) }
 /// ```
 pub fn write_bytes(line: &[u8]) {
-    let (queue, ready) = queue();
-    let ticket: u64 = {
-        let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        // No thread was given these lines, so no caller waits for a line number here: the refusal, once, and then this
-        //  line are written now, and every line after it too.
-        if held.thread_refused {
-            let refusal_line: Option<String> = held.thread_refusal.take();
-            drop(held);
-            if let Some(which_limit) = refusal_line {
-                write_where_it_is_said(queue, which_limit.as_bytes());
-            }
-            write_where_it_is_said(queue, line);
-            return;
-        }
-        let ticket: u64 = held.next_ticket;
-        if held.lines.len() >= QUEUED_LINES {
-            held.dropped = held.dropped.saturating_add(1);
-            return;
-        }
-        held.next_ticket = held.next_ticket.saturating_add(1);
-        held.lines.push_back(Pending { ticket, line: line.to_vec() });
-        drop(held);
-        ready.notify_one();
-        ticket
+    let queue: SharedQueue = queue();
+    // What:     `hand(...)` queues the line's own bytes and answers its number, or nothing when the queue had no room.
+    // Why:      A line the queue could not take is counted there, and the next line states the gap.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const ticket = hand(queue, line.slice(), QUEUED_LINES);
+    // ```
+    let Some(ticket) = hand(queue, line.to_vec(), QUEUED_LINES) else {
+        return;
     };
-    wait_until_written(queue, ready, ticket);
-}
-
-/// What:
-///  Writes one line on the thread that says it,
-///  where the system refused the thread that would have written it.
-/// Why:
-///   A process whose process limit refuses this file's thread still has to say why it failed:
-/// the refusal of a commit at its process limit reached nobody on 2026-11-25 (issue 6476),
-///  because every line waited in a queue that nothing would ever write.
-///  The line is written without waiting for a reader:
-/// one write is made only where the stream has room now,
-/// so a stream nobody drains costs the line and never the command,
-///  which is the same promise the queue keeps when its room runs out.
-///  A control's own stream is written as it stands,
-/// because a control's stream is the control's memory and never a reader.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const writeWhereItIsSaid = (line) => { const writer = takeTheControlsStream() ?? (roomNow() ? stderrDescriptor : null); if (!writer) return; writer.write(line); giveBack(writer) }
-/// ```
-fn write_where_it_is_said(queue: &'static Mutex<Queue>, line: &[u8]) {
-    // What: the stream a control gave this queue, taken out so that the write runs outside the queue's lock.
-    let given: Option<Box<dyn Write + Send>> = {
-        let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        held.writer.take()
-    };
-    // What: the stream this line goes to: the control's, or this process's own standard error where it takes a write now.
-    let mut writer: Box<dyn Write + Send> = match given {
-        Some(control) => control,
-        None => {
-            if !the_stream_has_room_now() {
-                return;
-            }
-            Box::new(StandardErrorDescriptor)
-        }
-    };
-    // What: one write of the line, whose refusal or short take is dropped: a stream that took nothing keeps nothing.
-    let _took: std::io::Result<usize> = writer.write(line);
-    let _flushed: std::io::Result<()> = writer.flush();
-    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    if held.writer.is_none() {
-        held.writer = Some(writer);
-    }
-}
-
-/// What:
-///  Whether this process's standard error takes a write now,
-///  asked without waiting for the reader.
-/// Why:
-///   A line written where it is said must still keep the promise that no caller waits for a reader,
-/// and a stream with no room now is one a write would wait on;
-///  a regular file, a terminal and a pipe being drained all answer that they have room,
-///  so the ordinary case is written and the stopped reader costs the line.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const roomNow = () => poll([{ fd: 2, events: POLLOUT }], 0) > 0
-/// ```
-#[cfg(unix)]
-fn the_stream_has_room_now() -> bool {
-    // What: one descriptor watched for room to write in it, and for no time at all.
-    let mut watched: libc::pollfd = libc::pollfd { fd: libc::STDERR_FILENO, events: libc::POLLOUT, revents: 0 };
-    // SAFETY: `poll` reads and writes only the one structure given to it here, and waits for no time.
-    let answered: libc::c_int = unsafe { libc::poll(&mut watched, 1, 0) };
-    // What: whether the stream reported room, and not an error or a hang-up instead.
-    return answered > 0 && watched.revents & libc::POLLOUT != 0;
-}
-
-/// What:
-///  Whether this process's standard error takes a write now,
-///  on a platform whose descriptors carry no such question: it is written and waited for.
-/// Why:
-///   Every platform this program is released on has the question above;
-/// this answer keeps the build of the other platforms and is measured by no control.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const roomNow = () => true
-/// ```
-#[cfg(not(unix))]
-fn the_stream_has_room_now() -> bool {
-    return true;
-}
-
-/// What:
-///  Waits,
-///  up to `WARNING_WRITE_CEILING`,
-///  until the stream holds every byte of line `ticket`,
-///  and remembers a line the reader did not take so that no later caller waits.
-/// Why:
-///   One reader that was not taking a line by the bound is a reader that is not taking lines,
-/// so the wait is paid once per process and never again,
-///  which is what keeps a command that says twenty lines under a held lock to one bound rather than twenty.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const waitUntilWritten = (ticket) => { for (;;) { if (written >= ticket) return; if (deadlinePassed()) { readerStopped = true; return } waitUntil(deadline) } }
-/// ```
-fn wait_until_written(queue: &'static Mutex<Queue>, ready: &'static Condvar, ticket: u64) {
-    let deadline: std::time::Instant = std::time::Instant::now() + WARNING_WRITE_CEILING;
-    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    loop {
-        // A stream that is gone takes nothing more, so no wait brings a reader back.
-        if held.stream_is_gone || held.reader_stopped || held.written >= ticket {
-            return;
-        }
-        let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) else {
-            // Said once per process, to the log this command keeps rather than to the stream it cannot reach.
-            held.reader_stopped = true;
-            drop(held);
-            crate::diagnostic_log::debug(TAG, format!("the reader of standard error took no diagnostic line within {WARNING_WRITE_CEILING:?}, so the command stops waiting for it").as_str());
-            return;
-        };
-        held = match ready.wait_timeout(held, left) {
-            Ok((ready_now, _its_time_was_up)) => ready_now,
-            Err(poisoned) => poisoned.into_inner().0,
-        };
-    }
+    // What:     `wait_until_written(...)` waits, bounded, for exactly this line to reach the stream.
+    // Why:      A later line's write must not be taken for this one, and the caller waits for its own line alone.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // waitUntilWritten(queue, ticket, WARNING_WRITE_CEILING);
+    // ```
+    wait_until_written(queue, ticket, WARNING_WRITE_CEILING);
 }
 
 /// What:
@@ -563,61 +262,22 @@ fn wait_until_written(queue: &'static Mutex<Queue>, ready: &'static Condvar, tic
 pub fn write_what_waits(within: std::time::Duration) -> bool {
     // No line was ever handed over, so no thread exists to wait for, and starting one here would be the cost this
     //  function exists to avoid.
-    let Some((queue, ready)) = QUEUE.get() else { return true };
-    let deadline: std::time::Instant = std::time::Instant::now() + within;
-    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    loop {
-        if held.stream_is_gone {
-            return false;
-        }
-        if held.lines.is_empty() && !held.writing {
-            return true;
-        }
-        let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) else {
-            return false;
-        };
-        // The thread keeps what a stream refused and tries again when it is asked to: this is the asking, and the tick is
-        //  what makes a reader's room, wherever in the bound it appears, the thread's next attempt.
-        ready.notify_all();
-        held = match ready.wait_timeout(held, left.min(THE_END_ASKS_AGAIN_EVERY)) {
-            Ok((woken, _its_time_was_up)) => woken,
-            Err(poisoned) => poisoned.into_inner().0,
-        };
-    }
+    let Some(queue) = QUEUE.get() else { return true };
+    return queue_write_what_waits(queue, within);
 }
-
-/// How often the end of a process asks the thread again for a line a stream refused.
-/// Why:
-///   A thread that answered `WouldBlock` waits to be told the stream has room,
-/// and the end of the process is the last chance to tell it,
-///  so the end asks again several times inside its bound rather than once.
-///  The same tick is what a refused attempt waits between two tries,
-/// so neither the thread nor the end of the process spins.
-///  Measured against the queue of `service_log_lines_off_the_calling_thread`,
-///  whose end waits the same way:
-/// a reader that made room 50 ms into the wait had the line 4.6 ms later,
-///  which is one tick.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const THE_END_ASKS_AGAIN_EVERY = 5
-/// ```
-const THE_END_ASKS_AGAIN_EVERY: std::time::Duration = std::time::Duration::from_millis(5);
 
 /// How many lines are waiting for the stream,
 /// which a control reads to show the queue is bounded.
 #[cfg(test)]
 pub fn queued() -> usize {
-    let (queue, _ready) = queue();
-    return queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner).lines.len();
+    return queue_queued(queue());
 }
 
 /// How many lines have been dropped since the last one that got through,
 /// which a control reads.
 #[cfg(test)]
 pub fn dropped_so_far() -> u64 {
-    let (queue, _ready) = queue();
-    return queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner).dropped;
+    return queue_dropped_so_far(queue());
 }
 
 /// What:
@@ -633,18 +293,14 @@ pub fn dropped_so_far() -> u64 {
 /// ```
 #[cfg(test)]
 pub fn give_the_thread(writer: Box<dyn Write + Send>) {
-    let (queue, _ready) = queue();
-    let mut held = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    held.writer = Some(writer);
-    held.reader_stopped = false;
+    queue_give_the_thread(queue(), writer);
 }
 
 /// Whether a caller of this process stopped waiting for the reader,
 /// which a control reads and no release path asks for.
 #[cfg(test)]
 pub fn the_reader_stopped() -> bool {
-    let (queue, _ready) = queue();
-    return queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner).reader_stopped;
+    return queue_the_reader_stopped(queue());
 }
 
 /// The queue's own behaviour is a control in the test module.
