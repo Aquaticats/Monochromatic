@@ -132,9 +132,6 @@ pub mod sweep_dataset_facts;
 /// The checks one child of the pinned parent passes before it is attached.
 pub mod sweep_clone_check;
 
-/// The attach step one clone goes through and its rollback.
-pub mod sweep_attach_step;
-
 /// The pool reads one sweep makes and the parent's child listing.
 pub mod sweep_dataset_reader;
 
@@ -150,6 +147,10 @@ pub mod sweep_standing_mount_source;
 /// from one polled read of the kernel's mount table and that one mount's
 /// source.
 pub mod sweep_standing_mounts;
+
+/// The attach step one clone goes through and its rollback,
+/// and the answer an occupied slot gets before the attach.
+pub mod sweep_attach_step;
 
 /// The seccomp filter a control installs so the mount-source call answers
 /// nothing,

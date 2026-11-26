@@ -313,6 +313,12 @@ pub(super) fn the_first_attach_refusal(verified: &VerifiedClone, step: &str, err
 ///  The file carries one of two shapes and no free text,
 ///  and a rollback or a retained mount is the `verify` step's refusal because
 ///  the mount was made and did not prove where it landed.
+///  A clone whose own mount already stood at its slot is recorded with that
+///  mount's own number and flags,
+///  because the record names the real clone mount at a real slot the probe
+///  compares its own attach with,
+///  and its comment in `first_attach_record.rs` says the name goes to the first
+///  attempt to claim it rather than the first mount this process made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -320,7 +326,7 @@ pub(super) fn the_first_attach_refusal(verified: &VerifiedClone, step: &str, err
 /// ```
 pub(super) fn the_first_attach_outcome(verified: &VerifiedClone, outcome: &AttachStepOutcome) -> FirstAttachOutcome {
     return match outcome {
-        AttachStepOutcome::Attached { mount } => FirstAttachOutcome::Attached {
+        AttachStepOutcome::Attached { mount } | AttachStepOutcome::AlreadyStanding { mount } => FirstAttachOutcome::Attached {
             mount_id: mount.mount_id,
             flags: the_flags_read_back(mount.mount_id),
             slot: verified.slot.clone(),
@@ -385,6 +391,8 @@ pub(super) fn record_the_first_attach(context: &SweepContext<'_>, claim: Option<
 ///  Turn one attach step's answer into the receipt and the sweep's outcome.
 /// Why:
 ///  A done mount files the mount identity a caller confirms,
+///  a clone whose own mount already stood at its slot is answered from that
+///  mount exactly as the sweep answers a standing clone before the walk,
 ///  a mount the rollback took down files the failed step,
 ///  and a mount that could not be taken down is reported as retained with both
 ///  paths rather than as "nothing happened".
@@ -414,6 +422,10 @@ pub(super) fn answer_the_attach(context: &SweepContext<'_>, verified: &VerifiedC
                 },
             }
         }
+        // The attach step found this clone's own mount at the slot and made none, so the request is answered from that
+        // mount by the same answer a clone whose mount stood before the walk gets: the receipt keeps this request's nonce
+        // and an unchanged one is left as it is.
+        AttachStepOutcome::AlreadyStanding { mount } => answer_the_standing_mount(context, verified, request, mount),
         AttachStepOutcome::RolledBack { said } => {
             let receipt: CloneMountReceipt = receipt_of(context, verified, request, ReceiptOutcome::Failed, None, Some("post-check"), None);
             file_a_failure(context, verified, said, "post-check", &receipt)

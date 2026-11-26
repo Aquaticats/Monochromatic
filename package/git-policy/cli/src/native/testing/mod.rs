@@ -159,3 +159,10 @@ pub(crate) mod child_ended_with_its_whole_group;
 /// never part of the release executable.
 #[cfg(test)]
 pub(crate) mod fixture_zfs_binding_record;
+
+/// One tmpfs mounted at a fixture slot,
+/// and a standing-mount reader whose table names it as a clone's own mount;
+/// never part of the release executable.
+#[cfg(test)]
+#[cfg(target_os = "linux")]
+pub(crate) mod standing_slot_mounts;
