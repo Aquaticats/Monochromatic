@@ -223,6 +223,18 @@ The uncapped scan finds 70 `Mutex`, `Atomic` or `OnceLock` statics in 39 test-on
 ((audit scratch, not kept)); I read the ones named here and not the rest,
 and several carry an `ONE_AT_A_TIME` mutex.
 
+Round of 2026-11-25:
+issue 6478 is fixed and merged,
+a descriptor-room control of 3b whose count another thread can change,
+(`3ce0c713e9`,
+its test named for the one thread it measures),
+and five threaded-only failures are filed and open:
+6483 (the content-safety control misses a same-tick write),
+6484 (two heartbeat controls share one manager switch),
+6485 (two supervisor controls plant kills in one process-wide registry),
+6486 (four `run_progress` controls read the shared test process) and
+6487 (the process-wide blocking room in `foundation`).
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
@@ -254,6 +266,17 @@ Confirmed repeats in one test executable, each checked by reading the helper cha
 `worktree_copying/worktree_copy_stage_claim_tests.rs:787`),
 and in the binary target `timing-signal` (`binary/binary_commit_timing_tests.rs:1380,2610`).
 Other repeated names are in different executables (lib against `native_binary`) and do not collide.
+
+Landed 2026-11-25 as `c14f1156c9`:
+`fixture()` names every call's folder with the number that call took
+(`native-unit-<process id>-<the number this call took>-<name>`),
+the binary target's helper names its own the same way,
+and the folder is made with `create_dir` only,
+so no call deletes another's live folder.
+The three controls that failed threaded went with it,
+and their causes are in
+`doc/troubleshooting/git-policy-cli-controls-that-name-one-fixture-folder.md` and
+`doc/troubleshooting/git-policy-cli-control-windows-taken-in-two-orders.md`.
 
 Cost: seen today (`DirectoryNotEmpty`, and the `create_dir` panic at `test_support.rs:332`, per the practices guide);
 the cross-module pairs (`work-lease`, `claim-names`) appear only in an unfiltered threaded run.
@@ -400,7 +423,8 @@ check; migrate the 35 sites; this is the runner item 3 needs.
 Size: 35 sites, 6 helper bodies.
 
 Landed 2026-11-25, in two commits on `refactor/git-policy-cli-test-binary-children-through-one-helper`:
-`31f4014890` and `d5e781a32a`.
+`31f4014890` and `d5e781a32a`,
+merged as `1911c927c0`.
 `testing/child_test_process.rs` holds the one request and its three faces (`started`, `finished`, `passed`),
 with a deadline, the two pipes read once the child is gone, and the check that exactly one test ran and passed;
 `testing/test_process_owner.rs` holds the ownership those children stand on, which the binary controls' crate and the
@@ -430,7 +454,8 @@ Fix: one file included by `#[path]` in both targets; `binary/binary_tests.rs:33`
 Size: 8 helpers.
 
 Landed 2026-11-25, in `07fe505696` on `refactor/git-policy-cli-fixture-support-one-copy-for-both-test-targets`,
-and merged into item 10's branch by `5e30b7665a`.
+and merged into item 10's branch by `5e30b7665a`,
+both on `main` as `1911c927c0`.
 `testing/fixture_support_shared_by_both_test_targets.rs` holds the fixture folders,
 the names they are made under and the removal,
 and both targets include it by `#[path]`;
@@ -565,7 +590,8 @@ Each row names its removal condition.
 The scan's own header says it follows no call, so a synchronous helper that reads a file and is called from an
 `async fn` is invisible to it (inferred; not measured).
 
-Round of 2026-11-25, branch `fix/git-policy-cli-merge-file-calls-off-the-runtime`:
+Round of 2026-11-25, branch `fix/git-policy-cli-merge-file-calls-off-the-runtime`,
+merged as `10f4826fdc`:
 the `merge/` reads are converted and their rows are gone.
 The ledger's "eight" was seven by the time the round started
 (`rg -c 'rule: "storage-read-on-a-task"'` printed 7 before the first edit):
