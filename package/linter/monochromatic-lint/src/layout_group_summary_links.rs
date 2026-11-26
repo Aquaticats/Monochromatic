@@ -37,8 +37,7 @@ use crate::{
     layout_link_entries::{
         Link,
         USES_FOLDER,
-        link_command,
-        link_loop_hazard,
+        link_help,
         read_links,
     },
 };
@@ -215,11 +214,7 @@ fn missing_summary(
             shown(group, base),
             shown(entry, base)
         ),
-        help: Some(format!(
-            "Create the link: {}. {}",
-            link_command(group, entry, base),
-            link_loop_hazard()
-        )),
+        help: Some(link_help(group, entry, base)),
         key: format!(
             "summary-missing {} {}",
             key_path(group, base),

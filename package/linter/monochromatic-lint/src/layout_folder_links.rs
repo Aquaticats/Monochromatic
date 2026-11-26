@@ -59,8 +59,7 @@ use crate::{
     },
     layout_link_entries::{
         USES_FOLDER,
-        link_command,
-        link_loop_hazard,
+        link_help,
         read_links,
     },
     layout_module_tree::ModuleTree,
@@ -107,11 +106,7 @@ fn missing_link(
             proof.text,
             shown(from, base)
         ),
-        help: Some(format!(
-            "Create the link: {}. {}",
-            link_command(from, to, base),
-            link_loop_hazard()
-        )),
+        help: Some(link_help(from, to, base)),
         key: format!(
             "missing-link {} -> {}",
             key_path(from, base),
