@@ -32,6 +32,7 @@ use std::io::{
     Write,
 };
 use std::os::unix::net::UnixStream;
+use std::path::Path;
 use std::time::{
     Duration,
     Instant,
