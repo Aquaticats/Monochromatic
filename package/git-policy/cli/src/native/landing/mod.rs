@@ -212,9 +212,6 @@
 //!   with the face a task of the runtime asks.
 //! - `service_pruned.rs`:
 //!   how a commit headed for the service notices that its prepared content was removed before it landed.
-//! - `service_replay_capture_order.rs`:
-//!   the capture order of every shared path of a replay,
-//!   from one walk over the history.
 //! - `service_replay_conclusion.rs`:
 //!   the refusal of a conclusion whose operation another command ended while the commit was prepared.
 //! - `service_replay_line_text.rs`:
@@ -253,6 +250,19 @@
 //!   the shapes a service preparation hands back.
 //! - `service_prepare_changes_config_and_pathspec_steps.rs`:
 //!   the smaller steps of a service preparation.
+//! - `service_replay_the_captured_change.rs`:
+//!   what a first preparation captured,
+//!   kept for the retry,
+//!   and the records a replay speaks in.
+//! - `service_replay_capture_order.rs`:
+//!   the capture order of every shared path of a replay,
+//!   from one walk over the history.
+//! - `service_replay_the_word_pass.rs`:
+//!   the word-level second pass over the files a line merge could not settle.
+//! - `service_replay_the_merge_onto_the_branch.rs`:
+//!   the tree the captured change makes,
+//!   the merge of it onto the branch as it is now,
+//!   and the commit that landed first on a path that still conflicts.
 //! - `service_replay.rs`:
 //!   the retry of a commit the service sent back:
 //!   the captured change merged onto the branch,
@@ -970,14 +980,27 @@ pub mod service_commit_request_of;
 /// per worktree.
 pub mod service_captures;
 
-/// The retry of a commit the service sent back:
-/// the captured change merged onto the branch,
-/// never prepared again from the worktree.
-pub mod service_replay;
+/// What a first preparation captured,
+/// kept for the retry,
+/// and the records a replay speaks in.
+pub mod service_replay_the_captured_change;
 
 /// The capture order of every shared path of a replay,
 /// from one walk over the history.
 pub mod service_replay_capture_order;
+
+/// The word-level second pass over the files a line merge could not settle.
+pub mod service_replay_the_word_pass;
+
+/// The tree the captured change makes,
+/// the merge of it onto the branch as it is now,
+/// and the commit that landed first on a path that still conflicts.
+pub mod service_replay_the_merge_onto_the_branch;
+
+/// The retry of a commit the service sent back:
+/// the captured change merged onto the branch,
+/// never prepared again from the worktree.
+pub mod service_replay;
 
 /// The small text steps of the replay of captured changes.
 pub mod service_replay_line_text;
