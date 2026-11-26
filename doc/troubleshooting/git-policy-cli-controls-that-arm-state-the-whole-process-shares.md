@@ -438,3 +438,236 @@ and the control hands over the body that sets it.
   and the whole library on this host is not run (a whole-library threaded run hangs,
   see
   `package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`).
+
+## Second round, 2026-11-26: the watcher module's controls (issue 6511)
+
+`push::child_watch::` failed the same way on `main` at `67b47a612a`,
+as issue 6493's round measured it while a whole container gate and four writer rounds ran:
+7 of 48 controls failed in one run,
+8 in the next,
+and the branch that round was merging failed 8 in both of its own,
+though it changed nothing these controls reach.
+Every one of those controls passed alone.
+
+This round measured the same module on this host,
+with `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1`:
+
+```text
+cargo test --locked --offline --lib --features test-only-switches push::child_watch:: -- --skip guest --skip _arm_tests
+
+test result: FAILED. 42 passed; 5 failed; 1 ignored; 0 measured; 10636 filtered out; finished in 32.28s
+```
+
+The five,
+with what each read:
+
+- `one_shot_through_pipes_tests::a_run_leaves_no_descriptor_open`:
+  `assertion left == right failed`,
+  `left: 27`,
+  `right: 24`.
+- `tests::a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling`
+  and `tests::a_step_that_keeps_working_is_ended_at_its_ceiling`:
+  the error was not the ceiling's but
+  "Nothing could watch it:
+  the system refused a thread for the watcher".
+- `tests::a_step_whose_watch_is_held_back_is_still_ended_at_its_ceiling`:
+  "the watch reached the write of its first notice:
+  Disconnected",
+  because no watcher existed to write it.
+- `tests::a_wait_past_the_bound_is_announced_then_the_child_is_stopped`:
+  `watch.expired()` was false,
+  and the run took 32 s because that control waited out its whole sleeper.
+
+The same module with `--test-threads=1` before the change:
+`test result: ok. 47 passed; 0 failed; 1 ignored`,
+in 41.38 s.
+Each of the five alone with `--exact`:
+`1 passed; 0 failed` each,
+in 0.33 s,
+0.73 s,
+0.73 s,
+19.86 s and 0.51 s.
+So neither the host's speed nor a control's own bound was the cause;
+which controls shared the process decided the set that failed.
+
+The module beside it,
+`push::child_watch_output_watched_on_the_runtime::tests`,
+was red the same way,
+and its two failures name both facts at once:
+its 7 controls threaded ran `5 passed; 2 failed` twice,
+in 0.53 s each,
+and `7 passed; 0 failed` with `--test-threads=1`,
+in 1.13 s.
+`a_step_awaited_on_the_runtime_leaves_no_descriptor_open` read `left: 16`,
+`right: 23`,
+the run having added 7 descriptors another control's child held,
+and `a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtime_was_late` read
+"the runtime this process built can run a task,
+so the late build has workers",
+because another control's stand-in had refused every task of the process at that moment.
+After the change that module ran `7 passed; 0 failed` twice,
+in 0.56 s each,
+and each of its seven controls alone passed.
+
+### Root cause
+
+Two facts of the whole process:
+
+- the two stand-ins `foundation/lazy_runtime.rs` holds for a system that refused every thread
+  (`REFUSED`,
+  armed by `a_control_refuses_every_task`) and for a runtime build that outlasted its deadline
+  (`THE_BUILD_WAS_LATE`,
+  armed by `a_control_stands_in_for_a_late_runtime`).
+  `tasks_can_run` and `built_flavor` answer for the whole process,
+  and each stand-in's comment said the flag cannot reach another control,
+  because nextest gives every control a process of its own.
+  A threaded run gives them one process:
+  a control that armed one made every other control's `ChildWatch` unwatched,
+  so no notice was written,
+  no quiet child was ended,
+  and the ceiling came from the wait rather than from the watch.
+- `/proc/self/fd` lists every thread's descriptors,
+  so the two controls that compare a count before a run against a count after it measured the whole process:
+  another control's thread opened and closed descriptors between the two counts.
+
+### The change
+
+Every control that arms one of the two stand-ins now runs its body in a child of this test binary,
+through `testing/process_wide_state_child_test_support.rs`,
+the helper issue 6487's round landed for the room and the bound a process makes once,
+and returns in the parent:
+
+- `push::child_watch::tests`:
+  three controls;
+- `push::child_watch_output_watched_on_the_runtime::tests`,
+  the module whose file is `push/child_watch_output_watched_on_the_runtime_tests.rs`:
+  two;
+- `service::service_runtime_build_report::tests`:
+  three,
+  which is the only other module of this crate that arms them.
+
+The two descriptor controls,
+`a_run_leaves_no_descriptor_open` and `a_step_awaited_on_the_runtime_leaves_no_descriptor_open`,
+run their body in such a child too,
+so the table a count reads is one test's own.
+
+Both stand-ins now call `refuse_outside_the_child`,
+naming the starter,
+so a control that forgets its child fails at its own first line on every run,
+instead of fixing by chance which of its neighbours fail.
+The sentence a forgotten child meets,
+in full:
+
+```text
+the stand-in for a system that refuses every thread of this process's runtime belongs to the whole process,
+and `cargo test` runs a crate's tests as threads of one process, so setting it here reaches every other test of that
+run: set it in a child of the control's own,
+which `crate::process_wide_state_child_test_support::started_within_a_child_of_its_own` starts
+```
+
+That is the sentence as the refusal gave it on 2026-11-26 at the measurement above.
+The starter is `run_the_body_in_a_child_of_its_own` since the same day (issue 6503):
+it takes the body to run in the child,
+so the refusal names a call that runs a body rather than one a control could read as a flag,
+and each of this round's controls hands its body to it.
+
+No shipped behaviour changed:
+every seam and every refusal is `#[cfg(test)]`,
+and what ends a watched step,
+and when,
+is what `package/git-policy/cli/SPEC.md` says it is.
+
+### What the guard is worth
+
+After the change,
+three threaded runs of the module:
+`test result: ok. 47 passed; 0 failed; 1 ignored` each,
+in 22.15 s,
+22.12 s and 22.15 s.
+With `--test-threads=1`:
+the same line,
+in 41.37 s.
+The same five controls alone after the change:
+`1 passed; 0 failed` each.
+
+The refusal was shown failing without its precondition,
+and the child start without the refusal:
+
+- with the child start taken out of `a_step_that_finishes_inside_its_ceiling_is_answered`,
+  its own run fails at its first line,
+  `test result: FAILED. 0 passed; 1 failed`,
+  with the sentence above;
+- with the `refuse_outside_the_child` call taken out of `a_control_refuses_every_task` and the same child start still out,
+  the same run passes,
+  `1 passed; 0 failed`,
+  in 1.08 s:
+  the control armed a flag of the whole process and nothing said so,
+  which is the leak the refusal exists to catch.
+
+### The same runs after `origin/main` moved the starter
+
+`origin/main` was 47 commits ahead when this round's second half began,
+and issue 6503 had replaced the starter:
+`started_within_a_child_of_its_own` answered a yes or a no,
+and every caller held that answer in an `if`,
+so the ten guards of this round called a function that no longer existed.
+Each now hands its body to `run_the_body_in_a_child_of_its_own(module_path!(), name, || { .. })`,
+and no test's body changed.
+
+The host carried other work while these ran (load average 7.78 on 10 cores).
+Measured on the merged tree:
+
+- two threaded runs of `push::child_watch::`:
+  `test result: ok. 47 passed; 0 failed; 1 ignored`,
+  in 21.38 s and 21.38 s;
+- the same module with `--test-threads=1`:
+  `test result: ok. 47 passed; 0 failed; 1 ignored`,
+  in 41.35 s;
+- `push::child_watch_output_watched_on_the_runtime::`:
+  `test result: ok. 7 passed; 0 failed`,
+  in 0.58 s;
+- `foundation::lazy_runtime::`:
+  `test result: ok. 15 passed; 0 failed; 1 ignored`;
+- `service::service_runtime_build_report::`:
+  `test result: ok. 5 passed; 0 failed`;
+- `source_guard::`:
+  `test result: ok. 145 passed; 0 failed`,
+  in 5.20 s;
+- each of the ten controls this round changed,
+  alone with `--exact`:
+  `test result: ok. 1 passed; 0 failed` each.
+
+The two guard proofs were made again on the merged tree,
+with one control of `service::service_runtime_build_report::tests` taken out of its child:
+
+- the body in the parent fails at its first line,
+  `test result: FAILED. 0 passed; 1 failed`,
+  with the refusal's sentence,
+  which now ends at `run_the_body_in_a_child_of_its_own`;
+- with `refuse_outside_the_child` also taken out of `a_control_stands_in_for_a_late_runtime`,
+  the same run passes,
+  `test result: ok. 1 passed; 0 failed`:
+  the control set a stand-in of the whole process and nothing said so,
+  and the refusal is what catches it.
+
+After the last merge of `origin/main` (`a2f41fc43e`),
+the module answered `test result: ok. 47 passed; 0 failed; 1 ignored` in 21.36 s threaded,
+and in 41.41 s with one test thread;
+`source_guard::` answered `test result: ok. 145 passed; 0 failed`.
+
+### Not covered
+
+- The container gate was not run:
+  this round ran the module on this host,
+  as issue 6493 measured it,
+  and a whole-library threaded run is not run here
+  (`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`).
+- The other modules of this crate still hold the debt of item 3 of
+  `package/git-policy/cli/doc/debt-ledger-2026-11-25.md`,
+  and issues 6483 and 6485 are still open.
+- One fact of the whole process was not measured:
+  a runtime build that outlasts `BUILD_DEADLINE` of one second leaves the process with a current-thread stand-in,
+  and every watch of that process is then unwatched.
+  A build slow enough for that under a gate's load would fail the same controls for a second reason.
+  This round's runs never met it,
+  and no control of this crate produces it on purpose.
