@@ -38,6 +38,38 @@ The readings and logs behind them are committed in
   and each carries a compact form for a question dialog.
 - The evidence is in the repository,
   beside this file.
+- One explicit ask now sits at the top,
+  and each of its four decisions stands alone with a recommendation.
+
+## What the owner is asked
+
+Four decisions remain.
+Each has its own section under "The decisions,
+each on its own",
+with its evidence,
+a recommendation and a compact form for a question dialog.
+
+- Drop each guest's page cache after an arm:
+  recommended;
+  one command,
+  measured to return 1.0 to 2.3 GiB,
+  and the next arm starts with a cold cache.
+- Destroy a guest between arms:
+  recommended only for rounds whose arms compile nothing;
+  a gap returns everything,
+  and each gap costs a create and the preparation.
+- Shrink the guest and build the crate's test binaries on the host:
+  measured to halve the host RAM the same arm holds;
+  recommended for arms that do not build in the guest,
+  not as a new default yet,
+  because every driver builds at its own path and the in-guest build step is lost.
+- Turn KSM on for a measurement round:
+  recommended only if the guest-agent route is worth weighing;
+  it needs a write to a root-owned host file that no agent round may make.
+
+Free page reporting is already decided
+(`doc/decision/mvm-guests-report-free-pages.md`),
+and the section below records what it buys and costs.
 
 ## The question
 
