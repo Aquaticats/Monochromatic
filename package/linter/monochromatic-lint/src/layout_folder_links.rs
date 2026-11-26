@@ -186,6 +186,9 @@ fn check_one_folder(
 ///  After `pub use folder::*;` a path through the re-exporting module names the re-exporter,
 ///  while the item lives in `folder`;
 ///  the folders' links then cannot show who really depends on whom.
+///  One line can hold two of them (`pub use crate::{a::*, b::*};`),
+///  so a finding is keyed by the module it names and not by the line it sits on:
+///  a list line for the first glob must never tolerate the second.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,7 +198,6 @@ fn glob_reexports(
     tree: &ModuleTree,
     base: &Path,
 ) -> Vec<LayoutFinding> {
-    let mut seen: BTreeSet<(PathBuf, usize)> = BTreeSet::<(PathBuf, usize)>::new();
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for (index, module) in tree.modules.iter().enumerate() {
         for reference in &module.references {
@@ -206,7 +208,7 @@ fn glob_reexports(
             else {
                 continue;
             };
-            if target == index || !seen.insert((module.file.clone(), reference.line)) {
+            if target == index {
                 continue;
             }
             findings.push(LayoutFinding {

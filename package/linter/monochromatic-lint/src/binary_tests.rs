@@ -1718,6 +1718,58 @@ fn layout_rules_run_in_the_built_executable_and_do_not_follow_links() {
     );
 }
 
+/// Two glob re-exports written on one line are two findings with two keys,
+///  so a list line recorded for the first never tolerates the second,
+///  and that line stays alive while its own glob exists.
+#[test]
+fn layout_two_globs_on_one_line_are_two_findings_in_the_built_executable() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(
+        "src/lib.rs",
+        "//! Index.\npub mod a;\npub mod b;\npub use crate::{a::*, b::*};\n",
+    );
+    fixture.write("src/a.rs", "pub struct X;\n");
+    fixture.write("src/b.rs", "pub struct Y;\n");
+    // The list records only the first of the two globs the line holds.
+    fixture.write("folder.txt", "glob src/lib.rs crate::a\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let found: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    // The second glob is the finding; the listed first one tolerates itself and its line stays alive.
+    assert_eq!(
+        located(found.stdout.as_str()),
+        [String::from("src/lib.rs rust/folder-uses-links 4 1")],
+        "{}",
+        found.stdout
+    );
+    assert!(
+        found
+            .stdout
+            .contains("`pub use crate::b::*` re-exports every item"),
+        "{}",
+        found.stdout
+    );
+    assert!(
+        found
+            .stderr
+            .contains("rust/folder-uses-links: allow-list key: glob src/lib.rs crate::b"),
+        "{}",
+        found.stderr
+    );
+    assert!(
+        !found.stderr.contains("tolerates nothing any more"),
+        "{}",
+        found.stderr
+    );
+}
+
 /// The built executable checks group folders:
 ///  a group's `uses` summary is wanted when a child uses another group,
 ///  accepted once it links the group,

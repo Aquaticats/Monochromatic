@@ -305,10 +305,12 @@ fn a_use_through_a_reexport_needs_the_link_to_the_defining_folder_too() {
     }
 }
 
-/// Glob re-exports of two modules on one line are one finding,
-///  and a glob re-export of the module itself is none.
+/// Glob re-exports of two modules on one line are two findings,
+///  each with its own key,
+///  so a list line for the first never tolerates the second;
+///  a glob re-export of the module itself is none.
 #[test]
-fn layout_two_globs_on_one_line_are_one_finding_and_a_self_glob_is_none() {
+fn layout_two_globs_on_one_line_are_two_findings_and_a_self_glob_is_none() {
     let fixture = package_with(&[
         (
             "src/lib.rs",
@@ -322,12 +324,16 @@ fn layout_two_globs_on_one_line_are_one_finding_and_a_self_glob_is_none() {
         .iter()
         .filter(|item| return item.contains("re-exports every item"))
         .collect::<Vec<&String>>();
-    assert_eq!(globs.len(), 1, "{found:#?}");
-    assert!(
-        globs[0].starts_with("src/lib.rs:3 `pub use native::*`"),
-        "{}",
-        globs[0]
-    );
+    assert_eq!(globs.len(), 2, "{found:#?}");
+    // The two findings are the two globs the line holds, in source order, and neither is the self glob.
+    for (glob, module) in globs.iter().zip(["native", "other"]) {
+        assert!(
+            glob.starts_with(
+                format!("src/lib.rs:3 `pub use {module}::*` re-exports every item").as_str()
+            ),
+            "{glob}"
+        );
+    }
 }
 
 /// Run the rule with an allow list and render each finding as `file:line message`,
