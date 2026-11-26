@@ -40,7 +40,11 @@ use std::path::Path;
 /// ```
 pub(crate) fn submit_saying_where_it_stands(config: &ClientConfig, scratch: &Path, request: &CommitRequest, trace: &mut SubmitTrace) -> Result<Submitted, ClientFailure> {
     let waiting_config: ClientConfig = ClientConfig { keep_fresh: Some(FreshScratch { path: scratch.to_path_buf(), every: SCRATCH_REFRESH_EVERY }), ..config.clone() };
-    let mut notices: NoticeStreamThatDoesNotHoldItsWriter = NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(std::io::stderr()));
+    // What: The waiting lines go to this process's standard error descriptor itself.
+    // Why:  A reader that stopped draining holds the writer thread inside its write, and the shared
+    //       handle's lock is one for the whole process: a line waiting there would make every later
+    //       write of this command wait behind it with no end (`standard_error_descriptor.rs`).
+    let mut notices: NoticeStreamThatDoesNotHoldItsWriter = NoticeStreamThatDoesNotHoldItsWriter::start(Box::new(crate::standard_error_descriptor::StandardErrorDescriptor));
     let answered: Result<Submitted, ClientFailure> = submit_traced(&waiting_config, request, &mut notices, trace);
     notices.finish();
     return answered;

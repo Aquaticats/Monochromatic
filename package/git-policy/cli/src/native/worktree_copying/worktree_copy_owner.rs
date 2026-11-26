@@ -195,18 +195,6 @@ impl CopyOwner {
         });
     }
 
-    /// The error to stop with when this owner is in another namespace and its item is older than the patience:
-    /// neither alive nor
-    ///  dead (owner,
-    /// 2026-11-04,
-    /// "Refuse and name it (Recommended)").
-    pub fn expired_foreign_refusal(&self, item: &Path) -> Option<WorktreeCopyError> {
-        return match foreign_owner_standing(self.pid_namespace.as_deref(), item) {
-            Some(ForeignStanding::Refused(refused)) => Some(WorktreeCopyError(refused.describe(self.pid))),
-            Some(ForeignStanding::Standing | ForeignStanding::Finished) | None => None,
-        };
-    }
-
     /// What:
     ///  Whether the owner still runs.
     /// Why:

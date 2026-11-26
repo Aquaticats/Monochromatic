@@ -92,12 +92,30 @@ pub enum Check {
     StagingFolder,
     /// The staging bind's propagation.
     StagingBindPropagation,
+    /// What one managed slot is:
+    /// the clone mounted at it,
+    /// unmounted from it,
+    /// staged under the cache,
+    /// or left by an add or a removal that stopped.
+    CloneState,
+    /// The Git registration one slot's record names.
+    Registration,
+    /// The managed Git lock one slot's registration holds.
+    ManagedLock,
+    /// The binding record one slot's add wrote.
+    BindingRecord,
+    /// The destruction plan one clone's removal left.
+    RemovalPlan,
+    /// The clone's own snapshots beside the plan's states.
+    CloneSnapshots,
+    /// The origin each clone names and its deferred-destroy mark.
+    CloneOrigin,
+    /// What one clone and its snapshots retain.
+    CloneRetention,
+    /// The blocked-removal state of one clone.
+    BlockedRemoval,
     /// The namespaces that hold a clone.
     Holders,
-    /// Step 15's deferred-origin check.
-    DeferredOrigin,
-    /// Step 14's and step 16's removal plan and lineage proof.
-    RemovalPlans,
     /// Step 17's cancel command.
     CancelCommand,
     /// Step 19's checkout boot protection and its immutable covered entry.
@@ -148,9 +166,16 @@ impl Check {
             Check::UnresolvedRequests => "unresolved-requests",
             Check::StagingFolder => "staging-folder",
             Check::StagingBindPropagation => "staging-bind-propagation",
+            Check::CloneState => "clone-state",
+            Check::Registration => "registration",
+            Check::ManagedLock => "managed-lock",
+            Check::BindingRecord => "binding-record",
+            Check::RemovalPlan => "removal-plan",
+            Check::CloneSnapshots => "clone-snapshots",
+            Check::CloneOrigin => "clone-origin",
+            Check::CloneRetention => "clone-retention",
+            Check::BlockedRemoval => "blocked-removal",
             Check::Holders => "holders",
-            Check::DeferredOrigin => "deferred-origin",
-            Check::RemovalPlans => "removal-plans",
             Check::CancelCommand => "cancel-command",
             Check::BootProtection => "boot-protection",
             Check::ServiceUnit => "service-unit",

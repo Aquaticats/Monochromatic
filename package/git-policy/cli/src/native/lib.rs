@@ -383,6 +383,18 @@ pub mod worktree_clone_removal_proof_and_plan;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_removal_proof_and_plan::*;
 
+/// Plan step 17's piece,
+/// built ahead of the plan's order:
+/// no command reaches it until the round that switches the removal's command path on wires it in.
+/// It is Linux only,
+/// like the mount table and the claim it reads.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_removal_cancel;
+
+/// The same re-export for `worktree_clone_removal_cancel`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_removal_cancel::*;
+
 /// The record that carries an origin snapshot's cleanup past the clone and the registration:
 /// its folder,
 /// its name grammar,
@@ -417,6 +429,45 @@ pub mod worktree_clone_removal_finish_pass;
 /// The same re-export for `worktree_clone_removal_finish_pass`.
 #[cfg(target_os = "linux")]
 pub use worktree_clone_removal_finish_pass::*;
+
+/// The boot and shutdown units of the ZFS route,
+/// as the setup writes them:
+///  the gate that reconciles clone mounts after boot,
+///  its two drop-ins,
+///  the propagation service and the mount drop-in that starts it,
+///  one unit per dataset whose mountpoint lies inside the checkout,
+///  and the list of files a setup run writes.
+/// Plan step 19's piece,
+/// built ahead of the plan's order and unwired:
+/// nothing writes or starts one of these files until that step's setup run
+/// and the owner's own act install them,
+/// and no command of this build reads them.
+/// It is Linux only,
+/// like the modes those lines run.
+#[cfg(target_os = "linux")]
+pub mod checkout_boot_units;
+
+/// The same re-export for `checkout_boot_units`.
+#[cfg(target_os = "linux")]
+pub use checkout_boot_units::*;
+
+/// The immutable covered entry of the checkout's underlay:
+///  what the kernel says about the entry at the checkout path and its parent,
+///  why a reading is refused,
+///  and the protected,
+///  unprotected or unproven answer a boot takes before it
+///  attaches a clone or trusts a reimported or rolled-back checkout.
+/// Plan step 19's piece,
+/// built ahead of the plan's order and unwired:
+/// no command and no boot check reads it until that step's wiring calls it.
+/// It is Linux only,
+/// like the `statx(2)` attributes it reads.
+#[cfg(target_os = "linux")]
+pub mod checkout_underlay_entry;
+
+/// The same re-export for `checkout_underlay_entry`.
+#[cfg(target_os = "linux")]
+pub use checkout_underlay_entry::*;
 
 /// The settling command a state a resume meets names and this release does not have yet:
 ///  its grammar and the two values a person confirms,
@@ -486,6 +537,21 @@ pub mod worktree_clone_prune_pointer;
 /// The same re-export for `worktree_clone_prune_pointer`.
 #[cfg(target_os = "linux")]
 pub use worktree_clone_prune_pointer::*;
+
+/// The watches a clone's mount leaves blind:
+///  whether the slot still names the directory its registration recorded,
+///  and the sentence that names the editor watcher and the fsmonitor daemon a
+///  person must reopen.
+/// Plan step 21 builds it ahead of its wiring,
+///  and no wrapper command reaches it yet.
+/// It is Linux only,
+///  like the identity it reads.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_watch_rebinding;
+
+/// The same re-export for `worktree_clone_watch_rebinding`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_watch_rebinding::*;
 
 /// The report of a damaged link between a worktree and its Git registration:
 ///  what was found,

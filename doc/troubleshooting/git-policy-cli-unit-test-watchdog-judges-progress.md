@@ -1478,3 +1478,120 @@ not after the whole process is gone.
 - The open question in `doc/handover/cli-git-rust-implementation.md` about the shape of a fix for a control that
   reached the old `RUN_LIMIT` is answered by this record;
   the handover itself is left to its own session.
+
+## Another module's process-wide state, and a threaded run that hung (2026-11-25T22:40:00-05:00)
+
+### Symptom
+
+`cargo test --locked --offline --lib process::signal_relay` in `package/git-policy/cli`, run as threads of one process
+(the way these worktrees run without `cargo-nextest`), reported
+
+```text
+test result: FAILED. 11 passed; 9 failed; 0 ignored; 0 measured; 10106 filtered out; finished in 0.35s
+```
+
+and a later threaded run of the same module then hung for 31 minutes,
+ignoring `SIGTERM`,
+until the coordinating session sent `SIGKILL`.
+Measured by the LFS round on `main` plus its own fix branch,
+which touches nothing under `process/`,
+in that round's `keep/premerge-check-on-main.log` under `${HOME}/temp/agent`.
+
+### Root cause
+
+Two pieces of process-wide state,
+not one signal.
+
+- The stop record.
+  `stop_of_the_service_noticed_by_its_children` records a service stop in the process,
+  and `a_commit_step_running_when_the_service_is_stopped_is_ended_by_the_stop` set it in the test process itself.
+  Every later `run_relayed` of the same process then refused its child with
+  `EndedByStop("a Git step of a commit was not started because the service is stopping")`,
+  which is what `waiting_ends_at_the_childs_exit_and_reports_it`,
+  `an_interrupted_wait_continues_until_the_child_exits` and
+  `the_child_of_a_guard_without_handlers_is_never_published` failed with.
+- The guards and the lock.
+  Five controls called `SignalGuard::install()` or changed a disposition in the test process,
+  and one of them panicked while holding `RELAY_STATICS`,
+  so every later control of the module failed with `PoisonError { .. }` whatever it measured.
+- The hang.
+  A control that installed the relay handlers and failed before dropping its guard left those handlers in place.
+  A relay handler does not end the process by the signal it catches,
+  so the `SIGTERM` a person sends is swallowed,
+  and the binary waits.
+
+### What was measured
+
+- Threaded, before the change: 9 of 20 failed in 0.35 s,
+  with `EndedByStop` in three tests, `PoisonError` in six,
+  and three tests still running after 60 s.
+- `--test-threads=1` still failed 7 of them:
+  the poison is what serial order removes, and the stop record outlives every test of the process.
+- After the change: `test result: ok. 20 passed; 0 failed` in 1.08 s, three runs in a row.
+
+### The controls now
+
+`testing/helper_process_test_support.rs` holds one shape for a control whose state is process-wide:
+a fresh fixture,
+this test binary re-started on exactly that control with a variable naming the fixture,
+a verdict file the helper writes the sentences it failed with,
+and a 60 s step timeout on both the verdict and the helper's own end.
+`spawn_owned` owns the helper's group, so a control that fails kills it with the test thread.
+`process/signal_relay_tests.rs` runs seven bodies that way,
+and `service/service_client_interrupted_tests.rs` runs five,
+including the one that used to signal the test binary itself.
+The controls of the stop word that stay in the process take a module lock,
+taken through the poison.
+
+### What is not claimed
+
+- A threaded pass does not prove the container gate's one-process-per-test run still passes;
+  it passes module by module here, and the gate stays the authority.
+- The 31 minute hang is attributed to a relay handler left installed, from the shape of the failure and the swallowed
+  `SIGTERM`; no run of this round reproduced the hang itself, because every run after the change ends in about a second.
+
+## `PR_SET_PDEATHSIG` ended a helper but not `/bin/sleep` here (2026-11-25T23:00:00-05:00)
+
+### Symptom
+
+`test_support::spawn_owned` asks the kernel for `PR_SET_PDEATHSIG` with `SIGKILL` in a `pre_exec`,
+the way the binary target's copy does,
+so that a child ends when the test process is killed outright,
+which no `Drop` can arrange.
+A control that kills the process which started such a child and waits for the child to go
+(`testing/test_support_tests.rs`, `a_child_dies_with_the_test_process_that_started_it`)
+passes with the `pre_exec` and fails without it,
+so the mechanism works for a child that runs this crate's own test binary,
+which is the shape of every helper a control starts.
+
+### What was measured
+
+Probes in the round's scratch folder,
+each starting a middle process that starts one child with the `pre_exec`,
+then ending the middle with `SIGKILL` and asking whether the child is still running:
+
+- a child that runs this crate's test binary: gone within 10 ms;
+- `/usr/bin/tail -f /dev/null`: gone within 100 ms;
+- `/bin/sleep 600`: still running two seconds later, in state `S`, reparented;
+- `/bin/sh -c 'exec /bin/sleep 600'` and `/bin/sh -c '/bin/sleep 600'`: still running two seconds later.
+
+A file written from the `pre_exec` proves the closure ran in every case,
+so the difference is not the start path.
+`/bin/sleep` is a regular file of GNU coreutils 9.12 with no set-user-ID bit and no extended attributes,
+and `strace -f -e trace=prctl /bin/sleep 0.1` shows no `prctl` call of its own.
+
+### What the crate does about it
+
+Nothing depends on the parent-death signal alone for a stand-in:
+a stand-in a control starts is in the group `spawn_owned` made,
+which `ThreadFixtures::drop` kills,
+and `spawn_owned_quiet` gives a stand-in whose output nobody reads all three streams on the null device,
+so it holds no pipe open even if it somehow survives.
+The forced-removal fixture of issue 6471 uses it.
+
+### What is not claimed
+
+- The cause of `/bin/sleep` outliving the parent-death signal is not established.
+  The measurement above is what a later round starts from,
+  and the probe sources are in
+  this round's `scratch/pdeath` folder under `${HOME}/temp/agent`.

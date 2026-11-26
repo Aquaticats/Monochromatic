@@ -18,6 +18,7 @@ use crate::test_support::{fixture, remove};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
+use std::path::PathBuf;
 use std::process::Command;
 
 /// A finding with the facts the notice words,

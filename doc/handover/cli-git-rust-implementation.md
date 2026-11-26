@@ -527,6 +527,22 @@ Pieces of steps 12,
 15,
 16 and 18 are built ahead and on `main`,
 unwired.
+State at 2026-11-25T20:55-05:00, by the plan's 23 steps:
+1 to 16 on `main` (12 to 16 wired, the removal command path still cut);
+17's cancel command merged (`df15f27a7a`) and its forced arm's decision half (`64a71a4c9b`),
+its kernel calls a live round (`zfs-step-17-forced-arm-ends-holders-and-measures-its-wait`);
+18's `doctor` checks merged unwired (`838b7f5e71`), its managed-lock lines too (`d463965dcd`, two wording choices in `doc/handover/questions-for-the-owner.md`);
+19's migration entry and units built ahead (`72a0be07ef`), the migration not run on this host;
+20 merged unwired (`a7502138a4`, writing `sanoid.conf` the owner's act); 21 merged;
+22's guest half a live round, its storage half the owner's act; 23 not started.
+Before a person's add takes the route:
+the add's `mountpoint` request the design forbids (issue 6462, answered "C: inherit" and "Both"; a live round),
+2C (its round ended, its merge check queued), the attach path's A5 answer (a live round),
+wiring 17 and 18 with step 22's request budget and lifting the removal path's cut,
+step 19's migration on this host, steps 22 and 23, and a release carrying it, installed.
+The deferred-destroy refusal is shown (step 15's guest arm);
+the forced removal is measured for the holder kinds a guest showed, the rest refused
+(`doc/decision/cli-git-zfs-worktree-design.md`, "What still gates shipping").
 Nothing of the route is installed on this machine,
 and the release after alpha.45 is the first to carry steps 9 and 10.
 
@@ -1259,9 +1275,35 @@ the threaded-test round, the doctor store and 3C checks, and one whole gate on `
 on the owner's "if memory is the problem, haven't we already solved it? If we haven't, have we tried everything?": not solved and not all tried; what was done cut churn (hugepage defrag, the ARC floor, zram writeback) and what holds memory is untouched: guests 26.28 GiB of `Shmem` for four live rounds (about 6.57 GiB each, builds inside the guest, shared memfd backing for virtiofs), compile peaks of 7 to 8 GiB per worktree with no shared build output, and zram0's 5.73 GiB until a reboot; `pi-mvm-guest-memory-held-for-a-rounds-life` measures the guest options and the research agent the build options, both to the owner;
 the doctor store merged as `2bf72fb230` (15:54:15) and 3C as `ef028ec3ac` (15:59:55, rechecked with the doctor store: `source_guard` 102, add route 101, `doctor_zfs_route` 170); the host-key fifth revision merged as a proposal, `800db64aa1` (16:00:33), K2 > K > C > C2 > D > A, its Sonnet gate read running before the owner sees it;
 on the owner's "So pay the debt" (the coordinator's briefs named task and safety rules but no coding practice): `package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md` (`42219e6f8d`, `d739037e45`) states the practices, the writer-round rules file now sends every round to it and asks for a threaded run of each touched module, and the five live code rounds were steered to read and apply it; the lfs self-signal fix (`898bdaa86b`, `1c9c0666f3`, issue 6463 closed) waits on its threaded check on the combined tree; the threaded-test round was widened to make `fixture()` give each call its own folder; `pi-test-children-owned-and-signalled-only-by-their-starter` is queued (every test child on `spawn_owned`, a `source_guard` control refusing bare spawns and self-signals); a Sonnet debt audit of the crate writes `~/temp/agent/git-policy-cli-debt-audit-2026-11-25/keep/ledger.md`, one fix round per group it finds; five `sleep 3000` stand-ins my own lfs comparison runs leaked were ended by PID at about 16:03;
-the guide now sends rounds first to the repository's `dum-dum-non-ts` skill, which no brief had named although every Pi round sees it listed (`87d02f41ec`, `b629001906`); asked where the rule against unbriefed code practice lives, the owner chose "Pi skill only": `.agents/skills/pi-as-subagent/SKILL.md` now tells every coding prompt to name the language's coding skill and the package's guide by its path on `main` (`5b989d2d98`); its `.claude/` and `.factory/` mirrors are ignored copies `file-enforcer write` regenerates, and `file-enforcer` is not installed in this checkout (`mise run file-enforcer` fails `command not found`), so Claude's mirror stays stale until it is; merged since 16:30: 6412 `568ef25e10`, the mountpoint proposal `57a8b9cc74`, the finish pass `4c1f93c1ef`, the lfs self-signal fix `124d251aaf`; the Sonnet debt ledger is `package/git-policy/cli/doc/debt-ledger-2026-11-25.md` with its routing; the owner decided items 8 ("Gate all behind a feature", `doc/decision/cli-git-test-only-switches-compiled-out-of-release.md`) and 16 ("Enable now, untangle over time", `doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`), and step 19's two guard findings (a cited exception for the two boot unit texts, and the reload guard narrowed to manager reloads, `doc/decision/cli-git-zfs-boot-units-start-at-boot-and-the-reload-guard.md`), each with its round; a whole-library threaded run on the host hangs in `process::child_awaited_until_it_exits_the_stop_or_the_ceiling` and fails three `process::signal_relay` tests on main's code, so no round runs the whole library on the host;
-the threaded-test and child-ownership rounds run single modules only, skipping guest arms, and the coordinator runs one whole-library baseline on main once the lfs fix merges; the child-ownership brief became a `source_guard` ledger (184 bare `.spawn()` sites in 99 test files) paid down folder by folder; nine rounds start three minutes apart from about 15:58: step 19, step 20 and step 21 built ahead, the mvm guest memory round, and issues 6453, 6412, 6415, 6433 and 6421;
+the guide now sends rounds first to the repository's `dum-dum-non-ts` skill, which no brief had named although every Pi round sees it listed (`87d02f41ec`, `b629001906`); asked where the rule against unbriefed code practice lives, the owner chose "Pi skill only": `.agents/skills/pi-as-subagent/SKILL.md` now tells every coding prompt to name the language's coding skill and the package's guide by its path on `main` (`5b989d2d98`); its `.claude/` and `.factory/` mirrors are ignored copies `file-enforcer write` regenerates, and `file-enforcer` is not installed in this checkout (`mise run file-enforcer` fails `command not found`), so Claude's mirror stays stale until it is; a `git merge` in the main checkout returned 0 at 2026-11-25T17:24:39-05:00 and landed nothing while the commit service landed another session's commit in the same second (no reflog entry, the branch tip not on `main`); the merge script printed that commit as the merge and the branch was deleted on origin, then pushed back from its worktree and merged by hand as `c14f1156c9`; issue 6473 has the evidence and its own round, and `~/temp/agent/handover-cull-and-task-list-rebuild-2026-11-23/merge-branches-into-main-in-order.ts` now prints `merged` only when the branch tip is `HEAD^2`, and the cleanup after it runs only on that line;
+merged since 16:30: 6412 `568ef25e10`, the mountpoint proposal `57a8b9cc74`, the finish pass `4c1f93c1ef`, the lfs self-signal fix `124d251aaf`; the Sonnet debt ledger is `package/git-policy/cli/doc/debt-ledger-2026-11-25.md` with its routing; the owner decided items 8 ("Gate all behind a feature", `doc/decision/cli-git-test-only-switches-compiled-out-of-release.md`) and 16 ("Enable now, untangle over time", `doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`), and step 19's two guard findings (a cited exception for the two boot unit texts, and the reload guard narrowed to manager reloads, `doc/decision/cli-git-zfs-boot-units-start-at-boot-and-the-reload-guard.md`), each with its round; a whole-library threaded run on the host hangs in `process::child_awaited_until_it_exits_the_stop_or_the_ceiling` and fails three `process::signal_relay` tests on main's code, so no round runs the whole library on the host;
+the threaded-test and child-ownership rounds run single modules only, skipping guest arms, and the whole container gate on `main` stands in for a whole-library run; the child-ownership brief became a `source_guard` ledger (184 bare `.spawn()` sites in 99 test files) paid down folder by folder; nine rounds start three minutes apart from about 15:58: step 19, step 20 and step 21 built ahead, the mvm guest memory round, and issues 6453, 6412, 6415, 6433 and 6421;
 a start that waits on memory names its test and gets a command that waits for it: stall not rising (`avg10` at or under `avg60`) and `MemFree` plus the ARC above `c_min` at least one build's measured peak (7080 MiB on 2026-11-25), never an unwatched "when memory allows";
+merged from 2026-11-25T17:37:09-05:00 to 17:53:54, each behind its check on the combined tree:
+the mountpoint second revision as a proposal `b4f92b5bdb`;
+the gate failures' fixes `72be172c33` (6466, 6468, 6469 and 6470 closed; 6471's leak is the test-child round's);
+6421 `0ddb035411`; 6415 `a052ed7231` (ledger item 1 with it); the SPEC corrections `a329f08b1d` (ledger item 9);
+the dead public functions `3ceea802a8` (ledger item 14: 37 files, 537 lines out, built-ahead pieces kept);
+the SPEC check on the combined tree ran 0 tests in its SPEC readers, because it filtered by file name and the merge condition
+accepted `ok. 0 passed`; the round's own runs after its last edit back the merge (service instance tests 8 passed,
+slot identity store tests 26), the next whole gate covers the other three files whose tests read `SPEC.md`,
+and the writer rules and every merge condition since refuse a section whose result reads 0 passed;
+`commit::commit_index_builds` fails two tests on one thread on `main` itself, the same two over two runs
+(`a_retry_from_a_copy_of_the_real_index_is_noted_as_keeping_the_stat_data`,
+`an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none`), from a process-wide record of builds: ledger item 3;
+issue 6473's cause is the wrapper's own: `save_for_a_later_finish` (`merge/merge_isolation_apply_save.rs`) kept a side ref
+and exited 0 when the branch moved before the save, and the settle's branch-moved state also ended 0; both now refuse with
+exit 2 (`4bc0e2a07f`, docs `de85854408`), and the check on the combined tree is queued before the merge;
+the host-key third Sonnet read (`~/temp/agent/gate-review-host-key-next-step-sixth-revision-2026-11-25/keep/review.md`) is not
+ready, no finding reversing K2 first; the mountpoint second read
+(`~/temp/agent/gate-review-zfs-clone-mountpoint-second-revision-2026-11-25/keep/review.md`) is not ready by a narrow margin,
+no High, four Mediums in the owner's section; each gets a revision scoped to what would mislead the owner, then a read of
+only those findings, then the owner's question;
+started from waiting commands behind the memory test, three minutes apart from about 17:44: the five synchronous and awaiting
+twin pairs (ledger item 13), three file-split rounds for six files no live round edits (item 15), the raw-read guard and
+Git-directory reads onto `plain_file` (item 2), then the host-key seventh and mountpoint third revisions;
+the whole gate runs at `132843d9d1` (unit `gate-on-main-132843d9d1`, from 2026-11-25T17:40:43-05:00), which predates the merges
+from 17:39; the next gate starts when it ends;
 the three answers merged as `ff474f29ee` (the usage prints `<file> monochromatic-git-policy-cli zfs-root <mode>` and "no release installs it yet", byte-identical to the design's block;
 `native:install` below `0.6.1-alpha.46` skips the words check, with a control that fails when the floor and the release list disagree;
 a plain worktree sharing a slot's last name moves, and the slot spelled through a link still refuses), its merged-tree check green;
@@ -1279,8 +1321,20 @@ the check then runs from a waiting command: stall not rising and `MemFree` plus 
 the shrink ended 2026-11-25T15:06:34-05:00 (`Resize device id 1 (/dev/dm-0) from 881.10GiB to 815.10GiB`, 46 data chunks at about 21 s each), the unit stopped at its check line at 15:06:37, devid 1's superblock `total_bytes 875207589888` and no dev extent beyond it;
 the partition table was written at about 15:10 after both mappings closed (`sfdisk` refuses a disk with an open mapping): `p6` 1713616896 sectors from 2152962048, `p7` 134217728 sectors from 3866578944, PARTUUID `4762E2B4-DD7B-4505-8161-6E989D53E40C`, name `zram-writeback-encrypted-random-key`, type Linux data so nothing swaps on it raw;
 `p6` reopened maps 877355073536 bytes over btrfs's 875207589888, superblock checksum `[match]`; tables before, intended and as written are in `~/temp/agent/old-nvme-p6-shrink-for-zram-writeback-2026-11-25/keep/`;
-done by 15:20: `p7`'s random-key `crypttab` mapping, `zram1` backed by it at priority 110 (positive control 726722 pages written back), `zram-idle-writeback.timer` hourly at 4 GiB a run, and zram0's `writeback-device` plus `compressed_writeback` for the next boot, with the two `zram-generator` AppArmor refusals that would have left the next boot without zram widened (all in the zram troubleshooting doc, "zram writeback to the old NVMe");
+done by 15:20: `p7`'s random-key `crypttab` mapping, `zram1` backed by it at priority 110 (positive control 726722 pages written back), `zram-idle-writeback.timer` hourly at 4 GiB a run (since 2026-11-25T16:33-05:00 every 5 minutes, every page idle 5 minutes, no limit, on the owner's "Don't worry about wear to the old nvme", as the unit file's own comment records; by 20:13:19 it had written 41804838 pages and read 26613442 back, at a mean wait of 0.92 ms a write and 0.29 ms a read over the partition's life), and zram0's `writeback-device` plus `compressed_writeback` for the next boot, with the two `zram-generator` AppArmor refusals that would have left the next boot without zram widened (all in the zram troubleshooting doc, "zram writeback to the old NVMe");
 the check ran as root unit `old-nvme-btrfs-check-and-grow` from 15:19:08, passed phases 1 to 7 with no error line and reached `[8/8] checking quota groups` at 15:24:46 at its 16 GiB cap (5 GiB swapped), the largest user of the machine's memory; the coordinator stopped it at 15:26:21 without reading its phase first, and it reruns as `old-nvme-btrfs-check-lowmem-and-grow` (`--mode=lowmem`, 3 GiB cap), then `resize 1:max`;
+that run spent from 15:28:28 to 19:25 in `[3/8] checking extents`, CPU-bound (87% of one core, 74 MB resident, 0 MiB read from the
+disk in 20 s, 45.6 GiB read in all), so it was stopped and runs again as `old-nvme-btrfs-check-normal-mode-and-grow`
+(normal mode, 20 GiB cap, `PrivateMounts=yes`, the open mappings reused) once 16 GiB is free;
+that run started 19:27:37, passed phases 1 to 7 by 19:33:40 with no error line (the second clean pass of them), and from 19:33:40 sat in `[8/8] checking quota groups`, which `man btrfs-check` (btrfs-progs v7.3) says verifies only "qgroup referenced/exclusive accounting" and "can require extensive backref walks" (`--skip-qgroup-accounting` skips it);
+at 20:12 it held 20479 MiB at its cap plus 15318 MiB in zram, had hit `memory.max` 341460 times, and caused 30759 of the host's 48119 swap-ins a second, while the host stalled (memory full avg60 26.94, `MemAvailable` 4444 MiB, ARC at `c_min`, load 107);
+the grow it ends with gains 2147483648 bytes, `p6`'s 877355073536 over btrfs's 875207589888;
+on the owner's "Stop it now" the coordinator stopped it at about 20:21 (`MemAvailable` 4444 to 17537 MiB), and no grow runs:
+the owner asked "Didn't we say we're going to format the old nvme's data parts anyway?",
+and `doc/decision/cachyos-zfs-desktop.md` records it ("I'm going to wipe both current drives to make them ZFS"), the old drives kept read-only and unwiped only until the ZFS route is released;
+nothing further runs on the old NVMe's btrfs before that wipe, which is the owner's act;
+a check that has reached its last phase is read before it is stopped, and low-memory mode is no answer to memory pressure on this
+host, where the owner's "I'm going to use the whole machine" stands;
 the zram writeback timer runs every 15 minutes on 15-minute-idle pages at 1 GiB a run (same 96 GiB a day);
 on the owner's "Can we parallelize better?" and "Why is memory still the constraint?": CPU was 46% idle at 15:25, rounds peak 7.15 to 7.97 GiB while compiling and each worktree builds the crate alone, so the next lever is the build peak (task: research a shared compile cache, a shared build dir, or fewer rustc jobs, then ask the owner);
 `a_signal_sent_to_the_wrapper_stops_the_upload` failed on the askpass branch merged with `main` (exit 124, the 30 s stall stop, where 143 is wanted), 52 of 53 passing; three alternating runs each on a detached worktree of `main` and on the branch ended the test binary by `SIGTERM` in five of six (all of `main`'s), so the defect predates the branch and `pi-lfs-upload-tests-signal-their-own-test-binary` finds the test whose signal reaches its own test binary (started about 15:33);
@@ -1314,6 +1368,9 @@ The session's `git` stays the build of `ee0cf2268b` for now:
 the AppArmor `git` and `gh` local rules name that exact path,
 and `doc/handover/full-system-policy-handover.md` records that "a rebuilt wrapper requires a fresh review",
 so pointing the session at alpha.46 waits for that review of the new binary's path and rules, which is the system policy's to give;
+a toolchain install in the main checkout (its `.cache/toolchain.guard` written 2026-11-25T21:00:59-05:00, every link folder rewritten by 21:01:17) pointed the link back at the locked launcher `.cache/toolchain-launchers/monochromatic-git-policy-cli`,
+which the `gh` rule does not name, so `gh` failed with `fork/exec .../monochromatic-git-policy-cli-bin/git: permission denied`;
+on the owner's "Repoint the git link too" it points at the build of `ee0cf2268b` again (about 21:27), and any later toolchain install in the main checkout undoes it the same way;
 until then its removals keep journals, which the fixed build's `service stop-units-of-removed-worktrees` clears after each batch.
 
 #### Markdown line breaks in the files changed on 2026-11-23

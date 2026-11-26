@@ -773,6 +773,31 @@ link now > wait,
 because the record's reason for waiting was an install that converges the whole toolchain,
 and the measurement shows nothing left to install.
 
+## Open: two choices in `doctor`'s managed-lock line, for when plan step 18 is wired (recorded 2026-11-25T20:35-05:00)
+
+Plan step 18's managed-lock line in `doctor` is built and unwired
+(branch `feat/git-policy-cli-zfs-step-18-doctor-managed-lock-lines`,
+`src/native/health/doctor_zfs_route/managed_lock_checks.rs`),
+and it prints the sentences step 13 already wrote (`worktree_clone_managed_lock/lock_state_words.rs`).
+The round that built it kept two of the design's mappings rather than deciding them in `doctor`,
+and they wait here until step 18 is wired, since no command prints the line before then.
+
+### A lock whose own read was refused
+
+It is folded into the state "locked by words its add did not write",
+with the refusal added in parentheses,
+as the managed lock design maps it.
+The alternative is a sentence of its own,
+since a lock nobody could read is not shown to hold someone else's words.
+
+### A lock cut short, and no lock at all
+
+Both are findings,
+because the lock the add writes is not standing,
+though the next holder of the slot's claim repairs both without a person.
+The alternative is to print both as notes;
+in the code that is one match arm.
+
 ## Answered: approve ZFS step 4's slot identity store format? (recorded 2026-11-20, about 02:00 -05:00)
 
 Answered 2026-11-21T16:24:40-05:00 in the question tool:

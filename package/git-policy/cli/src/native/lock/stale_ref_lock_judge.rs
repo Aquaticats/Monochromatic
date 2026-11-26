@@ -203,8 +203,7 @@ impl Judge {
     /// The judge of this process:
     /// the real process table,
     /// the real boot time,
-    /// and a complete view of the process numbers
-    ///  only where this process runs in the initial PID namespace and its process table hides no process.
+    /// and the filesystems this boot mounts.
     pub fn here() -> Self {
         let mut local_file_systems: Vec<String> = Vec::new();
         for name in LOCAL_FILE_SYSTEMS {

@@ -41,36 +41,6 @@ fn stall_a_file(path: &Path) {
 }
 
 /// What:
-///  Open the pipe at `path` for writing and close it again,
-/// which ends the read a control left behind.
-/// Why:
-///  The read of the pool is abandoned,
-/// never cancelled,
-/// so the thread that holds it ends only when a writer appears;
-/// the open does
-///  not wait for a reader,
-///  and the control asks again until `THE_PATIENCE`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (;;) { try { close(openSync(path, 'w')); return } catch { await sleep(10) } }
-/// ```
-fn release_the_pipe(path: &Path) {
-    use std::io::Write as _;
-    use std::os::unix::fs::OpenOptionsExt as _;
-    let began: std::time::Instant = std::time::Instant::now();
-    while began.elapsed() < THE_PATIENCE {
-        match std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(path) {
-            Ok(mut writer) => {
-                let _written = writer.write_all(b"");
-                return;
-            }
-            Err(_not_yet) => std::thread::sleep(Duration::from_millis(10)),
-        }
-    }
-}
-
-/// What:
 ///  A repository with a linked worktree whose own Git directory holds a `commondir`.
 /// Why:
 ///  The head question reads that file to prove the directory is the asking worktree's,
@@ -93,8 +63,8 @@ fn a_linked_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 
 /// What:
 ///  A head file that gives no answer does not hold a worker:
-/// a task beside the read runs while the read waits,
-/// and the read ends at its ceiling.
+/// the question answers at once rather than waiting for a writer,
+/// and a task beside it runs.
 /// Why:
 ///  The read is `canonicalize` and two file reads of the worktree's state,
 /// which wait in the kernel on a mount that stopped
@@ -102,13 +72,17 @@ fn a_linked_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 /// a task that did them itself would hold a worker the runtime needs,
 /// and no timer on that worker can end
 ///  it.
-/// The answer of a read that gave nothing in time is the one an unreadable file gives,
+/// The `commondir` a control stands a pipe at is opened without blocking (`crate::plain_file`),
+/// so the pipe cannot hold
+///  a reader at all,
+/// and the writer that used to end the abandoned read is gone with it.
+/// The answer of a file that gives no answer is the one an unreadable file gives,
 /// so the caller asks Git
-///  and nothing waits on the file for ever.
+///  and nothing waits on the file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [repo, linked, own] = aLinkedWorktree(); mkfifo(join(own, 'commondir')); assert(await runsBeside(() => headFileWithin(100, own, common)) === 'unreadable')
+/// const [repo, linked, own] = aLinkedWorktree(); mkfifo(join(own, 'commondir')); assert(await headFileWithin(100, own, common) === 'unreadable')
 /// ```
 #[test]
 fn a_head_file_that_gives_no_answer_does_not_hold_a_worker() {
@@ -128,16 +102,14 @@ fn a_head_file_that_gives_no_answer_does_not_hold_a_worker() {
     let common_directory: PathBuf = common.clone();
     let reading = runtime.spawn(async move { return head_file_within(SHORT_CEILING, reading_directory.as_path(), common_directory.as_path()).await; });
     let began: std::time::Instant = std::time::Instant::now();
+    // No writer ever opens the pipe, so a read that waited on it could not answer here at all.
+    let answered: HeadFile = runtime.block_on(async { return reading.await.expect("the reading task ends") });
+    assert_eq!(answered, HeadFile::Unreadable, "a head file that gave nothing in time is answered as an unreadable one, so Git is asked instead");
     while !ticked.load(Ordering::SeqCst) && began.elapsed() < THE_PATIENCE {
         std::thread::sleep(THE_TICK);
     }
-    let ran_beside: bool = ticked.load(Ordering::SeqCst);
-    // The pipe is let go before the answer is read, so a read that held the worker cannot hold this control too.
-    release_the_pipe(stalled.as_path());
-    let answered: HeadFile = runtime.block_on(async { return reading.await.expect("the reading task ends"); });
-    assert!(ran_beside, "the task beside a head file that gives no answer still runs, so no worker is held by that read");
-    assert_eq!(answered, HeadFile::Unreadable, "a head file that gave nothing in time is answered as an unreadable one, so Git is asked instead");
-    assert!(began.elapsed() < THE_PATIENCE, "the read ended at its ceiling and never waited on the file without end: {} ms", began.elapsed().as_millis());
+    assert!(ticked.load(Ordering::SeqCst), "the task beside a head file that gives no answer still runs, so no worker is held by that read");
+    assert!(began.elapsed() < THE_PATIENCE, "the question ended without waiting on the file without end: {} ms", began.elapsed().as_millis());
     remove(root.as_path());
 }
 

@@ -27,6 +27,12 @@ pub(crate) mod run_progress;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+/// The one shape for a control that runs in a process of its own,
+/// with a verdict file and every wait bounded;
+///  never part of the release executable.
+#[cfg(test)]
+pub(crate) mod helper_process_test_support;
+
 /// The user namespace a control needs when the files it judges must be root's,
 /// and the inner half that runs the same test there;
 /// never part of the release executable,

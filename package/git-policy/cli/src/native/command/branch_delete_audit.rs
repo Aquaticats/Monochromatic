@@ -392,25 +392,6 @@ pub fn deletion_facts(context: &GitContext, root: Option<&Path>, name: &OsStr, r
     return Some(facts);
 }
 
-/// What:
-///  Restore advice a person can run,
-///  as one text fact,
-///  so a reader of the line does not have to look up the command.
-///  `&[u8]`/`&str` borrow the full reference and the commit.
-/// Why:
-///   The whole point of the line is that the branch comes back,
-///  and `git update-ref` restores a
-///       local branch and a remote-tracking reference alike,
-///  where `git branch` restores only the first.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `git update-ref ${reference} ${commit}`
-/// ```
-pub fn restore_command(reference: &OsStr, commit: &str) -> String {
-    return format!("git update-ref {} {commit}", reference.to_string_lossy());
-}
-
 /// The facts and their real-Git controls stay out of the release executable.
 #[cfg(test)]
 #[path = "branch_delete_audit_tests.rs"]

@@ -31,7 +31,7 @@ fn the_healthy_route_has_no_finding() {
         assert!(!report.found(), "the healthy route found something: {}", report.line());
     }
     let unknown: Vec<&'static str> = reports.iter().filter(|report| return report.unknown()).map(|report| return report.check.name()).collect();
-    assert_eq!(unknown, vec!["deferred-origin", "removal-plans", "cancel-command", "boot-protection", "service-unit", "backup-coverage", "sanoid"], "{unknown:?}");
+    assert_eq!(unknown, vec!["cancel-command", "boot-protection", "service-unit", "backup-coverage", "sanoid"], "{unknown:?}");
 }
 
 /// Every check the step names appears exactly once.
@@ -49,9 +49,10 @@ fn every_check_appears_exactly_once() {
     assert_eq!(
         names,
         vec![
-            "abi", "backup-coverage", "boot-protection", "cancel-command", "checkout-dataset", "checkout-mount", "checkout-propagation", "checkout-snapdir", "clone-properties", "container-dataset", "container-snapdir", "deferred-origin",
-            "delegation", "device", "handler-configuration", "handler-folders", "handler-installation", "holders", "key", "nested-reachability", "parent-identity", "pool", "readiness", "removal-plans", "root-modes",
-            "sanoid", "service-unit", "staging-bind-propagation", "staging-folder", "staging-forms", "store-entries", "unknown-dot-entry", "unresolved-requests", "zed-wiring",
+            "abi", "backup-coverage", "binding-record", "blocked-removal", "boot-protection", "cancel-command", "checkout-dataset", "checkout-mount", "checkout-propagation", "checkout-snapdir", "clone-origin", "clone-properties",
+            "clone-retention", "clone-snapshots", "clone-state", "container-dataset", "container-snapdir", "delegation", "device", "handler-configuration", "handler-folders", "handler-installation", "holders", "key", "managed-lock",
+            "nested-reachability", "parent-identity", "pool", "readiness", "registration", "removal-plan", "root-modes", "sanoid", "service-unit", "staging-bind-propagation", "staging-folder", "staging-forms", "store-entries",
+            "unknown-dot-entry", "unresolved-requests", "zed-wiring",
         ]
     );
 }
@@ -123,18 +124,39 @@ fn a_container_that_can_show_its_snapshots_moves_one_answer() {
     assert_eq!(findings[0].check.name(), "container-snapdir");
 }
 
-/// The three groups of the step all appear:
+/// The groups of the step all appear:
 /// the facts about the pool,
 /// the recorded identities and the store,
-/// and the delegation,
-/// the handler,
-/// the staging folder and the holders.
+/// the delegation,
+/// the handler and the staging folder,
+/// and each clone's removal-side lines.
 #[test]
 fn the_three_groups_of_the_step_all_appear() {
     let reports: Vec<CheckReport> = route_checks(&healthy_route_facts());
     let names: Vec<&'static str> = reports.iter().map(|report| return report.check.name()).collect();
-    for expected in ["device", "abi", "pool", "checkout-dataset", "container-dataset", "checkout-snapdir", "container-snapdir", "key", "clone-properties", "parent-identity", "store-entries", "staging-forms", "unknown-dot-entry", "delegation", "handler-installation", "zed-wiring", "readiness", "unresolved-requests", "staging-folder", "staging-bind-propagation", "holders"] {
+    for expected in [
+        "device", "abi", "pool", "checkout-dataset", "container-dataset", "checkout-snapdir", "container-snapdir", "key", "clone-properties", "parent-identity", "store-entries", "staging-forms", "unknown-dot-entry", "delegation",
+        "handler-installation", "zed-wiring", "readiness", "unresolved-requests", "staging-folder", "staging-bind-propagation", "clone-state", "registration", "managed-lock", "binding-record", "removal-plan", "clone-snapshots", "clone-origin",
+        "clone-retention", "blocked-removal", "holders",
+    ] {
         assert!(names.contains(&expected), "{expected} is in the report's names: {names:?}");
+    }
+}
+
+/// A second managed clone adds one line of each of its own checks,
+/// so the report follows the clones the store lists rather than a fixed count.
+#[test]
+fn each_clone_adds_its_own_group() {
+    let mut facts: RouteFacts = healthy_route_facts();
+    let before: usize = route_checks(&facts).iter().filter(|report| return report.check.name() == "clone-state").count();
+    assert_eq!(before, 1);
+    let mut second = crate::health::doctor_zfs_route::route_test_facts::healthy_clone();
+    second.holders.clone = String::from("zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/two");
+    facts.clones.push(second);
+    let reports: Vec<CheckReport> = route_checks(&facts);
+    for check in ["clone-state", "registration", "managed-lock", "binding-record", "removal-plan", "clone-snapshots", "clone-origin", "clone-retention", "blocked-removal", "holders"] {
+        let count: usize = reports.iter().filter(|report| return report.check.name() == check).count();
+        assert_eq!(count, 2, "{check} appears {count} times");
     }
 }
 

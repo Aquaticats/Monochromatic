@@ -76,9 +76,10 @@ fn a_commit_that_opens_an_editor_prints_nothing() {
 }
 
 /// A sleeping child of this test process,
-/// which stands for the `git commit` of the step.
+/// which stands for the `git commit` of the step,
+/// started by `test_support::spawn_owned` so the test thread's fixtures end it however the test ends.
 fn sleeping_step() -> std::process::Child {
-    return std::process::Command::new("sleep").arg("120").spawn().expect("a long-running child");
+    return crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("120")).expect("a long-running child");
 }
 
 /// The number of a child,
@@ -229,7 +230,7 @@ fn kept_below<'kept>(below: &'kept [crate::scratch_commit_step::SeenProgram], na
 /// named as the kernel names it.
 #[test]
 fn the_notice_reports_the_programs_that_ran_below_the_step() {
-    let mut step: std::process::Child = std::process::Command::new("sleep").arg("2").spawn().expect("a long-running child");
+    let mut step: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("2")).expect("a long-running child");
     let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
     let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
         snapshot: None,
@@ -449,9 +450,10 @@ fn ended_within(child: &mut std::process::Child, bound: Duration) -> Option<i32>
 /// and only a control pays it.
 const STILL_RUNNING_BOUND: Duration = Duration::from_millis(500);
 
-/// A child of this process that is nobody's step.
+/// A child of this process that is nobody's step,
+/// started by `test_support::spawn_owned` so the test thread's fixtures end it however the test ends.
 fn a_process_beside_the_step() -> std::process::Child {
-    return std::process::Command::new("sleep").arg("600").stdin(std::process::Stdio::null()).spawn().expect("a long-running child");
+    return crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("600").stdin(std::process::Stdio::null())).expect("a long-running child");
 }
 
 /// What:
@@ -706,8 +708,9 @@ const A_STALL_BOUND: Duration = Duration::from_secs(30);
 #[cfg(all(test, target_os = "linux"))]
 #[test]
 fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
-    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
+    // The look window first, as every control that needs both takes them: two orders in one process deadlock a threaded run.
     let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
     the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();
@@ -754,8 +757,9 @@ fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
 #[cfg(all(test, target_os = "linux"))]
 #[test]
 fn the_ceiling_that_stood_aside_prints_no_line_of_its_own() {
-    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
+    // The look window first, as every control that needs both takes them: two orders in one process deadlock a threaded run.
     let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
     the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();

@@ -22,6 +22,9 @@
 //!  The preflight answers nothing for such a source and the add reaches the
 //!  ladder, which settles its own failed restore and falls back to Git's own
 //!  checkout.
+//!  That answer is judged before the route's own invocation rules, so the person's
+//!  `--lock`, `--reason` or `--checkout` reaches the ladder with the add instead of
+//!  failing in a rule of a route that is not serving it (issue 6453).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,12 +32,12 @@
 //! ```
 
 use super::add_git_words::person_lock_word;
+use super::add_plan_stop::refuse_while_a_plan_stands;
 use super::add_route_gate::RouteFacts;
 use super::add_route_steps::StepRefusal;
 use super::add_zfs::{ObjectIdentity, OpenedDevice};
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_clone_binding_record::plan_folder_read::refuse_while_a_plan_names_the_clone;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessExpectation, ReadinessRecord};
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
@@ -81,12 +84,6 @@ pub(super) struct Preflight {
 /// The sentence each refusal prints,
 /// which names the check and the way forward.
 pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &GitContext, arguments: &[OsString]) -> Result<Option<Preflight>, StepRefusal> {
-    if let Some(word) = person_lock_word(arguments) {
-        return Err(StepRefusal::refused(format!(
-            "the add names `{}`, and the ZFS clone route takes the managed lock itself. Ways forward: run the add again without `--lock`, `--reason` or `--checkout`",
-            word.to_string_lossy()
-        )));
-    }
     let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: route.common_dir.clone(), git_dir: route.git_dir.clone(), worktree_root: route.source_root.clone() };
     // What:
     //  A checkout with uncommitted edits is a source too.
@@ -106,8 +103,6 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
             "the place the add sets the copied Git administration aside in, `.claude/cli-git-trash`, is not ignored by this repository's Git, so the new worktree would carry an untracked folder. Ways forward: add that path to `.gitignore` or `.git/info/exclude`, then run the add again",
         )));
     }
-    let _plan_read: () = refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, route.clone_dataset().as_str())
-        .map_err(|stop| return StepRefusal::refused(String::from(stop.sentence())))?;
     verify_the_slot_parent(route)?;
     // What:
     //  A source whose copy the fill's restore would end after the clone is made
@@ -136,6 +131,26 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
             return Ok(None);
         }
     }
+    // What:
+    //  The person's own `--lock`, `--reason` or `--checkout` is refused here,
+    //  after the source's answer and before the device is opened.
+    // Why:
+    //  The sentence names a rule of the ZFS clone route, which takes the managed
+    //  lock itself, and a rule of a route that is not serving this add stops an
+    //  add another rung makes: the ladder hands the person's own words to Git,
+    //  whose `worktree add` takes the lock and the reason by itself
+    //  (`SPEC.md`, the ladder's forms).
+    //  So a source the route declines, which the check just before this one
+    //  answers, takes the ladder with its words instead of failing here (issue
+    //  6453).
+    //  The cost is the source check on every add this refusal ends, which the issue
+    //  accepts for the routing to be right.
+    if let Some(word) = person_lock_word(arguments) {
+        return Err(StepRefusal::refused(format!(
+            "the add names `{}`, and the ZFS clone route takes the managed lock itself. Ways forward: run the add again without `--lock`, `--reason` or `--checkout`",
+            word.to_string_lossy()
+        )));
+    }
     let device: OpenedDevice = OpenedDevice::open().map_err(StepRefusal::refused)?;
     let checkout: ObjectIdentity = device.identity_of(route.checkout_dataset.as_str()).map_err(StepRefusal::refused)?;
     let pool: ObjectIdentity = device.identity_of(route.pool.as_str()).map_err(StepRefusal::refused)?;
@@ -145,6 +160,15 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
             route.container_dataset
         ));
     })?;
+    // What:
+    //  The standing plan's stop stands here, after the device is open.
+    // Why:
+    //  The command the person reads beside a plan needs the clone the pool can
+    //  find, which is a request through this device,
+    //  so a plan that stops the add no longer stops it before the device opens
+    //  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
+    //  "What 2C costs").
+    refuse_while_a_plan_stands(route, &device)?;
     let warnings: Vec<String> = super::add_grants::refuse_without_the_decided_grants(&device, route)?;
     admit_the_handler(route)?;
     let _ = plan;

@@ -28,8 +28,9 @@ use crate::service_provision::ProvisionHost;
 use crate::service_route::{Route, RouteInputs, choose_route, non_empty_path_variable, remembered_own_executable, worktree_git_dir};
 use crate::commit_timing::CommitTiming;
 use crate::commit_transaction::{CommitInvocation, TransactionStop, failed};
-use crate::diagnostic_log::warn;
 use crate::service_amend::{AmendSource, amended_author, read_amend_source};
+/// Standard error as a stream whose lines a thread of their own writes.
+use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
 use crate::service_commit_args::ServiceCommitArgs;
 use crate::service_message::{author_overrides, build_message, identity};
 use crate::transaction_git::{GitRequest, run_git};
@@ -104,7 +105,12 @@ pub(crate) fn repository_not_found(invocation: &CommitInvocation<'_>) -> Transac
     if output.succeeded() {
         return failed(String::from("this directory belongs to a repository whose Git directory could not be located"));
     }
-    let _reported = std::io::stderr().write_all(output.stderr.as_slice());
+    // What: Git's own words go to the thread that writes standard error.
+    // Why:  The command is ending with Git's status, and a reader that stopped draining must not keep
+    //       it from reaching that end.
+    let mut refusal: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
+    let _reported = refusal.write_all(output.stderr.as_slice());
+    let _flushed = refusal.flush();
     return TransactionStop::NativeExit(output.code.unwrap_or(1));
 }
 
@@ -154,18 +160,20 @@ pub(crate) fn print_summary(line: &str) {
 /// What:
 ///  Writes one note of the wrapper's to standard error.
 /// Why:
-///   The note is the wrapper's own words beside Git's output on standard output;
-/// a write that fails is logged and does not fail
-///  the commit that has already landed.
+///   The note is the wrapper's own words beside Git's output on standard output,
+///  and it is a line a person can live without:
+///  it goes to the thread that writes standard error,
+///  so a reader that stopped draining costs the note and never the commit that has already landed
+///  (`standard_error_off_the_calling_thread.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// printNote(line)
 /// ```
 pub(crate) fn print_note(line: &str) {
-    if let Err(error) = writeln!(std::io::stderr(), "{line}") {
-        warn("serviceCommit", format!("writing the note about the rebuilt commit failed: {error}").as_str());
-    }
+    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
+    let _said = writeln!(notes, "{line}");
+    let _flushed = notes.flush();
 }
 
 /// What the embedded route made of a command line:

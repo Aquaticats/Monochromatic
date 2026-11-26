@@ -1109,3 +1109,44 @@ fn a_given_up_push_whose_notice_cannot_be_written_stays_recoverable() {
     assert!(names(work.as_path(), RECOVERING).is_empty());
     remove(directory.as_path());
 }
+
+/// A queued record that is a named pipe is answered at once and moved to `failed`,
+/// at the bound:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// and this step runs on every commit of the worktree (issue 6415).
+#[test]
+fn a_queued_record_that_is_a_named_pipe_is_answered_at_once() {
+    let directory: PathBuf = fixture("work-queued-named-pipe");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    create_private_directory_all(state_directory(work.as_path(), PENDING).as_path()).expect("pending");
+    let waiting: WorkItem = item(WorkKind::Push, "ppp");
+    let entry: PathBuf = state_directory(work.as_path(), PENDING).join(waiting.id());
+    crate::subvolume_sync_attrs::make_fifo(entry.as_path(), 0o600).expect("a named pipe where a record goes");
+    let inside: PathBuf = work.clone();
+    let answered = crate::test_support::finished_within(move || return claim_next(inside.as_path(), &clock()));
+    let Some(claimed) = answered else { panic!("the claim step waited on a named pipe instead of answering") };
+    assert!(matches!(claimed, Ok(None)), "a pipe is no record, so the step answers nothing");
+    assert_eq!(names(work.as_path(), FAILED), vec![waiting.id()], "the pipe goes where nothing runs it");
+    assert!(names(work.as_path(), PENDING).is_empty() && names(work.as_path(), RECOVERING).is_empty(), "and it is left in no queue");
+    remove(directory.as_path());
+}
+
+/// A claim in `recovering` that is a named pipe is failed in one pass,
+/// at the bound,
+/// so a recovery neither waits on it nor takes it again every lease (issue 6415).
+#[test]
+fn a_recovering_claim_that_is_a_named_pipe_is_answered_at_once() {
+    let directory: PathBuf = fixture("work-recovering-named-pipe");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    create_private_directory_all(state_directory(work.as_path(), RECOVERING).as_path()).expect("recovering");
+    let name: String = claim_file_name("push-ppq", "0123456789abcdef0123456789abcdef", &clock());
+    let claim: PathBuf = state_directory(work.as_path(), RECOVERING).join(name);
+    crate::subvolume_sync_attrs::make_fifo(claim.as_path(), 0o600).expect("a named pipe where a claim goes");
+    let inside: PathBuf = work.clone();
+    let answered = crate::test_support::finished_within(move || return requeue_expired(inside.as_path(), &clock().advanced(LEASE * 2), LEASE, MAX_TRIES));
+    let Some(moved) = answered else { panic!("the recovery waited on a named pipe instead of answering") };
+    assert_eq!(moved, 1, "the pass settled the claim it could not read");
+    assert_eq!(names(work.as_path(), FAILED), vec![String::from("push-ppq")], "and it stands where nothing runs it");
+    assert!(names(work.as_path(), RECOVERING).is_empty(), "nothing is left in the state a later pass would take");
+    remove(directory.as_path());
+}

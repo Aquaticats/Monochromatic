@@ -11,12 +11,29 @@
 //!  the delegation,
 //!  the handler and its records,
 //!  the staging folder,
-//!  the holders,
+//!  and then one group per managed clone:
+//!  its state,
+//!  its Git registration,
+//!  its managed Git lock,
+//!  its binding record,
+//!  its destruction plan,
+//!  its own snapshots,
+//!  its origin,
+//!  its retention,
+//!  its blocked-removal state and the namespaces that hold it,
 //!  and the checks later steps owe
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "What doctor checks and prints";
 //!  plan step 18,
 //!  "What it builds").
+//!  One clone's group follows the order a person reads the removal's own
+//!  refusals in:
+//!  what the slot is,
+//!  what Git and the records say about it,
+//!  what the plan did,
+//!  what the pool holds,
+//!  what it retains,
+//!  and what stops a removal.
 //!  Nothing here removes a staging form:
 //!  the report reads first and the wiring run calls the removal after the
 //!  report is written,
@@ -27,8 +44,15 @@
 //! const reports = route_checks(facts); // one CheckReport per check, in print order
 //! ```
 
-use super::check_outcome::CheckReport;
-use super::delegation_checks::{DelegationFacts, check_delegation};
+use super::check_outcome::{Check, CheckOutcome, CheckReport};
+use super::clone_origin_checks::{CloneOriginFacts, check_clone_origin};
+use super::clone_retention_checks::{CloneRetentionFacts, check_clone_retention};
+use super::clone_snapshot_checks::{CloneSnapshotFacts, check_clone_snapshots};
+use super::clone_state_checks::{CloneStateFacts, check_clone_state};
+use super::delegation_checks::check_delegation;
+use super::delegation_reply::DelegationFacts;
+use super::blocked_removal_checks::{BlockedRemovalFacts, check_blocked_removal};
+use super::binding_record_checks::check_binding_record;
 use super::handler_checks::{
     FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, ReadinessFacts, RequestFacts, check_handler_configuration, check_handler_folders, check_handler_installation, check_readiness,
     check_root_modes, check_unresolved_requests, check_zed_wiring,
@@ -36,12 +60,48 @@ use super::handler_checks::{
 use super::holder_checks::{HolderFacts, check_holders};
 use super::identity_checks::{ParentIdentityFacts, SlotIdentityFacts, check_parent_identity, check_slot_identity};
 use super::later_step_checks::{LaterStep, check_later_step};
+use super::managed_lock_checks::{ManagedLockFacts, check_managed_lock};
 use super::mount_checks::{MountCheckFacts, check_checkout_mount, check_checkout_propagation, check_nested_reachability};
+use super::registration_checks::{RegistrationFacts, check_registration};
+use super::removal_plan_checks::{RemovalPlanFacts, check_removal_plan};
 use super::snapshot_directory_checks::snapdir_report;
 use super::staging_folder_checks::{StagingBind, StagingFolderFacts, check_staging_bind_propagation, check_staging_folder};
 use super::store_listing::{StoreListingFacts, check_staging_forms, check_store_entries, check_unknown_dot_entries};
 use super::zfs_checks::{AbiFacts, DatasetFacts, DatasetRole, DeviceFacts, PoolFacts, check_abi, check_clone_properties, check_dataset, check_device, check_key, check_pool};
-use super::check_outcome::Check;
+
+/// What:
+///  Every removal-side fact one managed clone's checks read,
+///  gathered once.
+/// Why:
+///  One clone's state, records, snapshots, origin and holders belong to one
+///  value,
+///  so no line can describe one clone's plan beside another clone's pool answer,
+///  and a control changes one field and sees exactly one answer move.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CloneFacts = { state; registration; plan; snapshots; origin; retention; blocked };
+/// ```
+pub struct CloneFacts {
+    /// What the slot is, and every live staging row the state is read with.
+    pub state: CloneStateFacts,
+    /// The Git registration the record names and what stands there.
+    pub registration: RegistrationFacts,
+    /// The managed Git lock that registration holds, in step 13's state.
+    pub lock: ManagedLockFacts,
+    /// The destruction plan that names this clone, when one stands.
+    pub plan: RemovalPlanFacts,
+    /// The clone's own snapshots beside the plan's states.
+    pub snapshots: CloneSnapshotFacts,
+    /// The origin the record names and its deferred-destroy mark.
+    pub origin: CloneOriginFacts,
+    /// What the clone and its snapshots retain.
+    pub retention: CloneRetentionFacts,
+    /// The blocked-removal state.
+    pub blocked: BlockedRemovalFacts,
+    /// The all-namespace scan's answer for this clone.
+    pub holders: HolderFacts,
+}
 
 /// What:
 ///  Every fact plan step 18's checks read,
@@ -53,7 +113,7 @@ use super::check_outcome::Check;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RouteFacts = { device; abi; pool; datasets; mounts; parent; slots; store; delegation; installation; configuration; folders; wiring; readiness; liveBoot; requests; staging; stagingBinds; holders };
+/// type RouteFacts = { device; abi; pool; datasets; mounts; parent; slots; store; delegation; installation; configuration; folders; wiring; readiness; liveBoot; requests; staging; stagingBinds; clones };
 /// ```
 pub struct RouteFacts {
     /// `/dev/zfs` and this account's open of it.
@@ -94,8 +154,8 @@ pub struct RouteFacts {
     pub staging: StagingFolderFacts,
     /// Every live mount under the cache with a staging name.
     pub staging_binds: Vec<StagingBind>,
-    /// The scan's answer for one clone.
-    pub holders: HolderFacts,
+    /// One group per managed clone the store lists.
+    pub clones: Vec<CloneFacts>,
 }
 
 /// What:
@@ -147,9 +207,39 @@ pub fn route_checks(facts: &RouteFacts) -> Vec<CheckReport> {
     reports.push(CheckReport::new(Check::UnresolvedRequests, check_unresolved_requests(&facts.requests, facts.live_boot.as_str())));
     reports.push(CheckReport::new(Check::StagingFolder, check_staging_folder(&facts.staging)));
     reports.push(CheckReport::new(Check::StagingBindPropagation, check_staging_bind_propagation(&facts.staging_binds)));
-    reports.push(CheckReport::new(Check::Holders, check_holders(&facts.holders)));
+    reports.extend(clone_reports(facts));
     for step in LaterStep::ALL {
         reports.push(CheckReport::new(step.check(), check_later_step(step)));
+    }
+    return reports;
+}
+
+/// What:
+///  One group of lines per managed clone,
+///  in the order a person reads one clone's removal state.
+/// Why:
+///  A repository can hold several managed clones,
+///  and a plan, a registration or a holder belongs to one of them,
+///  so the lines are grouped per clone rather than mixed by check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lines = facts.clones.flatMap((clone) => [stateLine(clone), ...]);
+/// ```
+fn clone_reports(facts: &RouteFacts) -> Vec<CheckReport> {
+    let mut reports: Vec<CheckReport> = Vec::new();
+    for clone in &facts.clones {
+        let binding: CheckOutcome = check_binding_record(&clone.state.readings.binding);
+        reports.push(CheckReport::new(Check::CloneState, check_clone_state(&clone.state)));
+        reports.push(CheckReport::new(Check::Registration, check_registration(&clone.registration)));
+        reports.push(CheckReport::new(Check::ManagedLock, check_managed_lock(&clone.lock)));
+        reports.push(CheckReport::new(Check::BindingRecord, binding));
+        reports.push(CheckReport::new(Check::RemovalPlan, check_removal_plan(&clone.plan)));
+        reports.push(CheckReport::new(Check::CloneSnapshots, check_clone_snapshots(&clone.snapshots)));
+        reports.push(CheckReport::new(Check::CloneOrigin, check_clone_origin(&clone.origin)));
+        reports.push(CheckReport::new(Check::CloneRetention, check_clone_retention(&clone.retention)));
+        reports.push(CheckReport::new(Check::BlockedRemoval, check_blocked_removal(&clone.blocked)));
+        reports.push(CheckReport::new(Check::Holders, check_holders(&clone.holders)));
     }
     return reports;
 }

@@ -1328,10 +1328,25 @@ The kill is recorded before the first signal goes out.
 before any cleanup,
 and
 panics with the message;
-a kill nobody claims within 3 seconds aborts the test process with the same message,
+a kill nobody claims,
+and whose command no thread of the test is waiting for or ending,
+aborts the test process with the same message once 3 seconds have passed,
 and a process
 that exits sooner exits with status 101 from an exit handler,
 so no call site that runs a shared-bound command itself can lose it.
+That condition is a state and not a length of time
+(issue 6469):
+the thread that claims a kill reaches its claim only after a `/proc` read and
+four thread creations,
+which measured 233 to 238 ms under this host's memory pressure in two of eight runs,
+and a thread the host does not schedule for 3 seconds used to cost the test a
+passing result,
+which one gate of 2026-11-25 saw
+(`supervisor_guard::a_hung_shared_command_fails_its_test_with_the_reason_and_the_command`,
+`SIGABRT` after 18.544 s).
+A control that holds a command for its own reasons and takes longer than that to end it
+is the same case and is covered by the same state
+(`end_command` marks a command whose ending is still going on).
 A loop that burns processor time is judged by the processor budget,
 which load cannot lengthen:
 starvation shows as

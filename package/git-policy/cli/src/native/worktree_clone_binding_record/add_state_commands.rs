@@ -31,14 +31,21 @@ use super::binding_words::Phase;
 /// What:
 ///  Whether the recorded clone still stands,
 ///  is gone and proved gone,
-///  or is gone and the pool could not prove it.
+///  or is gone and the pool could not prove it,
+///  or has a name that now answers another clone.
 /// Why:
 ///  The third arm is the one a refused or partial listing leaves,
 ///  and it names the same command as the second.
+///  The fourth is the state a plan cannot settle at all:
+///  the name the plan records answers with another GUID,
+///  so the clone the plan recorded has no name to be proved absent by,
+///  and no command of this release acts on it
+///  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
+///  "What 2C costs").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ClonePresence = { kind: 'stands' } | { kind: 'gone-proved' } | { kind: 'gone-unprovable'; evidence: string };
+/// type ClonePresence = { kind: 'stands' } | { kind: 'gone-proved' } | { kind: 'gone-unprovable'; evidence: string } | { kind: 'name-answers-another'; liveGuid: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClonePresence {
@@ -51,6 +58,14 @@ pub enum ClonePresence {
     GoneUnprovable {
         /// Why the absence cannot be proved.
         evidence: String,
+    },
+    /// The recorded name answers with another clone's GUID,
+    /// so the name was reused and the recorded clone's absence rests on the
+    /// GUID alone.
+    TheNameAnswersAnotherClone {
+        /// The GUID the recorded name answered with,
+        /// in the canonical decimal form a record writes.
+        live_guid: String,
     },
 }
 
@@ -95,6 +110,19 @@ impl PlanHeadWord {
             PlanHeadWord::Gone => "gone",
             PlanHeadWord::Refused => "refused",
             PlanHeadWord::Unknown => "unknown",
+        };
+    }
+
+    /// The head word one stored word names,
+    /// or nothing when the word is outside the plan design's five.
+    pub fn parse(word: &str) -> Option<PlanHeadWord> {
+        return match word {
+            "present" => Some(PlanHeadWord::Present),
+            "requested" => Some(PlanHeadWord::Requested),
+            "gone" => Some(PlanHeadWord::Gone),
+            "refused" => Some(PlanHeadWord::Refused),
+            "unknown" => Some(PlanHeadWord::Unknown),
+            _ => None,
         };
     }
 }
@@ -156,6 +184,10 @@ pub enum NextCommand {
     /// the plan's head word is `gone` and the pool cannot prove the clone's absence,
     /// so the finish pass removes the plan once the pool answers.
     TheFinishPass,
+    /// No command of this release acts on the state:
+    /// the plan's recorded name answers another clone's GUID,
+    /// so a person reads the two records before acting.
+    APersonReadsTheRecords,
 }
 
 /// The settling command's program and subcommand,
@@ -198,14 +230,14 @@ pub fn command_for(facts: &StateFacts) -> NextCommand {
                 true => NextCommand::TheAddAgain,
                 false => NextCommand::TheSettlingCommand,
             },
-            Some(ClonePresence::GoneUnprovable { .. }) => NextCommand::TheSettlingCommand,
+            Some(ClonePresence::GoneUnprovable { .. } | ClonePresence::TheNameAnswersAnotherClone { .. }) => NextCommand::TheSettlingCommand,
             None => NextCommand::TheAddAgain,
         };
     }
     if facts.phase == Phase::Filled {
         return match facts.clone.as_ref() {
             Some(ClonePresence::Stands) | None => NextCommand::None,
-            Some(ClonePresence::GoneProved | ClonePresence::GoneUnprovable { .. }) => NextCommand::TheSettlingCommand,
+            Some(ClonePresence::GoneProved | ClonePresence::GoneUnprovable { .. } | ClonePresence::TheNameAnswersAnotherClone { .. }) => NextCommand::TheSettlingCommand,
         };
     }
     if matches!(facts.phase, Phase::Cloned | Phase::Mounted) {
@@ -213,7 +245,7 @@ pub fn command_for(facts: &StateFacts) -> NextCommand {
             Some(ClonePresence::Stands) => NextCommand::None,
             // A clone the phase records and the pool cannot answer for is the settling command's,
             // proved gone or not: the refusal names the same command either way.
-            Some(ClonePresence::GoneProved | ClonePresence::GoneUnprovable { .. }) => NextCommand::TheSettlingCommand,
+            Some(ClonePresence::GoneProved | ClonePresence::GoneUnprovable { .. } | ClonePresence::TheNameAnswersAnotherClone { .. }) => NextCommand::TheSettlingCommand,
             None => NextCommand::TheAddAgain,
         };
     }
@@ -238,6 +270,11 @@ pub fn command_for(facts: &StateFacts) -> NextCommand {
 ///  An absence the pool cannot prove names the settling command for every head
 ///  word but `gone`,
 ///  whose route is the finish pass.
+///  A recorded name that answers another clone's GUID is the one state no
+///  command settles:
+///  the removal refuses it and so does the settling command,
+///  and the finish pass leaves it standing,
+///  so a person reads the two records instead.
 ///  A reader that did not look for the clone,
 ///  which is the add's smallest plan read,
 ///  decides by the head word alone and names the removal for every word but
@@ -250,6 +287,9 @@ pub fn command_for(facts: &StateFacts) -> NextCommand {
 fn command_beside_a_standing_plan(facts: &StateFacts, head: PlanHeadWord) -> NextCommand {
     if matches!(facts.clone.as_ref(), Some(ClonePresence::Stands)) {
         return NextCommand::TheRemoval;
+    }
+    if matches!(facts.clone.as_ref(), Some(ClonePresence::TheNameAnswersAnotherClone { .. })) {
+        return NextCommand::APersonReadsTheRecords;
     }
     if matches!(facts.clone.as_ref(), Some(ClonePresence::GoneUnprovable { .. })) {
         return match head {
@@ -280,6 +320,9 @@ impl NextCommand {
                 "wait: the pool cannot prove the clone's absence and the plan's head is `gone`, so the settling command refuses it and the finish pass removes the plan once the pool answers",
             ),
             NextCommand::None => String::from("nothing: the add continues at the step its phase names"),
+            NextCommand::APersonReadsTheRecords => String::from(
+                "read the two records before acting: the plan's recorded clone name now answers another clone, so no command of this release settles the state, and `git monochromatic-git-policy-cli doctor` names the plan, its registration and the slot",
+            ),
         };
     }
 }

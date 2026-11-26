@@ -75,6 +75,19 @@ mod no_test_changes_the_process_directory_tests;
 #[path = "no_release_read_of_a_test_only_switch_tests.rs"]
 mod no_release_read_of_a_test_only_switch_tests;
 
+/// Every record folder this program fills is read through `plain_file`:
+/// a named pipe at a record's name answers at once instead of holding every wrapped command.
+#[cfg(test)]
+#[path = "records_read_without_blocking_tests.rs"]
+mod records_read_without_blocking_tests;
+
+/// No release file outside the plain-file reader reads a file with a call that can wait,
+/// and the sites that stay are on a list that only shrinks,
+/// each entry naming the class whose reason keeps it.
+#[cfg(test)]
+#[path = "raw_file_reads_tests.rs"]
+mod raw_file_reads_tests;
+
 /// The owner's move to tokio needs its workers to await:
 /// no thread,
 /// no sleeping clock,
@@ -105,6 +118,33 @@ mod standards_review_boundary_tests;
 /// never in the release build.
 #[cfg(test)]
 pub(crate) mod source_scan_tests;
+
+/// Which bytes of a Rust source are code and which sit in a comment or a text literal,
+/// read once so every scan of this module reads the same answer;
+/// never in the release build.
+#[cfg(test)]
+#[path = "source_code_places_tests.rs"]
+pub(crate) mod source_code_places_tests;
+
+/// The scans that find a test file's unowned child start and its signal to its own process;
+/// never in the release build.
+#[cfg(test)]
+#[path = "test_children_owned_scan_tests.rs"]
+pub(crate) mod test_children_owned_scan_tests;
+
+/// The ledger of the child starts the tree still holds,
+/// and the comparison that fails on a new site and on a line whose site is gone;
+/// never in the release build.
+#[cfg(test)]
+#[path = "test_children_owned_ledger_tests.rs"]
+pub(crate) mod test_children_owned_ledger_tests;
+
+/// The control that refuses an unowned child start and a signal to the run's own process,
+/// with the ledger of the sites the tree still holds;
+/// never in the release build.
+#[cfg(test)]
+#[path = "test_children_owned_tests.rs"]
+mod test_children_owned_tests;
 
 /// The owner's rule that nothing of the wrapper starts at system startup or at login:
 /// no install line,

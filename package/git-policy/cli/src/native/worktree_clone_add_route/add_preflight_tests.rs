@@ -1,19 +1,25 @@
 //! Controls for the preflight's own shape:
 //!  it makes the delegation read once,
 //!  that read answers before the claim is taken,
-//!  a removal's plan that still names the clone refuses the preflight
-//!  in the plan stop's own sentence,
+//!  a removal's plan that still names the clone stops the preflight after the
+//!  device opens,
+//!  in the stop's own words and with the command that ends the plan,
 //!  a checkout whose source the fill's own restore would refuse makes the
 //!  preflight decline, so the add takes the ladder and nothing of the route's is
 //!  written,
+//!  a source the route serves that names the person's own lock word is refused in
+//!  the route's own sentence,
+//!  a source the route declines that names one takes the ladder with its words,
 //!  a checkout with an ordinary uncommitted change is served,
 //!  and a sparse checkout,
 //!  a worktree-scope configuration and an unfinished merge still fail the add.
 //!
 //! Why the source's answers are driven on fixtures:
-//!  the source check, the plan read and the slot's parent stand before the device
-//!  is opened, so a fixture decides every answer they give and no control needs a
-//!  pool.
+//!  the source check and the slot's parent stand before the device is opened,
+//!  so a fixture decides every answer they give and no control needs a pool.
+//!  The plan's stop stands after the device,
+//!  so its sentence is controlled in `add_plan_stop_tests.rs`,
+//!  and what only the preflight can show is the source read below.
 //!  The route's entry point reads this host's mount table and answers no route on
 //!  any machine before plan step 19's migration, so the controls start at the
 //!  preflight and, in `add_route_run_tests.rs`, at the runner that entry point
@@ -27,27 +33,29 @@
 //!  The arm fails when the read is dropped from the preflight,
 //!  which is the defect the read was built for.
 //!
-//! Why the plan's refusal is driven instead:
-//!  the plan read sits before the device is opened,
-//!  so a checkout whose source the preflight accepts reaches it on any machine,
-//!  and what a person reads is then the control's own subject
-//!  (issue 6450: the add printed a Rust `Debug` value here).
+//! Why the plan's stop is driven on fixtures and read in the source:
+//!  the command a person reads beside a standing plan needs the clone the pool can
+//!  find,
+//!  which is a request through the device the preflight opens
+//!  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
+//!  choice 2C),
+//!  so a host control cannot reach the preflight's plan stop at all.
+//!  The sentence's own controls stand in `add_plan_stop_tests.rs`,
+//!  and this file controls what only the preflight's code can show:
+//!  the stop sits after the device opens,
+//!  and what the add hands over is the stop's sentence rather than a Rust
+//!  `Debug` value (issue 6450).
 
 use super::preflight_the_add;
 use super::OpenedDevice;
 use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::worktree_clone_add_route::add_git_words::PERSON_LOCK_WORDS;
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
-use crate::worktree_clone_binding_record::plan_folder_read::{PLAN_HEADER, PlanStop, refuse_while_a_plan_names_the_clone};
-use crate::worktree_clone_binding_record::registration_home::{home_folder, plans_folder};
+use crate::worktree_clone_binding_record::registration_home::home_folder;
 use std::ffi::OsString;
 use std::path::PathBuf;
-
-/// The plan's own file name:
-///  the clone's canonical numeric GUID,
-///  which is the plan's key and the only name this reader reads.
-const THE_PLANS_KEY: &str = "4821193048571903102";
 
 /// What:
 ///  A main checkout in the shape the route serves,
@@ -84,26 +92,6 @@ fn the_adds_words(route: &RouteFacts) -> Vec<OsString> {
     return [String::from("worktree"), String::from("add"), route.destination.display().to_string(), String::from("main")].iter().map(OsString::from).collect();
 }
 
-/// What:
-///  A clean main checkout with one plan standing that names the clone this add would fill.
-/// Why:
-///  The plan read sits after the source's checks,
-///  so a control reaches the refusal only with a source the preflight accepts,
-///  and the plan's field names the clone's dataset because that is the name the add passes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { root, route, plan } = aCheckoutWithAStandingPlan('preflight-plan');
-/// ```
-fn a_checkout_with_a_standing_plan(name: &str) -> (PathBuf, RouteFacts, AddPlan) {
-    let (root, route, plan): (PathBuf, RouteFacts, AddPlan) = a_checkout_the_route_serves(name);
-    let folder: PathBuf = plans_folder(route.common_dir.as_path());
-    std::fs::create_dir_all(folder.as_path()).expect("the plan folder");
-    let plan_text: String = format!("{PLAN_HEADER}\ncloneDataset={}\n", route.clone_dataset());
-    std::fs::write(folder.join(THE_PLANS_KEY), plan_text.as_bytes()).expect("the standing plan");
-    return (root, route, plan);
-}
-
 /// The preflight makes the delegation read once,
 /// inside itself,
 /// before the runner takes the claim.
@@ -133,32 +121,44 @@ fn the_preflight_refuses_through_the_grant_read() {
 }
 
 /// What:
-///  A plan that still names the clone stops the preflight,
-///  and the words the person reads are that stop's own sentence,
+///  The preflight reads a standing plan after it opens the device,
+///  and what it hands over is the stop's own sentence,
 ///  never a Rust `Debug` rendering of it.
 /// Why:
-///   The refusal is the whole of what the person gets,
-///  so a `Debug` value there names types instead of the removal that ends the plan
-///  (issue 6450).
+///  The command the person reads beside a plan needs the clone the pool can find,
+///  so the read stands after `OpenedDevice::open`
+///  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
+///  "What 2C costs"),
+///  and no host control can drive the preflight that far:
+///  the device is the real `/dev/zfs`.
+///  The refusal is the whole of what the person gets,
+///  so a `Debug` value there would name types instead of the removal that ends
+///  the plan (issue 6450),
+///  and the stop's return type is the sentence itself, which is what makes that
+///  unreachable rather than merely absent today.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(preflight(standingPlan).message).toBe(stop.sentence());
+/// expect(source.indexOf('OpenedDevice::open(')).toBeLessThan(source.indexOf('refuseWhileAPlanStands('));
+/// expect(source).not.toContain('{stop:?}');
 /// ```
 #[test]
-fn a_standing_plan_refuses_the_preflight_in_the_plans_own_sentence() {
-    let (root, route, plan) = a_checkout_with_a_standing_plan("preflight-plan-sentence");
-    let stop: PlanStop = refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, route.clone_dataset().as_str()).expect_err("the standing plan stops the read");
-    let sentence: &str = stop.sentence();
-    let arguments: Vec<OsString> = [String::from("worktree"), String::from("add"), route.destination.display().to_string(), String::from("main")].iter().map(OsString::from).collect();
-    let refusal: StepRefusal = match preflight_the_add(&route, &plan, &git_context(), arguments.as_slice()) {
-        Ok(_) => panic!("the standing plan stops the preflight before its first mutation"),
-        Err(refusal) => refusal,
-    };
-    let message: &str = refusal.message.as_str();
-    assert_eq!(message, sentence, "the add prints the plan stop's own sentence: {message}");
-    assert!(!message.contains("NamesTheClone") && !message.contains("PlanNamesTheClone"), "no `Debug` rendering of the stop reaches the person: {message}");
-    remove(root.as_path());
+fn the_preflight_reads_the_plan_after_the_device_opens_with_the_stops_sentence() {
+    let source: &str = include_str!("add_preflight.rs");
+    let code: Vec<&str> = source.lines().map(str::trim_start).filter(|line| return !line.starts_with("//")).collect();
+    let joined: String = code.join("\n");
+    let device_opened: usize = joined.find("OpenedDevice::open(").expect("the preflight opens the device");
+    let plan_stop: usize = joined.find("refuse_while_a_plan_stands(").expect("the preflight calls the plan's stop");
+    assert!(device_opened < plan_stop, "the plan's stop follows the device it asks the pool with");
+    let stop_line: &str = code.iter().find(|line| return line.contains("refuse_while_a_plan_stands(")).expect("the stop's own call line");
+    assert!(stop_line.ends_with("refuse_while_a_plan_stands(route, &device)?;"), "the call hands over the stop's own refusal: {stop_line}");
+    for file in ["add_preflight.rs", "add_route_run.rs"] {
+        let text: &str = match file {
+            "add_preflight.rs" => source,
+            _ => include_str!("add_route_run.rs"),
+        };
+        assert!(!text.contains("{stop:?}"), "`{file}` renders no plan stop with a `Debug` value (issue 6450)");
+    }
 }
 
 /// What:
@@ -240,6 +240,77 @@ fn an_uncommitted_file_is_a_source_the_preflight_serves() {
     assert!(devices_own.contains(&refusal.message), "the preflight's refusal is the device step's own, which stands after the source check; the device answers {devices_own:#?}");
     assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten");
     assert!(!route.destination.exists(), "the slot stays empty before the claim");
+    remove(root.as_path());
+}
+
+/// What:
+///  An add that names the person's own lock word from a source the route declines
+///  takes the ladder with its words,
+///  and reads no sentence of a route that is not serving it.
+/// Why:
+///  The refusal's sentence says the ZFS clone route takes the managed lock itself,
+///  which is a rule of that route:
+///  the ladder hands the person's words to Git,
+///  whose `worktree add` takes the lock and the reason by itself
+///  (`SPEC.md`, the ladder's forms).
+///  So a source the fill's own restore cannot prove declines before the route's own
+///  invocation rules are judged (issue 6453).
+///  Every word the constant names stands once on this side,
+///  because a refusal judged for one of them ahead of the source's answer would fail
+///  here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const word of PERSON_LOCK_WORDS) expect(preflight(nestedRepositoryCheckout, wordsWith(word))).toBeNull();
+/// ```
+#[test]
+fn a_lock_word_from_a_declined_source_takes_the_ladder() {
+    for word in PERSON_LOCK_WORDS {
+        let given: &str = std::str::from_utf8(word).expect("every lock word is ASCII");
+        let (root, route, plan): (PathBuf, RouteFacts, AddPlan) = a_checkout_the_route_serves(format!("preflight-declined-{}", given.trim_start_matches('-')).as_str());
+        let nested: PathBuf = route.source_root.join("nested");
+        std::fs::create_dir(nested.as_path()).expect("the repository's directory");
+        git(nested.as_path(), &["init", "--quiet"]);
+        std::fs::write(nested.join("inside.txt"), b"inside\n").expect("the repository's own file");
+        let mut words: Vec<OsString> = the_adds_words(&route);
+        words.insert(2, OsString::from(given));
+        match preflight_the_add(&route, &plan, &git_context(), words.as_slice()) {
+            Ok(None) => {}
+            Ok(Some(_)) => panic!("this fixture has no pool, so a served source would have been stopped by the pool's read, and `{given}` was not the reason"),
+            Err(refusal) => panic!("the route fails an add from a source its own restore cannot prove, in a sentence about `{given}`: {}", refusal.message),
+        }
+        assert!(!home_folder(route.common_dir.as_path()).exists(), "the claim, and the record written after it, stay unwritten for `{given}`");
+        assert!(!route.destination.exists(), "the slot stays empty when the route declines an add given `{given}`");
+        remove(root.as_path());
+    }
+}
+
+/// What:
+///  An add that names the person's own lock word from a source the route serves is
+///  still refused in the route's own sentence.
+/// Why:
+///  The control beside this one shows a decline,
+///  and this one shows the same question answering a refusal,
+///  so the lock rule is not lost with the order:
+///  an add the route serves and that locked itself would leave a registration whose
+///  words the wrapper's proof cannot read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(preflight(cleanCheckout, wordsWith('--lock'))).toThrow(/takes the managed lock itself/);
+/// ```
+#[test]
+fn a_lock_word_from_a_served_source_keeps_the_routes_own_sentence() {
+    let (root, route, plan): (PathBuf, RouteFacts, AddPlan) = a_checkout_the_route_serves("preflight-served-lock-word");
+    let mut words: Vec<OsString> = the_adds_words(&route);
+    words.insert(2, OsString::from("--lock"));
+    let refusal: StepRefusal = match preflight_the_add(&route, &plan, &git_context(), words.as_slice()) {
+        Ok(_) => panic!("the route takes the managed lock itself, so an add it serves and that names `--lock` is refused before the claim"),
+        Err(refusal) => refusal,
+    };
+    assert!(refusal.message.contains("takes the managed lock itself"), "the sentence is the route's own: {}", refusal.message);
+    assert!(refusal.message.contains("--lock"), "the sentence names the word the person gave: {}", refusal.message);
+    assert!(!home_folder(route.common_dir.as_path()).exists(), "a refused add writes nothing, so the claim is not taken");
     remove(root.as_path());
 }
 

@@ -517,7 +517,9 @@ fn carry_selected_staged_additions(
     let mut pathspecs: Vec<OsString> = selection.pathspecs.to_vec();
     if let Some(file) = selection.pathspec_file {
         // A file that cannot be read now fails in `git add` with Git's own message.
-        let Ok(bytes) = std::fs::read(file) else {
+        // The read is the plain one, so a named pipe at the name answers at once instead of holding the commit, and the
+        //  handle's own type decides what is read; the bound is the one the selection readers take.
+        let Ok(bytes) = crate::plain_file::read_plain_file(file, crate::commit_selection_staging::PATHSPEC_FILE_LIMIT) else {
             return Ok(());
         };
         let Some(listed) = pathspecs_of_file(bytes.as_slice(), selection.pathspec_file_nul) else {

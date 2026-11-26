@@ -36,7 +36,7 @@
 //! ```
 
 use git_policy_cli::doctor_zfs_route::{
-    AbiFacts, CheckOutcome, CheckReport, DatasetFacts, DatasetRole, DelegationFacts, DeviceFacts, DeviceState, RecordedIdentity, HolderFacts, LiveIdentity, MountCheckFacts, ParentIdentityFacts, PathState, PoolFacts, Reading,
+    AbiFacts, CheckOutcome, CheckReport, DatasetFacts, DatasetRole, DelegationFacts, DeviceFacts, DeviceState, RecordedIdentity, LiveIdentity, MountCheckFacts, ParentIdentityFacts, PathState, PoolFacts, Reading,
     ReadinessFacts, RecordFacts, RequestFacts, SlotIdentityFacts, SlotRecordFacts, StagedFolder, StagingFolderFacts, StoreListingFacts, check_clone_properties, check_delegation, check_key, check_snapdir,
     check_unknown_dot_entries, grants_of, remove_known_staging_forms, route_checks, snapdir_setting, staging_binds, StagingRemovalRequest,
 };
@@ -156,8 +156,7 @@ fn path_state(path: &Path) -> PathState {
 /// What the arm needs in place before it reads anything.
 fn install_layout() {
     let pool_name: String = pool();
-    let _ = Command::new("zpool").args([ "destroy", "--force", pool_name.as_str() ]).output();
-    let _ = std::fs::remove_dir_all(FIXTURE);
+    clear_what_a_killed_arm_left();
     std::fs::create_dir_all(FIXTURE).expect("the fixture root");
     let image: String = format!("{FIXTURE}/pool.img");
     run("truncate", &[ "--size", POOL_IMAGE_SIZE, image.as_str() ]);
@@ -183,6 +182,45 @@ fn install_layout() {
     publish_the_records();
     make_the_staging_folder();
     allow_the_decided_grants();
+}
+
+/// Destroy every pool and mount a killed arm left in this throwaway guest,
+/// so a rerun starts from nothing.
+///
+/// A `zpool destroy` that refuses leaves the pool's image belonging to a live
+/// pool, and the next `zpool create` on that image then fails with "part of
+/// active pool": the refused destroy is what an earlier arm's killed run left,
+/// and this guest has no dataset worth keeping.
+fn clear_what_a_killed_arm_left() {
+    // A killed arm leaves its staging bind mounted, and `remove_dir_all` cannot remove a folder a mount holds, so every
+    // mount under the fixture root is unmounted first, deepest first.
+    let mut under: Vec<PathBuf> = Vec::new();
+    for line in std::fs::read_to_string("/proc/self/mountinfo").expect("the mount table").lines() {
+        let mut fields = line.split(' ');
+        let _id = fields.next();
+        let _parent = fields.next();
+        let _device = fields.next();
+        let _root = fields.next();
+        if let Some(point) = fields.next() {
+            let path: PathBuf = PathBuf::from(point.replace("\\040", " "));
+            if path.starts_with(FIXTURE) {
+                under.push(path);
+            }
+        }
+    }
+    under.sort();
+    under.reverse();
+    for point in &under {
+        let _ = Command::new("umount").arg(point).output();
+    }
+    // `zpool` takes no long options: `-f` is the only spelling of force it has.
+    let listed = Command::new("zpool").args([ "list", "-H", "-o", "name" ]).output().expect("zpool lists");
+    for name in String::from_utf8_lossy(listed.stdout.as_slice()).split_whitespace() {
+        let _ = Command::new("zfs").args([ "unmount", "-a" ]).output();
+        let destroyed = Command::new("zpool").args([ "destroy", "-f", name ]).output().expect("zpool answers");
+        assert!(destroyed.status.success(), "the pool {name} could not be destroyed: {}{}", String::from_utf8_lossy(destroyed.stdout.as_slice()), String::from_utf8_lossy(destroyed.stderr.as_slice()));
+    }
+    let _ = std::fs::remove_dir_all(FIXTURE);
 }
 
 /// The parent's and the slot's records,
@@ -576,18 +614,12 @@ fn staging_facts() -> StagingFolderFacts {
     return StagingFolderFacts { cache: git_policy_cli::doctor_zfs_route::PathFacts { path: PathBuf::from(cache.as_str()), state: path_state(Path::new(cache.as_str())) }, account: ACCOUNT, folders };
 }
 
-/// The scan's answer,
-/// which this branch cannot produce:
-/// the all-namespace holder scan is another branch's.
-fn holder_facts() -> HolderFacts {
-    return HolderFacts { clone: clone_dataset(), holders: Vec::new(), incomplete: vec![ String::from("the all-namespace holder scan is not built in this tree") ] };
-}
-
 //endregion
 
 //region The arm
 
 /// The three groups pass on the design's layout,
+/// the removal-side lines pass on a clone no record names,
 /// the five later steps are unknown,
 /// and each broken fact answers the finding that names it.
 #[test]
@@ -633,10 +665,12 @@ fn zfs_doctor_route_guest_three_groups_and_each_finding() {
     assert_pass(&reports, "staging-folder");
     assert_pass(&reports, "staging-bind-propagation");
     println!("DOCTOR-GUEST group-three-passes");
-    for name in [ "deferred-origin", "removal-plans", "cancel-command", "backup-coverage", "sanoid" ] {
+    for name in [ "cancel-command", "boot-protection", "service-unit", "backup-coverage", "sanoid" ] {
         assert_unknown(&reports, name);
     }
-    assert_unknown(&reports, "holders");
+    for name in [ "clone-state", "registration", "binding-record", "removal-plan", "clone-snapshots", "clone-origin", "clone-retention", "blocked-removal", "holders" ] {
+        assert_pass(&reports, name);
+    }
     println!("DOCTOR-GUEST later-steps-are-unknown");
     break_each_fact();
 }
@@ -652,6 +686,7 @@ fn route_facts(boot: &str) -> git_policy_cli::doctor_zfs_route::RouteFacts {
         pool: pool_facts(),
         datasets: dataset_facts(),
         staging_binds: staging_binds(&mounts.rows, cache.as_path()),
+        clones: vec![ clone_facts(mounts.rows.as_slice()) ],
         mounts,
         parent_identity: parent_facts(),
         slots: vec![ slot_facts("one") ],
@@ -665,7 +700,122 @@ fn route_facts(boot: &str) -> git_policy_cli::doctor_zfs_route::RouteFacts {
         live_boot: String::from(boot),
         requests: request_facts(),
         staging: staging_facts(),
-        holders: holder_facts(),
+    };
+}
+
+/// What:
+///  The pool this arm asks for one dataset's GUID.
+/// Why:
+///  The managed lock's proof compares the mount's clone GUID while a mount
+///  covers the slot,
+///  so the guest's own pool answers,
+///  through the arm's own identity read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ThisGuestsPool implements DatasetGuidReads { guidOf(dataset) { return identity(dataset).guid; } }
+/// ```
+struct ThisGuestsPool;
+
+impl git_policy_cli::worktree_clone_managed_lock::DatasetGuidReads for ThisGuestsPool {
+    fn guid_of(&self, dataset: &str) -> Result<git_policy_cli::worktree_clone_mount_protocol::DatasetGuid, String> {
+        return git_policy_cli::worktree_clone_mount_protocol::DatasetGuid::parse(identity(dataset).stats.dds_guid.to_string().as_str()).map_err(|refusal| return format!("{refusal:?}"));
+    }
+}
+
+/// The one managed clone of this arm's fixture,
+/// read through the route's own slot readings and pool replies.
+fn clone_facts(rows: &[git_policy_cli::fs_mount_options::MountFacts]) -> git_policy_cli::doctor_zfs_route::CloneFacts {
+    use git_policy_cli::doctor_zfs_route::{
+        AccountingFacts, BlockedRemovalFacts, CloneFacts, CloneOriginFacts, CloneRetentionFacts, CloneSnapshotFacts, CloneStateFacts, HolderFacts, NamespaceHold, PathState, PlanFileReading, RemovalPlanFacts,
+        LOGICAL_REFERENCED_PROPERTY, REFERENCED_PROPERTY, USED_PROPERTY, WRITTEN_PROPERTY, staging_binds,
+    };
+    use git_policy_cli::worktree_clone_mount_handler::sweep_dataset_facts::value_of;
+    use git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::ZfsDatasetReader;
+    use git_policy_cli::worktree_clone_mount_protocol::RequestNonce;
+    use git_policy_cli::worktree_clone_removal_proof_and_plan::plan_record::PlanSnapshot;
+    use git_policy_cli::worktree_clone_removal_proof_and_plan::removal_inventory::LiveInventory;
+    use git_policy_cli::worktree_clone_removal_proof_and_plan::removal_reads::{LiveRemovalReads, whole_inventory};
+    use git_policy_cli::worktree_clone_removal_proof_and_plan::started_moment::now_with_offset;
+    use git_policy_cli::worktree_clone_slot_state::slot_state_live_read::{GatedCloneIntentReads, SlotReadingSources, read_slot};
+    let common: PathBuf = PathBuf::from(format!("{FIXTURE}/repo/.git"));
+    let slot: PathBuf = PathBuf::from(format!("{CHECKOUT}/.claude/worktrees/one"));
+    let intents: GatedCloneIntentReads<'_> = GatedCloneIntentReads::new(&git_policy_cli::zfs_compatibility_gate::LiveGate);
+    let mounts: git_policy_cli::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets = git_policy_cli::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
+    let readings: git_policy_cli::worktree_clone_slot_state::slot_state_readings::SlotReadings =
+        read_slot(common.as_path(), "one", slot.as_path(), &SlotReadingSources { mounts: &mounts, intents: &intents });
+    let clone: String = clone_dataset();
+    let guid: u64 = identity(clone.as_str()).stats.dds_guid;
+    let reads: LiveRemovalReads = LiveRemovalReads::open().expect("the guest has /dev/zfs");
+    let inventory: LiveInventory = whole_inventory(&reads, clone.as_str(), DatasetGuid::parse(guid.to_string().as_str()).expect("the clone's GUID")).expect("the clone's inventory");
+    let device: ZfsDevice = ZfsDevice::open().expect("the device opens in the guest");
+    let held: git_policy_cli::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts = git_policy_cli::worktree_clone_mount_handler::sweep_dataset_facts::facts_of(clone.as_str(), &identity(clone.as_str()));
+    let accounting = |object: &str| -> AccountingFacts {
+        let reply = device.objset_stats(object).unwrap_or_else(|error| panic!("{object}'s accounting: {error}"));
+        return AccountingFacts {
+            object: String::from(object),
+            used: value_of(&reply.properties, USED_PROPERTY),
+            referenced: value_of(&reply.properties, REFERENCED_PROPERTY),
+            logical_referenced: value_of(&reply.properties, LOGICAL_REFERENCED_PROPERTY),
+            written: value_of(&reply.properties, WRITTEN_PROPERTY),
+        };
+    };
+    let mut own: Vec<AccountingFacts> = Vec::new();
+    for snapshot in inventory.snapshots() {
+        own.push(accounting(snapshot.full_name().as_str()));
+    }
+    let reader: ZfsDatasetReader = ZfsDatasetReader::open().expect("the device opens in the guest");
+    let _ = &reader;
+    let nonce: RequestNonce = RequestNonce::parse(NONCE).expect("the arm's nonce");
+    let own_namespace: Option<String> = git_policy_cli::mount_namespace_scan::namespace_target(Path::new("/proc/self/ns/mnt"));
+    let scan = git_policy_cli::clone_holder_scan::scan_holders(&git_policy_cli::clone_holder_scan::HolderScanRequest {
+        proc_root: Path::new("/proc"),
+        source: clone.as_str(),
+        own_namespace: own_namespace.as_deref(),
+        readers_root: None,
+        dataset: DatasetGuid::parse(guid.to_string().as_str()).expect("the clone's GUID"),
+        nonce: &nonce,
+        time: now_with_offset(),
+    });
+    let mut holders: Vec<NamespaceHold> = Vec::new();
+    for holder in &scan.holders {
+        let task: u32 = holder.task.file_name().and_then(|name| return name.to_str()).and_then(|text| return text.parse().ok()).unwrap_or(0);
+        for mount in &holder.mounts {
+            holders.push(NamespaceHold { namespace: String::from(holder.namespace()), representative_pid: task, source: clone.clone(), mount_point: mount.mount_point.clone() });
+        }
+    }
+    let incomplete: Vec<String> = scan.incomplete.iter().map(|read| return format!("{read:?}")).collect();
+    let holder_facts: HolderFacts = HolderFacts { clone: clone.clone(), holders, incomplete };
+    let cache: PathBuf = PathBuf::from(format!("{FIXTURE}/cache"));
+    let _ = (PlanSnapshot { name: String::from("unused"), guid: DatasetGuid::parse("1").expect("a GUID"), createtxg: 0 }, held);
+    return CloneFacts {
+        state: CloneStateFacts { readings, staging_binds: staging_binds(rows, cache.as_path()) },
+        registration: git_policy_cli::doctor_zfs_route::RegistrationFacts {
+            slot: String::from("one"),
+            recorded: None,
+            at_the_path: PathState::Absent,
+            gitdir: None,
+            slot_git: slot.join(".git"),
+        },
+        lock: git_policy_cli::doctor_zfs_route::ManagedLockFacts {
+            slot: String::from("one"),
+            classification: git_policy_cli::worktree_clone_managed_lock::classify_the_managed_lock(common.as_path(), "one", slot.as_path(), &mounts, &ThisGuestsPool),
+        },
+        plan: RemovalPlanFacts { clone: clone.clone(), reading: PlanFileReading::NoPlan },
+        snapshots: CloneSnapshotFacts { clone: clone.clone(), clone_createtxg: identity(clone.as_str()).stats.dds_creation_txg, live: git_policy_cli::doctor_zfs_route::Reading::Read(inventory), plan_stands: false, recorded: Vec::new() },
+        origin: CloneOriginFacts { clone: clone.clone(), recorded: None, live: None },
+        retention: CloneRetentionFacts { clone: clone.clone(), dataset: git_policy_cli::doctor_zfs_route::Reading::Read(accounting(clone.as_str())), snapshots: own, inherited: Vec::new(), origin_snapshot: None },
+        blocked: BlockedRemovalFacts {
+            slot: String::from("one"),
+            clone: clone.clone(),
+            intent: None,
+            plan_stands: false,
+            recorded: Vec::new(),
+            holders: holder_facts.clone(),
+            in_the_callers_session: Vec::new(),
+            the_forced_arm_is_measured: false,
+        },
+        holders: holder_facts,
     };
 }
 
