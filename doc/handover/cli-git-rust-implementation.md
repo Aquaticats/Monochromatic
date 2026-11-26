@@ -127,8 +127,15 @@ Rounds started earlier run on the pool they named.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
 - Issue 6506 (the watch's wall-clock control fails in the driver's parallel suite, the class 6504 fixed),
   window `issue-6506-watch-wall-clock-control-sized-from-its-own-run`, on the virtual writer.
-- Issue 6494, the no-threads child helper read the wrong way,
-  window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
+- Issue 6494, the no-threads child helper read the wrong way:
+  run 2 on flex ended at 07:52 with both helpers taking the body they run;
+  its merge check on `main` runs `subvolume::`, `testing::`, `foundation::`, `worktree_copying::` and `index::`.
+  It filed two issues:
+  6503 (the process-wide-state child helper answers a flag a control can read inverted, about 55 callers),
+  which waits for 6493 (it edits that helper) and the split's round 1;
+  and 6505 (the two queued-rewrite controls pass with the claim removed, because one blocking job drains one shard of tokio's pool),
+  briefed in `~/temp/agent/issue-6505-queued-rewrite-controls-drain-every-shard-2026-11-26/prompt.md`,
+  which starts on the virtual writer once 6494 merges.
 - Issue 6493 (flex),
   one window each, `issue-<number>-<words>`.
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
