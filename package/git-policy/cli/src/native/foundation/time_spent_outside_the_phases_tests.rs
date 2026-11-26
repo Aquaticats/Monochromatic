@@ -1,6 +1,10 @@
 //! What:
 //!  The counters a command's record states for the time it spent outside its phases,
 //!  and the writer that measures one of them.
+//!  Each control runs its body in a child process of its own:
+//!  the three counters belong to the whole process,
+//!  and one control drives one of them to its end on purpose, which would leave every other reader of that record
+//!  in this process with a figure no command spent (`testing/process_wide_state_child_test_support.rs`, issue 6487).
 //! Why:
 //!  A counter that adds the wrong span,
 //!  or forgets a removal that never finished,
@@ -68,6 +72,12 @@ impl Write for Slow {
 /// and one that never finished is counted apart.
 #[test]
 fn every_removal_adds_its_span_and_an_unfinished_one_is_counted() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "every_removal_adds_its_span_and_an_unfinished_one_is_counted",
+    ) {
+        return;
+    }
     note_scratch_removal(Duration::from_millis(7), true);
     note_scratch_removal(Duration::from_micros(900), true);
     note_scratch_removal(Duration::from_millis(3), false);
@@ -85,6 +95,12 @@ fn every_removal_adds_its_span_and_an_unfinished_one_is_counted() {
 /// and the bytes still reach the stream underneath.
 #[test]
 fn a_write_and_a_flush_add_the_time_they_took() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_write_and_a_flush_add_the_time_they_took",
+    ) {
+        return;
+    }
     let slow: Slow = Slow::new();
     let kept: Rc<RefCell<Vec<u8>>> = Rc::clone(&slow.written);
     let mut stream: MeasuredStandardError<Slow> = MeasuredStandardError::over(slow);
@@ -105,6 +121,12 @@ fn a_write_and_a_flush_add_the_time_they_took() {
 /// A span the counter cannot hold is held at its end instead of wrapping around it.
 #[test]
 fn a_span_larger_than_the_counter_is_held_at_its_end() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_span_larger_than_the_counter_is_held_at_its_end",
+    ) {
+        return;
+    }
     note_standard_error(Duration::from_secs(u64::MAX / 2));
     note_standard_error(Duration::from_secs(u64::MAX / 2));
     assert_eq!(

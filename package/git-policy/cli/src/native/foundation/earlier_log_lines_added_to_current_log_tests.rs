@@ -136,6 +136,12 @@ fn a_last_line_without_a_newline_is_ended_before_the_next_begins() {
 /// each line of both logs is in the current log exactly once.
 #[test]
 fn a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line",
+    ) {
+        return;
+    }
     // The sweep's subject is the steps of the fold and the lines they leave, not what a crash leaves, so its syncs are
     //  no-ops here: one walk of the whole fold made 306 `fsync` calls in its sibling sweep (`earlier_names_folded_into_current_tests.rs`),
     //  and the filesystem's commits decided whether that walk finished inside the run's own bound.
@@ -337,9 +343,21 @@ fn bytes_already_added_and_rotated_into_an_older_copy_are_not_added_again() {
 
 /// Another process holds the journal's lock:
 /// this fold changes nothing.
+/// The control runs its body in a child process of its own:
+/// the lock is an advisory `flock` on a file of the fixture,
+/// and a fork another test of the same process makes while this control holds it duplicates the descriptor that
+/// holds it, so the lock outlives the control's own copy and the fold that follows answers `Busy`.
+/// That reading comes from the two places `fold_log` answers `Busy` and from this control passing alone and failing
+/// beside its neighbours; a child of its own takes every other test's fork out of the window (issue 6487).
 #[cfg(unix)]
 #[test]
 fn a_fold_that_another_process_holds_is_left_alone() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_fold_that_another_process_holds_is_left_alone",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("busy");
     plant(root.as_path());
     let journal: PathBuf = root.join(format!("{}{JOURNAL_SUFFIX}", COMMIT_TIMING_LOG.current));
@@ -587,6 +605,12 @@ fn a_writer_that_adds_lines_between_commands_has_each_line_added_once() {
 /// each line is in the current log once.
 #[test]
 fn a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line",
+    ) {
+        return;
+    }
     // As its sibling above: the steps and the lines are the subject, and the syncs of every step are not.
     crate::private_storage::skip_the_durability_syncs_here();
     let expected: String = format!(
