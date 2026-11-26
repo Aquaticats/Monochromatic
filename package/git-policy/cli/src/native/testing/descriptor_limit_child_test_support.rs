@@ -1,13 +1,16 @@
 //! What:
-//!  A control's own body run in a child process of this test binary, which lowers its own descriptor limit.
+//!  A control's own body run in a child process of this test binary,
+//!  which lowers its own descriptor limit.
 //! Why:
 //!  A soft descriptor limit belongs to the whole process,
 //!  and `cargo test` runs a crate's tests as threads of one process,
 //!  so a control that lowered it in the process the run holds
 //!  made every other test of that run fail with `EMFILE` (`Too many open files`) on its next open,
 //!  for a reason that had nothing to do with what it tested (issue 6492).
-//!  The child runs one test and ends with it, so the limit reaches nothing else,
-//!  and `set_soft_limit` refuses to lower the limit in any other process, naming the starter below.
+//!  The child runs one test and ends with it,
+//!  so the limit reaches nothing else,
+//!  and `set_soft_limit` refuses to lower the limit in any other process,
+//!  naming the starter below.
 //!  A child whose control works in a fixture takes the directory from `child_directory` rather than `fixture`,
 //!  because a fixture arms the run's watchdog,
 //!  and the thread it starts opens descriptors of `/proc` between the count a control reads and the work it measures,
@@ -22,24 +25,33 @@
 /// What:
 ///  The request for one child of this test binary,
 ///  and the check that the one test it ran passed.
-///  `ChildTest` is that request, and `passed` starts it, waits for it with a deadline and reads what it said.
+///  `ChildTest` is that request,
+///  and `passed` starts it,
+///  waits for it with a deadline and reads what it said.
 /// Why:
 ///  Every child of this crate's test binary is started in one place (`child_test_process.rs`),
 ///  so the process is owned and its wait is bounded,
-///  and its own failure reaches the control that started it, with the child's own words.
+///  and its own failure reaches the control that started it,
+///  with the child's own words.
 use super::child_test_process::{
     ChildTest,
     passed,
 };
 /// What:
-///  `OsStr` is borrowed operating-system text of raw bytes (sibling: `String`, an owned UTF-8 buffer).
+///  `OsStr` is borrowed operating-system text of raw bytes,
+///  whose sibling is `String`,
+///  an owned UTF-8 buffer.
 /// Why:
-///  The fixture directory travels to the child in the environment, which holds bytes and not necessarily UTF-8.
+///  The fixture directory travels to the child in the environment,
+///  which holds bytes and not necessarily UTF-8.
 use std::ffi::OsStr;
 /// What:
-///  `Path` is a borrowed filesystem path and `PathBuf` an owned one (siblings: `&str` and `String`, which are text).
+///  `Path` is a borrowed filesystem path and `PathBuf` an owned one,
+///  whose siblings are `&str` and `String`,
+///  which are text.
 /// Why:
-///  The parent names the directory it made, and the child answers it as a path of its own.
+///  The parent names the directory it made,
+///  and the child answers it as a path of its own.
 use std::path::{
     Path,
     PathBuf,
@@ -57,9 +69,10 @@ const CHILD_DIRECTORY_VARIABLE: &str = "CLI_GIT_DESCRIPTOR_LIMIT_CHILD_DIRECTORY
 ///  Whether this process is a child this file started,
 ///  which is the only process a control may lower a descriptor limit in.
 /// Why:
-///  `set_soft_limit` asks this before it lowers anything,
-///  so a control that forgot the child fails at its own first line
-///  instead of making the rest of a threaded run fail now and then.
+///  The refusal and the control's own body ask this one question,
+///  so a process is the child,
+///  or is not,
+///  by one variable read in one place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,6 +80,29 @@ const CHILD_DIRECTORY_VARIABLE: &str = "CLI_GIT_DESCRIPTOR_LIMIT_CHILD_DIRECTORY
 /// ```
 pub(crate) fn this_process_is_the_child() -> bool {
     return std::env::var_os(CHILD_VARIABLE).is_some();
+}
+
+/// What:
+///  Refuse to lower a soft descriptor limit in a process that is not a child this file started,
+///  naming the starter that makes the calling process one.
+/// Why:
+///  `set_soft_limit` calls this before it lowers anything,
+///  so a control that forgot the child fails at its own first line,
+///  every time it runs,
+///  instead of making the rest of a threaded run fail with `EMFILE` now and then.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refuseOutsideTheChild(): void { assert(thisProcessIsTheChild(), 'lower it in a child of the control\'s own, which started_this_test_in_a_child starts'); }
+/// ```
+pub(crate) fn refuse_outside_the_child() {
+    assert!(
+        this_process_is_the_child(),
+        "the soft descriptor limit belongs to the whole process, and `cargo test` runs a crate's tests as threads of \
+         one process, so lowering it here fails every other test of this run with `EMFILE`: lower it in a child of \
+         the control's own, which `crate::descriptor_limit_child_test_support::started_this_test_in_a_child` \
+         starts"
+    );
 }
 
 /// What:
@@ -94,7 +130,9 @@ pub(crate) fn child_directory() -> Option<PathBuf> {
 ///  and fail this control with everything the child said when its one test did not pass.
 /// Why:
 ///  The descriptor limit the child lowers then belongs to a process of its own,
-///  and a child that panics, hangs or runs no test fails here with its own words
+///  and a child that panics,
+///  hangs or runs no test,
+///  fails here with its own words
 ///  instead of leaving the parent's other tests to fail with `EMFILE`.
 ///
 /// In TS you'd write (pseudocode):
@@ -118,8 +156,8 @@ pub(crate) fn started_this_test_in_a_child(
     // const environment: [string, string][] = [[CHILD_VARIABLE, '1']];
     // ```
     let mut environment: Vec<(&str, &OsStr)> = vec![(CHILD_VARIABLE, OsStr::new("1"))];
-    if let Some(directory) = directory {
-        environment.push((CHILD_DIRECTORY_VARIABLE, directory.as_os_str()));
+    if let Some(fixture) = directory {
+        environment.push((CHILD_DIRECTORY_VARIABLE, fixture.as_os_str()));
     }
     // What:     the path libtest answers to: the module path without the crate's own first segment, and the test's name.
     // Why:      `--exact` matches this text and nothing else, so a path that is wrong would run no test at all.
@@ -134,6 +172,14 @@ pub(crate) fn started_this_test_in_a_child(
             return rest;
         })
     );
+    // What:     the one call that starts the child: `ChildTest` is the request, its two streams are pipes this call
+    //           reads, and `..ChildTest::default()` takes every field the request leaves out from the plain request.
+    // Why:      the child's own words reach the control that started it when its one test does not pass.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // passed({ exactTest: path, environment, ...plainRequest() });
+    // ```
     passed(ChildTest {
         exact_test: path.as_str(),
         environment: environment.as_slice(),

@@ -668,19 +668,16 @@ fn lowering_the_soft_limit_outside_a_child_of_the_controls_own_is_refused() {
     let caught: std::thread::Result<rustix::process::Rlimit> =
         crate::call_catching_panics::call_catching_panics(room, set_soft_limit);
     // What:     `expect_err` takes the panic out of the `Result` and answers it; a limit that came back instead means
-    //           the refusal is gone. A panic payload is the text `panic!` was given, here a `String`.
+    //           the refusal is gone.
     // Why:      the words of the refusal are the whole point: they name the helper that lowers the limit safely.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const payload = expectedError(caught); const text = payload.downcastRef('string') ?? '';
+    // const payload = expectedError(caught);
     // ```
-    let payload: Box<dyn std::any::Any + Send> = caught.expect_err(
+    let said: String = what_a_panic_said(caught.expect_err(
         "the soft descriptor limit is refused in the process the run holds other tests in",
-    );
-    let said: &str = payload.downcast_ref::<String>().map_or("", |text| {
-        return text.as_str();
-    });
+    ));
     assert!(
         said.contains("started_this_test_in_a_child"),
         "the refusal names the child helper to start instead: {said}"
@@ -690,6 +687,27 @@ fn lowering_the_soft_limit_outside_a_child_of_the_controls_own_is_refused() {
         before,
         "the refusal lowered nothing"
     );
+}
+
+/// What:
+///  The words a caught panic carries,
+///  which is the literal `panic!` was given or the `String` of one it was given formatting arguments for.
+/// Why:
+///  `assert!` with a literal and no arguments panics with a `&str`,
+///  so reading only a `String` would read a refusal that said nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function whatAPanicSaid(payload: unknown): string { return typeof payload === 'string' ? payload : String(payload ?? ''); }
+/// ```
+fn what_a_panic_said(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(literal) = payload.downcast_ref::<&str>() {
+        return String::from(*literal);
+    }
+    if let Some(owned) = payload.downcast_ref::<String>() {
+        return owned.clone();
+    }
+    return String::new();
 }
 
 //endregion

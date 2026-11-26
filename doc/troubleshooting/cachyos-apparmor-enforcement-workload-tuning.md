@@ -2258,14 +2258,15 @@ owner @{lib_dirs}/.cache/{,**} k,
 ```
 
 A first check reported 289 Tor Browser denials in the 90 seconds before loading and none after.
-That was weak evidence twice over:
-`lyrebird` may simply have been idle in that window,
-and the reader took `stdout` from one `rg` over five audit files,
-which the agent harness cuts to its start when it is long,
-so later lines could be missing.
 Re-read from `/var/log/audit/audit.log` alone (it had not rotated since 01:11 local) with the whole output,
-the socket denials did stop at the load,
-but the owner reported Tor Browser still not connecting.
+that zero held: the socket denials stopped at the load.
+The check was incomplete rather than wrong:
+it counted logged denials only,
+and the owner then reported Tor Browser still not connecting because of an unlogged `deny`.
+The reader itself was faulty:
+it took `stdout` from one `rg` over five audit files,
+which the agent harness cuts to its start when it is long,
+and two later queries returned no `lyrebird` line where the file held 1194.
 
 The stock profile's `deny /etc/resolv.conf r`, `deny /etc/hosts r` and `deny /etc/nsswitch.conf r`
 apply to `lyrebird` too, because it runs there through `PluggableTransports/** mix`;
@@ -2320,6 +2321,18 @@ Under enforce,
 `curl --socks5-hostname 127.0.0.1:9150 https://check.torproject.org/api/ip` returned
 `{"IsTor":true,"IP":"204.8.96.168"}`,
 and the next 45 seconds held no `torbrowser-tor` denial.
+
+Upstream, on 2026-11-26:
+`roddhjav/apparmor.d` `main` at `4c4fec70fcd19307a871b3ecc7f117a9ad989c9f`
+(`apparmor.d/groups/browsers/torbrowser-tor`) still has `network inet stream` only,
+`PluggableTransports/** mix`, and `deny /etc/resolv.conf r` and `deny /etc/nsswitch.conf r`,
+so the failure is live there for any datagram or name-resolving transport.
+`gh search issues` and `gh search prs` in that repository for `lyrebird`, `snowflake`,
+`torbrowser-tor resolv` and `pluggable transport` returned nothing,
+while a broad `torbrowser` search returned closed issues (#1117, #539, #491, #490, #465, #251),
+so the search itself works.
+The diagnosis, an upstream patch and the issue draft the owner asked for are in
+`doc/troubleshooting/apparmor-d-torbrowser-tor-denies-name-lookups-to-pluggable-transports.md`.
 
 The same reader fault touches this batch's other "no denial" checks;
 re-read the same way,
