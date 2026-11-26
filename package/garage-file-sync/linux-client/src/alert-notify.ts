@@ -9,7 +9,10 @@
  */
 
 import type { Notification, } from './alert-message.ts';
-import { runCommand, } from './run-command.ts';
+import {
+  type CommandRunner,
+  runCommand,
+} from './run-command.ts';
 
 /**
  How long notify-send may wait for the notification server, in milliseconds.
@@ -28,6 +31,11 @@ export type NotifyOutcome = {
   readonly sent: boolean;
   readonly problem?: string;
 };
+
+/**
+ Shows one notification and reports what notify-send said.
+ */
+export type NotificationSender = (notification: Readonly<Notification>,) => Promise<NotifyOutcome>;
 
 /**
  Builds notify-send's arguments for one notification.
@@ -61,7 +69,49 @@ export function notifySendArguments(notification: Readonly<Notification>,): read
 }
 
 /**
- Shows one notification.
+ Builds the notification sender over one command runner.
+
+ The runner is a parameter so a test can drive every answer notify-send gives, a sent
+ notification included, without a notification server on the machine that runs the
+ tests.
+
+ @param run - runs one command to its end
+
+ @returns a sender that shows one notification and reports what notify-send said
+
+ @example
+ ```ts
+ const sendThroughRunner = notificationSender(runCommand,);
+ const { sent } = await sendThroughRunner({ kind: 'failure', summary: 'Garage sync failed', body: 'disk full', },);
+ ```
+ */
+export function notificationSender(run: CommandRunner,): NotificationSender {
+  return async function sendNotification(notification,) {
+    /**
+     Finished notify-send run.
+     */
+    const result = await run({
+      command: 'notify-send',
+      args: notifySendArguments(notification,),
+      timeoutMs: NOTIFY_TIMEOUT_MS,
+    },);
+    if (result.problem !== undefined) return {
+      sent: false,
+      problem: result.problem,
+    };
+    if (result.exitCode !== 0) {
+      return {
+        sent: false,
+        problem: `notify-send exited ${String(result.exitCode,)}: ${result.stderr
+          .trim()}`,
+      };
+    }
+    return { sent: true, };
+  };
+}
+
+/**
+ Shows one desktop notification with the real notify-send.
 
  @param notification - summary and body to show
 
@@ -72,25 +122,4 @@ export function notifySendArguments(notification: Readonly<Notification>,): read
  const { sent } = await sendNotification({ kind: 'failure', summary: 'Garage sync failed', body: 'disk full', },);
  ```
  */
-export async function sendNotification(notification: Readonly<Notification>,): Promise<NotifyOutcome> {
-  /**
-   Finished notify-send run.
-   */
-  const result = await runCommand({
-    command: 'notify-send',
-    args: notifySendArguments(notification,),
-    timeoutMs: NOTIFY_TIMEOUT_MS,
-  },);
-  if (result.problem !== undefined) return {
-    sent: false,
-    problem: result.problem,
-  };
-  if (result.exitCode !== 0) {
-    return {
-      sent: false,
-      problem: `notify-send exited ${String(result.exitCode,)}: ${result.stderr
-        .trim()}`,
-    };
-  }
-  return { sent: true, };
-}
+export const sendNotification: NotificationSender = notificationSender(runCommand,);
