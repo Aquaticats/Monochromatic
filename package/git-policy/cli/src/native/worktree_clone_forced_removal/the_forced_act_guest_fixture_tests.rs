@@ -156,6 +156,8 @@ impl Fixture {
         self.run("truncate", &["--size", POOL_IMAGE_SIZE, image_text]);
         self.run("zpool", &["create", "-f", self.pool.as_str(), image_text]);
         self.run("zfs", &["create", "-o", "mountpoint=legacy", self.checkout().as_str()]);
+        // The container every phase's clone is made under, which no clone may be created without.
+        self.run("zfs", &["create", "-o", "mountpoint=none", "-o", "canmount=off", self.named("clones").as_str()]);
         self.run("zfs", &["snapshot", format!("{}@origin", self.checkout()).as_str()]);
         self.run("mkdir", &["--parents", self.checkout_path().to_str().expect("the checkout path is text")]);
     }

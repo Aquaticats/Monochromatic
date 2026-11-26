@@ -173,7 +173,13 @@ fn hold(shape: AShape, checkout: &Path, slot: &Path, ignores_the_ask: bool) -> A
     if let AShape::NamespaceOfItsOwnAndShared = shape {
         make_the_checkout_shared(checkout).expect("the holder makes its own checkout a group of its own");
     }
-    std::env::set_current_dir(slot).expect("the holder's working directory is inside the clone");
+    // The working directory is this forked child's own and never the crate's test process's, so the call is the
+    // kernel's and not the library call the crate forbids anywhere.
+    let inside: std::ffi::CString = std::ffi::CString::new(slot.as_os_str().as_encoded_bytes()).expect("no NUL in the slot path");
+    // SAFETY: the path is this call's own and outlives it; the child becomes a holder whose working directory is the
+    // clone, which is exactly what a path holder holds.
+    let moved: libc::c_int = unsafe { libc::chdir(inside.as_ptr()) };
+    assert_eq!(moved, 0, "the holder's working directory is inside the clone: {}", std::io::Error::last_os_error());
     loop {
         // SAFETY: `pause` waits for one signal and touches no memory of ours.
         let _paused: libc::c_int = unsafe { libc::pause() };
