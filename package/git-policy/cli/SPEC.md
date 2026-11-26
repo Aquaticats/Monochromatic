@@ -917,9 +917,11 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   and what a person can do about it.
   The third line names Ubuntu 24.04's AppArmor restriction on unprivileged user
   namespaces only where `kernel.apparmor_restrict_unprivileged_userns`,
-  which the second line prints, reads `1`;
+  which the second line prints,
+  reads `1`;
   where it reads anything else the line says that restriction is not what
-  answered here and names the kernel's own audit log, which records the profile
+  answered here and names the kernel's own audit log,
+  which records the profile
   and the capability that was.
   The fourth line says that nothing needs doing,
   because every managed add goes ahead with the skip and prints the same call and
@@ -5089,10 +5091,13 @@ and every step reads the state a kill at the step before it leaves:
   that ancestor's name as the source,
   which the read after the clone request refuses,
   so the preflight requires the container to set `mountpoint=legacy` on itself and
-  refuses one that does not before the claim, the slot, the Git registration, the
-  snapshot and the clone are written.
+  refuses one that does not before the claim,
+  the slot,
+  the Git registration,
+  the snapshot and the clone are written.
   `doctor` judges the same container with the same check
-  (`check_dataset`, the container role),
+  (`check_dataset`,
+  the container role),
   so the two reports a person can read name one requirement.
   `mountpoint` is also a delegation the design forbids the account,
   so a request that carried it is refused for the account the add runs as

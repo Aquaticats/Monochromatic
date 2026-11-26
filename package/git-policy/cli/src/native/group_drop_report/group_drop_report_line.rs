@@ -22,7 +22,8 @@
 //!  Every sentence of it is about a managed ZFS add,
 //!  so `doctor` asks for it only where the checkout stands on a ZFS dataset,
 //!  and that decision is `invocation::management`'s
-//!  (`SPEC.md`, the doctor's host section).
+//!  (`SPEC.md`,
+//!  the doctor's host section).
 //!  The remedies are the measured ones of
 //!  `doc/troubleshooting/ubuntu-apparmor-userns-restriction-refuses-the-zfs-account-companion.md`,
 //!  each checked in a throwaway Ubuntu 24.04 guest before it was written here.
@@ -207,7 +208,8 @@ const THE_UBUNTU_REMEDY: &str = "nothing needs doing, because every managed ZFS 
 ///  instead.
 const ANOTHER_CAUSE: &str = "the open asks the kernel for CAP_SYS_ADMIN inside the new user namespace, and this host's `kernel.apparmor_restrict_unprivileged_userns` reads";
 
-/// The rest of that cause, after the value the setting answered.
+/// The rest of that cause,
+/// after the value the setting answered.
 /// Why:
 ///  A refusal with another cause is written by the kernel's own audit trail,
 ///  so the report names where a person reads which profile and capability answered.

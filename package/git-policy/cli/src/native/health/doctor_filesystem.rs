@@ -642,7 +642,7 @@ pub fn the_checkout_is_a_zfs_dataset_with(
     // What: one read of the checkout's file system kind, on a thread of its own and bounded.
     // Why: `statfs` can wait in the kernel, and a report may not.
     let kind: Option<FilesystemKind> =
-        work_within(ceiling, move || reader(named.as_path())).flatten();
+        work_within(ceiling, move || return reader(named.as_path())).flatten();
     return kind == Some(FilesystemKind::Zfs);
 }
 

@@ -129,7 +129,8 @@ pub struct OpenedDevice {
 /// interface TheDeviceOpened { open(): OpenedDevice }  // throws the refusal's sentence
 /// ```
 pub trait TheDeviceOpened {
-    /// Run the start-time gate, then open the kernel's device,
+    /// Run the start-time gate,
+    /// then open the kernel's device,
     /// or answer the sentence saying which of the two refused.
     ///
     /// # Throws
@@ -140,7 +141,8 @@ pub trait TheDeviceOpened {
 
 /// What:
 ///  The release's own answer to `TheDeviceOpened`:
-///  the compatibility gate, then the kernel's device.
+///  the compatibility gate,
+///  then the kernel's device.
 /// Why:
 ///  The route's run hands this in,
 ///  and a control hands in an answer of its own,

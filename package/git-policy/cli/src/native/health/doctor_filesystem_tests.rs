@@ -773,7 +773,8 @@ fn a_host_with_no_answer(_checkout: &Path) -> Option<FilesystemKind> {
 ///  and the report is about a route whose adds are ZFS clones,
 ///  so a verdict that answered yes for another file system would print it on every
 ///  host again.
-///  The read is a `statfs` that can wait in the kernel, so the answer is bounded the
+///  The read is a `statfs` that can wait in the kernel,
+///  so the answer is bounded the
 ///  way the section's own facts are.
 ///
 /// In TS you'd write (pseudocode):

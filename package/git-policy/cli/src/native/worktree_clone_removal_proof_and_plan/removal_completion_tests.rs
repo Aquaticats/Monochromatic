@@ -284,7 +284,8 @@ fn a_holder_seen_before_the_first_request_stops_the_removal_and_sends_nothing() 
 ///  so a removal that kept that answer and destroyed the head would reap a snapshot a mark
 ///  had just been set on.
 ///  The control that marks the origin before the head in `removal_destruction_tests` drives the
-///  destruction step, not this one,
+///  destruction step,
+///  not this one,
 ///  so this is the only control that holds the second check's place in the whole removal.
 #[test]
 fn a_mark_set_after_the_batch_refuses_before_the_head() {

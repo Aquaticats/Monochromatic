@@ -287,7 +287,8 @@ fn the_preflight_opens_the_device_source_it_was_given() {
 
 /// What:
 ///  The preflight's own file names no opener of the kernel's ZFS device:
-///  the device is the caller's answer, and nothing else.
+///  the device is the caller's answer,
+///  and nothing else.
 /// Why:
 ///  The stand-in's sentence is half the guard.
 ///  A preflight that opened this machine's device beside asking the seam would pass
@@ -295,7 +296,9 @@ fn the_preflight_opens_the_device_source_it_was_given() {
 ///  which is the defect the seam removes,
 ///  so the file itself is read for an opener it may not hold.
 ///  The names are the three ways this crate opens the device:
-///  the add's own opener, the device's, and the start-time gate that stands in
+///  the add's own opener,
+///  the device's,
+///  and the start-time gate that stands in
 ///  front of both.
 ///
 /// In TS you'd write (pseudocode):
@@ -880,8 +883,12 @@ const THE_ANCESTOR_DATASET: &str = "preflightfixturepool/home";
 ///  A clone inherits the value from its own parent and OpenZFS names the nearest dataset
 ///  that set it,
 ///  so this container gives every clone `inherited from <the ancestor>` and the
-///  post-clone read refuses it after the claim, the slot, the registration, the
-///  snapshot and the clone were written (the alpha.47 release pass's Low 6, probe e13).
+///  post-clone read refuses it after the claim,
+///  the slot,
+///  the Git registration,
+///  the snapshot and the clone were written
+///  (the alpha.47 release pass's Low 6,
+///  probe e13).
 ///  The preflight judges the container by value alone before this,
 ///  so it passed the one container the second check refuses.
 ///
