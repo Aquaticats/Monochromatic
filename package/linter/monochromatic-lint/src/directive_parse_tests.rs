@@ -10,7 +10,13 @@
 //! ```
 
 /// Import the parser and its result types.
-use super::{DirectiveKind, ParsedComment, ParsedDirective, RuleToken, parse_comment};
+use super::{
+    DirectiveKind,
+    ParsedComment,
+    ParsedDirective,
+    RuleToken,
+    parse_comment,
+};
 
 /// Parse text that must be a directive.
 fn directive(content: &str) -> ParsedDirective {

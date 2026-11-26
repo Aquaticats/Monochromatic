@@ -29,7 +29,10 @@ fn boundary(byte: Option<u8>) -> bool {
 /// ```ts
 /// function startsBlockConstruct(source, at): boolean;
 /// ```
-pub(crate) fn starts_block_construct(source: &str, at: usize) -> bool {
+pub(crate) fn starts_block_construct(
+    source: &str,
+    at: usize,
+) -> bool {
     // The text scanner supplies a UTF-8 boundary inside the source, so this slice cannot split a character.
     // The standard trim drops the horizontal spacing before a candidate marker; no index is stepped by hand.
     // Bytes (u8, not char) suffice afterwards because every Markdown marker is ASCII.

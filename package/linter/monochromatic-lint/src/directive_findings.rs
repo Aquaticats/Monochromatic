@@ -13,9 +13,18 @@
 
 /// Import the finding model and the scanned file that positions it.
 use crate::{
-    diagnostic::{Diagnostic, Severity},
-    directive_parse::{DirectiveKind, RuleToken},
-    directive_scan::{CommentSite, ScannedComments},
+    diagnostic::{
+        Diagnostic,
+        Severity,
+    },
+    directive_parse::{
+        DirectiveKind,
+        RuleToken,
+    },
+    directive_scan::{
+        CommentSite,
+        ScannedComments,
+    },
     run_modes::RULES,
 };
 
@@ -126,7 +135,11 @@ impl Reporter<'_> {
     }
 
     /// A directive without a reason is void.
-    pub fn missing_justification(&self, site: CommentSite, kind: DirectiveKind) -> Diagnostic {
+    pub fn missing_justification(
+        &self,
+        site: CommentSite,
+        kind: DirectiveKind,
+    ) -> Diagnostic {
         let keyword: &str = kind.keyword();
         return self.report(
             MISSING_JUSTIFICATION,
@@ -140,7 +153,11 @@ impl Reporter<'_> {
     }
 
     /// A comment that starts like a directive but cannot be read.
-    pub fn malformed(&self, site: CommentSite, reason: &str) -> Diagnostic {
+    pub fn malformed(
+        &self,
+        site: CommentSite,
+        reason: &str,
+    ) -> Diagnostic {
         return self.report(
             MALFORMED,
             Severity::Error,
@@ -154,7 +171,10 @@ impl Reporter<'_> {
 
     /// An identifier outside the registry,
     /// with a hint when a full identifier ends with the written text.
-    pub fn unknown_rule(&self, token: &RuleToken) -> Diagnostic {
+    pub fn unknown_rule(
+        &self,
+        token: &RuleToken,
+    ) -> Diagnostic {
         let mut help: String = String::from(
             "Use a full identifier as listed by \"monochromatic-lint --rules\", such as \"rust/tests-in-sidecars\", or remove the entry.",
         );
@@ -187,7 +207,10 @@ impl Reporter<'_> {
     }
 
     /// An entry aimed at a rule that refuses directives.
-    pub fn non_suppressible(&self, token: &RuleToken) -> Diagnostic {
+    pub fn non_suppressible(
+        &self,
+        token: &RuleToken,
+    ) -> Diagnostic {
         return self.report(
             NON_SUPPRESSIBLE,
             Severity::Error,

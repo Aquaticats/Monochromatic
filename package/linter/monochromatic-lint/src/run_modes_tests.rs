@@ -13,21 +13,37 @@
 
 /// Import the modes under test and the registries they must agree with.
 use super::{
-    RULES, STARTER_CONFIGURATION, SetupError, init_configuration, print_configuration, rule_info,
+    RULES,
+    STARTER_CONFIGURATION,
+    SetupError,
+    init_configuration,
+    print_configuration,
+    rule_info,
     rules_listing,
 };
 use crate::config_lookup::CONFIG_NAME;
-use crate::configuration::{ConfigBlock, parse_configuration};
+use crate::configuration::{
+    ConfigBlock,
+    parse_configuration,
+};
 use crate::configuration_rules::RULE_IDS;
 use crate::directive_findings::UNUSED;
 use crate::edits::FixClass;
 use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_plan::ConfigStore;
-use crate::run_test_support::{read, records, write};
+use crate::run_test_support::{
+    read,
+    records,
+    write,
+};
 use crate::rust_rule_settings::DEFAULT_MAX_LINES;
 use crate::test_fs::Fixture;
 use monochromatic_jsonc_edit::{
-    JsoncPathSegment, JsoncValue, jsonc_key_path, jsonc_lookup, parse_jsonc,
+    JsoncPathSegment,
+    JsoncValue,
+    jsonc_key_path,
+    jsonc_lookup,
+    parse_jsonc,
 };
 use std::path::Path;
 
@@ -175,7 +191,10 @@ fn init_creates_once_and_never_overwrites() {
 }
 
 /// Read one string member from printed JSONC.
-fn member(document: &JsoncValue, key: &str) -> Option<String> {
+fn member(
+    document: &JsoncValue,
+    key: &str,
+) -> Option<String> {
     let value: &JsoncValue = jsonc_lookup(document, jsonc_key_path([key]).as_slice()).ok()?;
     return Some(String::from_utf16(value.text_units()?).expect("text"));
 }

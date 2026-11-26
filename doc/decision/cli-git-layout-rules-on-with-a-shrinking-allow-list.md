@@ -62,3 +62,18 @@ the round measured `cargo package --list` giving no answer after 120 seconds wit
 against 1.9 seconds without them
 (`doc/planning/cli-git-source-layout.md`, the section the round's commit `457a1f6142` added),
 so each folder's links are written when its uses no longer loop.
+
+## What the list holds (owner, 2026-11-25T22:45-05:00)
+
+The round put on the list every finding of the two rules on the day they went on,
+not only the loops and mutual uses this decision named:
+at its count 421 `uses/` links not yet written,
+59 folder docs without a file list,
+49 `pub use folder::*` re-exports,
+20 findings on the `health/` group folder
+and one function beside `fn main` in `main.rs`,
+beside the 524 folder uses and 544 file uses inside today's loops.
+Asked whether to keep that or list only the loops and the links,
+the owner answered "Everything now, untangle over time.":
+every finding of the two rules on the day the rules land goes on the list,
+and each line is deleted when its finding goes.

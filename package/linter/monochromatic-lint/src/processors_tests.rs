@@ -10,15 +10,30 @@
 //! ```
 
 /// Import the actual interface and rule settings used by executable integration.
-use super::{ProcessorLanguage, VirtualSource, extract};
-use crate::diagnostic::{Diagnostic, Severity};
+use super::{
+    ProcessorLanguage,
+    VirtualSource,
+    extract,
+};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Fix application is always the production grouped edit implementation.
-use crate::edits::{Edit, Fix, FixClass, apply_fixes};
+use crate::edits::{
+    Edit,
+    Fix,
+    FixClass,
+    apply_fixes,
+};
 /// Inspect original-host wire findings and apply real atomic groups.
 use crate::run_failure::PROCESSING_FAILURE;
 /// Exercise selected rule behavior,
 ///  including the authored code-line budget.
-use crate::rust_rule_settings::{LineBudget, RustRuleSettings};
+use crate::rust_rule_settings::{
+    LineBudget,
+    RustRuleSettings,
+};
 
 /// Load one committed fixture field without touching shared files during verification.
 pub(super) fn fixture(name: &str) -> String {
@@ -30,13 +45,20 @@ pub(super) fn fixture(name: &str) -> String {
 }
 
 /// Extract a fixture or fail loudly rather than treating processor errors as an empty result.
-pub(super) fn inputs(source: &str, language: ProcessorLanguage) -> Vec<VirtualSource> {
+pub(super) fn inputs(
+    source: &str,
+    language: ProcessorLanguage,
+) -> Vec<VirtualSource> {
     return extract(String::from("host"), String::from(source), language)
         .expect("native extraction");
 }
 
 /// Make one localized finding as a rule consumer would.
-pub(super) fn finding(input: &VirtualSource, start: usize, length: usize) -> Diagnostic {
+pub(super) fn finding(
+    input: &VirtualSource,
+    start: usize,
+    length: usize,
+) -> Diagnostic {
     let parsed = crate::rust_source::RustSource::new(
         String::from(input.filename()),
         String::from(input.source()),
@@ -51,7 +73,11 @@ pub(super) fn finding(input: &VirtualSource, start: usize, length: usize) -> Dia
 }
 
 /// Project a grouped fix and apply it through the shared host engine.
-pub(super) fn fixed(host: &str, input: &VirtualSource, fix: Fix) -> String {
+pub(super) fn fixed(
+    host: &str,
+    input: &VirtualSource,
+    fix: Fix,
+) -> String {
     let projected: Fix = input.project_fix(&fix).expect("safe projection");
     return apply_fixes(host, &[projected])
         .expect("atomic host edits")

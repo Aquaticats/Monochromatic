@@ -9,7 +9,10 @@
 //! test('groups name every leaf', () => expect(referencesOf('use crate::{a, b::{c, d}};')).toEqual([...]));
 //! ```
 
-use crate::layout_test_support::{aliases_of, references_of};
+use crate::layout_test_support::{
+    aliases_of,
+    references_of,
+};
 use crate::test_deadline::finished_within_deadline;
 
 /// A plain path is one reference with every segment.

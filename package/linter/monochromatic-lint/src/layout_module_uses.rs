@@ -15,10 +15,16 @@
 /// Import the tree and the resolver.
 use crate::{
     layout_module_tree::ModuleTree,
-    layout_path_resolution::{resolve_path, resolve_use_path},
+    layout_path_resolution::{
+        resolve_path,
+        resolve_use_path,
+    },
 };
 /// Import the native path type.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One module naming another.
@@ -106,7 +112,10 @@ pub fn collect_uses(tree: &ModuleTree) -> Vec<ModuleUse> {
 /// ```ts
 /// function folderOf(tree: ModuleTree, module: number): Path;
 /// ```
-pub fn folder_of(tree: &ModuleTree, module: usize) -> PathBuf {
+pub fn folder_of(
+    tree: &ModuleTree,
+    module: usize,
+) -> PathBuf {
     return match tree.modules[module].file.parent() {
         Some(folder) => folder.to_path_buf(),
         None => Path::new("").to_path_buf(),

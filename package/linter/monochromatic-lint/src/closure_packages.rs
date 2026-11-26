@@ -18,14 +18,23 @@
 ///  the plan data and the path normalization.
 use crate::{
     markdown_lfs_target::lexical_normal,
-    run_paths::{Language, display_name},
-    run_plan::{FilePlan, RootRules},
+    run_paths::{
+        Language,
+        display_name,
+    },
+    run_plan::{
+        FilePlan,
+        RootRules,
+    },
     rust_manifest::discover_manifest,
 };
 /// Import an ordered map and native paths.
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -96,14 +105,20 @@ pub fn is_sidecar_crate(directory: &Path) -> bool {
 /// ```ts
 /// function groupPackages(plans: FilePlan[], cwd: Path): Grouping;
 /// ```
-pub fn group_packages(plans: &[FilePlan], cwd: &Path) -> Grouping {
+pub fn group_packages(
+    plans: &[FilePlan],
+    cwd: &Path,
+) -> Grouping {
     let mut by_manifest: BTreeMap<PathBuf, ClosurePackage> = BTreeMap::new();
     let mut notes: Vec<String> = Vec::<String>::new();
     for plan in plans {
         if plan.language != Language::Rust {
             continue;
         }
-        let RootRules::Rust { settings } = &plan.root else {
+        let RootRules::Rust {
+            settings,
+        } = &plan.root
+        else {
             continue;
         };
         let Some(selected) = &settings.avoidable_closure else {

@@ -10,9 +10,19 @@
 //! ```
 
 /// Import the derivations under test.
-use super::{Language, absolute_normal, display_name, language_of, logical_path, relative_from};
+use super::{
+    Language,
+    absolute_normal,
+    display_name,
+    language_of,
+    logical_path,
+    relative_from,
+};
 use crate::processors::ProcessorLanguage;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Only the three exact lowercase extensions select a language.
 #[test]
@@ -109,7 +119,10 @@ fn virtual_suffixes_extend_the_host_path() {
 #[test]
 fn non_utf8_host_bytes_survive_in_logical_paths() {
     use std::ffi::OsString;
-    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+    use std::os::unix::ffi::{
+        OsStrExt,
+        OsStringExt,
+    };
     let host: PathBuf = PathBuf::from(OsString::from_vec(vec![b'n', 0xff, b'.', b'm', b'd']));
     let logical: PathBuf = logical_path(&host, "/0.rs");
     assert_eq!(

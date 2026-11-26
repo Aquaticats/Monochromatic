@@ -103,7 +103,10 @@ fn entry_name(text: &str) -> Option<String> {
 /// ```ts
 /// function markerLineCount(markerWords: string[], bodies: string[]): number | undefined;
 /// ```
-fn marker_line_count(marker_words: &[&str], bodies: &[(usize, &str)]) -> Option<usize> {
+fn marker_line_count(
+    marker_words: &[&str],
+    bodies: &[(usize, &str)],
+) -> Option<usize> {
     let mut matched: usize = 0;
     for (covered, (_, body)) in bodies.iter().enumerate() {
         // The words of this line, with every run of spaces gone.
@@ -196,7 +199,10 @@ pub fn read_top_doc(text: &str) -> TopDoc {
             continue;
         }
         match entry_name(body) {
-            Some(name) => doc.entries.push(DocEntry { name, line: number }),
+            Some(name) => doc.entries.push(DocEntry {
+                name,
+                line: number,
+            }),
             None => break,
         }
     }

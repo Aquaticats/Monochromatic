@@ -12,9 +12,20 @@
 //! test('parses exports', () => expect(parseExports('export A="1"')).toEqual([['A', '1']]));
 //! ```
 
-use super::{android_setup, ide_setup, ndk_home_of, parse_exports};
-use crate::{closure_stub_support::scenario, test_fs::Fixture};
-use std::path::{Path, PathBuf};
+use super::{
+    android_setup,
+    ide_setup,
+    ndk_home_of,
+    parse_exports,
+};
+use crate::{
+    closure_stub_support::scenario,
+    test_fs::Fixture,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Write the artifacts that the IDE's runtime and notices tasks leave under `target`.
 fn prepare_artifacts(package: &Path) {

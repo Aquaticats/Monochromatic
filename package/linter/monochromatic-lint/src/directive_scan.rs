@@ -25,7 +25,12 @@ use crate::run_paths::Language;
 /// Import the Rust parse with its byte-column positions.
 use crate::rust_source::RustSource;
 /// Import the syntax kind and typed comment view used to skip doc comments.
-use ra_ap_syntax::{AstToken, NodeOrToken, SyntaxKind, ast};
+use ra_ap_syntax::{
+    AstToken,
+    NodeOrToken,
+    SyntaxKind,
+    ast,
+};
 /// Import the Markdown node kind that holds an HTML comment.
 use satteri_ast::mdast::MdastNodeType;
 
@@ -105,7 +110,11 @@ pub struct ScannedComments {
 /// ```
 impl ScannedComments {
     /// Resolve a host byte range in the host language's line and column units.
-    pub fn span(&self, offset: usize, length: usize) -> Span {
+    pub fn span(
+        &self,
+        offset: usize,
+        length: usize,
+    ) -> Span {
         match &self.locator {
             Locator::Rust(source) => return source.span(offset, length),
             Locator::Markdown(document) => return document.span(offset, length),
@@ -144,7 +153,10 @@ fn rust_content(text: &str) -> Option<(usize, usize)> {
 /// ```ts
 /// function scanRust(filename: string, source: string): ScannedComments;
 /// ```
-fn scan_rust(filename: &str, source: &str) -> ScannedComments {
+fn scan_rust(
+    filename: &str,
+    source: &str,
+) -> ScannedComments {
     let parsed: RustSource = RustSource::new(String::from(filename), String::from(source));
     let mut sites: Vec<CommentSite> = Vec::<CommentSite>::new();
     for element in parsed.syntax().descendants_with_tokens() {
@@ -193,7 +205,10 @@ fn scan_rust(filename: &str, source: &str) -> ScannedComments {
 /// ```ts
 /// function scanMarkdown(filename: string, source: string): ScannedComments | undefined;
 /// ```
-fn scan_markdown(filename: &str, source: &str) -> Option<ScannedComments> {
+fn scan_markdown(
+    filename: &str,
+    source: &str,
+) -> Option<ScannedComments> {
     let document: MarkdownSource =
         MarkdownSource::new(String::from(filename), String::from(source), false).ok()?;
     let mut sites: Vec<CommentSite> = Vec::<CommentSite>::new();
@@ -236,7 +251,11 @@ fn scan_markdown(filename: &str, source: &str) -> Option<ScannedComments> {
 /// ```ts
 /// function scanComments(language, filename, source): ScannedComments | undefined;
 /// ```
-pub fn scan_comments(language: Language, filename: &str, source: &str) -> Option<ScannedComments> {
+pub fn scan_comments(
+    language: Language,
+    filename: &str,
+    source: &str,
+) -> Option<ScannedComments> {
     match language {
         Language::Rust => return Some(scan_rust(filename, source)),
         Language::Markdown => return scan_markdown(filename, source),

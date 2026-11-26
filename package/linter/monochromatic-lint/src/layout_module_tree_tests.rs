@@ -11,13 +11,23 @@
 use crate::test_deadline::finished_within_deadline;
 use crate::{
     layout_module_tree::ModuleTree,
-    layout_test_support::{module_in, package_with, tree_of},
+    layout_test_support::{
+        module_in,
+        package_with,
+        tree_of,
+    },
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The files of every module in the tree,
 /// relative to the fixture and sorted.
-fn files_of(tree: &ModuleTree, root: &Path) -> Vec<String> {
+fn files_of(
+    tree: &ModuleTree,
+    root: &Path,
+) -> Vec<String> {
     let mut files: Vec<String> = tree
         .modules
         .iter()

@@ -17,10 +17,16 @@
 /// Import the router,
 /// the settings it reads and the findings it returns.
 use monochromatic_lint::{
-    diagnostic::{Diagnostic, Severity},
+    diagnostic::{
+        Diagnostic,
+        Severity,
+    },
     rust_file_engine::RustFileEngine,
     rust_manifest::WorkspacePreparation,
-    rust_rule_settings::{LineBudget, RustRuleSettings},
+    rust_rule_settings::{
+        LineBudget,
+        RustRuleSettings,
+    },
 };
 /// Import the path type that names the checked file.
 use std::path::Path;

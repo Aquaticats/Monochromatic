@@ -9,12 +9,21 @@
 //! ```
 
 /// Import the real byte scanner and abbreviation classifier.
-use super::{abbreviation_at, break_offsets};
+use super::{
+    abbreviation_at,
+    break_offsets,
+};
 /// Import the finding record and the severity every rule entry point takes.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the grouped fix record and the production applier,
 ///  so fixes are applied exactly as released.
-use crate::edits::{Fix, apply_fixes};
+use crate::edits::{
+    Fix,
+    apply_fixes,
+};
 /// Import the consuming rule,
 ///  which hands this scanner parser-placed text-node boundaries.
 use crate::markdown_semantic_breaks::semantic_line_breaks;

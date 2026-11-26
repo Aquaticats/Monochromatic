@@ -12,9 +12,18 @@
 /// Import production checking,
 ///  parsing and grouped edits.
 use super::semantic_line_breaks;
-use crate::diagnostic::{Diagnostic, Severity};
-use crate::edits::{Fix, apply_fixes};
-use crate::markdown_source::{MarkdownSource, paragraph_placements};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
+use crate::edits::{
+    Fix,
+    apply_fixes,
+};
+use crate::markdown_source::{
+    MarkdownSource,
+    paragraph_placements,
+};
 use satteri_ast::mdast::MdastNodeType;
 
 /// Run the rule through its actual native source model.

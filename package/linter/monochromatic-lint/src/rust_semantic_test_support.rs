@@ -10,17 +10,29 @@
 //! ```
 
 /// Import production findings and session ownership.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the session type that these fixtures construct for the semantic tests.
 use crate::rust_semantic_session::RustSemanticSession;
 /// Import the actual Cargo loader and its fixed preparation choices.
-use crate::rust_workspace::{WorkspacePreparation, load_cargo_workspace};
+use crate::rust_workspace::{
+    WorkspacePreparation,
+    load_cargo_workspace,
+};
 /// Import exclusively owned temporary-directory cleanup.
 use crate::test_fs::Fixture;
 /// Import native paths and captured fixture-preparation commands.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Import the process types that run Cargo or the toolchain for the fixtures.
-use std::process::{Command, Output};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// Keep loader progress in the test harness's captured diagnostics.
 pub(crate) fn progress(message: String) {
@@ -85,7 +97,11 @@ impl SemanticFixture {
     }
 
     /// Replace exact in-memory bytes while leaving the physical fixture unchanged.
-    pub(crate) fn check(&mut self, source: &str, severity: Severity) -> Vec<Diagnostic> {
+    pub(crate) fn check(
+        &mut self,
+        source: &str,
+        severity: Severity,
+    ) -> Vec<Diagnostic> {
         return self
             .session
             .check_file(&self.source_path, source, "input.rs", severity)

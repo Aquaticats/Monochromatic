@@ -13,7 +13,10 @@
 /// Import exact byte edits and immutable processor failures.
 use crate::edits::Fix;
 /// Map failures to the original host before returning.
-use crate::processors_model::{Mapping, ProcessorError};
+use crate::processors_model::{
+    Mapping,
+    ProcessorError,
+};
 
 /// Return a borrowed edit's byte sort key without capturing a function-local variable.
 fn edit_key(edit: &&crate::edits::Edit) -> (usize, usize) {
@@ -22,7 +25,10 @@ fn edit_key(edit: &&crate::edits::Edit) -> (usize, usize) {
 
 /// Refuse malformed,
 ///  internally overlapping or CRLF-bisecting virtual edits.
-pub(crate) fn rewrite(mapping: &Mapping, fix: &Fix) -> Result<String, ProcessorError> {
+pub(crate) fn rewrite(
+    mapping: &Mapping,
+    fix: &Fix,
+) -> Result<String, ProcessorError> {
     // Retain references rather than copying replacement strings; sorting never changes caller order.
     let mut ordered: Vec<&crate::edits::Edit> = fix.edits.iter().collect();
     ordered.sort_by_key(edit_key);

@@ -16,7 +16,12 @@
 ///  which intentionally has no Off variant.
 /// Import the gitignore-syntax matcher the `exclude` option compiles to.
 use crate::{
-    config_data::{key_text, strings, text, validate_data},
+    config_data::{
+        key_text,
+        strings,
+        text,
+        validate_data,
+    },
     config_error::ConfigError,
     configuration_rules::validate_rules,
     diagnostic::Severity,

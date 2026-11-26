@@ -15,11 +15,22 @@ use crate::markdown_code::fence_marker_end;
 /// Borrow the same native arena interface as Markdown rules.
 use crate::markdown_source::MarkdownSource;
 /// Retain original newline spelling when copying decoded lines.
-use crate::processors_lines::{copy_line, physical_lines};
+use crate::processors_lines::{
+    copy_line,
+    physical_lines,
+};
 /// Build immutable child snapshots with explicit extraction refusals.
-use crate::processors_model::{Guard, Mapping, ProcessorError, ProcessorLanguage};
+use crate::processors_model::{
+    Guard,
+    Mapping,
+    ProcessorError,
+    ProcessorLanguage,
+};
 /// Decode only parser-confirmed code nodes.
-use satteri_ast::mdast::{MdastNodeType, decode_code_data};
+use satteri_ast::mdast::{
+    MdastNodeType,
+    decode_code_data,
+};
 /// Share exact parent snapshots between sibling fences.
 use std::sync::Arc;
 
@@ -46,13 +57,19 @@ fn has_marker_word(text: &str) -> bool {
 }
 
 /// Whether a fence's language word or the rest of its info string carries [`SKIP_RUSTDOC_MARKER`].
-fn info_string_has_marker(language: &str, meta: &str) -> bool {
+fn info_string_has_marker(
+    language: &str,
+    meta: &str,
+) -> bool {
     return has_marker_word(language) || has_marker_word(meta);
 }
 
 /// Extract selected Rust fences;
 ///  unlabeled fences become Rust only inside authored Rustdoc.
-pub(crate) fn fences(parent: &Arc<Mapping>, rustdoc: bool) -> Result<Vec<Mapping>, ProcessorError> {
+pub(crate) fn fences(
+    parent: &Arc<Mapping>,
+    rustdoc: bool,
+) -> Result<Vec<Mapping>, ProcessorError> {
     // Owned parse inputs isolate the parser from the immutable mapping snapshot.
     let parsed: MarkdownSource = match MarkdownSource::new(
         parent.filename.clone(),
@@ -146,7 +163,8 @@ pub(crate) fn fence_text(
     for mapping in fences(parent, true)? {
         // Require both the fence variant and its original marker in one let-chain.
         if let Guard::Fence {
-            marker: candidate, ..
+            marker: candidate,
+            ..
         } = mapping.guard
             && candidate == marker
         {

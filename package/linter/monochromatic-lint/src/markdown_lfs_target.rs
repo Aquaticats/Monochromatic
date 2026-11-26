@@ -16,7 +16,11 @@ use crate::markdown_lfs_oid::is_lfs_oid;
 /// Import native path components;
 ///  `PathBuf` owns a path,
 ///  `Path` borrows one.
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Whether a destination carries a URL scheme such as `https:`,
@@ -120,7 +124,10 @@ pub(crate) fn lexical_normal(path: &Path) -> PathBuf {
 /// ```ts
 /// function applySegments(directory: Path, segments: string): Path { return resolve(directory, ...segments.split('/')); }
 /// ```
-pub(crate) fn apply_segments(directory: &Path, segments: &str) -> PathBuf {
+pub(crate) fn apply_segments(
+    directory: &Path,
+    segments: &str,
+) -> PathBuf {
     let mut resolved: PathBuf = directory.to_path_buf();
     for segment in segments.split('/') {
         if segment.is_empty() || segment == "." {
@@ -149,7 +156,10 @@ pub(crate) fn apply_segments(directory: &Path, segments: &str) -> PathBuf {
 /// ```ts
 /// function repoRelative({ repoRoot, path }): string | undefined;
 /// ```
-pub(crate) fn repo_relative(root: &Path, path: &Path) -> Option<String> {
+pub(crate) fn repo_relative(
+    root: &Path,
+    path: &Path,
+) -> Option<String> {
     let Ok(below): Result<&Path, std::path::StripPrefixError> = path.strip_prefix(root) else {
         return None;
     };
@@ -222,7 +232,10 @@ pub(crate) struct ObjectUrlParts {
 /// ```ts
 /// function objectUrlParts({ url, objectBase }): ObjectUrlParts | undefined;
 /// ```
-pub(crate) fn object_url_parts(url: &str, object_base: &str) -> Option<ObjectUrlParts> {
+pub(crate) fn object_url_parts(
+    url: &str,
+    object_base: &str,
+) -> Option<ObjectUrlParts> {
     let after_base: &str = url.strip_prefix(object_base)?;
     if !after_base.starts_with('/') {
         return None;
@@ -251,7 +264,10 @@ pub(crate) fn object_url_parts(url: &str, object_base: &str) -> Option<ObjectUrl
 /// ```ts
 /// function relativeLink(fromDirectory: Path, to: Path): string { return relative(fromDirectory, to).split(sep).join('/'); }
 /// ```
-pub(crate) fn relative_link(from_directory: &Path, to: &Path) -> String {
+pub(crate) fn relative_link(
+    from_directory: &Path,
+    to: &Path,
+) -> String {
     let from: Vec<Component<'_>> = from_directory.components().collect::<Vec<Component<'_>>>();
     let target: Vec<Component<'_>> = to.components().collect::<Vec<Component<'_>>>();
     // Count the leading components both paths share.

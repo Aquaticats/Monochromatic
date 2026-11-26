@@ -22,8 +22,14 @@ use crate::closure_probe::PackageSetup;
 /// Import native paths and process types.
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 /// What:
@@ -311,7 +317,10 @@ pub fn rustc_dev_missing(cargo: &Path) -> Option<String> {
 /// ```ts
 /// function dependenciesMissing(cargo: Path, manifest: Path): string | undefined;
 /// ```
-pub fn dependencies_missing(cargo: &Path, manifest: &Path) -> Option<String> {
+pub fn dependencies_missing(
+    cargo: &Path,
+    manifest: &Path,
+) -> Option<String> {
     let output = match Command::new(cargo)
         .args([
             "metadata",

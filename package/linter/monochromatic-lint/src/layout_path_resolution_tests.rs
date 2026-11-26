@@ -11,7 +11,11 @@
 use super::resolve_path;
 use crate::{
     layout_module_tree::ModuleTree,
-    layout_test_support::{module_in, package_with, tree_of},
+    layout_test_support::{
+        module_in,
+        package_with,
+        tree_of,
+    },
 };
 
 /// Split a written path into segments.

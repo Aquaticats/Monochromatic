@@ -8,7 +8,10 @@
 //! test('reads entries after the marker', () => expect(readTopDoc(text).entries.map(e => e.name)).toEqual([...]));
 //! ```
 
-use super::{LIST_MARKER, read_top_doc};
+use super::{
+    LIST_MARKER,
+    read_top_doc,
+};
 
 /// Entries after the marker are read in order with their lines,
 /// and free text before the marker and after the list is ignored.

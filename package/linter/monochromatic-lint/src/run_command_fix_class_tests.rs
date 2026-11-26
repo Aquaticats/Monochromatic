@@ -14,7 +14,14 @@
 
 /// Import the shared invocation fixtures.
 use crate::run_output::RunOutput;
-use crate::run_test_support::{CONFIG, codes, read, records, run, write};
+use crate::run_test_support::{
+    CONFIG,
+    codes,
+    read,
+    records,
+    run,
+    write,
+};
 use crate::test_fs::Fixture;
 
 /// Measured with coreutils `sha256sum` for the bytes `image bytes`.

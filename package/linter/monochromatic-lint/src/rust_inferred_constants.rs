@@ -10,13 +10,27 @@
 
 /// Import resolved argument ownership,
 ///  including aliases and enum variants.
-use crate::rust_generic_arguments::{GenericSite, generic_definition, path_site};
+use crate::rust_generic_arguments::{
+    GenericSite,
+    generic_definition,
+    path_site,
+};
 /// Import real declarations instead of identifier spelling.
-use ra_ap_hir::{GenericDef, GenericParam, ModuleDef, PathResolution, Semantics};
+use ra_ap_hir::{
+    GenericDef,
+    GenericParam,
+    ModuleDef,
+    PathResolution,
+    Semantics,
+};
 /// Import the query database interface.
 use ra_ap_hir_ty::db::HirDatabase;
 /// Import syntax identities and argument kinds.
-use ra_ap_syntax::{AstNode, SyntaxNode, ast};
+use ra_ap_syntax::{
+    AstNode,
+    SyntaxNode,
+    ast,
+};
 
 /// Find which resolved declaration supplies the argument-list grammar.
 fn argument_owner(
@@ -41,7 +55,10 @@ fn argument_owner(
 }
 
 /// Find the zero-based type/const position without counting lifetimes or associated-type constraints.
-fn argument_index(list: &ast::GenericArgList, target: &SyntaxNode) -> Option<usize> {
+fn argument_index(
+    list: &ast::GenericArgList,
+    target: &SyntaxNode,
+) -> Option<usize> {
     let mut index: usize = 0;
     for argument in list.generic_args() {
         if argument.syntax() == target {

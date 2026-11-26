@@ -22,14 +22,20 @@
 /// Import the finding shape,
 ///  the path display helper and the relative path helper.
 use crate::{
-    layout_finding::{LayoutFinding, shown},
+    layout_finding::{
+        LayoutFinding,
+        shown,
+    },
     markdown_lfs_target::lexical_normal,
     run_paths::relative_from,
 };
 /// Import ordered maps and native paths.
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The name of the folder that holds the links.
@@ -81,7 +87,11 @@ pub struct LinkRead {
 /// ```ts
 /// function entryFinding(entry: Path, message: string): LayoutFinding;
 /// ```
-fn entry_finding(entry: &Path, base: &Path, message: String) -> LayoutFinding {
+fn entry_finding(
+    entry: &Path,
+    base: &Path,
+    message: String,
+) -> LayoutFinding {
     return LayoutFinding {
         file: entry.to_path_buf(),
         line: 0,
@@ -101,7 +111,11 @@ fn entry_finding(entry: &Path, base: &Path, message: String) -> LayoutFinding {
 /// ```ts
 /// function linkCommand(folder: Path, target: Path): string;
 /// ```
-pub fn link_command(folder: &Path, target: &Path, base: &Path) -> String {
+pub fn link_command(
+    folder: &Path,
+    target: &Path,
+    base: &Path,
+) -> String {
     let uses: PathBuf = folder.join(USES_FOLDER);
     let name: String = match target.file_name() {
         Some(found) => found.to_string_lossy().into_owned(),

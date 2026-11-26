@@ -17,12 +17,22 @@
 ///  the fix loop and the per-snapshot checker.
 use crate::{
     diagnostic::Diagnostic,
-    fix_loop::{FixedSource, fix_source},
+    fix_loop::{
+        FixedSource,
+        fix_source,
+    },
     run_check::HostChecker,
-    run_failure::{file_start, fix_refused, processing_failure},
+    run_failure::{
+        file_start,
+        fix_refused,
+        processing_failure,
+    },
     run_lfs::LfsRepos,
     run_plan::FilePlan,
-    run_write::{WriteError, write_atomically},
+    run_write::{
+        WriteError,
+        write_atomically,
+    },
     rust_file_engine::RustFileEngine,
 };
 /// Import ordering for the stable per-file sort of findings.
@@ -83,7 +93,10 @@ pub struct FileOutcome {
 /// ```ts
 /// function byPosition(left: Diagnostic, right: Diagnostic): number;
 /// ```
-fn by_position(left: &Diagnostic, right: &Diagnostic) -> Ordering {
+fn by_position(
+    left: &Diagnostic,
+    right: &Diagnostic,
+) -> Ordering {
     return first_offset(left)
         .cmp(&first_offset(right))
         .then(left.code.cmp(&right.code));
@@ -166,7 +179,10 @@ pub fn process_source(
 /// ```ts
 /// function unreadable(plan: FilePlan, message: string): FileOutcome;
 /// ```
-fn unreadable(plan: &FilePlan, message: String) -> FileOutcome {
+fn unreadable(
+    plan: &FilePlan,
+    message: String,
+) -> FileOutcome {
     return FileOutcome {
         findings: vec![processing_failure(
             plan.display.as_str(),

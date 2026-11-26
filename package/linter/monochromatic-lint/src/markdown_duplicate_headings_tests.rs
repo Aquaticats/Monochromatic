@@ -10,11 +10,17 @@
 
 /// Import the actual checker and shared native source model.
 use super::no_duplicate_heading;
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 use crate::markdown_source::MarkdownSource;
 
 /// Check an authored source through the native parser.
-fn check(source: &str, mdx: bool) -> Vec<Diagnostic> {
+fn check(
+    source: &str,
+    mdx: bool,
+) -> Vec<Diagnostic> {
     let context: MarkdownSource =
         MarkdownSource::new(String::from("input.md"), String::from(source), mdx)
             .expect("fixture parses");

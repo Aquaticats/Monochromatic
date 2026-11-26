@@ -14,7 +14,10 @@ use super::check_folder_links;
 use crate::{
     layout_finding::LayoutFinding,
     layout_module_uses::collect_uses,
-    layout_test_support::{package_with, tree_of},
+    layout_test_support::{
+        package_with,
+        tree_of,
+    },
 };
 use std::path::Path;
 
@@ -329,7 +332,10 @@ fn layout_two_globs_on_one_line_are_one_finding_and_a_self_glob_is_none() {
 
 /// Run the rule with an allow list and render each finding as `file:line message`,
 ///  with the fixture folder removed.
-fn findings_with(root: &Path, lines: &str) -> Vec<String> {
+fn findings_with(
+    root: &Path,
+    lines: &str,
+) -> Vec<String> {
     let tree = tree_of(root);
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let uses = collect_uses(&tree);
@@ -399,11 +405,15 @@ fn a_new_use_inside_a_listed_loop_is_a_finding() {
         );
     }
     assert!(
-        found.iter().any(|text| return text.contains("src/b uses the folder src/d")),
+        found
+            .iter()
+            .any(|text| return text.contains("src/b uses the folder src/d")),
         "{found:#?}"
     );
     assert!(
-        found.iter().any(|text| return text.contains("src/d uses the folder src/a")),
+        found
+            .iter()
+            .any(|text| return text.contains("src/d uses the folder src/a")),
         "{found:#?}"
     );
 }
@@ -420,7 +430,11 @@ fn a_listed_use_that_no_code_makes_is_reported() {
         "{}",
         found[0]
     );
-    assert!(found[0].contains("tolerates nothing any more"), "{}", found[0]);
+    assert!(
+        found[0].contains("tolerates nothing any more"),
+        "{}",
+        found[0]
+    );
 }
 
 /// A listed use whose two folders are no longer in one loop is a finding,
@@ -431,7 +445,11 @@ fn a_listed_use_that_holds_no_loop_is_reported() {
     crate::layout_test_support::link(&fixture.path, "src/a/uses/b", "../../b");
     let found: Vec<String> = findings_with(&fixture.path, "uses src/a -> src/b\n");
     assert_eq!(found.len(), 1, "{found:#?}");
-    assert!(found[0].contains("tolerates nothing any more"), "{}", found[0]);
+    assert!(
+        found[0].contains("tolerates nothing any more"),
+        "{}",
+        found[0]
+    );
 }
 
 /// A listed key takes exactly the finding it names out of the report,
@@ -447,7 +465,11 @@ fn a_listed_key_takes_one_finding_out_of_the_report() {
     let listed: &str = "glob src/lib.rs native\n";
     let found: Vec<String> = findings_with(&fixture.path, listed);
     assert_eq!(found.len(), 1, "{found:#?}");
-    assert!(found[0].contains("src uses the folder src/native"), "{}", found[0]);
+    assert!(
+        found[0].contains("src uses the folder src/native"),
+        "{}",
+        found[0]
+    );
 }
 
 /// A listed key that names no finding is a finding of its own.

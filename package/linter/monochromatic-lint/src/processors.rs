@@ -15,9 +15,15 @@ use crate::diagnostic::Diagnostic;
 /// Fix groups stay atomic across every extraction layer.
 use crate::edits::Fix;
 /// Hide implementation records behind VirtualSource's small interface.
-use crate::processors_model::{Guard, Mapping};
+use crate::processors_model::{
+    Guard,
+    Mapping,
+};
 /// Internal registration is deliberately not a stable public library contract.
-pub use crate::processors_model::{ProcessorError, ProcessorLanguage};
+pub use crate::processors_model::{
+    ProcessorError,
+    ProcessorLanguage,
+};
 /// Reuse typed selected Rust settings rather than another rule registry.
 use crate::rust_rule_settings::RustRuleSettings;
 /// Shared immutable owned snapshots use Arc instead of duplicating hosts per virtual file.
@@ -112,7 +118,11 @@ impl VirtualSource {
     pub fn skips_rustdoc(&self) -> bool {
         let mut current: Option<&Arc<Mapping>> = Some(&self.mapping);
         while let Some(mapping) = current {
-            if let Guard::Fence { skips_rustdoc, .. } = mapping.guard {
+            if let Guard::Fence {
+                skips_rustdoc,
+                ..
+            } = mapping.guard
+            {
                 return skips_rustdoc;
             }
             current = mapping.parent.as_ref();
@@ -122,7 +132,10 @@ impl VirtualSource {
 
     /// Map a whole atomic fix,
     ///  or refuse it without returning a partial edit group.
-    pub fn project_fix(&self, fix: &Fix) -> Result<Fix, ProcessorError> {
+    pub fn project_fix(
+        &self,
+        fix: &Fix,
+    ) -> Result<Fix, ProcessorError> {
         return crate::processors_projection::project(&self.mapping, fix);
     }
 
@@ -267,7 +280,9 @@ pub fn extract(
                 let raw: Arc<Mapping> = Arc::new(mapping);
                 let hidden: Arc<Mapping> = Arc::new(crate::processors_prepare::hidden(&raw));
                 let prepared: Arc<Mapping> = Arc::new(crate::processors_prepare::wrap(&hidden));
-                output.push(VirtualSource { mapping: prepared });
+                output.push(VirtualSource {
+                    mapping: prepared,
+                });
                 next.push(Pending {
                     mapping: hidden,
                     depth: work.depth + 1,

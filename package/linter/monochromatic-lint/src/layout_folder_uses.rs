@@ -20,15 +20,27 @@
 ///  the loop finder,
 ///  the tree and the uses.
 use crate::{
-    layout_finding::{LayoutFinding, shown},
+    layout_finding::{
+        LayoutFinding,
+        shown,
+    },
     layout_loops::find_loops,
     layout_module_tree::ModuleTree,
-    layout_module_uses::{ModuleUse, folder_of},
+    layout_module_uses::{
+        ModuleUse,
+        folder_of,
+    },
 };
 /// Import ordered collections and native paths.
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -72,7 +84,12 @@ pub type FolderUses = BTreeMap<PathBuf, BTreeMap<PathBuf, Proof>>;
 /// ```ts
 /// function record(into: FolderUses, from: Path, to: Path, proof: Proof): void;
 /// ```
-pub fn record_use(into: &mut FolderUses, from: PathBuf, to: PathBuf, proof: Proof) {
+pub fn record_use(
+    into: &mut FolderUses,
+    from: PathBuf,
+    to: PathBuf,
+    proof: Proof,
+) {
     let targets: &mut BTreeMap<PathBuf, Proof> = into.entry(from).or_default();
     let smaller: bool = match targets.get(&to) {
         Some(existing) => proof < *existing,
@@ -92,7 +109,10 @@ pub fn record_use(into: &mut FolderUses, from: PathBuf, to: PathBuf, proof: Proo
 /// ```ts
 /// function groupByFolder(tree: ModuleTree, uses: ModuleUse[]): FolderUses;
 /// ```
-pub fn group_by_folder(tree: &ModuleTree, uses: &[ModuleUse]) -> FolderUses {
+pub fn group_by_folder(
+    tree: &ModuleTree,
+    uses: &[ModuleUse],
+) -> FolderUses {
     let mut grouped: FolderUses = FolderUses::new();
     for found in uses {
         let from: PathBuf = folder_of(tree, found.from);
@@ -121,7 +141,11 @@ pub fn group_by_folder(tree: &ModuleTree, uses: &[ModuleUse]) -> FolderUses {
 /// ```ts
 /// function holdsOneOf(members: number[], nodes: Path[], wanted?: Set<Path>): boolean;
 /// ```
-fn holds_one_of(members: &[usize], nodes: &[PathBuf], wanted: Option<&BTreeSet<PathBuf>>) -> bool {
+fn holds_one_of(
+    members: &[usize],
+    nodes: &[PathBuf],
+    wanted: Option<&BTreeSet<PathBuf>>,
+) -> bool {
     let Some(held) = wanted else {
         return true;
     };
@@ -227,7 +251,10 @@ pub fn use_loops(
 /// ```ts
 /// function loopMembership(nodes: Path[], grouped: FolderUses): Map<Path, number>;
 /// ```
-pub fn loop_membership(nodes: &[PathBuf], grouped: &FolderUses) -> BTreeMap<PathBuf, usize> {
+pub fn loop_membership(
+    nodes: &[PathBuf],
+    grouped: &FolderUses,
+) -> BTreeMap<PathBuf, usize> {
     let mut position: BTreeMap<&PathBuf, usize> = BTreeMap::<&PathBuf, usize>::new();
     for (index, node) in nodes.iter().enumerate() {
         position.insert(node, index);

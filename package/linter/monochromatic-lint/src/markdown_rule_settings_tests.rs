@@ -12,10 +12,16 @@
 //! ```
 
 /// Import the conversion under test.
-use super::{MarkdownRuleSettings, markdown_rule_settings};
+use super::{
+    MarkdownRuleSettings,
+    markdown_rule_settings,
+};
 use crate::configuration_rules::RULE_IDS;
 use crate::diagnostic::Severity;
-use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncValue,
+    parse_jsonc,
+};
 
 /// Convert one fixture through the production path.
 fn settings(source: &str) -> MarkdownRuleSettings {

@@ -9,7 +9,10 @@
 //! ```
 
 /// Import private query protection and payload formatting.
-use super::{panic_message, protect_query};
+use super::{
+    panic_message,
+    protect_query,
+};
 /// Import the shared result models.
 use crate::diagnostic::Diagnostic;
 use crate::rust_semantic_error::SemanticError;

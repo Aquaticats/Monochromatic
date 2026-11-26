@@ -13,7 +13,10 @@
 /// Import the production helper and its real source/finding models.
 use super::check_declaration_annotations;
 /// Import owned diagnostics and the caller-selected severity.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the parser-owning source context.
 use crate::rust_source::RustSource;
 

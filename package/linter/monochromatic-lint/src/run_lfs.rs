@@ -17,7 +17,11 @@
 use crate::{
     markdown_lfs_config::LfsConfigError,
     markdown_lfs_context::{
-        LfsImageContext, LfsImageRepo, discover_lfs_image_repo, find_lfs_repo_root, is_excluded,
+        LfsImageContext,
+        LfsImageRepo,
+        discover_lfs_image_repo,
+        find_lfs_repo_root,
+        is_excluded,
         prepare_lfs_image_context,
     },
     markdown_rule_settings::LfsSetting,
@@ -28,8 +32,15 @@ use crate::{
 ///  usable across threads unlike `Rc`) and a lock.
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex, MutexGuard},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+    },
 };
 
 /// What:
@@ -91,7 +102,10 @@ impl LfsRepos {
     /// ```ts
     /// private repositoryAt(root: Path): Discovered
     /// ```
-    fn repository_at(&self, root: &Path) -> Discovered {
+    fn repository_at(
+        &self,
+        root: &Path,
+    ) -> Discovered {
         let mut by_root: MutexGuard<'_, BTreeMap<PathBuf, Discovered>> = self
             .by_root
             .lock()

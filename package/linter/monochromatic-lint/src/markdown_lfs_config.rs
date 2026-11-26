@@ -15,11 +15,17 @@
 ///  which differs from Rust's `str::trim` (it includes U+FEFF,
 ///  excludes U+0085).
 use crate::{
-    markdown_lfs_endpoint::{LfsUrlRejection, lfs_object_base},
+    markdown_lfs_endpoint::{
+        LfsUrlRejection,
+        lfs_object_base,
+    },
     markdown_trim_space::trim_space,
 };
 /// Import native paths and I/O error classification.
-use std::{io::ErrorKind, path::Path};
+use std::{
+    io::ErrorKind,
+    path::Path,
+};
 
 /// What:
 ///  The file name git-lfs reads for repository-level configuration.
@@ -132,7 +138,10 @@ pub struct LfsConfigError {
 /// Render the failure through the ordinary error interface.
 impl std::fmt::Display for LfsConfigError {
     /// Borrow the formatter only while writing the stored explanation.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.message.as_str());
     }
 }

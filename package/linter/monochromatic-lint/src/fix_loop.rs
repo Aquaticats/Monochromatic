@@ -12,7 +12,11 @@
 /// Import the established diagnostics and grouped edit boundary.
 use crate::diagnostic::Diagnostic;
 /// Import the fix applier and its error type that each repair pass depends on.
-use crate::edits::{Fix, FixError, apply_fixes};
+use crate::edits::{
+    Fix,
+    FixError,
+    apply_fixes,
+};
 
 /// Maximum changed-source passes required by the unified-linter contract.
 const MAX_PASSES: usize = 10;
@@ -21,7 +25,10 @@ const MAX_PASSES: usize = 10;
 pub trait SourceChecker {
     /// Return current findings or an explicit inability to check;
     ///  caller-owned source remains immutable.
-    fn check(&mut self, source: &str) -> Result<Vec<Diagnostic>, FixError>;
+    fn check(
+        &mut self,
+        source: &str,
+    ) -> Result<Vec<Diagnostic>, FixError>;
 }
 
 /// Normal reasons to stop applying fixes;

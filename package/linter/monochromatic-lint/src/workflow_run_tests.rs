@@ -10,9 +10,21 @@
 //! ```
 
 /// Import the readers under test.
-use super::{capture_run, capture_shell};
-use crate::workflow_lines::{Content, parse_entry, read_lines};
-use crate::workflow_model::{BodyLine, RunBody, Shell, WalkError};
+use super::{
+    capture_run,
+    capture_shell,
+};
+use crate::workflow_lines::{
+    Content,
+    parse_entry,
+    read_lines,
+};
+use crate::workflow_model::{
+    BodyLine,
+    RunBody,
+    Shell,
+    WalkError,
+};
 
 /// Read the first line's key as a `run:` and return the body and the next line index.
 fn run_of(text: &str) -> Result<(RunBody, usize), WalkError> {
@@ -50,15 +62,33 @@ fn shell_of(text: &str) -> Result<Shell, WalkError> {
 fn plain_commands() {
     assert_eq!(
         run_of("run: echo hi"),
-        Ok((RunBody::Plain { start: 5, end: 12 }, 1))
+        Ok((
+            RunBody::Plain {
+                start: 5,
+                end: 12
+            },
+            1
+        ))
     );
     assert_eq!(
         run_of("run: echo hi  # note"),
-        Ok((RunBody::Plain { start: 5, end: 12 }, 1))
+        Ok((
+            RunBody::Plain {
+                start: 5,
+                end: 12
+            },
+            1
+        ))
     );
     assert_eq!(
         run_of("- run: x\n  shell: bash\n"),
-        Ok((RunBody::Plain { start: 7, end: 8 }, 1))
+        Ok((
+            RunBody::Plain {
+                start: 7,
+                end: 8
+            },
+            1
+        ))
     );
 }
 
@@ -66,7 +96,13 @@ fn plain_commands() {
 #[test]
 fn block_literals() {
     let text: &str = "- run: |\n    a\n    b\n  shell: bash\n";
-    let Ok((RunBody::Block { lines }, next)) = run_of(text) else {
+    let Ok((
+        RunBody::Block {
+            lines,
+        },
+        next,
+    )) = run_of(text)
+    else {
         panic!("not a block");
     };
     assert_eq!(next, 3);
@@ -94,7 +130,13 @@ fn block_literals() {
 fn chomping_and_blank_lines() {
     for header in ["|", "|-", "|+", "| # note"] {
         let text: String = format!("run: {header}\n  a\n\n  b\n\n\nnext: 1\n");
-        let Ok((RunBody::Block { lines }, next)) = run_of(text.as_str()) else {
+        let Ok((
+            RunBody::Block {
+                lines,
+            },
+            next,
+        )) = run_of(text.as_str())
+        else {
             panic!("not a block: {header}");
         };
         assert_eq!(lines.len(), 3, "{header}");
@@ -107,7 +149,13 @@ fn chomping_and_blank_lines() {
 /// A deeper first line sets the body indentation.
 #[test]
 fn body_indentation_comes_from_the_first_line() {
-    let Ok((RunBody::Block { lines }, _)) = run_of("run: |\n      a\n        b\n") else {
+    let Ok((
+        RunBody::Block {
+            lines,
+        },
+        _,
+    )) = run_of("run: |\n      a\n        b\n")
+    else {
         panic!("not a block");
     };
     assert_eq!(lines[0].payload - lines[0].envelope, 6);
@@ -118,7 +166,12 @@ fn body_indentation_comes_from_the_first_line() {
 ///  and other text that is less indented is refused.
 #[test]
 fn shallow_lines_end_or_refuse() {
-    let Ok((RunBody::Block { lines }, next)) = run_of("- run: |\n      a\n    # c\n  other: 1\n")
+    let Ok((
+        RunBody::Block {
+            lines,
+        },
+        next,
+    )) = run_of("- run: |\n      a\n    # c\n  other: 1\n")
     else {
         panic!("not a block");
     };
@@ -130,7 +183,13 @@ fn shallow_lines_end_or_refuse() {
 /// Windows line endings stay in the line range and out of the text.
 #[test]
 fn carriage_returns() {
-    let Ok((RunBody::Block { lines }, _)) = run_of("run: |\r\n  a\r\n  b\r\n") else {
+    let Ok((
+        RunBody::Block {
+            lines,
+        },
+        _,
+    )) = run_of("run: |\r\n  a\r\n  b\r\n")
+    else {
         panic!("not a block");
     };
     assert_eq!(lines.len(), 2);
@@ -241,7 +300,13 @@ fn blank_lines_inside_a_block_keep_their_payload_inside_their_own_text() {
         text.push('\n');
     }
     starts.push(text.len());
-    let Ok((RunBody::Block { lines }, next)) = run_of(text.as_str()) else {
+    let Ok((
+        RunBody::Block {
+            lines,
+        },
+        next,
+    )) = run_of(text.as_str())
+    else {
         panic!("not a block");
     };
     let expected: Vec<BodyLine> = (1..table.len())

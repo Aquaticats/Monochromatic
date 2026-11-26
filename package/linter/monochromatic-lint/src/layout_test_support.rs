@@ -13,7 +13,10 @@
 /// Import the units under test and the fixture writers.
 use crate::{
     layout_crate_roots::crate_root_files,
-    layout_module_tree::{ModuleTree, build_module_tree},
+    layout_module_tree::{
+        ModuleTree,
+        build_module_tree,
+    },
     layout_path_resolution::link_glob_targets,
     layout_reference_paths::RawReference,
     layout_source_facts::collect_body_facts,
@@ -23,7 +26,10 @@ use crate::{
     test_fs::Fixture,
 };
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Write a package with the given source files and a minimal `Cargo.toml`.
 pub(crate) fn package_with(files: &[(&str, &str)]) -> Fixture {
@@ -54,7 +60,11 @@ pub(crate) fn tree_of(root: &Path) -> ModuleTree {
 }
 
 /// The index of the first module held by the file at a path relative to the fixture.
-pub(crate) fn module_in(tree: &ModuleTree, root: &Path, relative: &str) -> usize {
+pub(crate) fn module_in(
+    tree: &ModuleTree,
+    root: &Path,
+    relative: &str,
+) -> usize {
     let wanted: PathBuf = root.join(relative);
     for (index, module) in tree.modules.iter().enumerate() {
         if module.file == wanted {
@@ -103,7 +113,11 @@ pub(crate) fn describe(reference: &RawReference) -> String {
 /// Make a symbolic link to a folder or file,
 ///  where `target` is the text stored in the link.
 #[cfg(unix)]
-pub(crate) fn link(root: &Path, entry: &str, target: &str) {
+pub(crate) fn link(
+    root: &Path,
+    entry: &str,
+    target: &str,
+) {
     let path: PathBuf = root.join(entry);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("link parent");

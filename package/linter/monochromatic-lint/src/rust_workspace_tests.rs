@@ -9,22 +9,41 @@
 //! // Create owned fixtures, load with each fixed preparation mode, and inspect real rule outcomes.
 //! ```
 
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 use crate::rust_semantic_error::SemanticError;
 use crate::rust_semantic_session::RustSemanticSession;
-use crate::rust_semantic_test_support::{prepare_lockfile, progress};
+use crate::rust_semantic_test_support::{
+    prepare_lockfile,
+    progress,
+};
 /// Import the validated toolchain model and the backend's Cargo settings and path types.
-use crate::rust_toolchain::{RustToolchain, absolute_utf8};
+use crate::rust_toolchain::{
+    RustToolchain,
+    absolute_utf8,
+};
 /// Import production workspace loading and typed findings.
 use crate::rust_workspace::{
-    WorkspacePreparation, cargo_config, discover_manifest, load_cargo_workspace,
+    WorkspacePreparation,
+    cargo_config,
+    discover_manifest,
+    load_cargo_workspace,
 };
 /// Import owned fixture creation and named progress/lock preparation.
 use crate::test_fs::Fixture;
-use ra_ap_project_model::{CargoConfig, RustLibSource, TargetDirectoryConfig};
+use ra_ap_project_model::{
+    CargoConfig,
+    RustLibSource,
+    TargetDirectoryConfig,
+};
 use ra_ap_vfs::AbsPathBuf;
 /// Import native paths without hardcoded user directories.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The nearest explicit manifest wins and unrelated project descriptors are rejected.
 #[test]

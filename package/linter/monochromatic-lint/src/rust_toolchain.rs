@@ -15,7 +15,10 @@ use ra_ap_vfs::AbsPathBuf;
 /// Import native paths and captured compiler-query output.
 use std::path::Path;
 /// Import the process types that query the selected toolchain for its compiler paths.
-use std::process::{Command, Output};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// Validated compiler/source paths,
 ///  without any executable override from linter configuration.
@@ -89,5 +92,8 @@ pub fn discover_toolchain(directory: &Path) -> Result<RustToolchain, SemanticErr
     if !metadata.is_file() {
         return Err(SemanticError::new(format!("Rust standard-library source {core} is not a regular file. Repair the matching rust-src installation before semantic checking.").as_str()));
     }
-    return Ok(RustToolchain { sysroot, library });
+    return Ok(RustToolchain {
+        sysroot,
+        library,
+    });
 }

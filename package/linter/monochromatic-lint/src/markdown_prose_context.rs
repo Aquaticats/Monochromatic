@@ -25,7 +25,10 @@ use satteri_ast::mdast::MdastNodeType;
 /// ```ts
 /// function paragraphFor(context: MarkdownSource, ancestors: readonly number[]): number | undefined;
 /// ```
-pub(crate) fn paragraph_for(context: &MarkdownSource, ancestors: &[u32]) -> Option<u32> {
+pub(crate) fn paragraph_for(
+    context: &MarkdownSource,
+    ancestors: &[u32],
+) -> Option<u32> {
     // These ancestors represent content with another syntax or a single-line contract.
     /// Ancestor kinds whose content uses another syntax or a single-line contract.
     const SKIP: &[MdastNodeType] = &[
@@ -68,7 +71,11 @@ pub(crate) fn paragraph_for(context: &MarkdownSource, ancestors: &[u32]) -> Opti
 /// ```ts
 /// function delimiterTail(context: MarkdownSource, id: number, ancestors: readonly number[]): number;
 /// ```
-pub(crate) fn delimiter_tail(context: &MarkdownSource, id: u32, ancestors: &[u32]) -> u32 {
+pub(crate) fn delimiter_tail(
+    context: &MarkdownSource,
+    id: u32,
+    ancestors: &[u32],
+) -> u32 {
     let mut tail: u32 = id;
     // Each ancestor is the parent of the current tail, because the list runs upwards from `id` one level per item.
     for ancestor in ancestors {
@@ -105,7 +112,10 @@ pub(crate) fn delimiter_tail(context: &MarkdownSource, id: u32, ancestors: &[u32
 /// ```ts
 /// function continuationPrefix(context, paragraph): string; // "> - " becomes ">   ", "- > " becomes "  > "
 /// ```
-pub(crate) fn continuation_prefix(context: &MarkdownSource, paragraph: u32) -> String {
+pub(crate) fn continuation_prefix(
+    context: &MarkdownSource,
+    paragraph: u32,
+) -> String {
     // Copy only the paragraph's opening line prefix; usize is the byte-offset type every source slice takes.
     let (start, _): (usize, usize) = context.offsets(paragraph);
     // Zero stands for a paragraph on the first line, where no earlier line ending exists.

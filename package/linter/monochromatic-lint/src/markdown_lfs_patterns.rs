@@ -24,7 +24,10 @@ use crate::markdown_lfs_config::js_trim;
 ///  already a dependency of file discovery.
 use ignore::{
     Match,
-    gitignore::{Gitignore, GitignoreBuilder},
+    gitignore::{
+        Gitignore,
+        GitignoreBuilder,
+    },
 };
 
 /// What:
@@ -46,7 +49,10 @@ pub struct PathPatternError {
 /// Render the rejection through the ordinary error interface.
 impl std::fmt::Display for PathPatternError {
     /// Borrow the formatter only while writing the stored explanation.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.message.as_str());
     }
 }
@@ -103,7 +109,11 @@ impl PathPatterns {
             }
         }
         match builder.build() {
-            Ok(matcher) => return Ok(PathPatterns { matcher }),
+            Ok(matcher) => {
+                return Ok(PathPatterns {
+                    matcher,
+                });
+            }
             Err(error) => {
                 return Err(PathPatternError {
                     message: format!("Cannot compile path patterns: {error}."),
@@ -124,7 +134,10 @@ impl PathPatterns {
     /// ```ts
     /// matches(repoRelativePath: string): boolean
     /// ```
-    pub fn matches(&self, repo_relative_path: &str) -> bool {
+    pub fn matches(
+        &self,
+        repo_relative_path: &str,
+    ) -> bool {
         let mut prefix: String = String::new();
         let mut components: std::iter::Peekable<std::str::Split<'_, char>> =
             repo_relative_path.split('/').peekable();
