@@ -191,7 +191,7 @@ fn the_answers_a_build_without_the_feature_gives() {
 /// ```ts
 /// const armed: [string, string][] = [[FAULT_VARIABLE, 'after-intent'], /* … */];
 /// ```
-fn every_switch_a_control_arms(queue: &Path, park_folder: &Path) -> Vec<(OsString, OsString)> {
+fn every_switch_a_control_arms(queue: &Path, park_folder: &Path) -> Vec<(&'static str, OsString)> {
     // One pair per test-only variable, as the name and the value the child's environment carries.
     let pairs: Vec<(&str, OsString)> = vec![
         (THE_CHILD, OsString::from("1")),
@@ -213,10 +213,10 @@ fn every_switch_a_control_arms(queue: &Path, park_folder: &Path) -> Vec<(OsStrin
         (TEST_DEADLINE_VARIABLE, OsString::from("1")),
         (COMPANION_SWITCH_VARIABLE, OsString::from("disabled")),
     ];
-    let mut environment: Vec<(OsString, OsString)> = Vec::new();
+    let mut environment: Vec<(&'static str, OsString)> = Vec::new();
     for (variable, value) in pairs {
-        // The pair the child's environment carries: an owned name and the owned value beside it.
-        environment.push((OsString::from(variable), value));
+        // The pair the child's environment carries: the constant's own name and the owned value beside it.
+        environment.push((variable, value));
     }
     return environment;
 }
@@ -237,9 +237,17 @@ fn a_build_without_the_feature_reads_no_test_only_switch() {
     // rather than holding the control open.
     let release: PathBuf = answered_beside(the_park_a_control_names(park_folder.as_path()).as_path()).with_extension("release");
     std::fs::write(release.as_path(), b"").expect("the control's release file");
-    let output: std::process::Output =
-        crate::test_support::child_test_process::run_with_environment(THE_TEST, every_switch_a_control_arms(queue.as_path(), park_folder.as_path()).as_slice());
-    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
-    assert!(output.status.success(), "a build without `test-only-switches` answered a switch it was given, so a release build would too:\n{said}");
-    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+    let owned: Vec<(&'static str, OsString)> = every_switch_a_control_arms(queue.as_path(), park_folder.as_path());
+    // The pairs as `ChildTest` takes them: each name is the constant's own text, and each value is lent from `owned`.
+    let mut environment: Vec<(&str, &std::ffi::OsStr)> = Vec::new();
+    for (name, value) in owned.iter() {
+        environment.push((*name, value.as_os_str()));
+    }
+    // The child runs this same test name and gets every switch armed; `passed` fails this control, with both of the child's
+    // streams, when the child did not end cleanly or ran no single passing test.
+    crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: THE_TEST,
+        environment: environment.as_slice(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
