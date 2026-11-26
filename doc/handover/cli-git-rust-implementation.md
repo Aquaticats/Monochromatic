@@ -128,7 +128,7 @@ Rounds started earlier run on the pool they named.
 - Issue 6506 (the watch's wall-clock control fails in the driver's parallel suite, the class 6504 fixed),
   window `issue-6506-watch-wall-clock-control-sized-from-its-own-run`, on the virtual writer.
 - Issue 6494 merged as `c72c68f022` (07:57) and was closed by comment, its branch carrying no closing keyword.
-  Its merge check's one red, `commit::commit_index's span control (the `index::` filter also matches `commit::commit_index::`),
+  Its merge check's one red, `commit::commit_index`'s span control (the `index::` filter also matches `commit::commit_index::`),
   passed alone and in its module and reads a process-wide span ledger, so it is issue 6507, outside this branch.
   The round filed two issues:
   6503 (the process-wide-state child helper answers a flag a control can read inverted, about 55 callers),
