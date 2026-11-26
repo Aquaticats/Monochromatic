@@ -11,7 +11,8 @@
 //!  worktree's by path.
 //! Each rewrite is one job of the process's blocking pool,
 //! awaited by a task of the runtime,
-//!  so the process's one bound on blocking jobs covers it.
+//!  so the process's one bound on blocking jobs covers it,
+//! and that call's one claim on the job's work is what makes a rewrite the report gave up on do nothing.
 //! The rewrite of one file is `refresh_index_file_with` in `subvolume_index_files.rs`.
 //!
 //! In TS you'd write (pseudocode):
@@ -46,7 +47,6 @@ use crate::subvolume_index_files::{
     refresh_index_file_with,
     repository_hash_length,
 };
-use crate::the_claim_a_job_takes_before_running_it::TheClaimOnAJobsWork;
 use std::future::Future;
 use std::path::{
     Path,
@@ -239,51 +239,61 @@ impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
             let index: PathBuf = target.index.clone();
             let tree: PathBuf = target.tree.clone();
             let references: Vec<PathBuf> = target.references.clone();
-            // The claim decides, once, between this job doing the work and the report giving up on it: the pool
-            //  queues a job before it asks for a thread, so a job it could not start may still run later.
-            let claim: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
-            let jobs_claim: Arc<TheClaimOnAJobsWork> = Arc::clone(&claim);
             let flushes_to_disk: bool = self.flushes_to_disk;
-            let rewritten = run_blocking_job_within_the_budget(move || {
-                // The platform's answer about the disk travels with the job: this thread is not the caller's, so a call that
-                //  keeps its writes in memory must say so here for the index it installs as well.
-                let _flushes: crate::subvolume_file_write_steps::WritesKeptInMemory =
-                    crate::subvolume_file_write_steps::WritesKeptInMemory::for_flush_policy(
-                        flushes_to_disk,
+            // What:     no claim is taken here, deliberately: `run_blocking_job_within_the_budget` takes one claim on
+            //           the closure it queues, before that closure's first effect, and takes the same claim when it
+            //           answers that no thread could start the job.
+            // Why:      the pool queues a job before it asks for a thread, so the job this call gave up on may still run
+            //           later, and that one claim is what makes it do nothing. A second claim here could never decide
+            //           anything: the first is already taken by the time this closure is reached, so a control could not
+            //           see it, and it was removed (issue 6505).
+            // Gotcha:   a job that could run without the bound's claim would break the promise that an index reported as
+            //           unchanged is unchanged.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // // no claim here: runBlockingJobWithinTheBudget already holds the one claim on this closure
+            // ```
+            let rewritten: Result<String, BlockingJobError> =
+                run_blocking_job_within_the_budget(move || {
+                    // The platform's answer about the disk travels with the job: this thread is not the caller's, so a call that
+                    //  keeps its writes in memory must say so here for the index it installs as well.
+                    let _flushes: crate::subvolume_file_write_steps::WritesKeptInMemory =
+                        crate::subvolume_file_write_steps::WritesKeptInMemory::for_flush_policy(
+                            flushes_to_disk,
+                        );
+                    return (rewrite)(
+                        index.as_path(),
+                        tree.as_path(),
+                        &RefreshOptions {
+                            lock,
+                            references: references.as_slice(),
+                            hash_length,
+                        },
                     );
-                // The claim comes first, before anything reads or writes the index.
-                if !jobs_claim.the_job_takes_it() {
-                    return None;
-                }
-                return Some((rewrite)(
-                    index.as_path(),
-                    tree.as_path(),
-                    &RefreshOptions {
-                        lock,
-                        references: references.as_slice(),
-                        hash_length,
-                    },
-                ));
-            })
-            .await;
+                })
+                .await;
             return match rewritten {
-                Ok(Some(line)) => line,
-                // The report had already given up on this job, so the work was not done and the index is as it was.
-                Ok(None) => String::from(
-                    "not rewritten, because the report gave up on this work before it ran",
-                ),
+                Ok(line) => line,
                 Err(refused) => match refused {
-                    BlockingJobError::NoThreadToStart if claim.the_reporter_takes_it() => {
+                    // What:     the refusal that promises the rewrite did not run: the bound's frame took the claim on this
+                    //           job's work before it answered, so nothing the pool queued can write this index.
+                    // Why:      the report may then say the index stays as it was, which is a promise about the person's
+                    //           data and not a hope.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // if (refused === 'noThreadToStart') neverStarted++;
+                    // ```
+                    BlockingJobError::NoThreadToStart => {
                         self.gave_no_result
                             .never_started
                             .fetch_add(1, Ordering::SeqCst);
                         format!("not rewritten ({refused})")
                     }
-                    // The kinds of end that leave the index unknown: the job started on another thread after the report gave
-                    //  up on it (or took this item's own claim first), it panicked, or it was cut off, or the runner took no
-                    //  claim on the queued closure and nothing here can say it will not run.
+                    // The kinds of end that leave the index unknown: the job started on another thread after the report
+                    //  gave up on it, it panicked, or it was cut off.
                     BlockingJobError::MayStillRunAfterItsThreadWasRefused
-                    | BlockingJobError::NoThreadToStart
                     | BlockingJobError::StartedAfterItsThreadWasRefused
                     | BlockingJobError::Panicked
                     | BlockingJobError::Cancelled => {

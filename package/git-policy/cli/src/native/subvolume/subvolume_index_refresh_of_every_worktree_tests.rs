@@ -18,7 +18,19 @@ use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
 /// `spawn_task`),
 /// so a report that says "given up on before it could start,
 /// so those stay as they were" is only true
-///  when the job finds the claim taken and does nothing.
+///  when the queued job finds the claim taken and does nothing.
+///  That claim is the process's bound on blocking jobs (`blocking_jobs_within_the_budget.rs`):
+/// it takes one claim on the closure it queues,
+/// before that closure's first effect,
+///  and takes the same claim when it answers that no thread could start the job.
+///  The control lets the pool start a thread again and waits for a job it asks for after the queued one,
+/// so the queued rewrite gets its turn before this control asserts that it did nothing:
+///  the pool's queue is one queue whose back is pushed to and whose front is popped,
+/// so a job asked for later runs later,
+///  and `TOKIO_UNSTABLE_SHARDED_BLOCKING_QUEUE`,
+/// read by `sharded_blocking_queue_default` in `tokio-1.54.1/src/runtime/builder.rs`,
+/// is the only thing that would make it shards,
+///  which this crate never sets.
 /// The control runs in a child whose process limit is one,
 /// because only a refused thread start queues a job this way.
 #[test]
@@ -74,17 +86,27 @@ fn an_index_rewrite_reported_as_never_started_does_not_run_afterwards() {
                 0,
                 "a rewrite ran although no thread could start: {line}"
             );
-            // A thread may start again: the pool's first new thread runs what it queued, and the claim stops it.
+            // What:     a thread may start again, and the pool's first new thread runs what it queued.
+            // Why:      the job awaited here is queued after the rewrite above and one queue is run front first, so
+            //           this job's own run is what proves the queued rewrite had its turn.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const afterTheQueue = await runOnRuntime(() => runBlockingJobWithinTheBudget(() => {}));
+            // ```
             let_threads_start_again().expect("the process limit rises again");
-            let drained = crate::lazy_runtime::run_on_runtime(async {
+            let after_the_queue: Result<
+                Result<(), BlockingJobError>,
+                crate::lazy_runtime::RuntimeError,
+            > = crate::lazy_runtime::run_on_runtime(async {
                 return crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(
                     || (),
                 )
                 .await;
             });
             assert!(
-                matches!(drained, Ok(Ok(()))),
-                "the job that starts the pool's first thread ran: {drained:?}"
+                matches!(after_the_queue, Ok(Ok(()))),
+                "the job that starts the pool's first thread and runs behind the queued rewrite ran: {after_the_queue:?}"
             );
             assert_eq!(
                 ran.load(Ordering::SeqCst),
