@@ -22525,7 +22525,10 @@ Every file this wrapper reads from a Git directory is opened as a plain file (`f
 opening a pipe for reading waits for a writer that may never come,
 and a person or another program can put one at any name beside a checkout.
 That covers a Git directory's `commondir`
-(read by `foundation/common_directory_of_a_git_directory.rs`, which is the one reader of it),
+(read by `foundation/common_directory_of_a_git_directory.rs`,
+which is the one reader of it,
+and which names the directory by the bytes the file holds,
+so a directory whose name is no UTF-8 text is still the one named),
 its `HEAD`,
 the `.git` pointer file a linked worktree or a partially filled clone holds,
 a fetched-heads list (`FETCH_HEAD`),

@@ -17,9 +17,15 @@
 //!  a lock the merge found when it looked,
 //!  a lock another program took after that look,
 //!  and a lock that stopped both Git's own update and the putting back of the person's own bytes.
-//!  A save is a promise that a later command finishes this very merge, and only a branch still standing where the merge
-//!  was made can keep it: a branch that moved first is refused, never saved, because no later command could land it
-//!  (`SPEC.md`, "Merging"; issue 6473).
+//!  A save is a promise that a later command finishes this very merge,
+//! and only a branch still standing where the merge
+//!  was made can keep it:
+//! a branch that moved first is refused,
+//! never saved,
+//! because no later command could land it
+//!  (`SPEC.md`,
+//! "Merging";
+//! issue 6473).
 //!  The writing half that calls this is `merge_isolation_apply.rs`,
 //!  and the step ending that also reaches it is `merge_isolation_apply_stops.rs`;
 //!  both are at their code-line limit,
@@ -147,38 +153,6 @@ fn keep_on_a_side_ref(
 }
 
 /// What:
-///  Save a merge that met an index lock it may not clear:
-/// keep its commit on a side ref,
-/// record that the checkout is still to be finished,
-/// say so,
-/// and end
-///  with status 0.
-/// Why:
-///   The owner's answer for a live foreign `index.lock` (`SPEC.md`,
-/// "Merges and commits never fail") is that a merge
-///  saves its result on a side ref,
-/// exits 0,
-/// and finishes the checkout when the lock frees.
-/// A second record,
-///  created once like every other,
-/// names the side ref,
-/// the merge,
-/// and the same capture of the person's bytes the first record
-///  names,
-/// so the next command finishes this very merge even though nothing of it is in the checkout yet.
-/// A merge whose commit cannot be kept that way is not saved,
-/// and the line says so and what the next command does with the person's own bytes,
-/// rather than refusing a checkout the clear already changed.
-///  A merge whose branch moved before this point is refused instead of saved,
-/// with its record settled first,
-///  because a save promises a later command that finishes this very merge and no command can finish one the branch
-///  has moved past (`SPEC.md`, "Merging"; issue 6473).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function saveForALaterFinish({ session, plan, intent, record, reference, why, thePathsWereCleared }): Promise<IsolatedMerge>;
-/// ```
-/// What:
 ///  The short name a line gives the branch the merge was computed for.
 /// Why:
 ///   The record keeps the whole reference,
@@ -233,7 +207,9 @@ fn the_branch_moved(
 }
 
 /// What:
-///  Answer a merge whose branch moved before it could be saved: settle the record this command wrote, and refuse.
+///  Answer a merge whose branch moved before it could be saved:
+/// settle the record this command wrote,
+/// and refuse.
 /// Why:
 ///   Nothing of the merge is in the checkout,
 /// so nothing is lost by running it again,
@@ -296,6 +272,40 @@ fn refuse_the_moved_branch(
     };
 }
 
+/// What:
+///  Save a merge that met an index lock it may not clear:
+/// keep its commit on a side ref,
+/// record that the checkout is still to be finished,
+/// say so,
+/// and end
+///  with status 0.
+/// Why:
+///   The owner's answer for a live foreign `index.lock` (`SPEC.md`,
+/// "Merges and commits never fail") is that a merge
+///  saves its result on a side ref,
+/// exits 0,
+/// and finishes the checkout when the lock frees.
+/// A second record,
+///  created once like every other,
+/// names the side ref,
+/// the merge,
+/// and the same capture of the person's bytes the first record
+///  names,
+/// so the next command finishes this very merge even though nothing of it is in the checkout yet.
+/// A merge whose commit cannot be kept that way is not saved,
+/// and the line says so and what the next command does with the person's own bytes,
+/// rather than refusing a checkout the clear already changed.
+///  A merge whose branch moved before this point is refused instead of saved,
+/// with its record settled first,
+///  because a save promises a later command that finishes this very merge and no command can finish one the branch
+///  has moved past (`SPEC.md`,
+/// "Merging";
+/// issue 6473).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function saveForALaterFinish({ session, plan, intent, record, reference, why, thePathsWereCleared }): Promise<IsolatedMerge>;
+/// ```
 pub(crate) fn save_for_a_later_finish(
     session: &Session,
     plan: &Plan<'_>,
@@ -398,3 +408,8 @@ fn the_merge_is_not_saved(
         stderr: a_merge_that_could_not_be_kept(reference, lock, bytes),
     };
 }
+
+/// Controls for the doc each item of this file carries stay out of the release executable.
+#[cfg(test)]
+#[path = "merge_isolation_apply_save_docs_tests.rs"]
+mod docs_tests;
