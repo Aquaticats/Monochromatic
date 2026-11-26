@@ -424,3 +424,22 @@ fn the_durability_answer_decides_whether_a_file_is_flushed() {
     let closed: libc::c_int = unsafe { libc::close(read_end) };
     assert_eq!(closed, 0, "the read end is closed");
 }
+
+/// What:
+///  The switch that skips this process's durability syncs refuses a process that is not a child of a control's own.
+/// Why:
+///  `cargo test --lib` runs a crate's tests as threads of one process,
+///  so the switch a control sets here reached every later control of the run:
+///  measured 2026-11-26 on a pair of tests in one process,
+///  the control that skips them first makes `directory_sync_needs_the_directory` fail
+///  (`sync_directory` of a missing folder answered `Ok`),
+///  and the same pair with the skip second passes (issue 6498).
+///  So the switch refuses where it would reach another control,
+///  and this control is that refusal.
+#[test]
+#[should_panic(
+    expected = "the switch that skips this process's durability syncs belongs to the whole process"
+)]
+fn the_durability_switch_refuses_a_process_that_is_not_its_child() {
+    crate::private_storage::skip_the_durability_syncs_here();
+}
