@@ -376,6 +376,20 @@ Fix: one helper in `testing/` that starts the child with `spawn_owned`, a deadli
 check; migrate the 35 sites; this is the runner item 3 needs.
 Size: 35 sites, 6 helper bodies.
 
+Landed 2026-11-25, in two commits on `refactor/git-policy-cli-test-binary-children-through-one-helper`:
+`31f4014890` and `d5e781a32a`.
+`testing/child_test_process.rs` holds the one request and its three faces (`started`, `finished`, `passed`),
+with a deadline, the two pipes read once the child is gone, and the check that exactly one test ran and passed;
+`testing/test_process_owner.rs` holds the ownership those children stand on, which the binary controls' crate and the
+candidate consumer's crate include by path, because the library's test-only modules are invisible to them.
+The umask, no-threads, file-size-limit, root-namespace and merge-mode bodies keep their caller-facing functions and
+hold no child start of their own, and `rg -n -- '"--exact"' src` answers one line: the runner's own argument list.
+Each of the five moved sites that started a child with no owner lost its line in
+`source_guard/test_children_not_yet_owned.txt` in the same round (`d5e781a32a`).
+Status: incomplete, unapproved and not final.
+No independent review has read it, the guest arms of the two ZFS controls of this item were skipped in this host run,
+and item 3's mechanisms have not been moved onto it yet.
+
 ### Item 11. The lib and binary test targets each keep a copy of the fixture support, and the copies diverged
 
 Category 4, tests.
