@@ -60,6 +60,17 @@ so a control that judges the run's own figures runs its reading in a helper proc
 (`testing/helper_process_test_support.rs`),
 as issue 6478's descriptor-room control and the `run_progress` controls of issue 6486 do.
 
+The service's review runner is one more such fact,
+and a control hands the code its own instead of starting a child:
+`review_item` and its three siblings run the review in `standards_review_run::RUNNER`,
+which admits one job and answers every other caller with `Contained::Busy`,
+so a threaded run of `service::service_review::tests` failed seven of its sixteen controls
+while the gate starts each test in a process of its own and never showed it (issue 6499).
+A control declares `static OWN: Containment`
+and calls `review_item_in(&OWN, ..)`,
+and `source_guard/no_control_takes_the_production_runner_tests.rs` refuses a test-only source that takes the
+production runner instead.
+
 A control that gives this process room for blocking jobs,
 holds its bound on them,
 or sets any other fact that belongs

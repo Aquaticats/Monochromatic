@@ -338,6 +338,36 @@ after the change seeds 1 and 3 answer `2 passed; 0 failed`.
 answered `test result: ok. 395 passed; 0 failed; 8 ignored`,
 and `worktree_copying::worktree_copy::` answered `test result: ok. 47 passed; 0 failed; 0 ignored`.
 
+Round of 2026-11-26,
+issue 6499:
+nine controls of `service::service_review::tests` called `review_item`,
+which runs the review in the one runner the whole service process shares
+(`standards_review_run::RUNNER`),
+and a runner admits one job and answers every other caller with `Contained::Busy`,
+so a threaded run of the module failed seven of its sixteen controls in each of two runs,
+with a refusal that an earlier review is still running,
+and a varying set of them (the issue measured eight on `main` at `f9096f7531`),
+while all sixteen passed with `--test-threads=1`.
+Each control now declares `static OWN: Containment`
+and calls `review_item_in(&OWN, ..)`,
+which `service/service_review.rs` documents for controls
+and which the module's two other controls already did;
+nothing of the release changed.
+`cargo test --locked --offline --lib --features test-only-switches service::service_review::tests -- --skip guest --skip _arm_tests`
+answered `test result: ok. 16 passed; 0 failed` in three runs after the change,
+from `9 passed; 7 failed` in both runs before it,
+and each of the nine controls passed alone with `--exact` before and after.
+`source_guard/no_control_takes_the_production_runner_tests.rs` refuses a test-only source that calls
+`run_contained(`,
+`review_item(`,
+`review_item_within(`,
+`review_item_awaiting(`
+or `review_item_within_awaiting(`,
+and with the fix taken out it named the twelve such lines of `service/service_review_tests.rs`;
+the narrower `the_controls_share_no_production_runner` of `standards_review_run_tests.rs`,
+which covered one face in one file and claimed these controls hold the shared runner for one review only,
+went with it.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
