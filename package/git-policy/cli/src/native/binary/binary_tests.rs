@@ -33,7 +33,8 @@ mod test_process_owner;
 mod child_test_process;
 
 /// The one place a test body runs in a child under a chosen umask;
-/// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
+/// the same file the unit tests use,
+/// which this crate includes because the library's own modules are private to it.
 #[path = "../testing/umask_child_test_support.rs"]
 mod umask_child_test_support;
 

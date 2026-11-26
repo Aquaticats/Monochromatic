@@ -3,14 +3,19 @@
 //! carry on where the system gives none (`Scope::spawn` panics there;
 //! a start that falls back runs the work in turn).
 //!
-//! A test hands this file the body to run, and the body runs in a child whose process limit is one:
-//! the parent starts this same test in that child, and the child's success is the parent's assertion.
+//! A test hands this file the body to run,
+//! and the body runs in a child whose process limit is one:
+//! the parent starts this same test in that child,
+//! and the child's success is the parent's assertion.
 //! The parent never calls the body.
 //! That is the whole reason the body travels as a closure instead of the test holding an answer:
-//! while this file answered a yes or no, two controls read the answer inverted
+//! while this file answered a yes or no,
+//! two controls read the answer inverted
 //! (`if !ran_in_child(...) { return; }`),
 //! so the child returned at once and the parent ran the body written for a process at its limit,
-//! and every other test of that run failed with `EAGAIN` (`Resource temporarily unavailable`, issue 6494).
+//! and every other test of that run failed with `EAGAIN`
+//! (`Resource temporarily unavailable`,
+//! issue 6494).
 //! Where the user may exceed the process limit the thread is not refused,
 //! so the parent says so and skips.
 //!
@@ -19,7 +24,8 @@
 //! runTheBodyWhereNoThreadCanStart(import.meta.url, 'a_test', () => { /* the body */ });
 //! ```
 
-/// The requests for the child of this test binary, its deadline and the check that its one test passed.
+/// The requests for the child of this test binary,
+/// its deadline and the check that its one test passed.
 use super::child_test_process::{
     ChildTest,
     finished,
@@ -126,11 +132,15 @@ mod tests;
 ///  A soft process limit belongs to a whole process,
 ///  and `cargo test` runs a crate's tests as threads of one process,
 ///  so a body that lowers it where the run holds it makes every other test of that run fail with `EAGAIN`
-///  (`Resource temporarily unavailable`, issue 6494).
-///  The child is a process of its own, so the limit reaches nothing else.
-///  The body is a closure the parent never calls, so no caller holds an answer that can be read inverted.
+///  (`Resource temporarily unavailable`,
+///  issue 6494).
+///  The child is a process of its own,
+///  so the limit reaches nothing else.
+///  The body is a closure the parent never calls,
+///  so no caller holds an answer that can be read inverted.
 /// Gotcha:
-///  Everything the body needs is made inside it, because nothing before this call runs in the child;
+///  Everything the body needs is made inside it,
+///  because nothing before this call runs in the child;
 ///  a `let` before the call is the parent's value and the child never sees it.
 ///
 /// In TS you'd write (pseudocode):

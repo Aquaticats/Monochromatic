@@ -4,15 +4,19 @@
 //!
 //! A test hands this file the body to run,
 //! and the body runs in a child whose file creation mask is the one the test chose:
-//! the parent starts this same test in that child, and the child's success is the parent's assertion.
-//! The parent never calls the body, so no caller holds an answer that can be read inverted.
+//! the parent starts this same test in that child,
+//! and the child's success is the parent's assertion.
+//! The parent never calls the body,
+//! so no caller holds an answer that can be read inverted.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! runTheBodyUnderUmask(import.meta.url, 'a_test', 0o077, () => { /* the body */ });
 //! ```
 
-/// The request for one child of this test binary, its deadline, and the check that its one test passed.
+/// The request for one child of this test binary,
+/// its deadline,
+/// and the check that its one test passed.
 use super::child_test_process::{
     ChildTest,
     passed,
@@ -33,10 +37,13 @@ const CHILD_VARIABLE: &str = "CLI_GIT_UMASK_CHILD";
 /// Why:
 ///  A umask is one value for a whole process,
 ///  so the mask is set between the child's `fork` and its `exec` and never in this process;
-///  the child is the same test binary on this one test, and its pass is this control's whole assertion.
-///  The body is a closure the parent never calls, so no caller holds an answer that can be read inverted.
+///  the child is the same test binary on this one test,
+///  and its pass is this control's whole assertion.
+///  The body is a closure the parent never calls,
+///  so no caller holds an answer that can be read inverted.
 /// Gotcha:
-///  Everything the body needs is made inside it, because nothing before this call runs in the child.
+///  Everything the body needs is made inside it,
+///  because nothing before this call runs in the child.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

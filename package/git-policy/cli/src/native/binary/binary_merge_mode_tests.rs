@@ -37,7 +37,8 @@ use super::support::{
     repository,
     wrapper_first_path,
 };
-/// The one place a test body runs in a child under a chosen mask, written once for both test targets.
+/// The one place a test body runs in a child under a chosen mask,
+/// written once for both test targets.
 use super::umask_child_test_support::run_the_body_under_umask;
 use std::path::{
     Path,
