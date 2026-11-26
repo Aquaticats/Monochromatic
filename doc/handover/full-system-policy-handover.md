@@ -190,6 +190,14 @@ Unprofiled development processes remain a residual risk.
   gate and helpers under enforcement".
   The kernel audit backlog stays at 64 and still drops
   records in bursts.
+- On 2026-11-26, IVPN Desktop 3.15.15 gained `/etc/apparmor.d/local/openvpn`
+  (its configuration, key files and a child profile for its DNS scripts)
+  and three custom profiles:
+  `ivpn` enforcing,
+  `ivpn-ui` as a named `flags=(unconfined)` Electron profile,
+  and `ivpn-service` in complain mode as a documented exception.
+  `local/apparmor_parser` gained DAC capabilities and read access to `~/temp/agent` for drafts.
+  See `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`, "Thirteenth batch".
 
 ## Current-boot evidence
 
@@ -445,5 +453,11 @@ pressure writes,
 and fresh profile-sync-daemon mount operations remain explicitly unexercised.
 Unprofiled development and repo processes remain unconfined by design and are disclosed in the
 inventory rather than misreported as universally enforcing.
+`ivpn-service` stays in complain mode until connect,
+disconnect,
+the firewall and split tunneling have run under it with an IVPN account logged in;
+then read its `ALLOWED` lines from `/var/log/audit/audit.log`,
+add them,
+and switch it with `aa-mode --enforce ivpn-service` or by dropping `complain` from its flags.
 
 This handover is not final and not owner-approved.
