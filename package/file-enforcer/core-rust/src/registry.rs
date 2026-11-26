@@ -25,6 +25,8 @@ use crate::config_types::{
 use crate::diagnostic::Diagnostic;
 /// Imports `ConcatRule` from `crate::kind_concat`.
 use crate::kind_concat::ConcatRule;
+/// Imports `JsonKeysRule` from `crate::kind_json_keys`.
+use crate::kind_json_keys::JsonKeysRule;
 /// Imports `MirrorRule` from `crate::kind_mirror`.
 use crate::kind_mirror::MirrorRule;
 /// Imports `MisePathListRule` from `crate::kind_mise_path_list`.
@@ -51,7 +53,7 @@ use std::collections::BTreeMap;
 /// What:
 ///  Builds the rule kinds this crate implements itself.
 /// Why:
-///  One builder covers the six built-in kinds by matching the decoded variant.
+///  One builder covers the seven built-in kinds by matching the decoded variant.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -63,7 +65,7 @@ pub struct BuiltinBuilder;
 ///   How the built-in kinds are built:
 /// one match over the config variants.
 /// Why:
-///   The six kinds this crate implements need no external crate,
+///   The seven kinds this crate implements need no external crate,
 /// so one builder serves them all.
 ///
 /// In TS you'd write (pseudocode):
@@ -132,6 +134,19 @@ impl RuleBuilder for BuiltinBuilder {
                     id: id.clone(),
                     from: from.clone(),
                     to: to.clone(),
+                }));
+            }
+            RuleConfig::JsonKeys {
+                id,
+                manifests,
+                only_dirs,
+                edits,
+            } => {
+                return Ok(Box::new(JsonKeysRule {
+                    id: id.clone(),
+                    manifests: manifests.clone(),
+                    only_dirs: only_dirs.clone(),
+                    edits: edits.clone(),
                 }));
             }
             RuleConfig::TomlKeys {
@@ -306,7 +321,7 @@ pub struct RuleRegistry {
 /// ```
 impl RuleRegistry {
     /// What:
-    ///  The registry with the six built-in kinds and placeholders for `rust-catalog`,
+    ///  The registry with the seven built-in kinds and placeholders for `rust-catalog`,
     /// `browserslist` and
     ///  `jetbrains-harper`.
     /// Why:
@@ -326,6 +341,7 @@ impl RuleRegistry {
             "package-licenses",
             "mirror",
             "toml-keys",
+            "json-keys",
             "mise-path-list",
         ] {
             registry.register(kind, Box::new(BuiltinBuilder));
