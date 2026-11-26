@@ -465,6 +465,10 @@ fn unmount_in_here(ready: &Ready, copy: &NamespaceCopy<'_>) -> ActReport {
             if let Err(error) = move_the_copy(&source, &destination) {
                 return step("move_mount", error, "the copy onto way 7's directory");
             }
+            // The descriptor the move took the copy from is one reference to the moved mount, and a plain unmount
+            // refuses `EBUSY` while any task's reference remains, so it is closed before the unmount, as the design's
+            // own step says.
+            drop(source);
             if let Err(error) = unmount_the_descriptor(&destination) {
                 return step("umount2", error, "the copy at way 7's directory");
             }
