@@ -273,8 +273,9 @@ fn a_slot_holding_a_bind_of_this_clone_keeps_the_walks_refusal() {
 ///  a step that answered a standing mount for every slot,
 ///  or that stopped asking the mount call at all,
 ///  would pass all three and never attach a clone.
-///  The call refuses, because a fixture cannot mount a ZFS dataset and a mount
-///  that is not there would make the post-attach proofs judge it,
+///  The call refuses,
+///  because a fixture cannot mount a ZFS dataset and a mount that is not there
+///  would make the post-attach proofs judge it,
 ///  so the refusal is the call's own step rather than the walk's.
 #[test]
 fn an_empty_slot_is_walked_and_reaches_the_steps_own_mount_call() {

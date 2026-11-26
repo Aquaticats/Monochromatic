@@ -338,7 +338,8 @@ impl<'standing, Calls: RollbackCalls, Mount: CloneMountCall> RealAttachStep<'sta
 ///  Whether a walk stopped because a mount stands at the slot it was asked for.
 /// Why:
 ///  Only that one refusal can be answered by the clone's own mount:
-///  a link, a missing folder or a folder that moved is a different fault,
+///  a link,
+///  a missing folder or a folder that moved is a different fault,
 ///  and `openat2`'s `EXDEV` is what the walk reports both for a mount point and
 ///  for a folder on another filesystem,
 ///  so the refusal's own kind is what this reads rather than its sentence.
