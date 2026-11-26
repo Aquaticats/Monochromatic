@@ -535,7 +535,7 @@ Until the package changes, two workarounds built it here: pointing `HOME` at an 
 
 I'm reporting here instead of on the AUR page because AUR account registration is closed; Arch's [incident notice][incident] lists account creation among the affected features.
 
-Assisted by AI.
+This report was prepared with an AI assistant; the build results above were run on the reporter's machine.
 
 [npmprefix]: https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally#:~:text=npm%20config%20set%20prefix
 [npmset]: https://docs.npmjs.com/cli/v11/commands/npm-config#:~:text=Modifies%20the%20user%20configuration%20file
@@ -546,3 +546,12 @@ Assisted by AI.
 [deleteprefix]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3196-L3199
 [incident]: https://archlinux.org/news/active-aur-malicious-packages-incident/#:~:text=Creating%20new%20accounts%20on%20the%20AUR
 ~~~
+
+Filed on the owner's choice as [ivpn/desktop-app#691](https://github.com/ivpn/desktop-app/issues/691) at `2026-11-26T08:34:00Z`,
+exactly as drafted,
+under the owner's GitHub account.
+GitHub serves it with no `<br>`,
+`<h2>` and `<h3>` sections under the page title,
+and all eight links.
+The AUR comment draft stays recorded for when AUR sign-up reopens;
+whether to post it then is the owner's decision.
