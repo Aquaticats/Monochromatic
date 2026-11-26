@@ -36,16 +36,20 @@ const TAG: &str = "clientJournal";
 /// Why:
 ///   A control must never write into the host's journal,
 /// and the variable is the only way a test says where its entry may go.
+///  A release build holds no read of the switch,
+///  so it answers the journal's own socket,
+///  or nothing in a unit-test build;
+///  the control that a build without the switch reads none of them asks this directly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const target = process.env.CLI_GIT_TEST_ONLY_JOURNAL_SOCKET ?? (isUnitTest ? undefined : '/run/systemd/journal/socket');
+/// const target = testOnly('CLI_GIT_TEST_ONLY_JOURNAL_SOCKET') ?? (isUnitTest ? undefined : '/run/systemd/journal/socket');
 /// ```
-fn target() -> Option<Target> {
-    return match std::env::var(TEST_SOCKET_VARIABLE) {
-        Ok(text) => Some(Target::parse(text.as_str())),
-        Err(_) if cfg!(test) => None,
-        Err(_) => Some(Target::journal()),
+pub(crate) fn target() -> Option<Target> {
+    return match crate::test_only_switches::text(TEST_SOCKET_VARIABLE) {
+        Some(text) => Some(Target::parse(text.as_str())),
+        None if cfg!(test) => None,
+        None => Some(Target::journal()),
     };
 }
 

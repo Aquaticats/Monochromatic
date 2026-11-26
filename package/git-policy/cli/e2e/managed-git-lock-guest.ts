@@ -193,7 +193,7 @@ async function run(chosen: Options): Promise<void> {
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --tests --locked > /root/lock-build.log 2>&1',
+    'cargo build --release --tests --locked --features test-only-switches > /root/lock-build.log 2>&1',
     'tail --lines=3 /root/lock-build.log',
   ].join('\n');
   guest({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
@@ -207,7 +207,7 @@ async function run(chosen: Options): Promise<void> {
     'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${CHECKOUT}`,
     // The arm's own layout call destroys the pool's tree and its mounts first, so no stale mount is left to refuse.
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
       `--filterset "test(zfs_managed_lock_guest)" > /root/lock-arm.log 2>&1; then status=0; else status=$?; fi`,
     'tail --lines=60 /root/lock-arm.log',
     'test "$status" = 0',
