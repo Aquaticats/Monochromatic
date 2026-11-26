@@ -1328,6 +1328,10 @@ disk in 20 s, 45.6 GiB read in all), so it was stopped and runs again as `old-nv
 that run started 19:27:37, passed phases 1 to 7 by 19:33:40 with no error line (the second clean pass of them), and from 19:33:40 sat in `[8/8] checking quota groups`, which `man btrfs-check` (btrfs-progs v7.3) says verifies only "qgroup referenced/exclusive accounting" and "can require extensive backref walks" (`--skip-qgroup-accounting` skips it);
 at 20:12 it held 20479 MiB at its cap plus 15318 MiB in zram, had hit `memory.max` 341460 times, and caused 30759 of the host's 48119 swap-ins a second, while the host stalled (memory full avg60 26.94, `MemAvailable` 4444 MiB, ARC at `c_min`, load 107);
 the grow it ends with gains 2147483648 bytes, `p6`'s 877355073536 over btrfs's 875207589888;
+on the owner's "Stop it now" the coordinator stopped it at about 20:21 (`MemAvailable` 4444 to 17537 MiB), and no grow runs:
+the owner asked "Didn't we say we're going to format the old nvme's data parts anyway?",
+and `doc/decision/cachyos-zfs-desktop.md` records it ("I'm going to wipe both current drives to make them ZFS"), the old drives kept read-only and unwiped only until the ZFS route is released;
+nothing further runs on the old NVMe's btrfs before that wipe, which is the owner's act;
 a check that has reached its last phase is read before it is stopped, and low-memory mode is no answer to memory pressure on this
 host, where the owner's "I'm going to use the whole machine" stands;
 the zram writeback timer runs every 15 minutes on 15-minute-idle pages at 1 GiB a run (same 96 GiB a day);
