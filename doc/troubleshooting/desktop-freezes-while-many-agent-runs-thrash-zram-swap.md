@@ -1462,6 +1462,23 @@ The largest reading, IO "full" 42.16 at 21:03:52, fell inside the run that ended
 so the drive's own writes do not explain it; what does is not measured (one reading: the writeback holding zram1 while swap-ins wait on it, which these counters cannot show).
 Control minutes peaked at 5.17.
 
+The sampler ended at 2026-11-25T23:32:05-05:00 with 36 run minutes,
+each followed by its control minute
+(2111 sampled seconds of run minutes and 2160 of control minutes;
+from 21:13:23 each line also holds the main drive's write rate and busy time).
+Over the whole span IO "full" avg10 averaged 1.16 in run minutes against 0.66 in control minutes,
+and memory "full" 1.35 against 1.17,
+while the seconds with memory "full" at 5 or more were 52 in run minutes and 87 in control minutes.
+Pair by pair,
+the run minute read the higher IO "full" in 21 of the 36 pairs and the higher memory "full" in 17,
+splits that chance alone gives this often
+(21 or more of 36 by chance is about one time in five),
+and the largest stalls of the span fell in both kinds of minute:
+memory "full" 32.80 in the run minute from 21:18:04 and 18.32 in the control minute from 21:13:04.
+So the writeback to the old drive's partition shows no stall these readings can tell from the minutes without it;
+the earlier seven-run difference was the spread of a short sample,
+and the machine's stalls come from memory pressure whichever minute they fall in.
+
 A misreading to avoid: `systemctl --user show <scope> --property=MemoryMax` prints `infinity` for a scope that has already
 ended, because it reports defaults for a unit it no longer has;
 read `memory.max` in the scope's cgroup instead.

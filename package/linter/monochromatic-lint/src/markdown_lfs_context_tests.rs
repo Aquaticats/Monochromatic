@@ -449,3 +449,25 @@ fn resolved_targets_are_cached_per_repository() {
         first
     );
 }
+
+/// An image over the bound is refused rather than read into memory,
+///  and the refusal names the file and says how to change the bound.
+#[test]
+fn an_image_over_the_bound_is_refused() {
+    let fixture: Fixture = Fixture::new();
+    write_tree(fixture.path.as_path());
+    let image: PathBuf = fixture.path.join("pkg/asset/huge.png");
+    let file: std::fs::File = std::fs::File::create(&image).expect("fixture image");
+    file.set_len(super::MAX_LFS_TARGET_BYTES + 1)
+        .expect("sparse image one byte over the bound");
+    let repo: LfsImageRepo = repository(fixture.path.as_path());
+    let error = repo
+        .resolve_target("pkg/asset/huge.png")
+        .expect_err("an image over the bound is refused");
+    assert!(error.message.contains("huge.png"), "{}", error.message);
+    assert!(
+        error.message.contains("MAX_LFS_TARGET_BYTES"),
+        "{}",
+        error.message
+    );
+}

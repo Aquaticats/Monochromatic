@@ -24,6 +24,7 @@
 use crate::{
     layout_finding::{
         LayoutFinding,
+        key_path,
         shown,
     },
     markdown_lfs_target::lexical_normal,
@@ -79,17 +80,23 @@ pub struct LinkRead {
 
 /// What:
 ///  Make a finding about an entry,
-///  with the command that writes a correct link.
+///  naming the fault the entry has.
 /// Why:
-///  Every finding says what to do next.
+///  Every finding says what to do next,
+///  and one entry can go wrong in seven ways.
+///  The fault is part of the key,
+///  because one line of a list must not tolerate whichever fault the entry has later:
+///  a broken link fixed into a file is a different finding,
+///  and a line left behind for it must say so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function entryFinding(entry: Path, message: string): LayoutFinding;
+/// function entryFinding(entry: Path, fault: string, message: string): LayoutFinding;
 /// ```
 fn entry_finding(
     entry: &Path,
     base: &Path,
+    fault: &str,
     message: String,
 ) -> LayoutFinding {
     return LayoutFinding {
@@ -97,7 +104,7 @@ fn entry_finding(
         line: 0,
         message,
         help: None,
-        key: format!("link {}", shown(entry, base)),
+        key: format!("link {} {fault}", key_path(entry, base)),
     };
 }
 
@@ -131,6 +138,23 @@ pub fn link_command(
 }
 
 /// What:
+///  The warning that a link written into a loop of folders makes `cargo package` walk without end.
+/// Why:
+///  `cargo package` follows the links,
+/// so a link into a loop packs the same folders over and over:
+///  the wrapper measured 1.9 seconds with its 109 links and no answer after 120 seconds with 421 links in place.
+///  A finding that only says `Create the link:` sends a looped crate into that hang,
+///  so every link command carries the hazard and what ends it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const LINK_LOOP_HAZARD = 'A crate whose folders still use each other in a loop must untangle the loop first: ...';
+/// ```
+pub fn link_loop_hazard() -> &'static str {
+    return "A crate whose folders still use each other in a loop must untangle that loop first: `cargo package` follows a link into a loop without end (1.9 seconds with 109 links, no answer after 120 seconds with 421), and a package that keeps its links needs `exclude = [\"**/uses\"]` in its `Cargo.toml`.";
+}
+
+/// What:
 ///  Check one entry of a `uses` folder.
 /// Why:
 ///  An entry is good only when it is a link whose target exists,
@@ -154,6 +178,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "unreadable",
             format!("{shown_entry} cannot be read."),
         ));
     };
@@ -161,6 +186,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "not-a-symbolic-link",
             format!(
                 "{shown_entry} is not a symbolic link; a uses folder holds only links to the folders the code uses."
             ),
@@ -174,6 +200,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "broken",
             format!(
                 "{shown_entry} is a broken link: it points to {written}, which does not exist."
             ),
@@ -183,6 +210,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "points-to-a-file",
             format!(
                 "{shown_entry} points to {written}, which is a file; a link must point to a folder."
             ),
@@ -192,6 +220,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "not-a-source-folder",
             format!(
                 "{shown_entry} points to {written}, which is not a source folder of this package (a folder holding a module file of its production code)."
             ),
@@ -201,6 +230,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "points-to-its-own-folder",
             format!(
                 "{shown_entry} points to the folder it is in; a folder does not link to itself."
             ),
@@ -218,6 +248,7 @@ fn check_entry(
         return Err(entry_finding(
             entry,
             base,
+            "named-after-another-folder",
             format!(
                 "{shown_entry} points to the folder {wanted}, so the link must be named {wanted}."
             ),
@@ -253,6 +284,7 @@ pub fn read_links(
             read.findings.push(entry_finding(
                 &uses,
                 base,
+                "uses-unreadable",
                 format!("{} cannot be read: {error}.", shown(&uses, base)),
             ));
             return read;
@@ -262,6 +294,7 @@ pub fn read_links(
         read.findings.push(entry_finding(
             &uses,
             base,
+            "uses-is-not-a-folder",
             format!(
                 "{} must be a folder of links, not a file or a link.",
                 shown(&uses, base)
@@ -273,6 +306,7 @@ pub fn read_links(
         read.findings.push(entry_finding(
             &uses,
             base,
+            "uses-unlistable",
             format!("{} cannot be listed.", shown(&uses, base)),
         ));
         return read;

@@ -156,7 +156,9 @@ fn missing_extra_and_duplicate_entries_are_reported() {
     assert_eq!(found.len(), 3, "{text}");
 }
 
-/// A top doc without the marker line has no list.
+/// A top doc without the marker line has no list,
+///  and the file the doc never lists is a finding of its own,
+///  so a `no-file-list` entry cannot tolerate a file added later.
 #[test]
 fn a_top_doc_without_the_list_marker_is_reported() {
     let fixture = package_with(&[
@@ -168,11 +170,15 @@ fn a_top_doc_without_the_list_marker_is_reported() {
         ("src/a/one.rs", ""),
     ]);
     let found: Vec<String> = findings_of(&fixture.path);
-    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(found.len(), 2, "{found:#?}");
     assert!(
         found[0].starts_with("src/a/mod.rs:1 The top doc of src/a/mod.rs has no file list"),
         "{}",
         found[0]
+    );
+    assert_eq!(
+        found[1],
+        "src/a/mod.rs:1 The top doc of src/a/mod.rs does not list the file `one.rs`."
     );
 }
 
@@ -608,21 +614,123 @@ fn a_listed_file_use_that_names_no_use_is_reported() {
     );
 }
 
-/// A listed key takes exactly the doc finding it names out of the report.
+/// A listed key takes exactly the doc finding it names out of the report,
+///  and a second file the doc omits stays a finding,
+///  which a fixture with one finding could not show.
 #[test]
 fn a_listed_doc_key_takes_its_finding_out_of_the_report() {
     let fixture = package_with(&[
         ("src/lib.rs", "mod a;\n"),
         (
             "src/a/mod.rs",
-            index_listing(&["one.rs"], &["one", "two"]).as_str(),
+            index_listing(&["one.rs"], &["one", "two", "three"]).as_str(),
         ),
         ("src/a/one.rs", ""),
         ("src/a/two.rs", ""),
+        ("src/a/three.rs", ""),
     ]);
-    assert_eq!(findings_with(&fixture.path, "").len(), 1);
+    assert_eq!(findings_with(&fixture.path, "").len(), 2);
     let listed: &str = "missing-entry src/a/mod.rs two.rs\n";
-    assert_eq!(findings_with(&fixture.path, listed), Vec::<String>::new());
-    let found: Vec<String> = findings_with(&fixture.path, "missing-entry src/a/mod.rs other.rs\n");
-    assert_eq!(found.len(), 2, "{found:#?}");
+    let found: Vec<String> = findings_with(&fixture.path, listed);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].contains("does not list the file `three.rs`"),
+        "{}",
+        found[0]
+    );
+}
+
+/// Every copy of a name the doc lists twice or more has its own key,
+///  so one line tolerates one extra copy and a third copy is reported.
+#[test]
+fn every_extra_copy_of_a_listed_name_has_its_own_key() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `one.rs`: one.\n//! - `one.rs`: again.\n//! - `one.rs`: a third time.\nmod one;\n",
+        ),
+        ("src/a/one.rs", ""),
+    ]);
+    let tree = tree_of(&fixture.path);
+    let uses = collect_uses(&tree);
+    let copies: Vec<crate::layout_finding::LayoutFinding> =
+        check_file_order(&tree, uses.as_slice(), &fixture.path, None)
+            .into_iter()
+            .filter(|item| return item.key.starts_with("listed-twice"))
+            .collect::<Vec<crate::layout_finding::LayoutFinding>>();
+    assert_eq!(copies.len(), 2, "{copies:#?}");
+    assert_eq!(copies[0].key, "listed-twice src/a/mod.rs one.rs");
+    // The second extra copy gains a number, so a line for the first one names one finding.
+    assert_eq!(copies[1].key, "listed-twice src/a/mod.rs one.rs#2");
+    let list = crate::layout_allow_list::parse_allow_list(
+        "listed-twice src/a/mod.rs one.rs\n",
+        Path::new("allow-list.txt"),
+    )
+    .expect("the fixture list is valid");
+    let kept: Vec<String> = check_file_order(&tree, uses.as_slice(), &fixture.path, Some(&list))
+        .iter()
+        .map(|item| return item.key.clone())
+        .collect::<Vec<String>>();
+    assert_eq!(kept, ["listed-twice src/a/mod.rs one.rs#2"], "{kept:#?}");
+}
+
+/// A listed file use whose two files are no longer in one loop is a finding,
+///  because the entry no longer holds a loop out of the report.
+#[test]
+fn a_listed_file_use_that_holds_no_loop_is_reported() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            index_listing(&["one.rs", "two.rs"], &["one", "two"]).as_str(),
+        ),
+        ("src/a/one.rs", "use super::two::X;\n"),
+        ("src/a/two.rs", ""),
+    ]);
+    // The use is made, and nothing uses `one.rs` back, so its two ends are in no loop.
+    let found: Vec<String> = findings_with(&fixture.path, "file-uses src/a one.rs -> two.rs\n");
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].contains("tolerates nothing any more"),
+        "{}",
+        found[0]
+    );
+}
+
+/// A use added between two files of a tolerated loop is a finding,
+///  because a tolerated loop may only lose uses.
+#[test]
+fn a_new_use_inside_a_tolerated_file_loop_is_a_finding() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            index_listing(
+                &["alpha.rs", "beta.rs", "gamma.rs"],
+                &["alpha", "beta", "gamma"],
+            )
+            .as_str(),
+        ),
+        ("src/a/alpha.rs", "use super::beta::X;\n"),
+        ("src/a/beta.rs", "use super::gamma::Y;\n"),
+        ("src/a/gamma.rs", "use super::alpha::Z;\n"),
+    ]);
+    // The control: without the list the loop of three files is one finding.
+    let open: Vec<String> = findings_with(&fixture.path, "");
+    assert_eq!(open.len(), 1, "{open:#?}");
+    // Two of the loop's three uses are recorded, so the third is a use added inside a tolerated loop.
+    let listed: &str = "file-uses src/a alpha.rs -> beta.rs\nfile-uses src/a beta.rs -> gamma.rs\n";
+    let found: Vec<String> = findings_with(&fixture.path, listed);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].contains("and both files sit inside one loop the allow list tolerates today"),
+        "{}",
+        found[0]
+    );
+    assert!(
+        found[0].contains("`gamma.rs` uses `alpha.rs`"),
+        "{}",
+        found[0]
+    );
 }

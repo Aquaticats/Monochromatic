@@ -36,7 +36,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/config/lfs-r2-worker"
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/config/lfs-r2-worker"
 }

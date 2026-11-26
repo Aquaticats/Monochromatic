@@ -40,15 +40,33 @@ const DEADLINE: Duration = Duration::from_secs(30);
 pub(crate) fn finished_within_deadline<T: Send + 'static>(
     work: impl FnOnce() -> T + Send + 'static
 ) -> T {
+    return finished_within_deadline_after(DEADLINE, work);
+}
+
+/// What:
+///  Run a probe on a new thread and return its answer,
+///  or fail the test when it panics or does not finish before the given deadline.
+/// Why:
+///  A probe whose cost grows with the square of its input shows that cost as a run that does not end,
+///  so its test states how long the linear answer may take and fails when a quadratic one misses it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function finishedWithin(deadlineMs: number, work: () => T): T;
+/// ```
+pub(crate) fn finished_within_deadline_after<T: Send + 'static>(
+    deadline: Duration,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> T {
     let (sender, receiver) = mpsc::channel::<T>();
     std::thread::spawn(move || {
         // A send fails only after the deadline passed and the receiver is gone, which nobody reads.
         let _ = sender.send(work());
     });
-    return match receiver.recv_timeout(DEADLINE) {
+    return match receiver.recv_timeout(deadline) {
         Ok(answer) => answer,
         Err(mpsc::RecvTimeoutError::Timeout) => {
-            panic!("the probe did not finish within {DEADLINE:?}")
+            panic!("the probe did not finish within {deadline:?}")
         }
         Err(mpsc::RecvTimeoutError::Disconnected) => {
             panic!("the probe panicked before it answered")

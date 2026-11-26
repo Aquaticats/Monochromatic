@@ -3,7 +3,8 @@
 //!  read from the file its `allow` option names.
 //! Why:
 //!  A crate that switches a layout rule on does not become correct at once:
-//!  the rule's findings it has today are recorded, one entry per finding,
+//!  the rule's findings it has today are recorded,
+//! one entry per finding,
 //!  and a run fails when a finding is not on the list,
 //!  so new code cannot add one.
 //!  An entry that stops matching a finding is a finding of its own,
@@ -11,9 +12,13 @@
 //! Decisions:
 //!  a folder rule entry and a file rule entry that tolerate one use between two folders or two files
 //!  are the only entries that suppress more than one finding;
-//!  they suppress that one use, so every loop needs all of its uses on the list;
+//!  they suppress that one use,
+//! so every loop needs all of its uses on the list;
 //!  an entry that names no finding any more says so,
 //!  because a list that keeps dead lines is not a list of today's findings;
+//!  a key names one finding,
+//!  so the rule numbers a finding that would share an earlier one's key,
+//!  and one line never tolerates a finding a later edit added;
 //!  paths in an entry are relative to the package folder,
 //!  the way findings show them,
 //!  and never absolute and never climb out with `..`,
@@ -28,8 +33,14 @@
 //! function readAllowList(path: Path): AllowList;
 //! ```
 
-/// Import the finding shape,
-///  the display helper and native paths.
+/// Import the entry shapes and the line reader the list is built from,
+///  re-exported so a caller asks the list module for both.
+pub use crate::layout_allow_entries::{
+    AllowEntry,
+    AllowKind,
+    parse_entries,
+};
+/// Import the finding shape and the display helper.
 use crate::layout_finding::{
     LayoutFinding,
     shown,
@@ -37,6 +48,7 @@ use crate::layout_finding::{
 /// Import ordered collections and native paths.
 use std::{
     collections::BTreeSet,
+    io::Read,
     path::{
         Path,
         PathBuf,
@@ -47,81 +59,23 @@ use std::{
 ///  The largest list file this reader accepts:
 ///  one mebibyte.
 /// Why:
-///  This repository's largest list is the git wrapper's folder list,
-///  about 90 KiB for today's 1,073 tolerated uses,
-///  so a mebibyte leaves a decade of growth and still bounds a file a person controls.
+///  This repository's largest lists are the git wrapper's,
+///  measured on 2026-11-25 from the branch that builds them:
+///  `folder-rule.txt` 57,956 bytes with 524 `uses` lines and 416 `missing-link` lines,
+///  `file-rule.txt` 53,048 bytes with 544 `file-uses` lines and 42 `no-file-list` lines.
+///  A mebibyte is about 18 times the larger one,
+///  so it leaves room for a decade of growth and still bounds a file a person controls.
 ///  The siblings a reader might expect are an unbounded read
 ///  and a per-entry limit;
-///  a bound on the whole file is the one that keeps a mistyped path from reading a disk image.
+///  a bound on the whole file is the one that keeps a mistyped path from reading a disk image,
+///  and the read itself is bounded too,
+///  so a file that grows between the check and the read is refused rather than swallowed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const MAX_BYTES = 1024 * 1024;
 /// ```
 pub const MAX_BYTES: u64 = 1024 * 1024;
-
-/// The word that starts an entry tolerating one use between two folders.
-const FOLDER_USE_WORD: &str = "uses";
-
-/// The word that starts an entry tolerating one use between two files of a folder.
-const FILE_USE_WORD: &str = "file-uses";
-
-/// The text that joins the two ends of a tolerated use.
-const ARROW: &str = "->";
-
-/// What:
-///  What one entry of a list tolerates.
-/// Why:
-///  A use is suppressed before loops are found;
-///  a finding key is matched against the findings that were produced.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type AllowKind = { kind: 'folder-use'; from: Path; to: Path }
-///   | { kind: 'file-use'; folder: Path; from: string; to: string }
-///   | { kind: 'key'; key: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum AllowKind {
-    /// One use between two folders of the package.
-    FolderUse {
-        /// The folder whose code uses.
-        from: PathBuf,
-        /// The folder it uses.
-        to: PathBuf,
-    },
-    /// One use between two files of one folder.
-    FileUse {
-        /// The folder both files are in.
-        folder: PathBuf,
-        /// The file whose code uses.
-        from: String,
-        /// The file it uses.
-        to: String,
-    },
-    /// The exact key one finding reports.
-    Key(String),
-}
-
-/// What:
-///  One line of a list, as written and as read.
-/// Why:
-///  A finding about a dead entry points at that line,
-///  and its message quotes the line so the reader can find it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type AllowEntry = { line: number; text: string; kind: AllowKind };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AllowEntry {
-    /// One-based line of the list file.
-    pub line: usize,
-    /// The line as written, without surrounding spaces.
-    pub text: String,
-    /// What the line tolerates.
-    pub kind: AllowKind,
-}
 
 /// What:
 ///  The entries of one list file.
@@ -142,96 +96,10 @@ pub struct AllowList {
 }
 
 /// What:
-///  Whether a path an entry names may be used:
-///  relative, with no component that leaves the package.
-/// Why:
-///  A finding shows paths relative to the package,
-///  and an absolute path or a `..` would mean a different file on every machine.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function usable(path: string): boolean;
-/// ```
-fn usable(path: &str) -> bool {
-    if path.is_empty() {
-        return false;
-    }
-    let parsed: &Path = Path::new(path);
-    if parsed.is_absolute() {
-        return false;
-    }
-    for part in parsed.components() {
-        if part.as_os_str() == ".." {
-            return false;
-        }
-    }
-    return true;
-}
-
-/// What:
-///  Read one line as an entry,
-///  or say why it names nothing.
-/// Why:
-///  A line that is a misspelling must fail the run,
-///  because a silently ignored line would let a finding through.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function entryOf(line: number, text: string): AllowEntry;
-/// ```
-fn entry_of(
-    line: usize,
-    text: &str,
-) -> Result<AllowEntry, String> {
-    let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
-    let kind: AllowKind = if words.first() == Some(&FOLDER_USE_WORD) {
-        if words.len() != 4 || words[2] != ARROW {
-            return Err(format!(
-                "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
-            ));
-        }
-        if !usable(words[1]) || !usable(words[3]) {
-            return Err(format!(
-                "Line {line} names a folder that is absolute or climbs out with `..`. A path is relative to the package folder, as findings show it."
-            ));
-        }
-        AllowKind::FolderUse {
-            from: PathBuf::from(words[1]),
-            to: PathBuf::from(words[3]),
-        }
-    } else if words.first() == Some(&FILE_USE_WORD) {
-        if words.len() != 5 || words[3] != ARROW {
-            return Err(format!(
-                "Line {line} reads `{text}`. A use between two files is written `file-uses <folder> <file> {ARROW} <file>`."
-            ));
-        }
-        if !usable(words[1]) {
-            return Err(format!(
-                "Line {line} names a folder that is absolute or climbs out with `..`. A path is relative to the package folder, as findings show it."
-            ));
-        }
-        AllowKind::FileUse {
-            folder: PathBuf::from(words[1]),
-            from: String::from(words[2]),
-            to: String::from(words[4]),
-        }
-    } else {
-        AllowKind::Key(String::from(text))
-    };
-    return Ok(AllowEntry {
-        line,
-        text: String::from(text),
-        kind,
-    });
-}
-
-/// What:
 ///  Read a whole list from its text.
 /// Why:
-///  A blank line and a line that starts with `#` carry nothing;
-///  every other line must read as one entry,
-///  and no line may repeat another,
-///  because a list that names one thing twice is not a list of distinct findings.
+///  The lines are read by `layout_allow_entries.rs`,
+///  and the list they make is the one a rule asks about.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -241,26 +109,9 @@ pub fn parse_allow_list(
     text: &str,
     source: &Path,
 ) -> Result<AllowList, String> {
-    let mut entries: Vec<AllowEntry> = Vec::<AllowEntry>::new();
-    let mut seen: BTreeSet<String> = BTreeSet::<String>::new();
-    for (index, raw) in text.lines().enumerate() {
-        let line: usize = index + 1;
-        let trimmed: &str = raw.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-        let entry: AllowEntry = entry_of(line, trimmed)?;
-        if !seen.insert(entry.text.clone()) {
-            return Err(format!(
-                "Line {line} repeats the entry `{}` that an earlier line already holds.",
-                entry.text
-            ));
-        }
-        entries.push(entry);
-    }
     return Ok(AllowList {
         source: source.to_path_buf(),
-        entries,
+        entries: parse_entries(text)?,
     });
 }
 
@@ -295,7 +146,30 @@ pub fn read_allow_list(path: &Path) -> Result<AllowList, String> {
             metadata.len()
         ));
     }
-    let text: String = std::fs::read_to_string(path).map_err(|error| {
+    let file: std::fs::File = std::fs::File::open(path).map_err(|error| {
+        return format!(
+            "The allow-list file {} cannot be read: {error}.",
+            path.display()
+        );
+    })?;
+    // What: at most one byte more than the cap, so the cap is enforced on what was read and not only on what was measured above.
+    // Why: a file that grows between the measurement and the read must be refused, not read whole.
+    let mut bytes: Vec<u8> = Vec::<u8>::new();
+    file.take(MAX_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            return format!(
+                "The allow-list file {} cannot be read: {error}.",
+                path.display()
+            );
+        })?;
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err(format!(
+            "The allow-list file {} is longer than the {MAX_BYTES} bytes this reader accepts.",
+            path.display()
+        ));
+    }
+    let text: String = String::from_utf8(bytes).map_err(|error| {
         return format!(
             "The allow-list file {} cannot be read: {error}.",
             path.display()
