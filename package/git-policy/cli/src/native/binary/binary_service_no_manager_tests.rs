@@ -31,11 +31,21 @@ use super::support::{
     run_direct,
     stderr_of,
 };
+/// The full pipe nobody drains,
+/// the bytes it still holds and the bounded wait for a command given one.
+use super::support_a_full_standard_error::{
+    PipeNobodyDrains,
+    pending_bytes,
+    started_on_a_full_pipe,
+    wait_bounded,
+};
 use git_policy_cli::service_messages::{
     LINGER_COMMAND,
     NOTHING_CHANGED,
 };
 use std::ffi::OsStr;
+/// The descriptor whose waiting bytes a control counts.
+use std::os::fd::AsRawFd;
 use std::path::{
     Path,
     PathBuf,
@@ -154,5 +164,47 @@ fn a_commit_outside_a_repository_says_what_native_git_says() {
         "the same words as native Git"
     );
     assert!(wrapped.stdout.is_empty());
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit run outside any repository,
+///  whose standard error is a full pipe nobody drains,
+///  returns with Git's own status and writes nothing.
+/// Why:
+///   Git's own words for that refusal are the commit's last note,
+///  and they used to be written on the commit's own thread:
+///  a reader that stopped draining held the command there for ever (issue 6421).
+///  The words go to the thread that writes standard error,
+///  so the command returns,
+///  and the pipe still holds every byte this control put in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('outside', () => { const { child, pipe } = startedOnAFullPipe(wrappedCommit(plain, commit)); expect(waitBounded(child)).toBe(128); expect(pendingBytes(pipe)).toBe(pipe.capacity) })
+/// ```
+#[test]
+fn a_commit_outside_a_repository_returns_with_its_standard_error_full() {
+    let fixture: Fixture = fixture("no-manager-outside-stalled");
+    let plain: PathBuf = fixture.root.join("plain");
+    std::fs::create_dir_all(&plain).expect("a directory that belongs to no repository");
+    let mut command: std::process::Command =
+        wrapped_commit(&fixture, &plain, &["commit", "--message=x"]);
+    let (child, pipe): (std::process::Child, PipeNobodyDrains) =
+        started_on_a_full_pipe(&mut command);
+    // The commit's own bound is `COMMIT_BOUND_SECONDS` (120 s), and a `SIGKILL`ed command is reaped
+    //  in a grace past it, so a control that reached this bound fails with what it waited for.
+    let status: std::process::ExitStatus =
+        wait_bounded(child, std::time::Duration::from_secs(150), "the commit");
+    assert_eq!(
+        status.code(),
+        Some(128),
+        "the command returned with Git's own status for a directory that belongs to no repository"
+    );
+    assert_eq!(
+        pending_bytes(pipe.read_end.as_raw_fd()),
+        pipe.capacity,
+        "the pipe was read by nobody, so every byte this control put in it is still there"
+    );
     remove_settled(&fixture);
 }
