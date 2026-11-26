@@ -1,6 +1,7 @@
 # Compile-time host paths the crate's test binaries carry
 
-Read from `main` at commit `4aa035890d` on 2026-11-26T03:56Z, with
+Read from `main` at commit `4aa035890d` on 2026-11-26T03:56Z, and read again after `main` was merged at
+commit `d7201d4501` with the same counts, with
 `rg -n 'env!\("CARGO_(MANIFEST_DIR|BIN_EXE_monochromatic-git-policy-cli|TARGET_TMPDIR)"' package/git-policy/cli/src`.
 
 ## env! values (compile-time text, baked into the binary)
