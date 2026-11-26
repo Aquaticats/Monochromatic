@@ -250,6 +250,9 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- 6518 as `ca5c45de6f` (17:25): every fixture commit starts `git maintenance run --auto`, whose `worktree prune` removed a hand-made registration;
+  the controls now make it with `git worktree add --no-checkout --lock`. The round looped its module 60 times, so `~/temp/agent/rounds-common-rules-2026-11-25.md`
+  now says a module loop is the banned repeated load and names what to do instead.
 - 6519 as `176ded09cb` (17:20): the notice sink control reaches its dropped line by one `try_send` and waits 15 s, not 2 s,
   because a late-woken thread under load missed the old window; its stated limit is that a `finish` waiting 3 to 10 s would now pass.
 - The owner's two removal answers merged as `cfa14e5968` (17:05): a removal or move behind an unknown global option is refused where slot records exist,
