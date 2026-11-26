@@ -129,6 +129,21 @@ fn what_it_holds(item: &ast::Item) -> String {
 }
 
 /// What:
+///  One text with every run of whitespace squeezed to one space and both ends trimmed.
+/// Why:
+///  A key is one line of a list file,
+///  so an item written over several lines must not put a line break in it;
+///  a token of the source, such as an ABI string, needs the same squeezing as a syntax node does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const squeeze = (text: string) => text.split(/\s+/u).filter(Boolean).join(' ')
+/// ```
+fn squeeze(text: &str) -> String {
+    return text.split_whitespace().collect::<Vec<&str>>().join(" ");
+}
+
+/// What:
 ///  The text of a syntax node with every run of whitespace squeezed to one space and both ends trimmed.
 /// Why:
 ///  A key is one line of a list file,
@@ -139,12 +154,7 @@ fn what_it_holds(item: &ast::Item) -> String {
 /// const compact = (node) => node.text().split(/\s+/u).filter(Boolean).join(' ')
 /// ```
 fn compact(node: &SyntaxNode) -> String {
-    return node
-        .text()
-        .to_string()
-        .split_whitespace()
-        .collect::<Vec<&str>>()
-        .join(" ");
+    return squeeze(node.text().to_string().as_str());
 }
 
 /// What:
@@ -258,7 +268,9 @@ fn named(item: &ast::Item) -> String {
         ast::Item::ExternBlock(found) => {
             match found.abi().and_then(|abi| return abi.string_token()) {
                 // The ABI's own string, such as `"C"`, not the `extern` keyword the node also holds.
-                Some(abi_string) => format!("extern-block-{}", abi_string.text()),
+                // What: the string with its whitespace squeezed, because a list line ends at a line break.
+                // Why: an ABI string may be written over two lines, and its key must stay on one.
+                Some(abi_string) => format!("extern-block-{}", squeeze(abi_string.text())),
                 None => String::from("extern-block-unstated"),
             }
         }
