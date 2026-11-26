@@ -283,7 +283,7 @@ Pi's `rate-limit-fallback` plugin publishes two virtual selections,
 `rate-limit-fallback/writer` and `rate-limit-fallback/reviewer`
 (`package/pi-plugin/rate-limit-fallback/README.md`).
 A run on one holds no single pool,
-so the driver counts it in every pool that selection's router may send it to,
+so the driver counts it once against the room that selection's open members have together,
 read from `VIRTUAL_POOLS` in `src/pool-limits.ts`:
 
 - `rate-limit-fallback/writer`:
@@ -294,17 +294,41 @@ read from `VIRTUAL_POOLS` in `src/pool-limits.ts`:
   Its fourth member,
   Synthetic's DeepSeek model,
   belongs to no pool of this table,
-  so it holds no slot here.
+  so it adds no room here.
 
-While one member has room and another does not, the router's request can land on either,
-so a run on a virtual selection holds a slot in each and starts only while every one of them has room.
-That is what keeps a pool from taking more runs than its room when a member answers `429`
-and the router moves the request, and later the run, to the next member.
-The cost is that the smallest member bounds how many such runs may go at once:
-five qwen runs at the time of writing,
-however much room `opencode-go` and `neuralwatt-flex` have left.
-A refusal names each member pool with its count and its limit,
-and the setting that gives a pool room again.
+The owner, 2026-11-26,
+reading that five rounds ran at once because the qwen plan's room is 5:
+"Just because the 1st pool is 5 at a time doesn't mean you gotta limit yourself."
+So a run on a virtual selection is one run, never one run per member.
+It may start while the runs on that selection's members,
+which are the runs on the selection itself and the runs pinned to one member,
+are fewer than the room those members take together:
+45 with the table's limits of 2026-11-26,
+because the qwen plan's pool takes 5, `opencode-go` 20 and `neuralwatt-flex` 20.
+A closed member adds no room,
+and the runs already on it are still counted where they are,
+so they count in that total while the member itself takes no new run.
+
+A member's own room bounds only the runs pinned to it.
+A run pinned to one pool still needs a slot of that pool's own room,
+and it also leaves the members' room together a slot,
+because it is one more run on every virtual selection that pool belongs to.
+So a run that names no model of its own may take the first pool of the owner's order
+while virtual-writer runs are going,
+and it is refused once those members' room together is full,
+even when its own pool has room left.
+
+The counts line carries one entry per pool and one per virtual selection.
+A pool's entry counts the runs pinned to it,
+which is what its own room bounds.
+A selection's entry counts every run on its members once,
+with the room those members have together,
+as `rate-limit-fallback/writer 2/45 together`.
+A refusal names each member pool with its count and the reason it takes no run now,
+says how full its open members are together,
+names every member a caller closed and so left out of that total,
+and gives the setting that gives a pool room again.
+A run on the reviewer selection is counted the same way, from the same three pools.
 
 The member order is the plugin's,
 and this table carries a copy of it because the driver declares no dependency on that package,
@@ -317,8 +341,10 @@ because that pair is what lets the plugin's router move a refused request on;
 rewriting it into one member's pair would pin the run to that member.
 It gets the largest wall factor of those members,
 because the run keeps one wall clock wherever its router lands.
-A run naming a member pool directly is not this case:
-the pool it names takes it, and that pool is the only one it holds.
+A run naming one pool directly is not this case:
+that pool's own room takes it,
+and, when the pool is a member of a virtual selection,
+that selection's members must have room together too.
 
 ### The room a new run needs
 
