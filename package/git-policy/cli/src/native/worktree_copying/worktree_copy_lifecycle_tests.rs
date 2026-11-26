@@ -31,11 +31,11 @@ use crate::worktree_copy_registry::{
     WorktreeCopyObservation,
     observe_copy_source,
 };
+/// The hand-over of a snapshot's trash and the package repairs that follow the copy.
+#[cfg(target_os = "linux")]
+use crate::worktree_copy_settles_one_invocation::finish_trash_and_repair;
 /// The words of the lifecycle's own failures.
-use crate::worktree_copy_settles_one_invocation::{
-    finish_trash_and_repair,
-    run_with_worktree_copy,
-};
+use crate::worktree_copy_settles_one_invocation::run_with_worktree_copy;
 /// The trash a snapshot leaves in a new worktree.
 #[cfg(target_os = "linux")]
 use crate::worktree_trash::PendingTrash;
