@@ -8,7 +8,10 @@
  @module
  */
 
-import { spawn, } from 'node:child_process';
+import {
+  type ChildProcess,
+  spawn,
+} from 'node:child_process';
 import {
   once,
 } from 'node:events';
@@ -58,6 +61,60 @@ export type CommandRunner = (request: Readonly<CommandRequest>,) => Promise<Comm
  */
 async function collectStream(stream: NodeJS.ReadableStream,): Promise<string> {
   return await readStreamText(stream,);
+}
+
+/**
+ What stopping a command produced.
+
+ `problem` is set when the command was still running after the kill of a command that
+ never started, or when the kill itself failed.
+ */
+type StopResult = {
+  readonly problem?: string;
+};
+
+/**
+ Stops a command the runner no longer waits for, and releases its pipes.
+
+ The timeout's abort sends SIGTERM, which a program may ignore or handle slowly; its
+ pipes would then keep this process open until whoever started it gives up, so the
+ command is killed hard instead. SIGKILL cannot be ignored, and the pipes are dropped
+ first in case a grandchild inherited them.
+
+ @param child - the started process
+
+ @returns an empty result once the command is gone, or the reason it is not
+ */
+async function stopCommand(child: ChildProcess,): Promise<StopResult> {
+  /**
+   The child's pipes, dropped so a grandchild that inherited them cannot keep this process
+   open.
+   */
+  const {
+    stderr,
+    stdout,
+  } = child;
+  stdout?.destroy();
+  stderr?.destroy();
+  /**
+   Whether the command has ended already: Node records an exit code, or the signal that
+   ended it, before it emits close, and a command that never started records -2.
+   */
+  if ((child.exitCode !== null) || (child.signalCode !== null)) return {};
+  /**
+   Close of the child, taken before the kill so a fast exit is not missed.
+   */
+  const closed = once(
+    child,
+    'close',
+  );
+  child.kill('SIGKILL',);
+  try {
+    await closed;
+    return {};
+  } catch (error) {
+    return { problem: `stopping it failed: ${String(error,)}`, };
+  }
 }
 
 /**
@@ -129,10 +186,19 @@ export async function runCommand({
       exitCode: (typeof exitCode) === 'number' ? exitCode : -1,
     };
   } catch (error) {
+    /**
+     Stopping the command, which the timeout may have left alive because SIGTERM can be
+     ignored.
+     */
+    const stopped = await stopCommand(started,);
+    /**
+     Why the command did not finish, with any refusal to stop it.
+     */
+    const reason = `${command} could not be run or was stopped after ${String(timeoutMs,)} ms: ${String(error,)}`;
     return {
       stdout: '',
       stderr: '',
-      problem: `${command} could not be run or was stopped after ${String(timeoutMs,)} ms: ${String(error,)}`,
+      problem: stopped.problem === undefined ? reason : `${reason}; ${stopped.problem}`,
     };
   }
 }
