@@ -649,6 +649,12 @@ and the failures with the commit that fixed them.
   holding issues 6493, 6505, 6507 and 6508, the crate split's round 1 and the linter locked to `alpha.15`:
   `11996 tests run: 11996 passed (5 slow, 1 leaky), 49 skipped`, in 843 s.
   It failed nothing; the leaky test is issue 6501's relay control.
+- `42a59e812e`,
+  unit `whole-gate-on-main-42a59e812e`,
+  started 2026-11-26T12:29:03-05:00,
+  holding issues 6500, 6501, 6503, 6509, 6511, 6512 and 6514 and the alpha.47 ZFS pass's three rounds:
+  `12028 tests run: 12028 passed (6 slow), 49 skipped`, in 896 s.
+  It failed nothing, and no test was leaky: issue 6501's relay control no longer outlives its run.
 
 A gate's window denies what the work meets,
 never a failure by itself:

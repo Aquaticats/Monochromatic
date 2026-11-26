@@ -63,6 +63,12 @@ mod release_bins_tests;
 #[path = "diagnostic_door_tests.rs"]
 mod diagnostic_door_tests;
 
+/// The commit path's notes:
+/// no file that says one writes standard error on the command's own thread.
+#[cfg(test)]
+#[path = "the_commit_path_writes_its_notes_off_its_thread_tests.rs"]
+mod the_commit_path_writes_its_notes_off_its_thread_tests;
+
 /// The mechanical ban:
 /// no release code starts the wrapper,
 /// passes it management words or writes shell text.
@@ -128,6 +134,13 @@ mod no_control_reads_the_commit_ledgers_in_the_run_tests;
 #[cfg(test)]
 #[path = "notice_controls_take_their_window_tests.rs"]
 mod notice_controls_take_their_window_tests;
+
+/// The ban on a control starting the interactive selection in the process the run holds:
+/// such a control starts a child of its own first,
+/// whose standard input is the null device and not the terminal the run was started from.
+#[cfg(test)]
+#[path = "no_control_starts_an_interactive_git_on_the_run_s_input_tests.rs"]
+mod no_control_starts_an_interactive_git_on_the_run_s_input_tests;
 
 /// The ban on a release file reading a test-only switch itself:
 /// every such value is taken through `foundation/test_only_switches.rs`,

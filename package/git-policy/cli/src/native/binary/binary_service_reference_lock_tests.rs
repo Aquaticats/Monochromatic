@@ -36,8 +36,18 @@ use super::support::{
     start_fixture_service,
     wrapper_first_path,
 };
+/// The full pipe nobody drains,
+/// the bytes it still holds and the bounded wait for a command given one.
+use super::support_a_full_standard_error::{
+    PipeNobodyDrains,
+    pending_bytes,
+    started_on_a_full_pipe,
+    wait_bounded,
+};
 use super::support_fixture_service_log::service_log;
 use std::ffi::OsStr;
+/// The descriptor whose waiting bytes a control counts.
+use std::os::fd::AsRawFd;
 use std::path::{
     Path,
     PathBuf,
@@ -79,20 +89,36 @@ const SETTLE_PATIENCE: Duration = Duration::from_secs(600);
 /// The file the commits change.
 const FILE: &str = "f.txt";
 
+/// What:
+///  A repository with one tracked file,
+///  and the branch the commits of a control go to.
+/// Why:
+///   A control that starts its service with a fault of its own makes the repository first,
+///  and every other control of this file wants the same one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aRepositoryWithOneTrackedFile = (fixture) => { const repo = repository(fixture, 'repo'); write(`${repo}/f.txt`, 'base\n'); git('add', '--', 'f.txt'); git('commit', '--quiet', '-m', 'base'); return repo };
+/// ```
+fn a_repository_with_one_tracked_file(fixture: &Fixture) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(FILE), "base\n").expect("the file");
+    git(fixture, &repo, &["add", "--", FILE]);
+    git(fixture, &repo, &["commit", "--quiet", "--message=base"]);
+    git(
+        fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
+    return repo;
+}
+
 /// A repository with one tracked file,
 /// a running service,
 /// and the branch the commits go to.
 fn scene(name: &str) -> (Fixture, PathBuf, FixtureService) {
     let fixture: Fixture = fixture(name);
-    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    std::fs::write(repo.join(FILE), "base\n").expect("the file");
-    git(&fixture, &repo, &["add", "--", FILE]);
-    git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(
-        &fixture,
-        &repo,
-        &["config", "maintenance.autoDetach", "false"],
-    );
+    let repo: PathBuf = a_repository_with_one_tracked_file(&fixture);
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
     return (fixture, repo, service);
@@ -684,6 +710,66 @@ fn the_words_for_a_commit_a_lock_holds_never_call_it_refused() {
     assert!(
         about_a_batch.contains("removing the lock") && about_a_batch.contains("rm -- "),
         "the line says what the person may do and gives the command: {logged}"
+    );
+    drop(service);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit that meets a lock nothing proves gone,
+///  whose standard error is a full pipe nobody drains,
+///  returns with success and keeps its commit.
+/// Why:
+///   The words that say the commit is held are the commit's own last note,
+///  written where the service answered `held`,
+///  and they used to be written on the command's own thread:
+///  a reader that stopped draining held a commit that was already made (issue 6421).
+///  They go to the thread that writes standard error,
+///  so the command returns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('held', () => { plantAnOldLock(); const { child, pipe } = startedOnAFullPipe(wrappedCommit(commit)); expect(waitBounded(child)).toBe(0); expect(heldRecordOf(repo)).toBeDefined() })
+/// ```
+#[test]
+fn a_held_commit_returns_with_its_standard_error_full() {
+    let (fixture, repo, service) = scene("reference-lock-held-stalled");
+    let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
+    plant_a_lock(lock.as_path());
+    std::fs::write(repo.join(FILE), "the edit\n").expect("the edit");
+    let mut command: std::process::Command = wrapped_at_the_settle_bound(
+        &fixture,
+        repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "-m",
+            "held behind the lock",
+            "--",
+            FILE,
+        ],
+    );
+    let (child, pipe): (std::process::Child, PipeNobodyDrains) =
+        started_on_a_full_pipe(&mut command);
+    // The commit's own bound is `SETTLE_BOUND_SECONDS` (300 s), and a `SIGKILL`ed command is reaped in a
+    //  grace past it, so a control that reached this bound fails with what it waited for.
+    let status: std::process::ExitStatus =
+        wait_bounded(child, SETTLE_PATIENCE, "the commit held behind the lock");
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "the commit is made and held, so the command succeeds"
+    );
+    let held: git_policy_cli::held_commit_record::Held = held_record_of(repo.as_path());
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(),
+        held.old,
+        "the branch has not moved while the lock stands"
+    );
+    assert_eq!(
+        pending_bytes(pipe.read_end.as_raw_fd()),
+        pipe.capacity,
+        "the pipe was read by nobody, so every byte this control put in it is still there"
     );
     drop(service);
     remove_settled(&fixture);

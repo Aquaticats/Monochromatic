@@ -60,6 +60,22 @@ use crate::push_failure_notice::{
 };
 use crate::repository_facts::RepositoryFacts;
 use crate::rule_linked_worktree::LinkedWorktreeDecision;
+/// Standard error as a stream whose whole lines a thread of its own writes,
+///  so the command that says one never waits for the reader of it.
+/// Why:
+///  The notices below are shown before the command runs,
+///  on the command's own thread,
+///  and a reader of standard error that stopped draining waits in the kernel with no end;
+///  a notice is a line a person can live without,
+///  and the exit status carries the result
+///  (`foundation/standard_error_off_the_calling_thread.rs`;
+///  issue 6421).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const notices = new StandardErrorOffTheCallingThread();
+/// ```
+use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
 use crate::transaction_git::GitContext;
 use crate::worktree_identity::{
     WorktreeIdentity,
@@ -217,17 +233,22 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
         let _settled: Vec<String> = held_push_lines(git_dir.as_path(), &context, cwd.as_path());
         return;
     }
+    // What: One stream for every notice this step says, and each line is handed to the thread that writes it.
+    // Why:  A notice shown here is shown on the command's own thread, so a reader that stopped draining would hold the
+    //       command; the stream costs it one bound and nothing more.
+    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+        StandardErrorOffTheCallingThread::new();
     // A worktree Git removed took its Git directory along; what it held is shown to whoever asks next. What could not be kept
     //  for the person is said here, each time, until it can be.
     for problem in settle_removals(common_dir.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{problem}");
+        let _written = writeln!(notes, "{problem}");
     }
     // A removal this program began and its process did not finish (its registration outlived its files) is finished here,
     // so the path it used is free again without the person being sent to `git worktree prune`.
     for problem in finish_interrupted_destroys(common_dir.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{problem}");
+        let _written = writeln!(notes, "{problem}");
     }
     // A subvolume a removal renamed aside is named by a record of its own, which outlives the delete's queue record: a round
     //  that settled that record before the rename, a destroy the kernel refused, and a command killed between the rename and
@@ -242,7 +263,7 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
     }
     for line in leavings.said {
         // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{line}");
+        let _written = writeln!(notes, "{line}");
     }
     // A removal a merge handed over that a commit service of an earlier release refused for good is queued once more,
     // because that service could not read the record and nothing else would ever look at it again. The wake is the one
@@ -257,7 +278,7 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
     }
     for line in requeued {
         // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{line}");
+        let _written = writeln!(notes, "{line}");
     }
     // The trash of the worktree this command runs in is named here when no record accounts for it: an add hands it to the
     // commit service of the repository, whose records live under the common directory, so a trash nothing there accounts for
@@ -267,11 +288,10 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
     if let Ok(location) = checks.facts.location()
         && let Some(worktree) = crate::worktree_identity::worktree_root(&location.identity)
     {
-        let mut stderr = std::io::stderr();
         name_unaccounted_trash(
             common_dir.as_path(),
             worktree,
-            &mut stderr,
+            &mut notes,
             &crate::held_push_release_wakes_the_service::AskTheService {
                 context: &context,
             },
@@ -283,7 +303,7 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
     //  (`held_push_commit_on_the_remote.rs`).
     for line in held_push_lines(git_dir.as_path(), &context, cwd.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{line}");
+        let _written = writeln!(notes, "{line}");
     }
     // A branch whose commit a post-commit policy kept local is named here, and the line stands while the commit is on the branch's
     //  way out: the automatic push sends nothing past it, so the person must know which commit holds the branch back and why. Once
@@ -294,7 +314,7 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
     };
     for line in held_back_lines(git_dir.as_path(), &history) {
         // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{line}");
+        let _written = writeln!(notes, "{line}");
     }
     // A push record no service has taken is a queued push that no command has said anything about: the one that left it was
     //  killed before it could, or the service went away before it looked. The record is where that statement lives, and a record
@@ -313,13 +333,13 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
         },
     ) {
         // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{line}");
+        let _written = writeln!(notes, "{line}");
     }
     // A relink the commit service gave up on is read here next: its record reached `failed`, which nothing scans, and the
     //  worktree's links still name the checkout the copy came from. The line names the commands that finish it by hand.
     for line in crate::package_repair_relink_notice::take_notices(git_dir.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{line}");
+        let _written = writeln!(notes, "{line}");
     }
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
@@ -331,7 +351,7 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
     for notice in &push_notices_for(git_dir.as_path(), common_dir.as_path(), &abbreviate) {
         // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
         //  written stays for the next command.
-        let _written = notice.show(&mut std::io::stderr());
+        let _written = notice.show(&mut notes);
     }
     // A worktree the commit service kept stands in the repository until the person decides about it, and the decision to
     //  remove it was taken by a merge that has ended: the record is the only thing left that says so, and this is the
@@ -340,7 +360,7 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
     for notice in &crate::worktree_kept_notices::kept_worktree_notices(common_dir.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
         //  written stays for the next command.
-        let _written = notice.show(&mut std::io::stderr());
+        let _written = notice.show(&mut notes);
     }
     // A worktree a removal went around is gone from Git's records while what someone else put inside it still stands at the
     //  path, so no later command in that worktree would ever show anything: the record is the only thing that says the path is
@@ -350,8 +370,11 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(
     ) {
         // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
         //  written stays for the next command.
-        let _written = notice.show(&mut std::io::stderr());
+        let _written = notice.show(&mut notes);
     }
+    // What: The lines the stream still holds and no newline ended are handed over before this step returns.
+    // Why:  A notice built without an end would wait in the stream's buffer until the process ended.
+    let _flushed = notes.flush();
 }
 
 /// What:
@@ -474,13 +497,19 @@ pub(crate) fn show_held_commits<F: RepositoryFacts>(
     if silent {
         return;
     }
+    // What: One stream for every line this step says, and each line is handed to the thread that writes it.
+    // Why:  These lines are said on the command's own thread too, and a reader that stopped draining must cost the command
+    //       one bound rather than the command itself.
+    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+        StandardErrorOffTheCallingThread::new();
     for line in lines {
         let _written = writeln!(
-            std::io::stderr(),
+            notes,
             "{}: {line}",
             crate::wrapper_names_old_and_new::PROGRAM.current
         );
     }
+    let _flushed = notes.flush();
 }
 
 /// The name Git gives the held commit in this repository as it is now.
@@ -593,10 +622,15 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(
         return None;
     }
     if let Some(common_dir) = checks.facts.known_common_dir() {
+        // What: One stream for the words this step says before Git runs, and each line is handed to the thread that writes it.
+        // Why:  A record that could not be saved is the person's to know before Git deletes the worktree, and a reader that
+        //       stopped draining must not keep the removal from running.
+        let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+            StandardErrorOffTheCallingThread::new();
         // A record that could not be saved is lost with the worktree, so the person is told before Git runs.
         for problem in snapshot_linked_worktrees(common_dir.as_path()) {
             // A closed terminal is not a reason to stop the command the person asked for.
-            let _written = writeln!(std::io::stderr(), "{problem}");
+            let _written = writeln!(notes, "{problem}");
         }
         // A commit a reference lock holds in a linked worktree is held by that worktree's own Git directory and by a
         //  per-worktree reference, both of which the removal deletes; it is kept where a removal cannot reach it, and the person
@@ -606,11 +640,12 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(
             crate::worktree_removal_held_commits::keep_held_commits(common_dir.as_path(), &context);
         for said in kept.said {
             let _written = writeln!(
-                std::io::stderr(),
+                notes,
                 "{}: {said}",
                 crate::wrapper_names_old_and_new::PROGRAM.current
             );
         }
+        let _flushed = notes.flush();
         if !kept.refused.is_empty() {
             // A command that must stop names what it kept and where, whatever the terminal does with the words.
             let mut stderr: String = String::new();

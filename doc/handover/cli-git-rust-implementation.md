@@ -144,6 +144,20 @@ Rounds started earlier run on the pool they named.
   and the merged tree answered `commit::` `test result: ok. 474 passed; 0 failed` in both runs,
   `source_guard::` `ok. 151 passed`,
   and every one of the 34 controls `1 passed` alone with `--exact`.
+- State at 2026-11-26T16:35-05:00, after the owner answered three questions (`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`,
+  `doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`):
+  every round queued at noon ran and ended while the question dialog was open;
+  the gate at `42a59e812e` passed 12028 of 12028 with no leaky test;
+  6515 merged as `5b53cd976d` (the plugin's `dist/` rebuilt in the main checkout) and the linter's alpha.16 fixes as `8ea771d19a`;
+  ten wrapper branches run their merge checks in three lanes (`~/temp/agent/merge-lanes-for-the-afternoon-rounds-2026-11-26/check-one-branch.bash`):
+  6510, the notices round, the small Lows, the option table check; the pipes round, the host-key sentence, the service and landing splits; the three `worktree` splits.
+  The removal split stopped `worktree/worktree_remove.rs` (581 lines) on a tolerated loop, so it waits for round 3's loop breaks.
+  Started or queued on the virtual writer: the two removal refusals the owner answered, then 6517, 6518, 6519,
+  then 30 split rounds for the other crates' 144 files over 300 (`~/temp/agent/split-*-files-over-the-line-budget*-2026-11-26/`; the linter's 8 wait for its release and 6513).
+  The wrapper's remaining 262 files get their briefs once the lanes merge, so each folder is briefed against its merged state.
+  The linter's alpha.16 release dry run (run 45897381547) passed; the release (run 45897688752) published nothing:
+  its push of the version bump refused because `main` moved under it (a lane merged the notices round, and the bump depends on `package/git-policy/cli` files).
+  The release reruns once all three lanes print their end line (a waiting background command of this session), then the lock and the Sonnet pass.
 - The crate split's round 2, the files over the 300-line budget, reads the linter after the reformat:
   281 files are over on `987635373a`, 19 of them over before `00b6a940b4` and 262 only because of it (code lines grew 1.472 times).
   13 of the 19 run in five branches queued behind the small Lows round, one starting after the other

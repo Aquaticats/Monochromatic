@@ -47,6 +47,12 @@ mod fixture_support_shared_by_both_test_targets;
 #[path = "binary_support_process_group_members.rs"]
 mod support_process_group_members;
 
+/// A standard error nobody drains,
+/// the bounded wait for a command given one,
+/// and the bytes still waiting in it.
+#[path = "binary_support_a_full_standard_error.rs"]
+mod support_a_full_standard_error;
+
 /// The executable, words and runtime directory a fixture's service starts with, and the manager's restart.
 #[path = "binary_support_fixture_service_start.rs"]
 mod support_fixture_service_start;
@@ -728,6 +734,11 @@ mod wait_notice;
 /// the command returns and the commit lands.
 #[path = "binary_commit_stalled_standard_error_tests.rs"]
 mod commit_stalled_standard_error;
+
+/// A named pipe standing where this program keeps a record:
+/// the wrapped command answers instead of holding for a writer.
+#[path = "binary_named_pipe_in_a_record_folder_tests.rs"]
+mod named_pipe_in_a_record_folder;
 
 /// The fault injection and the recovery invariants of the operating conditions in the README.
 #[path = "binary_fault_support.rs"]

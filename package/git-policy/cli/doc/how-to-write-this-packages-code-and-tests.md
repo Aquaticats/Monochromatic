@@ -59,6 +59,12 @@ The same holds for what a test reads:
 so a control that judges the run's own figures runs its reading in a helper process of the test's own
 (`testing/helper_process_test_support.rs`),
 as issue 6478's descriptor-room control and the `run_progress` controls of issue 6486 do.
+So does a program a control starts that reads standard input:
+the run's standard input is the terminal the run was started from,
+and a control that starts such a program runs its body in a child of its own,
+whose standard input is the null device
+(issue 6510's `git add --interactive`,
+which printed its `What now>` menu and never ended).
 
 The service's review runner is one more such fact,
 and a control hands the code its own instead of starting a child:

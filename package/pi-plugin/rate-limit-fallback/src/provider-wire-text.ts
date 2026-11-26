@@ -158,6 +158,131 @@ export function isTransientStatus(status: number,): boolean {
 const NO_STATUS = 0;
 
 /**
+ Codes a transport failure carries in the text Pi's adapters report for it.
+
+ Each is the `code` undici or Node sets on the failure that stopped a request before the member
+ produced anything: a host that never answered within the connect limit, a refused connection, a
+ reset connection, and a name the resolver could not answer. Pi's own retry classifier lists the same
+ family as transient (`@earendil-works/pi-ai` dist/utils/retry.js, `RETRYABLE_PROVIDER_ERROR_PATTERN`),
+ which is why the pool must consume such a refusal before Pi restarts at the same member. A member's
+ own HTTP refusal is not one of these, however its body reads: it carries a status, and the status
+ decides what it is.
+ */
+export const TRANSPORT_FAILURE_CODES = [
+  'UND_ERR_CONNECT_TIMEOUT',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'UND_ERR_SOCKET',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+] as const;
+
+/**
+ Code a failed request carries when it is no transport failure; no code is the empty string, so a
+ reader never has to model absence as a nullish value.
+ */
+export const NO_TRANSPORT_CODE = '';
+
+/**
+ Whether one character can extend a code into a longer identifier.
+
+ `@earendil-works/pi-ai` reads its own codes the same way, refusing a code next to any lower-case
+ letter, digit or underscore (dist/utils/retry.js, `RETRYABLE_PROVIDER_ERROR_PATTERN`), so a request
+ id or a byte count that happens to contain one is no code.
+
+ @param character - case-folded character to classify
+
+ @returns whether the character belongs to an identifier
+
+ @example
+ ```ts
+ isIdentifierCharacter('x'); // true
+ ```
+ */
+function isIdentifierCharacter(character: string,): boolean {
+  return ((character >= 'a') && (character <= 'z'))
+    || ((character >= '0') && (character <= '9'))
+    || (character === '_');
+}
+
+/**
+ Whether the characters around a span keep it a token of its own.
+
+ @param text - case-folded text holding the code
+
+ @param start - offset the code begins at
+
+ @param end - offset just past the code
+
+ @returns whether neither neighbour extends it into a longer identifier
+ */
+function standsAlone({
+  text,
+  start,
+  end,
+}: {
+  readonly text: string;
+  readonly start: number;
+  readonly end: number;
+},): boolean {
+  /**
+   Character before the code, absent at the start of the text.
+   */
+  const before = text[start - 1];
+  /**
+   Character after the code, absent at the end of the text.
+   */
+  const after = text[end];
+  return ((before === undefined) || (!isIdentifierCharacter(before,)))
+    && ((after === undefined) || (!isIdentifierCharacter(after,)));
+}
+
+/**
+ Code a transport failure reports, in either of the two spellings Pi's adapters produce.
+
+ The adapter names the deepest cause of a failed fetch and appends a code the message does not
+ already spell (`@earendil-works/pi-ai` dist/utils/error-body.js, `withCauseDetail`): a resolver or
+ socket error whose own message carries the code reads `getaddrinfo ENOTFOUND host`, and one whose
+ message does not reads `other side closed (UND_ERR_SOCKET)`. Both are read as tokens.
+
+ @param value - terminal error text from an adapter
+
+ @returns the first code of the set the text names, or {@link NO_TRANSPORT_CODE} when it names none
+
+ @example
+ ```ts
+ transportFailureCode('generate ECONNREFUSED 127.0.0.1:443'); // 'ECONNREFUSED'
+ ```
+ */
+export function transportFailureCode(value: string,): string {
+  /**
+   Case-folded terminal message, so a code a body or a transport wrote in lower case still reads.
+   */
+  const text = foldProviderText(value,);
+  for (const code of TRANSPORT_FAILURE_CODES) {
+    /**
+     Case-folded spelling to search for.
+     */
+    const needle = foldProviderText(code,);
+    for (
+      let start = text.indexOf(needle,); start !== (-1);
+      start = text.indexOf(
+        needle,
+        start + needle.length,
+      )
+    ) {
+      if (standsAlone({
+        text,
+        start,
+        end: start + needle.length,
+      },))
+        return code;
+    }
+  }
+  return NO_TRANSPORT_CODE;
+}
+
+/**
  Read the HTTP status a provider message opens with, in the forms the installed adapters print.
 
  A Completions refusal opens `<status>: <body>`; a Responses refusal opens
