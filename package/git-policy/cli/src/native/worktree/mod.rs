@@ -12,8 +12,432 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `add_standing_notice.rs`:
+//!   the line a `git worktree add` prints while it is still running,
+//!   naming the step it is in.
+//! - `add_timing.rs`:
+//!   the record of where one wrapped `git worktree add` spent its time,
+//!   step by step,
+//!   appended beside the commit timing record.
+//! - `checkout_workers.rs`:
+//!   whether the checkout of a new worktree may be given Git's parallel checkout,
+//!   and the option that does it.
+//! - `idle_io_priority.rs`:
+//!   running one stretch of storage work at the lowest I/O priority Linux offers.
+//! - `inner_git_words.rs`:
+//!   where the words of a Git run the wrapper or the service started on its own go,
+//!   now that none carries `--quiet`.
+//! - `ladder_step_ceilings.rs`:
+//!   which of the ladder's own Git steps has a ceiling,
+//!   and which number that ceiling is.
+//! - `shell_quote.rs`:
+//!   quoting of bytes printed inside a shell command for a person to run.
+//! - `worktree_add_option_table.rs`:
+//!   the option table of `git worktree add`,
+//! - `worktree_add_plan_path_questions.rs`:
+//!   small questions about a path or a byte that the add plans ask.
+//! - `worktree_attributes.rs`:
+//!   git's attribute-file lexer and pattern matcher over raw bytes,
+//! - `worktree_audit.rs`:
+//!   the facts one audit line of a removed worktree carries.
+//! - `worktree_branch_reflog.rs`:
+//!   the commits a branch's own reflog says it moved between,
+//!   which is what says whether a branch a merge brought in holds work of its own.
+//! - `worktree_change_a_rung_cannot_serve.rs`:
+//!   one path the target tree of an add changes,
+//!   and why a cheap rung cannot serve it.
+//! - `worktree_clean_content_attribute_sources.rs`:
+//!   the environment and attribute files a content check reads,
+//!   and the attributes that convert content.
+//! - `worktree_clean_stat_verdicts.rs`:
+//!   what a clean check says about one tracked file:
+//!   refusals,
+//!   recorded stat data and the metadata verdict.
+//! - `worktree_clean_untracked_scan.rs`:
+//!   the one question the index of a worktree cannot answer:
+//!   whether an untracked file is one Git ignores.
+//! - `worktree_clone_block_cloning.rs`:
+//!   the pool's block-cloning switch and what the clone rung does when it reads off.
+//! - `worktree_clone_conversion_git_reads.rs`:
+//!   how the conversion fence makes one Git run,
+//!   and the two runs that read the blob sizes it decides with.
+//! - `worktree_clone_conversion_rules.rs`:
+//!   git's conversion rules for one path,
+//!   read from its attributes and `core.autocrlf`/`core.eol`,
+//!   as the decision whether a clone may carry the file.
+//! - `worktree_clone_conversion_size_read_deadline.rs`:
+//!   the join's shipped deadline,
+//!   and the control that shortens it for one thread.
+//! - `worktree_clone_conversion_size_read_free.rs`:
+//!   the answered map of a size read an add will not use,
+//!   and the thread that frees it,
+//!   with the control seams that show where the free happened.
+//! - `worktree_clone_domain.rs`:
+//!   the clone domain of a reflink:
+//!   whether two paths share data blocks,
+//!   and why they do not.
+//! - `worktree_clone_index.rs`:
+//!   the install of the rung's index:
+//!   the stat fields the clones recorded,
+//!   and none for the paths the conversion fence leaves to Git.
+//! - `worktree_clone_partial_index.rs`:
+//!   the new worktree's index built from the tree of its `HEAD`,
+//!   with the stat fields of the files the clones made.
+//! - `worktree_completion_file_inspection.rs`:
+//!   the descriptor-bound look at one added path's worktree copy.
+//! - `worktree_completion.rs`:
+//!   bringing added paths' worktree copies to their landed bytes.
+//! - `worktree_convert_arguments.rs`:
+//!   the grammar of `git monochromatic-git-policy-cli convert-worktree-to-subvolume`.
+//! - `worktree_convert_compare.rs`:
+//!   the read-only comparison of the old tree of a conversion with the installed one.
+//! - `worktree_convert_filled_stages.rs`:
+//!   what a conversion does about a stage container another command is filling below the tree it would swap or delete.
+//! - `worktree_convert_journal.rs`:
+//!   the journal of a conversion and the retirement of the kernel lock file older releases left.
+//! - `worktree_convert_remove.rs`:
+//!   the removal of the old tree of a conversion beneath a pinned descriptor.
+//! - `worktree_finish_commands.rs`:
+//!   the commands a message prints to finish or remove a worktree an interrupted `git worktree add` left.
+//! - `worktree_identity.rs`:
+//!   repository and worktree identity as reported by real Git.
 //! - `worktree_command_facts.rs`:
 //!   the plain facts of one worktree command that several folders pass around.
+//! - `worktree_add_plan.rs`:
+//!   the plan for one `git worktree add` that the cheap-worktree ladder serves:
+//!   its destination and insertion point.
+//! - `worktree_kept_notices.rs`:
+//!   the record of a worktree a removal kept,
+//!   which the next command of the repository shows once.
+//! - `worktree_operands.rs`:
+//!   the operands of one `git worktree` subcommand,
+//!   read the way Git's own option parser leaves them.
+//! - `worktree_path_failure_message.rs`:
+//!   the one message shape of a failed step on a path:
+//!   `<path> <what> (<error>)`.
+//! - `worktree_add_binding.rs`:
+//!   the binding of a `git worktree add` to the directories Git made for it,
+//!   its record,
+//!   and the check that the binding holds.
+//! - `worktree_clean_content.rs`:
+//!   the decision,
+//!   by content and without a Git process,
+//!   whether a tracked file that its index entry's stat data cannot vouch for (a racily clean entry,
+//! - `worktree_clean_content_attributes.rs`:
+//!   the attribute files a content decision reads,
+//!   and what it charges the caller for them.
+//! - `worktree_clean_tree_walk.rs`:
+//!   the walks of tracked files against the index's recorded stat data,
+//!   by metadata or by content.
+//! - `worktree_clean.rs`:
+//!   whether a worktree is clean enough to copy from or to remove without asking Git,
+//!   proven in process.
+//! - `worktree_clone_conversion_decline.rs`:
+//!   how many tracked paths a rule converts,
+//!   and the share past which the rung declines to write them.
+//! - `worktree_clone_partial_split.rs`:
+//!   which tracked paths of a source with changes a clone may take,
+//!   and which Git writes.
+//! - `worktree_clone_paths.rs`:
+//!   the clone rung's files in dependency order,
+//!   the entry point last:
+//!   one indexed path's names and the destination directories a run holds (`worktree_clone_paths`),
+//!   one tracked entry and its clone (`worktree_clone_entry`),
+//!   one run of entries on this thread (`worktree_clone_entries`),
+//!   the slices of the blocking pool (`worktree_clone_slices`),
+//!   the index install (`worktree_clone_index`),
+//!   and the rung itself,
+//!   whose module doc names each of them.
+//! - `worktree_convert_inspection.rs`:
+//!   the first look at a worktree a conversion might change,
+//!   and every reason the conversion must not start.
+//! - `worktree_convert_leftover_stage_record.rs`:
+//!   the record,
+//!   beside a worktree,
+//!   of the objects one conversion may leave at its converting name.
+//! - `worktree_convert_phases.rs`:
+//!   the journaled phases of one worktree conversion.
+//! - `worktree_convert_unrecorded_stage.rs`:
+//!   the empty stage a conversion created and did not record,
+//!   and whether the object at the converting name is it.
+//! - `worktree_convert.rs`:
+//!   converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path,
+//!   resumably.
+//! - `worktree_convert_command.rs`:
+//!   `git monochromatic-git-policy-cli convert-worktree-to-subvolume`:
+//!   the worktrees to cover and the report.
+//! - `worktree_process_inside.rs`:
+//!   whether any process is working inside a folder,
+//!   which keeps a landed worktree.
+//! - `worktree_registration_proof.rs`:
+//!   whether a directory is one of this repository's linked worktrees,
+//!   proved from the pointer and the registration Git wrote there,
+//!   which every command that changes state in a recorded worktree asks for first.
+//! - `worktree_added_by_the_wrapper.rs`:
+//!   the record that says the wrapper made one linked worktree,
+//!   which every automatic removal asks for first.
+//! - `worktree_landed_registrations.rs`:
+//!   the linked worktrees a repository registers,
+//!   with the branch each one has checked out.
+//! - `worktree_removal_around_begun.rs`:
+//!   the record a removal writes before its pass empties a worktree around a volume,
+//!   so a command killed in that pass leaves a state the same command finishes.
+//! - `worktree_removal_clears_the_pool.rs`:
+//!   the removal of the shadow pool a removed worktree's commits were served from,
+//!   taken after the removal proved the worktree is gone.
+//! - `worktree_removal_held_commits.rs`:
+//!   what becomes of the commit a reference lock holds in a linked worktree that Git removes.
+//! - `worktree_removal_interrupted_destroy.rs`:
+//!   the finish of a removal whose destroy happened and whose registration did not go.
+//! - `worktree_removal_leaving_that_outlives_its_record.rs`:
+//!   the record of one subvolume a removal renamed aside,
+//!   written before the rename and settled by nothing,
+//!   and the queueing of its delete that outlives the queue record's own state.
+//! - `worktree_removal_leaves_a_subvolume_for_the_service.rs`:
+//!   the subvolumes this program leaves for the commit service to delete,
+//!   moved out of a tree that is being removed with one rename and a record.
+//! - `worktree_removal_clears_the_ahead_pool.rs`:
+//!   the snapshots this program made ahead of an add,
+//!   taken out of a worktree's administrative directory before that worktree is removed.
+//! - `worktree_removal_rescue_removal_state.rs`:
+//!   whether the worktree a removal snapshot was taken for is gone,
+//!   refused,
+//!   or still on its way,
+//!   judged from the Git directory,
+//!   the processes that took the snapshot and the checkout.
+//! - `worktree_removal_snapshot_promotion.rs`:
+//!   what a removal snapshot kept,
+//!   promoted to the notices every worktree shows.
+//! - `worktree_removal_rescue.rs`:
+//!   what becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
+//! - `worktree_removal_finishes_an_interrupted_destroy.rs`:
+//!   the finish of a removal a command killed once its destroy happened,
+//!   and the words for what a person still has to do.
+//! - `worktree_remove_last_look.rs`:
+//!   the question a removal's caller asks again as the removal runs,
+//!   immediately before anything is destroyed,
+//!   and the printing of the request that carries it.
+//! - `worktree_remove_notices.rs`:
+//!   the four lines a removal that destroyed a subvolume prints,
+//!   and the one place that chooses between them.
+//! - `worktree_remove_outcome.rs`:
+//!   how one attempt to remove a worktree ended,
+//!   and what each ending needs of the caller.
+//! - `worktree_remove_registry.rs`:
+//!   which registration of the invoking repository a worktree directory belongs to,
+//!   and whether Git would pick that same worktree for the name the person typed.
+//! - `worktree_move_source.rs`:
+//!   the worktree a `git worktree move` renames,
+//!   resolved the way Git resolves that operand.
+//! - `worktree_removal_holds_the_worktree.rs`:
+//!   the directories one removal holds open,
+//!   the last look at them before the destroy,
+//!   and the lock that keeps a worktree.
+//! - `worktree_removal_stops_units.rs`:
+//!   the stop of a removed worktree's commit service units,
+//!   named from the registration before the removal and stopped after it.
+//! - `worktree_removal_takes_its_pending_deletions.rs`:
+//!   the subvolumes this program left inside a worktree for its commit service to delete,
+//!   moved out of that tree before its removal hands anything to the kernel or to Git.
+//! - `worktree_remove.rs`:
+//!   the removal of a clean subvolume worktree by one ioctl,
+//!   and the plan of the `git worktree remove` it serves.
+//! - `worktree_remove_plan.rs`:
+//!   the plan of a `git worktree remove` that names one directory and no option.
+//! - `worktree_remove_reports.rs`:
+//!   the three reports a removal can end with.
+//! - `worktree_snapshot_source_changed_paths.rs`:
+//!   what Git's status lists as changed or untracked in a worktree,
+//!   for the snapshot source.
+//! - `worktree_subvolume.rs`:
+//!   the empty subvolume made at the destination of a `git worktree add` before Git runs,
+//!   and its cleanup.
+//! - `worktree_trash_exclude_line.rs`:
+//!   the repository's own exclude line that keeps a standing trash out of every `git add --all`.
+//! - `worktree_snapshot_source.rs`:
+//!   the snapshot source:
+//!   whether the creating worktree can be snapshotted for a new worktree,
+//!   and what that needs.
+//! - `worktree_clone_entry.rs`:
+//!   one tracked entry of the frozen index,
+//!   made in the destination with the checks that prove the source did not move.
+//! - `worktree_clone_entries.rs`:
+//!   one run of those entries on this thread:
+//!   what it created,
+//!   what it recorded for the index,
+//!   and why it stopped.
+//! - `worktree_clone_partial_staged.rs`:
+//!   the live listing of the paths the source staged,
+//!   and the refusal of a staged path among the clones.
+//! - `worktree_clone_slices.rs`:
+//!   those entries cut into slices:
+//!   contiguous runs,
+//!   one job of the blocking pool each,
+//!   and the worker count the host's budget allows.
+//! - `worktree_clone.rs`:
+//!   the clone rung itself:
+//!   tracked files cloned into the new worktree,
+//!   the source's index installed with fresh stat fields.
+//! - `worktree_ladder_target.rs`:
+//!   what both filling rungs read from Git's `--no-checkout` result,
+//!   and the one step that applies the tree difference.
+//! - `worktree_clone_conversion_fence.rs`:
+//!   the fence over a clone rung's bytes:
+//!   which paths the clones may carry,
+//!   and the one Git run that writes the rest.
+//! - `worktree_clone_conversion_fence_measurement_routes.rs`:
+//!   the measurement-only shapes of that fence:
+//!   option C,
+//!   option D,
+//!   and the switch that picks one of them.
+//! - `worktree_clone_conversion_beside_the_clone.rs`:
+//!   the same fence beside the clone:
+//!   its reads on a thread of their own while the tracked files are copied,
+//!   and the seed the index is installed from once both have answered.
+//! - `worktree_clone_conversion_size_read.rs`:
+//!   the fence's one `git ls-tree` size read:
+//!   the task a rung-1 add can start before its source check,
+//!   and the join at the fence.
+//! - `worktree_clone_partial_tracked.rs`:
+//!   the source's index and the tree of its `HEAD`,
+//!   the paths Git writes,
+//!   and the stat fields the new index records.
+//! - `worktree_clone_rung_limits.rs`:
+//!   the provisional limits that send an add to Git's own checkout:
+//!   a whole-tree size threshold where the source's filesystem has one,
+//!   a mean file size edge,
+//!   and a changed-file cut,
+//!   each with the measurement it rests on.
+//! - `worktree_clone_partial.rs`:
+//!   the clone rung for a source with uncommitted changes:
+//!   the paths the proof settles cloned,
+//!   the index built from the tree,
+//!   and the rest written by Git.
+//! - `worktree_dirty_restore.rs`:
+//!   the restore of a snapshot of a main checkout with uncommitted changes,
+//!   and its proof.
+//! - `worktree_ladder_finish_clones.rs`:
+//!   the answers worktree ladder finish clones holds.
+//! - `worktree_ladder_target_tree_skip.rs`:
+//!   the one read that lets a fast rung step aside when the tree the add names changes a path the fence must have Git
+//!   write.
+//! - `worktree_landed_ignored_files.rs`:
+//!   the ignored entries of a landed worktree that nothing else in the repository holds,
+//!   which keep it.
+//! - `worktree_removal_only_deletions.rs`:
+//!   whether everything Git reports about a worktree is an entry missing from it,
+//!   which is the state a removal that was killed in the middle leaves.
+//! - `worktree_removal_goes_around_a_foreign_volume.rs`:
+//!   the removal that goes around a subvolume or a mount point it did not make,
+//!   and the words it says about what it left.
+//! - `worktree_removal_second_look.rs`:
+//!   the proof that a removal may go,
+//!   made again immediately before the destruction.
+//! - `worktree_landed_removal_last_look.rs`:
+//!   what a removal deletes beside the files Git keeps,
+//!   and the sweep's last look that asks it again inside the removal.
+//! - `worktree_remove_around.rs`:
+//!   the half of a removal that goes around a volume it did not make:
+//!   the record a killed pass leaves,
+//!   the continuation that record proves,
+//!   and the pass.
+//! - `worktree_remove_hand_over.rs`:
+//!   the removal of a worktree's subvolume handed to the commit service,
+//!   and the service's own delete of it.
+//! - `worktree_landed_removal.rs`:
+//!   the removal of every wrapper-made worktree whose branch a merge landed,
+//!   which the commit service performs.
+//! - `worktree_landed_sweep_notice.rs`:
+//!   the words one landed sweep prints.
+//! - `worktree_landed_after_a_merge.rs`:
+//!   the commit and the branch one merge stood between,
+//!   and the sweep of the worktrees whose branches it landed.
+//! - `worktree_removal_leavings_a_command_queues_again.rs`:
+//!   the look every command makes at those records:
+//!   the delete of a leaving no queue record owes is queued again,
+//!   and a place this program may not act on is named for the person.
+//! - `worktree_slow_route.rs`:
+//!   the plain sentence that says why an add was not made as a snapshot,
+//!   and where it goes.
+//! - `worktree_snapshot_index_step.rs`:
+//!   the index step of the snapshot rung:
+//!   prove the copy against the source's index,
+//!   settle an entry by content where the stat data cannot vouch for it,
+//!   and keep the snapshot's own index when the source changed under the copy.
+//! - `worktree_snapshot_ahead.rs`:
+//!   the snapshots the wrapper makes ahead of an add,
+//!   and the add's claim of one instead of a snapshot of its own.
+//! - `worktree_snapshot_ahead_claim.rs`:
+//!   what one add does with the snapshots the service made ahead of it:
+//!   the proof,
+//!   the claim,
+//!   the bounded wait and the sweep.
+//! - `worktree_snapshot_ahead_job.rs`:
+//!   the commit service's own snapshot of a worktree,
+//!   made for the add after the one that asked for it.
+//! - `worktree_trash_hand_over.rs`:
+//!   handing a snapshot's trash to the commit service without waiting for it to be emptied.
+//! - `worktree_trash_ignore_rule.rs`:
+//!   whether Git ignores the place a snapshot's trash would be made at in one worktree.
+//! - `worktree_trash_manifest.rs`:
+//!   what a snapshot's leave-out made and moved,
+//!   with identities,
+//!   as the text a work item carries.
+//! - `worktree_trash_dispose_awaiting.rs`:
+//!   the service's handler for a trash work item,
+//!   awaited by a caller that is itself a task of the runtime.
+//! - `worktree_trash_own_manifest.rs`:
+//!   the manifest a trash carries inside itself,
+//!   written before the swap publishes it,
+//!   so a later pass can prove what the trash is without a record.
+//! - `worktree_trash_remove.rs`:
+//!   removal of a directory tree beneath a held parent handle,
+//!   never following a link.
+//! - `worktree_trash.rs`:
+//!   setting aside what a snapshot of the main checkout leaves out,
+//!   and having the commit service empty it.
+//! - `worktree_trash_entries.rs`:
+//!   the removal of the entries a snapshot's leave-out moved into its trash,
+//!   side by side.
+//! - `worktree_trash_dispose.rs`:
+//!   emptying a snapshot's trash:
+//!   what a trash is,
+//!   the service's handler,
+//!   and the trashes nothing will empty.
+//! - `worktree_ladder_finish_trash_record.rs`:
+//!   the record of the trash a snapshot's leave-out made,
+//!   written before the rung that published the worktree returns.
+//! - `worktree_trash_set_aside.rs`:
+//!   the trash directory one snapshot's leave-out made and holds open,
+//!   the one the stand-in step puts a whole worktree folder into,
+//!   the two ways it is made or opened again,
+//!   and the moves in and out of it.
+//! - `worktree_kept_folders.rs`:
+//!   the folder a taken worktree folder is kept in when the name it came from is taken,
+//!   and the cleanup that must leave it alone.
+//! - `worktree_ladder_run.rs`:
+//!   the ladder's choice of rung before real Git runs.
+//! - `worktree_ladder.rs`:
+//!   the cheap-worktree ladder around one `git worktree add`:
+//!   what runs before real Git and after it.
+//! - `worktree_snapshot_placeholders.rs`:
+//!   the empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
+//!   found below the folders that hold worktrees and removed as empty directories.
+//! - `worktree_snapshot.rs`:
+//!   the snapshot rung's mechanics:
+//!   snapshot to a stage name,
+//!   make it a worktree,
+//!   swap it into place.
+//! - `worktree_ladder_finish.rs`:
+//!   the ladder's steps after real Git returned:
+//!   the snapshot rung and the fall back to Git's checkout.
+//! - `worktree_trash_set_aside_entries.rs`:
+//!   the entries a snapshot's leave-out sets aside,
+//! - `worktree_trash_unaccounted.rs`:
+//!   what every later command in a worktree says about the trash left there:
+//!   which directory nothing will empty,
+//!   which trash it records again,
+//!   and the wake that tells the service so.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

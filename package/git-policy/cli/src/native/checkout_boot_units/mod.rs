@@ -36,7 +36,7 @@
 //! and a setup run or a guest's own manager acts on it.
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
 //! - `boot_unit_names.rs`:
 //!   the unit and drop-in names,
@@ -51,10 +51,10 @@
 //!   the one final newline and the comment naming a file's own path.
 //! - `boot_gate_unit_text.rs`:
 //!   the gate unit and the two drop-ins beside it.
-//! - `propagation_unit_text.rs`:
-//!   the propagation service and the mount drop-in that starts it.
 //! - `nested_dataset_unit_text.rs`:
 //!   one nested dataset's mount unit.
+//! - `propagation_unit_text.rs`:
+//!   the propagation service and the mount drop-in that starts it.
 //! - `boot_unit_install_plan.rs`:
 //!   every file the setup writes,
 //!   in the order it writes them.

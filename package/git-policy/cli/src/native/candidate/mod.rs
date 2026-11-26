@@ -7,6 +7,68 @@
 //!  Policies judge candidates,
 //!  so the readers and the scanner adapter share a folder.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `blob_batch.rs`:
+//!   loading many blobs through one `git cat-file --batch`.
+//! - `candidate_error.rs`:
+//!   the one failure type of the candidate layer and its closed list of causes.
+//! - `candidate_object.rs`:
+//!   validated Git object names and the file modes a candidate can carry.
+//! - `candidate_batch.rs`:
+//!   pure framing of one `git cat-file --batch` reply.
+//! - `candidate_pathspec_chunk_size.rs`:
+//!   how many paths one Git command of the candidate layer names at a time.
+//! - `candidate_attribute.rs`:
+//!   which candidate paths have their `text` Git attribute unset,
+//!   read from the state the candidates were listed from.
+//! - `candidate_prediction_git_runs.rs`:
+//!   the Git runs of a prediction:
+//!   one captured command with its failures,
+//!   and the path of the real index.
+//! - `candidate_private_index.rs`:
+//!   a private,
+//!   timestamp-preserving copy of the real index,
+//!   removed when dropped.
+//! - `candidate_reader.rs`:
+//!   the long-lived object reader that answers every blob read of an invocation.
+//! - `candidate_record.rs`:
+//!   pure parsing of raw NUL-delimited changed-path records.
+//! - `candidate_stage.rs`:
+//!   pure parsing of `git ls-files --stage` records and the delta between two index states.
+//! - `candidate_tree.rs`:
+//!   the files of a commit's tree with their modes and objects.
+//! - `candidate_version.rs`:
+//!   immutable candidate versions:
+//!   identity,
+//!   pathname,
+//!   mode,
+//!   change and object per path.
+//! - `candidate_store.rs`:
+//!   per-invocation listing,
+//!   lazy bytes and invalidation of candidate versions.
+//! - `candidate_prediction.rs`:
+//!   what `git add` would stage,
+//!   and the worktree files a direct command selects.
+//! - `candidate_store_commit_listings.rs`:
+//!   the listings of one commit's tree,
+//!   of the parents of a set of commits and of a tree's blobs,
+//!   as a second block of operations of the candidate store.
+//! - `scanner_adapter.rs`:
+//!   the linked forbidden-strings scanner:
+//!   one load per invocation,
+//!   typed redacted findings.
+//! - `scanner_selection.rs`:
+//!   rules-file precedence and which candidates the scanner is given.
+//! - `candidate_known_content.rs`:
+//!   which candidates hold content that a parent commit's tree already holds,
+//!   found by exact object name.
+//! - `scanner_run.rs`:
+//!   one scan pass over a candidate version's exact bytes.
+//! - `scanner_failure_code.rs`:
+//!   which engine failure code each candidate and scanner failure carries.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // candidate/index.ts: one `export * from './file'` per module below.
