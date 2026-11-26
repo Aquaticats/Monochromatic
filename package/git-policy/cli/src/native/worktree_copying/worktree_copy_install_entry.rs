@@ -64,7 +64,7 @@ const PRIVATE_DIRECTORY_MODE: u32 = 0o700;
 /// ```ts
 /// const LINK_UNSUPPORTED_CODES = new Set(['EMLINK', 'ENOSYS', 'ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'EXDEV']);
 /// ```
-const LINK_UNSUPPORTED_CODES: [i32; 6] = [
+const LINK_UNSUPPORTED_CODES: &[i32] = &[
     libc::EMLINK,
     libc::ENOSYS,
     libc::ENOTSUP,

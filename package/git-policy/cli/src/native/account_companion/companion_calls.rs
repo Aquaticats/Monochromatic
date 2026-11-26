@@ -99,7 +99,7 @@ pub enum CompanionCall {
 
 /// Every call,
 /// in the numbering a record carries.
-pub const CALLS_IN_ORDER: [CompanionCall; 28] = [
+pub const CALLS_IN_ORDER: &[CompanionCall] = &[
     CompanionCall::UnshareUserNamespace,
     CompanionCall::OpenSetgroups,
     CompanionCall::WriteSetgroups,

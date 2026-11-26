@@ -36,7 +36,7 @@ use std::path::PathBuf;
 /// a negative number,
 /// a small number,
 /// an overflowing number and a `~user` path of a user that does not exist.
-const MALFORMED_VARIANTS: [Option<&str>; 7] = [
+const MALFORMED_VARIANTS: &[Option<&str>] = &[
     Some("maybe"),
     None,
     Some(""),
@@ -48,7 +48,7 @@ const MALFORMED_VARIANTS: [Option<&str>; 7] = [
 
 /// Sections whose text values name remotes,
 /// branches and rewrites that the query readers interpret.
-const SEMANTIC_SECTIONS: [&str; 3] = ["branch", "remote", "url"];
+const SEMANTIC_SECTIONS: &[&str] = &["branch", "remote", "url"];
 
 /// How many keys one sweep batch holds;
 /// a batch that shows a difference is split until the key is found.
@@ -581,7 +581,7 @@ fn index_max_path_len_is_a_number_git_reads_before_any_command() {
 /// a unit suffix on each signed spelling,
 /// no value at all,
 /// and two numbers past 64 bits.
-const EDGE_SPELLINGS: [Option<&str>; 14] = [
+const EDGE_SPELLINGS: &[Option<&str>] = &[
     Some("-0"),
     Some("+0"),
     Some("0"),

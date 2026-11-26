@@ -84,7 +84,7 @@ use crate::doctor_zfs_route::{
 /// ```ts
 /// const THE_ADDS_OWN_STEPS = [['checkout', 'snapshot'], ..., ['container-descendants', 'userprop']];
 /// ```
-pub const THE_ADDS_OWN_STEPS: [(GrantPlace, &str); 6] = [
+pub const THE_ADDS_OWN_STEPS: &[(GrantPlace, &str)] = &[
     (GrantPlace::Checkout, "snapshot"),
     (GrantPlace::CheckoutDescendants, "clone"),
     (GrantPlace::Container, "create"),
@@ -111,7 +111,7 @@ pub const THE_ADDS_OWN_STEPS: [(GrantPlace, &str); 6] = [
 /// ```ts
 /// const A_REMOVALS_STEPS = [['container-descendants', 'destroy'], ['checkout-descendants', 'mount'], ['checkout-descendants', 'destroy']];
 /// ```
-pub const A_REMOVALS_STEPS: [(GrantPlace, &str); 3] = [
+pub const A_REMOVALS_STEPS: &[(GrantPlace, &str)] = &[
     (GrantPlace::ContainerDescendants, "destroy"),
     (GrantPlace::CheckoutDescendants, "mount"),
     (GrantPlace::CheckoutDescendants, "destroy"),

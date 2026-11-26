@@ -21,7 +21,7 @@ use super::{
 /// Every later-step check answers unknown.
 #[test]
 fn every_later_step_answers_unknown() {
-    for step in LaterStep::ALL {
+    for &step in LaterStep::ALL {
         let outcome: super::CheckOutcome = check_later_step(step);
         assert!(
             matches!(outcome, super::CheckOutcome::Unknown { .. }),
@@ -33,7 +33,7 @@ fn every_later_step_answers_unknown() {
 /// Every reason names its plan step.
 #[test]
 fn every_reason_names_its_step() {
-    for step in LaterStep::ALL {
+    for &step in LaterStep::ALL {
         let reason: String = step.reason();
         assert!(reason.contains("step "), "{step:?} says {reason}");
     }

@@ -1174,6 +1174,12 @@ so item 1's calls were not rerun.
 Matching the module
 release in the Ubuntu guest does not establish that the host kernel passes the calls.
 
+Amended 2026-11-26 by an agent:
+the repeat this section asks for ran on such a guest,
+with the results and the one arm that did not hold in
+[`cli-git-zfs-step-23-host-kernel-qualification-run.md`](cli-git-zfs-step-23-host-kernel-qualification-run.md).
+The owner has not declared the release qualified.
+
 ### What this repeat did not show
 
 - No run on `7.3.5-1-cachyos`,

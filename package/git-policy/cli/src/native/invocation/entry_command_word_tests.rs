@@ -45,7 +45,7 @@ use std::path::{
 
 /// Every management command the help lists,
 ///  with the options that make it harmless in an empty repository.
-const MANAGEMENT_COMMANDS: [&[&str]; 14] = [
+const MANAGEMENT_COMMANDS: &[&[&str]] = &[
     &["--help"],
     &["-h"],
     &["doctor"],
@@ -95,7 +95,7 @@ fn the_earlier_word_does_the_same_as_the_new_word_plus_one_notice_for_every_comm
     let root: PathBuf = fixture("command-word-every-command");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let resolution: ResolutionInputs = inputs(root.as_path());
-    for command in MANAGEMENT_COMMANDS {
+    for &command in MANAGEMENT_COMMANDS {
         let current: Action = plan_invocation(
             invocation_with(repo.as_path(), COMMAND_WORD.current, command).as_slice(),
             &[],

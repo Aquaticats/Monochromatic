@@ -577,7 +577,7 @@ fn a_destination_replaced_after_the_binding_ends_the_reading() {
 /// with `core.attributesFile` naming `attributes`.
 fn standard_lfs_entries(attributes: Vec<u8>) -> Vec<ConfigEntry> {
     let mut entries: Vec<ConfigEntry> = Vec::new();
-    for (key, value) in LFS_FILTER {
+    for &(key, value) in LFS_FILTER {
         entries.push(ConfigEntry {
             scope: String::from("local"),
             key: String::from(key),
@@ -667,7 +667,7 @@ const THE_VARIABLE_CHILD: &str = "CLI_GIT_LADDER_TARGET_VARIABLE_CHILD";
 ///  so they are read from the repository's own store whatever a command names;
 ///  the value each is given in the child names what the repository already has,
 ///  so the control asks the reader and nothing else about the variable.
-const THE_VARIABLES_A_COMMAND_NAMES: [&str; 4] = [
+const THE_VARIABLES_A_COMMAND_NAMES: &[&str] = &[
     "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_REPLACE_REF_BASE",

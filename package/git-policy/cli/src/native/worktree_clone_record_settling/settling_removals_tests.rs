@@ -109,9 +109,8 @@ fn the_records_only_order_leaves_the_registration() {
     let (made, mut claim) = ready("settling-removals-records-only");
     let record = read_the_record(made.common.as_path(), SLOT).expect("the record reads");
     let to: RemovalsToMake<'_> = the_removals(&made, &record);
-    let gone: RemovalsGone =
-        make_the_removals(&to, WHEN_A_CHECKOUT_HAS_BEGUN.as_slice(), &mut claim)
-            .expect("the removals are made");
+    let gone: RemovalsGone = make_the_removals(&to, WHEN_A_CHECKOUT_HAS_BEGUN, &mut claim)
+        .expect("the removals are made");
     assert!(!gone.lock_written, "an ordinary worktree is never locked");
     assert!(!gone.registration_removed);
     assert!(made.registration.exists());
@@ -128,9 +127,8 @@ fn a_cut_short_lock_is_completed() {
     std::fs::write(made.registration.join("locked"), &whole[..whole.len() - 4])
         .expect("the cut-short lock writes");
     let to: RemovalsToMake<'_> = the_removals(&made, &record);
-    let gone: RemovalsGone =
-        make_the_removals(&to, WHEN_NO_CHECKOUT_HAS_BEGUN.as_slice(), &mut claim)
-            .expect("the removals are made");
+    let gone: RemovalsGone = make_the_removals(&to, WHEN_NO_CHECKOUT_HAS_BEGUN, &mut claim)
+        .expect("the removals are made");
     assert!(gone.lock_written);
     assert!(
         gone.plan_removed,
@@ -150,7 +148,7 @@ fn a_persons_lock_refuses() {
     )
     .expect("the lock writes");
     let to: RemovalsToMake<'_> = the_removals(&made, &record);
-    let refused = make_the_removals(&to, WHEN_NO_CHECKOUT_HAS_BEGUN.as_slice(), &mut claim)
+    let refused = make_the_removals(&to, WHEN_NO_CHECKOUT_HAS_BEGUN, &mut claim)
         .expect_err("a person's lock refuses");
     assert!(
         matches!(refused, SettlingStop::TheLockIsNotThisAdds { .. }),
@@ -173,7 +171,7 @@ fn an_empty_lock_refuses_as_a_persons() {
     let record = read_the_record(made.common.as_path(), SLOT).expect("the record reads");
     std::fs::write(made.registration.join("locked"), b"").expect("the empty lock writes");
     let to: RemovalsToMake<'_> = the_removals(&made, &record);
-    let refused = make_the_removals(&to, WHEN_NO_CHECKOUT_HAS_BEGUN.as_slice(), &mut claim)
+    let refused = make_the_removals(&to, WHEN_NO_CHECKOUT_HAS_BEGUN, &mut claim)
         .expect_err("an empty lock is a person's");
     assert!(
         matches!(refused, SettlingStop::TheLockIsNotThisAdds { .. }),
@@ -191,7 +189,7 @@ fn a_record_that_still_answers_stops_the_run() {
     std::fs::remove_file(binding_path(&made).as_path()).expect("the binding goes");
     std::fs::create_dir(binding_path(&made).as_path()).expect("a folder takes the name");
     let to: RemovalsToMake<'_> = the_removals(&made, &record);
-    let refused = make_the_removals(&to, WHEN_A_CHECKOUT_HAS_BEGUN.as_slice(), &mut claim)
+    let refused = make_the_removals(&to, WHEN_A_CHECKOUT_HAS_BEGUN, &mut claim)
         .expect_err("a name that stays refuses");
     assert!(
         matches!(refused, SettlingStop::TheRecordCouldNotGo { .. }),

@@ -254,7 +254,7 @@ const HOLDER_FOLDER: &str = "cli-git-lock-holders";
 ///  Measured on 2026-11-25: seven 40-to-50-byte files reported `1` block each, and `9` blocks each a moment
 ///  later, with no process touching them; the `size` of seven loose objects therefore read `3` before such a
 ///  commit and `31` after it, for the same seven objects.
-const BLOCK_COUNTED_FIELDS: [&str; 3] = ["size:", "size-pack:", "size-garbage:"];
+const BLOCK_COUNTED_FIELDS: &[&str] = &["size:", "size-pack:", "size-garbage:"];
 
 /// What a repository holds,
 /// so a commit that read the wrong one shows in it:

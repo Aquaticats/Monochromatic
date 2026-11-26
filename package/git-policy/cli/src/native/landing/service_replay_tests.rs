@@ -511,7 +511,7 @@ fn the_conflict_text_names_what_the_person_needs_and_leaks_no_internal_term() {
             .collect::<Vec<&str>>()
             .join(" ")
             .to_lowercase();
-        for term in DENYLIST {
+        for &term in DENYLIST {
             assert!(
                 !plain
                     .split(|character: char| {

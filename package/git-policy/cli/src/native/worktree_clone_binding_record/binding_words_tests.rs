@@ -98,7 +98,7 @@ fn the_keys_are_unique_and_in_the_designs_order() {
     assert_eq!(BINDING_KEYS_IN_ORDER.len(), 24);
     let mut seen: Vec<&str> = Vec::new();
     for key in BINDING_KEYS_IN_ORDER {
-        assert!(!seen.contains(&key), "key `{key}` is written twice");
+        assert!(!seen.contains(key), "key `{key}` is written twice");
         seen.push(key);
     }
     assert_eq!(BINDING_KEYS_IN_ORDER[0], "claim");

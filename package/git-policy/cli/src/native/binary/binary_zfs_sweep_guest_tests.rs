@@ -404,7 +404,7 @@ fn record_line<'a>(
 
 /// The words a sweep's report begins its line about one clone with,
 /// which are the words `CloneOutcome::line` prints before the dataset.
-pub(super) const ANSWER_WORDS: [&str; 7] = [
+pub(super) const ANSWER_WORDS: &[&str] = &[
     "attached",
     "unmounted",
     "reattached",

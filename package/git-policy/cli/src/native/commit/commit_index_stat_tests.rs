@@ -1223,7 +1223,7 @@ struct CommitCase {
 /// `-a`,
 /// `--include`,
 /// and a plain commit.
-const COMMIT_CASES: [CommitCase; 5] = [
+const COMMIT_CASES: &[CommitCase] = &[
     CommitCase {
         name: "named",
         mode: TransactionMode::ExplicitPath,
@@ -1369,7 +1369,7 @@ fn real_git_tree(
 #[test]
 fn every_selection_commits_the_real_gits_tree_when_the_index_holds_intent_to_add_entries() {
     let root: PathBuf = fixture("commit-index-stat-intent-compare");
-    for case in &COMMIT_CASES {
+    for case in COMMIT_CASES {
         let wrapper_root: PathBuf = root.join(format!("wrapper-{}", case.name));
         std::fs::create_dir(wrapper_root.as_path()).expect("wrapper fixture");
         let real_root: PathBuf = root.join(format!("real-{}", case.name));

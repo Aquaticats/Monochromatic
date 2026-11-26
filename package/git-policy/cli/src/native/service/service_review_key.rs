@@ -24,7 +24,7 @@
 
 /// The credential variable,
 /// and the stop-hook credential used when it is unset.
-pub const KEY_VARIABLES: [&str; 2] = [
+pub const KEY_VARIABLES: &[&str] = &[
     "SHADOW_REVIEW_LLMGATEWAY_API_KEY",
     "STOP_REMINDER_LLMGATEWAY_API_KEY",
 ];

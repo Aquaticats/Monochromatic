@@ -53,7 +53,7 @@ const CLONE_GUID_FIELD: &str = "cloneGuid=";
 const CLONE_DATASET_FIELD: &str = "cloneDataset=";
 
 /// The two fields a plan may name the clone by.
-const CLONE_FIELDS: [&str; 2] = [CLONE_GUID_FIELD, CLONE_DATASET_FIELD];
+const CLONE_FIELDS: &[&str] = &[CLONE_GUID_FIELD, CLONE_DATASET_FIELD];
 
 /// The field a plan records the state of its own head destroy in.
 const HEAD_FIELD: &str = "head=";
@@ -172,7 +172,7 @@ fn names_the_clone(
 ) -> bool {
     let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes);
     for line in text.lines() {
-        for field in CLONE_FIELDS {
+        for &field in CLONE_FIELDS {
             let Some(found) = line.strip_prefix(field) else {
                 continue;
             };

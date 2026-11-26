@@ -63,7 +63,7 @@ struct DestroyingEntry {
 /// The three the removal's own steps call are here with the origin cleanup's
 /// attempt and the snapshot batch's request,
 /// because the add must reach none of them.
-const THE_DESTROYING_ENTRIES: [DestroyingEntry; 5] = [
+const THE_DESTROYING_ENTRIES: &[DestroyingEntry] = &[
     DestroyingEntry {
         name: "destroy_the_head",
         declaring_file: "worktree_clone_removal_proof_and_plan/removal_head_destroy.rs",

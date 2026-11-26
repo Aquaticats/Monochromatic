@@ -101,7 +101,7 @@ struct DecidedGrant {
 /// split by choice 3C:
 /// the six the add's own steps use,
 /// and the three only a removal uses while no step of the add destroys.
-const DECIDED: [DecidedGrant; 9] = [
+const DECIDED: &[DecidedGrant] = &[
     DecidedGrant {
         place: Place::Checkout,
         scope: "-l",
@@ -315,7 +315,7 @@ fn every_withheld_permission_refuses_or_warns_as_the_record_says() {
         return;
     }
     let fixture: Fixture = Fixture::prepare();
-    for grant in &DECIDED {
+    for grant in DECIDED {
         let name: String = arm_slot(grant);
         clear_a_fresh_slot(&fixture, name.as_str());
         let withheld: Withheld<'_> = Withheld::from_the_fixture(&fixture, grant);
@@ -581,7 +581,7 @@ fn the_adds_writes_succeed_for_the_account_with_each_removal_permission_withheld
     }
     let fixture: Fixture = Fixture::prepare();
     for grant in DECIDED {
-        grant_to_the_account(&fixture, &grant);
+        grant_to_the_account(&fixture, grant);
     }
     let removal_grants: [RemovalGrant; 3] = [
         RemovalGrant {
@@ -740,7 +740,7 @@ fn the_adds_writes_succeed_for_the_account_with_each_removal_permission_withheld
         "the positive control: with `snapshot` withheld the account's snapshot must be refused, and it was not"
     );
     for grant in DECIDED {
-        withhold_from_the_account(&fixture, &grant);
+        withhold_from_the_account(&fixture, grant);
     }
 }
 
@@ -1026,7 +1026,7 @@ fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {
     }
     let fixture: Fixture = Fixture::prepare();
     for grant in DECIDED {
-        grant_to_the_account(&fixture, &grant);
+        grant_to_the_account(&fixture, grant);
     }
     hand_the_fixture_to_the_account(&fixture);
     start_the_arm_from_nothing(&fixture);
@@ -1203,7 +1203,7 @@ fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {
     hand_to_the_account_from_root(fixture.root.as_path());
     fixture.clear_the_slot("account-legacy");
     for grant in DECIDED {
-        withhold_from_the_account(&fixture, &grant);
+        withhold_from_the_account(&fixture, grant);
     }
 }
 

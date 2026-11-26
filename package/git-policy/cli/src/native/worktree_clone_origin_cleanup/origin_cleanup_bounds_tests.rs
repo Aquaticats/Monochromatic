@@ -31,7 +31,7 @@ fn every_key_of_the_grammar_has_one_width_and_nothing_else_does() {
 #[test]
 fn the_widest_record_fits_the_caps_the_design_computed() {
     let mut total: u64 = header_bytes() as u64;
-    for (key, widest) in FIELD_WIDEST_BYTES {
+    for &(key, widest) in FIELD_WIDEST_BYTES {
         total += key.len() as u64 + 1 + widest as u64 + 1;
     }
     assert!(

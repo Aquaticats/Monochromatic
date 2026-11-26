@@ -31,14 +31,14 @@ use std::path::PathBuf;
 /// riscv,
 /// s390 and loongarch use:
 /// direction 1 at bit 30.
-const GENERIC_VALUES: [u64; 3] = [0x5000_940e, 0x5000_940f, 0x5000_9417];
+const GENERIC_VALUES: &[u64] = &[0x5000_940e, 0x5000_940f, 0x5000_9417];
 
 /// The same requests under the encoding of powerpc,
 /// mips,
 /// sparc and alpha (direction 4 at bit 29) and of parisc
 ///  (direction 2 at bit 30):
 /// both give the value the kernel reports for `BTRFS_IOC_SUBVOL_CREATE` on powerpc64le.
-const WIDE_VALUES: [u64; 3] = [0x9000_940e, 0x9000_940f, 0x9000_9417];
+const WIDE_VALUES: &[u64] = &[0x9000_940e, 0x9000_940f, 0x9000_9417];
 
 /// The positive control of the encoding:
 /// the same function reproduces `libc::FICLONE`,

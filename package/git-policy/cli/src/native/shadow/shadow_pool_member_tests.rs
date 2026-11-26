@@ -92,7 +92,7 @@ fn creation(
 /// its own log generations and a removed worktree among them;
 ///  `shadow_links.rs`,
 ///  `is_shared_shadow_entry`).
-const UNREAD_ENTRY_NAMES: [&str; 4] = [
+const UNREAD_ENTRY_NAMES: &[&str] = &[
     "FETCH_HEAD",
     "monochromatic-git-policy-cli-commit-timing.jsonl",
     "lost-found",

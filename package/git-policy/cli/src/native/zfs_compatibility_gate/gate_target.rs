@@ -21,7 +21,7 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{
 };
 
 /// The targets the managed route is qualified for.
-pub const QUALIFIED_TARGETS: [&str; 1] = ["x86_64"];
+pub const QUALIFIED_TARGETS: &[&str] = &["x86_64"];
 
 /// The target this binary compiled for.
 pub fn current_target() -> &'static str {

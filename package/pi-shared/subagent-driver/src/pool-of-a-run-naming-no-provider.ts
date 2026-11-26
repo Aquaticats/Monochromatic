@@ -2,8 +2,8 @@
  The pool a run whose command line names no provider takes, and what a run that no pool takes is refused with.
 
  The project decided on 2026-11-23 that such a launch still starts, taking the first open pool in the owner's order
- (`opencode-go`, then Neuralwatt's flex pool), never a closed pool and never one that takes only runs naming it, and accepted the
- cost of the run not being counted against that pool's limit
+ (`qwen-plan-deepseek`, then `opencode-go`, then Neuralwatt's flex pool), never a closed pool and never one that takes only runs
+ naming it, and accepted the cost of the run not being counted against that pool's limit
  (`doc/decision/pi-driver-closed-pools-and-the-worktree-launchers-default.md`).
 
  The choice is the pool gate's own, so a run this launcher places is placed where the gate would place it: one rule of the owner's
@@ -116,6 +116,11 @@ export function poolOfARunNamingNoProvider({
       `poolOfARunNamingNoProvider was given ${named}, which no run that names no provider may take: its caller keeps the pair its command line named instead.`,
     );
   }
+  if (choice.destination === 'a-virtual-pool') {
+    throw new Error(
+      'poolOfARunNamingNoProvider was given a virtual selection, which keeps the provider and model its run named: its caller places that run by the pools the selection\'s router may take instead.',
+    );
+  }
   return {
     took: 'no-pool',
     refusal: noPoolTakesItTextOf({ tallies, },),
@@ -172,7 +177,7 @@ function noPoolTakesItTextOf({ tallies, }: { readonly tallies: PoolTallies },): 
  const why = whyItTakesNoRun({ tallies, pool: OPENCODE_GO, },);
  ```
  */
-function whyItTakesNoRun({
+export function whyItTakesNoRun({
   tallies,
   pool,
 }: {

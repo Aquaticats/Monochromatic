@@ -131,7 +131,7 @@ pub const REFRESH_NAMES_ONE_PATH_IN: usize = 2;
 /// Any other status is a refresh Git did not write,
 /// which it reports as fatal,
 /// for instance when another program holds `index.lock`.
-const STATUSES_THAT_KEEP_THE_REFRESH: [i32; 2] = [0, 1];
+const STATUSES_THAT_KEEP_THE_REFRESH: &[i32] = &[0, 1];
 
 /// What:
 ///  Whether one exit status means the index holds the worktree's stat data after the refresh.

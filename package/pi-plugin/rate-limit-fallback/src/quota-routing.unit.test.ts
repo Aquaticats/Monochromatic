@@ -7,7 +7,7 @@ import { setImmediate, } from 'node:timers/promises';
 import { syntheticWeeklyWindow, } from './synthetic-quota-fixture.ts';
 import { createAssistantMessageEventStream, isRetryableAssistantError, lazyStream, } from '@earendil-works/pi-ai';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
-import extension, { headerReset, QUOTA_READ_INTERVAL_MS, } from '../dist/final/node/index.mjs';
+import extension, { headerReset, neuralWattEvidence, QUOTA_READ_INTERVAL_MS, } from '../dist/final/node/index.mjs';
 import {
   assistant,
   collect,
@@ -43,6 +43,12 @@ const WINDOW_SECONDS = WINDOW_MS / 1_000;
  in production, and 20 is chosen only to sit above the recorded overage cap.
  */
 const PUBLISHED_CAP = 20;
+
+/**
+ Standard lane's own ceiling in the direct reading case, distinct from the flex ceiling so a reading of
+ the wrong field shows.
+ */
+const STANDARD_LANE_CEILING = 7;
 
 /** Concurrent slots the recorded overage refusal reports, `6/6 slots in use`. */
 const OVERAGE_CAP = 6;
@@ -92,9 +98,14 @@ const BODY_DELAY_HOUR_SECONDS = 3_600;
 const SINGLE_SLOT = 1;
 
 /**
- Writer head, the NeuralWatt standard lane that asks the same endpoint for its own ceiling.
+ The standard NeuralWatt lane's catalog record: the member the owner closed to writers on 2026-11-11, and
+ which no pool asks since 2026-11-26.
  */
-const [NEURALWATT_STANDARD,] = WRITER_TARGETS;
+const NEURALWATT_STANDARD = PHYSICAL_MODELS.find(function isTheStandardLane(model,) {
+  return (model.provider === 'neuralwatt') && (model.id === 'deepseek-v4.1-flash');
+},);
+if (NEURALWATT_STANDARD === undefined)
+  throw new Error('Expected the stand-in catalog to hold NeuralWatt\'s standard DeepSeek record',);
 
 /**
  Read the URL from each fetch input form without stringifying an arbitrary object.
@@ -434,29 +445,39 @@ await describe({
       },
     },),
     it({
-      name: 'asks the rate-limit endpoint for the lane its member id names',
-      fn: async function standardLaneQuery() {
+      name: 'asks the rate-limit endpoint for the exact member id the pool asked for',
+      fn: async function memberLaneQuery() {
         const queries: string[] = [];
         const { provider, options, } = await fixture({
           extension,
-          models: [NEURALWATT_STANDARD,],
+          models: [NEURALWATT_FLEX,],
           play({ model, }) { return immediate({ model, errorMessage: rateLimitRefusal({ model, },), },); },
           async fetchQuota(input,) {
             const url = new URL(quotaUrl(input,),);
             queries.push(url.searchParams.get('model',) ?? '',);
             return url.pathname === '/v1/rate_limits'
-              ? Response.json({
-                models: [
-                  { effective_concurrency: PUBLISHED_CAP, flex_floor: NO_FLEX_REQUESTS, },
-                ],
-              },)
+              ? rateLimitsReading({ flex: PUBLISHED_CAP, })
               : Response.json({},);
           },
         },);
         const model = poolModel({ provider, id: 'writer-pool', },);
         await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
-        // The standard lane asks for the id the pool asked for, never the flexible lane's row.
-        expect(queries.filter(query => query !== '',),).toEqual([NEURALWATT_STANDARD.id,],);
+        // The row names the canonical model, so the query carries the id of the member the pool reached,
+        // which is the flex lane's own id rather than the standard lane's.
+        expect(queries.filter(query => query !== '',),).toEqual([NEURALWATT_FLEX.id,],);
+      },
+    },),
+    it({
+      name: 'reads the standard lane\'s ceiling for a member id that names no flex lane',
+      fn: async function standardLaneKey() {
+        // Standard NeuralWatt left every pool on 2026-11-26 (the owner's writer order of that day), so no
+        // dispatch names an id of that lane: the reading is checked directly against the endpoint's row.
+        const evidence = neuralWattEvidence({
+          limits: { models: [{ effective_concurrency: STANDARD_LANE_CEILING, flex_floor: NO_FLEX_REQUESTS, },], },
+          quota: {},
+          memberId: NEURALWATT_STANDARD.id,
+        },);
+        expect(evidence.concurrency,).toBe(STANDARD_LANE_CEILING,);
       },
     },),
     it({

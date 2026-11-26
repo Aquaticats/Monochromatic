@@ -16,6 +16,7 @@ import {
   WRITER_POOL_MODEL,
 } from './verify-pi-command-line-session.ts';
 import { overflowSession, } from './verify-overflow-session.ts';
+import { WRITER_TARGETS, } from './member-order-fixture.ts';
 
 //region What the sessions select and who answers
 
@@ -30,19 +31,26 @@ const WRITER_SELECTION = 'rate-limit-fallback/writer';
 const PACKAGE_PROVIDER = 'rate-limit-fallback';
 
 /**
+ The writer members the pool asks first and second, as the fixture names them: the head under its own
+ provider, and the member after it under another, since the owner's order of 2026-11-26 spans three
+ providers.
+ */
+const [HEAD_TARGET, SECOND_TARGET,] = WRITER_TARGETS;
+
+/**
  Member id the writer pool asks first.
  */
-const HEAD_MEMBER = 'deepseek-v4.1-flash';
+const HEAD_MEMBER = HEAD_TARGET.id;
 
 /**
  Member id the writer pool asks second, which answers whatever the head does.
  */
-const SECOND_MEMBER = 'deepseek-v4.1-flash-flex';
+const SECOND_MEMBER = SECOND_TARGET.id;
 
 /**
- Provider both stand-in members are registered under, which the writer pool asks.
+ The provider that answers a turn the head refused.
  */
-const MEMBER_PROVIDER = 'neuralwatt';
+const SECOND_PROVIDER = SECOND_TARGET.provider;
 
 /**
  Selection line the stand-in extension writes on stderr, whose model half this harness checks.
@@ -83,7 +91,8 @@ function baseArguments(): string[] {
 type SinglePromptArm = Readonly<{
   name: string;
   behaviour: string;
-  answers: string
+  answers: string;
+  answersProvider: string
 }>;
 
 /**
@@ -94,21 +103,25 @@ const SINGLE_PROMPT_ARMS: readonly SinglePromptArm[] = [
     name: 'answers a turn through the writer pool',
     behaviour: 'answer',
     answers: HEAD_MEMBER,
+    answersProvider: HEAD_TARGET.provider,
   },
   {
     name: 'moves on from a member’s 429 and still answers',
     behaviour: 'refuse-429',
     answers: SECOND_MEMBER,
+    answersProvider: SECOND_PROVIDER,
   },
   {
     name: 'moves on from a member’s 503 and still answers',
     behaviour: 'refuse-503',
     answers: SECOND_MEMBER,
+    answersProvider: SECOND_PROVIDER,
   },
   {
     name: 'moves on from Cloudflare 523 and still answers',
     behaviour: 'refuse-523',
     answers: SECOND_MEMBER,
+    answersProvider: SECOND_PROVIDER,
   },
 ];
 
@@ -169,7 +182,7 @@ for (const arm of SINGLE_PROMPT_ARMS) {
   assert.equal(
     answered[0]
       ?.provider,
-    MEMBER_PROVIDER,
+    arm.answersProvider,
   );
   assert.equal(
     answered[0]

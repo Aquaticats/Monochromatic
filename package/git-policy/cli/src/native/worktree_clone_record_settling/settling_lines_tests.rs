@@ -134,7 +134,7 @@ fn the_checkout_line_names_the_worktree_removal() {
 /// The removals are numbered in the order the run makes them.
 #[test]
 fn the_removals_are_numbered_in_order() {
-    let lines: Vec<String> = removal_lines(WHEN_NO_CHECKOUT_HAS_BEGUN.as_slice());
+    let lines: Vec<String> = removal_lines(WHEN_NO_CHECKOUT_HAS_BEGUN);
     assert!(lines[0].contains("in this order"), "{}", lines[0]);
     assert!(
         lines[1]

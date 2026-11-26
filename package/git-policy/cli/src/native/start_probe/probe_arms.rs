@@ -71,7 +71,7 @@ pub enum ProbeArm {
 impl ProbeArm {
     /// Every arm,
     /// in the design's own order.
-    pub const ALL: [ProbeArm; 9] = [
+    pub const ALL: &[ProbeArm] = &[
         ProbeArm::Namespace,
         ProbeArm::Walk,
         ProbeArm::Source,
@@ -172,7 +172,7 @@ impl ProbeStep {
     /// The steps the worker runs,
     /// in order,
     /// with the scan in its two passes around the holder.
-    pub const WORKER_ORDER: [ProbeStep; 21] = [
+    pub const WORKER_ORDER: &[ProbeStep] = &[
         ProbeStep::Unshare,
         ProbeStep::PrivatePropagation,
         ProbeStep::ScratchTmpfs,
@@ -198,7 +198,7 @@ impl ProbeStep {
 
     /// The steps the holder runs,
     /// in order.
-    pub const HOLDER_ORDER: [ProbeStep; 2] = [ProbeStep::HolderAttach, ProbeStep::HolderWait];
+    pub const HOLDER_ORDER: &[ProbeStep] = &[ProbeStep::HolderAttach, ProbeStep::HolderWait];
 
     /// The step in the words a record line carries.
     pub fn name(self) -> &'static str {
@@ -232,7 +232,7 @@ impl ProbeStep {
     /// Every step of both children,
     /// the worker's and the holder's,
     /// in one list for parsing and folding.
-    pub const ALL: [ProbeStep; 23] = [
+    pub const ALL: &[ProbeStep] = &[
         ProbeStep::Unshare,
         ProbeStep::PrivatePropagation,
         ProbeStep::ScratchTmpfs,

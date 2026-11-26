@@ -58,12 +58,12 @@ pub const RECURSIVE_ZFS: &str = "zfs";
 pub const AUTOSNAP_NO: &str = "no";
 
 /// The words sanoid reads a toggle as true (`/usr/bin/sanoid:942`).
-pub const TRUE_WORDS: [&str; 10] = [
+pub const TRUE_WORDS: &[&str] = &[
     "1", "true", "True", "TRUE", "yes", "Yes", "YES", "on", "On", "ON",
 ];
 
 /// The words sanoid reads a toggle as false (`/usr/bin/sanoid:943`).
-pub const FALSE_WORDS: [&str; 10] = [
+pub const FALSE_WORDS: &[&str] = &[
     "0", "false", "False", "FALSE", "no", "No", "NO", "off", "Off", "OFF",
 ];
 

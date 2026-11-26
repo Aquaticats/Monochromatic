@@ -77,7 +77,7 @@ fn code_only(text: &str) -> String {
 /// ```ts
 /// const A_HAND_WRITE = ['stderr(', 'write_all(', 'eprintln!(']
 /// ```
-const A_HAND_WRITE: [&str; 3] = ["stderr(", "write_all(", "eprintln!("];
+const A_HAND_WRITE: &[&str] = &["stderr(", "write_all(", "eprintln!("];
 
 /// What:
 ///  What the door's own text gets wrong,
