@@ -212,6 +212,7 @@ Unprofiled development processes remain a residual risk.
   remove the `lyrebird` child, its `priority=1` rule and the signal rule from `local/torbrowser-tor`,
   reload, and recheck Snowflake.
   Until then nothing breaks: the local `priority=1` rule keeps sending `lyrebird` to the local child.
+  No watcher runs: the owner chose GitHub's own notification of the merge as the signal (2026-11-26T08:14:00-05:00).
   `local/apparmor_parser` gained DAC capabilities and read access to `~/temp/agent` for drafts.
   See `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`, "Thirteenth batch".
 - Separately on 2026-11-26, an AppArmor test-created `~/.mozilla/firefox` directory made all three

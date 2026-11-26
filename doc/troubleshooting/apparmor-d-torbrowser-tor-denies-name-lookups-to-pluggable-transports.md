@@ -202,7 +202,7 @@ Issue title: `torbrowser-tor: pluggable transports cannot resolve names or open 
 ~~~md
 With `torbrowser-tor` enforcing, Tor Browser cannot connect through Snowflake bridges.
 
-### Cause
+## Cause
 
 The profile runs every pluggable transport inside Tor's own profile
 ([`PluggableTransports/** mix`][pt]),
@@ -218,7 +218,7 @@ and Go's resolver [uses `127.0.0.1:53` and `[::1]:53`][go],
 while systemd-resolved [listens on `127.0.0.53` and `127.0.0.54`][resolved],
 so on systems using it the fallback misses the resolver.
 
-### Logs
+## Logs
 
 Trimmed, from `/var/log/audit/audit.log`:
 
@@ -229,7 +229,7 @@ apparmor="DENIED" operation="create" class="net" profile="torbrowser-tor" comm="
 apparmor="DENIED" operation="signal" class="signal" profile="torbrowser-tor" requested_mask="receive" signal=term peer="torbrowser"
 ```
 
-### Reproduction
+## Reproduction
 
 [This workflow][repo] builds apparmor.d at [`4c4fec7`][commit] on a clean Ubuntu 26.04 runner
 with [`just build`][jbuild] and [`prebuild`][jprebuild],
@@ -246,7 +246,7 @@ $ getent hosts app.datapacket.com; echo $?
 0
 ```
 
-### Proposed fix
+## Proposed fix
 
 The [patch][patch] changes [`apparmor.d/groups/browsers/torbrowser-tor`][file]:
 
@@ -337,3 +337,5 @@ and `docs/development/index.md` asks only for a branch and a pull request.
 
 The risk stays the owner's: both posts carry the owner's GitHub account.
 What happens next is the maintainer's call; follow-ups are the owner's decision.
+At the owner's request both bodies were edited at 2026-11-26T08:14:30Z to use `##` section headings,
+since the title sits outside the body and level 2 was free.
