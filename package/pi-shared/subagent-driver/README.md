@@ -128,7 +128,11 @@ and the order a run that names no model of its own takes the pools that accept o
 - `qwen-plan-deepseek`:
   the qwen plan's DeepSeek model (`deepseek-v4.1-flash-1017`),
   5 runs,
-  taken only by a run that names that pair.
+  a pool that a run naming no model of its own takes first since 2026-11-26.
+  The owner that day answered the writers' order as
+  "Qwen, opencode-go, flex (Recommended)"
+  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order"),
+  and kept its room of 5 until a run measures this model's.
   The owner reopened it on 2026-11-18:
   "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool."
   and
@@ -137,16 +141,11 @@ and the order a run that names no model of its own takes the pools that accept o
   Those words supersede the removal of 2026-11-13
   ("Remove Qwen hosted Deepseek from the pool."),
   which had closed it at limit 0 for five days.
-  The short,
-  frequent reviews name it first.
-  It is not a pool a run that names no model of its own takes:
-  such a run still goes to `opencode-go` first,
-  then `neuralwatt-flex`.
   Its 5 is taken from `qwen-token-plan` on the same plan rather than measured on this model,
   with that pool's reasoning below.
 - `opencode-go`:
   20 runs,
-  which a run that names no model of its own takes first.
+  which a run that names no model of its own takes once `qwen-plan-deepseek` is full or closed.
   Its account has a weekly limit.
   The owner,
   2026-11-11:
@@ -175,7 +174,7 @@ and the order a run that names no model of its own takes the pools that accept o
 - `neuralwatt-flex`:
   DeepSeek flex,
   20 runs,
-  which a run that names no model of its own takes when `opencode-go` is full or closed.
+  which a run that names no model of its own takes when `qwen-plan-deepseek` and `opencode-go` are full or closed.
   Flex answers about 100% slower,
   so a run moved there gets twice the wall clock it asked for.
 - `neuralwatt-kimi-flex`:
@@ -277,6 +276,49 @@ Holding a slot in each is the safe direction:
 a guessed single pool read that pool full while the others read empty,
 which is how runs sat on standard Neuralwatt while the count said it had room.
 A count can therefore read fuller than the runs really are.
+
+### Runs on Pi's virtual writer
+
+Pi's `rate-limit-fallback` plugin publishes two virtual selections,
+`rate-limit-fallback/writer` and `rate-limit-fallback/reviewer`
+(`package/pi-plugin/rate-limit-fallback/README.md`).
+A run on one holds no single pool,
+so the driver counts it in every pool that selection's router may send it to,
+read from `VIRTUAL_POOLS` in `src/pool-limits.ts`:
+
+- `rate-limit-fallback/writer`:
+  `qwen-plan-deepseek`, `opencode-go`, `neuralwatt-flex`,
+  the owner's writer order of 2026-11-26.
+- `rate-limit-fallback/reviewer`:
+  the same three pools.
+  Its fourth member,
+  Synthetic's DeepSeek model,
+  belongs to no pool of this table,
+  so it holds no slot here.
+
+While one member has room and another does not, the router's request can land on either,
+so a run on a virtual selection holds a slot in each and starts only while every one of them has room.
+That is what keeps a pool from taking more runs than its room when a member answers `429`
+and the router moves the request, and later the run, to the next member.
+The cost is that the smallest member bounds how many such runs may go at once:
+five qwen runs at the time of writing,
+however much room `opencode-go` and `neuralwatt-flex` have left.
+A refusal names each member pool with its count and its limit,
+and the setting that gives a pool room again.
+
+The member order is the plugin's,
+and this table carries a copy of it because the driver declares no dependency on that package,
+and adding one needs a lockfile regeneration this change could not run.
+Both lists are pinned to the same decision record,
+so a change to either is a change to the other.
+
+A run on a virtual selection keeps the provider and model it named,
+because that pair is what lets the plugin's router move a refused request on;
+rewriting it into one member's pair would pin the run to that member.
+It gets the largest wall factor of those members,
+because the run keeps one wall clock wherever its router lands.
+A run naming a member pool directly is not this case:
+the pool it names takes it, and that pool is the only one it holds.
 
 ### The room a new run needs
 
