@@ -118,9 +118,11 @@ takes `qwen` unless `WRITER_POOL` names another,
 until the virtual writer round merges and rounds start on `--provider=rate-limit-fallback --model=writer`.
 Rounds started before that decision run on flex.
 
-- The crate split's move order step 1, the rescan of `main` after the reformat,
-  window `cli-git-split-rescan-after-the-reformat`, run 2 on flex;
-  it also places debt ledger items 7, 12 and 15 in the split's order.
+- The crate split's round 1 (the rest of move-order step 2),
+  briefed in `~/temp/agent/cli-git-split-single-item-moves-2026-11-26/prompt.md`,
+  starts when no open round touches `worktree_copying/`, `policy/`, `invocation/`, `landing/` or `transaction/`;
+  at 04:58 issues 6489, 6494, 6497 and 6498 did.
+  The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
 - Plan step 23, the host-kernel qualification guest,
   window `zfs-step-23-host-kernel-qualification`, run 2 on flex.
 - Issue 6494, the no-threads child helper read the wrong way,
@@ -141,6 +143,8 @@ Rounds started before that decision run on flex.
 ### Merged tonight
 
 - The reformat of every Rust crate with the root `rustfmt.toml` as `00b6a940b4`.
+- The crate split's rescan of `main` after the reformat as `6329f89af0`,
+  with its round order in `doc/planning/cli-git-source-layout-target-tree.md`, "Next".
 - 6492 (the descriptor-limit controls in child processes) as `1a03e26dfe`.
 - 6483 as `ae1a14676b`,
   6484 as `b50016e728`,
