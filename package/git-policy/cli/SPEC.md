@@ -16670,6 +16670,11 @@ The line is delivered on a thread of its own and awaited for at most the `WARNIN
 `service/wait_ceilings.rs`,
 so a standard error whose reader has stopped draining cannot hold the commit:
 a line still waiting at that ceiling is abandoned and logged.
+A process whose process limit refuses that thread says which limit refused it,
+and writes every line on the thread that says it instead:
+one write, made only where the descriptor reports room,
+so no caller waits for a reader and nothing a command says is lost
+(issue 6476).
 It is written to the standard error descriptor itself and not through the standard library's shared handle,
 whose lock every synchronous write to standard error takes,
 so a worker left at the ceiling holds no lock the commit's own writes would wait for.
