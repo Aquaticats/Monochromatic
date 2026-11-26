@@ -505,6 +505,17 @@ The guard was shown failing with one control's child starter taken out:
 it named `commit/prepare_work_spans_tests.rs:80 (a_step_of_no_measurable_time_is_stated_as_one_call)`,
 and the same one-process pair read the neighbour's five steps again;
 both were restored.
+After merging `origin/main` (`68af165851`):
+`cargo fmt --check`,
+`cargo check --locked --offline --all-targets` and
+`cargo clippy --locked --offline --all-targets -- -D warnings` answered nothing to fix;
+the four module runs answered
+`commit::commit_index::tests::` `test result: ok. 32 passed; 0 failed`,
+`commit::prepare_work_spans::tests::` `ok. 5 passed; 0 failed`,
+`commit::commit_timing::tests::` `ok. 21 passed; 0 failed` and
+`source_guard::` `ok. 141 passed; 0 failed`;
+and the locked linter (`monochromatic-lint` 0.5.2-alpha.15) found no `rust/folder-uses-links` and no
+`rust/file-order-in-folder` finding over this package.
 Status:
 incomplete,
 unapproved and not final.
