@@ -67,11 +67,45 @@ Times are UTC and every file keeps the host's own clock.
   the highest `GLIBC_x.y` each needs (`readelf --version-info`),
   the absolute paths the test binary baked,
   and the smoke run in which both binaries started in the same Ubuntu image at the same paths.
+- `second-round-samples-arm-4g.jsonl`:
+  the host's own samples every 10 seconds around the 4 GiB guest,
+  in the format the first round's
+  samples use,
+  with the guest named in each sample's `guests` list.
+- `second-round-arm-4g-guest-memory.log.txt`:
+  the guest's own `/proc/meminfo` every 5 seconds for its whole life.
+- `second-round-arm-4g-prepare.log.txt`,
+  `second-round-arm-4g-build.log.txt` and
+  `second-round-arm-4g-toolchain.log.txt`:
+  the three preparation steps inside the 4 GiB guest,
+  whose log times give each step's length.
+- `second-round-arm-4g-unpack.log.txt`,
+  `second-round-arm-4g-pool.log.txt`,
+  `second-round-arm-4g-lock-arm.log.txt` and `second-round-arm-4g-drop.log.txt`:
+  the binaries starting in the guest,
+  the pool,
+  the arm's own log with its 15 marker lines and its
+  `test result` line,
+  and the cache drop.
+- `second-round-arm-4g-create.log.txt` and `second-round-arm-4g-destroy.log.txt`:
+  `mvm create` and `mvm destroy` output,
+  whose timestamps give the two durations.
 - `second-round-memory-gate-log.txt`:
   the gate reading every 30 seconds while this revision waited for a guest window,
   each line naming `MemAvailable`,
   the ARC's `size` and `c_min`,
   and memory pressure's two averages.
+
+## Editing
+
+Two mechanical removals only:
+the first round's copies renamed `.log` to `.log.txt`,
+because this repository's `.gitignore` ignores
+`*.log`;
+and every line naming the round folder's own home path is removed from the copies,
+because
+the repository is public.
+Nothing else is changed.
 
 ## What is not in this folder
 

@@ -1,0 +1,3 @@
+MemFree:         3759068 kB
+Cached:            51248 kB
+AnonPages:         46652 kB
