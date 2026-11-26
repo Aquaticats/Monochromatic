@@ -199,7 +199,8 @@ fn the_running_modules_declaration_answers_what_the_arm_expects() {
 /// Gotcha:
 ///  The field is little-endian on this target,
 /// and `&[u8]` is a view into the
-///  caller's buffer, not a copy of it.
+///  caller's buffer,
+/// not a copy of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

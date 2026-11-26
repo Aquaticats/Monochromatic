@@ -1,6 +1,8 @@
 # The gate arm's header lengths, measured in two guests
 
-**Non-final, by an agent, unapproved.**
+**Non-final,
+by an agent,
+unapproved.**
 It records one round's runs of
 `compatibility_check::live_gate_tests::the_running_modules_declaration_answers_what_the_arm_expects`
 in an `mvm` guest of the step 23 CachyOS template and in a guest of `mvm`'s Ubuntu 24.04
@@ -11,7 +13,8 @@ and nothing here is approved.
 The issue it answers is 6502.
 The failure was found by the step 23 qualification run
 (`doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`,
-"Step 2's arms: the live suites of the binding").
+"Step 2's arms:
+the live suites of the binding").
 
 ## What the checker promises
 
@@ -74,8 +77,10 @@ Commits `0bb2fc7fef` (the arm) and `7662012a15` (the arm's comment and the recip
 
 ## The two guests
 
-Both guests were made, used and destroyed through `mvm --backend libvirt`,
-one at a time, and both ran the crate built inside the guest with
+Both guests were made,
+used and destroyed through `mvm --backend libvirt`,
+one at a time,
+and both ran the crate built inside the guest with
 `cargo build --release --tests --locked`,
 then the one arm through
 
@@ -94,7 +99,8 @@ and given the 6 GiB `/swapfile` the template needs for a build:
 
 - `uname --kernel-release` `7.3.5-1-cachyos`;
 - `/sys/module/zfs/version` `2.4.4-1`;
-- `/sys/kernel/btf/zfs` 570234 bytes, header field 32;
+- `/sys/kernel/btf/zfs` 570234 bytes,
+  header field 32;
 - `/sys/kernel/btf/vmlinux` 6579400 bytes.
 
 The Ubuntu guest was `mvm`'s Ubuntu 24.04 image,
@@ -106,7 +112,8 @@ and installs Rust and `cargo-nextest`):
 
 - `uname --kernel-release` `6.8.0-147-generic`;
 - `/sys/module/zfs/version` `2.4.4-1`;
-- `/sys/kernel/btf/zfs` 579778 bytes, header field 24;
+- `/sys/kernel/btf/zfs` 579778 bytes,
+  header field 24;
 - `/sys/kernel/btf/vmlinux` 6103569 bytes;
 - `pahole` v1.25.
 
@@ -114,10 +121,14 @@ and installs Rust and `cargo-nextest`):
 
 Every run names the `test result` line it printed.
 
-- Red, before the change, in the CachyOS guest:
+- Red,
+  before the change,
+  in the CachyOS guest:
   `test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 258 filtered out`,
   with `left: 32` and `right: 24`.
-- Green, after the change, in the CachyOS guest:
+- Green,
+  after the change,
+  in the CachyOS guest:
   `MEASUREMENT gate-header declared=32 reported=32 oldest=24 layout=32` and
   `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 258 filtered out`.
 - Red again with the old pin put back,
