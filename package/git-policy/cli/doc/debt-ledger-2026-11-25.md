@@ -235,6 +235,14 @@ and five threaded-only failures are filed and open:
 6486 (four `run_progress` controls read the shared test process) and
 6487 (the process-wide blocking room in `foundation`).
 
+Round of 2026-11-26:
+6484 (two heartbeat controls share one manager switch) is fixed and merged,
+and that file's four statics are gone:
+each control writes the word its fake manager answers into the folder its own watch names as a session bus,
+which is the first form this item asks for ("give each test its own instance"),
+and `source_guard/heartbeat_controls_own_their_manager_switch_tests.rs` refuses a `static` in that file.
+The item's other sites stay as measured.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
