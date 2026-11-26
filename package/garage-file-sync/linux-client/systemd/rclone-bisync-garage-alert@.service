@@ -1,0 +1,25 @@
+[Unit]
+Description=Desktop alert for a failed Garage sync unit
+Documentation=file://%h/Monochromatic/package/garage-file-sync/linux-client/README.md
+# Template, started by OnFailure=rclone-bisync-garage-alert@%n.service (drop-in
+# 60-alert-on-failure.conf of the sync unit, and the trigger and watcher units); the
+# instance is the unit that failed. Its twin rclone-bisync-garage-recovered@.service is
+# what OnSuccess= starts. They must stay two templates: systemd 262 passes no MONITOR_*
+# variables to a handler that one unit names in both OnFailure= and OnSuccess= (it logs
+# "multiple trigger source candidates for exit status propagation" and skips them;
+# measured on this PC's user manager, 2026-11-25), and the --trigger option tells the
+# entry which dependency started it even if the variables are missing.
+# The handler calls notify-send, which needs the graphical session's notification server,
+# so a failure while logged out is not shown; the next run fails again and alerts then.
+
+[Service]
+Type=oneshot
+# `/usr/bin/env node` follows the user manager's PATH, which ~/.config/environment.d/ can
+# extend, and node runs the TypeScript entry straight from this checkout the way
+# claude-cpu-watch.service runs its own source. The entry writes its per-unit alert
+# streak under ~/.local/state/rclone-bisync-garage-alert/, so it has to be the same file
+# the repository holds, never a copy.
+ExecStart=/usr/bin/env node %h/Monochromatic/package/garage-file-sync/linux-client/src/alert.ts %i --trigger=unit-failed
+# notify-send waits up to 25 s for a reply from the notification server (GLib default);
+# the entry gives journalctl and notify-send 30 s each.
+TimeoutStartSec=90
