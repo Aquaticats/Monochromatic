@@ -20,6 +20,32 @@ use crate::test_support::{
 use crate::worktree_clean::stored_stats;
 use std::path::PathBuf;
 
+/// A repository with two files and one commit.
+fn a_repository(name: &str) -> PathBuf {
+    let root: PathBuf = fixture(name);
+    git(
+        root.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
+    std::fs::write(root.join("a.txt"), b"a\n").expect("the file");
+    std::fs::write(root.join("b.txt"), b"b\n").expect("the file");
+    git(root.as_path(), &["add", "."]);
+    git(
+        root.as_path(),
+        &[
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "one",
+        ],
+    );
+    return root;
+}
+
 /// What:
 ///  A repository with two files and one commit,
 ///  and the registration Git's own `worktree add` made for a worktree of it called `topic`,
@@ -58,32 +84,6 @@ fn a_repository_and_the_registration_git_made(name: &str) -> (PathBuf, PathBuf) 
         ],
     );
     return (root, registration);
-}
-
-/// A repository with two files and one commit.
-fn a_repository(name: &str) -> PathBuf {
-    let root: PathBuf = fixture(name);
-    git(
-        root.as_path(),
-        &["init", "--quiet", "--initial-branch=main"],
-    );
-    std::fs::write(root.join("a.txt"), b"a\n").expect("the file");
-    std::fs::write(root.join("b.txt"), b"b\n").expect("the file");
-    git(root.as_path(), &["add", "."]);
-    git(
-        root.as_path(),
-        &[
-            "-c",
-            "user.name=Fixture",
-            "-c",
-            "user.email=fixture@example.invalid",
-            "commit",
-            "--quiet",
-            "-m",
-            "one",
-        ],
-    );
-    return root;
 }
 
 #[test]
