@@ -88,8 +88,8 @@ The Mac goes second (round 8): its agent first gains `--conflict-resolve newer` 
     state per unit under `~/.local/state/rclone-bisync-garage-alert/`, which survives logout;
     state written only after `notify-send` succeeds;
     recovery only for a run that exited with status 0;
-    a run stopped by hand reaches the failure handler (measured: `Result=signal`), and is to be silent there
-    (fix in progress on branch `fix/garage-file-sync-linux-client-alert-review-findings`);
+    a run stopped by hand reaches the failure handler (measured: `Result=signal`), which stays silent for it
+    (`Result=signal` with `TERM`, or rclone's own exit status 143 on SIGTERM);
     its "next hourly run" text and its look-back window are corrected for 5-minute runs.
 6.  Where the files live (round 7):
     sources in the repository,
@@ -549,6 +549,17 @@ Two defects the proof found, both fixed on the branch before go-live:
 The short DeepSeek review of the branch found that the watcher's global start hook would report a false recovery every 30 s
 when adding watches fails, and that the abort notice demanded a `--resync` the troubleshooting doc says is not needed;
 both are fixed (the hook is now the target's `onStartWatch`, which directory-watcher runs only after watching starts).
+
+## Coverage and review fixes merged (2026-11-25T23:10:57-05:00)
+
+The coverage branch and its review fixes merged into `main` as `59de5b8c25`;
+the installed copies still match the package.
+A short DeepSeek review of the fixes (at `a78419f961`) reverted each fix in a throwaway copy and saw its test fail for the named reason.
+It found, and the coordinating session left open:
+
+- A `hook-failed` alert's streak closes only when the watcher restarts, so a hook fault that is fixed while the watcher keeps running is never announced as fixed.
+- A hand stop that systemd escalates to SIGKILL after `TimeoutStopSec` still raises a failure notice; only SIGTERM stops are silent.
+- Untested branches: an unpaired `{` in a listing path, a state file with `recovered: false`, the "stopping it failed" branch of `stopCommand`, and `src/alert.ts` as a command.
 
 ## Review of the test-coverage branch (2026-11-25T22:39:01-05:00)
 
