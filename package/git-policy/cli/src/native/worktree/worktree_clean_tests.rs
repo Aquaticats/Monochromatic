@@ -79,6 +79,8 @@ const DESCRIPTOR_ROOM_CHILD: &str = "CLI_GIT_WORKTREE_CLEAN_DESCRIPTOR_ROOM_CHIL
 /// a helper process runs one test and holds nothing of the process that started it,
 /// so the count is the walk's own,
 /// and the descriptor this test's own process holds across the whole walk reaches nothing the helper measured.
+/// The helper takes its directory from the variable rather than `fixture`,
+/// so the watchdog no fixture arms never starts a thread there that opens descriptors while the room is measured.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -121,6 +123,14 @@ fn a_tracked_file_past_the_chain_bound_is_clean_at_the_walk_s_own_descriptor_roo
 /// function theDeepWalkVerdict(root: string): string[]
 /// ```
 fn the_deep_walk_verdict(root: &Path) -> Vec<String> {
+    // What:     `Vec::new()` is an empty growable array of `String`s that this function owns and hands back (siblings:
+    //           `&str`/`&[String]`, which borrow, and `[String; N]`, whose length is fixed at compile time).
+    // Why:      each failed check appends one sentence, and the helper writes them all as its verdict.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const failures: string[] = [];
+    // ```
     let mut failures: Vec<String> = Vec::new();
     let repo: PathBuf = repository(root, "repo");
     // The tracked file at the bound and the one past it, so the walk fills the chain and then asks for the deeper
@@ -137,6 +147,15 @@ fn the_deep_walk_verdict(root: &Path) -> Vec<String> {
     let git_dir: PathBuf = repo.join(".git");
     // A walk before the measured one, so whatever the reading of the index and the object database keeps open is open
     //  at the moment the limit is measured, and the room left is the walk's own.
+    // What:     `if let Err(reason) = ...` takes the failure variant of a `Result` and names what it holds; the success
+    //           variant goes unhandled here because this walk's answer is not the one under test.
+    // Why:      a worktree that is not clean at the ordinary limit already says why, and the sentence goes into the
+    //           verdict beside whatever the measured walk answers.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // try { walk(); } catch (reason) { failures.push(`the worktree is clean at the ordinary limit: ${reason}`); }
+    // ```
     if let Err(reason) = check_clean_tracked(repo.as_path(), git_dir.as_path(), git_dir.as_path()) {
         failures.push(format!("the worktree is clean at the ordinary limit: {reason}"));
     }
@@ -147,6 +166,8 @@ fn the_deep_walk_verdict(root: &Path) -> Vec<String> {
     let before = set_soft_limit(u64::try_from(open_descriptors()).expect("a count of descriptors") + room);
     let verdict = check_clean_tracked(repo.as_path(), git_dir.as_path(), git_dir.as_path());
     restore_limit(before);
+    // The walk's answer: `Ok` carries what it proved, `Err` the sentence it refused with, and the guard reports a walk
+    //  that answered with a count other than the two tracked files.
     match verdict {
         Ok(clean) if clean.tracked != 2 => failures.push(format!("both tracked files are proven, the one at the bound and the one past it: {}", clean.tracked)),
         Ok(_) => {}
