@@ -835,13 +835,18 @@ pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(
 /// ```ts
 /// function mergesWhoseOwnerRuns(gitDir: string): string[]; // listMergeIntents().filter(isAlive).map(nameKey)
 /// ```
-fn merges_whose_owner_runs(git_dir: &Path) -> Vec<String> {
+pub(crate) fn merges_whose_owner_runs(git_dir: &Path) -> Vec<String> {
     let mut keys: Vec<String> = Vec::new();
     let Ok(records) = list_merge_intents(git_dir) else {
         return keys;
     };
     for record in records {
-        let Ok(bytes) = std::fs::read(record.as_path()) else {
+        // A record that is a pipe is no record this command can read, so it names no merge that runs and the
+        //  read answers at once rather than waiting for a writer (`crate::plain_file`).
+        let Ok(bytes) = crate::plain_file::read_plain_file(
+            record.as_path(),
+            crate::plain_file::SMALL_FILE_LIMIT,
+        ) else {
             continue;
         };
         let Some(intent) = parse_merge_intent(bytes.as_slice()) else {

@@ -687,6 +687,11 @@ mod wait_notice;
 #[path = "binary_commit_stalled_standard_error_tests.rs"]
 mod commit_stalled_standard_error;
 
+/// A named pipe standing where this program keeps a record:
+/// the wrapped command answers instead of holding for a writer.
+#[path = "binary_named_pipe_in_a_record_folder_tests.rs"]
+mod named_pipe_in_a_record_folder;
+
 /// The fault injection and the recovery invariants of the operating conditions in the README.
 #[path = "binary_fault_support.rs"]
 mod fault;
