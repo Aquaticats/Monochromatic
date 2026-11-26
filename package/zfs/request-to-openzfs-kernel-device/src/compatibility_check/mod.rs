@@ -157,6 +157,12 @@ mod base_file_fixture;
 /// built by a writer of this folder's own.
 #[cfg(test)]
 mod blob_fixture;
+/// The changes a test makes to an entry a blob already wrote.
+#[cfg(test)]
+mod blob_fixture_changed_records;
+/// The type entries a test asks a blob to hold.
+#[cfg(test)]
+mod blob_fixture_type_entries;
 /// The bounded read's own decisions.
 #[cfg(test)]
 #[path = "bounded_read_tests.rs"]
