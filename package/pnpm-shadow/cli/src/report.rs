@@ -58,12 +58,19 @@ off; the way to silence it is to fix the manifests named above.";
 /// ```ts
 /// export function renderReport(root: string, report: ScanReport): string | undefined
 /// ```
-pub fn render_report(root: &Path, report: &ScanReport) -> Option<String> {
+pub fn render_report(
+    root: &Path,
+    report: &ScanReport,
+) -> Option<String> {
     let problem_count: usize = report.findings.len() + report.notes.len();
     if problem_count == 0 {
         return None;
     }
-    let noun: &str = if problem_count == 1 { "problem" } else { "problems" };
+    let noun: &str = if problem_count == 1 {
+        "problem"
+    } else {
+        "problems"
+    };
 
     let mut text: String = String::new();
     text.push_str(&format!(

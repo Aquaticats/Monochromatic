@@ -54,7 +54,12 @@ pub const WORKSPACE_MARKER: &str = "pnpm-workspace.yaml";
 /// ```ts
 /// export const MANIFEST_NAMES = ['package.json', 'package.json5', 'package.yaml', 'package.yml'] as const;
 /// ```
-pub const MANIFEST_NAMES: [&str; 4] = ["package.json", "package.json5", "package.yaml", "package.yml"];
+pub const MANIFEST_NAMES: [&str; 4] = [
+    "package.json",
+    "package.json5",
+    "package.yaml",
+    "package.yml",
+];
 
 /// The one manifest file name whose bytes are read.
 pub const READ_MANIFEST_NAME: &str = "package.json";
