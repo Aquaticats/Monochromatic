@@ -20,7 +20,6 @@ import {
 } from './alert-outcome.ts';
 import {
   decideFailure,
-  decideRecovery,
   type Streak,
   type StreakLookup,
 } from './alert-streak.ts';
@@ -122,20 +121,60 @@ async function alertFailure({
 }
 
 /**
- Shows a recovery alert and closes the streak.
+ Records what a shown recovery means for the streak.
+
+ A watcher restart keeps the streak open and marks it recovered, so a watcher that
+ crashes again inside the hour sends neither a second failure notice nor a second
+ recovery one. Every other recovery removes the streak.
+
+ @param request - the trigger that decided what the recovery means
+
+ @param deps - effects the alert needs
+
+ @param streak - the open streak the recovery is about
+ */
+async function recordRecovery({
+  request,
+  deps,
+  streak,
+}: Readonly<{
+  request: AlertRequest;
+  deps: AlertDeps;
+  streak: Streak;
+}>): Promise<void> {
+  if (request.trigger === 'watcher-started') {
+    await deps.writeStreak({
+      lastAlertAtMs: streak.lastAlertAtMs,
+      recovered: true,
+    },);
+    return;
+  }
+  await deps.removeStreak();
+}
+
+/**
+ Shows a recovery alert and records what it means for the streak.
+
+ A watcher restart keeps the streak open and marks it recovered, so a watcher that
+ crashes again inside the hour sends neither a second failure notice nor a second
+ recovery one. Every other recovery closes the streak.
 
  @param request - the trigger, unit, invocation id and outcome to act on
 
  @param deps - effects the alert needs
 
- @returns 0 when the alert was shown and the streak removed, 1 when either failed
+ @param streak - the open streak this recovery is about
+
+ @returns 0 when the alert was shown and the streak recorded, 1 when either failed
  */
 async function alertRecovery({
   request,
   deps,
+  streak,
 }: Readonly<{
   request: AlertRequest;
   deps: AlertDeps;
+  streak: Streak;
 }>): Promise<number> {
   /**
    The notification to show.
@@ -158,9 +197,13 @@ async function alertRecovery({
     return 1;
   }
   try {
-    await deps.removeStreak();
+    await recordRecovery({
+      request,
+      deps,
+      streak,
+    },);
   } catch (error) {
-    deps.writeError(`${request.unit}: the recovery alert was shown but its streak could not be removed: ${String(error,)}`,);
+    deps.writeError(`${request.unit}: the recovery alert was shown but its streak could not be recorded: ${String(error,)}`,);
     return 1;
   }
   deps.writeOut(renderNotification(notification,),);
@@ -202,7 +245,7 @@ export async function runAlert({
   }
   if (outcomeClass === 'stopped') {
     deps.writeOut(
-      `${request.unit}: the run was stopped, not failed and not finished with status 0; no alert.`
+      `${request.unit}: the run was stopped, so it is neither a failure nor a clean finish with status 0; no alert.`
         + ' An open streak, if any, stays open.',
     );
     return 0;
@@ -225,15 +268,20 @@ export async function runAlert({
     },);
   }
   /**
-   Whether this clean run closes an open streak.
+   The unit's open streak, absent when no alert waits for a recovery.
    */
-  const recovery = decideRecovery({ lookup, },);
-  if (recovery === 'nothing') {
+  const { streak, } = lookup;
+  if (streak === undefined) {
     deps.writeOut(`${request.unit}: finished cleanly with no open streak; no alert.`,);
+    return 0;
+  }
+  if ((request.trigger === 'watcher-started') && (streak.recovered === true)) {
+    deps.writeOut(`${request.unit}: its recovery was already reported; no alert.`,);
     return 0;
   }
   return alertRecovery({
     request,
     deps,
+    streak,
   },);
 }

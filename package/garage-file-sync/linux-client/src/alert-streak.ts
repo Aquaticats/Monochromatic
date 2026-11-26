@@ -49,10 +49,15 @@ const MINUTES_PER_ALERT_GAP = 60;
 export const ALERT_QUIET_WINDOW_MS: number = MS_PER_MINUTE * MINUTES_PER_ALERT_GAP;
 
 /**
- What the state file records about a unit that is failing.
+ What the state file records about a unit whose failure streak is open.
+
+ `recovered` marks a streak whose recovery notice already went out while the streak
+ stayed open. A watcher restart records it, so a watcher that starts and crashes again
+ inside the hour sends neither a second failure notice nor a second recovery one.
  */
 export type Streak = {
   readonly lastAlertAtMs: number;
+  readonly recovered?: boolean;
 };
 
 /**
@@ -71,13 +76,6 @@ export type StreakLookup = {
 export type FailureDecision =
   | 'alert'
     | 'suppressed';
-
-/**
- What to do with a success.
- */
-export type RecoveryDecision =
-  | 'recovery-alert'
-    | 'nothing';
 
 /**
  Decides whether a failure deserves an alert.
@@ -106,24 +104,6 @@ export function decideFailure({
   return (nowMs
     - lookup.streak
       .lastAlertAtMs) >= ALERT_QUIET_WINDOW_MS ? 'alert' : 'suppressed';
-}
-
-/**
- Decides whether a clean run closes an open streak.
-
- @param lookup - the unit's streak lookup, whose `streak` is absent when none is open
-
- @returns `recovery-alert` when a streak is open, `nothing` otherwise, so the
-   `OnSuccess=` start that the five-minute timer causes every five minutes stays free
-
- @example
- ```ts
- decideRecovery({ lookup: { streak: { lastAlertAtMs: 0, }, }, },); // 'recovery-alert'
- decideRecovery({ lookup: {}, },); // 'nothing'
- ```
- */
-export function decideRecovery({ lookup, }: Readonly<{ lookup: Readonly<StreakLookup>; }>,): RecoveryDecision {
-  return lookup.streak === undefined ? 'nothing' : 'recovery-alert';
 }
 
 /**
@@ -246,6 +226,21 @@ function parseStreak(text: string,): StreakLookup {
   if (Number.isNaN(lastAlertAtMs,)) {
     return { problem: `the streak file lastAlertAt "${lastAlertAt}" is not a timestamp`, };
   }
+  /**
+   Whether a recovery notice already went out while the streak stayed open.
+   */
+  const recovered = 'recovered' in parsed ? parsed.recovered : undefined;
+  if ((recovered !== undefined) && ((typeof recovered) !== 'boolean')) {
+    return { problem: "the streak file's recovered is not a boolean", };
+  }
+  if (recovered === true) {
+    return {
+      streak: {
+        lastAlertAtMs,
+        recovered: true,
+      },
+    };
+  }
   return { streak: { lastAlertAtMs, }, };
 }
 
@@ -324,12 +319,14 @@ export async function writeStreak({
     },
   );
   /**
-   File contents: the unit for a reader, and the alert time that decides the next one.
+   File contents: the unit for a reader, the alert time that decides the next one, and
+   the recovery mark a watcher restart leaves.
    */
   const text = `${JSON.stringify(
     {
       unit,
       lastAlertAt: new Date(streak.lastAlertAtMs,).toISOString(),
+      ...(streak.recovered === true ? { recovered: true, } : {}),
     },
     undefined,
     2,
