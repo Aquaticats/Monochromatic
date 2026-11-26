@@ -1529,8 +1529,8 @@ and every other line stays as it is.
 - The own-file walk back runs once for each group whose own file holds a use,
   where alpha.13 ran it once for each such use.
   On a package of 2,000 folders whose one group's own file uses all of them,
-  alpha.13 took 24.0 seconds and this release 0.98 seconds,
-  while the same graph with an empty own file took 1.3 and 1.2 seconds
+  alpha.13 took 20 to 24 seconds in two runs and this release about 1.0 second,
+  while the same graph with an empty own file took about 1 second on both
   (one run of each, 2026-11-26),
   so the walk now costs what reading the graph costs.
 
