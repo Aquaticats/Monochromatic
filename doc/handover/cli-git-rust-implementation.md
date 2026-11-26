@@ -248,6 +248,9 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- Lane 3: the removal split as `66d4b6fb08` (`worktree_remove_hand_over.rs` split; `worktree_remove.rs` waits for round 3's loop breaks),
+  the copy split as `4bfbcbe591` (eight allow-list lines deleted with the loop it broke; its one red, `a_source_written_after_the_stamp_fails_the_final_check`, failed on `main` too and is issue 6520).
+  The ladder split's check named a filter that matches no test; it reruns without it.
 - Lane 1 (16:18 to 16:30): 6510 as `9ccf38f5b9` (the selection controls read the null device in a child of their own);
   the alpha.47 notices round as `dde4ad5da9` (pre-command notices leave the command's thread, and a full pipe no longer holds a line's write);
   the alpha.47 small Lows as `c49cf43483`; the option table check as `0f4621fe96` (a test fails when the installed Git is newer than the table).
