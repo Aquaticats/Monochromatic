@@ -23,7 +23,6 @@ use super::{
     LOG_PREFIX,
     LandTiming,
     SLOW_LOCK_STEP,
-    WaitNotes,
     answered_line,
     exit_line,
     in_the_repository_at,
@@ -33,6 +32,7 @@ use super::{
     started_line,
     wait_line,
 };
+use crate::service_index_found::WaitNotes;
 use std::collections::HashMap;
 use std::path::{
     Path,

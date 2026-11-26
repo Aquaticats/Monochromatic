@@ -63,7 +63,8 @@
 //!  the kill when no thread of the test is occupied with that command,
 //! and a process that exits first exits with status 101 from an exit handler,
 //! so a kill is never silent.
-//!  The abort asks whether a thread is occupied with the command, never how long a claim took:
+//!  The abort asks whether a thread is occupied with the command,
+//!  never how long a claim took:
 //! a test thread this host does not schedule for seconds would otherwise lose a
 //!  passing result to a signal no output of it survives
 //!  (issue 6469,
@@ -95,766 +96,83 @@
 //! whichever comes first.
 //!    Process churn is treated as a sign of life.
 //!
+//! The guard's parts,
+//! each a file of this folder,
+//! in the order they build on each other:
+//!
+//! - `binary_supervisor_limits.rs`:
+//!   the numbers it judges by and the reason it writes when it ends a command.
+//! - `binary_supervisor_judge.rs`:
+//!   the judgement of one watched command.
+//! - `binary_supervisor_registry.rs`:
+//!   the one registry of this process and the holds a thread takes on a command.
+//! - `binary_supervisor_kills.rs`:
+//!   the record of a command the monitor ended,
+//!   and the abort and exit status of a record nobody claims.
+//! - `binary_supervisor_shared_bound_commands.rs`:
+//!   which commands run under the shared bound.
+//! - `binary_supervisor_what_the_monitor_saw.rs`:
+//!   what a control may ask about one watched command.
+//! - `binary_supervisor_monitor.rs`:
+//!   the monitor thread and the call that puts a command under it.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const judge = new Judge(limits);
 //! setInterval(() => { const reason = judge.observe(elapsed(), lookAt(pid)); if (reason) { record(reason); endTree(pin); fail(reason); } }, 100);
 //! ```
 
-use super::supervisor_pin::{
-    Pin,
-    end_tree,
-};
-use super::supervisor_proc::{
-    Look,
-    Sample,
-    children,
-    command_line_of,
-    describe,
-    directory_of,
-    look_at,
-    stat_of,
-    tick,
-};
-use std::collections::HashMap;
-use std::process::Command;
-use std::sync::{
-    Mutex,
-    Once,
-};
-use std::time::{
-    Duration,
-    Instant,
-};
-
-/// The wall-clock backstop of a shared-bound command as the text `timeout` takes:
-/// ten minutes,
-/// which only a command
-///  that is both not idle and not burning the processor ever reaches.
-pub const SHARED_BACKSTOP_SECONDS: &str = "600";
-
-/// How long a process tree may show nothing at all before it counts as hung.
-pub const NO_PROGRESS_WINDOW: Duration = Duration::from_secs(5);
-
-/// How much processor time a tree may use in all.
-/// Real commands of these tests use well under a second of it.
-pub const CPU_BUDGET: Duration = Duration::from_secs(10);
-
-/// How often the monitor looks at the commands.
-pub const POLL: Duration = Duration::from_millis(100);
-
-/// How long a kill may stay unclaimed by the test that ran the command,
-/// with no thread of that test occupied with the command,
-/// before the process aborts with its message.
-pub const UNCLAIMED_GRACE: Duration = Duration::from_secs(3);
-
-/// The status a process exits with when a kill nobody claimed is found at its exit.
-pub const UNCLAIMED_EXIT_STATUS: i32 = 101;
-
-/// The limits of one watched command.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Limits {
-    /// How long nothing may move.
-    pub no_progress: Duration,
-    /// The processor time of the tree that ends it.
-    pub cpu_budget: Duration,
-    /// The wall time that ends it whatever else is true.
-    pub backstop: Duration,
-}
-
-/// The limits of the shared bound.
-pub const SHARED: Limits = Limits {
-    no_progress: NO_PROGRESS_WINDOW,
-    cpu_budget: CPU_BUDGET,
-    backstop: Duration::from_secs(600),
-};
-
-/// Why a command was ended.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Reason {
-    /// Nothing moved for the window.
-    NoProgress(Duration),
-    /// The tree used its processor budget.
-    CpuBudget(Duration),
-    /// The wall-clock backstop passed.
-    Backstop(Duration),
-}
-
-impl std::fmt::Display for Reason {
-    /// The reason in words,
-    /// with the figure that decided it.
-    fn fmt(
-        &self,
-        formatter: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        return match self {
-            Reason::NoProgress(idle) => write!(
-                formatter,
-                "no progress for {:.1} s: no task was runnable, waiting for the disk or held from outside, and processor time, bytes moved, the work of waited-for children and the set of processes stood still (a deadlock or a wait on something that never happens)",
-                idle.as_secs_f64()
-            ),
-            Reason::CpuBudget(used) => write!(
-                formatter,
-                "it used {:.1} s of processor time (a loop)",
-                used.as_secs_f64()
-            ),
-            Reason::Backstop(elapsed) => write!(
-                formatter,
-                "it was still running after the {:.0} s wall-clock backstop",
-                elapsed.as_secs_f64()
-            ),
-        };
-    }
-}
-
-/// What the previous look showed,
-/// to compare with.
-type Previous = (u64, u64, u64, Vec<(i32, u64)>);
-
 /// The judgement of one watched command:
-/// it remembers what the last look showed and since when nothing moved.
-#[derive(Clone, Debug)]
-pub struct Judge {
-    /// The limits applied.
-    limits: Limits,
-    /// The time of the last look at which anything moved or a task was runnable,
-    /// waiting for the disk or held.
-    last_change: Duration,
-    /// What the previous look showed,
-    /// to compare with.
-    previous: Option<Previous>,
-    /// The most processor time any look showed:
-    /// a process that is waited for moves its time from itself to its parent,
-    /// so
-    ///  the figure is not monotonic by itself.
-    cpu_peak_ticks: u64,
-    /// Processor time of one clock tick,
-    /// in nanoseconds.
-    tick: Duration,
-}
-
-impl Judge {
-    /// A judge with nothing seen yet;
-    /// `tick` is the length of a clock tick.
-    pub fn new(
-        limits: Limits,
-        tick: Duration,
-    ) -> Judge {
-        return Judge {
-            limits,
-            last_change: Duration::ZERO,
-            previous: None,
-            cpu_peak_ticks: 0,
-            tick,
-        };
-    }
-
-    /// Judge one look taken `elapsed` after the command started;
-    /// `Some` ends the command.
-    /// `held_by_test` says the test holds
-    ///  the command on purpose (`hold_idle_judgment`),
-    /// which suspends the idle rule and nothing else.
-    ///  The processor budget and the backstop are checked first,
-    /// because they hold whatever the tree is doing.
-    pub fn observe(
-        &mut self,
-        elapsed: Duration,
-        sample: &Sample,
-        held_by_test: bool,
-    ) -> Option<Reason> {
-        self.cpu_peak_ticks = self.cpu_peak_ticks.max(sample.cpu_ticks);
-        let used: Duration = self
-            .tick
-            .saturating_mul(u32::try_from(self.cpu_peak_ticks).unwrap_or(u32::MAX));
-        if used >= self.limits.cpu_budget {
-            return Some(Reason::CpuBudget(used));
-        }
-        if elapsed >= self.limits.backstop {
-            return Some(Reason::Backstop(elapsed));
-        }
-        let moved: bool =
-            self.previous
-                .as_ref()
-                .is_none_or(|(cpu, activity, faults, processes)| {
-                    return *cpu != sample.cpu_ticks
-                        || *activity != sample.activity
-                        || *faults != sample.child_faults
-                        || *processes != sample.processes;
-                });
-        if moved
-            || sample.runnable
-            || sample.disk_wait
-            || sample.answer_wait
-            || sample.held
-            || held_by_test
-        {
-            self.last_change = elapsed;
-        }
-        self.previous = Some((
-            sample.cpu_ticks,
-            sample.activity,
-            sample.child_faults,
-            sample.processes.clone(),
-        ));
-        let idle: Duration = elapsed.saturating_sub(self.last_change);
-        if idle >= self.limits.no_progress {
-            return Some(Reason::NoProgress(idle));
-        }
-        return None;
-    }
-}
-
-/// A command the monitor ended.
-#[derive(Clone, Debug)]
-struct Kill {
-    /// The process ID of the command.
-    pid: i32,
-    /// The message.
-    message: String,
-    /// When it was recorded,
-    /// which is before the first signal.
-    at: Instant,
-}
-
-/// One command the monitor watches.
-struct Watched {
-    /// The judge with its limits.
-    judge: Judge,
-    /// When the command was first seen.
-    began: Instant,
-    /// The command's process,
-    /// pinned.
-    pin: Pin,
-}
-
-/// What the monitor shares with the tests.
-#[derive(Default)]
-struct Registry {
-    /// The commands watched,
-    /// by process ID.
-    watched: HashMap<i32, Watched>,
-    /// The commands ended and not yet claimed.
-    kills: Vec<Kill>,
-    /// How many tests hold the idle judgment of a command,
-    /// by process ID.
-    holds: HashMap<i32, u32>,
-    /// How many looks found a task of the command waiting for the disk,
-    /// by process ID,
-    /// kept after the command ends.
-    disk_wait_looks: HashMap<i32, u32>,
-    /// How many looks the monitor took of the command,
-    /// by process ID,
-    /// kept after the command ends.
-    looks: HashMap<i32, u32>,
-    /// The commands a thread of this process is occupied with,
-    /// by process ID,
-    /// each with how many threads hold it.
-    /// Why:
-    ///  A kill that is not claimed aborts the process only when nothing here is occupied with its command:
-    ///  a wait that is running claims it as soon as this host schedules that thread,
-    ///  and a kill whose ending is still going on cannot be claimed at all until the ending is over.
-    ///  What this map holds is a state, never how much time has passed.
-    occupied: HashMap<i32, u32>,
-}
-
-/// The registry of this process.
-static REGISTRY: Mutex<Option<Registry>> = Mutex::new(None);
-
-/// Runs the registry's closure under its lock.
-fn with_registry<T>(action: impl FnOnce(&mut Registry) -> T) -> T {
-    let mut guard = REGISTRY
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    return action(guard.get_or_insert_with(Registry::default));
-}
-
-/// Whether the command line of a process is the shared bound:
-/// `timeout --signal=KILL <backstop> <program> ...`.
-pub fn is_shared_command_line(arguments: &[&str]) -> bool {
-    return arguments.len() > 3
-        && arguments[0].rsplit('/').next() == Some("timeout")
-        && arguments[1] == "--signal=KILL"
-        && arguments[2] == SHARED_BACKSTOP_SECONDS;
-}
-
-/// Whether a command about to be started is the shared bound.
-pub fn is_shared(command: &Command) -> bool {
-    let program: String = command.get_program().to_string_lossy().into_owned();
-    let arguments: Vec<String> = command
-        .get_args()
-        .map(|argument| {
-            return argument.to_string_lossy().into_owned();
-        })
-        .collect();
-    let mut line: Vec<&str> = vec![program.as_str()];
-    line.extend(arguments.iter().map(String::as_str));
-    return is_shared_command_line(line.as_slice());
-}
-
-/// Ask the monitor to watch the child `pid` with `limits`,
-/// however the test runs it (the controls of the monitor itself).
-///  The child is pinned now,
-/// while the test still holds it unreaped,
-/// and entered into the registry directly,
-/// so no look of the
-///  monitor that came before can have written it off.
-pub fn watch(
-    pid: u32,
-    limits: Limits,
-) {
-    let watched: i32 = i32::try_from(pid).expect("a process ID fits");
-    ensure_monitor();
-    let started: u64 = stat_of(watched)
-        .expect("the child to watch is running")
-        .started;
-    let pin: Pin = Pin::open(watched, started).expect("the child to watch can be pinned");
-    with_registry(|registry| {
-        registry.watched.insert(
-            watched,
-            Watched {
-                judge: Judge::new(limits, tick()),
-                began: Instant::now(),
-                pin,
-            },
-        );
-    });
-}
-
-/// Whether the monitor still watches the command `pid`.
-pub fn is_watching(pid: u32) -> bool {
-    let Ok(watched) = i32::try_from(pid) else {
-        return false;
-    };
-    return with_registry(|registry| {
-        return registry.watched.contains_key(&watched);
-    });
-}
-
-/// Take the message of the kill of the command `pid`,
-/// if the monitor ended it;
-/// the test that ran the command reports it.
-///  The record is published before the first signal of the kill,
-/// so a command the monitor ended has its record by the time
-///  the test sees the command end.
-pub fn take_kill(pid: u32) -> Option<String> {
-    let ended: i32 = i32::try_from(pid).ok()?;
-    return with_registry(|registry| {
-        let position: usize = registry.kills.iter().rposition(|kill| {
-            return kill.pid == ended;
-        })?;
-        return Some(registry.kills.remove(position).message);
-    });
-}
-
-/// How many looks of the monitor found a task of the command `pid` waiting for the disk:
-/// a control that wants a slow
-///  volume to have been in the way reads it after the command ended.
-pub fn disk_wait_looks(pid: u32) -> u32 {
-    let Ok(watched) = i32::try_from(pid) else {
-        return 0;
-    };
-    return with_registry(|registry| {
-        return registry.disk_wait_looks.get(&watched).copied().unwrap_or(0);
-    });
-}
-
-/// How many looks the monitor has taken of the command `pid`:
-/// a control that waits for the monitor to have judged a command
-///  a number of times counts them instead of the clock.
-pub fn looks_of(pid: u32) -> u32 {
-    let Ok(watched) = i32::try_from(pid) else {
-        return 0;
-    };
-    return with_registry(|registry| {
-        return registry.looks.get(&watched).copied().unwrap_or(0);
-    });
-}
-
-/// A test's hold on the idle judgment of a command,
-/// released when it is dropped.
-pub struct IdleHold {
-    /// The command's process ID.
-    pid: i32,
-}
-
-impl Drop for IdleHold {
-    fn drop(&mut self) {
-        with_registry(|registry| {
-            if let Some(count) = registry.holds.get_mut(&self.pid) {
-                *count -= 1;
-                if *count == 0 {
-                    registry.holds.remove(&self.pid);
-                }
-            }
-        });
-    }
-}
-
-/// Suspend the idle rule for the command `pid` while the returned hold lives:
-/// for a wait the test itself controls (it will
-///  drain the pipe,
-/// release the lock or send the signal once its own work is done).
-/// The processor budget and the backstop
-///  keep judging.
-/// A test that holds a command and never lets it go ends at the backstop.
-pub fn hold_idle_judgment(pid: u32) -> IdleHold {
-    let held: i32 = i32::try_from(pid).expect("a process ID fits");
-    with_registry(|registry| {
-        *registry.holds.entry(held).or_default() += 1;
-    });
-    return IdleHold {
-        pid: held,
-    };
-}
-
-/// What:
-///  A thread's hold on one command's entry in the registry of the commands this process is occupied with,
-///  released when the thread is done with it,
-///  whether it returned or unwound.
-/// Why:
-///  One value carries both the mark and its removal,
-///  so no path of a wait or of an ending can leave a command marked after the thread stopped working on it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class Occupied { constructor(pid) { markOccupied(pid); } [Symbol.dispose]() { stopOccupying(pid); } }
-/// ```
-pub struct Occupied {
-    /// The command this hold marks.
-    pid: i32,
-}
-
-/// A thread ends its hold here,
-/// however it ended.
-impl Drop for Occupied {
-    fn drop(&mut self) {
-        with_registry(|registry| {
-            if let Some(count) = registry.occupied.get_mut(&self.pid) {
-                *count -= 1;
-                if *count == 0 {
-                    registry.occupied.remove(&self.pid);
-                }
-            }
-        });
-    }
-}
-
-/// What:
-///  Mark the command `pid` as one this thread is waiting for,
-///  until the returned hold is dropped.
-/// Why:
-///  `support_observation_bound::wait_under_bound` is the only place a kill is claimed,
-///  so a kill of a command a wait is running for is a claim that is on its way,
-///  not a kill nobody reports.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// using _waiting = waitingFor(child.pid); // cleared when the wait returns or throws
-/// ```
-pub fn waiting_for(pid: u32) -> Occupied {
-    return occupy(pid);
-}
-
-/// What:
-///  Mark the command `pid` as one whose ending is still going on,
-///  until the returned hold is dropped.
-/// Why:
-///  The kill of a command is recorded before its tree is ended,
-///  and a tree a starved host takes seconds to end leaves a record nobody can claim yet:
-///  the grace counts from the moment the command is gone
-///  (`end_command`).
-///  So the abort must know an ending is in progress, or it overruns the very grace it grants.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// using _ending = endingTheCommandOf(pin.pid()); // cleared when the tree is ended
-/// ```
-pub fn ending_the_command_of(pid: i32) -> Occupied {
-    let marked: u32 = u32::try_from(pid).expect("a command's number is positive");
-    return occupy(marked);
-}
-
-/// Add one thread's mark to the command `pid`,
-/// answering the hold that removes it again.
-fn occupy(pid: u32) -> Occupied {
-    let marked: i32 = i32::try_from(pid).expect("a process ID fits");
-    with_registry(|registry| {
-        *registry.occupied.entry(marked).or_default() += 1;
-    });
-    return Occupied {
-        pid: marked,
-    };
-}
-
-/// The exit handler:
-/// a kill nobody claimed ends the process with a failing status,
-/// whatever the test body concluded.
-extern "C" fn fail_unclaimed_at_exit() {
-    if let Some(message) = unclaimed_kill(Instant::now(), Duration::ZERO) {
-        eprintln!(
-            "a command the supervisor ended was never reported by its test, so the process exits with a failure:\n{message}"
-        );
-        // SAFETY:
-        // `_exit` ends the process at once and touches no memory of it;
-        // an exit handler must not call `exit` again.
-        unsafe { libc::_exit(UNCLAIMED_EXIT_STATUS) };
-    }
-}
-
-/// Start the monitor thread of this process,
-/// once,
-/// and register the exit handler.
-pub fn ensure_monitor() {
-    static STARTED: Once = Once::new();
-    STARTED.call_once(|| {
-        std::thread::Builder::new()
-            .name(String::from("binary-supervisor"))
-            .spawn(monitor)
-            .expect("the supervisor thread starts");
-        // SAFETY:
-        // the handler is an `extern "C"` function with no arguments,
-        // as `atexit` requires.
-        unsafe { libc::atexit(fail_unclaimed_at_exit) };
-    });
-}
-
-/// The body of the monitor thread:
-/// forever,
-/// look at the test's own children.
-fn monitor() {
-    let own: i32 = i32::try_from(std::process::id()).expect("a process ID fits");
-    let tick: Duration = tick();
-    loop {
-        std::thread::sleep(POLL);
-        discover(own, tick);
-        let now: Instant = Instant::now();
-        let ids: Vec<i32> = with_registry(|registry| {
-            return registry.watched.keys().copied().collect();
-        });
-        for pid in ids {
-            judge_one(pid, now);
-        }
-        abort_on_unclaimed(now);
-    }
-}
-
-/// Start watching the children that are shared-bound commands.
-/// Nothing is remembered about a child that is not one:
-/// a child
-///  between `fork` and `exec` still has the test's own command line,
-/// and `exec` keeps its process ID and start time,
-/// so a
-///  verdict about it is read again at every look.
-fn discover(
-    own: i32,
-    tick: Duration,
-) {
-    for pid in children(own) {
-        let Some(stat) = stat_of(pid) else { continue };
-        if stat.parent != own
-            || with_registry(|registry| {
-                return registry.watched.get(&pid).is_some_and(|watched| {
-                    return watched.pin.started() == stat.started;
-                });
-            })
-        {
-            continue;
-        }
-        let line: Vec<String> = command_line_of(pid);
-        let words: Vec<&str> = line.iter().map(String::as_str).collect();
-        if !is_shared_command_line(words.as_slice()) {
-            continue;
-        }
-        let Some(pin) = Pin::open(pid, stat.started) else {
-            continue;
-        };
-        with_registry(|registry| {
-            registry.watched.insert(
-                pid,
-                Watched {
-                    judge: Judge::new(SHARED, tick),
-                    began: Instant::now(),
-                    pin,
-                },
-            );
-        });
-    }
-}
-
-/// Look at one watched command and end it if the judge says so.
-fn judge_one(
-    pid: i32,
-    now: Instant,
-) {
-    let Some(started) = with_registry(|registry| {
-        return registry.watched.get(&pid).map(|watched| {
-            return watched.pin.started();
-        });
-    }) else {
-        return;
-    };
-    let sample: Sample = match look_at(pid, started) {
-        // The command is over;
-        // the entry goes,
-        // and a kill that was recorded for it stays for its test.
-        Look::Gone | Look::Exited => {
-            with_registry(|registry| {
-                if registry.watched.get(&pid).is_some_and(|watched| {
-                    return watched.pin.started() == started;
-                }) {
-                    registry.watched.remove(&pid);
-                }
-            });
-            return;
-        }
-        Look::Seen(seen) => seen,
-    };
-    let verdict: Option<Reason> = with_registry(|registry| {
-        *registry.looks.entry(pid).or_default() += 1;
-        if sample.disk_wait {
-            *registry.disk_wait_looks.entry(pid).or_default() += 1;
-        }
-        let held: bool = registry.holds.contains_key(&pid);
-        let watched: &mut Watched = registry.watched.get_mut(&pid)?;
-        let began: Instant = watched.began;
-        return watched
-            .judge
-            .observe(now.saturating_duration_since(began), &sample, held);
-    });
-    let Some(reason) = verdict else { return };
-    let line: String = command_line_of(pid).join(" ");
-    let message: String = format!(
-        "the harness supervisor ended the command `{line}` in {}: {reason}\nthe tasks of its tree when it was ended:\n{}",
-        directory_of(pid),
-        describe(pid)
-    );
-    let Some(watched) = with_registry(|registry| {
-        return registry.watched.remove(&pid);
-    }) else {
-        return;
-    };
-    end_command(&watched.pin, message.as_str(), &end_tree);
-    eprintln!("{message}");
-}
-
-/// Record the kill of the command `pin` names,
-/// and only then end its tree with `end`:
-/// the test that waits for the command
-///  sees it end after the first signal,
-/// so the record has to be there before.
-pub fn end_command(
-    pin: &Pin,
-    message: &str,
-    end: &dyn Fn(&Pin),
-) {
-    with_registry(|registry| {
-        registry.kills.push(Kill {
-            pid: pin.pid(),
-            message: message.to_string(),
-            at: Instant::now(),
-        });
-    });
-    // What: the mark saying this command's ending is still going on, held until the tree is ended.
-    // Why:  the record above cannot be claimed until the command is gone, and a starved host can take seconds to end a
-    //       tree, so the monitor must not abort over a record no test could have claimed yet.
-    let _ending: Occupied = ending_the_command_of(pin.pid());
-    end(pin);
-    drop(_ending);
-    // The test has the whole grace to claim the record from the moment the command is gone: an ending that a starved host
-    //  makes slow must not use the grace up before the test has had a chance to run (a gate saw the process abort that way).
-    with_registry(|registry| {
-        if let Some(kill) = registry.kills.iter_mut().rev().find(|kill| {
-            return kill.pid == pin.pid();
-        }) {
-            kill.at = Instant::now();
-        }
-    });
-}
-
-/// Whether a kill of the command `pid` is recorded and not claimed.
-pub fn kill_recorded(pid: i32) -> bool {
-    return with_registry(|registry| {
-        return registry.kills.iter().any(|kill| {
-            return kill.pid == pid;
-        });
-    });
-}
-
-/// The message of a kill nobody has claimed within `grace` of `now`,
-/// if there is one.
-pub fn unclaimed_kill(
-    now: Instant,
-    grace: Duration,
-) -> Option<String> {
-    return with_registry(|registry| {
-        return registry
-            .kills
-            .iter()
-            .find(|kill| {
-                return now.saturating_duration_since(kill.at) >= grace;
-            })
-            .map(|kill| {
-                return kill.message.clone();
-            });
-    });
-}
-
-/// Record a kill as the monitor would,
-/// for the control that reads what happens to one nobody claims.
-pub fn plant_kill(
-    pid: i32,
-    message: &str,
-    at: Instant,
-) {
-    with_registry(|registry| {
-        registry.kills.push(Kill {
-            pid,
-            message: message.to_string(),
-            at,
-        });
-    });
-}
-
-/// What:
-///  The message of a kill past `grace` that no thread of this process is occupied with,
-///  if there is one.
-/// Why:
-///  This is what the monitor aborts on:
-///  a kill whose command no thread of the test is waiting for or ending,
-///  which no amount of time will make anybody claim.
-///  A command a thread is occupied with is left to that thread,
-///  because its claim happens as soon as this host schedules it
-///  (issue 6469).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const killToAbort = (now, grace) => kills.find((k) => now - k.at >= grace && !occupied.has(k.pid));
-/// ```
-pub fn kill_to_abort(
-    now: Instant,
-    grace: Duration,
-) -> Option<String> {
-    return with_registry(|registry| {
-        return registry
-            .kills
-            .iter()
-            .find(|kill| {
-                return now.saturating_duration_since(kill.at) >= grace
-                    && !registry.occupied.contains_key(&kill.pid);
-            })
-            .map(|kill| {
-                return kill.message.clone();
-            });
-    });
-}
-
-/// A kill nobody claims and no thread is occupied with ends the process,
-/// so a command ended by the supervisor always fails its test.
-fn abort_on_unclaimed(now: Instant) {
-    if let Some(message) = kill_to_abort(now, UNCLAIMED_GRACE) {
-        eprintln!(
-            "a command the supervisor ended was never reported by its test, so the process aborts:\n{message}"
-        );
-        std::process::abort();
-    }
-}
+/// what its last look showed,
+/// since when nothing moved,
+/// and the reason that ends it.
+pub use super::supervisor_judge::Judge;
+/// The record of a command the monitor ended,
+/// and what a test does with it.
+pub use super::supervisor_kills::{
+    end_command,
+    kill_recorded,
+    kill_to_abort,
+    plant_kill,
+    take_kill,
+    unclaimed_kill,
+};
+/// The numbers the guard judges by,
+/// the shared limits,
+/// and the reason it writes when it ends a command.
+pub use super::supervisor_limits::{
+    CPU_BUDGET,
+    Limits,
+    NO_PROGRESS_WINDOW,
+    POLL,
+    Reason,
+    SHARED,
+    SHARED_BACKSTOP_SECONDS,
+    UNCLAIMED_EXIT_STATUS,
+    UNCLAIMED_GRACE,
+};
+/// The monitor thread,
+/// and the call that puts one command under it.
+pub use super::supervisor_monitor::{
+    ensure_monitor,
+    watch,
+};
+/// The holds a thread takes on a command's entry in the registry.
+pub use super::supervisor_registry::{
+    IdleHold,
+    Occupied,
+    ending_the_command_of,
+    hold_idle_judgment,
+    waiting_for,
+};
+/// Which commands run under the shared bound every test shares.
+pub use super::supervisor_shared_bound_commands::{
+    is_shared,
+    is_shared_command_line,
+};
+/// What a control may ask about one watched command.
+pub use super::supervisor_what_the_monitor_saw::{
+    disk_wait_looks,
+    is_watching,
+    looks_of,
+};

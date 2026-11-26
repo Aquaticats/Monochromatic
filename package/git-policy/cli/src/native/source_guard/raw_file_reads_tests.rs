@@ -189,7 +189,11 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
         "git-directory",
     ),
     ("worktree/worktree_dirty_restore.rs", 1, "git-directory"),
-    ("worktree/worktree_ladder_target.rs", 1, "person-path"),
+    (
+        "worktree/worktree_ladder_target_conversion_agreement.rs",
+        1,
+        "person-path",
+    ),
     ("worktree/worktree_process_inside.rs", 2, "system"),
     ("worktree/worktree_snapshot_source.rs", 1, "git-directory"),
     (
