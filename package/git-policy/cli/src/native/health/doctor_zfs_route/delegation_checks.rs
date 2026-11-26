@@ -1,6 +1,9 @@
 //! What:
 //!  The account's effective delegation over the route's datasets,
 //!  including the grants an ancestor carries,
+//!  the grants a creation-time entry puts on every dataset the account
+//!  creates below it,
+//!  the members of a named set the account can come to hold,
 //!  and the absence of the lineage-changing grants.
 //! Why:
 //!  The removal threat boundary rests on the account's grants being the ones
@@ -25,6 +28,19 @@
 //!  as what the dataset's own record holds,
 //!  so a grant the route needs but that stands on an ancestor is reported as
 //!  too broad rather than counted as satisfied in the decided shape.
+//!  A creation-time grant is effective on datasets that do not exist yet:
+//!  the kernel copies it onto every dataset its creator makes below the
+//!  dataset that carries it,
+//!  as a local grant to that creator
+//!  (`module/zfs/dsl_dataset.c`,
+//!  `dsl_dataset_create_sync`,
+//!  calls `dsl_deleg_set_create_perms` in
+//!  `module/zfs/dsl_deleg.c`),
+//!  and the account creates the route's clones below the container,
+//!  so a forbidden permission there is one the account comes to hold.
+//!  A named set's members stand under the set's own who key in the reply,
+//!  so a forbidden permission inside a set the account can hold is named
+//!  with the `zfs unallow -s` command that removes it.
 //!  The kernel's own reply is the one source,
 //!  and `delegation_reply.rs` reads it into the grants this check judges:
 //!  `ZFS_IOC_GET_FSACL` returns every dataset on the way up that carries a
@@ -45,7 +61,7 @@
 //! ```
 
 use super::check_outcome::{CheckOutcome, finding, pass, unknown};
-use super::delegation_reply::{DelegationFacts, Grant, Inheritance, Who, grants_the_account};
+use super::delegation_reply::{DelegationFacts, Grant, HeldSet, Inheritance, Who, grants_the_account, held_sets, names_a_set, set_memberships};
 
 //region The permission names the design fixes
 
@@ -80,9 +96,16 @@ pub const REQUIRED_GRANTS: [RequiredGrant; 9] = [
 ///
 /// Why:
 ///  The design names every one of these as a grant the route must not have,
-///  and `allow` is added here because it would let the account grant itself
-///  any of the others,
-///  which is a decision of this build rather than of the design.
+///  and `allow` is added here because it lets the account hand its own grants
+///  to another account or to everyone,
+///  which would put the power to change the clones' lineage in hands other
+///  than the account's and root's
+///  (`doc/decision/cli-git-zfs-delegation-forbids-allow.md`;
+///  OpenZFS `zfs-2.4.4`,
+///  `man/man8/zfs-allow.8`,
+///  records that `allow` "Must also have the permission that is being
+///  allowed",
+///  so it grants nothing the account does not already hold).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -215,21 +238,35 @@ pub fn allow_command(required: &RequiredGrant, facts: &DelegationFacts) -> Strin
     return format!("zfs allow {scope} -u {} {} {}", facts.account, required.permission, place_dataset(required.place, facts));
 }
 
-/// The `zfs unallow` command that removes one forbidden grant.
-fn unallow_command(grant: &Grant, facts: &DelegationFacts) -> String {
-    let scope: &str = match grant.inheritance {
+/// The `-l` or `-d` a `zfs unallow` of one grant carries.
+fn scope_flag(inheritance: Inheritance) -> &'static str {
+    return match inheritance {
         Inheritance::Local => "-l",
         Inheritance::Descendants => "-d",
         Inheritance::NotApplicable => "-l",
     };
-    let holder: String = match &grant.who {
-        Who::User(id) => format!("-u {id}"),
-        Who::Group(id) => format!("-g {id}"),
-        Who::Everyone => String::from("-e"),
-        Who::NamedSet(name) => format!("-s {name}"),
-        Who::Create | Who::Unknown(_) => format!("-u {}", facts.account),
+}
+
+/// What:
+///  The `zfs unallow` command that removes one forbidden grant.
+/// Why:
+///  Each holder kind has its own form and only some take a scope:
+///  a creation-time permission comes off with `-c`,
+///  a permission set's member with `-s`,
+///  and a user's, a group's or everyone's with the scope and holder they were
+///  granted with
+///  (OpenZFS `zfs-2.4.4`,
+///  `man/man8/zfs-allow.8`,
+///  "zfs unallow").
+fn unallow_command(grant: &Grant, facts: &DelegationFacts) -> String {
+    return match &grant.who {
+        Who::Create => format!("zfs unallow -c {} {}", grant.permission, grant.carried_by),
+        Who::NamedSet(name) => format!("zfs unallow -s {name} {} {}", grant.permission, grant.carried_by),
+        Who::User(id) => format!("zfs unallow {} -u {id} {} {}", scope_flag(grant.inheritance), grant.permission, grant.carried_by),
+        Who::Group(id) => format!("zfs unallow {} -g {id} {} {}", scope_flag(grant.inheritance), grant.permission, grant.carried_by),
+        Who::Everyone => format!("zfs unallow {} -e {} {}", scope_flag(grant.inheritance), grant.permission, grant.carried_by),
+        Who::Unknown(_) => format!("zfs unallow {} -u {} {} {}", scope_flag(grant.inheritance), facts.account, grant.permission, grant.carried_by),
     };
-    return format!("zfs unallow {scope} {holder} {} {}", grant.permission, grant.carried_by);
 }
 
 /// What:
@@ -265,15 +302,17 @@ fn narrowings<'a>(facts: &'a DelegationFacts) -> Vec<Narrowing<'a>> {
 }
 
 /// What:
-///  The commands in the order they were built and each printed once.
+///  The lines in the order they were built and each printed once.
 /// Why:
 ///  One ancestor grant can make two permissions effective,
 ///  and a second command to remove it would have nothing left to remove.
-fn each_command_once(commands: &[String]) -> Vec<String> {
+///  A reply read for two datasets carries a common ancestor's grant twice,
+///  and one grant must not be reported or counted twice.
+fn each_line_once(lines: &[String]) -> Vec<String> {
     let mut kept: Vec<String> = Vec::new();
-    for command in commands {
-        if !kept.contains(command) {
-            kept.push(command.clone());
+    for line in lines {
+        if !kept.contains(line) {
+            kept.push(line.clone());
         }
     }
     return kept;
@@ -303,8 +342,8 @@ fn scope_detail(narrowings: &[Narrowing<'_>], facts: &DelegationFacts) -> String
         "{} decided permission(s) are effective but granted more widely than the design scopes them: {}. Grant each where the design puts it before the wider grant goes, so the account is never without one: {}. Then remove the wider grant(s): {}",
         narrowings.len(),
         entries.join("; "),
-        each_command_once(&allows).join("; "),
-        each_command_once(&unallows).join("; ")
+        each_line_once(&allows).join("; "),
+        each_line_once(&unallows).join("; ")
     );
 }
 
@@ -318,51 +357,123 @@ fn is_route_permission(permission: &str) -> bool {
     return REQUIRED_GRANTS.iter().any(|required| return required.permission == permission);
 }
 
+/// The create-time grants of a forbidden permission,
+/// which the kernel copies onto every dataset their creator makes below the
+/// dataset that carries them.
+fn creation_time_forbidden(facts: &DelegationFacts) -> Vec<String> {
+    return facts
+        .grants
+        .iter()
+        .filter(|grant| return matches!(grant.who, Who::Create) && !names_a_set(&grant.permission) && FORBIDDEN_PERMISSIONS.contains(&grant.permission.as_str()))
+        .map(|grant| return format!("`{}` on `{}` to {} ({})", grant.permission, grant.carried_by, grant.who.describe(), unallow_command(grant, facts)))
+        .collect();
+}
+
+/// What:
+///  The forbidden permissions a named set the account can come to hold carries,
+///  each naming the set, the holder and the command that takes the permission
+///  out of the set.
+/// Why:
+///  A set's member is a grant the account holds through the holder that passes
+///  the set on,
+///  so it is judged exactly as a direct grant of the same permission.
+fn held_set_forbidden(facts: &DelegationFacts) -> Vec<String> {
+    return set_memberships(facts)
+        .into_iter()
+        .filter(|membership| return FORBIDDEN_PERMISSIONS.contains(&membership.member.permission.as_str()))
+        .map(|membership| {
+            return format!(
+                "`{}` on `{}` in {}, held by {} ({})",
+                membership.member.permission,
+                membership.member.carried_by,
+                membership.member.who.describe(),
+                membership.held.held_by(),
+                unallow_command(membership.member, facts)
+            );
+        })
+        .collect();
+}
+
+/// What:
+///  The route permissions that stand in a named set rather than in a direct
+///  grant,
+///  each naming the set, who holds it and the command that takes the
+///  permission out of it.
+/// Why:
+///  The design grants each required permission to the account itself,
+///  so a permission that reaches the account through a set is not the shape
+///  the design decides,
+///  and a set nobody in the reply holds still leaves the route's permissions
+///  unproved because the check cannot say what a later grant of it would do.
+fn unproved_named_sets(facts: &DelegationFacts) -> Vec<String> {
+    let held: Vec<HeldSet<'_>> = held_sets(facts);
+    let mut entries: Vec<String> = Vec::new();
+    for definition in &facts.grants {
+        let Who::NamedSet(name) = &definition.who else {
+            continue;
+        };
+        if !is_route_permission(&definition.permission) || names_a_set(&definition.permission) {
+            continue;
+        }
+        let holder: String = match held.iter().find(|set| return set.name == name.as_str()) {
+            Some(set) => format!(", which {} holds", set.held_by()),
+            None => String::from(", which no holder in this reply grants the account"),
+        };
+        entries.push(format!("`{}` in {} on `{}`{holder} ({})", definition.permission, definition.who.describe(), definition.carried_by, unallow_command(definition, facts)));
+    }
+    for set in &held {
+        if !facts.grants.iter().any(|entry| return matches!(&entry.who, Who::NamedSet(name) if name.as_str() == set.name)) {
+            entries.push(format!("named set {} which {} holds, and this reply defines no member of it", set.name, set.held_by()));
+        }
+    }
+    return each_line_once(&entries);
+}
+
 /// What:
 ///  Whether the account's effective delegation is the decided one:
 ///  every required permission where and as widely as the design says,
-///  no lineage-changing grant,
-///  and no route permission granted to everyone.
+///  no lineage-changing grant the account holds or comes to hold,
+///  and no route permission granted to everyone or reached through a set.
 /// Why:
 ///  The removal's threat boundary is exactly this set,
 ///  so the report names each grant that breaks it with the command that
 ///  removes it,
 ///  a permission granted wider than the design scopes it gets both the grant
 ///  in the decided place and the wider grant's removal,
-///  and a named set the account belongs to leaves the answer unknown because
-///  this read cannot expand it.
+///  and a route permission that reaches the account through a named set leaves
+///  the answer unknown with the set, the permission and the command named,
+///  because the design grants each permission directly and this check does not
+///  prove a delegation that arrives another way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const outcome = checkDelegation(facts); // pass | finding('permission'|'grant'|'scope'|'everyone') | unknown
 /// ```
 pub fn check_delegation(facts: &DelegationFacts) -> CheckOutcome {
-    let forbidden: Vec<String> = facts
+    let mut forbidden: Vec<String> = facts
         .grants
         .iter()
         .filter(|grant| return FORBIDDEN_PERMISSIONS.contains(&grant.permission.as_str()) && (grants_the_account(grant, facts) || matches!(grant.who, Who::Everyone)))
         .map(|grant| return format!("`{}` on `{}` to {} ({})", grant.permission, grant.carried_by, grant.who.describe(), unallow_command(grant, facts)))
         .collect();
+    forbidden.extend(creation_time_forbidden(facts));
+    forbidden.extend(held_set_forbidden(facts));
+    forbidden = each_line_once(&forbidden);
     if !forbidden.is_empty() {
-        return finding("permission", format!("the account or everyone holds {} lineage-changing grant(s) the route must not have: {}", forbidden.len(), forbidden.join("; ")));
+        return finding("permission", format!("the account holds or will come to hold {} lineage-changing grant(s) the route must not have: {}", forbidden.len(), forbidden.join("; ")));
     }
     let everyone: Vec<String> = facts
         .grants
         .iter()
-        .filter(|grant| return matches!(grant.who, Who::Everyone) && is_route_permission(&grant.permission))
+        .filter(|grant| return matches!(grant.who, Who::Everyone) && is_route_permission(&grant.permission) && !names_a_set(&grant.permission))
         .map(|grant| return format!("`{}` on `{}`", grant.permission, grant.carried_by))
         .collect();
     if !everyone.is_empty() {
         return finding("everyone", format!("{} route permission(s) are granted to everyone, which reaches every account on this machine: {}", everyone.len(), everyone.join("; ")));
     }
-    let named_sets: Vec<String> = facts
-        .grants
-        .iter()
-        .filter(|grant| return matches!(grant.who, Who::NamedSet(_)) && is_route_permission(&grant.permission))
-        .map(|grant| return format!("{} on `{}`", grant.who.describe(), grant.carried_by))
-        .collect();
+    let named_sets: Vec<String> = unproved_named_sets(facts);
     if !named_sets.is_empty() {
-        return unknown(format!("the route's permissions reach the account through {}, and the members of a named set are not in this reply, so the effective delegation is unproved", named_sets.join(", ")));
+        return unknown(format!("{} route permission(s) stand in named sets rather than in the direct grants the design names, so the effective delegation is unproved: {}", named_sets.len(), named_sets.join("; ")));
     }
     let missing: Vec<String> = REQUIRED_GRANTS
         .iter()

@@ -8,6 +8,8 @@
 //!  a creation-time grant of a forbidden permission,
 //!  a forbidden permission inside a named set the account can hold,
 //!  a forbidden permission reached through a set inside a set,
+//!  a grant both replies carry,
+//!  a set the reply defines no member of,
 //!  and a route permission reached through a named set.
 //! Why:
 //!  The removal's threat boundary is this set,
@@ -282,6 +284,52 @@ fn a_forbidden_permission_reached_through_a_nested_set_is_a_finding() {
     assert_eq!(field, "permission");
     assert!(detail.contains("@inner"), "{detail}");
     assert!(detail.contains(&format!("zfs unallow -s @inner mountpoint {CONTAINER_DATASET}")), "{detail}");
+}
+
+/// A grant both replies carry, because it stands on an ancestor of both
+/// datasets, is reported and counted once.
+#[test]
+fn a_grant_both_replies_carry_is_a_finding_once() {
+    let mut facts: DelegationFacts = healthy_delegation();
+    facts.grants.push(grant(ANCESTOR_DATASET, "mountpoint", Who::User(ACCOUNT), Inheritance::Descendants));
+    facts.grants.push(grant(ANCESTOR_DATASET, "mountpoint", Who::User(ACCOUNT), Inheritance::Descendants));
+    let outcome: super::CheckOutcome = check_delegation(&facts);
+    let super::CheckOutcome::Finding { field, detail } = outcome else {
+        panic!("a forbidden grant on an ancestor is a finding: {outcome:?}");
+    };
+    assert_eq!(field, "permission");
+    assert!(detail.contains("1 lineage-changing grant"), "{detail}");
+    assert_eq!(detail.matches(&format!("zfs unallow -d -u {ACCOUNT} mountpoint {ANCESTOR_DATASET}")).count(), 1, "{detail}");
+}
+
+/// One set two entries hand the account is one set,
+/// so its forbidden member is a finding printed once.
+#[test]
+fn a_set_the_account_holds_twice_is_expanded_once() {
+    let mut facts: DelegationFacts = healthy_delegation();
+    facts.grants.push(grant(CONTAINER_DATASET, "@backup", Who::User(ACCOUNT), Inheritance::Local));
+    facts.grants.push(grant(CONTAINER_DATASET, "@backup", Who::Group(ACCOUNT_GROUP), Inheritance::Local));
+    facts.grants.push(grant(CONTAINER_DATASET, "mountpoint", Who::NamedSet(String::from("@backup")), Inheritance::NotApplicable));
+    let outcome: super::CheckOutcome = check_delegation(&facts);
+    let super::CheckOutcome::Finding { field, detail } = outcome else {
+        panic!("a set handed over twice still hands `mountpoint` over: {outcome:?}");
+    };
+    assert_eq!(field, "permission");
+    assert_eq!(detail.matches(&format!("zfs unallow -s @backup mountpoint {CONTAINER_DATASET}")).count(), 1, "{detail}");
+}
+
+/// A set the account holds which the reply defines no member of leaves the
+/// answer unknown,
+/// naming the set and the holder whose grant cannot be judged.
+#[test]
+fn a_held_set_the_reply_does_not_define_is_unproved() {
+    let facts: DelegationFacts = with_grant(grant(CONTAINER_DATASET, "@backup", Who::User(ACCOUNT), Inheritance::Local));
+    let super::CheckOutcome::Unknown { reason } = check_delegation(&facts) else {
+        panic!("a held set with no definition leaves the answer unknown");
+    };
+    assert!(reason.contains("@backup"), "{reason}");
+    assert!(reason.contains("defines no member"), "{reason}");
+    assert!(reason.contains("user 1000"), "{reason}");
 }
 
 /// The decided grants are the ones the design names,

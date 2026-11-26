@@ -258,3 +258,177 @@ pub(super) fn grants_the_account(grant: &Grant, facts: &DelegationFacts) -> bool
 }
 
 //endregion
+
+//region The named sets the reply hands over
+
+/// The character a named set's name begins with.
+const NAMED_SET_NAME_PREFIX: char = '@';
+
+/// What:
+///  Whether a name the reply carries is a named set's name rather than a
+///  permission's.
+/// Why:
+///  The kernel gives every permission set a name that begins with `@` and
+///  refuses a permission named that way,
+///  so a name's first character tells the two apart
+///  (`module/zcommon/zfs_deleg.c`,
+///  `zfs_valid_permission_name`;
+///  `cmd/zfs/zfs_main.c`,
+///  `store_allow_perm`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesASet = (name: string): boolean => name.startsWith('@');
+/// ```
+pub(super) fn names_a_set(name: &str) -> bool {
+    return name.starts_with(NAMED_SET_NAME_PREFIX);
+}
+
+/// What:
+///  Whether a reply entry can give the account what it names:
+///  its own grant,
+///  its group's,
+///  everyone's,
+///  or a creation-time one.
+/// Why:
+///  A named set reaches the account only through a holder the account is in,
+///  and a creation-time grant reaches it as the creator of each dataset it
+///  makes below the grant's dataset,
+///  so those four holders are where a set's members arrive from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reachesTheAccount = (grant) => grantsTheAccount(grant, facts) || grant.who.kind === 'everyone' || grant.who.kind === 'create';
+/// ```
+fn reaches_the_account(grant: &Grant, facts: &DelegationFacts) -> bool {
+    return grants_the_account(grant, facts) || matches!(grant.who, Who::Everyone | Who::Create);
+}
+
+/// What:
+///  One named set the account can come to hold,
+///  with the entry that hands it over.
+/// Why:
+///  A finding names who holds the set,
+///  which is the outer entry's holder,
+///  and a set inside a set keeps the holder of the set that names it,
+///  so the outermost entry travels with the name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HeldSet = { name: string; source: Grant };
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub(super) struct HeldSet<'a> {
+    /// The set's name, with the kernel's `@`.
+    pub name: &'a str,
+    /// The reply entry that grants the set to its holder.
+    pub source: &'a Grant,
+}
+
+impl HeldSet<'_> {
+    /// The words a finding uses for who holds this set.
+    pub fn held_by(&self) -> String {
+        return self.source.who.describe();
+    }
+}
+
+/// What:
+///  Every named set the account can come to hold,
+///  each with the entry that hands it over.
+/// Why:
+///  The kernel expands a set inside a set before it judges a permission
+///  (`module/zfs/dsl_deleg.c`,
+///  `dsl_deleg_access_impl`),
+///  so this walks the nesting to its end,
+///  and it never takes one set's name twice because a set reached from two
+///  entries is one set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const heldSets = (facts) => {
+///   const pending = facts.grants.filter((entry) => namesASet(entry.permission) && reachesTheAccount(entry, facts));
+///   const held = [];
+///   while (pending.length) {
+///     const set = pending.pop();
+///     if (held.some((already) => already.name === set.permission)) continue;
+///     held.push({ name: set.permission, source: set });
+///     for (const member of facts.grants) {
+///       if (member.who.kind === 'named-set' && member.who.name === set.permission && namesASet(member.permission)) {
+///         pending.push({ name: member.permission, source: set });
+///       }
+///     }
+///   }
+///   return held;
+/// };
+/// ```
+pub(super) fn held_sets<'a>(facts: &'a DelegationFacts) -> Vec<HeldSet<'a>> {
+    let mut held: Vec<HeldSet<'a>> = Vec::new();
+    let mut pending: Vec<HeldSet<'a>> = Vec::new();
+    for entry in &facts.grants {
+        if names_a_set(&entry.permission) && reaches_the_account(entry, facts) {
+            pending.push(HeldSet { name: entry.permission.as_str(), source: entry });
+        }
+    }
+    while let Some(set) = pending.pop() {
+        if held.iter().any(|already| return already.name == set.name) {
+            continue;
+        }
+        for entry in &facts.grants {
+            let Who::NamedSet(name) = &entry.who else {
+                continue;
+            };
+            if name.as_str() == set.name && names_a_set(&entry.permission) {
+                pending.push(HeldSet { name: entry.permission.as_str(), source: set.source });
+            }
+        }
+        held.push(set);
+    }
+    return held;
+}
+
+/// What:
+///  One member the reply defines for a set the account can come to hold.
+/// Why:
+///  The check judges a held set's members the way it judges a direct grant,
+///  and the entry that defines the member names the dataset a `zfs unallow -s`
+///  runs against.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SetMembership = { held: HeldSet; member: Grant };
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SetMembership<'a> {
+    /// The set the account can come to hold.
+    pub held: HeldSet<'a>,
+    /// The set's own entry that defines this member.
+    pub member: &'a Grant,
+}
+
+/// What:
+///  Every member the reply defines for a set the account can come to hold.
+/// Why:
+///  A member is either a permission the set grants or another set's name,
+///  and both are what the kernel walks when it judges a permission,
+///  so the caller can read a permission's name and a nested set alike.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const memberships = setMemberships(facts); // [{ held, member }]
+/// ```
+pub(super) fn set_memberships<'a>(facts: &'a DelegationFacts) -> Vec<SetMembership<'a>> {
+    let mut memberships: Vec<SetMembership<'a>> = Vec::new();
+    for held in held_sets(facts) {
+        for entry in &facts.grants {
+            let Who::NamedSet(name) = &entry.who else {
+                continue;
+            };
+            if name.as_str() == held.name {
+                memberships.push(SetMembership { held, member: entry });
+            }
+        }
+    }
+    return memberships;
+}
+
+//endregion
