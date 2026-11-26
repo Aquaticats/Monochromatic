@@ -110,6 +110,7 @@ function canonicalPath(path: string,): string {
   const first = characters.findIndex(function isContent(character,) {
     return !PATH_SEPARATORS.has(character,);
   },);
+  /* v8 ignore next 2 -- @preserve: the only caller appends `Plain`, so the path always holds a non-separator */
   if (first === (-1)) return '';
   /**
    Index of the last character that is not a separator.
