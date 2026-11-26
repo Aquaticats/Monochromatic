@@ -336,6 +336,37 @@ fn layout_two_globs_on_one_line_are_two_findings_and_a_self_glob_is_none() {
     }
 }
 
+/// A use written in one group's own file that another group's own file answers closes a loop,
+///  so the report names both uses,
+///  one finding for each own-file use in it.
+#[test]
+fn a_loop_that_two_group_own_file_uses_close_is_reported() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod g1;\nmod g2;\n"),
+        ("src/g1/mod.rs", "pub mod own;\npub mod c1;\n"),
+        ("src/g1/own.rs", "use crate::g2::c2::X;\n"),
+        ("src/g1/c1/mod.rs", "pub struct Y;\n"),
+        ("src/g2/mod.rs", "pub mod own;\npub mod c2;\n"),
+        ("src/g2/own.rs", "use crate::g1::c1::Y;\n"),
+        ("src/g2/c2/mod.rs", "pub struct X;\n"),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    let loops: Vec<&String> = found
+        .iter()
+        .filter(|item| return item.contains("use each other in a loop"))
+        .collect::<Vec<&String>>();
+    assert_eq!(loops.len(), 2, "{found:#?}");
+    for part in [
+        "src/g1/own.rs:1 These entries use each other in a loop: src/g1 uses src/g2/c2 (`crate::g2::c2::X`); src/g2 uses src/g1 (`crate::g1::c1::Y` at src/g2/own.rs:1).",
+        "src/g2/own.rs:1 These entries use each other in a loop: src/g2 uses src/g1/c1 (`crate::g1::c1::Y`); src/g1 uses src/g2 (`crate::g2::c2::X` at src/g1/own.rs:1).",
+    ] {
+        assert!(
+            loops.iter().any(|text| return text.as_str() == part),
+            "{part} missing in {loops:#?}"
+        );
+    }
+}
+
 /// Run the rule with an allow list and render each finding as `file:line message`,
 ///  with the fixture folder removed.
 fn findings_with(

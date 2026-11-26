@@ -2403,6 +2403,45 @@ fn layout_a_groups_own_file_use_that_closes_a_loop_is_reported() {
     );
 }
 
+/// A mutual dependency between two groups that two own-file uses close is reported,
+///  as one that a single own-file use closes already is:
+///  the walk back from the entry a group's own file uses steps over another group's own-file use too.
+#[test]
+fn layout_a_mutual_dependency_between_groups_closed_by_two_own_file_uses_is_reported() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("src/lib.rs", "//! Index.\npub mod g1;\npub mod g2;\n");
+    fixture.write("src/g1/mod.rs", "//! G1.\npub mod own;\npub mod c1;\n");
+    // The first group's own file uses a folder of the second group.
+    fixture.write("src/g1/own.rs", "//! Own.\nuse crate::g2::c2::X;\n");
+    fixture.write("src/g1/c1/mod.rs", "//! C1.\npub struct Y;\n");
+    fixture.write("src/g2/mod.rs", "//! G2.\npub mod own;\npub mod c2;\n");
+    // The second group's own file uses a folder of the first, which closes the loop.
+    fixture.write("src/g2/own.rs", "//! Own.\nuse crate::g1::c1::Y;\n");
+    fixture.write("src/g2/c2/mod.rs", "//! C2.\npub struct X;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error" } } }]"#,
+    );
+    let looped: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(looped.status, 1, "{}", looped.stderr);
+    // Each own-file use is reported, naming itself and the whole path back to its group.
+    for part in [
+        "These entries use each other in a loop",
+        "src/g1 uses src/g2/c2 (`crate::g2::c2::X`); src/g2 uses src/g1 (`crate::g1::c1::Y` at src/g2/own.rs:2)",
+        "src/g2 uses src/g1/c1 (`crate::g1::c1::Y`); src/g1 uses src/g2 (`crate::g2::c2::X` at src/g1/own.rs:2)",
+    ] {
+        assert!(
+            looped.stdout.contains(part),
+            "{part} missing in {}",
+            looped.stdout
+        );
+    }
+}
+
 /// `--config` reads an allow path from the working directory,
 ///  which is also the base of that configuration's own file patterns,
 ///  so the list is found where the run was started and not beside the configuration file.
