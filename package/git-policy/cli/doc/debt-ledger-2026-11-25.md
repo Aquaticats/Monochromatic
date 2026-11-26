@@ -235,6 +235,16 @@ and five threaded-only failures are filed and open:
 6486 (four `run_progress` controls read the shared test process) and
 6487 (the process-wide blocking room in `foundation`).
 
+Round of 2026-11-26:
+issue 6486 is fixed and merged,
+those four `run_progress` controls of the round above
+(`673512f65d`,
+each one reading its figures in a helper process of its own through `testing/helper_process_test_support.rs`,
+as 6478's descriptor-room control does,
+with one shared comparison that refuses a look where a task which is not the control's own moved),
+and four threaded-only failures are filed and open:
+6483, 6484, 6485 and 6487.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
