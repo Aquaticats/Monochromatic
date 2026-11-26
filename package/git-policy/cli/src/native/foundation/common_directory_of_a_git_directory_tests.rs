@@ -23,7 +23,8 @@ use crate::command_test_support::{
     remove,
 };
 /// What:
-///  `std::ffi::OsStr` is a borrowed piece of an operating system's own text, the type a path is made of,
+///  `std::ffi::OsStr` is a borrowed piece of an operating system's own text,
+/// the type a path is made of,
 ///  whose sibling `str` holds UTF-8 alone and so cannot spell every name a file system holds.
 /// Why:
 ///  A control that plants a directory whose name is no UTF-8 needs one path part of raw bytes.
@@ -35,10 +36,14 @@ use crate::command_test_support::{
 use std::ffi::OsStr;
 /// What:
 ///  `std::os::unix::ffi::OsStrExt` is the Unix-only extension trait that makes an `OsStr` out of bytes
-///  (`OsStr::from_bytes`) and reads its bytes back out; the siblings it beats here are `OsString`'s own Unix trait
-///  (an owned name, which this control does not need) and `String::from_utf8`, which refuses these bytes.
+///  (`OsStr::from_bytes`) and reads its bytes back out;
+/// the siblings it beats here are `OsString`'s own Unix trait
+///  (an owned name,
+/// which this control does not need) and `String::from_utf8`,
+/// which refuses these bytes.
 /// Why:
-///  The control builds the name Git wrote in `commondir` exactly, byte for byte.
+///  The control builds the name Git wrote in `commondir` exactly,
+/// byte for byte.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -118,9 +123,13 @@ fn a_relative_commondir_is_resolved_against_the_git_directory() {
 /// A `commondir` whose bytes are no UTF-8 text names the directory it points at,
 /// so a repository kept in a directory whose name no text can spell still finds its own record.
 /// A reader that needed text answered the Git directory itself instead,
-/// which is the worktree's own directory rather than the repository's (alpha.47's release pass, Low 4).
-/// The directory the file names is not made here, because the file system this suite runs on refuses to make one
-/// (`Invalid or incomplete multibyte or wide character`); an unresolvable path is used as written, which is the answer below.
+/// which is the worktree's own directory rather than the repository's (alpha.47's release pass,
+/// Low 4).
+/// The directory the file names is not made here,
+/// because the file system this suite runs on refuses to make one
+/// (`Invalid or incomplete multibyte or wide character`);
+/// an unresolvable path is used as written,
+/// which is the answer below.
 #[test]
 fn a_commondir_that_is_not_text_names_the_directory_it_points_at() {
     let root: PathBuf = fixture("common-dir-not-text");

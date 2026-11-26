@@ -13,7 +13,8 @@
 //!  (`commit_timing.rs` said so in its own copy),
 //!  so the rule lives here once.
 //!  Git strips every trailing carriage return and line feed and resolves a relative path against the Git directory.
-//!  The name it holds is read as bytes, because a directory whose name is no UTF-8 text is still the directory named.
+//!  The name it holds is read as bytes,
+//! because a directory whose name is no UTF-8 text is still the directory named.
 //!  A path that cannot be resolved is used as written,
 //!  so a Git directory whose `commondir` names a missing place still gets a record beside itself rather than none.
 //!  The file is opened as a plain one (`crate::plain_file`):
@@ -26,10 +27,15 @@
 //! ```
 
 /// What:
-///  `std::ffi::OsStr` is a borrowed piece of an operating system's own text, which is what one part of a path is made of;
-///  its siblings are `str`, which holds UTF-8 text alone, and `OsString`, the owned version.
+///  `std::ffi::OsStr` is a borrowed piece of an operating system's own text,
+/// which is what one part of a path is made of;
+///  its siblings are `str`,
+/// which holds UTF-8 text alone,
+/// and `OsString`,
+/// the owned version.
 /// Why:
-///  A `commondir` names a directory by bytes, and a name that is no UTF-8 text still names a directory a record belongs in.
+///  A `commondir` names a directory by bytes,
+/// and a name that is no UTF-8 text still names a directory a record belongs in.
 use std::ffi::OsStr;
 
 /// What:
@@ -87,13 +93,18 @@ pub fn bytes_named(git_dir: &Path) -> std::io::Result<Option<Vec<u8>>> {
 ///  or nothing when there is no such file,
 ///  it cannot be read as a plain file,
 ///  or it says nothing.
-///  `Vec<u8>` is a growable list of bytes this function owns (siblings: `&[u8]`, a borrowed view of bytes;
-///  `String`, the same buffer with the promise that it is UTF-8).
+///  `Vec<u8>` is a growable list of bytes this function owns (siblings:
+/// `&[u8]`,
+/// a borrowed view of bytes;
+///  `String`,
+/// the same buffer with the promise that it is UTF-8).
 /// Why:
 ///  Both answers this module gives start from the same name,
 ///  so the stripping of Git's own trailing line endings is written once.
-///  The name stays bytes rather than becoming text, because `String` would refuse a directory name that is no UTF-8 and
-///  this function would then answer nothing, which is the wrong directory for a record to land in.
+///  The name stays bytes rather than becoming text,
+/// because `String` would refuse a directory name that is no UTF-8 and
+///  this function would then answer nothing,
+/// which is the wrong directory for a record to land in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

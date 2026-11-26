@@ -4,7 +4,8 @@
 //! Why:
 //!   Helper functions were inserted between the doc of `save_for_a_later_finish` and the function,
 //!  so the doc sat above `branch_word` and `save_for_a_later_finish` had none
-//!  (alpha.47's release pass, Low 5).
+//!  (alpha.47's release pass,
+//! Low 5).
 //!  A doc block belongs to the item directly under it,
 //!  so a block that names two subjects is filed under one item while describing another,
 //!  and the release's own lint reads no doc text and cannot see it.
@@ -15,10 +16,16 @@
 //! ```
 
 /// What:
-///  `const SUBJECT: &str` is the text of `merge_isolation_apply_save.rs`, the module these controls read.
-///  `&str` is a borrowed view of text (siblings: `String`, the owned buffer; `&[u8]`, the same bytes with no promise of UTF-8).
+///  `const SUBJECT: &str` is the text of `merge_isolation_apply_save.rs`,
+/// the module these controls read.
+///  `&str` is a borrowed view of text (siblings:
+/// `String`,
+/// the owned buffer;
+/// `&[u8]`,
+/// the same bytes with no promise of UTF-8).
 /// Why:
-///  The two controls read the file this one sits beside, and `include_str!` embeds it at compile time,
+///  The two controls read the file this one sits beside,
+/// and `include_str!` embeds it at compile time,
 ///  so no control opens a file and none can wait on a name that is not a plain one.
 ///
 /// In TS you'd write (pseudocode):
@@ -30,8 +37,11 @@ const SUBJECT: &str = include_str!("merge_isolation_apply_save.rs");
 /// What:
 ///  `fn doc_blocks_with_two_subjects(source: &str) -> Vec<usize>` is the one-based line numbers at which a
 ///  second `What:` header begins inside one unbroken run of `///` lines.
-///  `Vec<usize>` is a growable list of line numbers (siblings: `&[usize]`, a borrowed view of the same list;
-///  `[usize; N]`, a fixed run whose length is part of the type).
+///  `Vec<usize>` is a growable list of line numbers (siblings:
+/// `&[usize]`,
+/// a borrowed view of the same list;
+///  `[usize; N]`,
+/// a fixed run whose length is part of the type).
 /// Why:
 ///  A finding names a line a person opens,
 ///  and this crate gives every item one `What:` header,
@@ -74,8 +84,11 @@ fn doc_blocks_with_two_subjects(source: &str) -> Vec<usize> {
 
 /// What:
 ///  `fn doc_above<'a>(source: &'a str, declaration: &str) -> Vec<&'a str>` is the doc block directly above the
-///  first line of `source` that begins with `declaration`, each line without its `///` marker.
-///  `&'a str` items are borrowed from `source` (sibling: `String`, which would copy each line here).
+///  first line of `source` that begins with `declaration`,
+/// each line without its `///` marker.
+///  `&'a str` items are borrowed from `source` (sibling:
+/// `String`,
+/// which would copy each line here).
 /// Why:
 ///  The control below names its item by the line that declares it,
 ///  so renaming the item moves no line of this file and a doc that wanders away from it is caught.

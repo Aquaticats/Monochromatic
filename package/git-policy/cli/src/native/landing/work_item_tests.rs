@@ -1335,9 +1335,12 @@ fn a_stamp_that_touches_nothing(_path: &Path) -> std::io::Result<()> {
 ///   The queue's folders are ones another command and a person can write to,
 /// so a name in `claimed` can hold something that is no plain file,
 /// and a plain read of it waits inside `open(2)` for a writer that may never come,
-/// which holds the consumer of the queue for ever (alpha.47's release pass, Low 7).
-/// The stamp refuses a pipe too, which is the guard beside this one:
-/// this control stamps nothing, so the read itself is what the bound below catches.
+/// which holds the consumer of the queue for ever (alpha.47's release pass,
+/// Low 7).
+/// The stamp refuses a pipe too,
+/// which is the guard beside this one:
+/// this control stamps nothing,
+/// so the read itself is what the bound below catches.
 /// The same name read the plain way is shown waiting inside the same bound,
 /// which is what proves the bound can see a wait.
 #[test]
