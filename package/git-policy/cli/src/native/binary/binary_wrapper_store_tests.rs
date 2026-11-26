@@ -935,14 +935,14 @@ fn shared_copy_waits_for_a_copy_in_progress_instead_of_writing_another() {
 #[cfg(target_os = "linux")]
 mod shared_by_a_run {
     use crate::child_test_process::{ChildTest, passed};
-    /// `Output` is what a child wrote and how it ended; `passed` answers one per child.
-    use std::process::Output;
     use crate::root_namespace_test_support::in_a_root_namespace;
     use crate::support::{FIXTURE_ROOT_VARIABLE, Fixture, WRAPPER, fixture, fixture_root};
     use crate::wrapper_store::{STORE_DIRECTORY, content_name};
 
     use std::ffi::OsStr;
     use std::path::{Path, PathBuf};
+    /// `Output` is what a child wrote and how it ended; `passed` answers one per child.
+    use std::process::Output;
 
     /// What:
     ///  The variable the inner half of the control is started with, so it knows which half it is.
