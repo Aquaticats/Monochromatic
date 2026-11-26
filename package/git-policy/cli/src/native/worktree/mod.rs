@@ -375,9 +375,25 @@
 //! - `worktree_remove_hand_over.rs`:
 //!   the removal of a worktree's subvolume handed to the commit service,
 //!   and the service's own delete of it.
+//! - `worktree_landed_removal_records.rs`:
+//!   what one landed sweep is asked with and answers with:
+//!   where it looks,
+//!   each worktree it removed,
+//!   left,
+//!   finished or handed to the commit service,
+//!   and everything one sweep did.
+//! - `worktree_landed_removal_landed_branches.rs`:
+//!   which branches the merge that just ran landed,
+//!   and which of them hold a commit of their own.
+//! - `worktree_landed_removal_one_candidate.rs`:
+//!   one candidate of a landed sweep:
+//!   the conditions it must meet,
+//!   the fast destroy or the hand over to the commit service,
+//!   and what the attempt came to.
 //! - `worktree_landed_removal.rs`:
 //!   the removal of every wrapper-made worktree whose branch a merge landed,
-//!   which the commit service performs.
+//!   which the commit service performs:
+//!   the candidates this merge landed and the walk over them.
 //! - `worktree_landed_sweep_notice.rs`:
 //!   the words one landed sweep prints.
 //! - `worktree_landed_after_a_merge.rs`:
@@ -1107,8 +1123,23 @@ pub mod worktree_landed_registrations;
 /// which keep it.
 pub mod worktree_landed_ignored_files;
 
+/// What one landed sweep is asked with and answers with,
+/// and everything one sweep did.
+pub mod worktree_landed_removal_records;
+
+/// Which branches the merge that just ran landed,
+/// and which of them hold a commit of their own.
+pub mod worktree_landed_removal_landed_branches;
+
+/// One candidate of a landed sweep:
+/// the conditions it must meet,
+/// the fast destroy or the hand over to the commit service,
+/// and what the attempt came to.
+pub mod worktree_landed_removal_one_candidate;
+
 /// The removal of every wrapper-made worktree whose branch a merge landed,
-/// which the commit service performs.
+/// which the commit service performs:
+/// the candidates this merge landed and the walk over them.
 pub mod worktree_landed_removal;
 
 /// The words one landed sweep prints.
