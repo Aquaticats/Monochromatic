@@ -62,10 +62,13 @@
 //!   the descriptor-relative opens,
 //!   create,
 //!   rename and directory sync.
+//! - `clone_mount_receipts_folder_read.rs`:
+//!   the directory opened and proved,
+//!   and the read of one dataset's receipt.
 //! - `clone_mount_receipts_folder.rs`:
 //!   the root-owned receipts directory,
 //!   the GUID-named file,
-//!   its atomic publish and its directory-relative read.
+//!   and its atomic publish.
 //! - `clone_mount_readiness.rs`:
 //!   the readiness record's boot,
 //!   pool,
