@@ -45,13 +45,14 @@ with one round's guest destroyed and three other rounds' guests running,
 the host charged 24.0 GiB to those three guests
 (`Rss` plus `Swap` of each QEMU process's RAM mapping),
 and its own RAM held 6.8 GiB of that charge.
-The rest sat in the zram swap device,
-which held 1.13 GiB for it
+The rest was in the guests' swap,
+and the zram swap device held 1.13 GiB across everything on the host
+at that moment
 (`previous-round-samples-mem-b.jsonl`,
 the `baseline-no-guest` line).
 The machine's `MemAvailable` was 5.24 GiB at that moment,
 and the ARC held 1.95 GiB,
-already a fifth of a gigabyte above its floor.
+about 19 MB above its floor.
 
 One `mvm` guest asks for 8,192 MiB.
 The host must be able to give it,
@@ -967,8 +968,7 @@ The ARC was not at its floor when this round read it:
 the first round's gate log shows `arcSize` 5,095,552,408 at 16:09:17 against `c_min` 2,069,377,152,
 and 5,642,313,344 at 17:04:20.
 An earlier reading in this round's samples found it at about 1.95 GiB,
-a fifth of a gigabyte above the
-floor.
+about 19 MB above the floor.
 So the ARC is not a fixed cost,
 but the gate's own sum treats only `size` minus `c_min` as
 reclaimable,
