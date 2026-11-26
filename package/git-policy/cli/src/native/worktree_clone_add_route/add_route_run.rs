@@ -51,6 +51,7 @@ use super::add_route_steps::{
     step_snapshot,
     write_the_record,
 };
+use super::add_zfs::TheLiveDevice;
 use crate::subvolume_command::REFUSED_EXIT_CODE;
 use crate::transaction_git::GitContext;
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
@@ -162,8 +163,10 @@ fn run_the_route(
     overlay: &[(OsString, OsString)],
 ) -> Result<Option<Vec<String>>, StepRefusal> {
     let stops: Stops = Stops::from_environment().map_err(StepRefusal::refused)?;
-    let Some(preflight): Option<Preflight> = preflight_the_add(route, plan, context, arguments)?
-    else {
+    // The release opens the kernel's device behind the compatibility gate, as it always did.
+    let devices: TheLiveDevice = TheLiveDevice;
+    let answered: Option<Preflight> = preflight_the_add(route, plan, context, arguments, &devices)?;
+    let Some(preflight): Option<Preflight> = answered else {
         return Ok(None);
     };
     let home: std::fs::File = open_or_create_home(route.common_dir.as_path()).map_err(|error| {

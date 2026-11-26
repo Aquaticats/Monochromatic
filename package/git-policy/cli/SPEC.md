@@ -905,14 +905,30 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   The conversion command it prints follows the layout Git reports:
   `migrate-to-subvolume` in the repository's main worktree and `convert-worktree-to-subvolume` in a linked one.
 - It reports on the account companion's group drop at the end of that host section,
-  as "The account companion before each managed add" states it.
+  as "The account companion before each managed add" states it,
+  and only where the checkout Git reports stands on a ZFS dataset,
+  which is where the ZFS clone route can serve an add:
+  on any other file system the section carries no line about the group drop,
+  because every sentence of the report is about that route's adds.
   A host whose group drop is skipped gets four lines:
   the open of `/proc/self/setgroups` and the number it answered,
   the three user-namespace settings this host read,
-  why Ubuntu 24.04's AppArmor restriction on unprivileged user namespaces answers there,
-  and what a person can do about it,
-  which is nothing (every managed add goes ahead with the skip) or
-  `sysctl --write kernel.apparmor_restrict_unprivileged_userns=0` for the whole machine until its next boot.
+  why the kernel answers there,
+  and what a person can do about it.
+  The third line names Ubuntu 24.04's AppArmor restriction on unprivileged user
+  namespaces only where `kernel.apparmor_restrict_unprivileged_userns`,
+  which the second line prints,
+  reads `1`;
+  where it reads anything else the line says that restriction is not what
+  answered here and names the kernel's own audit log,
+  which records the profile
+  and the capability that was.
+  The fourth line says that nothing needs doing,
+  because every managed add goes ahead with the skip and prints the same call and
+  number on its own line as it runs,
+  and it names `sysctl --write kernel.apparmor_restrict_unprivileged_userns=0`
+  only under that same setting,
+  for the whole machine until its next boot.
   A host that wrote the `deny` gets no line,
   and so does one whose companion answered elsewhere,
   because the add's own line names that answer;
@@ -5100,6 +5116,18 @@ and every step reads the state a kill at the step before it leaves:
   a clone inherits its parent's `mountpoint`,
   which is the clone container and not the origin,
   so the clone reads `mountpoint=legacy` inherited from the container.
+  A container that inherits `legacy` from an ancestor of its own gives every clone
+  that ancestor's name as the source,
+  which the read after the clone request refuses,
+  so the preflight requires the container to set `mountpoint=legacy` on itself and
+  refuses one that does not before the claim,
+  the slot,
+  the Git registration,
+  the snapshot and the clone are written.
+  `doctor` judges the same container with the same check
+  (`check_dataset`,
+  the container role),
+  so the two reports a person can read name one requirement.
   `mountpoint` is also a delegation the design forbids the account,
   so a request that carried it is refused for the account the add runs as
   (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`,

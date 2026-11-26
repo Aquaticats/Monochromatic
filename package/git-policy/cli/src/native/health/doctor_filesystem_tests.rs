@@ -724,3 +724,99 @@ fn a_linked_checkout_is_advised_its_own_conversion_command() {
     assert!(main.contains("migrate-to-subvolume"), "{main}");
     assert!(!main.contains("convert-worktree-to-subvolume"), "{main}");
 }
+
+/// A host fact read that answers Btrfs.
+/// Why:
+///  How the checkout is judged is the answer's kind alone,
+///  so a control names a kind rather than a mounted file system,
+///  and a `fn` that captures no value is what a reader of the release's own shape can be.
+fn a_host_on_btrfs(_checkout: &Path) -> Option<FilesystemKind> {
+    return Some(FilesystemKind::Btrfs);
+}
+
+/// A host fact read that answers overlayfs.
+fn a_host_on_overlayfs(_checkout: &Path) -> Option<FilesystemKind> {
+    return Some(FilesystemKind::Overlayfs);
+}
+
+/// A host fact read that answers a file system this crate does not classify.
+fn a_host_on_another_file_system(_checkout: &Path) -> Option<FilesystemKind> {
+    return Some(FilesystemKind::Other);
+}
+
+/// A host fact read that answers a ZFS dataset.
+fn a_host_on_a_zfs_dataset(_checkout: &Path) -> Option<FilesystemKind> {
+    return Some(FilesystemKind::Zfs);
+}
+
+/// A host facts read that never answers,
+/// which is the shape a mount whose server stopped answering has.
+fn a_host_that_never_answers(_checkout: &Path) -> Option<FilesystemKind> {
+    loop {
+        std::thread::park();
+    }
+}
+
+/// A host facts read whose `statfs` refused.
+fn a_host_with_no_answer(_checkout: &Path) -> Option<FilesystemKind> {
+    return None;
+}
+
+/// What:
+///  Only a checkout standing on a ZFS dataset is where the wrapper's ZFS clone route
+///  can apply,
+///  and a checkout Git named none of,
+///  a read that refused and a read that never answered are all no.
+/// Why:
+///  `doctor` prints the group drop's report only there (Low 9 of the alpha.47 release
+///  pass),
+///  and the report is about a route whose adds are ZFS clones,
+///  so a verdict that answered yes for another file system would print it on every
+///  host again.
+///  The read is a `statfs` that can wait in the kernel,
+///  so the answer is bounded the
+///  way the section's own facts are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(theCheckoutIsAZfsDatasetWith(aHostOnAZfsDataset, ceiling, checkout)).toBe(true);
+/// for (const read of [aHostOnBtrfs, aHostOnAnotherFileSystem, aHostWithNoAnswer, aHostThatNeverAnswers]) expect(theCheckoutIsAZfsDatasetWith(read, ceiling, checkout)).toBe(false);
+/// expect(theCheckoutIsAZfsDataset(undefined)).toBe(false);
+/// ```
+#[test]
+fn the_route_applies_only_to_a_checkout_on_a_zfs_dataset() {
+    let parent: PathBuf = fixture("doctor-filesystem-zfs-verdict");
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    assert!(
+        the_checkout_is_a_zfs_dataset_with(
+            a_host_on_a_zfs_dataset,
+            REPORT_SCAN_CEILING,
+            repo.as_path()
+        ),
+        "a checkout on a ZFS dataset is where the route applies"
+    );
+    for read in [
+        a_host_on_btrfs,
+        a_host_on_overlayfs,
+        a_host_on_another_file_system,
+        a_host_with_no_answer,
+    ] {
+        assert!(
+            !the_checkout_is_a_zfs_dataset_with(read, REPORT_SCAN_CEILING, repo.as_path()),
+            "another file system, or a read that refused, is no ZFS dataset"
+        );
+    }
+    assert!(
+        !the_checkout_is_a_zfs_dataset_with(
+            a_host_that_never_answers,
+            Duration::from_millis(50),
+            repo.as_path()
+        ),
+        "a read that never answers is bounded, and its no-answer is no ZFS dataset"
+    );
+    assert!(
+        !the_checkout_is_a_zfs_dataset(None),
+        "a checkout Git named none of is where the route applies nowhere"
+    );
+    remove(parent.as_path());
+}
