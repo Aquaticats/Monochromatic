@@ -33,11 +33,17 @@
 //! ```
 
 use crate::merge_isolation_carry_place_write::write_entry;
+/// One file call of this step handed to the blocking pool,
+/// so a disk that makes it wait holds no worker of the runtime
+/// (`doc/planning/git-policy-cli-full-tokio.md`,
+/// "Blocking files,
+/// fsync and the runtime's own shutdown").
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+use crate::rename_that_never_replaces::{TheAnswerOfARename, rename_noreplace_on_the_blocking_pool};
 use crate::merge_isolation_carry_writes::{CarryFailure, FileWrite, IndexWrite};
 use crate::merge_isolation_changes::{FileIdentity, WorktreeState, file_identity, worktree_path};
 use crate::merge_isolation_take_aside_names::{CARRY_PREFIX, aside_name};
 use crate::merge_isolation_take_asides::{are_the_file_form_of_awaiting, may_remove_the_aside_awaiting};
-use crate::rename_that_never_replaces::rename_noreplace;
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
 
@@ -176,6 +182,55 @@ fn write_private(location: &Path, bytes: &[u8], mode: &str, the_persons_bits: Op
 }
 
 /// What:
+///  `write_private`,
+///  made as a job of the blocking pool.
+/// Why:
+///   Making the directory and writing the entry are calls that can wait on a disk,
+/// so they never hold the worker of the runtime that
+///  polls this step,
+///  and the name and the error are the ones `write_private` gives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function writePrivateOnThePool(location, bytes, mode, bits, transactionId): Promise<string>; // throws on a write that failed
+/// ```
+async fn write_private_awaiting(location: &Path, bytes: &[u8], mode: &str, the_persons_bits: Option<u32>, transaction_id: &str) -> Result<PathBuf, String> {
+    let (named, written, entry_mode): (PathBuf, Vec<u8>, String) = (location.to_path_buf(), bytes.to_vec(), String::from(mode));
+    let record: String = String::from(transaction_id);
+    return match run_blocking_job_within_the_budget(move || {
+        return write_private(named.as_path(), written.as_slice(), entry_mode.as_str(), the_persons_bits, record.as_str());
+    })
+    .await
+    {
+        Ok(made) => made,
+        // The system gave the pool no thread, so the entry may not have been written at all.
+        Err(refused) => Err(refused.to_string()),
+    };
+}
+
+/// What:
+///  Remove one private name this step made,
+///  as a job of the blocking pool,
+///  with nothing said about a failure.
+/// Why:
+///   A removal is a file call that can wait on a disk;
+/// a name that does not go is not a failure of the write,
+///  because the next command's sweep of the merge's own names collects what is left
+///  (`merge_isolation_take_aside_names.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function removeAPrivateName(private: string): Promise<void>; // rm(private), a failure ignored
+/// ```
+async fn remove_a_private_name_awaiting(private: &Path) {
+    let named: PathBuf = private.to_path_buf();
+    let _removal = run_blocking_job_within_the_budget(move || {
+        return std::fs::remove_file(named.as_path());
+    })
+    .await;
+}
+
+/// What:
 ///  The object the bytes of one entry make,
 /// compared with the object the judgement recorded.
 /// Why:
@@ -204,7 +259,23 @@ async fn are_the_judged_bytes_awaiting(context: &GitContext, root: &Path, path: 
 /// async function isTheJudgedEntry(context, root, path, location, judged): Promise<boolean | undefined>;
 /// ```
 async fn is_the_judged_entry_awaiting(context: &GitContext, root: &Path, path: &[u8], location: &Path, judged: &JudgedFile) -> Option<bool> {
-    if judged.identity.is_none() || file_identity(location) != judged.identity {
+    if judged.identity.is_none() {
+        return Some(false);
+    }
+    // The identity is a metadata look at a user's file, which can wait on a disk, so a job of the blocking pool makes it.
+    let looked_at: PathBuf = location.to_path_buf();
+    let identity: Option<FileIdentity> = match run_blocking_job_within_the_budget(move || return file_identity(looked_at.as_path())).await {
+        Ok(found) => found,
+        // A look nothing made proves nothing about the entry, so the take puts it back where it was found.
+        Err(refused) => {
+            crate::diagnostic_log::debug(
+                "isTheJudgedEntry",
+                format!("{} could not be looked at, so the entry goes back: {refused}", location.display()).as_str(),
+            );
+            return None;
+        }
+    };
+    if identity != judged.identity {
         return Some(false);
     }
     return are_the_judged_bytes_awaiting(context, root, path, location, judged).await;
@@ -222,14 +293,15 @@ async fn is_the_judged_entry_awaiting(context: &GitContext, root: &Path, path: &
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const putBack = (location, aside) => renameNoReplace(aside, location) ? { kind: 'changed' } : { kind: 'changed', kept: aside };
+/// const putBack = async (location, aside) => { const moved = await renameNoReplaceOnThePool(aside, location); return moved.kind === 'name-taken' ? { kind: 'changed', kept: aside } : { kind: 'changed' }; };
 /// ```
-fn put_back(location: &Path, aside: &Path) -> Result<Placed, CarryFailure> {
-    return match rename_noreplace(aside, location) {
-        Ok(()) => Ok(Placed::Changed { kept: None }),
+async fn put_back_awaiting(location: &Path, aside: &Path) -> Result<Placed, CarryFailure> {
+    return match rename_noreplace_on_the_blocking_pool(aside, location).await {
+        TheAnswerOfARename::Renamed => Ok(Placed::Changed { kept: None }),
         // Another write took the path, so both entries stay and the one put aside is named.
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(Placed::Changed { kept: Some(aside.to_path_buf()) }),
-        Err(error) => Err(CarryFailure::Failed(format!("{} could not be put back: {error}", aside.display()))),
+        TheAnswerOfARename::NameTaken(_taken) => Ok(Placed::Changed { kept: Some(aside.to_path_buf()) }),
+        TheAnswerOfARename::Failed(error) => Err(CarryFailure::Failed(format!("{} could not be put back: {error}", aside.display()))),
+        TheAnswerOfARename::NoThreadToRunIt(refused) => Err(CarryFailure::Failed(format!("{} could not be put back: {refused}", aside.display()))),
     };
 }
 
@@ -268,7 +340,7 @@ async fn drop_the_aside_awaiting(
         kept.push(aside.to_path_buf());
         return Ok(());
     };
-    return match proof.remove(aside) {
+    return match proof.remove_on_the_blocking_pool(aside).await {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(CarryFailure::Failed(format!("{} could not be removed: {error}", aside.display()))),
@@ -314,17 +386,24 @@ async fn take_judged_awaiting(
     transaction_id: &str,
 ) -> Result<Taken, CarryFailure> {
     let aside: PathBuf = aside_name(location, transaction_id);
-    match rename_noreplace(location, aside.as_path()) {
-        Ok(()) => {}
+    // The take is one rename, and a rename writes the directory it lands in, so a job of the blocking pool makes it.
+    match rename_noreplace_on_the_blocking_pool(location, aside.as_path()).await {
+        TheAnswerOfARename::Renamed => {}
         // The path was freed between the judgement and the take, which is not this write to make.
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Taken::Changed { kept: None }),
-        Err(error) => return Err(CarryFailure::Failed(format!("{} could not be set aside: {error}", location.display()))),
+        TheAnswerOfARename::Failed(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Taken::Changed { kept: None }),
+        // A private name another entry holds is a rename that failed, and both names stay: the path and that entry.
+        TheAnswerOfARename::Failed(error) | TheAnswerOfARename::NameTaken(error) => {
+            return Err(CarryFailure::Failed(format!("{} could not be set aside: {error}", location.display())));
+        }
+        TheAnswerOfARename::NoThreadToRunIt(refused) => {
+            return Err(CarryFailure::Failed(format!("{} could not be set aside: {refused}", location.display())));
+        }
     }
     match is_the_judged_entry_awaiting(context, root, path, aside.as_path(), judged).await {
         Some(true) => return Ok(Taken::Aside(aside)),
         // A read that fails cannot prove the bytes, so the entry goes back rather than be replaced.
         Some(false) | None => {
-            return match put_back(location, aside.as_path())? {
+            return match put_back_awaiting(location, aside.as_path()).await? {
                 Placed::Changed { kept } => Ok(Taken::Changed { kept }),
                 Placed::Written | Placed::Nothing => Ok(Taken::Changed { kept: None }),
             };
@@ -384,9 +463,21 @@ async fn remove_judged_awaiting(
 ) -> Result<Placed, CarryFailure> {
     if judged.content.is_none() {
         // Nothing stood there when the write looked, so an entry that is there now came after it.
-        return match std::fs::symlink_metadata(location) {
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Placed::Nothing),
-            _ => Ok(Placed::Changed { kept: None }),
+        let looked_at: PathBuf = location.to_path_buf();
+        // The look at the entry is a call that can wait on a disk, so a job of the blocking pool makes it.
+        let stands: Result<bool, crate::blocking_job::BlockingJobError> = run_blocking_job_within_the_budget(move || {
+            return match std::fs::symlink_metadata(looked_at.as_path()) {
+                // The path is free, so there is nothing for this write to do.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+                // An entry stands there, and a look that failed for any other reason is read as one: neither is this write's to toss.
+                _ => true,
+            };
+        })
+        .await;
+        return match stands {
+            Ok(false) => Ok(Placed::Nothing),
+            Ok(true) => Ok(Placed::Changed { kept: None }),
+            Err(refused) => Err(CarryFailure::Failed(format!("{} could not be looked at: {refused}", location.display()))),
         };
     }
     return match take_judged_awaiting(context, root, path, location, judged, transaction_id).await? {
@@ -439,7 +530,21 @@ async fn place_bytes_awaiting(
         //  bytes this carry would have written are kept beside it under a name that names the merge, and the caller records and
         //  names them, so the person's bytes exist whichever of the two the file was.
         let aside: PathBuf = aside_name(location.as_path(), transaction_id);
-        return match write_entry(aside.as_path(), bytes, mode, *the_persons_bits) {
+        // Keeping the bytes beside the path is a write that can wait on a disk, so a job of the blocking pool makes it.
+        let kept_at: PathBuf = aside.clone();
+        let kept_bytes: Vec<u8> = bytes.clone();
+        let kept_mode: String = String::from(mode.as_str());
+        let bits: Option<u32> = *the_persons_bits;
+        let kept: Result<(), String> = match run_blocking_job_within_the_budget(move || {
+            return write_entry(kept_at.as_path(), kept_bytes.as_slice(), kept_mode.as_str(), bits);
+        })
+        .await
+        {
+            Ok(written) => written,
+            // The system gave the pool no thread, so the bytes were not written beside the path.
+            Err(refused) => Err(refused.to_string()),
+        };
+        return match kept {
             Ok(()) => {
                 set_asides.unproven.push(aside);
                 Ok(Placed::Nothing)
@@ -447,37 +552,48 @@ async fn place_bytes_awaiting(
             Err(error) => Err(CarryFailure::Failed(format!("{} could not be kept beside {}, which was left as it is: {error}", location.display(), location.display()))),
         };
     }
-    let private: PathBuf = match write_private(location.as_path(), bytes, mode, *the_persons_bits, transaction_id) {
+    let private: PathBuf = match write_private_awaiting(location.as_path(), bytes, mode, *the_persons_bits, transaction_id).await {
         Ok(made) => made,
         Err(error) => return Err(CarryFailure::Failed(format!("{} could not be written: {error}", location.display()))),
     };
     if judged.content.is_none() {
         // Nothing stood there when the write looked, so the path is made and never replaced.
-        return match rename_noreplace(private.as_path(), location.as_path()) {
-            Ok(()) => Ok(Placed::Written),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                let _left = std::fs::remove_file(private.as_path());
+        return match rename_noreplace_on_the_blocking_pool(private.as_path(), location.as_path()).await {
+            TheAnswerOfARename::Renamed => Ok(Placed::Written),
+            TheAnswerOfARename::NameTaken(_taken) => {
+                remove_a_private_name_awaiting(private.as_path()).await;
                 Ok(Placed::Changed { kept: None })
             }
-            Err(error) => Err(CarryFailure::Failed(format!("{} could not be made: {error}", location.display()))),
+            TheAnswerOfARename::Failed(error) => Err(CarryFailure::Failed(format!("{} could not be made: {error}", location.display()))),
+            TheAnswerOfARename::NoThreadToRunIt(refused) => {
+                Err(CarryFailure::Failed(format!("{} could not be made: {refused}", location.display())))
+            }
         };
     }
     let aside: PathBuf = match take_judged_awaiting(context, root, path, location.as_path(), judged, transaction_id).await? {
         Taken::Aside(waits) => waits,
         Taken::Changed { kept: stranded } => {
-            let _left = std::fs::remove_file(private.as_path());
+            remove_a_private_name_awaiting(private.as_path()).await;
             return Ok(Placed::Changed { kept: stranded });
         }
     };
-    let placed: Placed = match rename_noreplace(private.as_path(), location.as_path()) {
-        Ok(()) => Placed::Written,
+    let placed: Placed = match rename_noreplace_on_the_blocking_pool(private.as_path(), location.as_path()).await {
+        TheAnswerOfARename::Renamed => Placed::Written,
         // Another write took the path in the gap; the entry put aside is kept and named, and the bytes this write
         //  would have placed are made again by the next command.
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Placed::Changed { kept: Some(aside.clone()) },
+        TheAnswerOfARename::NameTaken(_taken) => Placed::Changed { kept: Some(aside.clone()) },
         // The entry put aside stays where it is, so the message names it rather than leaving a person to find it.
-        Err(error) => {
+        TheAnswerOfARename::Failed(error) => {
             return Err(CarryFailure::Failed(format!(
                 "{} could not be written: {error}; the file it held before is at {}",
+                location.display(),
+                aside.display()
+            )));
+        }
+        // The rename did not run, or may have: the entry put aside still names where the file before it is.
+        TheAnswerOfARename::NoThreadToRunIt(refused) => {
+            return Err(CarryFailure::Failed(format!(
+                "{} could not be written: {refused}; the file it held before is at {}",
                 location.display(),
                 aside.display()
             )));
@@ -487,7 +603,7 @@ async fn place_bytes_awaiting(
         // What the take holds is the entry the write replaces, whose bytes the merge's capture keeps.
         drop_the_aside_awaiting(context, root, path, aside.as_path(), judged, set_asides.held_open).await?;
     } else {
-        let _left = std::fs::remove_file(private.as_path());
+        remove_a_private_name_awaiting(private.as_path()).await;
     }
     return Ok(placed);
 }
