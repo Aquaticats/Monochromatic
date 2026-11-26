@@ -752,6 +752,26 @@ Portal pressure writes and
 new profile-sync-daemon mount operations are not claimed exercised until their real services repeat
 them.
 
+### The wrapper link a toolchain install repoints
+
+The rules name one exact wrapper build
+(`.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli`),
+and `.cache/monochromatic-git-policy-cli-bin/git` links to it.
+A `mise run toolchain:install` in the main checkout rewrites that link to the locked launcher
+`.cache/toolchain-launchers/monochromatic-git-policy-cli`,
+which the `gh` profile's inherit-exec rule does not name,
+so every `gh` call then fails with
+`fork/exec .../monochromatic-git-policy-cli-bin/git: permission denied`
+while `git` itself keeps working.
+The fix is to point the link back at the build the rules name,
+which the owner asked for on 2026-11-25:
+"Repoint the git link too".
+Any later toolchain install in the main checkout breaks `gh` the same way,
+and until the build is newer than the link's target the session's `git` is that older build,
+so its removals keep the commit service's journals,
+which the fixed build's `service stop-units-of-removed-worktrees` clears after each batch.
+A toolchain install outside the main checkout repoints only that worktree's own link.
+
 ### Helium and Git
 
 Helium uses the real `net.imput.helium` configuration and cache variables.
@@ -1579,12 +1599,15 @@ and its `PATH` record carries `mode=0100444` and `nametype=CREATE`.
 System call 86 is `link`,
 and Git makes it for a loose object it has just written in its object directory
 (`finalize_object_file` links the temporary file into place unless
-`core.createObject` is `rename`, and the fixture repositories set no such value).
+`core.createObject` is `rename`,
+and the fixture repositories set no such value).
 
-This host sets `fs.protected_hardlinks = 1`, so `may_linkat` asks
+This host sets `fs.protected_hardlinks = 1`,
+so `may_linkat` asks
 `safe_hardlink_source` (`fs/namei.c`),
 which calls `inode_permission(idmap, inode, MAY_READ | MAY_WRITE)`.
-The file's mode is `0444`, so the owner's write bit refuses,
+The file's mode is `0444`,
+so the owner's write bit refuses,
 and `generic_permission` asks `capable_wrt_inode_uidgid(..., CAP_DAC_OVERRIDE)`.
 That reaches `security_capable`,
 which walks the capability hooks and returns at the first refusal.
@@ -1600,7 +1623,10 @@ and that is what makes these records.
 the whole bounding set in permitted and effective at every `exec`,
 so a Git started inside the any-name control's inner half holds `CAP_DAC_OVERRIDE`
 for an inode whose owner that namespace maps:
-`cap_capable` answers 0, AppArmor's `git` profile is asked next, refuses, and logs,
+`cap_capable` answers 0,
+AppArmor's `git` profile is asked next,
+refuses,
+and logs,
 and `may_linkat` then succeeds on its owner check (`inode_owner_or_capable`),
 which is why the record says `success=yes`.
 Measured inside that half on this host,
@@ -1615,21 +1641,28 @@ Once the inner half has mounted its tmpfs it sets `SECURE_NOROOT`
 so every program it starts is given no capability of the namespace,
 while the inner half keeps its own for the root-owned fixtures it goes on to make.
 `cap_capable` then answers the hardlink's ask as it does for an ordinary account,
-no profile is consulted, no record is made, and the `link()` still returns 0
-(`keep/inner-half-after.trace`, `prctl(PR_SET_SECUREBITS, SECBIT_NOROOT) = 0`).
+no profile is consulted,
+no record is made,
+and the `link()` still returns 0
+(`keep/inner-half-after.trace`,
+`prctl(PR_SET_SECUREBITS, SECBIT_NOROOT) = 0`).
 A run whose fixture root already takes a name that is not UTF-8 starts no namespace,
 and the same control runs there as it always did.
 
 The control that holds the fix is
 `testing::fixture_root_taking_any_name_of_unit_tests::tests::a_program_started_from_the_any_name_root_holds_no_capability`:
-it reads a child's own `/proc/self/status` and requires an empty `CapInh`, `CapPrm`, `CapEff` and `CapAmb`.
-It was red before the bit, naming `CapPrm=0x000001ffffffffff`
+it reads a child's own `/proc/self/status` and requires an empty `CapInh`,
+`CapPrm`,
+`CapEff` and `CapAmb`.
+It was red before the bit,
+naming `CapPrm=0x000001ffffffffff`
 (`keep/control-red-before-the-fix.log`),
 and green after it (`keep/control-green-after-the-fix.log`),
 and the guarded controls of `commit::capture_invocation` passed after it
 (`keep/module-capture-invocation-after-the-fix.log`).
 No rule is added for this family and none is needed:
-the ask was the fixture's, and the fixture now runs as an ordinary account does.
+the ask was the fixture's,
+and the fixture now runs as an ordinary account does.
 
 ### The tests that would pass with their program refused
 
@@ -1821,8 +1854,10 @@ and `a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program
 (`src/native/landing/service_push_retry_tests.rs`)
 keep their assertions that the recorder's log is empty,
 and each now runs the same recorder through the same program first and requires its log to hold the question.
-The LFS pair runs the fixture's own `bin/git-lfs` link, at the path the wrapper's search finds and a profile
-attaches to, against the same login-requiring server;
+The LFS pair runs the fixture's own `bin/git-lfs` link,
+at the path the wrapper's search finds and a profile
+attaches to,
+against the same login-requiring server;
 the push control runs real Git at `/usr/bin/git` against its `LoginServer`,
 and the LFS-upload control runs the same `git-lfs` stand-in through the same plan with only the rule's empty
 `GIT_ASKPASS` replaced by the recorder.
@@ -1830,7 +1865,8 @@ An empty log therefore means the rule held and not that the program never starte
 
 ### What the runs showed
 
-Host, `cargo test --locked --offline --test native_binary -- never_opens_the_password_dialog`
+Host,
+`cargo test --locked --offline --test native_binary -- never_opens_the_password_dialog`
 and `cargo test --locked --offline --lib -- never_starts_the_hosts_askpass_program`,
 2026-11-24 between 02:52 and 02:56:
 all four controls pass with their arms.
@@ -1839,16 +1875,20 @@ the arms fail and say so,
 quoting the program's own line
 (`fatal: cannot exec '<path>': Permission denied` for Git and for `git-lfs`,
 and `/bin/git-lfs: line 4: <path>: Permission denied` for the stand-in);
-with the arms removed and the same mode in place, all four controls pass,
+with the arms removed and the same mode in place,
+all four controls pass,
 which is the old blindness reproduced.
 The patches of each state are `red-demo-lfs-recorder-cannot-start.patch` and
 `red-demo-service-recorder-cannot-start.patch` in this round's `keep/`.
 
-Gate image, built from the committed sources by
+Gate image,
+built from the committed sources by
 `keep/build-the-gate-image-for-a-narrowed-run.ts` under the tag `askpass-refusal-20261124`
-(the gate's own build functions, no suite and no Clippy container),
+(the gate's own build functions,
+no suite and no Clippy container),
 then run in the gate's own container geometry
-(`--memory 2g --cpus 4 --pids-limit 1024`, the suite's tmpfs fixture root):
+(`--memory 2g --cpus 4 --pids-limit 1024`,
+the suite's tmpfs fixture root):
 `Summary [1.460s] 7 tests run: 7 passed, 10842 skipped`.
 The seven are the six controls above and `an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule`,
 which the filter matched and which passed.
@@ -1875,10 +1915,12 @@ So the red and green of the terminal assertion were shown in the gate image and 
 
 ### Red and green of the terminal assertion, in the gate image
 
-Green: the six controls' run recorded under "What the runs showed" has both terminal controls passing
+Green:
+the six controls' run recorded under "What the runs showed" has both terminal controls passing
 with the assertion in place.
 
-Red: with the demonstration in `red-demo-ssh-false-cannot-start.patch`,
+Red:
+with the demonstration in `red-demo-ssh-false-cannot-start.patch`,
 where each wrapped arm's `PATH` holds a link to `/usr/bin/git` and a mode-0600 file named `false`,
 both controls fail at the assertion and quote the transcript it read.
 The host-key control's transcript holds:
@@ -1985,7 +2027,9 @@ owner @{HOME}/.jbcontext/bin/ r,
 and `git help --all` afterwards exited 0 with no `git` denial in the kernel log.
 The same window's `umount` request for `dac_override` stays refused,
 as the ninth batch decided.
-(Note of 2026-11-25: the eleventh batch allows it, by the owner's "Always widen apparmor.")
+(Note of 2026-11-25:
+the eleventh batch allows it,
+by the owner's "Always widen apparmor.")
 
 ## Eleventh batch: carving swap from the old NVMe, and the owner's rule to always widen, 2026-11-25
 
@@ -2002,7 +2046,8 @@ while the session unlocked and shrank the old NVMe's filesystem for a swap parti
 
 - `pacman-key` and `gpg` opening `/var/cache/pacman/pkg/linux-cachyos-7.3.5-2-x86_64_v4.pkg.tar.zst.sig` for read,
   so `sudo pacman-key --verify` printed `gpg: can't open ... Permission denied` even as root.
-- `kmod` (`modinfo`, `insmod`) opening `dm-crypt.ko.zst` outside `/usr/lib/modules`.
+- `kmod` (`modinfo`,
+  `insmod`) opening `dm-crypt.ko.zst` outside `/usr/lib/modules`.
 - `cryptsetup` opening and creating a LUKS header backup under `~/temp/agent/`
   (`Cannot create header backup file`).
 - `btrfs` reading `/sys/devices/virtual/block/dm-0/queue/zoned`,
@@ -2029,15 +2074,21 @@ capability dac_override,
 capability dac_override,
 ```
 
-`apparmor_parser --replace` exited 0 for `pacman-key`, `gpg`, `kmod`, `cryptsetup`, `btrfs` and `umount`.
+`apparmor_parser --replace` exited 0 for `pacman-key`,
+`gpg`,
+`kmod`,
+`cryptsetup`,
+`btrfs` and `umount`.
 Afterwards `sudo pacman-key --verify` on that package printed
 `gpg: Good signature from "CachyOS <admin@cachyos.org>" [full]`,
 and `btrfs filesystem usage -T` read the mounted filesystem.
 The `umount` rule ends the ninth batch's refusal of `dac_override`,
 which every gate window since has logged (for example the gate at `7ed5ec0b34`).
 
-Later the same afternoon, while setting up zram writeback to the old NVMe
-(`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`, "zram writeback to the old NVMe"):
+Later the same afternoon,
+while setting up zram writeback to the old NVMe
+(`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
+"zram writeback to the old NVMe"):
 
 ```text
 # /etc/apparmor.d/local/systemd-analyze
@@ -2066,5 +2117,6 @@ and when `--setup-device` writes `backing_dev` the kernel opens the device as th
 denied as `open /dev/dm-0 wr`.
 A probe on a throwaway `zram2` read error 13 before the `/dev/dm-*` rule and error 16 (busy) after it.
 The home and capability lines serve a dry run of the generator into a scratch folder.
-The main `systemd-analyze` profile does include `local/systemd-analyze`, on the line before its closing brace;
+The main `systemd-analyze` profile does include `local/systemd-analyze`,
+on the line before its closing brace;
 a search capped at two lines first hid it.
