@@ -384,8 +384,7 @@ fn judge_with(
 /// size,
 /// mode and times,
 /// and the kernel stamps the times from the coarse clock,
-/// so a rewrite in place that keeps the size changes none of them while its two states meet one tick
-/// (issue 6483: measured at one millisecond here, where back-to-back rewrites shared a tick).
+/// so a rewrite in place that keeps the size changes none of them while its two states meet one tick (issue 6483).
 ///  The file is therefore aged into an earlier tick before the write,
 /// as every other control of this crate that needs a state a later write can differ from.
 #[test]

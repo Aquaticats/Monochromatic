@@ -359,7 +359,8 @@ impl<'a> ContentJudge<'a> {
     /// so a rewrite in place that keeps the size and lands in the same tick as the state compared
     /// changes no field it reads and is not seen (issue 6483);
     /// the bytes read were still this file's own,
-    /// and its content is what settles the entry, as Git settles a racily clean one.
+    /// and its content is what settles the entry,
+    /// as Git settles a racily clean one.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
