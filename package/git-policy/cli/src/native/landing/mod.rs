@@ -441,11 +441,28 @@
 //!   asked by a producer that writes a record and by a consumer that takes a name away.
 //! - `work_item_recovery.rs`:
 //!   the answers work item recovery holds.
+//! - `service_work_kinds_and_a_wake.rs`:
+//!   the kinds of work the service runs,
+//!   how many times an item is tried,
+//!   and what a wake message brings.
+//! - `service_work_handlers_and_verdicts.rs`:
+//!   what a handler came to,
+//!   and one method per kind of work with its awaiting twin.
+//! - `service_work_acceptable_records_and_claims.rs`:
+//!   the work directory,
+//!   which records are acceptable work,
+//!   and what becomes of the claims this instance holds.
+//! - `service_work_given_up_notices.rs`:
+//!   the words a person reads when the service gave up on a push or a relink.
+//! - `service_work_drained_and_replanning.rs`:
+//!   what one drain hands back,
+//!   and the retry state it works with.
+//! - `service_work_planned_retry.rs`:
+//!   the words and the plan of a push that is tried again.
+//! - `service_work_unreachable_repository_plans.rs`:
+//!   the plans of a repository that is gone or cannot be reached.
 //! - `service_work_handlers_replanning_and_acceptance.rs`:
-//!   the kinds,
-//!   handlers,
-//!   acceptance rules,
-//!   settling and replanning of the service's work.
+//!   the one name a caller uses for all of the files listed before it here.
 //! - `service_work.rs`:
 //!   the service's consumer of after-commit push and upkeep work.
 //! - `push_record_of_a_moved_branch.rs`:
@@ -968,7 +985,35 @@ pub mod service_work_branch_questions;
 /// and whether it belongs to a repository with no main worktree.
 pub mod service_work_common_directory;
 
-/// The kinds,
+/// The kinds of work the service runs,
+/// how many times an item is tried,
+/// and what a wake message brings.
+pub mod service_work_kinds_and_a_wake;
+
+/// What a handler came to,
+/// and what runs each kind of work.
+pub mod service_work_handlers_and_verdicts;
+
+/// The work directory,
+/// which records are acceptable work,
+/// and what becomes of the claims this instance holds.
+pub mod service_work_acceptable_records_and_claims;
+
+/// The words a person reads when the service gave up on a push or a relink.
+pub mod service_work_given_up_notices;
+
+/// What one drain hands back,
+/// and the retry state it works with.
+pub mod service_work_drained_and_replanning;
+
+/// The words and the plan of a push that is tried again.
+pub mod service_work_planned_retry;
+
+/// The plans of a repository that is gone or cannot be reached.
+pub mod service_work_unreachable_repository_plans;
+
+/// The one name a caller uses for the files listed before it here:
+/// the kinds,
 /// handlers,
 /// acceptance rules,
 /// settling and replanning of the service's work.
