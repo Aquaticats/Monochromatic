@@ -90,7 +90,12 @@ pub const MAX_BYTES: u64 = 4 * 1024 * 1024;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AllowList = { source: Path; entries: AllowEntry[] };
+/// type AllowList = {
+///   source: Path;
+///   entries: AllowEntry[];
+///   uses: Set<[Path, Path]>;
+///   keys: Set<string>;
+/// };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AllowList {
@@ -98,6 +103,10 @@ pub struct AllowList {
     source: PathBuf,
     /// The entries in file order.
     entries: Vec<AllowEntry>,
+    /// The uses the entries record, so one lookup is not a pass over every entry.
+    uses: BTreeSet<(PathBuf, PathBuf)>,
+    /// The keys the entries record, for the same reason.
+    keys: BTreeSet<String>,
 }
 
 /// What:
@@ -105,6 +114,11 @@ pub struct AllowList {
 /// Why:
 ///  The lines are read by `layout_allow_entries.rs`,
 ///  and the list they make is the one a rule asks about.
+///  The uses and the keys are also collected once here,
+///  because a rule asks about one use or one key per finding it makes,
+///  and a list of a dense loop holds a line for every use inside that loop:
+///  a pass over every entry per question cost minutes on a list of 60,300 lines
+///  (measured 2026-11-26 on the alpha.15 release pass's densest loop).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -114,9 +128,31 @@ pub fn parse_allow_list(
     text: &str,
     source: &Path,
 ) -> Result<AllowList, String> {
+    let entries: Vec<AllowEntry> = parse_entries(text)?;
+    let mut uses: BTreeSet<(PathBuf, PathBuf)> = BTreeSet::<(PathBuf, PathBuf)>::new();
+    let mut keys: BTreeSet<String> = BTreeSet::<String>::new();
+    for entry in &entries {
+        match &entry.kind {
+            AllowKind::FolderUse {
+                from,
+                to,
+            } => {
+                uses.insert((from.clone(), to.clone()));
+            }
+            AllowKind::Key(key) => {
+                keys.insert(key.clone());
+            }
+            // A file use is asked about once per file pair of one folder, and a folder holds few files.
+            AllowKind::FileUse {
+                ..
+            } => {}
+        }
+    }
     return Ok(AllowList {
         source: source.to_path_buf(),
-        entries: parse_entries(text)?,
+        entries,
+        uses,
+        keys,
     });
 }
 
@@ -231,19 +267,7 @@ impl AllowList {
         from: &Path,
         to: &Path,
     ) -> bool {
-        for entry in &self.entries {
-            let AllowKind::FolderUse {
-                from: listed_from,
-                to: listed_to,
-            } = &entry.kind
-            else {
-                continue;
-            };
-            if listed_from == from && listed_to == to {
-                return true;
-            }
-        }
-        return false;
+        return self.uses.contains(&(from.to_path_buf(), to.to_path_buf()));
     }
 
     /// Whether one use between two files of a folder is tolerated.
@@ -274,15 +298,7 @@ impl AllowList {
         &self,
         key: &str,
     ) -> bool {
-        for entry in &self.entries {
-            let AllowKind::Key(listed) = &entry.kind else {
-                continue;
-            };
-            if listed == key {
-                return true;
-            }
-        }
-        return false;
+        return self.keys.contains(key);
     }
 }
 
