@@ -43,6 +43,46 @@ fn a_directory_of_another_repository_is_not_trusted() {
     crate::test_support::remove(root.as_path());
 }
 
+/// A `commondir` that is a named pipe names no worktree of the repository,
+/// and it answers at once:
+/// opening a named pipe for reading waits for a writer that may never come,
+/// which held the head question before the file was read as a plain one.
+#[test]
+fn a_commondir_that_is_a_named_pipe_is_not_a_worktree_of_the_repository() {
+    let root: std::path::PathBuf = crate::test_support::fixture("head-commondir-named-pipe");
+    let ours: std::path::PathBuf = root.join("ours");
+    let linked: std::path::PathBuf = root.join("linked");
+    std::fs::create_dir_all(ours.as_path()).expect("the common Git directory");
+    std::fs::create_dir_all(linked.as_path()).expect("the linked worktree's Git directory");
+    crate::subvolume_sync_attrs::make_fifo(linked.join("commondir").as_path(), 0o600).expect("a named pipe where a commondir goes");
+    let inside: std::path::PathBuf = linked.clone();
+    let asked = crate::test_support::finished_within(move || return belongs_to(inside.as_path(), ours.as_path()));
+    let Some(belongs) = asked else { panic!("a `commondir` that is a named pipe held the head question") };
+    assert!(!belongs, "a directory whose `commondir` is a pipe is no worktree of this repository");
+    crate::test_support::remove(root.as_path());
+}
+
+/// A `HEAD` that is a named pipe is a head this command cannot read,
+/// and it answers at once,
+/// so the caller asks Git instead of holding a worker of the runtime:
+/// opening a named pipe for reading waits for a writer that may never come.
+#[test]
+fn a_head_that_is_a_named_pipe_cannot_answer_at_once() {
+    let root: std::path::PathBuf = crate::test_support::fixture("head-named-pipe");
+    let git_dir: std::path::PathBuf = root.join("git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory");
+    crate::subvolume_sync_attrs::make_fifo(git_dir.join("HEAD").as_path(), 0o600).expect("a named pipe where HEAD goes");
+    let inside: std::path::PathBuf = git_dir.clone();
+    let asked = crate::test_support::finished_within(move || return head_file(inside.as_path(), inside.as_path()));
+    let Some(answer) = asked else { panic!("a `HEAD` that is a named pipe held the head question") };
+    assert_eq!(answer, HeadFile::Unreadable, "a pipe is no head, so the caller asks Git");
+    // The read this module made before, on the same fixture under the same bound, so the bound above is shown to see a wait.
+    let head: std::path::PathBuf = git_dir.join("HEAD");
+    let waited = crate::test_support::finished_within(move || return std::fs::read(head).ok());
+    assert!(waited.is_none(), "a plain read of the same name waits, so the bound above can see a wait");
+    crate::test_support::remove(root.as_path());
+}
+
 /// A detached head is what a commit on `HEAD` needs and a branch is what a commit on that branch needs;
 /// each is read from the
 /// `HEAD` file without starting Git,

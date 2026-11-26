@@ -26,7 +26,8 @@ Any edit to the units takes its paths from the live files in `~/.config/systemd/
 Each fact names the command or source it came from.
 
 - The local tree `~/Plain` holds `main.kdbx`,
-  four old `main.kdbx.conflict1` to `main.kdbx.conflict4` copies,
+  four old `main.kdbx.conflict1` to `main.kdbx.conflict4` copies
+  (as of this check; the 18:01:21 hourly run added `main.kdbx.conflict5`, see "Review findings"),
   `Music/` and `Text/`:
   1454 folders and 10332 files in all (`find ~/Plain -type d`, `find ~/Plain -type f`).
 - `~/Plain` sits on ZFS dataset `zpcachyos/ROOT/cos/home` (`findmnt --target ~/Plain`).
@@ -44,7 +45,9 @@ Each fact names the command or source it came from.
   (`rclone lsl --use-server-modtime --max-age 14d`).
 - Cost of a run that finds no change,
   from the unit's own accounting lines for the hourly runs on 2026-11-25:
-  3.1 to 6.6 seconds wall clock,
+  3.1 to 6.6 seconds wall clock
+  (one pass; the settle pass makes each run two passes,
+  and the 5-minute timer makes 288 timer runs a day instead of 24),
   0.77 to 1.29 seconds CPU,
   68 to 108 MB peak memory.
 - The user journal keeps this unit's lines only from 2026-11-24T20:01:05-05:00,
@@ -226,6 +229,160 @@ which the fallback would have to clear first:
 - The Mac's failing agent was read, not changed (see the Mac client section).
 - directory-watcher 3.2.1 is the only finalist; runtime validation comes next.
 
+## Trigger call mode measured (2026-11-25T19:48:30-05:00)
+
+Under systemd 262 in the `docker.io/cachyos/cachyos:latest` container,
+with an 8-second stand-in sync and a trigger oneshot ordered `After=` it whose step is
+`systemctl start --no-block` of the sync,
+every request sent as `systemctl start --no-block` of the trigger:
+
+- one request with no sync running started one sync;
+- five more requests during that sync, a second apart, gave exactly one follow-up sync,
+  started 54 ms after the first ended;
+  a request after it went idle started one more;
+- a sync started directly (the timer's path) plus two requests during it gave exactly one follow-up.
+
+So with non-blocking requests systemd merges every request that lands during a sync into one pending follow-up,
+and the watcher's hook returns at once.
+directory-watcher's own queue would otherwise add one run per batch window during a long sync
+("runs from different waits are never merged", `docs/guide/running.md:51` at `v3.2.1`),
+and past `queue.size` (2048) the watcher stops with `dispatch queue full` (`:93-95`);
+bisync's own downloads rename `.partial` files to final names inside the watched tree,
+so a long download run would feed that queue.
+
+## Watcher recommendation (2026-11-25T19:44:55-05:00)
+
+The vet recommends directory-watcher 3.2.1;
+see the vet report sections "Finalist validation" and "Recommendation".
+Measured on Linux with the design's trigger shape:
+one edit gives one sync about 2 s later (2000 ms batch wait),
+an edit during a sync gives exactly one more,
+a timer-started sync is waited out,
+`touch` and `chmod` start nothing (so the settle pass's mtime stamp starts no extra run),
+and `.partial` downloads start nothing until renamed.
+Adopted in round 7.
+
+## Owner answers, round 7 (2026-11-25T19:51:58-05:00)
+
+- Watcher:
+  adopt directory-watcher 3.2.1,
+  installed through the repository toolchain (`toolchain.plan.jsonc`, then `mise run toolchain:update`);
+  its decision record is written when the work is implemented.
+- Call mode:
+  the watcher's hook runs `systemctl --user start --no-block` of the trigger unit,
+  and the trigger runs `systemctl --user start --no-block` of the sync unit,
+  so requests during a sync merge into one follow-up (measured, "Trigger call mode measured").
+- Quiet period:
+  `hookBatch.waitMillisecond` 2000.
+- Alerts:
+  one desktop alert on the first failure of a streak and one on the next success,
+  by changing `~/.local/bin/rclone-bisync-garage-alert.ts` to remember the last state;
+  the watcher unit gets the same `OnFailure=` alert and `Restart=on-failure`.
+- Timeout:
+  `TimeoutStartSec=3000` stays on the sync unit.
+- Config home:
+  the unit files and the watcher config have their sources in the repository,
+  written to `~/.config` by file-enforcer's per-user rules;
+  if no rule kind fits, that is a change to file-enforcer,
+  or the runbook stays the source and the owner is told.
+- The Mac:
+  compare its `~/Plain` with the bucket read-only first (done; see "The Mac recovered"),
+  then the owner decides on a `--resync`.
+
+## Names the watcher would skip by default (2026-11-25T19:51:58-05:00)
+
+directory-watcher excludes names starting with `.` or `_` unless re-included
+(vet record GW-19, `docs/guide/configuration.md` at `v3.2.1`).
+`find ~/Plain -mindepth 1 \( -name '.*' -o -name '_*' \)` counted 168 such entries,
+among them app data folders whose edits matter (a notes app's settings folder, an e-reader's position folder).
+Round 1's answer "every folder, including folders created later" decides it:
+the watcher config re-includes these names.
+Adopted unless the owner vetoes.
+(Superseded: directory-watcher cannot re-include them; see "Review findings".)
+
+## The Mac recovered (2026-11-25T20:04:52-05:00)
+
+The owner chose the bucket as the golden copy;
+the Mac's 214 Mac-only files were moved aside and its 12 differing files copied aside,
+then a `--resync` and a normal agent run both succeeded
+(`doc/handover/garage-file-sync.md`, "Client check (macOS, `ssh m1`)").
+The Mac writes to the bucket again,
+so the bucket now has two writers,
+and its agent still lacks `--conflict-resolve newer` and the settle pass.
+
+## Review findings, DeepSeek cross-vendor review (2026-11-25T20:18:41-05:00)
+
+Pi on DeepSeek (`deepseek-v4.1-flash-1017`) read every file of the design and the live units,
+read-only, and returned fifteen findings.
+Checked by the coordinating session against the sources before acting:
+
+- Verified:
+  directory-watcher 3.2.1 cannot watch names starting with `.` or `_`, and `!` cannot re-include them
+  (`docs/guide/events.md:82` and `:108` at `v3.2.1`),
+  so "the watcher config re-includes these names" (section "Names the watcher would skip by default") cannot be done,
+  and the 168 such entries under `~/Plain` would reach the bucket only through the 5-minute timer.
+  This fails round 1's "every folder" answer and the vet's hard constraint on recursion;
+  the owner decides.
+- Verified:
+  the sync unit carries systemd's default start limit
+  (`systemctl --user show`: `StartLimitIntervalUSec=10s`, `StartLimitBurst=5`),
+  which change triggers can reach while every run fails quickly,
+  and then the timer's start is refused too.
+- Verified:
+  the 18:01:21 hourly run on this PC created `main.kdbx.conflict5`;
+  its journal shows Path1 at 17:00:35.814 (the previous run's upload) against a local save at 17:25:22,
+  the pile-up the throwaway measurements predicted, on the live setup.
+- Verified:
+  `file-enforcer.schema.json` documents every committed output as "Repo-relative output path",
+  and its only per-user rule is the IDE language-server policy,
+  so no rule kind writes `~/.config` today.
+- Taken as written (reasoning, no measurement needed):
+  two writers make `--conflict-resolve newer` compare one side's authoring time with the other side's upload time;
+  the Mac's agent still resolves conflicts with the default `none`;
+  other growing-file names (`*.part`, `*.tmp`, `*.crdownload`) are not excluded;
+  a remembered "failing" state can hide the only alert of a failure that began while logged out;
+  a failing hook command (trigger missing, `systemctl --user` unusable) raises no alert;
+  the user-manager path with `--no-block` and the watcher together was never measured;
+  the watcher unit and the 5-minute timer are not yet specified;
+  and several lines of this record and the vet report were stale (fixed in the same change).
+
+## Review findings, Claude Sonnet gate review (2026-11-25T20:33:56-05:00)
+
+Its verdict: not confirmable yet.
+Beyond the DeepSeek findings it adds,
+each checked or labelled:
+
+- The candidate exits of rounds 4 to 6 rest on the blocking shape.
+  With round 7's `--no-block` hook on Linux,
+  the watcher's command is a millisecond `systemctl` call and systemd merges the requests,
+  so "queues natively" and "never interrupts a running command" no longer separate candidates on this PC;
+  they still matter on macOS and Windows, which have no such merge.
+  onchange's record shows it watches dot names (`OC-E18`);
+  Watchman kills only a `systemctl` child that has already exited.
+  Reading of the records, not measured.
+- Measured at 2026-11-25T20:33:56-05:00 in a systemd 262 container:
+  a unit with `Restart=on-failure` and `RestartSec=1` that always fails
+  ran its `OnFailure=` unit on every crash (5 of 5)
+  and then stayed failed with `Result=start-limit-hit` after five starts in 10 s.
+  So the watcher unit needs a `RestartSec` long enough that the default start limit cannot trip,
+  and the alert needs per-unit deduplication.
+- Measured, same container: `TimeoutStartSec` applies per `ExecStart=` pass (recorded under "Design consequences").
+- KeePassXC 2.8.0 defaults `AutoSaveAfterEveryChange` to true (`src/core/Config.cpp:61`, source reading),
+  so an editing session is a burst of saves;
+  with a 2 s quiet period each pause starts a sync,
+  and a save that lands inside an upload pass still makes a conflict copy (measured on the throwaway).
+- The recovery alert needs `OnSuccess=` (systemd 249 and later), not only a script change;
+  the remembered state has to be per unit and written only after `notify-send` succeeds.
+- Implementation details the record leaves open:
+  the trigger unit must not set `RemainAfterExit=yes`
+  and must order itself with `After=` only;
+  absolute or login-shell-resolved paths for `systemctl` and the watcher binary;
+  the 5-minute timer's `OnCalendar`, `RandomizedDelaySec` and `Persistent`;
+  whether `~` expands in the watcher YAML;
+  `WantedBy=default.target` (linger is on).
+- Round 2's "later clients only add a service wrapper" does not hold:
+  the Linux shape relies on systemd's job merging.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
@@ -233,10 +390,11 @@ which the fallback would have to clear first:
   unless something starts one more run after it.
   Settled in round 4:
   a queuing watcher plus a trigger unit ordered after the sync unit.
-- `TimeoutStartSec=3000` was sized for an hourly timer;
-  with 5-minute polling and change triggers,
-  a stalled run would hold every start request for up to 50 minutes.
-  The value needs the longest legitimate run (a large upload) as its floor.
+- `TimeoutStartSec`: settled in round 7 (kept at 3000 s).
+  Measured at 2026-11-25T20:33:56-05:00 (systemd 262 container, two 3-second `ExecStart=` passes under `TimeoutStartSec=5`, both finished):
+  the timeout applies to each pass,
+  so a stalled two-pass sync can hold every follow-up for up to 6000 s.
+  An earlier line here said the opposite, from a review claim; it was wrong.
 - The reasoning in `doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md` that `--conflict-resolve newer`
   cannot let a stale remote copy win assumes one writer;
   it needs rechecking once other clients write to the bucket on change.

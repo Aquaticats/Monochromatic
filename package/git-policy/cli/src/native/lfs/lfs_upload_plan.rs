@@ -38,12 +38,15 @@
 //! const plan = planUpload(globalPrefix, region, env, directory, settings, query); // { remotes, refs, everything }
 //! ```
 
-/// The destination and the named refs of a push.
-use crate::command_push::{parse_push_region, push_shape};
+/// What the arguments and the configuration decide before Git is asked anything.
+use crate::lfs_upload_plan_arguments::{
+    Destinations, a_bare_push, a_branch_is_needed, destinations_of, remote_name_of, same_place, specs_of, submodules_of, the_plan, unique_refs,
+    uploads_nothing,
+};
 /// Whether the destination confirms this clone's tracking refs.
 use crate::lfs_destination_confirms_tracking_refs::{ConfirmedTrackingRefs, DestinationHeads, tracking_refs_confirmed_by};
 /// The configuration the plan reads.
-use crate::lfs_upload_settings::{current_branch, default_remote, git_says_true, setting, values};
+use crate::lfs_upload_settings::{current_branch, git_says_true, setting};
 /// The host a URL names,
 /// with any userinfo left out.
 use crate::lfs_output_mask::host_of;
@@ -52,8 +55,6 @@ pub use crate::lfs_upload_plan_awaiting::plan_upload_awaiting;
 pub use crate::lfs_upload_settings::{
     GitQuery, GitQueryAwaiting, PlanError, Query, QueryAwaiting, Settings, read_settings, read_settings_awaiting, resolve_push_remote, settings_from_snapshot,
 };
-/// The switch and the skip variable.
-use crate::lfs_pre_push::{hook_switched_off, skip_requested};
 /// Owned OS text for arguments.
 use std::ffi::{OsStr, OsString};
 /// Locations.
@@ -451,44 +452,26 @@ pub fn plan_upload(
     known_destination: Option<&DestinationHeads>,
     query: Query<'_>,
 ) -> Result<Option<UploadPlan>, PlanError> {
-    if hook_switched_off(global_prefix, environment) || skip_requested(environment) {
-        return Ok(None);
-    }
-    let Some((region_facts, shape)) = parse_push_region(region, &[]).ok().zip(push_shape(region)) else {
+    // What:     `uploads_nothing(...)` reads the switch, the skip variable and the arguments, and answers the push's shape
+    //           when it uploads anything at all.
+    // Why:      A push that sends no object is answered before a destination is asked anything.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const shape = uploadsNothing(globalPrefix, environment, region); if (!shape) return undefined;
+    // ```
+    let Some(shape) = uploads_nothing(global_prefix, environment, region) else {
         return Ok(None);
     };
-    if region_facts.no_verify || region_facts.dry_run || shape.deletes {
-        return Ok(None);
-    }
-    let submodules: bool = match shape.recurse_submodules.as_ref() {
-        Some(value) => matches!(value.to_str(), Some("on-demand" | "only")),
-        None => false,
-    };
-    let branch_needed: bool = shape.repository.is_none() || shape.refspecs.is_empty();
-    let branch: Option<String> = if branch_needed { current_branch(query)? } else { None };
-    let remote_name: OsString = match shape.repository.clone() {
-        Some(typed) => typed,
-        None => OsString::from(default_remote(branch.as_deref(), all)),
-    };
+    let submodules: bool = submodules_of(&shape);
+    let branch: Option<String> = if a_branch_is_needed(&shape) { current_branch(query)? } else { None };
+    let remote_name: OsString = remote_name_of(&shape, branch.as_deref(), all);
     let remote_text: String = remote_name.to_string_lossy().into_owned();
-    let mut everything: bool = shape.mirror;
-    let mut specs: Vec<OsString> = shape.refspecs.clone();
-    let bare: bool = specs.is_empty() && !shape.branches && !shape.tags && !everything;
-    if bare {
-        let configured: Vec<&str> = values(all, &format!("remote.{remote_text}.push"));
-        if git_says_true(all, format!("remote.{remote_text}.mirror").as_str(), query)? {
-            everything = true;
-        } else if !configured.is_empty() {
-            specs.extend(configured.into_iter().map(OsString::from));
-        } else if setting(all, "push.default") == Some("matching") {
-            specs.push(OsString::from(":"));
-        } else {
-            specs.push(OsString::from(match branch.as_deref() {
-                Some(name) => format!("refs/heads/{name}"),
-                None => String::from("HEAD"),
-            }));
-        }
-    }
+    let mirror_is_set: bool = match a_bare_push(&shape, shape.mirror) {
+        true => git_says_true(all, format!("remote.{remote_text}.mirror").as_str(), query)?,
+        false => false,
+    };
+    let (everything, specs): (bool, Vec<OsString>) = specs_of(&shape, remote_text.as_str(), branch.as_deref(), all, shape.mirror, mirror_is_set);
     let mut refs: Vec<OsString> = Vec::new();
     for spec in &specs {
         match refspec_source(spec.as_os_str()) {
@@ -506,52 +489,21 @@ pub fn plan_upload(
     if shape.tags {
         refs.extend(list(query, "refs/tags", None)?);
     }
-    let mut unique: Vec<OsString> = Vec::new();
-    for found in refs {
-        if !unique.contains(&found) {
-            unique.push(found);
-        }
-    }
-    if unique.is_empty() && !everything {
+    let listed: Vec<OsString> = unique_refs(refs);
+    if listed.is_empty() && !everything {
         return Ok(None);
     }
-    let configured: bool = configured_remotes(all).contains(&remote_text.as_str());
-    let push_urls: Vec<&str> = if configured { values(all, &format!("remote.{remote_text}.pushurl")) } else { Vec::new() };
-    let urls: Vec<&str> = if configured { values(all, &format!("remote.{remote_text}.url")) } else { Vec::new() };
-    // Git pushes to every push URL of a remote, and to every URL of a remote that has no push URL, so each of those is a
-    //  destination of its own: each may keep its objects in its own place.
-    let places: &[&str] = if push_urls.is_empty() { urls.as_slice() } else { push_urls.as_slice() };
-    let remotes: Vec<OsString> = if places.len() > 1 {
-        let mut destinations: Vec<OsString> = Vec::new();
-        for url in places {
-            destinations.push(lfs_destination(OsStr::new(url), directory, false));
-        }
-        destinations
-    } else {
-        vec![lfs_destination(remote_name.as_os_str(), directory, configured)]
-    };
-    // The destination confirms this clone's tracking refs ref by ref: a configured remote that is fetched from and pushed
-    //  to the same place is asked, and the refs it reports at the commits held here are the only places the upload stops.
-    //  A push URL, several URLs, a `pushInsteadOf` rewrite, a URL or path destination and a mirror break that, so such a
-    //  destination is asked nothing and its upload stops nowhere.
-    let same_place: bool = !everything && configured && push_urls.is_empty() && urls.len() == 1 && !has_push_rewrite(all);
-    let evidence: ConfirmedTrackingRefs = if same_place {
+    let destinations: Destinations<'_> = destinations_of(&remote_name, remote_text.as_str(), directory, all);
+    // The destination confirms this clone's tracking refs ref by ref, where it is one the clone both fetches from and
+    //  pushes to; every other destination is asked nothing and its upload stops nowhere.
+    let evidence: ConfirmedTrackingRefs = if same_place(&destinations, everything, all) {
         tracking_refs_confirmed_by(remote_text.as_str(), known_destination, query)
     } else {
         ConfirmedTrackingRefs::unknown()
     };
     let full_scan: bool = everything || !evidence.every_tracking_ref_is_confirmed();
     let lfs_server: Option<String> = lfs_server_of(remote_name.as_os_str(), all);
-    return Ok(Some(UploadPlan {
-        remotes,
-        refs: unique,
-        everything,
-        submodules,
-        full_scan,
-        confirmed_tracking_refs: evidence.names().to_vec(),
-        objects: None,
-        lfs_server,
-    }));
+    return Ok(Some(the_plan(destinations, listed, everything, submodules, full_scan, evidence.names().to_vec(), lfs_server)));
 }
 
 /// The plan is controlled in the test module.
