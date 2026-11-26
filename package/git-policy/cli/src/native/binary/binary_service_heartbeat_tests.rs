@@ -75,7 +75,6 @@ use std::path::{
     PathBuf,
 };
 use std::sync::atomic::{
-    AtomicBool,
     AtomicUsize,
     Ordering,
 };
@@ -729,72 +728,134 @@ fn a_service_that_stops_sending_heartbeats_ends_the_wait_and_the_request_is_sent
     );
 }
 
-/// Whether the fake manager says the unit failed.
-static MANAGER_SAYS_FAILED: AtomicBool = AtomicBool::new(false);
+/// The word the fake manager answers for a unit something is starting.
+const ACTIVATING: &str = "activating";
 
-/// Whether the fake manager says the unit is inactive (it is `activating` otherwise).
-static MANAGER_SAYS_INACTIVE: AtomicBool = AtomicBool::new(false);
+/// The file in the folder a watch names as its session bus:
+/// while it is there the fake manager answers `failed`.
+const THE_START_FAILED: &str = "the-start-failed";
 
-/// How many times the fake manager was asked to start the unit.
-static START_REQUESTS: AtomicUsize = AtomicUsize::new(0);
+/// The file in that folder:
+/// while it is there the fake manager answers `inactive`.
+const THE_UNIT_IS_INACTIVE: &str = "the-unit-is-inactive";
 
-/// The fake manager's answer.
-fn fake_manager(
+/// The file the fake manager leaves in its folder when the client asks it to start the unit.
+const ASKED_TO_START: &str = "asked-to-start";
+
+/// The session bus path of a fake manager no control of this file writes for,
+/// and which nothing listens at.
+const NO_SESSION_BUS: &str = "/nowhere/bus";
+
+/// The fake manager's answer for a control that is answered the same way for the whole wait:
+/// the unit is being started.
+/// Such a control claims that the wait goes on while the manager says nothing failed,
+/// so one word is the whole answer it reads.
+fn always_activating(
     _bus: &Path,
     _unit: &str,
 ) -> ManagerAnswer {
-    let word: &str = if MANAGER_SAYS_FAILED.load(Ordering::SeqCst) {
+    return ManagerAnswer::State(String::from(ACTIVATING));
+}
+
+/// What:
+///  The fake manager's answer,
+/// read from the folder the watch hands it as its session bus:
+///  `failed` while that folder holds `THE_START_FAILED`,
+///  `inactive` while it holds `THE_UNIT_IS_INACTIVE`,
+///  and `activating` otherwise.
+/// Why:
+///  An answer belongs to one control.
+///  Two statics of this whole file once carried this word,
+/// and the two controls that set them slept while the other's
+///  value was wanted,
+/// so a threaded run failed one of them (issue 6484,
+///  `doc/troubleshooting/git-policy-cli-two-heartbeat-controls-share-one-manager-switch.md`).
+///  A fake manager of this file asks no session bus,
+/// so the path a watch names is free for the control's own word,
+///  and two controls never name one folder.
+fn saying_what_its_folder_holds(
+    bus: &Path,
+    _unit: &str,
+) -> ManagerAnswer {
+    let word: &str = if bus.join(THE_START_FAILED).exists() {
         "failed"
-    } else if MANAGER_SAYS_INACTIVE.load(Ordering::SeqCst) {
+    } else if bus.join(THE_UNIT_IS_INACTIVE).exists() {
         "inactive"
     } else {
-        "activating"
+        ACTIVATING
     };
     return ManagerAnswer::State(String::from(word));
 }
 
-/// The fake manager takes a request to start the unit and counts it.
-fn fake_start(
-    _bus: &Path,
+/// A start the fake manager takes,
+/// noted in its folder so the control waiting on it can say it was asked.
+fn a_start_is_taken_and_noted(
+    bus: &Path,
     _unit: &str,
 ) -> bool {
-    START_REQUESTS.fetch_add(1, Ordering::SeqCst);
+    std::fs::write(bus.join(ASKED_TO_START), b"")
+        .expect("note the start the fake manager was asked for");
     return true;
 }
 
-/// The fake manager takes a request to forget a unit's failed state and counts it as a start's own.
-fn fake_reset(
+/// A start the fake manager takes,
+/// which no control of this file reads back.
+fn a_start_is_taken(
     _bus: &Path,
     _unit: &str,
 ) -> bool {
     return true;
 }
 
-/// How many times the fake manager was asked to restart the unit.
-static RESTART_REQUESTS: AtomicUsize = AtomicUsize::new(0);
+/// A request to forget that the unit failed,
+/// which the fake manager takes:
+/// a unit that failed too often refuses a start as repeated too quickly without it.
+fn a_failed_state_is_forgotten(
+    _bus: &Path,
+    _unit: &str,
+) -> bool {
+    return true;
+}
 
-/// The fake manager takes a request to restart the unit and counts it.
+/// A request to restart the unit,
+/// which the fake manager takes.
 /// Its answer never says `active` here,
 /// so no control of this file reaches a restart by being wedged.
-fn fake_restart(
+fn a_restart_is_taken(
     _bus: &Path,
     _unit: &str,
 ) -> bool {
-    RESTART_REQUESTS.fetch_add(1, Ordering::SeqCst);
     return true;
 }
 
-/// A watch on the fake manager that asks quickly.
-fn watched(name: &str) -> ClientConfig {
+/// Whether the fake manager of `folder` was asked to start its unit.
+fn a_start_was_asked(folder: &Path) -> bool {
+    return folder.join(ASKED_TO_START).exists();
+}
+
+/// What:
+///  A watch on the fake manager `state`,
+/// which takes a start through `start`,
+/// asking every 50 ms,
+///  with `bus` handed to every one of those calls.
+/// Why:
+///  `start` is a value of its own because one control reads back the starts it was asked for and no other does,
+///  and the bus path is what a control's own folder reaches its own fake manager through.
+fn a_watch_of(
+    name: &str,
+    state: fn(&Path, &str) -> ManagerAnswer,
+    start: fn(&Path, &str) -> bool,
+    bus: &Path,
+) -> ClientConfig {
     let watch: ManagerWatch = ManagerWatch {
-        bus: PathBuf::from("/nowhere/bus"),
+        bus: bus.to_path_buf(),
         unit: String::from("cli-git@fake.service"),
         socket_unit: String::from("cli-git@fake.socket"),
         every: Duration::from_millis(50),
-        state: fake_manager,
-        start: fake_start,
-        reset: fake_reset,
-        restart: fake_restart,
+        state,
+        start,
+        reset: a_failed_state_is_forgotten,
+        restart: a_restart_is_taken,
     };
     return ClientConfig {
         start_wait: OLD_START_WAIT,
@@ -802,6 +863,30 @@ fn watched(name: &str) -> ClientConfig {
         start_watch: Some(watch),
         ..config(name)
     };
+}
+
+/// A watch on a fake manager that has said nothing but `activating`.
+fn watched(name: &str) -> ClientConfig {
+    return a_watch_of(
+        name,
+        always_activating,
+        a_start_is_taken,
+        Path::new(NO_SESSION_BUS),
+    );
+}
+
+/// A watch on the fake manager of one control,
+/// which reads the word it says and notes its starts in `folder`.
+fn watched_saying_what_its_folder_holds(
+    name: &str,
+    folder: &Path,
+) -> ClientConfig {
+    return a_watch_of(
+        name,
+        saying_what_its_folder_holds,
+        a_start_is_taken_and_noted,
+        folder,
+    );
 }
 
 /// A service that never starts is waited for until the manager says the start failed,
@@ -812,8 +897,13 @@ fn a_service_that_never_starts_ends_the_wait_when_the_manager_says_the_start_fai
     let name: String = address("never-starts");
     // Connects, and the service never greets: the operating system holds the connection for a program that does not come up.
     let service: UnixListener = listen(name.as_str());
-    MANAGER_SAYS_FAILED.store(false, Ordering::SeqCst);
-    let waiting = client(watched(name.as_str()));
+    // The folder this control's fake manager reads its word from, which no other control writes and the fixture
+    // removes however this test ends.
+    let folder: super::support::Fixture = super::support::fixture("heartbeat-never-starts");
+    let waiting = client(watched_saying_what_its_folder_holds(
+        name.as_str(),
+        folder.root.as_path(),
+    ));
     let held = std::thread::spawn(move || {
         let mut streams: Vec<UnixStream> = Vec::new();
         while let Ok((stream, _)) = service.accept() {
@@ -829,13 +919,13 @@ fn a_service_that_never_starts_ends_the_wait_when_the_manager_says_the_start_fai
         !waiting.is_finished(),
         "the wait ended on a clock although the manager had not said the start failed"
     );
-    MANAGER_SAYS_FAILED.store(true, Ordering::SeqCst);
+    std::fs::write(folder.root.join(THE_START_FAILED), b"")
+        .expect("the manager says the start failed");
     let (answered, _notices) = waiting.join().expect("client thread");
     assert!(
         matches!(answered, Err(ClientFailure::DidNotStart { .. })),
         "the manager said the start failed twice: {answered:?}"
     );
-    MANAGER_SAYS_FAILED.store(false, Ordering::SeqCst);
     drop(UnixStream::connect_addr(
         &SocketAddr::from_abstract_name(name.as_bytes()).expect("name"),
     ));
@@ -848,7 +938,6 @@ fn a_service_that_never_starts_ends_the_wait_when_the_manager_says_the_start_fai
 #[test]
 fn a_service_that_starts_late_is_waited_for_while_the_manager_does_not_say_failed() {
     let name: String = address("starts-late");
-    MANAGER_SAYS_FAILED.store(false, Ordering::SeqCst);
     let waiting = client(watched(name.as_str()));
     std::thread::sleep(OLD_START_WAIT * 6);
     assert!(
@@ -891,20 +980,22 @@ fn a_service_that_starts_late_is_waited_for_while_the_manager_does_not_say_faile
 #[test]
 fn an_inactive_unit_is_asked_to_start_at_once_and_an_activating_one_is_not() {
     let name: String = address("inactive-unit");
-    START_REQUESTS.store(0, Ordering::SeqCst);
-    MANAGER_SAYS_FAILED.store(false, Ordering::SeqCst);
-    MANAGER_SAYS_INACTIVE.store(false, Ordering::SeqCst);
-    let waiting = client(watched(name.as_str()));
+    // The folder this control's fake manager reads its word from and notes its starts in.
+    let folder: super::support::Fixture = super::support::fixture("heartbeat-inactive-unit");
+    let waiting = client(watched_saying_what_its_folder_holds(
+        name.as_str(),
+        folder.root.as_path(),
+    ));
     // Activating for several start waits: the manager is starting the unit itself, so the client does not ask.
     std::thread::sleep(OLD_START_WAIT * 4);
-    assert_eq!(
-        START_REQUESTS.load(Ordering::SeqCst),
-        0,
+    assert!(
+        !a_start_was_asked(folder.root.as_path()),
         "an activating unit is not asked to start"
     );
-    MANAGER_SAYS_INACTIVE.store(true, Ordering::SeqCst);
+    std::fs::write(folder.root.join(THE_UNIT_IS_INACTIVE), b"")
+        .expect("the manager says the unit is inactive");
     let began: Instant = Instant::now();
-    while START_REQUESTS.load(Ordering::SeqCst) == 0 {
+    while !a_start_was_asked(folder.root.as_path()) {
         assert!(
             began.elapsed() < PATIENCE,
             "an inactive unit was never asked to start"
@@ -937,7 +1028,6 @@ fn an_inactive_unit_is_asked_to_start_at_once_and_an_activating_one_is_not() {
             already: false
         })
     );
-    MANAGER_SAYS_INACTIVE.store(false, Ordering::SeqCst);
 }
 
 /// A manager that cannot be asked leaves the wait to the start wait,
@@ -1229,8 +1319,6 @@ fn a_withdrawal_the_service_does_not_answer_ends_at_its_own_ceiling() {
 #[test]
 fn a_start_that_never_finishes_ends_at_the_start_ceiling() {
     let name: String = address("start-ceiling");
-    MANAGER_SAYS_FAILED.store(false, Ordering::SeqCst);
-    MANAGER_SAYS_INACTIVE.store(false, Ordering::SeqCst);
     let _service: UnixListener = listen(name.as_str());
     let config: ClientConfig = ClientConfig {
         start_ceiling: SHORT_CEILING,

@@ -68,6 +68,12 @@ mod no_self_invocation_tests;
 #[path = "no_test_changes_the_process_directory_tests.rs"]
 mod no_test_changes_the_process_directory_tests;
 
+/// The ban on a fake service manager answering from a value the whole process shares:
+/// a control writes the word it wants into the folder its own watch names.
+#[cfg(test)]
+#[path = "heartbeat_controls_own_their_manager_switch_tests.rs"]
+mod heartbeat_controls_own_their_manager_switch_tests;
+
 /// The ban on a release file reading a test-only switch itself:
 /// every such value is taken through `foundation/test_only_switches.rs`,
 /// whose read a release build does not hold.
