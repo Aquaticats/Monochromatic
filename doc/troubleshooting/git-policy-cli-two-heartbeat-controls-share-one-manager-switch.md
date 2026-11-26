@@ -44,9 +44,10 @@ the container gate gives each control a process of its own, which is why it does
 ## The evidence
 
 `git diff main -- package/git-policy/cli/src/native/binary/binary_service_heartbeat_tests.rs` is empty: the file
-is main's. The threaded run of the whole `service` filter failed this control twice, the same filter serially
-passed 255, the control alone passed, and the whole `service_heartbeat` module threaded passed 27, because which
-two controls of the file run at the same moment is not fixed.
+is main's. The threaded run of the whole `service` filter failed this control twice, and a third run of the same
+filter passed 255; the same filter serially passed 255, the control alone passed, and the whole
+`service_heartbeat` module threaded passed 27, because which two controls of the file run at the same moment is
+not fixed. The defect is in the file either way; a passing run is the interleaving that happens to hold.
 
 ## What a fix needs
 
