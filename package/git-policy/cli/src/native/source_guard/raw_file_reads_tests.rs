@@ -83,7 +83,7 @@ const KEPT_CLASSES: [(&str, &str); 5] = [
 ///  so the list can only shrink.
 ///  A file whose kept sites belong to two classes appears twice,
 /// and the calls its entries give add up to the calls it makes.
-const KEPT_SITES: [(&str, usize, &str); 92] = [
+const KEPT_SITES: [(&str, usize, &str); 93] = [
     ("account_companion/companion_settings.rs", 1, "system"),
     ("candidate/candidate_private_index.rs", 1, "own-record"),
     ("commit/conclusion_cleanup.rs", 2, "own-record"),
@@ -125,7 +125,7 @@ const KEPT_SITES: [(&str, usize, &str); 92] = [
     ("process/thread_quiet.rs", 2, "system"),
     ("push/push_progress_meter.rs", 3, "system"),
     ("repair/package_repair_cargo_lock.rs", 5, "person-path"),
-    ("repair/package_repair_prewarm_job.rs", 1, "git-directory"),
+    ("repair/package_repair_prewarm_job_staged_state.rs", 1, "git-directory"),
     ("repair/package_repair_start.rs", 1, "test-stand-in"),
     ("repo_read/repo_read_odb.rs", 1, "git-directory"),
     ("repo_read/sequencer_marker.rs", 1, "git-directory"),
@@ -167,7 +167,8 @@ const KEPT_SITES: [(&str, usize, &str); 92] = [
     ("worktree_copying/worktree_copy_interrupted_add_settlement.rs", 1, "own-record"),
     ("worktree_copying/worktree_copy_interrupted_checkout.rs", 2, "person-path"),
     ("worktree_copying/worktree_copy_journal.rs", 1, "own-record"),
-    ("worktree_copying/worktree_copy_owed_copy.rs", 2, "own-record"),
+    ("worktree_copying/worktree_copy_owed_copy.rs", 1, "own-record"),
+    ("worktree_copying/worktree_copy_owed_taking.rs", 1, "own-record"),
     ("worktree_copying/worktree_copy_source_still_being_filled.rs", 1, "own-record"),
     ("worktree_copying/worktree_copy_stage_claim.rs", 2, "own-record"),
     ("worktree_copying/worktree_copy_stage_claim_owed_copy_elsewhere.rs", 1, "own-record"),
