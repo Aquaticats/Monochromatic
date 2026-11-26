@@ -10,6 +10,7 @@ use crate::add_timing::{
     begin as begin_timing,
     finish as finish_timing,
 };
+use crate::alone_in_its_process_child_test_support::ran_alone_in_a_child_of_its_own;
 use crate::test_support::{
     git,
     git_context,
@@ -142,6 +143,24 @@ fn the_fence(
 ///  and the record states the read's own cost.
 #[test]
 fn a_settled_head_uses_the_read_beside_the_check() {
+    // What:     `ran_alone_in_a_child_of_its_own` starts this same test in a child process of this test binary, which
+    //  holds that one test and no other, and answers `true` in the parent, which has then asserted the child's one
+    //  passing test; `module_path!()` is this module's path and the second argument this test's name in it.
+    //  Its sibling is a body run here, beside every other test of the module, which is what it replaces.
+    // Why:      the add-timing record of a process belongs to the one add that process runs, so the reading this
+    //  control states is the record's own work only where no other test of the run is recording; beside them it lost
+    //  its work entries to theirs and took theirs for its own (issue 6493).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (ranAloneInAChildOfItsOwn(import.meta.url, 'a_settled_head_uses_the_read_beside_the_check')) return;
+    // ```
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_settled_head_uses_the_read_beside_the_check",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("settled");
     let repo: PathBuf = a_clean_source(root.as_path(), "settled");
     let context: GitContext = git_context();
@@ -285,6 +304,14 @@ fn the_stale_read_is_dropped(
 /// The symbolic ref moving to another commit of the same tree drops the read.
 #[test]
 fn a_moved_symbolic_ref_drops_the_read_beside_the_check() {
+    // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
+    //  the whole process.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_moved_symbolic_ref_drops_the_read_beside_the_check",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("moved-symbolic");
     let repo: PathBuf = a_clean_source(root.as_path(), "moved");
     the_stale_read_is_dropped(repo.as_path(), None, the_symbolic_ref_moves);
@@ -294,6 +321,14 @@ fn a_moved_symbolic_ref_drops_the_read_beside_the_check() {
 /// A loose ref appearing over the branch `packed-refs` held drops the read.
 #[test]
 fn a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check() {
+    // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
+    //  the whole process.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("moved-packed");
     let repo: PathBuf = a_clean_source(root.as_path(), "moved");
     the_stale_read_is_dropped(
@@ -307,6 +342,14 @@ fn a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check() {
 /// A moving detached `HEAD` drops the read.
 #[test]
 fn a_detached_head_moving_drops_the_read_beside_the_check() {
+    // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
+    //  the whole process.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_detached_head_moving_drops_the_read_beside_the_check",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("moved-detached");
     let repo: PathBuf = a_clean_source(root.as_path(), "moved");
     the_stale_read_is_dropped(
@@ -321,6 +364,14 @@ fn a_detached_head_moving_drops_the_read_beside_the_check() {
 /// and the tree the check proved decides the paths.
 #[test]
 fn a_head_moved_to_another_tree_drops_the_read_beside_the_check() {
+    // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
+    //  the whole process.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_head_moved_to_another_tree_drops_the_read_beside_the_check",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("moved-tree");
     let repo: PathBuf = a_clean_source(root.as_path(), "moved");
     the_stale_read_is_dropped(repo.as_path(), None, the_head_moves_to_another_tree);
@@ -379,6 +430,14 @@ fn a_linked_worktrees_head_moving_drops_the_read_beside_the_check() {
 /// not the main worktree's.
 #[test]
 fn a_linked_worktrees_settled_head_uses_the_read_beside_the_check() {
+    // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
+    //  the whole process.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_linked_worktrees_settled_head_uses_the_read_beside_the_check",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("linked-settled");
     let repo: PathBuf = a_clean_source(root.as_path(), "linked-main");
     let first: String = the_head_commit(repo.as_path());
@@ -438,6 +497,14 @@ fn a_linked_worktrees_settled_head_uses_the_read_beside_the_check() {
 /// A read that outlives its deadline refuses the rung in the sentence a failed read gives.
 #[test]
 fn a_read_that_outlives_its_deadline_refuses_the_rung() {
+    // What: the body runs in a child of its own (see the import's file). Why: the hold that makes this control's read
+    //  outlive its deadline is a seam every read of the process waits at.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_read_that_outlives_its_deadline_refuses_the_rung",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("deadline");
     let repo: PathBuf = a_clean_source(root.as_path(), "deadline");
     let context: GitContext = git_context();
@@ -463,6 +530,11 @@ fn a_read_that_outlives_its_deadline_refuses_the_rung() {
 /// A read whose task dies refuses the rung in the sentence a failed read gives.
 #[test]
 fn a_read_whose_task_dies_refuses_the_rung() {
+    // What: the body runs in a child of its own (see the import's file). Why: the stand-in that makes this control's
+    //  read die reaches every read of the process.
+    if ran_alone_in_a_child_of_its_own(module_path!(), "a_read_whose_task_dies_refuses_the_rung") {
+        return;
+    }
     let root: PathBuf = fixture("dies");
     let repo: PathBuf = a_clean_source(root.as_path(), "dies");
     let dies = a_control_makes_the_read_die();
@@ -542,6 +614,14 @@ fn the_head_commit(repo: &Path) -> String {
 /// and asks Git for the sizes it decides with.
 #[test]
 fn the_read_beside_the_check_leaves_another_steps_note_alone() {
+    // What: the body runs in a child of its own (see the import's file). Why: the note of the last failed Git step
+    //  belongs to the whole process, so a test beside this one took it or wrote over it.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "the_read_beside_the_check_leaves_another_steps_note_alone",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("note");
     let repo: PathBuf = a_clean_source(root.as_path(), "note");
     crate::git_step_failure::note_failed_step("git add", Some(1));
@@ -693,6 +773,14 @@ fn settle_with(answer: Option<ReadAnswer>) -> String {
 /// with no wait of the adding thread.
 #[test]
 fn a_read_that_already_answered_is_stated_as_work() {
+    // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
+    //  the whole process, and beside other tests it lost its work entry.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_read_that_already_answered_is_stated_as_work",
+    ) {
+        return;
+    }
     let record: String = settle_with(Some((Duration::from_millis(7), Ok(BlobSizes::default()))));
     assert!(
         the_record_states(record.as_str(), WORK),
@@ -712,6 +800,14 @@ fn a_read_that_already_answered_is_stated_as_work() {
 /// and the add ends without waiting for it.
 #[test]
 fn a_read_that_has_not_answered_is_started_and_not_joined() {
+    // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
+    //  the whole process, and beside other tests it took their work entries for its own.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_read_that_has_not_answered_is_started_and_not_joined",
+    ) {
+        return;
+    }
     let began = std::time::Instant::now();
     let record: String = settle_with(None);
     let elapsed: Duration = began.elapsed();
@@ -737,6 +833,14 @@ fn a_read_that_has_not_answered_is_started_and_not_joined() {
 /// and ends without waiting for it.
 #[test]
 fn an_add_that_never_reaches_the_fence_does_not_wait_for_the_read() {
+    // What: the body runs in a child of its own (see the import's file). Why: the hold on the read and the record this
+    //  control writes both belong to the whole process.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "an_add_that_never_reaches_the_fence_does_not_wait_for_the_read",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("settled-only");
     let repo: PathBuf = a_clean_source(root.as_path(), "settled-only");
     let destination: PathBuf = root.join("topic");
@@ -1055,6 +1159,15 @@ fn a_read_with_the_promisor_flags_in_an_included_file_fetches_nothing() {
 /// The promisor remote set only through `GIT_CONFIG_COUNT` and its keys fetches nothing.
 #[test]
 fn a_read_with_the_promisor_remote_from_the_environment_fetches_nothing() {
+    // What: the body runs in a child of its own (see the import's file). Why: the variables that name the promisor
+    //  remote are the environment of the whole process, which every other test's Git child inherits, and this control
+    //  removed them only where its read returned.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_read_with_the_promisor_remote_from_the_environment_fetches_nothing",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("promisor-environment");
     let origin: PathBuf = a_partial_clone_origin(root.as_path());
     let clone: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "environment");
@@ -1247,6 +1360,15 @@ fn a_context_whose_git_holds_the_read(fake: &Path) -> GitContext {
 /// and the line its child start left in the repository's record is swept once the child is gone.
 #[test]
 fn an_abandoned_read_ends_its_child_and_its_record_is_swept() {
+    // What: the body runs in a child of its own (see the import's file). Why: the repository whose record every Git
+    //  start is noted in, and the record file of the process, belong to the whole process, so a test beside this one
+    //  noted its own children into this control's folder and kept it from being swept.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "an_abandoned_read_ends_its_child_and_its_record_is_swept",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("abandon");
     let repo: PathBuf = a_clean_source(root.as_path(), "abandon");
     // The repository's per-process record names every Git this process starts, so arm it before the read.
@@ -1432,6 +1554,15 @@ fn fork_a_process_that_ends_with_the_read(
 /// ends the child on a host where AppArmor enforces a profile for it.)
 #[test]
 fn a_process_that_ends_with_a_running_read_leaves_no_child_behind() {
+    // What: the body runs in a child of its own (see the import's file). Why: this control forks the test process, and
+    //  a fork of a process whose runtime threads run loses the runtime's wake-up in the child, so the child of the
+    //  fork could not start the read at all.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_process_that_ends_with_a_running_read_leaves_no_child_behind",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("process-exit");
     let repo: PathBuf = a_clean_source(root.as_path(), "process-exit");
     let fake: PathBuf = root.join("git-that-holds-the-size-read");
@@ -1481,6 +1612,14 @@ fn a_git_whose_size_read_ends_at_once(wrote: &Path) -> String {
 /// An abandon that comes before the read's thread reached its spawn does not leave a child running its whole length.
 #[test]
 fn an_abandon_before_the_child_is_published_leaves_no_child_running() {
+    // What: the body runs in a child of its own (see the import's file). Why: the hold on the read is a seam every read
+    //  of the process waits at.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "an_abandon_before_the_child_is_published_leaves_no_child_running",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("abandon-before-child");
     let repo: PathBuf = a_clean_source(root.as_path(), "abandon-before-child");
     let fake: PathBuf = root.join("git-that-holds-the-size-read");
@@ -1533,6 +1672,14 @@ fn an_abandon_before_the_child_is_published_leaves_no_child_running() {
 /// so the abandon signals no reused process id.
 #[test]
 fn an_abandon_after_the_child_ended_names_no_child() {
+    // What: the body runs in a child of its own (see the import's file). Why: the hold after the wait, and the note
+    //  that a read reached it, belong to every read of the process.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "an_abandon_after_the_child_ended_names_no_child",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("no-reused-id");
     let repo: PathBuf = a_clean_source(root.as_path(), "no-reused-id");
     let fake: PathBuf = root.join("git-whose-size-read-ends");
@@ -1580,6 +1727,15 @@ fn an_abandon_after_the_child_ended_names_no_child() {
 /// and frees it at all.
 #[test]
 fn the_abandon_frees_the_answered_map_off_the_adding_thread() {
+    // What: the body runs in a child of its own (see the import's file). Why: the note that a read answered and the
+    //  counters of freed maps belong to the whole process, so beside other tests this control abandoned before its own
+    //  read answered and counted their frees.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "the_abandon_frees_the_answered_map_off_the_adding_thread",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("freed-beside-the-add");
     let repo: PathBuf = a_clean_source(root.as_path(), "freed-beside-the-add");
     let fake: PathBuf = root.join("git-whose-size-read-ends");
@@ -1632,6 +1788,14 @@ fn the_abandon_frees_the_answered_map_off_the_adding_thread() {
 /// An abandon that comes between the child's end and the runner's clear is not erased by that clear.
 #[test]
 fn the_clear_keeps_an_abandon_that_comes_before_it() {
+    // What: the body runs in a child of its own (see the import's file). Why: the hold before the runner's clear is a
+    //  seam every watched Git run of the process waits at.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "the_clear_keeps_an_abandon_that_comes_before_it",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("clear-keeps-the-abandon");
     let repo: PathBuf = a_clean_source(root.as_path(), "clear-keeps-the-abandon");
     let fake: PathBuf = root.join("git-whose-size-read-ends");
@@ -1688,6 +1852,11 @@ fn the_clear_keeps_an_abandon_that_comes_before_it() {
 /// A fence with no path to size ends the read it started rather than leaving it to run to the process's end.
 #[test]
 fn the_fence_ends_a_read_no_path_needs() {
+    // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
+    //  the whole process.
+    if ran_alone_in_a_child_of_its_own(module_path!(), "the_fence_ends_a_read_no_path_needs") {
+        return;
+    }
     let root: PathBuf = fixture("no-sizes");
     let repo: PathBuf = a_clean_source(root.as_path(), "no-sizes");
     // Every tracked path converts to CRLF on checkout, so no path needs a blob size at all.
@@ -1733,6 +1902,14 @@ fn the_fence_ends_a_read_no_path_needs() {
 /// the fence reads where it stands.
 #[test]
 fn a_refused_thread_start_reads_where_it_stands() {
+    // What: the body runs in a child of its own (see the import's file). Why: the refusal of thread starts is a seam of
+    //  the whole process, and the record this control writes belongs to it too.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_refused_thread_start_reads_where_it_stands",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("refused-start");
     let repo: PathBuf = a_clean_source(root.as_path(), "refused-start");
     let context: GitContext = git_context();
@@ -1785,6 +1962,14 @@ const THE_SLOW_RUNTIME_BUILD_OF_THE_CONTROL: &str = "CLI_GIT_TEST_ONLY_RUNTIME_B
 /// The early read and the fence complete on the current-thread runtime stand-in.
 #[test]
 fn a_read_and_the_fence_complete_on_the_current_thread_stand_in() {
+    // What: the body runs in a child of its own (see the import's file). Why: the runtime the process builds, and the
+    //  variable that makes its build miss the deadline, belong to the whole process.
+    if ran_alone_in_a_child_of_its_own(
+        module_path!(),
+        "a_read_and_the_fence_complete_on_the_current_thread_stand_in",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("stand-in");
     let repo: PathBuf = a_clean_source(root.as_path(), "stand-in");
     // SAFETY: nextest gives this control its own process, and this runs before the runtime is built or any

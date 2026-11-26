@@ -197,6 +197,8 @@ only if the read returns, and every Git child of other tests inherits them;
 (read at `foundation/lazy_runtime.rs:148`, longer than the one-second build deadline).
 The safe form exists: `worktree/worktree_ladder_target_tests.rs:397` and
 `worktree/worktree_clean_content_safety_tests.rs:470` set the variable only in a child.
+Both sites of the size read's module run in a child process of their own since issue 6493,
+so the variables reach no other test of the run.
 
 Item 3e, the umask.
 `landing/service_index_claim_tests.rs:398-402` sets `0o077` in the test process and restores it only on success.
@@ -234,6 +236,17 @@ and five threaded-only failures are filed and open:
 6485 (two supervisor controls plant kills in one process-wide registry),
 6486 (four `run_progress` controls read the shared test process) and
 6487 (the process-wide blocking room in `foundation`).
+
+Round of 2026-11-26:
+issue 6493 is fixed,
+the size read's module whose twenty-two controls armed or read one of the six pieces of state above
+(the add timing record, the failed-step note, the repository's holder record, the size read's holds and free
+counters, the watched run's clear hold, and the process's own environment, runtime and fork);
+each of them now runs its body in a child process of the test binary
+(`testing/alone_in_its_process_child_test_support.rs`),
+and the holds refuse to be armed outside such a child;
+the measured reds and greens are in
+`doc/troubleshooting/git-policy-cli-controls-that-arm-state-the-whole-process-shares.md`.
 
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
