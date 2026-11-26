@@ -81,17 +81,21 @@ function stopIfRunning(pid: number,): boolean {
 
  @returns what the command reported, absent when it overran the budget
  */
-async function runWithinBudget(
-  run: Promise<CommandResult>,
-  budgetMs: number,
-): Promise<{ readonly result?: CommandResult }> {
+async function runWithinBudget({
+  run,
+  budgetMs,
+}: Readonly<{
+  run: Promise<CommandResult>;
+  budgetMs: number;
+}>,): Promise<{ readonly result?: CommandResult }> {
   return await Promise.race([
-    run.then(function finished(result,) {
-      return { result, };
-    },),
-    delay(budgetMs,).then(function overran() {
+    (async function finished() {
+      return { result: await run, };
+    })(),
+    (async function overran() {
+      await delay(budgetMs,);
       return {};
-    },),
+    })(),
   ],);
 }
 
@@ -250,8 +254,8 @@ await describe({
         /**
          What the command reported, absent when it overran the timeout and the margin.
          */
-        const { result, } = await runWithinBudget(
-          runCommand({
+        const { result, } = await runWithinBudget({
+          run: runCommand({
             command: process.execPath,
             args: [
               '--eval',
@@ -259,8 +263,8 @@ await describe({
             ],
             timeoutMs: TEST_TIMEOUT_MS,
           },),
-          TEST_TIMEOUT_MS + TIMEOUT_RETURN_MARGIN_MS,
-        );
+          budgetMs: TEST_TIMEOUT_MS + TIMEOUT_RETURN_MARGIN_MS,
+        },);
         /**
          How long the runner took to report.
          */
