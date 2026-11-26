@@ -516,6 +516,22 @@ Fix: one conversion round for the eight `merge/` reads ("the merge's own step ow
 finishes the rest; keep the list as the tracker.
 Size: 63 rows.
 
+### Item 19. Lists written as fixed-length arrays carry a hand-counted length
+
+Category: magic numbers (`AGENTS.md`'s MGN), added 2026-11-25T19:45-05:00 on the owner's "Isn't 95 a magic number that can
+be avoided?" about the raw-read guard's `const KEPT_SITES: [(&str, usize, &str); 95]`.
+Measured with `rg 'const [A-Z_]+: \[[^\]]*; [0-9]+\] = \['` on `main`: 277 such constants in 187 files of the crate's `src`,
+13 of them in 10 `source_guard` files (for example `hook_self_invocation_tests.rs`'s `MAIN_CODE: [&str; 47]` and
+`root_mode_name_tests.rs`'s `NAMES_CODE: [&str; 53]`).
+Every entry added or removed edits the count beside it, and the count says nothing a reader needs.
+The raw-read guard's three lists became slices on its branch (`&[...]`), as other guards already write them.
+Not every match is a list: an array whose length is its meaning (a header of a fixed byte width, a table indexed by an
+enum) keeps it.
+Fix: one round, after the live rounds touching those files merge, that turns every list of names, sites or words into a
+slice and leaves meaningful lengths, plus a `source_guard` control that refuses a new `const` list of string literals
+with a numeric length; the package guide states the rule since this item.
+Size: up to 277 constants, most of them one-line changes.
+
 ## Already in flight, do not duplicate
 
 `fix/git-policy-cli-lfs-upload-tests-signal-their-own-test-binary`: item 6, unmerged.
