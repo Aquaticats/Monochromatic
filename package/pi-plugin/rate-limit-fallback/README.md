@@ -81,15 +81,24 @@ moved verbatim on 2026-11-23:
 
 ## Order and refusal policy
 
-The project chose these writers on 2026-11-19 in [its subagent skill][writers]
+The owner set these writers on 2026-11-26,
+asked in what order writers take the pools and answering
+"Qwen, opencode-go, flex (Recommended)"
+(`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order").
+That record replaces the writer order of 2026-11-19 in [the subagent skill][writers]
 (section "Who writes and who reviews"),
-which dropped GPT 6.2 Sol as a
-writer.
+which asked standard NeuralWatt first and dropped GPT 6.2 Sol as a writer.
 The `writer` pool asks these members in order:
 
-- `neuralwatt/deepseek-v4.1-flash`
-- `neuralwatt/deepseek-v4.1-flash-flex`
+- `qwen-token-plan-individual/deepseek-v4.1-flash-1017`
 - `opencode-go/deepseek-v4.1-flash`
+- `neuralwatt/deepseek-v4.1-flash-flex`
+
+Standard NeuralWatt's `neuralwatt/deepseek-v4.1-flash` left the list that day:
+the owner closed it to writers on 2026-11-11,
+and `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md` keeps it closed.
+`src/writer-order.unit.test.ts` fails if that member or the provider named `deepseek`
+comes back to either pool.
 
 The `reviewer` pool tries these members in order:
 
