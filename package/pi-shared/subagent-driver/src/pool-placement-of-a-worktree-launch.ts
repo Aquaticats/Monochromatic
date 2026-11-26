@@ -7,31 +7,45 @@
  (`doc/decision/pi-driver-closed-pools-and-the-worktree-launchers-default.md`), and is never refused for the pool its default
  provider and model name.
 
+ A command line that names Pi's virtual writer or reviewer keeps that pair: the plugin's router moves a refused request on by
+ itself, so rewriting the pair would pin the run to one member. Such a run is counted in every pool that router may take
+ (`place-a-run-on-a-virtual-selection.ts`), and starts only while all of them have room.
+
  The counts are the pool gate's own (`goingRunsNow`, `talliesOf`), so a slot this command takes is a slot the gate reads as taken
  once the unit exists: the unit's command line names the pool. No second counting mechanism exists beside that one.
 
  @module
  */
 
-import {
-  type GoingRun,
-  LAUNCHER_ENTRY_NAMES,
-  REPLACED_LAUNCHER_ENTRY_NAMES,
-  goingRunsNow,
-} from './going-runs.ts';
 import { wallSecondsOn, } from './launcher-arguments.ts';
-import { poolOfARunNamingNoProvider, } from './pool-of-a-run-naming-no-provider.ts';
-import { NO_SLOT_EXIT_STATUS, } from './pool-gate.ts';
+import { placeARunOnAVirtualSelection, } from './place-a-run-on-a-virtual-selection.ts';
 import {
+  poolsWithTheCallersLimits,
+  runsGoingForTheCount,
+} from './pool-counts-before-a-launch.ts';
+import {
+  poolOfARunNamingNoProvider,
+  whyItTakesNoRun,
+} from './pool-of-a-run-naming-no-provider.ts';
+import {
+  NO_SLOT_EXIT_STATUS,
+  poolChoiceFor,
+} from './pool-gate.ts';
+import {
+  NO_VIRTUAL_POOL,
   POOL_LIMITS_VARIABLE,
   PoolLimitsError,
   type PoolMembership,
   type ProviderPool,
   limitsIn,
   poolNamed,
+  poolOfThatNameIn,
   poolsWithTheseLimits,
+  type VirtualPool,
+  virtualPoolNamed,
 } from './pool-limits.ts';
 import {
+  poolsWithoutRoom,
   summaryTextOf,
   talliesOf,
 } from './pool-tallies.ts';
@@ -42,6 +56,7 @@ import {
 } from './refusal-of-a-run-on-a-closed-pool.ts';
 import type { RunCommand, } from './run-command.ts';
 import { PiUnitsUnreadableError, } from './running-pi-units.ts';
+import type { WorktreeLaunchPlacement, } from './worktree-launch-placement.ts';
 
 /**
  A run no pool a run naming no provider may take has room for, refused with the pools named and the reason each gives.
@@ -53,131 +68,6 @@ export class NoPoolTakesTheRunError extends Error {
    The name printed with the message.
    */
   override readonly name = 'NoPoolTakesTheRunError';
-}
-
-/**
- What the launch's run takes, or why this command starts none.
- */
-export type WorktreeLaunchPlacement =
-  | {
-    /**
-     Whether the run takes its pair and not a refusal.
-     */
-    readonly took: 'a-run';
-
-    /**
-     The provider the run's unit and driver are given.
-     */
-    readonly provider: string;
-
-    /**
-     The model the run's unit and driver are given.
-     */
-    readonly model: string;
-
-    /**
-     How long the run may last, in seconds: the caller's own wall clock, or that clock stretched for a pool that answers more
-     slowly.
-     */
-    readonly wallSeconds: number;
-
-    /**
-     The lines this command prints about the pool it chose, which are none when the command line named the pair the run takes.
-     */
-    readonly lines: readonly string[];
-  }
-    | {
-    /**
-     Whether the run takes its pair and not a refusal.
-     */
-      readonly took: 'no-run';
-
-    /**
-     The status this command exits with, which is the pool gate's own for a closed pool and for no room.
-     */
-      readonly status: number;
-
-    /**
-     What the run is refused with, one line per thing a reader needs.
-     */
-      readonly message: string;
-    };
-
-/**
- Reads the pools at the limits the caller set, which say which pools take runs, how many, and why a closed one is closed.
-
- @param environment - the environment the command runs with, whose `PI_RUNS_POOL_LIMITS` sets the pools' limits
-
- @returns the pools at those limits
-
- @throws PoolLimitsError when the setting names no pool of the table or holds anything but a whole number, which the caller
- answers by naming the setting and its fault and starting nothing
-
- @example
- ```ts
- const pools = poolsWithTheCallersLimits({ environment: process.env, },);
- ```
- */
-function poolsWithTheCallersLimits({
-  environment,
-}: {
-  readonly environment: Readonly<NodeJS.ProcessEnv>;
-},): readonly ProviderPool[] {
-  return poolsWithTheseLimits({
-    limits: limitsIn({ listed: environment[POOL_LIMITS_VARIABLE] ?? '', },),
-  },);
-}
-
-/**
- Says what a unit whose own command line could not be read is counted as, which is the line the pool gate prints for the same
- problem.
-
- @param problem - what the manager answered
- */
-function reportAUnitWhosePoolWasNotRead(problem: string,): void {
-  process.stderr
-    .write(`${problem}\n`,);
-}
-
-/**
- Reads the runs going now, counted the way the pool gate counts them: the launchers that have not made their unit yet, and the
- units systemd lists, each with the pool its own command line names.
-
- @param pools - the pools to count against
-
- @param processFolder - the folder holding one entry per process
-
- @param run - how a command is run
-
- @returns one entry per run going now
-
- @throws PiUnitsUnreadableError when systemd could not list the units, which the caller answers by refusing the start: a run
- started on a guessed count could take a pool that is full
-
- @example
- ```ts
- const runs = await runsGoingForTheCount({ pools, processFolder: '/proc', run: runCommandWithChildProcess, },);
- ```
- */
-async function runsGoingForTheCount({
-  pools,
-  processFolder,
-  run,
-}: {
-  readonly pools: readonly ProviderPool[];
-  readonly processFolder: string;
-  readonly run: RunCommand;
-}): Promise<readonly GoingRun[]> {
-  return await goingRunsNow({
-    run,
-    processFolder,
-    launcherEntryNames: [
-      ...LAUNCHER_ENTRY_NAMES,
-      ...REPLACED_LAUNCHER_ENTRY_NAMES,
-    ],
-    pools,
-    onProblem: reportAUnitWhosePoolWasNotRead,
-  },);
 }
 
 /**
@@ -363,6 +253,41 @@ export async function poolPlacementOfAWorktreeLaunch({
     provider,
     model,
   },);
+  /**
+   The virtual selection the pair names, when it names one: a run on it keeps its pair and is counted against every pool that
+   selection's router may take.
+   */
+  const virtual = virtualPoolNamed({
+    provider,
+    model,
+  },);
+  if (virtual !== NO_VIRTUAL_POOL) {
+    try {
+      return await placeARunOnAVirtualSelection({
+        virtual,
+        resumes,
+        runName,
+        wallSeconds,
+        provider,
+        model,
+        environment,
+        processFolder,
+        run,
+      },);
+    }
+    catch (error) {
+      // A limits setting or a unit listing this command cannot read is named with its fault rather than counted as though the caller
+      // had said nothing, exactly as for a run placed on one pool.
+      if ((error instanceof PoolLimitsError) || (error instanceof PiUnitsUnreadableError)) {
+        return {
+          took: 'no-run',
+          status: 1,
+          message: error.message,
+        };
+      }
+      throw error;
+    }
+  }
   /**
    Whether this command chooses the run's pool rather than keeping the pair its command line names: a launch that names no
    provider takes the first open pool in the owner's order, and the pools that take such a run are the ones the table marks.

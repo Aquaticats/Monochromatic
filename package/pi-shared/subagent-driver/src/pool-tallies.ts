@@ -12,6 +12,7 @@ import {
   type PoolMembership,
   type ProviderPool,
   PROVIDER_POOLS,
+  poolOfThatNameIn,
 } from './pool-limits.ts';
 
 /**
@@ -177,7 +178,8 @@ export function poolHasRoom({
 
 /**
  Reads the first pool with room for a run that named no model of its own, in the owner's order of {@link PROVIDER_POOLS}: the
- qwen plan's DeepSeek pool, then Neuralwatt's flex pool, since the pools before it are closed or take only their own model.
+ qwen plan's DeepSeek pool, then `opencode-go`, then Neuralwatt's DeepSeek flex pool, since the pools between and after them are
+ closed or take only their own model.
 
  @param tallies - how many runs each pool holds, and the pools that were counted
 
@@ -203,4 +205,44 @@ export function firstDefaultPoolWithRoom({ tallies, }: { readonly tallies: PoolT
       },);
     },);
   return found ?? NO_POOL_HAS_ROOM;
+}
+
+/**
+ Reads the pools of a membership that have no room now: the pools a run holds a slot in and cannot take at this moment.
+
+ A run that names one pool holds that pool alone, so this answers whether the pool is full. A run on a virtual selection holds
+ every pool its router may send it to, so it may start only while every one of them has room: a pool that is full could take no
+ part of the run, and counting the run there anyway would say it had more room than it has.
+
+ @param tallies - how many runs each pool holds, and the pools that were counted
+
+ @param membership - what the run holds, as `membershipOfSelection` reads it
+
+ @returns one entry per pool it holds that is full, in the membership's order, which is empty when the run may take them all
+
+ @example
+ ```ts
+ const full = poolsWithoutRoom({ tallies, membership: membershipOfSelection({ provider: 'rate-limit-fallback', model: 'writer', },), },);
+ ```
+ */
+export function poolsWithoutRoom({
+  tallies,
+  membership,
+}: {
+  readonly tallies: PoolTallies;
+  readonly membership: PoolMembership;
+},): readonly ProviderPool[] {
+  return poolsHeldBy({ membership, },)
+    .map(function asTheCountedTableHoldsIt(pool,) {
+      return poolOfThatNameIn({
+        pool,
+        pools: tallies.pools,
+      },);
+    },)
+    .filter(function isFull(pool,) {
+      return !poolHasRoom({
+        tallies,
+        pool,
+      },);
+    },);
 }

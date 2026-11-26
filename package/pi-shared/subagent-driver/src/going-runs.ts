@@ -26,7 +26,7 @@ import {
   type ProviderPool,
   PROVIDER_POOLS,
   membershipOf,
-  poolNamed,
+  membershipOfSelection,
 } from './pool-limits.ts';
 import { optionIn, } from './option-in.ts';
 import { errorCodeOf, } from './error-code-of.ts';
@@ -118,9 +118,9 @@ function membershipOfCommandLine({
   readonly pools?: readonly ProviderPool[];
 },): PoolMembership {
   /**
-   The pool the launcher's own options name.
+   What the launcher's own options hold: one pool, or every pool a virtual selection's router may take.
    */
-  const pool = poolNamed({
+  const holds = membershipOfSelection({
     provider: optionIn({
       commandLine,
       option: PROVIDER_OPTION,
@@ -136,7 +136,7 @@ function membershipOfCommandLine({
       option: NAME_OPTION,
     },),
     pools,
-    ...(pool.holds === 'a-pool' ? { pool, } : {}),
+    ...((holds.holds === 'no-pool') ? {} : { pool: holds, }),
   },);
 }
 
@@ -309,7 +309,7 @@ export function poolOfExecStart({ shown, }: { readonly shown: string },): PoolMe
   if ((provider === '') || (model === '')) {
     return { holds: 'no-pool', };
   }
-  return poolNamed({
+  return membershipOfSelection({
     provider,
     model,
   },);

@@ -80,8 +80,18 @@ export const CLOSED_POOL_LIMIT = 0;
  eight agents on its largest personal tier, and a retry after about a minute as what lets a run live through the answer. Nothing
  has measured this model, so nothing argues for a different number.
 
- `takesDefaultRuns` is false: the owner's order puts these reviews first among the pools, and a run that names no model of its own
- must still take `opencode-go` first and then Neuralwatt's flex pool, because those are the writing pools.
+ `takesDefaultRuns` is true since 2026-11-26, because the owner's order of that day puts this pool first for writers and for
+ short reviews:
+
+ - `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order": the owner answered "Qwen,
+   opencode-go, flex (Recommended)", and this pool's DeepSeek model is the first of the three.
+ - The same record, "The writers' order": "Qwen's room is 5 runs at once, the figure the pool table took from another model on the
+   same plan, until a run measures this model's." So the limit stays the number written below until a run measures one.
+
+The order it stands first in is {@link PROVIDER_POOLS}. Because a pool that takes default runs is no pin (only a pool one model
+names is), a run that names `opencode-go` or the flex pool is placed on the first pool of that order with room, which is this one
+while it has room. A coordinator that wants one command on another pool closes this one for that command with
+`PI_RUNS_POOL_LIMITS=qwen-plan-deepseek=0`.
 
  What it was before the removal: the owner, 2026-11-11T17:5x-05:00: "I think there's no point to withholding all Qwen quota to Qwen
  itself. Please replace the neuralwatt standard deepseek pool with qwen-token-plan-individual  deepseek-v4.1-flash-1017". So
@@ -100,7 +110,7 @@ export const QWEN_PLAN_DEEPSEEK: ProviderPool = {
   model: 'deepseek-v4.1-flash-1017',
   limit: 5,
   wallFactor: 1,
-  takesDefaultRuns: false,
+  takesDefaultRuns: true,
 };
 
 /**
@@ -262,6 +272,78 @@ export const PROVIDER_POOLS: readonly ProviderPool[] = [
   NEURALWATT_DEEPSEEK_FLEX,
   NEURALWATT_KIMI_FLEX,
   QWEN_PLAN_QWEN4_MAX_PREVIEW,
+];
+
+/**
+ A virtual selection Pi's `rate-limit-fallback` plugin publishes: the provider and model a run names, and the pools that plugin's
+ router may send that run to, in the plugin's own order.
+
+ The member order is the plugin's, not this table's. It lives in `package/pi-plugin/rate-limit-fallback/src/model-pools.ts`, and the
+ driver cannot read it from there: this package declares no dependency on that one, and adding the dependency needs a lockfile
+ regeneration that the round which wrote this could not run (`pnpm install` is out of bounds here). So both lists exist, each
+ pinned to the same record, and a change to one is a change to the other. The count below is why the driver needs the list at all:
+ a run on a virtual selection is counted against every pool the router may send it to.
+ */
+export type VirtualPool = {
+  /**
+   The provider a run on this virtual selection names.
+   */
+  readonly provider: string;
+
+  /**
+   The model a run on this virtual selection names.
+   */
+  readonly model: string;
+
+  /**
+   The pools the router may send its requests to, in the order it tries them, which is every pool those members belong to. A
+   member outside every pool of {@link PROVIDER_POOLS}, such as Synthetic, holds no slot and is not listed.
+   */
+  readonly memberPools: readonly ProviderPool[];
+};
+
+/**
+ The plugin's virtual writer, whose members are the owner's order of 2026-11-26: the qwen plan's DeepSeek pool, then
+ `opencode-go`, then Neuralwatt's DeepSeek flex pool
+ (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order").
+
+ Standard Neuralwatt DeepSeek is no member: the owner closed it to writers on 2026-11-11, and the record keeps it closed. Neither
+ is the provider named `deepseek`.
+ */
+export const VIRTUAL_WRITER: VirtualPool = {
+  provider: 'rate-limit-fallback',
+  model: 'writer',
+  memberPools: [
+    QWEN_PLAN_DEEPSEEK,
+    OPENCODE_GO,
+    NEURALWATT_DEEPSEEK_FLEX,
+  ],
+};
+
+/**
+ The plugin's virtual reviewer, whose members are the reviewer order the owner set: the qwen plan's DeepSeek pool, then
+ Synthetic's DeepSeek model, then `opencode-go`, then Neuralwatt's DeepSeek flex pool
+ (`.agents/skills/pi-as-subagent/SKILL.md`, section "Who writes and who reviews").
+
+ Synthetic's member is in no pool of this table, so it holds no slot here: a run on this selection is counted against the three
+ pools the other members share.
+ */
+export const VIRTUAL_REVIEWER: VirtualPool = {
+  provider: 'rate-limit-fallback',
+  model: 'reviewer',
+  memberPools: [
+    QWEN_PLAN_DEEPSEEK,
+    OPENCODE_GO,
+    NEURALWATT_DEEPSEEK_FLEX,
+  ],
+};
+
+/**
+ Every virtual selection this driver counts, so a run started on one holds the room of the pools its router may take.
+ */
+export const VIRTUAL_POOLS: readonly VirtualPool[] = [
+  VIRTUAL_WRITER,
+  VIRTUAL_REVIEWER,
 ];
 
 /**
@@ -654,4 +736,90 @@ export function membershipOf({
     holds: 'some-pools',
     pools: couldHold,
   };
+}
+
+/**
+ The answer that a provider and model name no virtual selection, as a symbol so that no selection can be mistaken for it.
+ */
+export const NO_VIRTUAL_POOL: unique symbol = Symbol('the plugin publishes no such router model, only rate-limit-fallback/writer and /reviewer',);
+
+/**
+ Reads the virtual selection a provider and model name, or {@link NO_VIRTUAL_POOL} when they name none.
+
+ @param provider - the provider a run names
+
+ @param model - the model a run names
+
+ @returns the selection this table holds under that pair, or nothing at all
+
+ @example
+ ```ts
+ const virtual = virtualPoolNamed({ provider: 'rate-limit-fallback', model: 'writer', },);
+ ```
+ */
+export function virtualPoolNamed({
+  provider,
+  model,
+}: {
+  readonly provider: string;
+  readonly model: string;
+}): VirtualPool | typeof NO_VIRTUAL_POOL {
+  return VIRTUAL_POOLS.find(function isNamed(selection,) {
+    return (selection.provider === provider) && (selection.model === model);
+  },) ?? NO_VIRTUAL_POOL;
+}
+
+/**
+ Reads what a run's own provider and model hold: one pool, every pool a virtual selection's router may send it to, or nothing at
+ all when the pair belongs to no pool.
+
+ This is the reading every counter takes, because a run on a virtual selection has no single pool to hold: its router starts from
+ the first member on every request and moves on when a member refuses, so the run may be taking any of those pools' room at the
+ next request. Holding a slot in each of them is what keeps a pool from taking more runs than its room after such a move.
+
+ @param provider - the provider the run names
+
+ @param model - the model the run names
+
+ @param pools - the pools a virtual selection's members are read from, which carry any limit a caller set
+
+ @returns what the pair holds, as `poolNamed` reads a pool
+
+ @example
+ ```ts
+ const holds = membershipOfSelection({ provider: 'rate-limit-fallback', model: 'writer', },);
+ ```
+ */
+export function membershipOfSelection({
+  provider,
+  model,
+  pools = PROVIDER_POOLS,
+}: {
+  readonly provider: string;
+  readonly model: string;
+  readonly pools?: readonly ProviderPool[];
+}): PoolMembership {
+  /**
+   The virtual selection the pair names, when it names one.
+   */
+  const virtual = virtualPoolNamed({
+    provider,
+    model,
+  },);
+  if (virtual !== NO_VIRTUAL_POOL) {
+    return {
+      holds: 'some-pools',
+      pools: virtual.memberPools
+        .map(function asTheTableHoldsIt(pool,) {
+          return poolOfThatNameIn({
+            pool,
+            pools,
+          },);
+        },),
+    };
+  }
+  return poolNamed({
+    provider,
+    model,
+  },);
 }
