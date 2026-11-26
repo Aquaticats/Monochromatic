@@ -391,16 +391,41 @@ fn run_convert(
     );
 }
 
-/// The doctor's filesystem section read from the running system,
-/// followed by its line about the repository's link to the
-/// 860 drive below the home the invocation names,
+/// The doctor's section read from the running system:
+/// its filesystem facts,
+/// its line about the repository's link to the 860 drive below the home the
+/// invocation names,
 /// and its report on the account companion's group drop.
 #[cfg(target_os = "linux")]
 pub fn host_filesystem_section(viewpoint: &CheckoutViewpoint<'_>) -> String {
+    return host_section_with(
+        &crate::group_drop_report::group_drop_report_line::group_drop_report,
+        viewpoint,
+    );
+}
+
+/// What:
+///  The same section with the group drop's report given,
+///  which is empty on a host that wrote the `deny`.
+/// Why:
+///  The executable passes the report this host answers (`host_filesystem_section`),
+///  and a control passes its own,
+///  so the test that the report lands in the doctor's own words does not depend on
+///  the host it runs on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function hostSectionWith(report: () => string, viewpoint: CheckoutViewpoint): string;
+/// ```
+#[cfg(target_os = "linux")]
+pub fn host_section_with(
+    report: &dyn Fn() -> String,
+    viewpoint: &CheckoutViewpoint<'_>,
+) -> String {
     return format!(
         "{}{}",
         filesystem_section_with_link_line(viewpoint),
-        crate::account_companion::companion_group_drop_line::group_drop_line()
+        report()
     );
 }
 
@@ -684,6 +709,3 @@ pub fn plan_management_with_section(
 #[cfg(test)]
 #[path = "management_tests.rs"]
 mod tests;
-
-// temporary layout probe
-const _LAYOUT_PROBE: Option<crate::account_companion::CompanionVerdict> = None;

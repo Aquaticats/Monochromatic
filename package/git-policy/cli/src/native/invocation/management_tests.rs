@@ -1505,3 +1505,60 @@ fn the_doctors_link_line_reads_the_home_the_invocation_names() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  The doctor's host section ends with the account companion's group-drop
+///  report, after the link line a person reads first,
+///  and where a host that wrote the `deny` makes no report the section holds
+///  the link line alone.
+/// Why:
+///  The owner asked that `doctor` say a skipped group drop and what to do about
+///  it,
+///  and the report is worth nothing if the section drops it or puts it before
+///  the lines a person reads first.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_doctors_host_section_ends_with_the_group_drop_report() {
+    use super::host_section_with;
+    let root: PathBuf = fixture("doctor-host-section-group-drop")
+        .canonicalize()
+        .expect("root");
+    let home: PathBuf = root.join("home");
+    let not_a_mount: PathBuf = root.join("not-a-mount");
+    std::fs::create_dir_all(not_a_mount.as_path()).expect("mount point stand-in");
+    let link: PathBuf = root.join("repolink");
+    std::os::unix::fs::symlink(not_a_mount.join("r/M"), &link).expect("dangling link");
+    let identity: PathBuf = home.join(".config/monochromatic-dev/repository-link.json");
+    std::fs::create_dir_all(identity.parent().expect("parent")).expect("config folder");
+    std::fs::write(
+        &identity,
+        format!(
+            "{{\"linkPath\":\"{}\",\"linkText\":\"{}\",\"canonicalRoot\":\"{}\",\"mountPoint\":\"{}\",\"driveUuid\":\"D\",\"nvmeUuid\":\"N\",\"rootCommit\":\"abc\",\"phase\":\"after\"}}",
+            link.display(),
+            not_a_mount.join("r/M").display(),
+            not_a_mount.join("r/M").display(),
+            not_a_mount.display()
+        ),
+    )
+    .expect("identity file");
+    let viewpoint: crate::doctor::CheckoutViewpoint<'_> = crate::doctor::CheckoutViewpoint {
+        checkout: None,
+        layout: crate::checkout_layout::CheckoutLayout::Main,
+        home: Some(home.as_path()),
+    };
+    let without_a_report: String = host_section_with(&String::new, &viewpoint);
+    assert!(
+        without_a_report.starts_with("repository link: the 860 drive is not mounted yet ("),
+        "a host that wrote the deny adds no line of its own: {without_a_report}"
+    );
+    let report: String = String::from(
+        "account companion: this host skips the account companion's group drop: open /proc/self/setgroups answered EACCES (errno 13)\n",
+    );
+    let with_a_report: String = host_section_with(&|| return report.clone(), &viewpoint);
+    assert_eq!(
+        with_a_report,
+        format!("{without_a_report}{report}"),
+        "the report follows the link line and is never dropped"
+    );
+    remove(root.as_path());
+}

@@ -328,6 +328,13 @@ pub use worktree_clone_add_route::*;
 #[cfg(target_os = "linux")]
 pub mod account_companion;
 
+/// The account companion's group drop as `doctor` reports it:
+///  one probe of this host and the line a skipped drop prints.
+/// It is Linux only,
+///  like the user namespace it makes.
+#[cfg(target_os = "linux")]
+pub mod group_drop_report;
+
 /// The same re-export for `worktree_clone_binding_record`.
 #[cfg(target_os = "linux")]
 pub use worktree_clone_binding_record::*;
