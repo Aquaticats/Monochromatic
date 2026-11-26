@@ -484,3 +484,168 @@ In-tree convention;
  sinon itself is upstream-correct.
  No
 upstream report.
+
+---
+
+## Bug 6: A control that passes alone fails in the parallel suite
+
+### Symptom
+
+`mise run //package/pi-shared/subagent-driver:test:unit` fails on a control that starts a real child,
+or on one that measures the clock,
+while the same file alone passes:
+
+```text
+[workOutlivingTheTurnIn] [names a real child a shell started ...] [FAIL] (609ms)
+  Error: ENOENT: no such file or directory, open '/proc/3894226/comm'
+[drive-pi-subagent] [ends a run at its wall clock while the build it left still runs ...] [FAIL] (18.8s)
+  AssertionError: expected +0 to equal 1
+```
+
+Two causes,
+measured on 2026-11-26 while resolving issue 6504,
+and a third,
+measured the same day while resolving issue 6506.
+
+### Cause 1: a `/proc` read of a process that ended between the listing and the read
+
+A shell started as `sh -lc 'sleep 60; :'` runs this machine's profile scripts first,
+and each of those scripts forks a child that ends before the work starts.
+A control that takes the first number out of `/proc/<pid>/task/<pid>/children` can take one of those,
+and its `comm` is gone by the time the control reads it:
+
+```text
+$ bash -lc 'sleep 6; :' &   # then sample the children file every 5 ms
+      1 3915398 comm=bash
+      1 3915408 comm=bash
+      3 3915418 comm=bash
+      1 3915439 comm=GONE
+    230 3915442 comm=sleep
+```
+
+Linux answers `ENOENT` for a record already removed,
+and `ESRCH` for one whose task it released;
+the driver counts both as a process that is gone
+(`package/pi-shared/subagent-driver/src/process-ended-codes.ts`).
+The read's own mechanism is in
+`package/pi-shared/subagent-driver/doc/troubleshooting/a-process-that-ends-while-its-record-is-read.md`.
+The control does the same:
+it waits for the child that runs the program it started,
+treats a child whose program cannot be read as one of the profile scripts,
+and owns that child before it reads any record of it,
+because that child outlives the test.
+
+### Cause 2: a wall clock sized below the start-up the suite makes
+
+`--wall-seconds` bounds Pi's start-up as well as the watch,
+as `package/pi-shared/subagent-driver/README.md` says under that option.
+So a run whose subject is its own clock has to reach that state before the clock ends.
+How long the start-up takes is what the other test files leave the machine:
+the driver took its first prompt at 473 ms on an idle host,
+and the moment each control measures took about 25 s inside the full suite,
+so a fixed 8 s ended a run before its prompt was ever sent.
+A control sizes its clock from a run it makes first,
+of the same driver and stand-in,
+which reaches the same feed line and ends of its own accord,
+and leaves that figure room to take half again.
+The work such a run leaves behind lives longer than the clock,
+so the run still ends on its clock rather than after its work.
+
+### Cause 3: the last line a control reads is not on disk yet
+
+`startRecordOfPiRun`'s `note` hands each feed line to a write stream
+(`package/pi-shared/subagent-driver/src/feed-of-a-run.ts`),
+so it returns before the line reaches the file,
+and the record's `close` is what waits for the stream to finish.
+A control that read `feed.jsonl` while the record was still open
+could therefore read every line but the last,
+and the control that asserts on the last line read the run's previous word instead:
+
+```text
+AssertionError: expected 'the agent ended its turn while work i…'
+  to contain 'waited for the work it left running'
+```
+
+That is issue 6506's failure,
+in the watch's wall-clock control in `watch-pi-run.unit.test.ts`.
+The wait line it asserts on is recorded two looks before the run's clock ends it,
+so that line was on disk;
+the line the run notes as its clock ends it was not.
+The control's clock needed no change:
+three of the watch's own `POLL_MILLISECONDS` is what its loop needs
+(one look that records the wait,
+one after it that sees the clock),
+and the failing run's own report shows the look that saw the work,
+so the clock never came before the state the control asserts.
+
+A feed whose writing failed shows the same symptom for a second reason:
+`note` drops every line after the stream's first error,
+and a control reading the file cannot tell that tail from a line not yet written.
+Both are answered where the control reads:
+it closes the record first and then names a feed that failed to write,
+rather than reading a missing tail as the run's last word.
+
+Measured on 2026-11-26 on the host the issue was filed from,
+by noting a waiting line through a real record,
+waiting a gap,
+noting the line the wall clock writes,
+reading the file straight back,
+then closing the record and reading it again:
+
+```ts
+// ${HOME}/temp/agent/probe-feed-flush-race-warmed.ts
+record.note({ kind: 'waiting', problem: '…' },);
+if (gapMilliseconds > 0) await wait(gapMilliseconds,);
+record.note({ kind: 'problem', problem: '…wall clock…' },);
+const before = await readFile(feedFile, 'utf8',);
+await record.close();
+const after = await readFile(feedFile, 'utf8',);
+```
+
+- two poll intervals between the two lines, thirty runs:
+the immediate read missed the last line none of thirty times;
+- five milliseconds between them, a hundred runs:
+it missed nine;
+- no gap, a hundred runs:
+it missed ninety-nine;
+- and after `close` it missed none, in all of them.
+
+A stream whose first line is still opening misses the line even more plainly:
+three hundred runs of note, read straight back, missed it in every one,
+and `close` showed the line in every one.
+A read taken in that state can even beat the stream's open:
+the probe's first run ended on `ENOENT` for the feed file itself.
+The two shorter gaps do not separate a stream still opening from one whose write is in flight;
+the two-poll-interval gap,
+where the stream had opened and finished its first write,
+missed none in thirty runs on a quiet process.
+So the miss needs a stream still opening,
+a write still in flight,
+or a read that beats either,
+and the suite's load widens all three.
+
+### Verification
+
+Both controls fail in a full run of the package's unit suite,
+and pass in it after the change:
+
+```text
+$ mise run //package/pi-shared/subagent-driver:test:unit
+$ mise run //package/pi-shared/subagent-driver:test:unit -- \
+    src/drive-pi-subagent.unit.test.ts src/work-the-run-left-running.unit.test.ts
+```
+
+The second run needs both files named:
+the harness runs a whole file and has no filter that would run one test alone.
+
+The third cause's control passes in a full run of the package's unit suite after it reads through the
+closed record (issue 6506, `watch-pi-run.unit.test.ts`):
+
+```text
+$ mise run //package/pi-shared/subagent-driver:test:unit
+$ mise run //package/pi-shared/subagent-driver:test:unit -- src/watch-pi-run.unit.test.ts
+```
+
+Its own failure is rarer than the other two:
+a full suite run before the change passed on 2026-11-26,
+so the cause above rests on the measured read rather than on the run that reported it.

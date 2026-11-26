@@ -486,38 +486,79 @@ fn shared_loops(
 /// What:
 ///  The entry graph the own-file check searches:
 ///  every use between two entries,
-///  and every use written in a group's own file as an edge from that group.
+///  and every use written in a group's own file as an edge from its entry,
+/// with the entries of that graph.
 /// Why:
 ///  A group's own code makes no edge of the entry graph
 ///  (the shelf rule reports the file and a group's summary is what its child folders use),
 ///  so the loop checks of the entries never see such a use.
 ///  A walk back from the entry one own file uses must be able to step over another group's own-file use,
 ///  or a mutual dependency that two own-file uses close is never seen.
+///  A group nested in another group is its outer group's entry,
+///  so its own file's uses leave from that entry and its loop is found like any other.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function ownLoopSearch(groups: Set<Path>, grouped: FolderUses): FolderUses;
+/// function ownLoopSearch(groups: Set<Path>, grouped: FolderUses): [Path[], FolderUses];
 /// ```
 fn own_loop_search(
     groups: &BTreeSet<PathBuf>,
     grouped: &FolderUses,
-) -> FolderUses {
+) -> (Vec<PathBuf>, FolderUses) {
     let (_, entries): (Vec<PathBuf>, FolderUses) = entry_uses(groups, grouped);
     let mut search: FolderUses = entries;
     for (from, targets) in grouped {
         if !groups.contains(from) {
             continue;
         }
+        // What: the entry the group's own code belongs to, which is the outer group of a nested one.
+        // Why: the walk back starts at entries, so a nested group's own use must leave from its entry.
+        let source: PathBuf = entry_of(from, groups);
         for (to, proof) in targets {
             let target_entry: PathBuf = entry_of(to, groups);
             // A use of the group's own child folders joins no two entries.
-            if target_entry == *from {
+            if target_entry == source {
                 continue;
             }
-            record_use(&mut search, from.clone(), target_entry, proof.clone());
+            record_use(&mut search, source.clone(), target_entry, proof.clone());
         }
     }
-    return search;
+    // What: every entry the searched graph names, a use's source or its target.
+    // Why: the loop membership of the graph needs a node for each of them.
+    let mut nodes: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
+    for (from, targets) in &search {
+        nodes.insert(from.clone());
+        for to in targets.keys() {
+            nodes.insert(to.clone());
+        }
+    }
+    return (nodes.into_iter().collect::<Vec<PathBuf>>(), search);
+}
+
+/// What:
+///  Every use filed under the entry it reaches,
+///  which is the step a walk against the direction of the uses takes.
+/// Why:
+///  One index answers every group's walk.
+///  Building it inside the walk cost one pass over every use per group,
+///  measured at 5.9 to 6.6 times alpha.13's time on a package of 250 groups reached from 250 folders.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reverseIndex(entries: FolderUses): Map<Path, [Path, Proof][]>;
+/// ```
+fn reverse_index(entries: &FolderUses) -> BTreeMap<PathBuf, Vec<(PathBuf, Proof)>> {
+    let mut before: BTreeMap<PathBuf, Vec<(PathBuf, Proof)>> =
+        BTreeMap::<PathBuf, Vec<(PathBuf, Proof)>>::new();
+    for (from, targets) in entries {
+        for (to, proof) in targets {
+            before
+                .entry(to.clone())
+                .or_default()
+                .push((from.clone(), proof.clone()));
+        }
+    }
+    return before;
 }
 
 /// What:
@@ -533,24 +574,12 @@ fn own_loop_search(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function backSteps(entries: FolderUses, target: Path): Map<Path, [Path, Proof]>;
+/// function backSteps(before: Map<Path, [Path, Proof][]>, target: Path): Map<Path, [Path, Proof]>;
 /// ```
 fn back_steps(
-    entries: &FolderUses,
+    before: &BTreeMap<PathBuf, Vec<(PathBuf, Proof)>>,
     target: &Path,
 ) -> BTreeMap<PathBuf, (PathBuf, Proof)> {
-    // What: every use filed under the entry it reaches, which is the step a walk back takes.
-    // Why: a walk against the direction of the uses needs each target's sources together.
-    let mut before: BTreeMap<PathBuf, Vec<(PathBuf, Proof)>> =
-        BTreeMap::<PathBuf, Vec<(PathBuf, Proof)>>::new();
-    for (from, targets) in entries {
-        for (to, proof) in targets {
-            before
-                .entry(to.clone())
-                .or_default()
-                .push((from.clone(), proof.clone()));
-        }
-    }
     // What: the first step from each entry toward the target, and the entries already reached.
     // Why: the first walk to reach an entry is its shortest way back, and the set keeps a loop in the graph finite.
     let mut next: BTreeMap<PathBuf, (PathBuf, Proof)> =
@@ -577,38 +606,53 @@ fn back_steps(
 /// Why:
 ///  The finding about a group's own file names the use that closes the loop
 ///  and every use that closes it back, the way a loop finding does.
+///  The caller spells the steps,
+///  because the same steps are also the entry pairs the finding records.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function pathBack(next: Map<Path, [Path, Proof]>, target: Path, start: Path, base: Path): string[] | undefined;
+/// function pathBack(next: Map<Path, [Path, Proof]>, target: Path, start: Path): [Path, Path, Proof][] | undefined;
 /// ```
 fn path_back(
     next: &BTreeMap<PathBuf, (PathBuf, Proof)>,
     target: &Path,
     start: &Path,
-    base: &Path,
-) -> Option<Vec<String>> {
-    let mut steps: Vec<String> = Vec::<String>::new();
+) -> Option<Vec<(PathBuf, PathBuf, Proof)>> {
+    let mut steps: Vec<(PathBuf, PathBuf, Proof)> = Vec::<(PathBuf, PathBuf, Proof)>::new();
     let mut node: PathBuf = start.to_path_buf();
     while node != *target {
         // No step back means the walk never reached this entry, so the use closes no loop.
         let (after, proof) = next.get(&node)?;
-        steps.push(format!(
-            "{} uses {} (`{}` at {}:{})",
-            shown(&node, base),
-            shown(after, base),
-            proof.text,
-            shown(&proof.file, base),
-            proof.line
-        ));
+        steps.push((node.clone(), after.clone(), proof.clone()));
         node = after.clone();
     }
     return Some(steps);
 }
 
 /// What:
+///  One finding about a use written in a group's own file,
+///  with the entry pair its loop joins and the entry pairs its message names.
+/// Why:
+///  A list line for the use holds the loop the finding reported,
+///  so the check for a use that joins that loop needs the loop and the pairs the finding records.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OwnFileLoop = { finding: LayoutFinding; entries: [Path, Path]; named: Set<[Path, Path]> };
+/// ```
+struct OwnFileLoop {
+    /// The finding the rule reports.
+    finding: LayoutFinding,
+    /// The two entries the use joins.
+    entries: (PathBuf, PathBuf),
+    /// The entry pairs the message spells:
+    ///  the use itself and every step of the walk back.
+    named: BTreeSet<(PathBuf, PathBuf)>,
+}
+
+/// What:
 ///  The findings for a use written in a group's own file
-///  that closes a mutual dependency between its group and another entry.
+///  that closes a mutual dependency between its entry and another entry.
 /// Why:
 ///  A group's own code makes no edge of the entry graph
 ///  (the shelf rule reports the file and a group's summary is what its child folders use),
@@ -617,7 +661,9 @@ fn path_back(
 ///  and the allow list promises that new code cannot add one.
 ///  The search runs over the entry graph with every own-file use added as an edge,
 ///  so a loop that two own-file uses close is seen as one that a single use closes,
-///  and it walks back once per group whose own file holds a use rather than once per use.
+///  and it walks back once per entry whose own file holds a use rather than once per use.
+///  A group nested in another group leaves its uses from that outer entry,
+///  so a nested group is searched like any other.
 ///  A use the folder loop already holds is left to the loop checks,
 ///  which report it or the use added inside a tolerated loop.
 ///  A use of the group's own child folders joins no two entries and owes nothing.
@@ -628,7 +674,7 @@ fn path_back(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function groupOwnLoopUses(grouped: FolderUses, search: FolderUses, loops: FolderLoops, groups: Set<Path>, base: Path): LayoutFinding[];
+/// function groupOwnLoopUses(grouped: FolderUses, search: FolderUses, loops: FolderLoops, groups: Set<Path>, base: Path): OwnFileLoop[];
 /// ```
 fn group_own_loop_uses(
     grouped: &FolderUses,
@@ -636,53 +682,194 @@ fn group_own_loop_uses(
     loops: &FolderLoops,
     groups: &BTreeSet<PathBuf>,
     base: &Path,
-) -> Vec<LayoutFinding> {
-    let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
-    // What: the walk back from each group that its own file's uses need, built the first time one asks.
-    // Why: every use of one group needs the same answer, and one walk answers all of them.
+) -> Vec<OwnFileLoop> {
+    let mut findings: Vec<OwnFileLoop> = Vec::<OwnFileLoop>::new();
+    // What: the index of every use the walk reads, built the first time a group's own use asks for it.
+    // Why: every group's walk reads the same index, so building it once keeps the cost to one pass over the uses.
+    let mut reverse: Option<BTreeMap<PathBuf, Vec<(PathBuf, Proof)>>> = None;
+    // What: the walk back from each entry that its own file's uses need, built the first time one asks.
+    // Why: every use of one entry needs the same answer, and one walk answers all of them.
     let mut searched: BTreeMap<PathBuf, BTreeMap<PathBuf, (PathBuf, Proof)>> =
         BTreeMap::<PathBuf, BTreeMap<PathBuf, (PathBuf, Proof)>>::new();
     for (from, targets) in grouped {
         if !groups.contains(from) {
             continue;
         }
+        // What: the entry the group's own code belongs to, which is the outer group of a nested one.
+        // Why: the walk back starts at entries, so a nested group's own use must leave from its entry.
+        let source: PathBuf = entry_of(from, groups);
         for (to, proof) in targets {
             let target_entry: PathBuf = entry_of(to, groups);
             // A use inside the group itself joins no two entries.
-            if target_entry == *from {
+            if target_entry == source {
                 continue;
             }
             // A folder loop holding both folders already reports this use, or the use added inside a tolerated loop.
             if !shared_loops(loops, from, to, groups).is_empty() {
                 continue;
             }
-            let next: &BTreeMap<PathBuf, (PathBuf, Proof)> = searched
-                .entry(from.clone())
-                .or_insert_with(|| return back_steps(search, from));
-            let Some(back) = path_back(next, from, &target_entry, base) else {
+            if reverse.is_none() {
+                reverse = Some(reverse_index(search));
+            }
+            let Some(before) = reverse.as_ref() else {
                 continue;
             };
-            findings.push(LayoutFinding {
-                file: proof.file.clone(),
-                line: proof.line,
-                message: format!(
-                    "These entries use each other in a loop: {} uses {} (`{}`); {}.",
-                    shown(from, base),
-                    shown(to, base),
-                    proof.text,
-                    back.join("; ")
-                ),
-                help: Some(format!(
-                    "Remove the use in the own file of {}, or move that code into a child folder of it, so it and {} no longer use each other.",
-                    shown(from, base),
-                    shown(&target_entry, base)
-                )),
-                key: format!(
-                    "own-file-loop {} -> {}",
-                    key_path(from, base),
-                    key_path(to, base)
-                ),
+            let next: &BTreeMap<PathBuf, (PathBuf, Proof)> = searched
+                .entry(source.clone())
+                .or_insert_with(|| return back_steps(before, &source));
+            let Some(back) = path_back(next, &source, &target_entry) else {
+                continue;
+            };
+            // What: the entry pairs the finding's message spells, the use and every step back.
+            // Why: a line for this use holds exactly those pairs, so the check for a new use skips them.
+            let mut named: BTreeSet<(PathBuf, PathBuf)> = BTreeSet::<(PathBuf, PathBuf)>::new();
+            named.insert((source.clone(), target_entry.clone()));
+            let mut steps: Vec<String> = Vec::<String>::new();
+            for (step_from, step_to, step_proof) in &back {
+                named.insert((step_from.clone(), step_to.clone()));
+                steps.push(format!(
+                    "{} uses {} (`{}` at {}:{})",
+                    shown(step_from, base),
+                    shown(step_to, base),
+                    step_proof.text,
+                    shown(&step_proof.file, base),
+                    step_proof.line
+                ));
+            }
+            findings.push(OwnFileLoop {
+                finding: LayoutFinding {
+                    file: proof.file.clone(),
+                    line: proof.line,
+                    message: format!(
+                        "These entries use each other in a loop: {} uses {} (`{}`); {}.",
+                        shown(from, base),
+                        shown(to, base),
+                        proof.text,
+                        steps.join("; ")
+                    ),
+                    help: Some(format!(
+                        "Remove the use in the own file of {}, or move that code into a child folder of it, so it and {} no longer use each other.",
+                        shown(from, base),
+                        shown(&target_entry, base)
+                    )),
+                    key: format!(
+                        "own-file-loop {} -> {}",
+                        key_path(from, base),
+                        key_path(to, base)
+                    ),
+                },
+                entries: (source.clone(), target_entry),
+                named,
             });
+        }
+    }
+    return findings;
+}
+
+/// What:
+///  The loops a list line for an own-file use holds,
+///  each with the entry pairs the findings on that loop name.
+/// Why:
+///  A line holds the loop the finding reported,
+///  so only a loop whose every own-file finding is on the list may hide a use that joined it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function heldOwnFileLoops(ownFileLoops: OwnFileLoop[], ownLoops: Map<Path, number>, list: AllowList): Map<number, Set<[Path, Path]>>;
+/// ```
+fn held_own_file_loops(
+    own_file_loops: &[OwnFileLoop],
+    own_loops: &BTreeMap<PathBuf, usize>,
+    list: &AllowList,
+) -> BTreeMap<usize, BTreeSet<(PathBuf, PathBuf)>> {
+    let mut held: BTreeMap<usize, BTreeSet<(PathBuf, PathBuf)>> =
+        BTreeMap::<usize, BTreeSet<(PathBuf, PathBuf)>>::new();
+    // What: the loops one of whose own-file findings no line holds.
+    // Why: such a loop is reported by that finding, so its other uses need no finding of their own.
+    let mut reported: BTreeSet<usize> = BTreeSet::<usize>::new();
+    for item in own_file_loops {
+        let Some(number) = own_loops.get(&item.entries.0) else {
+            continue;
+        };
+        if !list.covers_key(item.finding.key.as_str()) {
+            reported.insert(*number);
+            continue;
+        }
+        held.entry(*number)
+            .or_default()
+            .extend(item.named.iter().cloned());
+    }
+    for number in reported {
+        held.remove(&number);
+    }
+    return held;
+}
+
+/// What:
+///  The findings for uses that join a loop an own-file line tolerates,
+///  and that no line of the list records.
+/// Why:
+///  A tolerated loop may only lose uses:
+///  a use added inside it joins a loop edge that no entry records,
+///  and no entry may be added for it,
+///  so the run says to remove the use or untangle the loop first.
+///  The pairs the tolerated finding's message spells are the loop it recorded;
+///  a use between two folders of one entry, and a use a folder loop holds,
+///  are left to the checks that report them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function usesJoiningAToleratedOwnFileLoop(grouped: FolderUses, ownLoops: Map<Path, number>, held: Map<number, Set<[Path, Path]>>, loops: FolderLoops, list: AllowList, groups: Set<Path>, base: Path): LayoutFinding[];
+/// ```
+fn uses_joining_a_tolerated_own_file_loop(
+    grouped: &FolderUses,
+    own_loops: &BTreeMap<PathBuf, usize>,
+    held: &BTreeMap<usize, BTreeSet<(PathBuf, PathBuf)>>,
+    loops: &FolderLoops,
+    list: &AllowList,
+    groups: &BTreeSet<PathBuf>,
+    base: &Path,
+) -> Vec<LayoutFinding> {
+    let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
+    for (from, targets) in grouped {
+        // A group's own use is reported by its own keyed finding.
+        if groups.contains(from) {
+            continue;
+        }
+        let from_entry: PathBuf = entry_of(from, groups);
+        let Some(number) = own_loops.get(&from_entry) else {
+            continue;
+        };
+        let Some(named) = held.get(number) else {
+            continue;
+        };
+        for (to, proof) in targets {
+            let to_entry: PathBuf = entry_of(to, groups);
+            // A use between two folders of one entry makes no edge of the entry graph.
+            if to_entry == from_entry {
+                continue;
+            }
+            if own_loops.get(&to_entry) != Some(number) {
+                continue;
+            }
+            if named
+                .iter()
+                .any(|pair| return pair.0 == from_entry && pair.1 == to_entry)
+            {
+                continue;
+            }
+            // The list holds the paths findings show, which are relative to the package folder.
+            if list.covers_use(
+                Path::new(key_path(from, base).as_str()),
+                Path::new(key_path(to, base).as_str()),
+            ) {
+                continue;
+            }
+            // A folder loop holding both folders already reports this use, or the use added inside a tolerated loop.
+            if !shared_loops(loops, from, to, groups).is_empty() {
+                continue;
+            }
+            findings.push(use_joining_a_tolerated_loop(from, to, proof, base));
         }
     }
     return findings;
@@ -757,6 +944,40 @@ fn tolerated_loops(
 }
 
 /// What:
+///  The finding for a use that joins a loop the list tolerates,
+///  and that no loop finding reports.
+/// Why:
+///  It carries no key,
+///  so no round can record a new loop edge;
+///  the loop is untangled first, or the use is removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function useJoiningAToleratedLoop(from: Path, to: Path, proof: Proof, base: Path): LayoutFinding;
+/// ```
+fn use_joining_a_tolerated_loop(
+    from: &Path,
+    to: &Path,
+    proof: &Proof,
+    base: &Path,
+) -> LayoutFinding {
+    return LayoutFinding {
+        file: proof.file.clone(),
+        line: proof.line,
+        message: format!(
+            "{} uses the folder {} (`{}`), and both sit inside one loop the allow list tolerates today; that loop holds this use, and no line of the list records it, so a tolerated loop may only lose uses.",
+            shown(from, base),
+            shown(to, base),
+            proof.text
+        ),
+        help: Some(String::from(
+            "Remove the use, or untangle that loop first: an allow-list entry records today's findings and a round never adds one.",
+        )),
+        key: String::new(),
+    };
+}
+
+/// What:
 ///  The findings for uses that join two folders already inside one tolerated loop,
 ///  and that no loop finding reports.
 /// Why:
@@ -802,20 +1023,7 @@ fn new_loop_uses(
             if !shared_loops(reported_loops, from, to, groups).is_empty() {
                 continue;
             }
-            findings.push(LayoutFinding {
-                file: proof.file.clone(),
-                line: proof.line,
-                message: format!(
-                    "{} uses the folder {} (`{}`), and both sit inside one loop the allow list tolerates today; that loop holds this use, and no line of the list records it, so a tolerated loop may only lose uses.",
-                    shown(from, base),
-                    shown(to, base),
-                    proof.text
-                ),
-                help: Some(String::from(
-                    "Remove the use, or untangle that loop first: an allow-list entry records today's findings and a round never adds one.",
-                )),
-                key: String::new(),
-            });
+            findings.push(use_joining_a_tolerated_loop(from, to, proof, base));
         }
     }
     return findings;
@@ -928,10 +1136,14 @@ pub fn check_folder_links(
     let loops: FolderLoops = loops_of_each_folder(&folder_list, &grouped, &groups);
     // A group's own file makes no entry edge, so only this check sees a loop it closes;
     // the searched graph holds those uses as edges, so a loop that two own-file uses close is seen too.
-    let search: FolderUses = own_loop_search(&groups, &grouped);
-    findings.extend(group_own_loop_uses(
-        &grouped, &search, &loops, &groups, base,
-    ));
+    let (search_nodes, search): (Vec<PathBuf>, FolderUses) = own_loop_search(&groups, &grouped);
+    let own_file_loops: Vec<OwnFileLoop> =
+        group_own_loop_uses(&grouped, &search, &loops, &groups, base);
+    findings.extend(
+        own_file_loops
+            .iter()
+            .map(|item| return item.finding.clone()),
+    );
     // Every key names one finding before a line can tolerate it, so a second finding of one shape is reported.
     unique_keys(&mut findings);
     let Some(list) = allow else {
@@ -948,6 +1160,13 @@ pub fn check_folder_links(
         list,
         &groups,
         base,
+    ));
+    // A line for an own-file use holds the loop the finding named, so a use that joins that loop is a finding too.
+    let own_loops: BTreeMap<PathBuf, usize> = loop_membership(search_nodes.as_slice(), &search);
+    let held: BTreeMap<usize, BTreeSet<(PathBuf, PathBuf)>> =
+        held_own_file_loops(&own_file_loops, &own_loops, list);
+    findings.extend(uses_joining_a_tolerated_own_file_loop(
+        &grouped, &own_loops, &held, &loops, list, &groups, base,
     ));
     let (mut kept, mut used): (Vec<LayoutFinding>, BTreeSet<usize>) = tolerated(findings, list);
     used.extend(live_use_entries(&grouped, &loops, list, &groups, base));

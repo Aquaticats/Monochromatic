@@ -310,44 +310,44 @@ fn where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back() 
     ) {
         return;
     }
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back",
-    ) {
-        return;
-    }
-    hold_the_blocking_jobs_to(1);
-    let ran: Arc<std::sync::atomic::AtomicBool> =
-        Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let flag: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&ran);
-    let outcomes = run_on_runtime(async {
-        let first = run_blocking_job_within_the_budget(move || {
-            flag.store(true, Ordering::SeqCst);
-        })
-        .await;
-        let second = tokio::time::timeout(
-            PATIENCE,
-            run_blocking_job_within_the_budget(|| {
-                return 5_u8;
-            }),
-        )
-        .await;
-        return (first, second);
-    })
-    .expect("a current-thread runtime stands in where no thread can start");
-    assert_eq!(
-        outcomes.0,
-        Err(BlockingJobError::NoThreadToStart),
-        "the first job had not run when the refusal was reported"
+        || {
+            hold_the_blocking_jobs_to(1);
+            let ran: Arc<std::sync::atomic::AtomicBool> =
+                Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let flag: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&ran);
+            let outcomes = run_on_runtime(async {
+                let first = run_blocking_job_within_the_budget(move || {
+                    flag.store(true, Ordering::SeqCst);
+                })
+                .await;
+                let second = tokio::time::timeout(
+                    PATIENCE,
+                    run_blocking_job_within_the_budget(|| {
+                        return 5_u8;
+                    }),
+                )
+                .await;
+                return (first, second);
+            })
+            .expect("a current-thread runtime stands in where no thread can start");
+            assert_eq!(
+                outcomes.0,
+                Err(BlockingJobError::NoThreadToStart),
+                "the first job had not run when the refusal was reported"
+            );
+            assert_eq!(
+                outcomes
+                    .1
+                    .expect("the place of a job refused a thread was never given back"),
+                Err(BlockingJobError::NoThreadToStart),
+                "the second job had not run either, so the first job's place was given back"
+            );
+            assert!(!ran.load(Ordering::SeqCst), "a job ran inline");
+        },
     );
-    assert_eq!(
-        outcomes
-            .1
-            .expect("the place of a job refused a thread was never given back"),
-        Err(BlockingJobError::NoThreadToStart),
-        "the second job had not run either, so the first job's place was given back"
-    );
-    assert!(!ran.load(Ordering::SeqCst), "a job ran inline");
 }
 
 /// How many blocking threads the control of a refused job's place keeps in its own runtime,
@@ -379,57 +379,58 @@ fn a_job_the_pool_queued_after_a_refusal_does_not_run() {
     ) {
         return;
     }
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "a_job_the_pool_queued_after_a_refusal_does_not_run",
-    ) {
-        return;
-    }
-    hold_the_blocking_jobs_to(BOUND_HELD_TO);
-    // A runtime with a pool deep enough for the jobs below, built while a thread may start.
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises");
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .max_blocking_threads(POOL_THREADS_FOR_THE_CONTROL)
-        .enable_all()
-        .build()
-        .expect("a runtime with a deep pool");
-    // Every thread is refused: the first job is queued, and its frame is told it did not start.
-    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
-    let ran: Arc<std::sync::atomic::AtomicBool> =
-        Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let queued = Arc::clone(&ran);
-    let refused = runtime.block_on(async move {
-        return run_blocking_job_within_the_budget(move || {
-            queued.store(true, Ordering::SeqCst);
-        })
-        .await;
-    });
-    assert_eq!(
-        refused,
-        Err(BlockingJobError::NoThreadToStart),
-        "no thread could start the first job"
+        || {
+            hold_the_blocking_jobs_to(BOUND_HELD_TO);
+            // A runtime with a pool deep enough for the jobs below, built while a thread may start.
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises");
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .max_blocking_threads(POOL_THREADS_FOR_THE_CONTROL)
+                .enable_all()
+                .build()
+                .expect("a runtime with a deep pool");
+            // Every thread is refused: the first job is queued, and its frame is told it did not start.
+            crate::no_threads_child_test_support::refuse_threads_again()
+                .expect("the process limit falls");
+            let ran: Arc<std::sync::atomic::AtomicBool> =
+                Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let queued = Arc::clone(&ran);
+            let refused = runtime.block_on(async move {
+                return run_blocking_job_within_the_budget(move || {
+                    queued.store(true, Ordering::SeqCst);
+                })
+                .await;
+            });
+            assert_eq!(
+                refused,
+                Err(BlockingJobError::NoThreadToStart),
+                "no thread could start the first job"
+            );
+            assert!(
+                !ran.load(Ordering::SeqCst),
+                "the first job had not run when the refusal was reported"
+            );
+            // A thread may start again, and the pool's first new thread runs what it queued before anything else.
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises again");
+            let kicked = runtime.block_on(async {
+                return run_blocking_job_within_the_budget(|| ()).await;
+            });
+            assert!(
+                kicked.is_ok(),
+                "the job that starts the pool's first thread ran: {kicked:?}"
+            );
+            assert!(
+                !ran.load(Ordering::SeqCst),
+                "the job the report gave up on ran afterwards with no place of the bound held for it, so the bound no longer covers every running blocking job"
+            );
+            let _kept: tokio::runtime::Runtime = runtime;
+        },
     );
-    assert!(
-        !ran.load(Ordering::SeqCst),
-        "the first job had not run when the refusal was reported"
-    );
-    // A thread may start again, and the pool's first new thread runs what it queued before anything else.
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises again");
-    let kicked = runtime.block_on(async {
-        return run_blocking_job_within_the_budget(|| ()).await;
-    });
-    assert!(
-        kicked.is_ok(),
-        "the job that starts the pool's first thread ran: {kicked:?}"
-    );
-    assert!(
-        !ran.load(Ordering::SeqCst),
-        "the job the report gave up on ran afterwards with no place of the bound held for it, so the bound no longer covers every running blocking job"
-    );
-    let _kept: tokio::runtime::Runtime = runtime;
 }
 
 /// How long the control of a cancelled job lets the pool run after the caller stopped waiting.
@@ -625,27 +626,27 @@ fn count_the_run(state: Arc<AtomicUsize>) -> usize {
 /// The body runs in a child that is refused every thread.
 #[test]
 fn a_job_refused_a_thread_runs_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "a_job_refused_a_thread_runs_in_turn",
-    ) {
-        return;
-    }
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("a current-thread runtime");
-    let runs: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let value = runtime.block_on(run_a_job_or_in_turn(Arc::clone(&runs), count_the_run));
-    assert_eq!(
-        value,
-        Ok(1),
-        "the work gave its value from the task that awaited it"
-    );
-    assert_eq!(
-        runs.load(std::sync::atomic::Ordering::SeqCst),
-        1,
-        "the work ran once, in turn"
+        || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("a current-thread runtime");
+            let runs: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+            let value = runtime.block_on(run_a_job_or_in_turn(Arc::clone(&runs), count_the_run));
+            assert_eq!(
+                value,
+                Ok(1),
+                "the work gave its value from the task that awaited it"
+            );
+            assert_eq!(
+                runs.load(std::sync::atomic::Ordering::SeqCst),
+                1,
+                "the work ran once, in turn"
+            );
+        },
     );
 }
 
@@ -696,57 +697,58 @@ fn a_fallback_that_runs_in_turn_holds_a_place_of_the_bound() {
     ) {
         return;
     }
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "a_fallback_that_runs_in_turn_holds_a_place_of_the_bound",
-    ) {
-        return;
-    }
-    hold_the_blocking_jobs_to(ONE_PLACE);
-    // The runtime is built while a thread may start,
-    // because the workers the control reads the bound beside are threads too.
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises");
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .enable_all()
-        .build()
-        .expect("a runtime of two workers");
-    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
-    assert_eq!(
-        budget().places.available_permits(),
-        ONE_PLACE,
-        "the control can see the process's one place while no work runs"
-    );
-    let (inside, has_inside) = std::sync::mpsc::channel::<()>();
-    let (release, waiting) = std::sync::mpsc::channel::<()>();
-    let ran = runtime.spawn(async move {
-        return run_a_job_or_in_turn(
-            (inside, Arc::new(Mutex::new(waiting))),
-            tell_and_wait_inside,
-        )
-        .await;
-    });
-    assert!(
-        has_inside.recv_timeout(PATIENCE).is_ok(),
-        "the fallback never reached its work, so the system did not refuse its thread"
-    );
-    let free: usize = budget().places.available_permits();
-    let _let_go = release.send(());
-    let ended = runtime.block_on(async {
-        return tokio::time::timeout(PATIENCE, ran).await;
-    });
-    std::mem::forget(runtime);
-    assert_eq!(
-        ended
-            .expect("the fallback ended")
-            .expect("the fallback's task"),
-        Ok(true),
-        "the work ended when the control let it go"
-    );
-    assert_eq!(
-        free, 0,
-        "the fallback ran its blocking work with the process's place free, so a second job took that place and both ran at once"
+        || {
+            hold_the_blocking_jobs_to(ONE_PLACE);
+            // The runtime is built while a thread may start,
+            // because the workers the control reads the bound beside are threads too.
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises");
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .expect("a runtime of two workers");
+            crate::no_threads_child_test_support::refuse_threads_again()
+                .expect("the process limit falls");
+            assert_eq!(
+                budget().places.available_permits(),
+                ONE_PLACE,
+                "the control can see the process's one place while no work runs"
+            );
+            let (inside, has_inside) = std::sync::mpsc::channel::<()>();
+            let (release, waiting) = std::sync::mpsc::channel::<()>();
+            let ran = runtime.spawn(async move {
+                return run_a_job_or_in_turn(
+                    (inside, Arc::new(Mutex::new(waiting))),
+                    tell_and_wait_inside,
+                )
+                .await;
+            });
+            assert!(
+                has_inside.recv_timeout(PATIENCE).is_ok(),
+                "the fallback never reached its work, so the system did not refuse its thread"
+            );
+            let free: usize = budget().places.available_permits();
+            let _let_go = release.send(());
+            let ended = runtime.block_on(async {
+                return tokio::time::timeout(PATIENCE, ran).await;
+            });
+            std::mem::forget(runtime);
+            assert_eq!(
+                ended
+                    .expect("the fallback ended")
+                    .expect("the fallback's task"),
+                Ok(true),
+                "the work ended when the control let it go"
+            );
+            assert_eq!(
+                free, 0,
+                "the fallback ran its blocking work with the process's place free, so a second job took that place and both ran at once"
+            );
+        },
     );
 }
 

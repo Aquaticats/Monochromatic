@@ -446,36 +446,37 @@ fn with_a_recording_stale_launcher(scene: &Scene) {
 /// The body runs in a child that is refused every thread.
 #[test]
 fn a_refused_system_is_reported_in_plain_words_and_changes_nothing() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "a_refused_system_is_reported_in_plain_words_and_changes_nothing",
-    ) {
-        return;
-    }
-    // The fixture tools are started as processes of their own, so the limit is lifted while the scene is made and put
-    //  back for the part this control measures.
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises");
-    let scene: Scene = scene("repair-refused");
-    fake_pnpm(&scene, 0);
-    let lockfile: PathBuf = scene.destination.join("pnpm-lock.yaml");
-    let before: Vec<u8> = std::fs::read(lockfile.as_path()).expect("the lockfile");
-    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
-    let (findings, printed) = repair(&scene, RepairSwitch::default());
-    let Outcome::Failed {
-        reason,
-        run_instead,
-    } = &findings[0].outcome
-    else {
-        panic!("expected a failure: {findings:?} {printed}")
-    };
-    assert_eq!(findings[0].tool, Tool::Pnpm, "{findings:?}");
-    assert!(reason.contains("pnpm"), "{reason}");
-    assert!(printed.contains(run_instead.as_str()), "{printed}");
-    assert_eq!(
-        std::fs::read(lockfile.as_path()).expect("the lockfile"),
-        before,
-        "the repair changed the worktree"
+        || {
+            // The fixture tools are started as processes of their own, so the limit is lifted while the scene is made and put
+            //  back for the part this control measures.
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises");
+            let scene: Scene = scene("repair-refused");
+            fake_pnpm(&scene, 0);
+            let lockfile: PathBuf = scene.destination.join("pnpm-lock.yaml");
+            let before: Vec<u8> = std::fs::read(lockfile.as_path()).expect("the lockfile");
+            crate::no_threads_child_test_support::refuse_threads_again()
+                .expect("the process limit falls");
+            let (findings, printed) = repair(&scene, RepairSwitch::default());
+            let Outcome::Failed {
+                reason,
+                run_instead,
+            } = &findings[0].outcome
+            else {
+                panic!("expected a failure: {findings:?} {printed}")
+            };
+            assert_eq!(findings[0].tool, Tool::Pnpm, "{findings:?}");
+            assert!(reason.contains("pnpm"), "{reason}");
+            assert!(printed.contains(run_instead.as_str()), "{printed}");
+            assert_eq!(
+                std::fs::read(lockfile.as_path()).expect("the lockfile"),
+                before,
+                "the repair changed the worktree"
+            );
+            remove(&scene.root);
+        },
     );
-    remove(&scene.root);
 }

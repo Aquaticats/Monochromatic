@@ -38,7 +38,10 @@ use crate::{
         LayoutFinding,
         key_path,
     },
-    layout_folder_index_files::name_ending_in_trimmed_whitespace,
+    layout_folder_index_files::{
+        UnlistableName,
+        unlistable_name_part,
+    },
     layout_folder_links::check_folder_links,
     layout_line_spans::LineSpans,
     layout_module_tree::{
@@ -272,28 +275,29 @@ fn note_keys(
 
 /// What:
 ///  The first module file of a package whose path below the package holds a name
-///  ending in a character the allow-list reader trims away,
+///  that no list line could hold,
 ///  with that path and the name written with the character escaped.
 /// Why:
-///  Every key about that file or that folder ends with the name,
+///  Every key about that file or that folder holds the name,
 ///  and a line that ends in a trimmed character reads as if the character were not there,
-///  so no finding about it could be written down;
+///  while a line ends at a newline,
+///  so no finding about such a file could be written down;
 ///  a run over such a tree would report findings no list can hold.
 ///  The walk uses the key spelling of the path,
 ///  so the parts checked are exactly the parts the keys are built from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unlistableName(tree: ModuleTree, base: Path): [Path, string] | undefined;
+/// function unlistableName(tree: ModuleTree, base: Path): [Path, string, UnlistableName] | undefined;
 /// ```
 fn unlistable_name(
     tree: &ModuleTree,
     base: &Path,
-) -> Option<(PathBuf, String)> {
+) -> Option<(PathBuf, String, UnlistableName)> {
     for module in &tree.modules {
         let written: String = key_path(&module.file, base);
         let mut parts: Vec<String> = Vec::<String>::new();
-        let mut unlistable: bool = false;
+        let mut unlistable: Option<UnlistableName> = None;
         for part in written.split('/') {
             // What: the parts that name no folder, kept as written.
             // Why: the package folder and the walk to a file outside it carry no name to check.
@@ -301,16 +305,18 @@ fn unlistable_name(
                 parts.push(String::from(part));
                 continue;
             }
-            match name_ending_in_trimmed_whitespace(part) {
-                Some(escaped) => {
-                    unlistable = true;
+            match unlistable_name_part(part) {
+                Some((escaped, reason)) => {
+                    if unlistable.is_none() {
+                        unlistable = Some(reason);
+                    }
                     parts.push(escaped);
                 }
                 None => parts.push(String::from(part)),
             }
         }
-        if unlistable {
-            return Some((module.file.clone(), parts.join("/")));
+        if let Some(reason) = unlistable {
+            return Some((module.file.clone(), parts.join("/"), reason));
         }
     }
     return None;
@@ -370,12 +376,24 @@ fn check_package(
     }
     // What: the first name of the package the list reader could never read back.
     // Why: the rules cannot answer for a tree whose findings no line could hold.
-    if let Some((file, written)) = unlistable_name(&tree, package) {
+    if let Some((file, written, reason)) = unlistable_name(&tree, package) {
+        // What: the reason, and what renaming the file must give, in the words of the refusal.
+        // Why: a name fails for one of two causes, and the reader must know which one to fix.
+        let (why, fix): (&str, &str) = match reason {
+            UnlistableName::EndsInTrimmedWhitespace => (
+                "its name ends in whitespace that an allow-list reader trims away",
+                "its name ends in a visible character",
+            ),
+            UnlistableName::HoldsLineBreak => (
+                "its name holds a line break, which ends a list line",
+                "its name holds no line break",
+            ),
+        };
         outcome.findings.push(processing_failure(
             display_name(&file, cwd).as_str(),
             spans.span(&file, 1),
             format!(
-                "The layout rules stop at {written}, because its name ends in whitespace that an allow-list reader trims away, so no key could name it and no line could tolerate a finding about it. Rename it so its name ends in a visible character, then run the rules again."
+                "The layout rules stop at {written}, because {why}, so no key could name it and no line could tolerate a finding about it. Rename it so {fix}, then run the rules again."
             ),
         ));
         return;

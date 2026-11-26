@@ -9,6 +9,7 @@
  */
 
 import { spawn, } from 'node:child_process';
+import { env, } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { POLL_MILLISECONDS, } from '../dist/final/node/index.mjs';
 import {
@@ -28,9 +29,41 @@ import {
 export const WORK_MILLISECONDS = 1_500;
 
 /**
- Milliseconds the work takes when it outlasts the run, so the run can only end on its own wall clock.
+ Milliseconds the work takes when it outlasts the run, so the run can only end on its own wall clock. A test that sized the run's
+ wall clock from this host names its own figure in `STAND_IN_PI_WORK_MILLISECONDS`, so that the work outlasts whatever clock the
+ host made it size; this is what the work takes when no test names one.
  */
 export const WORK_BEYOND_THE_RUN_MILLISECONDS = 30_000;
+
+/**
+ The variable that names how long the work of the play that outlasts a run lives, in milliseconds.
+ */
+const WORK_MILLISECONDS_VARIABLE = 'STAND_IN_PI_WORK_MILLISECONDS';
+
+/**
+ Milliseconds the work of the play that outlasts a run lives, as the starting test named them.
+
+ @returns the milliseconds that work lives
+
+ @throws Error when the variable names no positive number of milliseconds
+ */
+function millisecondsBeyondTheRun(): number {
+  /**
+   What the starting test named, if it named anything.
+   */
+  const named = env[WORK_MILLISECONDS_VARIABLE];
+  if (named === undefined) {
+    return WORK_BEYOND_THE_RUN_MILLISECONDS;
+  }
+  /**
+   That value, as a number of milliseconds.
+   */
+  const milliseconds = Number(named,);
+  if ((!Number.isFinite(milliseconds,)) || (milliseconds <= 0)) {
+    throw new Error(`${WORK_MILLISECONDS_VARIABLE} must name a positive number of milliseconds; it named "${named}"`,);
+  }
+  return milliseconds;
+}
 
 /**
  Milliseconds in a second, which `sleep` takes its argument in.
@@ -196,7 +229,7 @@ export const workPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<st
     function leaveWorkThatOutlasts(id,) {
       void leaveWorkRunning({
         id,
-        milliseconds: WORK_BEYOND_THE_RUN_MILLISECONDS,
+        milliseconds: millisecondsBeyondTheRun(),
       },);
     },
   ],

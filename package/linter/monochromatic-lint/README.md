@@ -928,16 +928,28 @@ so a finding is never reported twice.
   a mutual dependency that two groups' own files close,
   which is one finding for each of the two uses,
   and a ring of entries that any number of own-file uses close.
+  A group nested in another group is searched too:
+  it is its outer group's entry,
+  so a use in its own file leaves from that entry,
+  and the entry the finding names in its key is the nested group's folder.
   The shapes it does not report are:
   a use of the group's own child folders,
   which joins no two entries;
   a use a folder loop already holds,
   which the loop checks report;
   and a use of an entry whose own code never reaches the group.
-  The walk back runs once for each group whose own file holds a use,
-  and each walk reads every use of the package once,
-  so the cost follows the uses a package holds, not the square of them.
+  The index of every use is built once for the package,
+  and each walk back reads only the entries it reaches,
+  so the walk costs what reading the graph costs.
+  Measured on 2026-11-26 on a package of 250 groups reached from 250 folders,
+  each folder using one child folder of every group and each group's own file using one folder that reaches nothing:
+  alpha.13 took 3.0 and 3.3 seconds on two runs,
+  alpha.14 took 13.6 seconds,
+  and this release takes 3.2 and 3.7 seconds,
+  1.09 and 1.10 times alpha.13's time on the same tree,
+  with byte-identical output.
   Every such finding is keyed `own-file-loop <group> -> <used folder>`,
+  where the group is the folder whose own file holds the use,
   so a tree that already holds one can record it on a list,
   and no `uses` link is owed for any of these uses.
 - A group's `uses` folder holds one link for every other entry that a folder inside the group uses,
@@ -1309,15 +1321,35 @@ Every key names exactly one finding:
   `below-uses`,
   `summary-missing` or `summary-extra`.
   `own-file-loop` is the word of the one loop finding a list can hold.
+- A finding of the file checks starts with its own shape word:
+  `no-top-doc`,
+  `no-file-list`,
+  `unreadable-index`,
+  `index-item`,
+  `space-in-file-name`,
+  `listed-twice`,
+  `foreign-name`,
+  `missing-entry` or
+  `order`.
+  `order <index file> <file> <file>` names the file that uses a file its top doc lists after it.
 - A key about a file or a folder writes its path relative to the package folder,
   and the package folder itself is written `.`,
   so `no-top-doc .` and `missing-link . -> sub` name it,
-  and no key ends in the space a list reader trims away:
-  a module file or folder whose name ends in a space, a tab or another character the reader trims
+  and no key ends in the space a list reader trims away,
+  and none holds a newline either:
+  a name that ends in a space, a tab or another character the reader trims,
+  or that holds a line break,
   is refused before any check,
   with one `core/processing-failure` that spells that character and names the file.
+  The refusal covers every file and folder the walk reads,
+  a crate root and a `src/bin` root included,
+  because a key about any of them would hold the name (`index-item`, `no-file-list`, `missing-entry`, `order`).
   A top doc entry is read without the whitespace at the end of its backticks,
   so an entry written `x.rs ` names the file `x.rs` and no key carries that space.
+  An entry whose backticks hold no name at all is keyed by its shape and index alone,
+  `foreign-name <index file>` or `listed-twice <index file>`,
+  with `#2` for a second such entry,
+  so a line can hold it.
   A module file outside the package,
   which a `#[path]` attribute can declare,
   is written by the walk from the package folder:
@@ -1366,6 +1398,11 @@ and the list's own record of today's findings is the only thing that does:
   so no round can record a new loop edge:
   the use is removed,
   or that loop is untangled first.
+- A line for a use written in a group's own file holds the loop its finding named:
+  the use itself and every step of the walk back the finding spells.
+  A use that joins that loop is a finding of the same kind,
+  carrying no key,
+  so the loop is untangled before new code can join it.
 - A loop finding of folders, entries or files carries no key,
   and neither does the use added inside a tolerated loop,
   so no entry can tolerate either.
@@ -1525,7 +1562,9 @@ and every other line stays as it is.
 - A module file or folder whose name ends in whitespace is refused with one `core/processing-failure`,
   so the keys its findings carried are gone and the file is renamed rather than recorded.
 - A top doc entry with whitespace before its closing backtick names the file without that whitespace,
-  so a `foreign-name` or `listed-twice` line written for such an entry is dead.
+  so the `missing-entry <index file> <file>` line alpha.13 needed is dead.
+  A `foreign-name` or `listed-twice` line written for such an entry could never have been alive,
+  because alpha.13's key for it ended in the character the list reader trims away.
 - The own-file walk back runs once for each group whose own file holds a use,
   where alpha.13 ran it once for each such use.
   On a package of 2,000 folders whose one group's own file uses all of them,
@@ -1533,6 +1572,27 @@ and every other line stays as it is.
   while the same graph with an empty own file took about 1 second on both
   (one run of each per round, 2026-11-26),
   so the walk now costs what reading the graph costs.
+
+#### How a list written before alpha.15 maps
+
+A tree that holds one of these shapes needs one regeneration,
+and every other line stays as it is.
+
+- A top doc entry whose backticks hold no name, or only whitespace,
+  is keyed `foreign-name <index file>` or `listed-twice <index file>` without a name,
+  with `#2` for a second such entry,
+  where alpha.14 ended the key in the space the list reader trims away,
+  so no line could hold it.
+- A module file or folder whose name holds a line break is refused with one `core/processing-failure`,
+  so the keys its findings carried are gone and the file is renamed rather than recorded.
+- A use that joins a loop a listed `own-file-loop` line tolerates is a finding with no key,
+  so a tree that holds one untangles that loop rather than recording the use;
+  alpha.14 reported nothing there.
+- A use written in the own file of a group nested in another group
+  that closes a loop now carries the key `own-file-loop <nested group> -> <used folder>`;
+  alpha.14 did not search a nested group's own file.
+- The walk back reads the uses once for the package rather than once for each group whose own file holds a use,
+  which costs no list line.
 
 ### Known limits
 
@@ -1579,7 +1639,9 @@ and every other line stays as it is.
   so it gets no such finding,
   and its own keys hold its name as written, which a line reads.
   A name that ends in a space, a tab or another character the list reader trims is refused before any check,
-  because no key could end in that character.
+  because no key could end in that character,
+  and so is a name that holds a line break,
+  because a list line ends at one.
 - A macro call's key holds its whole argument text,
   so a call written over 6,000 lines gave an 87,828-character key (measured 2026-11-26),
   and any edit inside the call changes that key.
@@ -1630,7 +1692,7 @@ and its `layout-git-policy-cli` block selects them for `package/git-policy/cli`
 with the crate's two lists,
 so both commands check the crate's per-file rules and its layout.
 The block came from branch `chore/git-policy-cli-layout-rules-on-with-a-shrinking-allow-list`,
-which merged on 2026-11-25.
+which merged on 2026-11-26 (`a1b9b1e850`, 2026-11-26T00:17:50-05:00).
 The package's container gate (`native:test:container`) runs neither rule,
 because it runs Clippy and the test suite and never the repository linter,
 so a round that only runs the gate does not meet the layout rules;

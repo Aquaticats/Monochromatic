@@ -5,7 +5,7 @@
 //! `thread_probe`,
 //! that tries to start one thread and prints whether it could.
 //! Why:
-//! `ran_in_child` starts it first in a child whose process limit is one;
+//! `run_the_body_where_no_thread_can_start` starts it first in a child whose process limit is one;
 //! if a thread still starts there,
 //! this user may exceed the limit,
 //! so the real test is skipped instead of proving nothing.
@@ -41,7 +41,7 @@ fn thread_probe() {
 
 /// What:
 ///  Lowering this process's limit on the processes and threads it starts is refused
-///  outside the child that `ran_in_child` started.
+///  outside the child that `run_the_body_where_no_thread_can_start` started.
 /// Why:
 ///  The limit belongs to the whole process,
 ///  and a control that lowers it where a threaded run keeps its tests stops every other test's starts with
@@ -56,7 +56,7 @@ fn refusing_the_thread_limit_outside_the_child_is_refused() {
 }
 
 /// What:
-///  Giving the room for threads back is refused outside the child that `ran_in_child` started,
+///  Giving the room for threads back is refused outside the child that `run_the_body_where_no_thread_can_start` started,
 ///  as the refusal itself is.
 /// Why:
 ///  It is the same limit of the same process,

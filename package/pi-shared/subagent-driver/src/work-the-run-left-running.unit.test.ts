@@ -278,6 +278,12 @@ const FIRST_PROCESS = 1;
 const REAL_PROCESS_SECONDS = 60;
 
 /**
+ The program the work a shell of a test's is told to run is, as the kernel names it in `comm`: the child such a shell starts, and
+ the one a test reads the records of.
+ */
+const WORK_PROGRAM = 'sleep';
+
+/**
  Milliseconds between two looks while a test waits for a process to be handed over, or to be gone.
  */
 const LOOK_MILLISECONDS = 50;
@@ -633,23 +639,75 @@ async function waitUntilGone({ pid, }: { readonly pid: number },): Promise<void>
 }
 
 /**
- Waits, bounded, until a process has a child, which it reads from the kernel's own record of that process's children.
+ Reads the program the kernel names for a process, by its number.
 
- The record is the one the kernel keeps per thread (`/proc/<pid>/task/<pid>/children`), and a shell forks the child this reads from
- its own thread.
+ A process that ended between the listing that named it and this read is one the operating system no longer has: Linux answers
+ `ESRCH` for a record whose task it released, and `ENOENT` for one already removed, and the driver counts both as a process
+ that is gone (`PROCESS_ENDED_CODES` in `src/process-ended-codes.ts`). The answer here is empty text for that case, which is
+ what a reader needs of a child that comes and goes while it waits for the one it owns.
 
- @param pid - the process whose child is waited for
+ @param pid - the process's number
 
- @returns the child's process number
-
- @throws when the process has no child when the bound is spent
+ @returns the program's name, or empty text when the process folder no longer holds it
 
  @example
  ```ts
- const child = await waitForAChildOf({ pid: 486667, },);
+ const program = await programShownByMachine({ pid: 486667, },);
  ```
  */
-async function waitForAChildOf({ pid, }: { readonly pid: number },): Promise<number> {
+async function programShownByMachine({ pid, }: { readonly pid: number },): Promise<string> {
+  try {
+    return (await readFile(
+      join(
+        REAL_PROCESS_FOLDER,
+        String(pid,),
+        'comm',
+      ),
+      'utf8',
+    )).trim();
+  }
+  catch (error) {
+    /**
+     The code the operating system answered with.
+     */
+    const { code, } = error as NodeJS.ErrnoException;
+    if ((code === 'ENOENT') || (code === 'ESRCH')) {
+      return '';
+    }
+    throw error;
+  }
+}
+
+/**
+ Waits, bounded, until a process has a child running the program given, which it reads from the kernel's own record of that
+ process's children.
+
+ The record is the one the kernel keeps per thread (`/proc/<pid>/task/<pid>/children`), and a shell forks the child this reads from
+ its own thread. A login shell runs this machine's profile scripts first, and each of those forks a child of its own that ends
+ before the work starts: the kernel lists such a child only while it lasts, so a child whose program can no longer be read is one
+ of those and not the work the shell was told to run, and the wait goes on. The child that runs that program is the work itself,
+ which lasts far longer than the test, so the test owns it by the time it reads anything of it.
+
+ @param pid - the process whose child is waited for
+
+ @param program - the program that child runs, as the kernel names it
+
+ @returns the child's process number
+
+ @throws Error when the process has no child running that program when the bound is spent
+
+ @example
+ ```ts
+ const child = await waitForAChildRunning({ pid: 486667, program: 'sleep', },);
+ ```
+ */
+async function waitForAChildRunning({
+  pid,
+  program,
+}: {
+  readonly pid: number;
+  readonly program: string;
+},): Promise<number> {
   /**
    The file the kernel writes that process's children into.
    */
@@ -671,15 +729,25 @@ async function waitForAChildOf({ pid, }: { readonly pid: number },): Promise<num
     // oxlint-disable-next-line eslint/no-await-in-loop -- a look, then a pause, then the next look; see doc/lint/sequential-awaits.md
     const shown = await readFile(childrenFile, 'utf8',);
     /**
-     The first of them.
+     Those numbers, as the kernel wrote them.
      */
-    const [first = '',] = shown.trim()
+    const listed = shown.trim()
       .split(' ',);
-    if (first !== '') {
-      return Number(first,);
+    for (const childText of listed) {
+      if (childText === '') {
+        continue;
+      }
+      /**
+       The program the kernel names for that child, or empty text when it ended before its name could be read.
+       */
+      // oxlint-disable-next-line eslint/no-await-in-loop -- each child listed is read in turn until one runs the work
+      const named = await programShownByMachine({ pid: Number(childText,), },);
+      if (named === program) {
+        return Number(childText,);
+      }
     }
     if (Date.now() >= deadline) {
-      throw new Error(`${String(pid,)} started no child`,);
+      throw new Error(`${String(pid,)} started no child running ${program}`,);
     }
     // oxlint-disable-next-line eslint/no-await-in-loop -- the same wait, one look at a time; see doc/lint/sequential-awaits.md
     await wait(LOOK_MILLISECONDS,);
@@ -705,7 +773,7 @@ async function startAShellWhoseChildWorks({ folder, }: { readonly folder: string
     'sh',
     [
       '-lc',
-      `sleep ${String(REAL_PROCESS_SECONDS,)}; :`,
+      `${WORK_PROGRAM} ${String(REAL_PROCESS_SECONDS,)}; :`,
     ],
     {
       cwd: folder,
@@ -725,9 +793,13 @@ async function startAShellWhoseChildWorks({ folder, }: { readonly folder: string
    */
   const shellPid: number = startedPid;
   /**
-   The child the shell runs, which keeps the folder and the parent it was given.
+   The child the shell runs, which keeps the folder and the parent it was given, and which is the work itself rather than one
+   of the profile scripts a login shell runs first.
    */
-  const childPid = await waitForAChildOf({ pid: shellPid, },);
+  const childPid = await waitForAChildRunning({
+    pid: shellPid,
+    program: WORK_PROGRAM,
+  },);
   /**
    Ends both, through the process group the shell leads: the group is the number the kernel gave the shell, so killing it ends
    the child with it, and nothing outside the group is signalled.

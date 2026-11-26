@@ -60,19 +60,45 @@ pub(crate) fn file_name(file: &Path) -> String {
 }
 
 /// What:
-///  Whether a name ends in a character the allow-list reader trims away,
-///  and that name with the character written as an escape.
+///  Why one name can never be written on a list line.
+/// Why:
+///  The two reasons give the refusal two sentences,
+///  so the message says which one the name earns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type UnlistableName = 'ends-in-trimmed-whitespace' | 'holds-a-line-break';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum UnlistableName {
+    /// The name ends in a character the list reader trims away.
+    EndsInTrimmedWhitespace,
+    /// The name holds a line break, which ends a list line.
+    HoldsLineBreak,
+}
+
+/// What:
+///  Whether a name can never be written on a list line,
+///  and that name with every such character written as an escape.
 /// Why:
 ///  A list line is read without the spaces and tabs around it,
 ///  so a key that ends in one can never be written on a line;
 ///  a module file named `x.rs ` or `x.rs<TAB>` would key findings no line could hold.
+///  A key also never holds a newline,
+///  because a list line ends at one,
+///  so a name that holds a line break is refused for the same reason.
 ///  The escape spells the character a reader cannot see, so the message names the file exactly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function nameEndingInTrimmedWhitespace(name: string): string | undefined;
+/// function unlistableNamePart(name: string): [string, UnlistableName] | undefined;
 /// ```
-pub(crate) fn name_ending_in_trimmed_whitespace(name: &str) -> Option<String> {
+pub(crate) fn unlistable_name_part(name: &str) -> Option<(String, UnlistableName)> {
+    // What: the name with every line break spelled `\u{a}`.
+    // Why: the message that names the file, and the key a line would hold, must each stay on one line.
+    if name.contains('\n') {
+        return Some((name.replace('\n', "\\u{a}"), UnlistableName::HoldsLineBreak));
+    }
     // What: the name's last character, or nothing when the name is empty.
     // Why: only the last character can be the one the reader trims away.
     let last: char = name.chars().next_back()?;
@@ -81,11 +107,12 @@ pub(crate) fn name_ending_in_trimmed_whitespace(name: &str) -> Option<String> {
     }
     // What: the name with its last character spelled `\u{20}`, `\u{9}` or `\u{a0}`.
     // Why: the character itself is invisible in a terminal, so the message would not name the file.
-    return Some(format!(
+    let spelled: String = format!(
         "{}\\u{{{:x}}}",
         &name[..name.len() - last.len_utf8()],
         last as u32
-    ));
+    );
+    return Some((spelled, UnlistableName::EndsInTrimmedWhitespace));
 }
 
 /// What:

@@ -91,50 +91,51 @@ fn shared_modes_follow_calc_shared_perm() {
 /// and the file is empty when its mode is set.
 #[test]
 fn the_mode_is_set_before_any_byte_is_written() {
-    if crate::umask_child_test_support::ran_in_child(
+    crate::umask_child_test_support::run_the_body_under_umask(
         module_path!(),
         "the_mode_is_set_before_any_byte_is_written",
         0o022,
-    ) {
-        return;
-    }
-    for (shared, expected) in [
-        (-0o640, 0o640),
-        (0o660, 0o664),
-        (0o664, 0o664),
-        (-0o600, 0o600),
-    ] {
-        let (root, _live, built) = directory("publish-order");
-        let seen: RefCell<Vec<(&str, u32, u64)>> = RefCell::new(Vec::new());
-        let chmod = |file: &std::fs::File, mode: u32| -> std::io::Result<()> {
-            seen.borrow_mut().push((
-                "chmod",
-                file.metadata()?.permissions().mode() & 0o7777,
-                file.metadata()?.len(),
-            ));
-            return (SYSTEM.chmod)(file, mode);
-        };
-        let write = |file: &mut std::fs::File, bytes: &[u8]| -> std::io::Result<usize> {
-            seen.borrow_mut().push((
-                "write",
-                file.metadata()?.permissions().mode() & 0o7777,
-                file.metadata()?.len(),
-            ));
-            return (SYSTEM.write)(file, bytes);
-        };
-        let steps: Steps<'_> = Steps {
-            write: &write,
-            chmod: &chmod,
-            ..SYSTEM
-        };
-        publish_with(&steps, built.as_path(), b"index bytes", shared, None).expect("published");
-        let order = seen.into_inner();
-        // At the change of mode the file is empty and has the mode Git's file has; at the first write it has the final mode.
-        assert_eq!(order[0], ("chmod", 0o644, 0), "shared {shared:o}");
-        assert_eq!(order[1], ("write", expected, 0), "shared {shared:o}");
-        assert_eq!(mode_of(built.as_path()), expected, "shared {shared:o}");
-        remove(root.as_path());
-    }
+        || {
+            for (shared, expected) in [
+                (-0o640, 0o640),
+                (0o660, 0o664),
+                (0o664, 0o664),
+                (-0o600, 0o600),
+            ] {
+                let (root, _live, built) = directory("publish-order");
+                let seen: RefCell<Vec<(&str, u32, u64)>> = RefCell::new(Vec::new());
+                let chmod = |file: &std::fs::File, mode: u32| -> std::io::Result<()> {
+                    seen.borrow_mut().push((
+                        "chmod",
+                        file.metadata()?.permissions().mode() & 0o7777,
+                        file.metadata()?.len(),
+                    ));
+                    return (SYSTEM.chmod)(file, mode);
+                };
+                let write = |file: &mut std::fs::File, bytes: &[u8]| -> std::io::Result<usize> {
+                    seen.borrow_mut().push((
+                        "write",
+                        file.metadata()?.permissions().mode() & 0o7777,
+                        file.metadata()?.len(),
+                    ));
+                    return (SYSTEM.write)(file, bytes);
+                };
+                let steps: Steps<'_> = Steps {
+                    write: &write,
+                    chmod: &chmod,
+                    ..SYSTEM
+                };
+                publish_with(&steps, built.as_path(), b"index bytes", shared, None)
+                    .expect("published");
+                let order = seen.into_inner();
+                // At the change of mode the file is empty and has the mode Git's file has; at the first write it has the final mode.
+                assert_eq!(order[0], ("chmod", 0o644, 0), "shared {shared:o}");
+                assert_eq!(order[1], ("write", expected, 0), "shared {shared:o}");
+                assert_eq!(mode_of(built.as_path()), expected, "shared {shared:o}");
+                remove(root.as_path());
+            }
+        },
+    );
 }
 
 /// Writes that take a few bytes at a time still publish the whole file.
@@ -496,19 +497,20 @@ fn a_read_inside_each_step_of_a_publication_sees_one_whole_payload() {
 /// the widened one for `group` and the replaced one for a file mode value.
 #[test]
 fn the_published_mode_under_a_real_umask_is_gits() {
-    if crate::umask_child_test_support::ran_in_child(
+    crate::umask_child_test_support::run_the_body_under_umask(
         module_path!(),
         "the_published_mode_under_a_real_umask_is_gits",
         0o077,
-    ) {
-        return;
-    }
-    let (root, _live, built) = directory("publish-mode");
-    for (shared, expected) in [(0, 0o600), (0o660, 0o660), (0o664, 0o664), (-0o640, 0o640)] {
-        publish(built.as_path(), b"x", shared, None).expect("published");
-        assert_eq!(mode_of(built.as_path()), expected, "shared {shared:o}");
-    }
-    remove(root.as_path());
+        || {
+            let (root, _live, built) = directory("publish-mode");
+            for (shared, expected) in [(0, 0o600), (0o660, 0o660), (0o664, 0o664), (-0o640, 0o640)]
+            {
+                publish(built.as_path(), b"x", shared, None).expect("published");
+                assert_eq!(mode_of(built.as_path()), expected, "shared {shared:o}");
+            }
+            remove(root.as_path());
+        },
+    );
 }
 
 /// A write that is interrupted by a signal is tried again,
