@@ -167,8 +167,50 @@ mod root_namespace_test_support;
 #[path = "../testing/fixture_root_taking_any_name.rs"]
 mod fixture_root_taking_any_name;
 
+/// The numbers the hang guard judges by:
+/// how long a tree may show nothing,
+/// how much processor time it may use,
+/// how long the backstop waits,
+/// how often the monitor looks and how long a kill may stay unclaimed.
+#[path = "binary_supervisor_limits.rs"]
+mod supervisor_limits;
+
+/// The judgement of one watched command:
+/// what its last look showed,
+/// since when nothing moved,
+/// and the reason that ends it.
+#[path = "binary_supervisor_judge.rs"]
+mod supervisor_judge;
+
+/// The one registry of watched commands this process keeps,
+/// and the holds a thread takes on a command's entry.
+#[path = "binary_supervisor_registry.rs"]
+mod supervisor_registry;
+
+/// The record of a command the monitor ended,
+/// and the abort and exit status of a record nobody claims.
+#[path = "binary_supervisor_kills.rs"]
+mod supervisor_kills;
+
+/// Which commands run under the shared bound every test shares.
+#[path = "binary_supervisor_shared_bound_commands.rs"]
+mod supervisor_shared_bound_commands;
+
+/// What a control may ask about one watched command:
+/// whether it is watched,
+/// how many looks found it waiting for the disk,
+/// and how many looks it has had.
+#[path = "binary_supervisor_what_the_monitor_saw.rs"]
+mod supervisor_what_the_monitor_saw;
+
+/// The monitor thread,
+/// which finds the shared-bound commands and ends the ones the judge gives a reason for.
+#[path = "binary_supervisor_monitor.rs"]
+mod supervisor_monitor;
+
 /// The hang guard:
-/// a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.
+/// a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time,
+/// and the parts above re-exported so every control keeps naming them through this one module.
 #[path = "binary_supervisor.rs"]
 mod supervisor;
 
