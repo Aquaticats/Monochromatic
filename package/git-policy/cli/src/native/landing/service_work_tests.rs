@@ -1546,6 +1546,20 @@ fn a_round_leaves_no_credential_in_the_handlers() {
 /// so the lane is what this control drives.
 #[test]
 fn a_review_runs_through_the_real_handlers_in_a_service_context() {
+    // What:     `static OWN` is one `Containment`, the one-job-at-a-time runner this control's reviews take a job of,
+    //           and only this control's.
+    // Why:      `crate::standards_review_run::RUNNER` is the service's one runner for the whole process, and a runner
+    //           answers every caller but one `Contained::Busy`; a crate's tests run as threads of one process, so a
+    //           review here would refuse another control's review (issue 6500).
+    // Gotcha:   a `static` is not per thread and not per call: it is shared by every call of the one function that
+    //           declares it, which is why each control declares its own.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const own: Containment = containment();  // one per test, never a module-level singleton
+    // ```
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     use crate::standards_review_input::{
         TRACKED_LOG_RELATIVE,
         shared_log_path,
@@ -1598,8 +1612,9 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
         common_dir: None,
         ..git_context()
     };
-    let handlers: GitHandlers =
-        GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
+    let handlers: GitHandlers = GitHandlers::new(service_context)
+        .with_review_endpoint(mock.url.as_str())
+        .with_review_runner(&OWN);
     let lane_handlers: GitHandlers = handlers.for_round(std::collections::HashMap::from([(
         common.clone(),
         ReviewKey::new(SECRET).expect("the key this control serves with"),
@@ -2562,84 +2577,88 @@ fn notices_of(git_dir: &Path) -> usize {
 /// ```
 #[test]
 fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes",
-    ) {
-        return;
-    }
-    crate::parallel_test_support::room_for(
-        "the record of a terminal failure goes before the plan's file",
-        crate::parallel_test_support::ONE_PLACE,
-    );
-    let repo: Repo = repo("work-terminal-record-before-the-plan-goes");
-    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
-    let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    let waiting: crate::push_retry_store::StoredPlan = crate::push_retry_store::StoredPlan {
-        git_dir: repo.common.clone(),
-        item: due.clone(),
-        attempt: 1,
-    };
-    crate::push_retry_store::save(plans.as_path(), &waiting)
-        .expect("the plan of the try that failed");
-    // The plan's own file becomes a pipe with no writer, which is a record the removal cannot read.
-    let reading: PathBuf = plans.join(crate::push_retry_store::name_of(&waiting));
-    std::fs::remove_file(reading.as_path()).expect("the plan's file makes way for the pipe");
-    let text: std::ffi::CString =
-        std::ffi::CString::new(reading.as_os_str().as_encoded_bytes()).expect("a path without NUL");
-    let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
-    assert_eq!(
-        made,
-        0,
-        "the pipe stands where the plan's file was: {}",
-        std::io::Error::last_os_error()
-    );
-    let recorder: Recorder = Recorder::answering(Verdict::Failed(String::from(
-        "the server declined the push",
-    )));
-    let retrying: Retrying = Retrying {
-        first: Some(FIRST_PAUSE),
-        due: vec![Due {
-            git_dir: repo.common.clone(),
-            item: due.clone(),
-            attempt: 1,
-        }],
-        plans: Some(plans.clone()),
-    };
-    let recorded_first: bool = std::thread::scope(|scope| {
-        let pipe: &Path = reading.as_path();
-        let watcher = scope.spawn(|| {
-            let seen: bool = crate::test_support::wait_until_for(crate::test_support::WaitingFor {
-                window: BEFORE_THE_PLANS_FILE_ANSWERS,
-                done: &|| {
-                    return notices_of(repo.common.as_path()) > 0;
-                },
+        || {
+            crate::parallel_test_support::room_for(
+                "the record of a terminal failure goes before the plan's file",
+                crate::parallel_test_support::ONE_PLACE,
+            );
+            let repo: Repo = repo("work-terminal-record-before-the-plan-goes");
+            let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+            let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+            let waiting: crate::push_retry_store::StoredPlan =
+                crate::push_retry_store::StoredPlan {
+                    git_dir: repo.common.clone(),
+                    item: due.clone(),
+                    attempt: 1,
+                };
+            crate::push_retry_store::save(plans.as_path(), &waiting)
+                .expect("the plan of the try that failed");
+            // The plan's own file becomes a pipe with no writer, which is a record the removal cannot read.
+            let reading: PathBuf = plans.join(crate::push_retry_store::name_of(&waiting));
+            std::fs::remove_file(reading.as_path())
+                .expect("the plan's file makes way for the pipe");
+            let text: std::ffi::CString =
+                std::ffi::CString::new(reading.as_os_str().as_encoded_bytes())
+                    .expect("a path without NUL");
+            let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
+            assert_eq!(
+                made,
+                0,
+                "the pipe stands where the plan's file was: {}",
+                std::io::Error::last_os_error()
+            );
+            let recorder: Recorder = Recorder::answering(Verdict::Failed(String::from(
+                "the server declined the push",
+            )));
+            let retrying: Retrying = Retrying {
+                first: Some(FIRST_PAUSE),
+                due: vec![Due {
+                    git_dir: repo.common.clone(),
+                    item: due.clone(),
+                    attempt: 1,
+                }],
+                plans: Some(plans.clone()),
+            };
+            let recorded_first: bool = std::thread::scope(|scope| {
+                let pipe: &Path = reading.as_path();
+                let watcher = scope.spawn(|| {
+                    let seen: bool =
+                        crate::test_support::wait_until_for(crate::test_support::WaitingFor {
+                            window: BEFORE_THE_PLANS_FILE_ANSWERS,
+                            done: &|| {
+                                return notices_of(repo.common.as_path()) > 0;
+                            },
+                        });
+                    release_the_plan_pipe(pipe);
+                    return seen;
+                });
+                let drained: Drained = drain_planned(
+                    repo.common.as_path(),
+                    &recorder,
+                    &ClaimTime::read(),
+                    &retrying,
+                );
+                assert_eq!(
+                    drained.changes.len(),
+                    1,
+                    "the worker still asks the plan to drop the branch"
+                );
+                return watcher.join().expect("the watcher ends");
             });
-            release_the_plan_pipe(pipe);
-            return seen;
-        });
-        let drained: Drained = drain_planned(
-            repo.common.as_path(),
-            &recorder,
-            &ClaimTime::read(),
-            &retrying,
-        );
-        assert_eq!(
-            drained.changes.len(),
-            1,
-            "the worker still asks the plan to drop the branch"
-        );
-        return watcher.join().expect("the watcher ends");
-    });
-    assert!(
-        recorded_first,
-        "the refusal was recorded while the plan's file still waited for a writer, so the record goes first and a kill between the two leaves the plan"
+            assert!(
+                recorded_first,
+                "the refusal was recorded while the plan's file still waited for a writer, so the record goes first and a kill between the two leaves the plan"
+            );
+            assert!(
+                reading.exists(),
+                "the plan's file the removal could not read stays, so a later service tries the push the notice promised"
+            );
+            remove(repo.root.as_path());
+        },
     );
-    assert!(
-        reading.exists(),
-        "the plan's file the removal could not read stays, so a later service tries the push the notice promised"
-    );
-    remove(repo.root.as_path());
 }
 
 /// What:
@@ -2907,6 +2926,9 @@ fn a_repository_to_review(
 ///  caller's thread.
 #[test]
 fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers() {
+    // This control's own runner, so no other control's review can find it busy.
+    static OWN: crate::standards_review_run::Containment =
+        crate::standards_review_run::Containment::new();
     use crate::standards_review_input::shared_log_path;
     use crate::standards_review_mock::{
         Answer,
@@ -2936,9 +2958,11 @@ fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers()
     };
     let thread_handlers: GitHandlers = GitHandlers::new(git_context())
         .with_review_endpoint(thread_mock.url.as_str())
+        .with_review_runner(&OWN)
         .for_round(key(&thread_item));
     let task_handlers: GitHandlers = GitHandlers::new(git_context())
         .with_review_endpoint(task_mock.url.as_str())
+        .with_review_runner(&OWN)
         .for_round(key(&task_item));
     let from_a_thread: Verdict = thread_handlers.review(&thread_item);
     let from_a_task: Verdict =
@@ -2973,8 +2997,9 @@ fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers()
         transport: false,
         ..task_item.clone()
     };
-    let plain_handlers: GitHandlers =
-        GitHandlers::new(git_context()).with_review_endpoint("http://127.0.0.1:9");
+    let plain_handlers: GitHandlers = GitHandlers::new(git_context())
+        .with_review_endpoint("http://127.0.0.1:9")
+        .with_review_runner(&OWN);
     assert_eq!(
         crate::merge_second_pass::tests::await_it(plain_handlers.review_awaiting(&plain_item)),
         Verdict::Done,
@@ -4219,58 +4244,60 @@ fn a_push_handler_that_stops_unexpectedly_ends_its_own_record_and_not_the_round(
 /// (`housekeeping_of_one_round.rs`).
 #[test]
 fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again",
-    ) {
-        return;
-    }
-    use crate::parallel_test_support::ONE_PLACE;
-    crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(ONE_PLACE);
-    assert_eq!(
-        crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
-        ONE_PLACE,
-        "this control is the only holder of the process's one place"
+        || {
+            use crate::parallel_test_support::ONE_PLACE;
+            crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(ONE_PLACE);
+            assert_eq!(
+                crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
+                ONE_PLACE,
+                "this control is the only holder of the process's one place"
+            );
+            // The claim step is given a ceiling a control reaches in a moment instead of the shipped sixty seconds.
+            crate::service_work_storage_awaited::hold_the_claim_steps_to(A_SLICE_ONE_ITEM_SPENDS);
+            let repo: Repo = repo("work-claim-step-with-no-place");
+            enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+            // A job of the process's bound holds the only place while the round asks for it.
+            let (holding, held) = std::sync::mpsc::channel::<()>();
+            let place = crate::lazy_runtime::spawn_on_runtime(async move {
+                let _held =
+                    crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(
+                        move || {
+                            let _told = holding.send(());
+                            std::thread::sleep(ONE_ITEM_TAKES.mul_f32(4.0));
+                        },
+                    )
+                    .await;
+            });
+            assert!(
+                place.is_some(),
+                "the runtime starts the job that holds the only place"
+            );
+            assert!(
+                held.recv_timeout(ONE_ITEM_TAKES.mul_f32(4.0)).is_ok(),
+                "the job that holds the only place started"
+            );
+            let drained: DrainOfAControl = drain_with(
+                &repo,
+                &Controlled::answering_at_once(work_directory(repo.common.as_path()).as_path()),
+                PUSH_KINDS,
+                crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+            );
+            assert_eq!(
+                drained.look_again,
+                Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING),
+                "a round that could not claim this directory's records asks to be looked at again"
+            );
+            assert_eq!(
+                names(&repo, PENDING).len(),
+                1,
+                "nothing was claimed, so the push still waits"
+            );
+            remove(repo.root.as_path());
+        },
     );
-    // The claim step is given a ceiling a control reaches in a moment instead of the shipped sixty seconds.
-    crate::service_work_storage_awaited::hold_the_claim_steps_to(A_SLICE_ONE_ITEM_SPENDS);
-    let repo: Repo = repo("work-claim-step-with-no-place");
-    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
-    // A job of the process's bound holds the only place while the round asks for it.
-    let (holding, held) = std::sync::mpsc::channel::<()>();
-    let place = crate::lazy_runtime::spawn_on_runtime(async move {
-        let _held =
-            crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
-                let _told = holding.send(());
-                std::thread::sleep(ONE_ITEM_TAKES.mul_f32(4.0));
-            })
-            .await;
-    });
-    assert!(
-        place.is_some(),
-        "the runtime starts the job that holds the only place"
-    );
-    assert!(
-        held.recv_timeout(ONE_ITEM_TAKES.mul_f32(4.0)).is_ok(),
-        "the job that holds the only place started"
-    );
-    let drained: DrainOfAControl = drain_with(
-        &repo,
-        &Controlled::answering_at_once(work_directory(repo.common.as_path()).as_path()),
-        PUSH_KINDS,
-        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
-    );
-    assert_eq!(
-        drained.look_again,
-        Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING),
-        "a round that could not claim this directory's records asks to be looked at again"
-    );
-    assert_eq!(
-        names(&repo, PENDING).len(),
-        1,
-        "nothing was claimed, so the push still waits"
-    );
-    remove(repo.root.as_path());
 }
 
 /// What:

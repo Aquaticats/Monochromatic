@@ -136,50 +136,50 @@ fn a_last_line_without_a_newline_is_ended_before_the_next_begins() {
 /// each line of both logs is in the current log exactly once.
 #[test]
 fn a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line",
-    ) {
-        return;
-    }
-    // The sweep's subject is the steps of the fold and the lines they leave, not what a crash leaves, so its syncs are
-    //  no-ops here: one walk of the whole fold made 306 `fsync` calls in its sibling sweep (`earlier_names_folded_into_current_tests.rs`),
-    //  and the filesystem's commits decided whether that walk finished inside the run's own bound.
-    crate::private_storage::skip_the_durability_syncs_here();
-    let expected: String = format!("{CURRENT_LINES}{EARLIER_LINES}");
-    let mut limit: usize = 0;
-    loop {
-        let root: PathBuf = fixture(format!("kill-{limit}").as_str());
-        plant(root.as_path());
-        let first: LogFold = fold_log(
-            root.as_path(),
-            COMMIT_TIMING_LOG,
-            &mut StopAfter {
-                limit,
-                seen: 0,
-            },
-        )
-        .expect("first");
-        let finished: bool = first == LogFold::Folded;
-        let second: LogFold =
-            fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second");
-        assert!(
-            matches!(second, LogFold::Folded | LogFold::Nothing),
-            "kill after {limit} steps: {second:?}"
-        );
-        assert_eq!(
-            current_text(root.as_path()),
-            expected,
-            "kill after {limit} steps"
-        );
-        assert_clean(root.as_path());
-        std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
-        if finished {
-            assert!(limit > 4, "the fold has several steps to stop at: {limit}");
-            break;
-        }
-        limit += 1;
-    }
+        || {
+            // The sweep's subject is the steps of the fold and the lines they leave, not what a crash leaves, so its syncs are
+            //  no-ops here: one walk of the whole fold made 306 `fsync` calls in its sibling sweep (`earlier_names_folded_into_current_tests.rs`),
+            //  and the filesystem's commits decided whether that walk finished inside the run's own bound.
+            crate::private_storage::skip_the_durability_syncs_here();
+            let expected: String = format!("{CURRENT_LINES}{EARLIER_LINES}");
+            let mut limit: usize = 0;
+            loop {
+                let root: PathBuf = fixture(format!("kill-{limit}").as_str());
+                plant(root.as_path());
+                let first: LogFold = fold_log(
+                    root.as_path(),
+                    COMMIT_TIMING_LOG,
+                    &mut StopAfter {
+                        limit,
+                        seen: 0,
+                    },
+                )
+                .expect("first");
+                let finished: bool = first == LogFold::Folded;
+                let second: LogFold =
+                    fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second");
+                assert!(
+                    matches!(second, LogFold::Folded | LogFold::Nothing),
+                    "kill after {limit} steps: {second:?}"
+                );
+                assert_eq!(
+                    current_text(root.as_path()),
+                    expected,
+                    "kill after {limit} steps"
+                );
+                assert_clean(root.as_path());
+                std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+                if finished {
+                    assert!(limit > 4, "the fold has several steps to stop at: {limit}");
+                    break;
+                }
+                limit += 1;
+            }
+        },
+    );
 }
 
 /// A program of this release appends to the current log between the kill and the restart:
@@ -354,32 +354,34 @@ fn bytes_already_added_and_rotated_into_an_older_copy_are_not_added_again() {
 #[cfg(unix)]
 #[test]
 fn a_fold_that_another_process_holds_is_left_alone() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_fold_that_another_process_holds_is_left_alone",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("busy");
-    plant(root.as_path());
-    let journal: PathBuf = root.join(format!("{}{JOURNAL_SUFFIX}", COMMIT_TIMING_LOG.current));
-    let holder = hold_journal(journal.as_path())
-        .expect("lock")
-        .expect("held");
-    let result: LogFold =
-        fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold");
-    assert_eq!(result, LogFold::Busy);
-    assert_eq!(current_text(root.as_path()), CURRENT_LINES);
-    assert_eq!(
-        std::fs::read_to_string(root.join(COMMIT_TIMING_LOG.earlier)).expect("earlier"),
-        EARLIER_LINES
+        || {
+            let root: PathBuf = fixture("busy");
+            plant(root.as_path());
+            let journal: PathBuf =
+                root.join(format!("{}{JOURNAL_SUFFIX}", COMMIT_TIMING_LOG.current));
+            let holder = hold_journal(journal.as_path())
+                .expect("lock")
+                .expect("held");
+            let result: LogFold =
+                fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold");
+            assert_eq!(result, LogFold::Busy);
+            assert_eq!(current_text(root.as_path()), CURRENT_LINES);
+            assert_eq!(
+                std::fs::read_to_string(root.join(COMMIT_TIMING_LOG.earlier)).expect("earlier"),
+                EARLIER_LINES
+            );
+            drop(holder);
+            assert_eq!(
+                fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
+                    .expect("after release"),
+                LogFold::Folded
+            );
+            std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+        },
     );
-    drop(holder);
-    assert_eq!(
-        fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("after release"),
-        LogFold::Folded
-    );
-    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
 /// A Git directory that cannot be written:
@@ -607,59 +609,59 @@ fn a_writer_that_adds_lines_between_commands_has_each_line_added_once() {
 /// each line is in the current log once.
 #[test]
 fn a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line",
-    ) {
-        return;
-    }
-    // As its sibling above: the steps and the lines are the subject, and the syncs of every step are not.
-    crate::private_storage::skip_the_durability_syncs_here();
-    let expected: String = format!(
-        "{CURRENT_LINES}{EARLIER_LINES}{}",
-        std::str::from_utf8(LATE_LINE).expect("text")
+        || {
+            // As its sibling above: the steps and the lines are the subject, and the syncs of every step are not.
+            crate::private_storage::skip_the_durability_syncs_here();
+            let expected: String = format!(
+                "{CURRENT_LINES}{EARLIER_LINES}{}",
+                std::str::from_utf8(LATE_LINE).expect("text")
+            );
+            let mut limit: usize = 0;
+            loop {
+                let root: PathBuf = fixture(format!("kill-writer-{limit}").as_str());
+                plant(root.as_path());
+                let mut writer = std::fs::OpenOptions::new()
+                    .append(true)
+                    .open(root.join(COMMIT_TIMING_LOG.earlier))
+                    .expect("writer");
+                let first: LogFold = fold_log(
+                    root.as_path(),
+                    COMMIT_TIMING_LOG,
+                    &mut StopAfter {
+                        limit,
+                        seen: 0,
+                    },
+                )
+                .expect("first");
+                writer.write_all(LATE_LINE).expect("late line");
+                let second: LogFold =
+                    fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second");
+                assert_eq!(
+                    second,
+                    LogFold::LeftForALaterCommand,
+                    "kill after {limit} steps"
+                );
+                drop(writer);
+                let third: LogFold =
+                    fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("third");
+                assert_eq!(third, LogFold::Folded, "kill after {limit} steps");
+                assert_eq!(
+                    current_text(root.as_path()),
+                    expected,
+                    "kill after {limit} steps"
+                );
+                assert_clean(root.as_path());
+                std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+                if first == LogFold::LeftForALaterCommand {
+                    break;
+                }
+                limit += 1;
+            }
+        },
     );
-    let mut limit: usize = 0;
-    loop {
-        let root: PathBuf = fixture(format!("kill-writer-{limit}").as_str());
-        plant(root.as_path());
-        let mut writer = std::fs::OpenOptions::new()
-            .append(true)
-            .open(root.join(COMMIT_TIMING_LOG.earlier))
-            .expect("writer");
-        let first: LogFold = fold_log(
-            root.as_path(),
-            COMMIT_TIMING_LOG,
-            &mut StopAfter {
-                limit,
-                seen: 0,
-            },
-        )
-        .expect("first");
-        writer.write_all(LATE_LINE).expect("late line");
-        let second: LogFold =
-            fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second");
-        assert_eq!(
-            second,
-            LogFold::LeftForALaterCommand,
-            "kill after {limit} steps"
-        );
-        drop(writer);
-        let third: LogFold =
-            fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("third");
-        assert_eq!(third, LogFold::Folded, "kill after {limit} steps");
-        assert_eq!(
-            current_text(root.as_path()),
-            expected,
-            "kill after {limit} steps"
-        );
-        assert_clean(root.as_path());
-        std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
-        if first == LogFold::LeftForALaterCommand {
-            break;
-        }
-        limit += 1;
-    }
 }
 
 /// Programs that only read the earlier log do not keep the fold from removing the moved log.

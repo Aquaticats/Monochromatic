@@ -1547,7 +1547,7 @@ fn the_doctors_host_section_ends_with_the_group_drop_report() {
         layout: crate::checkout_layout::CheckoutLayout::Main,
         home: Some(home.as_path()),
     };
-    let without_a_report: String = host_section_with(&String::new, &viewpoint);
+    let without_a_report: String = host_section_with(&viewpoint, &String::new, true);
     assert!(
         without_a_report.starts_with("repository link: the 860 drive is not mounted yet ("),
         "a host that wrote the deny adds no line of its own: {without_a_report}"
@@ -1555,11 +1555,62 @@ fn the_doctors_host_section_ends_with_the_group_drop_report() {
     let report: String = String::from(
         "account companion: this host skips the account companion's group drop: open /proc/self/setgroups answered EACCES (errno 13)\n",
     );
-    let with_a_report: String = host_section_with(&|| return report.clone(), &viewpoint);
+    let with_a_report: String = host_section_with(&viewpoint, &|| return report.clone(), true);
     assert_eq!(
         with_a_report,
         format!("{without_a_report}{report}"),
         "the report follows the link line and is never dropped"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  The group drop's report is left out where the checkout is not a ZFS dataset,
+///  and the section still carries the lines a person reads first.
+/// Why:
+///  The report says every managed ZFS add goes ahead with the skip,
+///  so it is a sentence about a host whose checkout the ZFS clone route serves,
+///  and the section printed it on every Linux host (the alpha.47 release pass's
+///  Low 9):
+///  a person on an ext4 checkout read four lines about managed ZFS adds they
+///  cannot have.
+///  The verdict is a parameter here so this control does not depend on the file
+///  system the fixtures are made on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(hostSectionWith(viewpoint, report, false)).toBe(filesystemSectionWithLinkLine(viewpoint));
+/// expect(hostSectionWith(viewpoint, report, true)).toBe(filesystemSectionWithLinkLine(viewpoint) + report());
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn the_doctors_host_section_leaves_the_group_drop_report_out_where_the_route_cannot_apply() {
+    let root: PathBuf = fixture("doctor-host-section-no-zfs-route")
+        .canonicalize()
+        .expect("root");
+    let viewpoint: crate::doctor::CheckoutViewpoint<'_> = crate::doctor::CheckoutViewpoint {
+        checkout: Some(root.as_path()),
+        layout: crate::checkout_layout::CheckoutLayout::Main,
+        home: None,
+    };
+    let report: String = String::from(
+        "account companion: this host skips the account companion's group drop: open /proc/self/setgroups answered EACCES (errno 13)\n",
+    );
+    let elsewhere: String = super::host_section_with(&viewpoint, &|| return report.clone(), false);
+    assert!(
+        !elsewhere.contains("account companion:"),
+        "a checkout the route cannot serve reads nothing about its group drop: {elsewhere}"
+    );
+    assert_eq!(
+        elsewhere,
+        super::filesystem_section_with_link_line(&viewpoint),
+        "the section still carries the filesystem facts and the link line"
+    );
+    let served: String = super::host_section_with(&viewpoint, &|| return report.clone(), true);
+    assert_eq!(
+        served,
+        format!("{elsewhere}{report}"),
+        "a checkout the route serves still ends with the report"
     );
     remove(root.as_path());
 }

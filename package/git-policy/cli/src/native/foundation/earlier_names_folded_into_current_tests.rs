@@ -481,45 +481,45 @@ fn a_listening_socket_without_a_process_does_not_hold_the_fold() {
 /// everything ends up where a fold with no kill puts it.
 #[test]
 fn a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result",
-    ) {
-        return;
-    }
-    let steps: Vec<&'static str> = steps_of_one_fold();
-    assert!(
-        !steps.is_empty(),
-        "the fixture's fold has steps to kill it at"
+        || {
+            let steps: Vec<&'static str> = steps_of_one_fold();
+            assert!(
+                !steps.is_empty(),
+                "the fixture's fold has steps to kill it at"
+            );
+            // A kill point shares nothing with another: each has its own fixture, its own process table and its own surroundings,
+            //  so the points walk side by side.
+            // Their folds sync nothing, because what a crash leaves is not what this sweep asks:
+            // measured on 2026-11-08 with `strace --summary-only --trace=fsync`,
+            // one walk of the 21 kill points made 306 `fsync` calls and spent 2.999 s inside them of a 10.61 s run,
+            // with single calls 1.755, 1.211 and 1.071 s apart,
+            // and a disk having a bad minute is what once carried the same walk past the run's own 120 s bound.
+            // The fixtures, the checks and the removals together are under 1 ms per point.
+            let points: &[&'static str] = steps.as_slice();
+            let mut failed: Vec<usize> = Vec::new();
+            std::thread::scope(|scope| {
+                let handles: Vec<std::thread::ScopedJoinHandle<'_, ()>> = (0..=points.len())
+                    .map(|limit| {
+                        return scope.spawn(move || {
+                            kill_then_fold(KillPoint {
+                                limit,
+                                steps: points,
+                            });
+                        });
+                    })
+                    .collect();
+                for (limit, handle) in handles.into_iter().enumerate() {
+                    if handle.join().is_err() {
+                        failed.push(limit);
+                    }
+                }
+            });
+            assert!(failed.is_empty(), "the kill points that failed: {failed:?}");
+        },
     );
-    // A kill point shares nothing with another: each has its own fixture, its own process table and its own surroundings,
-    //  so the points walk side by side.
-    // Their folds sync nothing, because what a crash leaves is not what this sweep asks:
-    // measured on 2026-11-08 with `strace --summary-only --trace=fsync`,
-    // one walk of the 21 kill points made 306 `fsync` calls and spent 2.999 s inside them of a 10.61 s run,
-    // with single calls 1.755, 1.211 and 1.071 s apart,
-    // and a disk having a bad minute is what once carried the same walk past the run's own 120 s bound.
-    // The fixtures, the checks and the removals together are under 1 ms per point.
-    let points: &[&'static str] = steps.as_slice();
-    let mut failed: Vec<usize> = Vec::new();
-    std::thread::scope(|scope| {
-        let handles: Vec<std::thread::ScopedJoinHandle<'_, ()>> = (0..=points.len())
-            .map(|limit| {
-                return scope.spawn(move || {
-                    kill_then_fold(KillPoint {
-                        limit,
-                        steps: points,
-                    });
-                });
-            })
-            .collect();
-        for (limit, handle) in handles.into_iter().enumerate() {
-            if handle.join().is_err() {
-                failed.push(limit);
-            }
-        }
-    });
-    assert!(failed.is_empty(), "the kill points that failed: {failed:?}");
 }
 
 /// An earlier program that still has a log open for writing:

@@ -642,6 +642,74 @@ Status:
 incomplete,
 unapproved and not final;
 the owner declares completion.
+
+branch `fix/git-policy-cli-issue-6503-process-wide-state-child-helper-takes-its-body`:
+issue 6503 is fixed.
+The helper that runs one control's body in a child of its own answered a yes or a no,
+and each of its 106 callers held that answer in an `if`,
+so a caller that read it inverted ran the body in the process that started the child,
+the process the body was written to keep its state out of.
+It takes the body now (`run_the_body_in_a_child_of_its_own(module_path!(), name, || { .. })`),
+as the no-threads and umask starters have since issue 6494,
+and `this_process_is_the_child` is private to the helper's file.
+Measured on this host with one control of `foundation/lazy_runtime_tests.rs` read inverted:
+`foundation::lazy_runtime::tests` answered `test result: ok. 15 passed; 0 failed; 1 ignored` in both of two runs,
+and the same control alone answered `1 passed; 0 failed`,
+so neither the run nor one process per test saw a body that built the runtime the whole run shares;
+with every guard of that module inverted the run answered `FAILED. 14 passed; 1 failed; 1 ignored`,
+at `this control is the first need of a runtime in its own process`.
+`foundation::blocking_jobs_within_the_budget::tests` with one guard inverted answered
+`FAILED. 10 passed; 1 failed`,
+at the refusal of the room a control gives the process.
+`source_guard/only_the_process_wide_starter_reads_its_marker_tests.rs` is the guard:
+it refuses a source that names the child marker outside the helper's file,
+and a read planted in `foundation/lazy_runtime_tests.rs` made it answer
+`FAILED. 2 passed; 1 failed` at `foundation/lazy_runtime_tests.rs:37`.
+Measured after the change,
+after a merge of `origin/main` at `6dcf87146f`,
+each module the round touched answered its own run with no failure
+except `worktree::worktree_trash_entries::tests`,
+which answers `FAILED. 7 passed; 1 failed` on the tree before this change as well
+(`the_removals_take_places_of_the_processs_bound_on_blocking_jobs`,
+issue 6477's shape, and that control guards no child before or after this round),
+and `source_guard::` answered `test result: ok. 144 passed; 0 failed`.
+The measured reds and greens are in
+`doc/troubleshooting/git-policy-cli-controls-that-arm-state-the-whole-process-shares.md`.
+
+Round of 2026-11-26,
+issue 6500:
+the service's review runner was reachable through the real handlers,
+which name none of the calls issue 6499's round banned,
+and `landing/service_work_tests.rs`'s two controls that review through `GitHandlers` took it.
+Measured on this host,
+those two controls in one process (`--test-threads=2`)
+answered `test result: FAILED. 1 passed; 1 failed` in each of three runs,
+with the refused control varying between them,
+and the service's own line said
+"the standards review of <oid> was not started because an earlier review, stopped at its ceiling, is still running".
+The module threaded answered `ok. 117 passed; 0 failed` before the change as well,
+which is why the issue had no measured failure:
+its two reviews rarely meet in one moment,
+while a pair of controls run together meets in every run.
+`GitHandlers` now carries the runner a control hands it
+(`with_review_runner`, `#[cfg(test)]`, carried by `for_round` as the review endpoint is),
+and its two review faces run their job in it,
+which is `standards_review_run::RUNNER` for every build that hands none,
+so the one review at a time `SPEC.md` states is unchanged.
+After the change the same pair answered `ok. 2 passed; 0 failed` in each of three runs,
+each control answered `ok. 1 passed` alone with `--exact`,
+and the module answered `ok. 117 passed; 0 failed`.
+The guard sees the route now:
+a test-only source that points the real handlers' review at a gateway must also name `with_review_runner(`.
+With the two controls' runner calls taken out it answered `FAILED. 2 passed; 1 failed`
+and named the four sites of `landing/service_work_tests.rs`,
+and with the route check itself taken out the planted-route control failed on its fixture.
+The measurement is in
+`doc/troubleshooting/git-policy-cli-service-work-controls-share-the-review-runner.md`.
+Status:
+incomplete,
+unapproved and not final.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;

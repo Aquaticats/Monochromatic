@@ -135,6 +135,10 @@ Rounds started earlier run on the pool they named.
   Those two commits were made with `--no-verify`, a bypass the repository's rules forbid making pre-emptively;
   it skipped nothing here: `--no-verify` skips `pre-commit` and `commit-msg`, and `.git/hooks` holds `post-checkout`, `post-commit`, `post-merge` and `pre-push`.
   The outage also killed four queued starters through an uncaught `git fetch` failure; the starter now treats a failed fetch as "not yet".
+- Issue 6503's round replaced `started_within_a_child_of_its_own` (a yes or no) with `run_the_body_in_a_child_of_its_own(module_path!(), name, || { .. })`
+  across 106 call sites; its merge of `main` met issue 6514's new call to the old starter, which the coordinator moved to the new one (`18ce8792ee`).
+  It merged as `75fbf8d59b` (11:15). Any round still open that adds a call to the old starter (6509, 6510, 6511 and the alpha.47 rounds may) no longer builds after merging `main`:
+  its merge check then fails at `cargo check`, and the call is moved the same way, the body handed to the starter as a closure.
 - Queued behind split round 1's merge, in this order, each three minutes after the one before it starts and only while fewer than five drivers run on the virtual writer
   (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/start-a-round-in-turn-after-split-round-1.ts`):
   the alpha.47 ZFS pass's High (the removal and move refusals skip global options before `worktree`, `-C <git dir>` and `--git-dir`),
@@ -215,6 +219,13 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- 6500 as `a1f6b3414e`: the two handler review controls run their review in a runner of their own, and a guard refuses one that does not.
+- The alpha.47 ZFS pass's words round as `632a8aa40b`: every printed sentence names commands this release has,
+  and `SPEC.md` and `README.md` carry a passage for each of steps 17 to 21, held by a source guard.
+  Its merge with `main` met 6512's now-read folder lists, so the coordinator reordered one entry (`09310cac9a`).
+- The alpha.47 ZFS pass's guards round as `62ba6c6bf6`: the three unheld guards each have a control that fails without them,
+  the add preflight's host controls open no `/dev/zfs`, an inherited `legacy` container is refused before any write,
+  and `doctor`'s group-drop report appears only on a ZFS checkout. It found 6518 (an add-index control failed once).
 - 6512 as `cafd22a1ab`: 48 folder docs spell the file-list marker the linter reads and list every file in dependency order,
   so the layout allow list's `file-rule.txt` shrank from 1949 lines to 582 with none added.
 - 6514 as `7ca3772424`: the started-as-git control's child closes the chain record it inherited before it makes its own.
