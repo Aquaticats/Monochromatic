@@ -294,6 +294,21 @@
 //!   the same fence beside the clone:
 //!   its reads on a thread of their own while the tracked files are copied,
 //!   and the seed the index is installed from once both have answered.
+//! - `worktree_clone_conversion_size_read_answer.rs`:
+//!   the answer a size read sends and the value one add holds while it runs,
+//!   with the join within its deadline and the abandon that ends its Git child.
+//! - `worktree_clone_conversion_size_read_seams.rs`:
+//!   the seams a control arms to hold a read before its Git run,
+//!   to hold it after its child ended,
+//!   and to make its thread die before it answers.
+//! - `worktree_clone_conversion_size_read_git_read.rs`:
+//!   the early read's one `git ls-tree` run,
+//!   the variable that keeps a partial clone from fetching,
+//!   and the parse of the sizes it prints.
+//! - `worktree_clone_conversion_size_read_start.rs`:
+//!   the start of that read beside the add's source check,
+//!   the thread that carries it,
+//!   and the answer it sends once.
 //! - `worktree_clone_conversion_size_read.rs`:
 //!   the fence's one `git ls-tree` size read:
 //!   the task a rung-1 add can start before its source check,
@@ -841,6 +856,29 @@ pub mod worktree_clone_conversion_git_reads;
 /// and the join at the fence.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_conversion_size_read;
+
+/// The answer a size read sends and the value one add holds while it runs,
+/// with the join within its deadline and the abandon that ends its Git child.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_size_read_answer;
+
+/// The seams a control arms to hold a read before its Git run,
+/// to hold it after its child ended,
+/// and to make its thread die before it answers.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_size_read_seams;
+
+/// The early read's one `git ls-tree` run,
+/// the variable that keeps a partial clone from fetching,
+/// and the parse of the sizes it prints.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_size_read_git_read;
+
+/// The start of that read beside the add's source check,
+/// the thread that carries it,
+/// and the answer it sends once.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_size_read_start;
 
 /// The pool's block-cloning switch and what the clone rung does when it reads off.
 #[cfg(target_os = "linux")]
