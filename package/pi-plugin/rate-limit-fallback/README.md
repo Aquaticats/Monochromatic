@@ -84,7 +84,9 @@ The check read every pool member's live quota endpoint under the shipped two-sec
 from a started Pi session's own registry,
 and a control arm showed the deadline abandoning a transport that never answers.
 Every live read returned evidence and none came near the bound:
-the highest took 379 ms of the 2,000 ms allowed.
+the highest took 330 ms of the 2,000 ms allowed.
+It is shipped as `mise run //package/pi-plugin/rate-limit-fallback:verify:quota-deadline`,
+which fails unless the record shows every member's answer inside the deadline and the control abandoned at it.
 [`doc/quota-read-latency.md`](doc/quota-read-latency.md) records the method, the figures and what the check leaves undecided,
 with its raw lines in `doc/quota-read-latency-records/live-check-2026-11-26.jsonl`.
 
@@ -508,7 +510,7 @@ and still covers it once the host's control spread after the warm-up round
 `doc/quota-read-latency.md` records the method and the per-arm figures.
 A live check of the deadline on 2026-11-26 read the members' own endpoints again,
 through the shipped `readQuotaWithinDeadline`,
-and the highest of its twelve live reads took 379 ms of the same two seconds
+and the highest of its twelve live reads took 330 ms of the same two seconds
 (that file, "Live check of the deadline, 2026-11-26").
 
 ### Provider sources
@@ -744,6 +746,14 @@ error.
   member's context overflow,
   while the same turns with `writer-pool` selected
   directly recover nothing.
+- `mise run //package/pi-plugin/rate-limit-fallback:verify:quota-deadline` reads every
+  pool member's live quota endpoint through the shipped `readQuotaWithinDeadline`,
+  shows the deadline abandoning a transport that never answers,
+  prints the record it made,
+  and fails unless every member answered inside the deadline and the control was abandoned at it.
+  It starts a real `pi` session, so it reads the members' live endpoints and needs their credentials
+  in the place Pi keeps them;
+  `--record=<file>` names the file it writes, and a file already there is never overwritten.
 - `mise run //package/pi-plugin/rate-limit-fallback:lint:types` and
   `mise run //package/pi-plugin/rate-limit-fallback:lint:oxlint` check the package.
 - `doc/captures.md` records every fixture text the suites replay,
