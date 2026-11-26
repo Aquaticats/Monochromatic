@@ -248,6 +248,13 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- Lane 2: the alpha.47 record-folder pipes round as `9ee93e7873`, the host-key sentence as `5466fe1000`, the landing split as `4d7eed1014`.
+  All four alpha.47 rounds outside the ZFS route are on `main`.
+  The service split did not merge: `service::service_log_lines_off_the_calling_thread::tests::a_line_handed_before_the_end_waits_and_reaches_the_stream`
+  (a control the notices round added) failed on its branch and passed on `main` twice; it is being rerun alone and in `service::` on both.
+  `service::` threaded fails 14 and 15 on `main` itself; 12 of those failed on both sides.
+  The host-key round's `ssh_terminal` binary tests failed 4 of 4 on `main` too: AppArmor's `sshd` profile refused the fixture's `sshd_config` under `~/.cargo/build/`;
+  `sshd` and `sshd-session` gained that tree (as `ssh-keygen` had) and the tests rerun on `main`.
 - Lane 3: the removal split as `66d4b6fb08` (`worktree_remove_hand_over.rs` split; `worktree_remove.rs` waits for round 3's loop breaks),
   the copy split as `4bfbcbe591` (eight allow-list lines deleted with the loop it broke; its one red, `a_source_written_after_the_stamp_fails_the_final_check`, failed on `main` too and is issue 6520).
   The ladder split's check named a filter that matches no test; rerun without it, it merged as `df41971d71` (16:37).
