@@ -707,6 +707,11 @@ TRB:
  follow recorded workarounds as written,
  then recheck the emitting tool.
 
+AAW:
+ Answer an AppArmor denial by widening its profile's `local/` file and reloading,
+ never by moving the work;
+ log it in `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`.
+
 EDR:
  Parallel tool calls may run in any order,
  so a command reading a fresh edit can see the pre-edit file;
