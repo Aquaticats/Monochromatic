@@ -81,13 +81,16 @@ pub fn shown(
 ///  An absolute path would make the line match only one checkout,
 ///  so a file outside the package is named by the folders between it and the package:
 ///  `../outside x.rs` reads the same on every machine that holds the repository.
+///  The package folder itself is written `.`,
+///  because the empty path would end a key in a space that the list reader trims away,
+///  and no line could hold it.
 ///  A file name that holds a backslash is written as a slash here;
 ///  an allow-list entry refuses a backslash for that reason,
 ///  so a list line and a key can never disagree about a path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // keyPath(p, base) = shown(p, base).replaceAll('\\', '/')
+/// // keyPath(p, base) = shown(p, base).replaceAll('\\', '/'), or '.' for the base folder
 /// ```
 pub fn key_path(
     path: &std::path::Path,
@@ -97,7 +100,13 @@ pub fn key_path(
         Ok(below) if below.components().next().is_some() => below.to_string_lossy().into_owned(),
         _ => climbing_path(path, base),
     };
-    return written.replace('\\', "/");
+    let slashed: String = written.replace('\\', "/");
+    // What: the one spelling of the package folder itself.
+    // Why: a key that ends in an empty path holds a trailing space, which the list reader trims away.
+    if slashed.is_empty() {
+        return String::from(".");
+    }
+    return slashed;
 }
 
 /// What:
