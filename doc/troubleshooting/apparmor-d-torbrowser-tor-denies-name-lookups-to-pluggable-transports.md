@@ -164,7 +164,8 @@ Its workflow builds apparmor.d at `4c4fec70fc` with `just build` and `prebuild` 
 installs `torbrowser-tor` alone in enforce mode,
 and checks the mode with `aa-status --json`.
 Runs [45776389452](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45776389452) (push) and
-[45776560760](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45776560760) (manual) gave the same result:
+[45776560760](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45776560760) (manual) gave the same result,
+as did [45780122920](https://github.com/Aquaticat/apparmor-d-torbrowser-tor-pluggable-transport-dns-reproduction/actions/runs/45780122920) (the README push of 2026-11-26):
 the stock job's control lookup passed and its asserting step,
 `aa-exec --profile torbrowser-tor -- getent hosts app.datapacket.com`, exited `2`;
 the patched job passed the lookup under `torbrowser-tor//pluggable-transports`
