@@ -22,19 +22,31 @@
 use std::fs;
 /// The device and inode numbers that recognize this very executable,
 /// and the permission bits that say a file can be run.
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
 /// The `cargo` candidates:
 /// borrowed from the guard record,
 /// and owned when joined from a `PATH` entry.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The record of the earlier cargo-shadow and how it started this one,
 /// which decide the wording of the message.
-use crate::guard::{Guard, GuardKind};
+use crate::guard::{
+    Guard,
+    GuardKind,
+};
 /// The suffix of the `.launch` record that marks a real cargo,
 /// and this process's device and inode,
 /// to tell a `PATH` entry that leads back here.
-use crate::real_binary::{LAUNCH_RECORD_SUFFIX, running_image_identity};
+use crate::real_binary::{
+    LAUNCH_RECORD_SUFFIX,
+    running_image_identity,
+};
 
 /// The exit status of a cargo-shadow that was started by cargo-shadow itself.
 pub const ARRIVAL_EXIT_CODE: i32 = 2;
@@ -91,7 +103,10 @@ fn first_candidate(files: &[Found]) -> Option<&Found> {
 /// The `cargo` files of a PATH,
 /// in order,
 /// each classified.
-fn cargo_files(path_variable: &str, chosen: Option<&Path>) -> Vec<Found> {
+fn cargo_files(
+    path_variable: &str,
+    chosen: Option<&Path>,
+) -> Vec<Found> {
     let image: Option<(u64, u64)> = running_image_identity();
     let mut found: Vec<Found> = Vec::new();
     for directory in path_variable.split(':').filter(is_not_empty) {
@@ -115,13 +130,26 @@ fn cargo_files(path_variable: &str, chosen: Option<&Path>) -> Vec<Found> {
         let (note, candidate) = if is_us {
             ("this is cargo-shadow itself", false)
         } else if is_chosen {
-            ("cargo-shadow chose this file as the real cargo, and it started cargo-shadow again", false)
+            (
+                "cargo-shadow chose this file as the real cargo, and it started cargo-shadow again",
+                false,
+            )
         } else if recorded {
-            ("a launcher with a `.launch` record, which cargo-shadow skips on its own", false)
+            (
+                "a launcher with a `.launch` record, which cargo-shadow skips on its own",
+                false,
+            )
         } else {
-            ("not cargo-shadow as far as can be seen without running it", true)
+            (
+                "not cargo-shadow as far as can be seen without running it",
+                true,
+            )
         };
-        found.push(Found { spelled: file, note, candidate });
+        found.push(Found {
+            spelled: file,
+            note,
+            candidate,
+        });
     }
     return found;
 }
@@ -144,8 +172,16 @@ fn cargo_files(path_variable: &str, chosen: Option<&Path>) -> Vec<Found> {
 /// ```
 fn launch_record_text(own_executable: &Path) -> String {
     let mut fields = serde_json::Map::new();
-    for (name, value) in [("toolId", "cargo-shadow"), ("lockFile", "/dev/null"), ("real", &own_executable.to_string_lossy()), ("scope", "repo")] {
-        fields.insert(name.to_string(), serde_json::Value::String(value.to_string()));
+    for (name, value) in [
+        ("toolId", "cargo-shadow"),
+        ("lockFile", "/dev/null"),
+        ("real", &own_executable.to_string_lossy()),
+        ("scope", "repo"),
+    ] {
+        fields.insert(
+            name.to_string(),
+            serde_json::Value::String(value.to_string()),
+        );
     }
     return serde_json::Value::Object(fields).to_string();
 }
@@ -166,20 +202,30 @@ fn launch_record_text(own_executable: &Path) -> String {
 /// ```ts
 /// export function arrivalMessage(guard: Guard, ownExecutable: string, pathVariable: string): string
 /// ```
-pub fn arrival_message(guard: &Guard, own_executable: &Path, path_variable: &str) -> String {
+pub fn arrival_message(
+    guard: &Guard,
+    own_executable: &Path,
+    path_variable: &str,
+) -> String {
     let chosen: Option<&Path> = guard.skipped.last().map(PathBuf::as_path);
     let chosen_text: String = match chosen {
         Some(path) => path.display().to_string(),
         None => "(a file that is not known any more)".to_string(),
     };
     let starter: String = match guard.kind {
-        GuardKind::Exec => format!("an earlier cargo-shadow (process {}) replaced itself with that file", guard.pid),
+        GuardKind::Exec => format!(
+            "an earlier cargo-shadow (process {}) replaced itself with that file",
+            guard.pid
+        ),
         GuardKind::Spawn => {
             let program: String = match fs::read_link(format!("/proc/{}/exe", guard.pid)) {
                 Ok(path) => path.display().to_string(),
                 Err(_) => "a program that has ended".to_string(),
             };
-            format!("an earlier cargo-shadow (process {}, the program {program}) started that file as a child", guard.pid)
+            format!(
+                "an earlier cargo-shadow (process {}, the program {program}) started that file as a child",
+                guard.pid
+            )
         }
     };
     let files: Vec<Found> = cargo_files(path_variable, chosen);
@@ -188,7 +234,12 @@ pub fn arrival_message(guard: &Guard, own_executable: &Path, path_variable: &str
     } else {
         let mut lines: String = String::new();
         for (index, one) in files.iter().enumerate() {
-            lines.push_str(&format!("    {}. {}  ({})\n", index + 1, one.spelled.display(), one.note));
+            lines.push_str(&format!(
+                "    {}. {}  ({})\n",
+                index + 1,
+                one.spelled.display(),
+                one.note
+            ));
         }
         lines
     };

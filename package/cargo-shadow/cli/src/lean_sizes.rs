@@ -12,11 +12,19 @@
 //! ```
 
 /// Directory reading and metadata.
-use std::{collections::HashSet, fs, os::unix::fs::MetadataExt, path::Path};
+use std::{
+    collections::HashSet,
+    fs,
+    os::unix::fs::MetadataExt,
+    path::Path,
+};
 
 /// Device and inode,
 /// the deadline and the block arithmetic.
-use crate::lean_identity::{Deadline, Identity};
+use crate::lean_identity::{
+    Deadline,
+    Identity,
+};
 /// Imports the names this file uses from `crate::lean_removal`.
 use crate::lean_removal::allocated_bytes_of;
 
@@ -43,8 +51,15 @@ pub struct Measured {
 /// ```ts
 /// export function addTreeBytes(path: string, seen: Set<string>, deadline: Deadline): Measured
 /// ```
-pub fn add_tree_bytes(path: &Path, seen: &mut HashSet<Identity>, deadline: &Deadline) -> Measured {
-    let mut total: Measured = Measured { bytes: 0, complete: true };
+pub fn add_tree_bytes(
+    path: &Path,
+    seen: &mut HashSet<Identity>,
+    deadline: &Deadline,
+) -> Measured {
+    let mut total: Measured = Measured {
+        bytes: 0,
+        complete: true,
+    };
     let mut stack: Vec<std::path::PathBuf> = vec![path.to_path_buf()];
     let mut counter: usize = 0;
     while let Some(current) = stack.pop() {
@@ -53,7 +68,9 @@ pub fn add_tree_bytes(path: &Path, seen: &mut HashSet<Identity>, deadline: &Dead
             total.complete = false;
             return total;
         }
-        let Ok(metadata) = fs::symlink_metadata(&current) else { continue };
+        let Ok(metadata) = fs::symlink_metadata(&current) else {
+            continue;
+        };
         if metadata.is_dir() {
             total.bytes += allocated_bytes_of(&metadata);
             if let Ok(children) = fs::read_dir(&current) {
@@ -63,7 +80,12 @@ pub fn add_tree_bytes(path: &Path, seen: &mut HashSet<Identity>, deadline: &Dead
             }
             continue;
         }
-        if metadata.nlink() <= 1 || seen.insert(Identity { device: metadata.dev(), inode: metadata.ino() }) {
+        if metadata.nlink() <= 1
+            || seen.insert(Identity {
+                device: metadata.dev(),
+                inode: metadata.ino(),
+            })
+        {
             total.bytes += allocated_bytes_of(&metadata);
         }
     }
@@ -79,7 +101,10 @@ pub fn add_tree_bytes(path: &Path, seen: &mut HashSet<Identity>, deadline: &Dead
 /// ```ts
 /// export const treeBytes = (path: string, deadline: Deadline): Measured => addTreeBytes(path, new Set(), deadline);
 /// ```
-pub fn tree_bytes(path: &Path, deadline: &Deadline) -> Measured {
+pub fn tree_bytes(
+    path: &Path,
+    deadline: &Deadline,
+) -> Measured {
     let mut seen: HashSet<Identity> = HashSet::new();
     return add_tree_bytes(path, &mut seen, deadline);
 }

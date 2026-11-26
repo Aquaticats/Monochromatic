@@ -54,16 +54,6 @@ use std::io;
 use std::path::Path;
 
 /// What:
-/// `use crate::constants::TOOLCHAIN_LOCK_NAME;` imports `TOOLCHAIN_LOCK_NAME` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `TOOLCHAIN_LOCK_NAME` is used by `pinned_toolchain`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { TOOLCHAIN_LOCK_NAME } from 'crate/constants';
-/// ```
-use crate::constants::TOOLCHAIN_LOCK_NAME;
-/// What:
 /// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
 /// Why:
 /// `text_of` is used by `rust_toolchain_from_lock`.
@@ -73,6 +63,16 @@ use crate::constants::TOOLCHAIN_LOCK_NAME;
 /// import { text_of } from 'crate/adapt';
 /// ```
 use crate::adapt::text_of;
+/// What:
+/// `use crate::constants::TOOLCHAIN_LOCK_NAME;` imports `TOOLCHAIN_LOCK_NAME` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `TOOLCHAIN_LOCK_NAME` is used by `pinned_toolchain`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { TOOLCHAIN_LOCK_NAME } from 'crate/constants';
+/// ```
+use crate::constants::TOOLCHAIN_LOCK_NAME;
 
 /// What:
 /// `pub fn rust_toolchain_from_lock(text: &str) -> Result<String, String>` reads `.tools.rust.version`.
@@ -117,12 +117,16 @@ pub fn pinned_toolchain(root: &Path) -> Result<String, String> {
 /// ```ts
 /// export async function cargoToolchain({ root, explicit }): Promise<{ toolchain: string; warning?: string }>
 /// ```
-pub fn cargo_toolchain(root: &Path, explicit: &str) -> Result<(String, Option<String>), String> {
+pub fn cargo_toolchain(
+    root: &Path,
+    explicit: &str,
+) -> Result<(String, Option<String>), String> {
     let pinned: String = pinned_toolchain(root)?;
     if !pinned.is_empty() {
         if !explicit.is_empty() && explicit != pinned {
-            let warning: String =
-                format!("ignoring RUSTUP_TOOLCHAIN={explicit} from the environment; {TOOLCHAIN_LOCK_NAME} pins {pinned}");
+            let warning: String = format!(
+                "ignoring RUSTUP_TOOLCHAIN={explicit} from the environment; {TOOLCHAIN_LOCK_NAME} pins {pinned}"
+            );
             return Ok((pinned, Some(warning)));
         }
         return Ok((pinned, None));

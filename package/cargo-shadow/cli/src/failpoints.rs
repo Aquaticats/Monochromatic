@@ -186,7 +186,9 @@ pub enum Point {
 /// export function armOutputFileSyncOf(path: string): void
 /// ```
 pub fn arm_output_file_sync_of(path: &Path) {
-    OUTPUT_FILE_SYNC_OF.with(|slot| { *slot.borrow_mut() = Some(path.to_path_buf()); });
+    OUTPUT_FILE_SYNC_OF.with(|slot| {
+        *slot.borrow_mut() = Some(path.to_path_buf());
+    });
 }
 
 /// What:
@@ -201,7 +203,9 @@ pub fn arm_output_file_sync_of(path: &Path) {
 /// export function armOutputDirectorySyncOf(path: string): void
 /// ```
 pub fn arm_output_directory_sync_of(path: &Path) {
-    OUTPUT_DIRECTORY_SYNC_OF.with(|slot| { *slot.borrow_mut() = Some(path.to_path_buf()); });
+    OUTPUT_DIRECTORY_SYNC_OF.with(|slot| {
+        *slot.borrow_mut() = Some(path.to_path_buf());
+    });
 }
 
 /// What:
@@ -258,8 +262,12 @@ pub(crate) fn output_directory_sync_of(path: &Path) -> bool {
 /// export function pathTargetsArmed(): [boolean, boolean]
 /// ```
 pub(crate) fn path_targets_armed() -> (bool, bool) {
-    let file: bool = OUTPUT_FILE_SYNC_OF.with(|slot| { return slot.borrow().is_some(); });
-    let directory: bool = OUTPUT_DIRECTORY_SYNC_OF.with(|slot| { return slot.borrow().is_some(); });
+    let file: bool = OUTPUT_FILE_SYNC_OF.with(|slot| {
+        return slot.borrow().is_some();
+    });
+    let directory: bool = OUTPUT_DIRECTORY_SYNC_OF.with(|slot| {
+        return slot.borrow().is_some();
+    });
     return (file, directory);
 }
 
@@ -276,7 +284,9 @@ pub(crate) fn path_targets_armed() -> (bool, bool) {
 /// export function armKeepLinkOf(target: string): void
 /// ```
 pub fn arm_keep_link_of(target: &Path) {
-    KEEP_LINK_OF.with(|slot| { *slot.borrow_mut() = Some(target.to_path_buf()); });
+    KEEP_LINK_OF.with(|slot| {
+        *slot.borrow_mut() = Some(target.to_path_buf());
+    });
 }
 
 /// What:
@@ -289,7 +299,9 @@ pub fn arm_keep_link_of(target: &Path) {
 /// export function disarmKeepLink(): void
 /// ```
 pub fn disarm_keep_link() {
-    KEEP_LINK_OF.with(|slot| { *slot.borrow_mut() = None; });
+    KEEP_LINK_OF.with(|slot| {
+        *slot.borrow_mut() = None;
+    });
 }
 
 /// What:
@@ -302,7 +314,9 @@ pub fn disarm_keep_link() {
 /// export function keepLinkOf(target: string): boolean
 /// ```
 pub(crate) fn keep_link_of(target: &Path) -> bool {
-    return KEEP_LINK_OF.with(|slot| { return slot.borrow().as_deref() == Some(target); });
+    return KEEP_LINK_OF.with(|slot| {
+        return slot.borrow().as_deref() == Some(target);
+    });
 }
 
 /// What:
@@ -330,36 +344,94 @@ pub fn arm(point: Point) {
         // ```ts
         // (a, b) => body
         // ```
-        Point::Restore => RESTORE.with(|slot| { slot.set(true); }),
+        Point::Restore => RESTORE.with(|slot| {
+            slot.set(true);
+        }),
         // Closure `|slot|`: an anonymous function, like a TS arrow function.
-        Point::FinishDurability => FINISH.with(|slot| { slot.set(true); }),
-        Point::FinishCleanup => FINISH_CLEANUP.with(|slot| { slot.set(true); }),
-        Point::RecoverDurability => RECOVER_DURABILITY.with(|slot| { slot.set(true); }),
-        Point::OutputFileSync => OUTPUT_FILE_SYNC.with(|slot| { slot.set(true); }),
-        Point::RecordShortWrite => RECORD_SHORT_WRITE.with(|slot| { slot.set(true); }),
-        Point::OutputDirectorySync => OUTPUT_DIRECTORY_SYNC.with(|slot| { slot.set(true); }),
-        Point::AcknowledgementPublish => ACKNOWLEDGEMENT_PUBLISH.with(|slot| { slot.set(true); }),
-        Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(|slot| { slot.set(true); }),
-        Point::AcknowledgementFileSync => ACKNOWLEDGEMENT_FILE_SYNC.with(|slot| { slot.set(true); }),
-        Point::AcknowledgementDirectorySync => ACKNOWLEDGEMENT_DIRECTORY_SYNC.with(|slot| { slot.set(true); }),
-        Point::JournalDirectorySync => JOURNAL_DIRECTORY_SYNC.with(|slot| { slot.set(true); }),
-        Point::JournalParentSync => JOURNAL_PARENT_SYNC.with(|slot| { slot.set(true); }),
-        Point::ContainmentSurvivor => CONTAINMENT_SURVIVOR.with(|slot| { slot.set(true); }),
-        Point::ReapError => REAP_ERROR.with(|slot| { slot.set(true); }),
-        Point::PublicationFileSync => PUBLICATION_FILE_SYNC.with(|slot| { slot.set(true); }),
-        Point::RecordSync => RECORD_SYNC.with(|slot| { slot.set(true); }),
-        Point::RecordWrite => RECORD_WRITE.with(|slot| { slot.set(true); }),
-        Point::ReapStuck => REAP_STUCK.with(|slot| { slot.set(true); }),
-        Point::CompletionSync => COMPLETION_SYNC.with(|slot| { slot.set(true); }),
-        Point::CompletionRename => COMPLETION_RENAME.with(|slot| { slot.set(true); }),
-        Point::ListingEntryNotFound => LISTING_ENTRY_NOT_FOUND.with(|slot| { slot.set(true); }),
-        Point::ListingInspection => LISTING_INSPECTION.with(|slot| { slot.set(true); }),
-        Point::ListingIteration => LISTING_ITERATION.with(|slot| { slot.set(true); }),
-        Point::ListingOpen => LISTING_OPEN.with(|slot| { slot.set(true); }),
-        Point::ContainmentStopStuck => CONTAINMENT_STOP_STUCK.with(|slot| { slot.set(true); }),
-        Point::ContainmentStopError => CONTAINMENT_STOP_ERROR.with(|slot| { slot.set(true); }),
-        Point::ContainmentInspection => CONTAINMENT_INSPECTION.with(|slot| { slot.set(true); }),
-        Point::FinishCompletion => FINISH_COMPLETION.with(|slot| { slot.set(true); }),
+        Point::FinishDurability => FINISH.with(|slot| {
+            slot.set(true);
+        }),
+        Point::FinishCleanup => FINISH_CLEANUP.with(|slot| {
+            slot.set(true);
+        }),
+        Point::RecoverDurability => RECOVER_DURABILITY.with(|slot| {
+            slot.set(true);
+        }),
+        Point::OutputFileSync => OUTPUT_FILE_SYNC.with(|slot| {
+            slot.set(true);
+        }),
+        Point::RecordShortWrite => RECORD_SHORT_WRITE.with(|slot| {
+            slot.set(true);
+        }),
+        Point::OutputDirectorySync => OUTPUT_DIRECTORY_SYNC.with(|slot| {
+            slot.set(true);
+        }),
+        Point::AcknowledgementPublish => ACKNOWLEDGEMENT_PUBLISH.with(|slot| {
+            slot.set(true);
+        }),
+        Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(|slot| {
+            slot.set(true);
+        }),
+        Point::AcknowledgementFileSync => ACKNOWLEDGEMENT_FILE_SYNC.with(|slot| {
+            slot.set(true);
+        }),
+        Point::AcknowledgementDirectorySync => ACKNOWLEDGEMENT_DIRECTORY_SYNC.with(|slot| {
+            slot.set(true);
+        }),
+        Point::JournalDirectorySync => JOURNAL_DIRECTORY_SYNC.with(|slot| {
+            slot.set(true);
+        }),
+        Point::JournalParentSync => JOURNAL_PARENT_SYNC.with(|slot| {
+            slot.set(true);
+        }),
+        Point::ContainmentSurvivor => CONTAINMENT_SURVIVOR.with(|slot| {
+            slot.set(true);
+        }),
+        Point::ReapError => REAP_ERROR.with(|slot| {
+            slot.set(true);
+        }),
+        Point::PublicationFileSync => PUBLICATION_FILE_SYNC.with(|slot| {
+            slot.set(true);
+        }),
+        Point::RecordSync => RECORD_SYNC.with(|slot| {
+            slot.set(true);
+        }),
+        Point::RecordWrite => RECORD_WRITE.with(|slot| {
+            slot.set(true);
+        }),
+        Point::ReapStuck => REAP_STUCK.with(|slot| {
+            slot.set(true);
+        }),
+        Point::CompletionSync => COMPLETION_SYNC.with(|slot| {
+            slot.set(true);
+        }),
+        Point::CompletionRename => COMPLETION_RENAME.with(|slot| {
+            slot.set(true);
+        }),
+        Point::ListingEntryNotFound => LISTING_ENTRY_NOT_FOUND.with(|slot| {
+            slot.set(true);
+        }),
+        Point::ListingInspection => LISTING_INSPECTION.with(|slot| {
+            slot.set(true);
+        }),
+        Point::ListingIteration => LISTING_ITERATION.with(|slot| {
+            slot.set(true);
+        }),
+        Point::ListingOpen => LISTING_OPEN.with(|slot| {
+            slot.set(true);
+        }),
+        Point::ContainmentStopStuck => CONTAINMENT_STOP_STUCK.with(|slot| {
+            slot.set(true);
+        }),
+        Point::ContainmentStopError => CONTAINMENT_STOP_ERROR.with(|slot| {
+            slot.set(true);
+        }),
+        Point::ContainmentInspection => CONTAINMENT_INSPECTION.with(|slot| {
+            slot.set(true);
+        }),
+        Point::FinishCompletion => FINISH_COMPLETION.with(|slot| {
+            slot.set(true);
+        }),
     }
 }
 

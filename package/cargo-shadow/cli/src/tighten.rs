@@ -29,6 +29,12 @@
 //! export function raiseFloors({ source, locked, changed }): { source: string; changes: string[] }
 //! ```
 
+/// Imports the bounded child run and the time types of its bound.
+use crate::bounded_run::{
+    Bound,
+    RunError,
+    output_within,
+};
 /// What:
 /// `use std::collections::{BTreeMap, BTreeSet};` imports `BTreeMap`,
 /// `BTreeSet` from the standard library so this file can name them unqualified.
@@ -43,7 +49,10 @@
 /// ```ts
 /// import { BTreeMap, BTreeSet } from 'std/collections';
 /// ```
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 /// What:
 /// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
 /// Why:
@@ -64,8 +73,6 @@ use std::path::Path;
 /// import { Command } from 'std/process';
 /// ```
 use std::process::Command;
-/// Imports the bounded child run and the time types of its bound.
-use crate::bounded_run::{Bound, RunError, output_within};
 // What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
 // Why:      The code below names these items directly instead of spelling their full paths each time.
 //
@@ -96,8 +103,22 @@ use std::time::Duration;
 /// ```ts
 /// import { DocumentMut, Item, Value } from 'toml_edit';
 /// ```
-use toml_edit::{DocumentMut, Item, Value};
+use toml_edit::{
+    DocumentMut,
+    Item,
+    Value,
+};
 
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `raise_floors`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
 /// What:
 /// `use crate::lockfile::LockedVersion;` imports `LockedVersion` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -122,16 +143,6 @@ use crate::lockfile::LockedVersion;
 /// import { compare_texts } from 'crate/version_order';
 /// ```
 use crate::version_order::compare_texts;
-/// What:
-/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `text_of` is used by `raise_floors`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { text_of } from 'crate/adapt';
-/// ```
-use crate::adapt::text_of;
 
 /// What:
 /// `pub trait Syncer { fn sync(&self, root: &Path) -> Result<String, String>; }` renders the catalog into the manifests.
@@ -146,7 +157,10 @@ use crate::adapt::text_of;
 pub trait Syncer {
     /// Runs the sync from the repository root;
     /// the string is a one-line result for the report.
-    fn sync(&self, root: &Path) -> Result<String, String>;
+    fn sync(
+        &self,
+        root: &Path,
+    ) -> Result<String, String>;
 }
 
 /// The longest one `file-enforcer write` may take,
@@ -195,7 +209,9 @@ fn file_enforcer_run_failure(error: RunError) -> String {
 /// const fileEnforcerStartFailure = (error: Error) => `could not start file-enforcer (${error.message}); run the sync task`;
 /// ```
 fn file_enforcer_start_failure(error: std::io::Error) -> String {
-    return format!("could not start file-enforcer ({error}); run `mise run sync:files` to render the raised floors into the manifests");
+    return format!(
+        "could not start file-enforcer ({error}); run `mise run sync:files` to render the raised floors into the manifests"
+    );
 }
 
 /// What:
@@ -220,7 +236,10 @@ impl Syncer for FileEnforcer {
     /// ```ts
     /// sync(root: string): string  // throws with the remedy
     /// ```
-    fn sync(&self, root: &Path) -> Result<String, String> {
+    fn sync(
+        &self,
+        root: &Path,
+    ) -> Result<String, String> {
         // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
         // Why:      The value is built up or replaced step by step below.
         //
@@ -245,7 +264,11 @@ impl Syncer for FileEnforcer {
         // String(value)  // JS strings are always owned values
         // ```
         // Typed binding: `bound: Bound`.
-        let bound: Bound = Bound { limit: Duration::from_secs(FILE_ENFORCER_SECONDS), what: "`file-enforcer write`".to_string(), rerun: crate::bounded_run::rerun_text() };
+        let bound: Bound = Bound {
+            limit: Duration::from_secs(FILE_ENFORCER_SECONDS),
+            what: "`file-enforcer write`".to_string(),
+            rerun: crate::bounded_run::rerun_text(),
+        };
         // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
         // Why:      Absence is a value the caller must check; there is no `null`.
         //
@@ -276,9 +299,13 @@ impl Syncer for FileEnforcer {
         // ```ts
         // try { ... } catch (error) { throw new MyError(String(error)); }
         // ```
-        let output = output_within(&mut command, None, &bound).map_err(file_enforcer_run_failure)?;
+        let output =
+            output_within(&mut command, None, &bound).map_err(file_enforcer_run_failure)?;
         if !output.status.success() {
-            return Err(format!("file-enforcer write failed: {}", String::from_utf8_lossy(&output.stderr).trim()));
+            return Err(format!(
+                "file-enforcer write failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
         }
         return Ok("rendered the catalog into the manifests with file-enforcer write".to_string());
     }
@@ -289,7 +316,9 @@ fn highest_by_name(locked: &[LockedVersion]) -> BTreeMap<String, String> {
     let mut highest: BTreeMap<String, String> = BTreeMap::new();
     for version in locked {
         let replace: bool = match highest.get(&version.name) {
-            Some(current) => compare_texts(&version.version, current) == std::cmp::Ordering::Greater,
+            Some(current) => {
+                compare_texts(&version.version, current) == std::cmp::Ordering::Greater
+            }
             None => true,
         };
         if replace {
@@ -300,7 +329,10 @@ fn highest_by_name(locked: &[LockedVersion]) -> BTreeMap<String, String> {
 }
 
 /// The names whose highest locked version is higher in `after` than in `before`.
-pub fn raised_names(before: &[LockedVersion], after: &[LockedVersion]) -> BTreeSet<String> {
+pub fn raised_names(
+    before: &[LockedVersion],
+    after: &[LockedVersion],
+) -> BTreeSet<String> {
     let old: BTreeMap<String, String> = highest_by_name(before);
     let mut raised: BTreeSet<String> = BTreeSet::new();
     for (name, version) in highest_by_name(after) {
@@ -328,7 +360,11 @@ pub fn raised_names(before: &[LockedVersion], after: &[LockedVersion]) -> BTreeS
 /// ```ts
 /// export function raiseFloors({ source, locked, changed }): { source: string; changes: string[] }
 /// ```
-pub fn raise_floors(source: &str, locked: &[LockedVersion], changed: &BTreeSet<String>) -> Result<(String, Vec<String>), String> {
+pub fn raise_floors(
+    source: &str,
+    locked: &[LockedVersion],
+    changed: &BTreeSet<String>,
+) -> Result<(String, Vec<String>), String> {
     let mut document: DocumentMut = source.parse::<DocumentMut>().map_err(text_of)?;
     let highest: BTreeMap<String, String> = highest_by_name(locked);
     let mut changes: Vec<String> = Vec::new();

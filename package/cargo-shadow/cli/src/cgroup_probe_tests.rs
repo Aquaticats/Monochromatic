@@ -19,13 +19,34 @@
 //! ```
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 use std::time::Duration;
 
-use crate::cgroup_test_support::{delegated_route, start_in_scope, start_in_scope_without_waiting, wait_until};
-use crate::contain_counterexample_tests::{compile_leader, is_running};
-use crate::control_group::{Membership, Record, RouteSettings, View, detect_route, kill_file_present, parse_record, query, view_of};
+use crate::cgroup_test_support::{
+    delegated_route,
+    start_in_scope,
+    start_in_scope_without_waiting,
+    wait_until,
+};
+use crate::contain_counterexample_tests::{
+    compile_leader,
+    is_running,
+};
+use crate::control_group::{
+    Membership,
+    Record,
+    RouteSettings,
+    View,
+    detect_route,
+    kill_file_present,
+    parse_record,
+    query,
+    view_of,
+};
 use crate::test_scratch::scratch;
 
 /// How long a stop may take in these probes.
@@ -41,7 +62,10 @@ fn state_of(pid: i32) -> Option<char> {
 /// The group a process is in,
 /// as `/proc/<pid>/cgroup` says.
 fn group_of(pid: &str) -> String {
-    return fs::read_to_string(format!("/proc/{pid}/cgroup")).expect("a group").trim().to_string();
+    return fs::read_to_string(format!("/proc/{pid}/cgroup"))
+        .expect("a group")
+        .trim()
+        .to_string();
 }
 
 /// Probe 0,
@@ -58,7 +82,11 @@ fn group_of(pid: &str) -> String {
 #[test]
 fn probe_0_the_host_can_give_the_tests_a_delegated_scope() {
     let route = delegated_route();
-    eprintln!("cargo-shadow tests: this host can give a delegated control group ({} in {})", route.slice, route.slice_dir.display());
+    eprintln!(
+        "cargo-shadow tests: this host can give a delegated control group ({} in {})",
+        route.slice,
+        route.slice_dir.display()
+    );
 }
 
 /// Probe 1:
@@ -72,10 +100,27 @@ fn probe_1_a_delegated_scope_is_started_and_the_program_runs_in_it() {
     let members: Vec<i32> = scope.group.members().expect("lists");
     let program_group: String = group_of(&scope.child.id().to_string());
 
-    let scope_name: String = scope.group.directory().file_name().expect("a name").to_string_lossy().to_string();
-    assert!(program_group.ends_with(&scope_name), "{program_group} should end with {scope_name}");
-    assert_eq!(members, vec![i32::try_from(scope.child.id()).expect("a process id")], "the program replaced systemd-run, so its pid is the member");
-    assert_eq!(group_of("self"), before, "the starting process changed its group");
+    let scope_name: String = scope
+        .group
+        .directory()
+        .file_name()
+        .expect("a name")
+        .to_string_lossy()
+        .to_string();
+    assert!(
+        program_group.ends_with(&scope_name),
+        "{program_group} should end with {scope_name}"
+    );
+    assert_eq!(
+        members,
+        vec![i32::try_from(scope.child.id()).expect("a process id")],
+        "the program replaced systemd-run, so its pid is the member"
+    );
+    assert_eq!(
+        group_of("self"),
+        before,
+        "the starting process changed its group"
+    );
 }
 
 /// Probe 1:
@@ -83,7 +128,10 @@ fn probe_1_a_delegated_scope_is_started_and_the_program_runs_in_it() {
 #[test]
 fn probe_1_a_host_without_a_cgroup_v2_mount_names_the_missing_capability() {
     let plain = scratch();
-    let settings: RouteSettings = RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() };
+    let settings: RouteSettings = RouteSettings {
+        cgroup_root: plain.path().to_path_buf(),
+        ..RouteSettings::default()
+    };
 
     let refused = detect_route(&settings).expect_err("a plain directory is no cgroup v2 mount");
 
@@ -105,7 +153,10 @@ fn probe_1_a_group_directory_without_cgroup_kill_is_an_older_kernel() {
 #[test]
 fn probe_2_an_ordinary_member_is_stopped_and_the_scope_is_empty_or_absent() {
     let mut scope = start_in_scope(Command::new("sleep").arg("600"));
-    assert!(scope.group.populated().expect("reads"), "a member makes the scope populated");
+    assert!(
+        scope.group.populated().expect("reads"),
+        "a member makes the scope populated"
+    );
 
     let _ = scope.child.kill();
     let stopped: bool = scope.group.stop(STOP).expect("stops");
@@ -127,17 +178,32 @@ fn probe_2_a_thread_group_with_an_exited_leader_stays_populated_until_it_is_stop
     let ready: PathBuf = directory.path().join("ready");
     let mut scope = start_in_scope(Command::new(&leader).arg(&ready));
     let pid: i32 = i32::try_from(scope.child.id()).expect("a process id");
-    wait_until("the leader thread's end", &|| { return state_of(pid) == Some('Z'); });
+    wait_until("the leader thread's end", &|| {
+        return state_of(pid) == Some('Z');
+    });
 
     let listed: Vec<i32> = scope.group.members().expect("lists");
     let populated: bool = scope.group.populated().expect("reads");
-    let threads: String = fs::read_to_string(scope.group.directory().join("cgroup.threads")).expect("threads");
+    let threads: String =
+        fs::read_to_string(scope.group.directory().join("cgroup.threads")).expect("threads");
     let stopped: bool = scope.group.stop(STOP).expect("stops");
     let _ = scope.child.wait();
 
-    assert_eq!(listed, vec![pid], "the process is listed by its leader's id");
-    assert!(populated, "a live thread of a zombie leader makes the scope populated");
-    assert!(threads.lines().any(|line| { return line.trim() != pid.to_string(); }), "the live thread is listed: {threads:?}");
+    assert_eq!(
+        listed,
+        vec![pid],
+        "the process is listed by its leader's id"
+    );
+    assert!(
+        populated,
+        "a live thread of a zombie leader makes the scope populated"
+    );
+    assert!(
+        threads.lines().any(|line| {
+            return line.trim() != pid.to_string();
+        }),
+        "the live thread is listed: {threads:?}"
+    );
     assert!(stopped, "the scope was not stopped");
 }
 
@@ -150,9 +216,14 @@ fn probe_2_a_scope_that_is_collected_at_once_is_accepted_as_empty_by_verified_ab
     let _ = scope.child.kill();
     let _ = scope.child.wait();
     let directory: PathBuf = scope.group.directory().to_path_buf();
-    wait_until("the manager's collection of the empty scope", &|| { return !directory.exists(); });
+    wait_until("the manager's collection of the empty scope", &|| {
+        return !directory.exists();
+    });
 
-    let stopped: bool = scope.group.stop(STOP).expect("an absent scope is stopped by verified absence");
+    let stopped: bool = scope
+        .group
+        .stop(STOP)
+        .expect("an absent scope is stopped by verified absence");
 
     assert!(stopped);
 }
@@ -163,7 +234,10 @@ fn probe_2_a_scope_that_is_collected_at_once_is_accepted_as_empty_by_verified_ab
 /// and the manager does not move that descendant elsewhere.
 #[test]
 fn probe_2_a_scope_stays_observable_while_a_descendant_outlives_the_program() {
-    let mut scope = start_in_scope(Command::new("sh").args(["-c", "(setsid sleep 600 </dev/null >/dev/null 2>&1 &); exit 0"]));
+    let mut scope = start_in_scope(Command::new("sh").args([
+        "-c",
+        "(setsid sleep 600 </dev/null >/dev/null 2>&1 &); exit 0",
+    ]));
     let _ = scope.child.wait();
 
     let populated: bool = scope.group.populated().expect("the scope is observable");
@@ -171,7 +245,10 @@ fn probe_2_a_scope_stays_observable_while_a_descendant_outlives_the_program() {
 
     assert!(populated);
     assert_eq!(members.len(), 1, "{members:?}");
-    assert!(group_of(&members[0].to_string()).contains(".scope"), "the descendant was moved out of its scope");
+    assert!(
+        group_of(&members[0].to_string()).contains(".scope"),
+        "the descendant was moved out of its scope"
+    );
     assert!(scope.group.stop(STOP).expect("stops"));
 }
 
@@ -179,22 +256,45 @@ fn probe_2_a_scope_stays_observable_while_a_descendant_outlives_the_program() {
 /// a descendant that calls `setsid` and one that is reparented after a double fork are still members.
 #[test]
 fn probe_3_a_setsid_and_double_fork_descendant_stays_a_member() {
-    let script: &str = "setsid sh -c '(sleep 600 &) ; exec sleep 600' </dev/null >/dev/null 2>&1 & exec sleep 600";
+    let script: &str =
+        "setsid sh -c '(sleep 600 &) ; exec sleep 600' </dev/null >/dev/null 2>&1 & exec sleep 600";
     let mut scope = start_in_scope(Command::new("sh").args(["-c", script]));
 
-    wait_until("three members", &|| { return scope.group.members().map(|found| { return found.len() >= 3; }).unwrap_or(false); });
+    wait_until("three members", &|| {
+        return scope
+            .group
+            .members()
+            .map(|found| {
+                return found.len() >= 3;
+            })
+            .unwrap_or(false);
+    });
     let sessions: std::collections::BTreeSet<String> = scope
         .group
         .members()
         .expect("lists")
         .iter()
-        .filter_map(|pid| { return fs::read_to_string(format!("/proc/{pid}/stat")).ok(); })
-        .map(|stat| { return stat.rsplit(')').next().unwrap_or("").split_whitespace().nth(3).unwrap_or("").to_string(); })
+        .filter_map(|pid| {
+            return fs::read_to_string(format!("/proc/{pid}/stat")).ok();
+        })
+        .map(|stat| {
+            return stat
+                .rsplit(')')
+                .next()
+                .unwrap_or("")
+                .split_whitespace()
+                .nth(3)
+                .unwrap_or("")
+                .to_string();
+        })
         .collect();
     let stopped: bool = scope.group.stop(STOP).expect("stops");
     let _ = scope.child.wait();
 
-    assert!(sessions.len() >= 2, "the descendants did not leave the session: {sessions:?}");
+    assert!(
+        sessions.len() >= 2,
+        "the descendants did not leave the session: {sessions:?}"
+    );
     assert!(stopped);
 }
 
@@ -209,17 +309,27 @@ fn probe_3_a_setsid_and_double_fork_descendant_stays_a_member() {
 fn probe_3_a_member_of_the_same_user_can_move_itself_out_which_is_assumption_a() {
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let own: String = group_of("self");
-    let leaf: PathBuf = Path::new("/sys/fs/cgroup").join(own.trim_start_matches("0::").trim_start_matches('/'));
-    let mut scope = start_in_scope_without_waiting(Command::new("sh").args(["-c", "echo 0 > \"$1\"/cgroup.procs; exec sleep 600", "sh"]).arg(&leaf));
+    let leaf: PathBuf =
+        Path::new("/sys/fs/cgroup").join(own.trim_start_matches("0::").trim_start_matches('/'));
+    let mut scope = start_in_scope_without_waiting(
+        Command::new("sh")
+            .args(["-c", "echo 0 > \"$1\"/cgroup.procs; exec sleep 600", "sh"])
+            .arg(&leaf),
+    );
     let pid: i32 = i32::try_from(scope.child.id()).expect("a process id");
 
     // The handshake is the member's own record: its group is the leaf it moved into, not the scope it started in.
-    wait_until("the member's move out", &|| { return group_of(&pid.to_string()) == own; });
+    wait_until("the member's move out", &|| {
+        return group_of(&pid.to_string()) == own;
+    });
     let escaped_alive: bool = is_running(pid);
     let _ = scope.child.kill();
     let _ = scope.child.wait();
 
-    assert!(escaped_alive, "the member that left should be running outside the scope");
+    assert!(
+        escaped_alive,
+        "the member that left should be running outside the scope"
+    );
 }
 
 /// Probe 4:
@@ -231,23 +341,51 @@ fn probe_3_a_member_of_the_same_user_can_move_itself_out_which_is_assumption_a()
 fn probe_4_a_scope_is_found_by_its_record_and_a_different_view_is_unknown() {
     let mut scope = start_in_scope(Command::new("sleep").arg("600"));
     let line: String = scope.group.record().to_string();
-    let Record::Scope { namespace, parent_view, path } = parse_record(&line).expect("the record parses") else {
+    let Record::Scope {
+        namespace,
+        parent_view,
+        path,
+    } = parse_record(&line).expect("the record parses")
+    else {
         panic!("a scope record was read as another kind");
     };
 
     let alive: Membership = query(namespace, parent_view, &path);
     let other_namespace: Membership = query(namespace + 1, parent_view, &path);
-    let other_mount: Membership = query(namespace, View { mount: parent_view.mount + 1, inode: parent_view.inode }, &path);
-    let other_inode: Membership = query(namespace, View { mount: parent_view.mount, inode: parent_view.inode + 1 }, &path);
+    let other_mount: Membership = query(
+        namespace,
+        View {
+            mount: parent_view.mount + 1,
+            inode: parent_view.inode,
+        },
+        &path,
+    );
+    let other_inode: Membership = query(
+        namespace,
+        View {
+            mount: parent_view.mount,
+            inode: parent_view.inode + 1,
+        },
+        &path,
+    );
     let _ = scope.child.kill();
     let stopped: bool = scope.group.stop(STOP).expect("stops");
     let _ = scope.child.wait();
     let after: Membership = query(namespace, parent_view, &path);
 
     assert_eq!(alive, Membership::Alive);
-    assert!(matches!(other_namespace, Membership::Unknown(_)), "{other_namespace:?}");
-    assert!(matches!(other_mount, Membership::Unknown(_)), "{other_mount:?}");
-    assert!(matches!(other_inode, Membership::Unknown(_)), "{other_inode:?}");
+    assert!(
+        matches!(other_namespace, Membership::Unknown(_)),
+        "{other_namespace:?}"
+    );
+    assert!(
+        matches!(other_mount, Membership::Unknown(_)),
+        "{other_mount:?}"
+    );
+    assert!(
+        matches!(other_inode, Membership::Unknown(_)),
+        "{other_inode:?}"
+    );
     assert!(stopped);
     assert_eq!(after, Membership::Gone);
 }
@@ -261,7 +399,12 @@ fn probe_5_the_spawner_never_changes_group_and_an_unrelated_child_stays_out() {
     let before: String = group_of("self");
     // The scope is started before the unrelated child, so a host without a route leaves no child behind when the guard panics.
     let mut scope = start_in_scope(Command::new("sleep").arg("600"));
-    let unrelated = std::thread::spawn(|| { return Command::new("sleep").arg("600").spawn().expect("an unrelated child"); });
+    let unrelated = std::thread::spawn(|| {
+        return Command::new("sleep")
+            .arg("600")
+            .spawn()
+            .expect("an unrelated child");
+    });
     let mut other = unrelated.join().expect("thread");
 
     let other_group: String = group_of(&other.id().to_string());
@@ -269,9 +412,16 @@ fn probe_5_the_spawner_never_changes_group_and_an_unrelated_child_stays_out() {
     let _ = other.kill();
     let _ = other.wait();
 
-    assert_eq!(group_of("self"), before, "the starting process changed its group");
+    assert_eq!(
+        group_of("self"),
+        before,
+        "the starting process changed its group"
+    );
     assert_eq!(other_group, before, "the unrelated child was moved");
-    assert!(!scope_members.contains(&i32::try_from(other.id()).expect("a process id")), "{scope_members:?}");
+    assert!(
+        !scope_members.contains(&i32::try_from(other.id()).expect("a process id")),
+        "{scope_members:?}"
+    );
     let _ = scope.child.kill();
 }
 
@@ -293,13 +443,33 @@ fn a_view_is_the_same_twice_and_differs_between_directories() {
 /// and a damaged line is rejected with the line in the reason.
 #[test]
 fn the_record_lines_round_trip_and_damaged_lines_are_rejected() {
-    let scope: Record = Record::Scope { namespace: 9, parent_view: View { mount: 7, inode: 8 }, path: Path::new("/sys/fs/cgroup/a b/c.scope").to_path_buf() };
+    let scope: Record = Record::Scope {
+        namespace: 9,
+        parent_view: View {
+            mount: 7,
+            inode: 8,
+        },
+        path: Path::new("/sys/fs/cgroup/a b/c.scope").to_path_buf(),
+    };
     let process_group: Record = Record::ProcessGroup(4242);
 
     assert_eq!(parse_record(&scope.to_string()), Ok(scope));
     assert_eq!(parse_record(&process_group.to_string()), Ok(process_group));
-    assert_eq!(parse_record(&Record::ProcessGroupStarting.to_string()), Ok(Record::ProcessGroupStarting));
-    for damaged in ["", "4242", "pgroup x", "pgroup 0", "scope 1 2:3", "scope a 2:3 /x", "scope 1 b /x", "scope 1 2:c /x", "cgroup 1 2 /x"] {
+    assert_eq!(
+        parse_record(&Record::ProcessGroupStarting.to_string()),
+        Ok(Record::ProcessGroupStarting)
+    );
+    for damaged in [
+        "",
+        "4242",
+        "pgroup x",
+        "pgroup 0",
+        "scope 1 2:3",
+        "scope a 2:3 /x",
+        "scope 1 b /x",
+        "scope 1 2:c /x",
+        "cgroup 1 2 /x",
+    ] {
         let reason: String = parse_record(damaged).expect_err("a damaged line");
         assert!(reason.contains(&format!("{damaged:?}")), "{reason}");
     }
@@ -314,14 +484,36 @@ fn probe_1_an_inactive_slice_is_started_before_its_control_group_is_asked_for() 
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let name: String = format!("csr8probe{}.slice", std::process::id());
     let asked = |slice: &str| -> String {
-        let output = Command::new("systemctl").args(["--user", "show", slice, "--property=ControlGroup", "--value"]).output().expect("systemctl runs");
+        let output = Command::new("systemctl")
+            .args([
+                "--user",
+                "show",
+                slice,
+                "--property=ControlGroup",
+                "--value",
+            ])
+            .output()
+            .expect("systemctl runs");
         return String::from_utf8_lossy(&output.stdout).trim().to_string();
     };
-    assert_eq!(asked(&name), "", "the slice should be inactive before the discovery");
+    assert_eq!(
+        asked(&name),
+        "",
+        "the slice should be inactive before the discovery"
+    );
 
-    let found = detect_route(&RouteSettings { slice: name.clone(), ..RouteSettings::default() });
-    let _ = Command::new("systemctl").args(["--user", "stop", &name]).status();
+    let found = detect_route(&RouteSettings {
+        slice: name.clone(),
+        ..RouteSettings::default()
+    });
+    let _ = Command::new("systemctl")
+        .args(["--user", "stop", &name])
+        .status();
 
     let route = found.expect("an inactive slice is started and found");
-    assert!(route.slice_dir.ends_with(&name), "{}", route.slice_dir.display());
+    assert!(
+        route.slice_dir.ends_with(&name),
+        "{}",
+        route.slice_dir.display()
+    );
 }

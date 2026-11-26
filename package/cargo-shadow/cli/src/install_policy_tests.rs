@@ -12,7 +12,10 @@
 // ```
 use std::cell::RefCell;
 // Imports `std::collections::{BTreeMap, BTreeSet}`.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 // Imports `std::fs`.
 use std::fs;
 // Imports `std::path::{Path, PathBuf}`.
@@ -23,17 +26,31 @@ use std::fs;
 // ```ts
 // // TS has one type for this: string
 // ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 // Imports `monochromatic_dependency_catalog::{Settings...`.
-use monochromatic_dependency_catalog::{Settings, TrustPolicy};
+use monochromatic_dependency_catalog::{
+    Settings,
+    TrustPolicy,
+};
 
 // Imports `crate::cargo_run::{CargoOutcome, CargoRunne...`.
-use crate::cargo_run::{CargoOutcome, CargoRunner};
+use crate::cargo_run::{
+    CargoOutcome,
+    CargoRunner,
+};
 // Imports `crate::http::RegistryError`.
 use crate::http::RegistryError;
 // Imports `crate::install::{InstallError, InstallRepor...`.
-use crate::install::{InstallError, InstallReport, InstallRequest, install_rust_lockfiles};
+use crate::install::{
+    InstallError,
+    InstallReport,
+    InstallRequest,
+    install_rust_lockfiles,
+};
 // Imports `crate::policy::VersionRecord`.
 use crate::policy::VersionRecord;
 // Imports `crate::registry::Registry`.
@@ -105,7 +122,9 @@ fn lock_with(version: &str) -> String {
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    return format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"{version}\"\nsource = \"{REGISTRY}\"\n");
+    return format!(
+        "# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"{version}\"\nsource = \"{REGISTRY}\"\n"
+    );
 }
 
 /// A fake cargo:
@@ -140,7 +159,11 @@ struct FakeCargo {
 }
 
 impl CargoRunner for FakeCargo {
-    fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
+    fn run(
+        &self,
+        cwd: &Path,
+        args: &[String],
+    ) -> Result<CargoOutcome, String> {
         self.commands.borrow_mut().push(args.join(" "));
         // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
         // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
@@ -151,7 +174,11 @@ impl CargoRunner for FakeCargo {
         // ```
         let lock: PathBuf = cwd.join("Cargo.lock");
         // Constructor `String::new()`: an empty owned collection or a boxed value.
-        let ok = CargoOutcome { ok: true, output: String::new(), stdout: String::new() };
+        let ok = CargoOutcome {
+            ok: true,
+            output: String::new(),
+            stdout: String::new(),
+        };
         if args[0] == "metadata" {
             // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
             // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
@@ -181,7 +208,9 @@ impl CargoRunner for FakeCargo {
         // ```ts
         // for (const item of list) { ... }  // or list.map(...)
         // ```
-        if args.iter().any(|argument| { return argument == "--locked"; }) {
+        if args.iter().any(|argument| {
+            return argument == "--locked";
+        }) {
             // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
             // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
             // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
@@ -192,7 +221,9 @@ impl CargoRunner for FakeCargo {
             // ```
             // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
             // Typed binding: `satisfied: bool`.
-            let satisfied: bool = fs::read_to_string(&lock).unwrap_or_default().starts_with("# satisfied");
+            let satisfied: bool = fs::read_to_string(&lock)
+                .unwrap_or_default()
+                .starts_with("# satisfied");
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
             // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
@@ -202,7 +233,11 @@ impl CargoRunner for FakeCargo {
             // String(value)  // JS strings are always owned values
             // ```
             // Constructor `String::new()`: an empty owned collection or a boxed value.
-            return Ok(CargoOutcome { ok: satisfied, output: "needs update".to_string(), stdout: String::new() });
+            return Ok(CargoOutcome {
+                ok: satisfied,
+                output: "needs update".to_string(),
+                stdout: String::new(),
+            });
         }
         // `Some`: the present or the absent value of an `Option`.
         // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
@@ -214,17 +249,27 @@ impl CargoRunner for FakeCargo {
         // ```
         // Closure `|argument|`: an anonymous function, like a TS arrow function.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        if let Some(position) = args.iter().position(|argument| { return argument == "--precise"; }) {
+        if let Some(position) = args.iter().position(|argument| {
+            return argument == "--precise";
+        }) {
             if self.refuse_precise {
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                 // Constructor `String::new()`: an empty owned collection or a boxed value.
-                return Ok(CargoOutcome { ok: false, output: "failed to select a version".to_string(), stdout: String::new() });
+                return Ok(CargoOutcome {
+                    ok: false,
+                    output: "failed to select a version".to_string(),
+                    stdout: String::new(),
+                });
             }
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
             // Typed binding: `from: String`.
-            let from: String = args[position - 1].split('@').nth(1).unwrap_or("").to_string();
+            let from: String = args[position - 1]
+                .split('@')
+                .nth(1)
+                .unwrap_or("")
+                .to_string();
             // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
             // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
             // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
@@ -244,15 +289,25 @@ impl CargoRunner for FakeCargo {
             // try { ... } catch (error) { throw new MyError(String(error)); }
             // ```
             // Typed binding: `text: String`.
-            let text: String = fs::read_to_string(&lock).map_err(|error| { return error.to_string(); })?;
+            let text: String = fs::read_to_string(&lock).map_err(|error| {
+                return error.to_string();
+            })?;
             // Borrow `&lock`: lends the value without copying or giving it away.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            fs::write(&lock, text.replace(&format!("version = \"{from}\""), &format!("version = \"{}\"", args[position + 1])))
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                // Closure `|error|`: an anonymous function, like a TS arrow function.
-                // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-                // `.map_err(...)`: converts the callee's error into this function's error type.
-                .map_err(|error| { return error.to_string(); })?;
+            fs::write(
+                &lock,
+                text.replace(
+                    &format!("version = \"{from}\""),
+                    &format!("version = \"{}\"", args[position + 1]),
+                ),
+            )
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Closure `|error|`: an anonymous function, like a TS arrow function.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // `.map_err(...)`: converts the callee's error into this function's error type.
+            .map_err(|error| {
+                return error.to_string();
+            })?;
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             return Ok(ok);
         }
@@ -261,16 +316,25 @@ impl CargoRunner for FakeCargo {
         // Borrow `&lock`: lends the value without copying or giving it away.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        fs::write(&lock, &self.after).map_err(|error| { return error.to_string(); })?;
+        fs::write(&lock, &self.after).map_err(|error| {
+            return error.to_string();
+        })?;
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(ok);
     }
 }
 
-fn cargo(after: &str, refuse_precise: bool) -> FakeCargo {
+fn cargo(
+    after: &str,
+    refuse_precise: bool,
+) -> FakeCargo {
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
-    return FakeCargo { after: after.to_string(), refuse_precise, commands: RefCell::new(Vec::new()) };
+    return FakeCargo {
+        after: after.to_string(),
+        refuse_precise,
+        commands: RefCell::new(Vec::new()),
+    };
 }
 
 /// A registry that serves the canned histories and derives the publish times from them.
@@ -286,7 +350,10 @@ struct FakeRegistry {
 }
 
 impl Registry for FakeRegistry {
-    fn pubtimes(&self, name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+    fn pubtimes(
+        &self,
+        name: &str,
+    ) -> Result<BTreeMap<String, String>, RegistryError> {
         // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
         // Why:      The value is built up or replaced step by step below.
         //
@@ -313,25 +380,40 @@ impl Registry for FakeRegistry {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(times);
     }
-    fn yanked(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn yanked(
+        &self,
+        _name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
         return Ok(BTreeSet::new());
     }
-    fn history(&self, name: &str, _versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+    fn history(
+        &self,
+        name: &str,
+        _versions: &[String],
+    ) -> Result<Vec<VersionRecord>, RegistryError> {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         return Ok(self.histories.get(name).cloned().unwrap_or_default());
     }
-    fn owners(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn owners(
+        &self,
+        _name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
         return Ok(BTreeSet::new());
     }
 }
 
-fn record(num: &str, created_at: &str, publisher_id: &str, trustpub_repository: &str) -> VersionRecord {
+fn record(
+    num: &str,
+    created_at: &str,
+    publisher_id: &str,
+    trustpub_repository: &str,
+) -> VersionRecord {
     return VersionRecord {
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         num: num.to_string(),
@@ -348,7 +430,9 @@ fn record(num: &str, created_at: &str, publisher_id: &str, trustpub_repository: 
 
 fn registry_of(history: Vec<VersionRecord>) -> FakeRegistry {
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    return FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
+    return FakeRegistry {
+        histories: BTreeMap::from([("dep".to_string(), history)]),
+    };
 }
 
 fn repository(lock: &str) -> (tempfile::TempDir, Vec<String>) {
@@ -367,7 +451,13 @@ fn lock_text(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("read the lock");
 }
 
-fn install(root: &Path, dirs: &[String], runner: &FakeCargo, registry: &FakeRegistry, frozen: bool) -> Result<InstallReport, InstallError> {
+fn install(
+    root: &Path,
+    dirs: &[String],
+    runner: &FakeCargo,
+    registry: &FakeRegistry,
+    frozen: bool,
+) -> Result<InstallReport, InstallError> {
     // Typed binding: `catalog_settings: Settings`.
     let catalog_settings: Settings = settings();
     // Borrow `&InstallRequest`: lends the value without copying or giving it away.
@@ -408,12 +498,16 @@ fn a_committed_lock_holding_a_release_under_the_age_limit_is_changed_to_the_newe
     let runner: FakeCargo = cargo(&lock_with("1.0.1"), false);
     // Typed binding: `registry: FakeRegistry`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]);
+    let registry: FakeRegistry = registry_of(vec![
+        record("1.0.0", OLD_ENOUGH, "", "o/r"),
+        record("1.0.1", THREE_HOURS_AGO, "", "o/r"),
+    ]);
 
     // Borrow `&dirs`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `report: InstallReport`.
-    let report: InstallReport = install(root.path(), &dirs, &runner, &registry, false).expect("installs");
+    let report: InstallReport =
+        install(root.path(), &dirs, &runner, &registry, false).expect("installs");
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.problems.is_empty(), "{:?}", report.problems);
@@ -423,7 +517,9 @@ fn a_committed_lock_holding_a_release_under_the_age_limit_is_changed_to_the_newe
     assert!(
         // Closure `|line|`: an anonymous function, like a TS arrow function.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        report.warnings.iter().any(|line| { return line.contains("dep@1.0.1") && line.contains("1.0.0"); }),
+        report.warnings.iter().any(|line| {
+            return line.contains("dep@1.0.1") && line.contains("1.0.0");
+        }),
         "one line must name both releases: {:?}",
         report.warnings
     );
@@ -441,12 +537,16 @@ fn a_committed_lock_holding_a_young_release_with_no_older_release_that_fits_stop
     let runner: FakeCargo = cargo(&lock_with("1.0.1"), true);
     // Typed binding: `registry: FakeRegistry`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]);
+    let registry: FakeRegistry = registry_of(vec![
+        record("1.0.0", OLD_ENOUGH, "", "o/r"),
+        record("1.0.1", THREE_HOURS_AGO, "", "o/r"),
+    ]);
 
     // Borrow `&dirs`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `report: InstallReport`.
-    let report: InstallReport = install(root.path(), &dirs, &runner, &registry, false).expect("reports");
+    let report: InstallReport =
+        install(root.path(), &dirs, &runner, &registry, false).expect("reports");
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(report.problems.len(), 1, "{:?}", report.problems);
@@ -461,7 +561,8 @@ fn a_committed_lock_holding_a_young_release_with_no_older_release_that_fits_stop
 /// publisher.
 /// The lockfile changes to `1.0.0`.
 #[test]
-fn a_committed_lock_holding_a_trust_downgrade_is_changed_to_the_earlier_release_with_the_earlier_trust_level() {
+fn a_committed_lock_holding_a_trust_downgrade_is_changed_to_the_earlier_release_with_the_earlier_trust_level()
+ {
     // Borrow `&lock_with`: lends the value without copying or giving it away.
     let (root, dirs) = repository(&lock_with("1.0.1"));
     // Borrow `&lock_with`: lends the value without copying or giving it away.
@@ -469,12 +570,16 @@ fn a_committed_lock_holding_a_trust_downgrade_is_changed_to_the_earlier_release_
     let runner: FakeCargo = cargo(&lock_with("1.0.1"), false);
     // Typed binding: `registry: FakeRegistry`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", "2026-10-21T00:00:00Z", "9", "")]);
+    let registry: FakeRegistry = registry_of(vec![
+        record("1.0.0", OLD_ENOUGH, "", "o/r"),
+        record("1.0.1", "2026-10-21T00:00:00Z", "9", ""),
+    ]);
 
     // Borrow `&dirs`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `report: InstallReport`.
-    let report: InstallReport = install(root.path(), &dirs, &runner, &registry, false).expect("installs");
+    let report: InstallReport =
+        install(root.path(), &dirs, &runner, &registry, false).expect("installs");
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.problems.is_empty(), "{:?}", report.problems);
@@ -483,7 +588,13 @@ fn a_committed_lock_holding_a_trust_downgrade_is_changed_to_the_earlier_release_
     // Closure `|line|`: an anonymous function, like a TS arrow function.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(report.warnings.iter().any(|line| { return line.contains("dep@1.0.1") && line.contains("1.0.0"); }), "{:?}", report.warnings);
+    assert!(
+        report.warnings.iter().any(|line| {
+            return line.contains("dep@1.0.1") && line.contains("1.0.0");
+        }),
+        "{:?}",
+        report.warnings
+    );
 }
 
 /// Owner case 2,
@@ -498,12 +609,16 @@ fn a_committed_trust_downgrade_with_no_earlier_release_that_fits_stops_the_insta
     let runner: FakeCargo = cargo(&lock_with("1.0.1"), true);
     // Typed binding: `registry: FakeRegistry`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", "2026-10-21T00:00:00Z", "9", "")]);
+    let registry: FakeRegistry = registry_of(vec![
+        record("1.0.0", OLD_ENOUGH, "", "o/r"),
+        record("1.0.1", "2026-10-21T00:00:00Z", "9", ""),
+    ]);
 
     // Borrow `&dirs`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `report: InstallReport`.
-    let report: InstallReport = install(root.path(), &dirs, &runner, &registry, false).expect("reports");
+    let report: InstallReport =
+        install(root.path(), &dirs, &runner, &registry, false).expect("reports");
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(report.problems.len(), 1, "{:?}", report.problems);
@@ -524,12 +639,16 @@ fn a_release_the_update_newly_needs_under_the_age_limit_is_set_aside_instead_of_
     let runner: FakeCargo = cargo(&lock_with("1.0.1"), false);
     // Typed binding: `registry: FakeRegistry`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]);
+    let registry: FakeRegistry = registry_of(vec![
+        record("1.0.0", OLD_ENOUGH, "", "o/r"),
+        record("1.0.1", THREE_HOURS_AGO, "", "o/r"),
+    ]);
 
     // Borrow `&dirs`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `report: InstallReport`.
-    let report: InstallReport = install(root.path(), &dirs, &runner, &registry, false).expect("installs");
+    let report: InstallReport =
+        install(root.path(), &dirs, &runner, &registry, false).expect("installs");
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.problems.is_empty(), "{:?}", report.problems);
@@ -550,12 +669,16 @@ fn a_frozen_install_reports_the_refused_entry_and_changes_nothing() {
     let runner: FakeCargo = cargo(&lock_with("1.0.1"), false);
     // Typed binding: `registry: FakeRegistry`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]);
+    let registry: FakeRegistry = registry_of(vec![
+        record("1.0.0", OLD_ENOUGH, "", "o/r"),
+        record("1.0.1", THREE_HOURS_AGO, "", "o/r"),
+    ]);
 
     // Borrow `&dirs`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `report: InstallReport`.
-    let report: InstallReport = install(root.path(), &dirs, &runner, &registry, true).expect("reports");
+    let report: InstallReport =
+        install(root.path(), &dirs, &runner, &registry, true).expect("reports");
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(report.problems.len(), 1, "{:?}", report.problems);
@@ -564,7 +687,9 @@ fn a_frozen_install_reports_the_refused_entry_and_changes_nothing() {
     // Closure `|command|`: an anonymous function, like a TS arrow function.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(!runner.commands.borrow().iter().any(|command| { return command.contains("--precise"); }));
+    assert!(!runner.commands.borrow().iter().any(|command| {
+        return command.contains("--precise");
+    }));
 }
 
 /// A registry that,
@@ -581,26 +706,42 @@ struct RegistryThatRunsASecondInstall {
 }
 
 impl Registry for RegistryThatRunsASecondInstall {
-    fn pubtimes(&self, name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+    fn pubtimes(
+        &self,
+        name: &str,
+    ) -> Result<BTreeMap<String, String>, RegistryError> {
         if !self.started.replace(true) {
             // Typed binding: `runner: FakeCargo`.
             let runner: FakeCargo = cargo("", false);
             // `.clone()`: an independent owned copy.
             // Typed binding: `plain: FakeRegistry`.
-            let plain: FakeRegistry = FakeRegistry { histories: self.inner.histories.clone() };
+            let plain: FakeRegistry = FakeRegistry {
+                histories: self.inner.histories.clone(),
+            };
             // `Some`: the present or the absent value of an `Option`.
             // Borrow `&self.root`: lends the value without copying or giving it away.
-            *self.second.borrow_mut() = Some(install(&self.root, &self.dirs, &runner, &plain, false));
+            *self.second.borrow_mut() =
+                Some(install(&self.root, &self.dirs, &runner, &plain, false));
         }
         return self.inner.pubtimes(name);
     }
-    fn yanked(&self, name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn yanked(
+        &self,
+        name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         return self.inner.yanked(name);
     }
-    fn history(&self, name: &str, versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+    fn history(
+        &self,
+        name: &str,
+        versions: &[String],
+    ) -> Result<Vec<VersionRecord>, RegistryError> {
         return self.inner.history(name, versions);
     }
-    fn owners(&self, name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn owners(
+        &self,
+        name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         return self.inner.owners(name);
     }
 }
@@ -623,7 +764,10 @@ fn a_second_install_does_not_take_the_first_ones_unapproved_lockfile_for_approve
     // Typed binding: `registry: RegistryThatRunsASecondInstall`.
     let registry: RegistryThatRunsASecondInstall = RegistryThatRunsASecondInstall {
         // Macro `vec!`: builds or prints text (or a list) from a template.
-        inner: registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]),
+        inner: registry_of(vec![
+            record("1.0.0", OLD_ENOUGH, "", "o/r"),
+            record("1.0.1", THREE_HOURS_AGO, "", "o/r"),
+        ]),
         root: root.path().to_path_buf(),
         // `.clone()`: an independent owned copy.
         dirs: dirs.clone(),
@@ -657,7 +801,11 @@ fn a_second_install_does_not_take_the_first_ones_unapproved_lockfile_for_approve
     // Typed binding: `second: InstallReport`.
     // Review finding (4b2 1): the workspace lock keeps a second transaction out while the first holds the unapproved output, so the
     // second install stops with an error naming the holder instead of taking that lockfile for approved.
-    let second = registry.second.borrow_mut().take().expect("the second install ran");
+    let second = registry
+        .second
+        .borrow_mut()
+        .take()
+        .expect("the second install ran");
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -669,7 +817,12 @@ fn a_second_install_does_not_take_the_first_ones_unapproved_lockfile_for_approve
     // list.map(f).filter(g)
     // ```
     // Typed binding: `message: String`.
-    let message: String = second.err().map(|error| { return error.to_string(); }).unwrap_or_default();
+    let message: String = second
+        .err()
+        .map(|error| {
+            return error.to_string();
+        })
+        .unwrap_or_default();
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(message.contains("another cargo-shadow run"), "{message}");
     // Macro `assert!`: builds or prints text (or a list) from a template.
@@ -685,20 +838,37 @@ struct RegistryWithoutOwners {
 }
 
 impl Registry for RegistryWithoutOwners {
-    fn pubtimes(&self, name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+    fn pubtimes(
+        &self,
+        name: &str,
+    ) -> Result<BTreeMap<String, String>, RegistryError> {
         return self.inner.pubtimes(name);
     }
-    fn yanked(&self, name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn yanked(
+        &self,
+        name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         return self.inner.yanked(name);
     }
-    fn history(&self, name: &str, versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+    fn history(
+        &self,
+        name: &str,
+        versions: &[String],
+    ) -> Result<Vec<VersionRecord>, RegistryError> {
         return self.inner.history(name, versions);
     }
-    fn owners(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn owners(
+        &self,
+        _name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // `None`: the present or the absent value of an `Option`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Err(RegistryError { message: "the owners request failed".to_string(), status: None, retry_after_seconds: 0 });
+        return Err(RegistryError {
+            message: "the owners request failed".to_string(),
+            status: None,
+            retry_after_seconds: 0,
+        });
     }
 }
 
@@ -715,9 +885,14 @@ fn a_lookup_failure_after_a_release_age_refusal_keeps_the_refusal() {
     let runner: FakeCargo = cargo(&lock_with("1.0.1"), false);
     // Typed binding: `young_downgrade: Vec<VersionRecord>`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let young_downgrade: Vec<VersionRecord> = vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "9", "")];
+    let young_downgrade: Vec<VersionRecord> = vec![
+        record("1.0.0", OLD_ENOUGH, "", "o/r"),
+        record("1.0.1", THREE_HOURS_AGO, "9", ""),
+    ];
     // Typed binding: `registry: RegistryWithoutOwners`.
-    let registry: RegistryWithoutOwners = RegistryWithoutOwners { inner: registry_of(young_downgrade) };
+    let registry: RegistryWithoutOwners = RegistryWithoutOwners {
+        inner: registry_of(young_downgrade),
+    };
     // Typed binding: `catalog_settings: Settings`.
     let catalog_settings: Settings = settings();
 
@@ -743,7 +918,13 @@ fn a_lookup_failure_after_a_release_age_refusal_keeps_the_refusal() {
     // Closure `|problem|`: an anonymous function, like a TS arrow function.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(report.problems.iter().any(|problem| { return problem.contains("minimumReleaseAge"); }), "{:?}", report.problems);
+    assert!(
+        report.problems.iter().any(|problem| {
+            return problem.contains("minimumReleaseAge");
+        }),
+        "{:?}",
+        report.problems
+    );
 }
 
 /// Review finding (2c 8):
@@ -760,7 +941,10 @@ fn the_non_strict_release_age_warning_is_reported_on_the_frozen_path() {
     let runner: FakeCargo = cargo(&lock_with("1.0.1"), false);
     // Typed binding: `registry: FakeRegistry`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]);
+    let registry: FakeRegistry = registry_of(vec![
+        record("1.0.0", OLD_ENOUGH, "", "o/r"),
+        record("1.0.1", THREE_HOURS_AGO, "", "o/r"),
+    ]);
     // `let mut`: a binding that may change.
     // Typed binding: `relaxed: Settings`.
     let mut relaxed: Settings = settings();
@@ -790,7 +974,13 @@ fn the_non_strict_release_age_warning_is_reported_on_the_frozen_path() {
     // Closure `|warning|`: an anonymous function, like a TS arrow function.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(report.warnings.iter().any(|warning| { return warning.contains("minimumReleaseAge"); }), "the warning was dropped: {:?}", report.warnings);
+    assert!(
+        report.warnings.iter().any(|warning| {
+            return warning.contains("minimumReleaseAge");
+        }),
+        "the warning was dropped: {:?}",
+        report.warnings
+    );
 }
 
 /// Review finding (3c P2-1):
@@ -802,17 +992,28 @@ fn the_non_strict_release_age_warning_is_reported_on_the_frozen_path() {
 fn an_owners_lookup_failure_does_not_turn_a_provisional_trust_finding_into_a_refusal() {
     // Typed binding: `history: Vec<VersionRecord>`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let history: Vec<VersionRecord> = vec![record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")];
+    let history: Vec<VersionRecord> = vec![
+        record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r"),
+        record("1.0.1", "2026-02-01T00:00:00Z", "9", ""),
+    ];
     // Typed binding: `registry: RegistryWithoutOwners`.
-    let registry: RegistryWithoutOwners = RegistryWithoutOwners { inner: registry_of(history) };
+    let registry: RegistryWithoutOwners = RegistryWithoutOwners {
+        inner: registry_of(history),
+    };
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    let versions = [crate::lockfile::LockedVersion { name: "dep".to_string(), version: "1.0.1".to_string() }];
+    let versions = [crate::lockfile::LockedVersion {
+        name: "dep".to_string(),
+        version: "1.0.1".to_string(),
+    }];
 
     // Borrow `&versions`: lends the value without copying or giving it away.
     let result = crate::checks::check_trust(&versions, &settings(), &registry, now());
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(result.is_err(), "a provisional finding was reported as a refusal: {result:?}");
+    assert!(
+        result.is_err(),
+        "a provisional finding was reported as a refusal: {result:?}"
+    );
 }
 
 /// Review finding (3c P2-4):
@@ -830,7 +1031,10 @@ fn a_local_pass_that_carried_a_warning_is_not_remembered() {
     let runner: FakeCargo = cargo(&satisfied, false);
     // Typed binding: `registry: FakeRegistry`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]);
+    let registry: FakeRegistry = registry_of(vec![
+        record("1.0.0", OLD_ENOUGH, "", "o/r"),
+        record("1.0.1", THREE_HOURS_AGO, "", "o/r"),
+    ]);
     // `let mut`: a binding that may change.
     // Typed binding: `relaxed: Settings`.
     let mut relaxed: Settings = settings();
@@ -862,9 +1066,21 @@ fn a_local_pass_that_carried_a_warning_is_not_remembered() {
     // Closure `|warning|`: an anonymous function, like a TS arrow function.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(first.warnings.iter().any(|warning| { return warning.contains("minimumReleaseAge"); }), "the first call must warn: {:?}", first.warnings);
+    assert!(
+        first.warnings.iter().any(|warning| {
+            return warning.contains("minimumReleaseAge");
+        }),
+        "the first call must warn: {:?}",
+        first.warnings
+    );
     // Closure `|warning|`: an anonymous function, like a TS arrow function.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(second.warnings.iter().any(|warning| { return warning.contains("minimumReleaseAge"); }), "the pass with a warning was remembered: {:?}", second.warnings);
+    assert!(
+        second.warnings.iter().any(|warning| {
+            return warning.contains("minimumReleaseAge");
+        }),
+        "the pass with a warning was remembered: {:?}",
+        second.warnings
+    );
 }

@@ -72,7 +72,10 @@ use crate::checks::check_policy;
 /// ```ts
 /// import { LockSnapshot, readLocks } from 'crate/crates';
 /// ```
-use crate::crates::{LockSnapshot, read_locks};
+use crate::crates::{
+    LockSnapshot,
+    read_locks,
+};
 /// What:
 /// `use crate::install::{InstallError, InstallRequest, io_message, sources_of};` imports the install request and error types and the helpers that wrap a message as an error and list the lockfile texts.
 /// Why:
@@ -82,7 +85,11 @@ use crate::crates::{LockSnapshot, read_locks};
 /// ```ts
 /// import { InstallError, InstallRequest, ioMessage, sourcesOf } from 'crate/install';
 /// ```
-use crate::install::{InstallError, InstallRequest, sources_of};
+use crate::install::{
+    InstallError,
+    InstallRequest,
+    sources_of,
+};
 /// Imports the helper that wraps a message text as an install error.
 use crate::install_error::io_message;
 /// What:
@@ -94,7 +101,10 @@ use crate::install_error::io_message;
 /// ```ts
 /// import { LockedVersion, addedVersions } from 'crate/lockfile';
 /// ```
-use crate::lockfile::{LockedVersion, added_versions};
+use crate::lockfile::{
+    LockedVersion,
+    added_versions,
+};
 /// What:
 /// `use crate::registry::Registry;` imports the trait the policy checks ask crates.io through.
 /// Why:
@@ -115,7 +125,10 @@ use crate::registry::Registry;
 /// ```ts
 /// import { SetAsideRequest, setAsideUntilClean } from 'crate/set_aside';
 /// ```
-use crate::set_aside::{SetAsideRequest, set_aside_until_clean};
+use crate::set_aside::{
+    SetAsideRequest,
+    set_aside_until_clean,
+};
 /// What:
 /// `use crate::verify::{ALL_ENTRIES_SCOPE, is_verified};` imports the scope name and the lookup of a remembered pass.
 /// Why:
@@ -125,7 +138,10 @@ use crate::set_aside::{SetAsideRequest, set_aside_until_clean};
 /// ```ts
 /// import { ALL_ENTRIES_SCOPE, isVerified } from 'crate/verify';
 /// ```
-use crate::verify::{ALL_ENTRIES_SCOPE, is_verified};
+use crate::verify::{
+    ALL_ENTRIES_SCOPE,
+    is_verified,
+};
 
 /// A reader of one crate root's lockfile text at the base revision.
 pub type LockBaseReader = Box<dyn Fn(&str) -> String>;
@@ -147,7 +163,11 @@ pub type LockBaseFactory<'a> = &'a dyn Fn() -> Result<LockBaseReader, String>;
 /// ```ts
 /// export const verificationScope = (settings: Settings, frozen: boolean, trustBase: string): string
 /// ```
-pub fn verification_scope(settings: &Settings, frozen: bool, trust_base: &str) -> String {
+pub fn verification_scope(
+    settings: &Settings,
+    frozen: bool,
+    trust_base: &str,
+) -> String {
     // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
     // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
     //
@@ -188,7 +208,13 @@ pub fn verification_scope(settings: &Settings, frozen: bool, trust_base: &str) -
 /// ```ts
 /// export function verificationCached({ root, crateDirs, settings, frozen, trustBase }): boolean
 /// ```
-pub fn verification_cached(root: &Path, crate_dirs: &[String], settings: &Settings, frozen: bool, trust_base: &str) -> bool {
+pub fn verification_cached(
+    root: &Path,
+    crate_dirs: &[String],
+    settings: &Settings,
+    frozen: bool,
+    trust_base: &str,
+) -> bool {
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `snapshots: Vec<LockSnapshot>`.
     let snapshots: Vec<LockSnapshot> = match read_locks(root, crate_dirs) {
@@ -268,13 +294,21 @@ pub(crate) fn base_reader(request: &InstallRequest) -> Result<LockBaseReader, In
 /// ```ts
 /// async function setAsidePass(request, baseline, produced): Promise<string[]>
 /// ```
-pub(crate) fn set_aside_pass(request: &InstallRequest, baseline: &[String], produced: &RefCell<Vec<LockSnapshot>>) -> Result<Vec<String>, InstallError> {
+pub(crate) fn set_aside_pass(
+    request: &InstallRequest,
+    baseline: &[String],
+    produced: &RefCell<Vec<LockSnapshot>>,
+) -> Result<Vec<String>, InstallError> {
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Typed binding: `forward: Vec<String>`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    let forward: Vec<String> = if request.offline { vec!["--offline".to_string()] } else { Vec::new() };
+    let forward: Vec<String> = if request.offline {
+        vec!["--offline".to_string()]
+    } else {
+        Vec::new()
+    };
     // Borrow `&SetAsideRequest`: lends the value without copying or giving it away.
     // Typed binding: `lines: Vec<String>`.
     let lines: Vec<String> = set_aside_until_clean(&SetAsideRequest {
@@ -345,14 +379,24 @@ impl crate::journal::Judge for PolicyJudge<'_> {
     /// Returns the policy findings for the versions `live` holds that `old` did not.
     /// Why:
     /// They are the refusals a recovery acts on.
-    fn judge(&self, old: &[LockSnapshot], live: &[LockSnapshot]) -> Vec<String> {
+    fn judge(
+        &self,
+        old: &[LockSnapshot],
+        live: &[LockSnapshot],
+    ) -> Vec<String> {
         return policy_findings(self.settings, self.registry, self.now, old, live);
     }
 }
 
 /// The policy findings for the registry versions `after` holds that `before` did not;
 /// used to judge a killed run's leftovers.
-pub fn policy_findings(settings: &Settings, registry: &dyn Registry, now: i64, before: &[LockSnapshot], after: &[LockSnapshot]) -> Vec<String> {
+pub fn policy_findings(
+    settings: &Settings,
+    registry: &dyn Registry,
+    now: i64,
+    before: &[LockSnapshot],
+    after: &[LockSnapshot],
+) -> Vec<String> {
     // `match`: picks the arm whose pattern fits the value.
     // Borrow `&sources_of`: lends the value without copying or giving it away.
     // Typed binding: `added: Vec<LockedVersion>`.
@@ -361,7 +405,11 @@ pub fn policy_findings(settings: &Settings, registry: &dyn Registry, now: i64, b
         Ok(found) => found,
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `vec!`: builds or prints text (or a list) from a template.
-        Err(message) => return vec![format!("a Cargo.lock could not be read for its registry versions: {message}")],
+        Err(message) => {
+            return vec![format!(
+                "a Cargo.lock could not be read for its registry versions: {message}"
+            )];
+        }
     };
     if added.is_empty() {
         // Constructor `Vec::new()`: an empty owned collection or a boxed value.

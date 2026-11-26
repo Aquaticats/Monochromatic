@@ -41,9 +41,7 @@ use std::cell::Cell;
 /// ```ts
 /// import { Path } from 'std/path';
 /// ```
-use std::path::{Path};
-/// Imports the length of time a Git call may take.
-use std::time::Duration;
+use std::path::Path;
 /// What:
 /// `use std::process::{Command, Output};` imports the process builder and the finished process's output.
 /// Why:
@@ -54,8 +52,20 @@ use std::time::Duration;
 /// ```ts
 /// import { spawn } from 'node:child_process';
 /// ```
-use std::process::{Command, Output};
+use std::process::{
+    Command,
+    Output,
+};
+/// Imports the length of time a Git call may take.
+use std::time::Duration;
 
+/// Imports the bounded child run that every Git call goes through.
+use crate::bounded_run::{
+    Bound,
+    RunError,
+    output_within,
+    output_within_clean_environment,
+};
 /// What:
 /// `use crate::constants::LOCKFILE_NAME;` imports `LOCKFILE_NAME` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -66,8 +76,6 @@ use std::process::{Command, Output};
 /// import { LOCKFILE_NAME } from 'crate/constants';
 /// ```
 use crate::constants::LOCKFILE_NAME;
-/// Imports the bounded child run that every Git call goes through.
-use crate::bounded_run::{Bound, RunError, output_within, output_within_clean_environment};
 /// What:
 /// `use crate::git_native::native_base;` imports the choice of the trust base made from the repository files.
 /// Why:
@@ -91,7 +99,7 @@ use crate::git_native::native_base_counting;
 use crate::git_refs::NativeEnvironment;
 
 /// Which system configuration file the selected Git reads (split out of the git base module).
-pub(crate) use crate::git_system_config_lookup::{system_config_of_git};
+pub(crate) use crate::git_system_config_lookup::system_config_of_git;
 
 /// The environment variable that names the base revision.
 pub const BASE_VARIABLE: &str = "CARGO_SHADOW_TRUST_BASE";
@@ -163,7 +171,11 @@ pub fn not_a_commit_message(base: &str) -> String {
 /// ```ts
 /// export function resolveTrustBase(root: string, inCi: boolean, explicit?: string): TrustBase
 /// ```
-pub fn resolve_trust_base(root: &Path, in_ci: bool, explicit: Option<&str>) -> TrustBase {
+pub fn resolve_trust_base(
+    root: &Path,
+    in_ci: bool,
+    explicit: Option<&str>,
+) -> TrustBase {
     // Borrow `&NativeEnvironment`: lends the value without copying or giving it away.
     return resolve_trust_base_with(root, in_ci, explicit, &NativeEnvironment::from_process());
 }
@@ -227,7 +239,12 @@ fn commit_of_line(line: &str) -> Option<String> {
 /// ```ts
 /// function runGit(environment: NativeEnvironment, root: string, args: string[], input?: Buffer): Output  // throws a message
 /// ```
-pub(crate) fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &[&str], input: Option<&[u8]>) -> Result<Output, String> {
+pub(crate) fn run_git(
+    environment: &NativeEnvironment,
+    root: &Path,
+    arguments: &[&str],
+    input: Option<&[u8]>,
+) -> Result<Output, String> {
     // Borrow `&environment.git.program`: lends the value without copying or giving it away.
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
@@ -270,7 +287,10 @@ pub(crate) fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &
     let bound: Bound = Bound {
         limit: environment.git.bound,
         // Macro `format!`: builds or prints text (or a list) from a template.
-        what: format!("`git {}` (cargo-shadow asks it which commit to compare with)", arguments.join(" ")),
+        what: format!(
+            "`git {}` (cargo-shadow asks it which commit to compare with)",
+            arguments.join(" ")
+        ),
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         rerun: crate::bounded_run::rerun_text(),
     };
@@ -284,7 +304,11 @@ pub(crate) fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &
     // try { ... } catch (error) { throw new MyError(String(error)); }
     // ```
     // A cleared environment is rebuilt from the variables set on the command, which the scope launcher must be told.
-    let ran = if environment.git.clean_environment { output_within_clean_environment(&mut command, input, &bound) } else { output_within(&mut command, input, &bound) };
+    let ran = if environment.git.clean_environment {
+        output_within_clean_environment(&mut command, input, &bound)
+    } else {
+        output_within(&mut command, input, &bound)
+    };
     return ran.map_err(run_error_text);
 }
 
@@ -328,14 +352,31 @@ enum Candidate {
 /// ```ts
 /// function resolveCandidate(environment: NativeEnvironment, root: string, base: string, starts: { count: number }): string  // throws Candidate
 /// ```
-fn resolve_candidate(environment: &NativeEnvironment, root: &Path, base: &str, starts: &Cell<u32>) -> Result<String, Candidate> {
+fn resolve_candidate(
+    environment: &NativeEnvironment,
+    root: &Path,
+    base: &str,
+    starts: &Cell<u32>,
+) -> Result<String, Candidate> {
     starts.set(starts.get() + 1);
     // `None`: the present or the absent value of an `Option`.
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&[`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let resolved = run_git(environment, root, &["rev-parse", "--verify", "--quiet", "--end-of-options", &format!("{base}^{{commit}}")], None).map_err(Candidate::Operational)?;
+    let resolved = run_git(
+        environment,
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            "--end-of-options",
+            &format!("{base}^{{commit}}"),
+        ],
+        None,
+    )
+    .map_err(Candidate::Operational)?;
     // `git rev-parse --verify --quiet` answers "not a commit" with exit 1 and no output (checked with Git 2.56.0 for a missing name and
     // for a missing upstream); any other end is a failed Git, not a negative answer (round 6, 5a F4).
     match resolved.status.code() {
@@ -368,7 +409,12 @@ fn resolve_candidate(environment: &NativeEnvironment, root: &Path, base: &str, s
 /// ```ts
 /// function resolveCommit(environment: NativeEnvironment, root: string, base: string, starts: { count: number }): string  // throws a message
 /// ```
-fn resolve_commit(environment: &NativeEnvironment, root: &Path, base: &str, starts: &Cell<u32>) -> Result<String, String> {
+fn resolve_commit(
+    environment: &NativeEnvironment,
+    root: &Path,
+    base: &str,
+    starts: &Cell<u32>,
+) -> Result<String, String> {
     // `match`: picks the arm whose pattern fits the value.
     return match resolve_candidate(environment, root, base, starts) {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -414,14 +460,22 @@ enum Batch {
 /// ```ts
 /// function batchAnswers(environment: NativeEnvironment, root: string): Batch  // throws when git cannot start
 /// ```
-fn batch_answers(environment: &NativeEnvironment, root: &Path) -> Result<Batch, String> {
+fn batch_answers(
+    environment: &NativeEnvironment,
+    root: &Path,
+) -> Result<Batch, String> {
     // Typed binding: `inputs: [String; 4]`.
     let inputs: [String; 4] = batch_inputs();
     // `Some`: the present or the absent value of an `Option`.
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&[`: lends the value without copying or giving it away.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let finished = run_git(environment, root, &["cat-file", "--batch-check"], Some(format!("{}\n", inputs.join("\n")).as_bytes()))?;
+    let finished = run_git(
+        environment,
+        root,
+        &["cat-file", "--batch-check"],
+        Some(format!("{}\n", inputs.join("\n")).as_bytes()),
+    )?;
     let text: String = String::from_utf8_lossy(&finished.stdout).to_string();
     // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
     // Why:      Iterator steps are lazy; `collect` is what actually runs them and builds the result.
@@ -461,24 +515,48 @@ fn batch_answers(environment: &NativeEnvironment, root: &Path) -> Result<Batch, 
 /// ```ts
 /// function resolveSequentially(environment: NativeEnvironment, root: string, starts: { count: number }): TrustBase
 /// ```
-fn resolve_sequentially(environment: &NativeEnvironment, root: &Path, starts: &Cell<u32>) -> TrustBase {
-    for candidate in [UPSTREAM_BASE, DEFAULT_REMOTE_BASES[0], DEFAULT_REMOTE_BASES[1]] {
+fn resolve_sequentially(
+    environment: &NativeEnvironment,
+    root: &Path,
+    starts: &Cell<u32>,
+) -> TrustBase {
+    for candidate in [
+        UPSTREAM_BASE,
+        DEFAULT_REMOTE_BASES[0],
+        DEFAULT_REMOTE_BASES[1],
+    ] {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         match resolve_candidate(environment, root, candidate, starts) {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            Ok(commit) => return TrustBase { spelling: candidate.to_string(), commit: Ok(commit), git_starts: starts.get() },
+            Ok(commit) => {
+                return TrustBase {
+                    spelling: candidate.to_string(),
+                    commit: Ok(commit),
+                    git_starts: starts.get(),
+                };
+            }
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(Candidate::NotACommit) => {}
             // Review finding (4a 6): a query that did not finish says nothing about this candidate, so no lower one is chosen.
-            Err(Candidate::Operational(message)) => return TrustBase { spelling: candidate.to_string(), commit: Err(message), git_starts: starts.get() },
+            Err(Candidate::Operational(message)) => {
+                return TrustBase {
+                    spelling: candidate.to_string(),
+                    commit: Err(message),
+                    git_starts: starts.get(),
+                };
+            }
         }
     }
     // Typed binding: `commit: Result<String, String>`.
     let commit: Result<String, String> = resolve_commit(environment, root, DEFAULT_BASE, starts);
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    return TrustBase { spelling: DEFAULT_BASE.to_string(), commit, git_starts: starts.get() };
+    return TrustBase {
+        spelling: DEFAULT_BASE.to_string(),
+        commit,
+        git_starts: starts.get(),
+    };
 }
 
 /// What:
@@ -497,7 +575,11 @@ fn resolve_sequentially(environment: &NativeEnvironment, root: &Path, starts: &C
 /// ```ts
 /// function resolveBatch(environment: NativeEnvironment, root: string, starts: { count: number }): TrustBase
 /// ```
-fn resolve_batch(environment: &NativeEnvironment, root: &Path, starts: &Cell<u32>) -> TrustBase {
+fn resolve_batch(
+    environment: &NativeEnvironment,
+    root: &Path,
+    starts: &Cell<u32>,
+) -> TrustBase {
     starts.set(starts.get() + 1);
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `answers: Vec<Option<String>>`.
@@ -506,15 +588,34 @@ fn resolve_batch(environment: &NativeEnvironment, root: &Path, starts: &Cell<u32
         Ok(Batch::Complete(found)) => found,
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(Batch::Incomplete) => return resolve_sequentially(environment, root, starts),
-        Err(message) => return TrustBase { spelling: DEFAULT_BASE.to_string(), commit: Err(message), git_starts: starts.get() },
+        Err(message) => {
+            return TrustBase {
+                spelling: DEFAULT_BASE.to_string(),
+                commit: Err(message),
+                git_starts: starts.get(),
+            };
+        }
     };
-    let order: [(usize, &str); 4] = [(3, UPSTREAM_BASE), (0, DEFAULT_REMOTE_BASES[0]), (1, DEFAULT_REMOTE_BASES[1]), (2, DEFAULT_BASE)];
+    let order: [(usize, &str); 4] = [
+        (3, UPSTREAM_BASE),
+        (0, DEFAULT_REMOTE_BASES[0]),
+        (1, DEFAULT_REMOTE_BASES[1]),
+        (2, DEFAULT_BASE),
+    ];
     for (position, spelling) in order {
         if let Some(Some(commit)) = answers.get(position) {
-            return TrustBase { spelling: spelling.to_string(), commit: Ok(commit.clone()), git_starts: starts.get() };
+            return TrustBase {
+                spelling: spelling.to_string(),
+                commit: Ok(commit.clone()),
+                git_starts: starts.get(),
+            };
         }
     }
-    return TrustBase { spelling: DEFAULT_BASE.to_string(), commit: Err(not_a_commit_message(DEFAULT_BASE)), git_starts: starts.get() };
+    return TrustBase {
+        spelling: DEFAULT_BASE.to_string(),
+        commit: Err(not_a_commit_message(DEFAULT_BASE)),
+        git_starts: starts.get(),
+    };
 }
 
 /// What:
@@ -539,7 +640,12 @@ fn resolve_batch(environment: &NativeEnvironment, root: &Path, starts: &Cell<u32
 /// ```ts
 /// export function resolveTrustBaseWith(root, inCi, explicit, environment): TrustBase
 /// ```
-pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>, environment: &NativeEnvironment) -> TrustBase {
+pub fn resolve_trust_base_with(
+    root: &Path,
+    in_ci: bool,
+    explicit: Option<&str>,
+    environment: &NativeEnvironment,
+) -> TrustBase {
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
     //
@@ -579,19 +685,32 @@ pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>,
         // Borrow `&spelling`: lends the value without copying or giving it away.
         // Typed binding: `commit: Result<String, String>`.
         let commit: Result<String, String> = resolve_commit(environment, root, &spelling, &starts);
-        return TrustBase { spelling, commit, git_starts: starts.get() };
+        return TrustBase {
+            spelling,
+            commit,
+            git_starts: starts.get(),
+        };
     }
     // The files answer for the plain layouts.
     if let Ok(native) = native_base_counting(root, in_ci, environment, &starts) {
-        return TrustBase { spelling: native.spelling, commit: native.commit, git_starts: starts.get() };
+        return TrustBase {
+            spelling: native.spelling,
+            commit: native.commit,
+            git_starts: starts.get(),
+        };
     }
     // CI keeps its base.
     if in_ci {
         // Borrow `&starts`: lends the value without copying or giving it away.
         // Typed binding: `commit: Result<String, String>`.
-        let commit: Result<String, String> = resolve_commit(environment, root, DEFAULT_BASE, &starts);
+        let commit: Result<String, String> =
+            resolve_commit(environment, root, DEFAULT_BASE, &starts);
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return TrustBase { spelling: DEFAULT_BASE.to_string(), commit, git_starts: starts.get() };
+        return TrustBase {
+            spelling: DEFAULT_BASE.to_string(),
+            commit,
+            git_starts: starts.get(),
+        };
     }
     // Delegated pick (2026-11-03): a local run compares with what is already on the upstream branch, so a lockfile that arrived
     // with a commit not pushed yet is new since the base; the first candidate that names a commit wins.
@@ -612,9 +731,15 @@ pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>,
 /// ```
 #[cfg_attr(
     dylint_lib = "monochromatic_lint_closure",
-    expect(avoidable_closure, reason = "the returned reader keeps the repository root and the commit after this function returns")
+    expect(
+        avoidable_closure,
+        reason = "the returned reader keeps the repository root and the commit after this function returns"
+    )
 )]
-pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> String> {
+pub fn git_lock_reader_at(
+    root: &Path,
+    commit: &str,
+) -> Box<dyn Fn(&str) -> String> {
     let root_path = root.to_path_buf();
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Typed binding: `commit_text: String`.
@@ -640,7 +765,9 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
             // ```
             limit: Duration::from_secs(crate::git_refs::GIT_CALL_SECONDS),
             // Macro `format!`: builds or prints text (or a list) from a template.
-            what: format!("`git show {object}` (cargo-shadow reads the lockfile of the verification base)"),
+            what: format!(
+                "`git show {object}` (cargo-shadow reads the lockfile of the verification base)"
+            ),
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             rerun: crate::bounded_run::rerun_text(),
         };
@@ -648,11 +775,19 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
         // `match`: picks the arm whose pattern fits the value.
         // Borrow `&mut command`: lends the value without copying or giving it away.
         return match output_within(&mut command, None, &bound) {
-            Ok(shown) if shown.status.success() => format!("{}\n", String::from_utf8_lossy(&shown.stdout)),
+            Ok(shown) if shown.status.success() => {
+                format!("{}\n", String::from_utf8_lossy(&shown.stdout))
+            }
             // A lockfile that cannot be read from the base is read as absent there, which checks more, never less.
-            Err(error @ RunError::TimedOut { .. }) => {
+            Err(
+                error @ RunError::TimedOut {
+                    ..
+                },
+            ) => {
                 // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                eprintln!("cargo-shadow: warning: {error}; the lockfile is treated as absent at the base, so every version in it is checked");
+                eprintln!(
+                    "cargo-shadow: warning: {error}; the lockfile is treated as absent at the base, so every version in it is checked"
+                );
                 // Constructor `String::new()`: an empty owned collection or a boxed value.
                 String::new()
             }
@@ -684,7 +819,10 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
 /// ```ts
 /// export function isGitIgnored(root: string, relative: string): boolean
 /// ```
-pub fn is_git_ignored(root: &Path, relative: &str) -> bool {
+pub fn is_git_ignored(
+    root: &Path,
+    relative: &str,
+) -> bool {
     // A plain child with a deadline, not a contained run: the question only reads, it writes nothing that needs a scope to stop, and
     // it must not start a scope (or take a fault meant for the first contained run) on every invocation of the shadow.
     let mut child = match Command::new("git")
@@ -698,7 +836,8 @@ pub fn is_git_ignored(root: &Path, relative: &str) -> bool {
         Ok(started) => started,
         Err(_) => return false,
     };
-    let deadline: std::time::Instant = std::time::Instant::now() + Duration::from_secs(crate::git_refs::GIT_CALL_SECONDS);
+    let deadline: std::time::Instant =
+        std::time::Instant::now() + Duration::from_secs(crate::git_refs::GIT_CALL_SECONDS);
     loop {
         match child.try_wait() {
             Ok(Some(status)) => return status.code() == Some(0),

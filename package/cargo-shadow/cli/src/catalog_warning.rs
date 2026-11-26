@@ -57,7 +57,11 @@ use std::path::Path;
 /// ```ts
 /// import { DocumentMut, Item, Table } from 'toml_edit';
 /// ```
-use toml_edit::{DocumentMut, Item, Table};
+use toml_edit::{
+    DocumentMut,
+    Item,
+    Table,
+};
 
 /// The dependency tables of a package manifest.
 const DEPENDENCY_TABLES: [&str; 3] = ["dependencies", "dev-dependencies", "build-dependencies"];
@@ -83,10 +87,17 @@ fn is_catalog_or_local(item: &Item) -> bool {
 }
 
 /// Collects the offenders of one dependency table.
-fn collect(table_name: &str, table: &Table, found: &mut Vec<Literal>) {
+fn collect(
+    table_name: &str,
+    table: &Table,
+    found: &mut Vec<Literal>,
+) {
     for (name, item) in table.iter() {
         if !is_catalog_or_local(item) {
-            found.push(Literal { table: table_name.to_string(), name: name.to_string() });
+            found.push(Literal {
+                table: table_name.to_string(),
+                name: name.to_string(),
+            });
         }
     }
 }
@@ -130,7 +141,10 @@ pub fn literal_dependencies(manifest_text: &str) -> Vec<Literal> {
 
 /// Writes the warning for a manifest to `sink`;
 /// nothing when every dependency uses the catalog or the file is unreadable.
-pub fn warn_about_manifest(manifest: &Path, sink: &mut dyn Write) {
+pub fn warn_about_manifest(
+    manifest: &Path,
+    sink: &mut dyn Write,
+) {
     let text: String = match std::fs::read_to_string(manifest) {
         Ok(found) => found,
         Err(_) => return,
