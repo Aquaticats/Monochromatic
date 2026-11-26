@@ -1667,6 +1667,11 @@ settings it read, or `unknown` for every ending it cannot prove
 ([The account companion](#the-account-companion)). The section goes to standard error and changes
 no exit status, as the design requires for setup findings (the [proposal][proposal], lines 1153 to 1155).
 
+The skip's own report shipped on 2026-11-26 with the jump the owner took for it
+(`doc/decision/cli-git-zfs-start-probe.md`, "The account companion's group drop on Ubuntu 24.04"): four lines on
+the skip, one line where the probe could not be read, and nothing for a pass or for another call's answer, because
+the add's own line carries those. The rest of this section, the pass and the failed arm included, is step 18's.
+
 The companion prints its own line on the add it refuses or skips, as [The account companion](#the-account-companion)
 states, and the wrapper's refusal line names the companion's arm and errno beside the probe's when both apply.
 
