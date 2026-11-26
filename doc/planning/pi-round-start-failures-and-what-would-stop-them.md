@@ -113,7 +113,8 @@ The session task list showed rounds as pending while they ran (6521, 6522, the f
   not a failure.
 - Memory:
   64 rounds compiling at once on 63 GiB;
-  the desktop freezes in `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md` came from memory.
+  the desktop freezes in `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`
+  came from memory.
   No start waits on memory now,
   by the owner's word;
   the coordinator reports the readings.
