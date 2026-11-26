@@ -122,6 +122,12 @@ fn refresh_with(
 ///  parallel work.
 #[test]
 fn the_indexes_are_rewritten_side_by_side() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_indexes_are_rewritten_side_by_side",
+    ) {
+        return;
+    }
     let _room: usize = room_for("the_indexes_are_rewritten_side_by_side", LINKED + 1);
     let (parent, root) = checkout_with_linked("index-parallel-overlap");
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(LINKED + 1));
@@ -156,6 +162,12 @@ const ORDERING_RUN_ALLOWED: Duration = Duration::from_secs(150);
 /// though the checkout's index finishes last.
 #[test]
 fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_report_keeps_the_order_of_the_checkout_then_its_worktrees",
+    ) {
+        return;
+    }
     // The checkout's own rewrite holds one place and waits for the others, so one more must be able to run; with room for
     //  all of them the wait below cannot depend on the CPUs this machine has.
     // The checkout's own rewrite waits inside its job for the others, so it holds a place while it waits: the room is one
@@ -256,6 +268,12 @@ fn an_index_that_cannot_be_rewritten_leaves_the_others_rewritten() {
 /// on a host that may run few threads the overlap reaches that many and no more.
 #[test]
 fn the_budget_of_the_host_bounds_the_overlap() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_budget_of_the_host_bounds_the_overlap",
+    ) {
+        return;
+    }
     let (parent, root) = checkout_with_linked("index-parallel-budget");
     let host: HostResources = HostResources {
         parallelism: 3,
@@ -371,8 +389,17 @@ fn the_rewrites_run_on_the_processs_runtime() {
 /// A rewrite waits for the one place the process's blocking pool has:
 /// only a job of the pool takes one,
 /// and work that ran on a worker of the runtime instead would start at once.
+/// The bound and the count of the jobs waiting for a place belong to the whole process,
+/// so the control runs its body in a child of its own (`process_wide_state_child_test_support.rs`),
+/// as the debt ledger's item 3a asks (issue 6496).
 #[test]
 fn the_rewrites_take_places_of_the_processs_bound_on_blocking_jobs() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_rewrites_take_places_of_the_processs_bound_on_blocking_jobs",
+    ) {
+        return;
+    }
     let (parent, root) = checkout_with_linked("index-parallel-a-place-of-the-bound");
     let (given_back, finished) = hold_the_only_place();
     let started_after: Arc<std::sync::Mutex<Vec<bool>>> =
@@ -491,7 +518,10 @@ fn an_index_whose_rewrite_ended_without_a_result_is_not_promised_to_be_as_it_was
 /// because only a refused thread start puts a job in that queue.
 #[test]
 fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it() {
-    if !crate::no_threads_child_test_support::ran_in_child(
+    // `ran_in_child` answers true in the process that started the child,
+    // and that process has threads to start: the body below refuses every thread of the process it runs
+    // in, so it belongs to the child alone (issue 6496).
+    if crate::no_threads_child_test_support::ran_in_child(
         module_path!(),
         "a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it",
     ) {
@@ -580,6 +610,12 @@ const REFRESH_STOP_BY: Duration = Duration::from_millis(200);
 /// of that runtime stops with it ("nothing should ever wait forever").
 #[test]
 fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires",
+    ) {
+        return;
+    }
     let (parent, root) = checkout_with_linked("index-preparation-hangs");
     let config: PathBuf = root.join(".git").join("config");
     let kept: PathBuf = root.join(".git").join("config.kept");
@@ -601,7 +637,7 @@ fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires
     };
     // The process's only place is held by another job, so the preparation this run sends to the pool never starts and no
     //  reader ever opens the pipe: the state a reviewer of this control found the cleanup hanging in.
-    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(
+    crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(
         crate::parallel_test_support::ONE_PLACE,
     );
     let (holding, held) = std::sync::mpsc::channel::<()>();
@@ -700,6 +736,10 @@ fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires
 /// ```ts
 /// syncCounts.take(); refreshWith(root, host, flushes); return syncCounts.take();
 /// ```
+/// The counts are the whole process's,
+/// because the rewrite jobs made them on threads of the pool,
+/// so a control that reads them runs its body in a child of its own
+/// and never takes another control's syncs (`process_wide_state_child_test_support.rs`).
 fn syncs_of(work: impl FnOnce()) -> crate::subvolume_file_write_steps::SyncCounts {
     let _taken = crate::subvolume_file_write_steps::take_sync_counts();
     work();
@@ -711,6 +751,12 @@ fn syncs_of(work: impl FnOnce()) -> crate::subvolume_file_write_steps::SyncCount
 /// which are not the calling thread's.
 #[test]
 fn a_run_kept_in_memory_flushes_no_index_though_its_rewrites_run_elsewhere() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_run_kept_in_memory_flushes_no_index_though_its_rewrites_run_elsewhere",
+    ) {
+        return;
+    }
     let (parent, root) = checkout_with_linked("index-kept-in-memory");
     let counts = syncs_of(|| {
         let (count, _lines) = refresh_with(
@@ -733,6 +779,12 @@ fn a_run_kept_in_memory_flushes_no_index_though_its_rewrites_run_elsewhere() {
 /// so the count above is a measurement and not a constant.
 #[test]
 fn a_run_that_flushes_reaches_the_disk_for_every_index() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_run_that_flushes_reaches_the_disk_for_every_index",
+    ) {
+        return;
+    }
     let (parent, root) = checkout_with_linked("index-flushing");
     let counts = syncs_of(|| {
         let (count, _lines) = refresh_with(

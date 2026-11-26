@@ -71,10 +71,13 @@ const SERVICE_ONLY_FILE_PREFIXES: [&str; 3] = [
 /// which name the library and the modules on purpose,
 /// and the rules of the scan that keeps blocked work off the runtime,
 /// whose list of kept threads and pauses names the files it excuses,
-/// a module of the review among them.
+/// a module of the review among them,
+/// and the check that no control takes the runner the whole process shares,
+/// which names the runner and the type its reader must declare and imports neither.
 fn may_name_service_modules(file: &str) -> bool {
     return file == "lib.rs"
         || file.starts_with("source_guard/standards_review_boundary_")
+        || file.starts_with("source_guard/no_control_takes_the_production_runner")
         || file.starts_with("source_guard/blocking_code_off_the_runtime_rules_")
         || file.starts_with("landing/service_work")
         || SERVICE_ONLY_FILE_PREFIXES

@@ -12,10 +12,24 @@ use std::io::{
 };
 use std::os::fd::OwnedFd;
 use std::path::PathBuf;
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// The span these controls give a connection,
 /// which is short enough to keep a control that must time out quick and long enough for a host under load.
 const WAIT: Duration = Duration::from_millis(200);
+
+/// How many short roots this process has made,
+/// so every call names a root of its own.
+/// Why:
+///  The root each call makes is tracked by the thread that made it and removed when that thread ends,
+///  so a root two controls of one process shared was removed from under the other one:
+///  measured on 2026-11-26,
+///  `a_socket_whose_listener_is_behind_answers_the_deadline` answered `NotFound` where its deadline was due,
+///  because a sibling control's thread had ended and taken the shared root with it (issue 6487).
+static ROOTS_MADE: AtomicUsize = AtomicUsize::new(0);
 
 /// What:
 ///  A folder of this test process whose path one socket address holds,
@@ -23,18 +37,32 @@ const WAIT: Duration = Duration::from_millis(200);
 /// Why:
 ///  One socket address holds 107 bytes and the fixture root under the build directory is longer than that,
 ///  so a control of a socket keeps its own folder somewhere short,
-///  which the test support tracks for this thread.
+///  which the test support tracks for this thread;
+///  the root is this call's own,
+///  so a control that ends removes its own folder and no other control's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const folder = shortFolder('a-control');
 /// ```
 fn short_folder(name: &str) -> PathBuf {
+    // What:     the root this call owns, named by this process and the number this call took.
+    // Why:      a name of the process alone was shared by every control of a threaded run, and the first thread that ended
+    //           removed it while its siblings still worked in it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const root = join(home, 'temp/agent', `sock${process.pid}-${rootsMade++}`);
+    // ```
     let root: PathBuf = std::env::var_os("HOME")
         .map(PathBuf::from)
         .expect("a home directory")
         .join("temp/agent")
-        .join(format!("sock{}", std::process::id()));
+        .join(format!(
+            "sock{}-{}",
+            std::process::id(),
+            ROOTS_MADE.fetch_add(1, Ordering::Relaxed)
+        ));
     let folder: PathBuf = root.join(name);
     std::fs::create_dir_all(folder.as_path()).expect("the short folder");
     crate::test_support::track_for_this_thread(root.as_path());

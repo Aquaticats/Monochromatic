@@ -29,6 +29,12 @@ const TWO: RuntimePlan = RuntimePlan::MultiThread {
 /// A plan for the current-thread runtime builds it and never calls the multi-thread builder.
 #[test]
 fn a_current_thread_plan_builds_the_current_thread_runtime() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_current_thread_plan_builds_the_current_thread_runtime",
+    ) {
+        return;
+    }
     let built: BuiltRuntime = build_with_deadline(
         RuntimePlan::CurrentThread,
         BUILD_DEADLINE,
@@ -47,6 +53,12 @@ fn a_current_thread_plan_builds_the_current_thread_runtime() {
 /// A multi-thread plan whose build finishes in time gives the multi-thread runtime with the planned workers.
 #[test]
 fn a_multi_thread_plan_that_builds_in_time_gives_the_multi_thread_runtime() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_multi_thread_plan_that_builds_in_time_gives_the_multi_thread_runtime",
+    ) {
+        return;
+    }
     let built: BuiltRuntime =
         build_with_deadline(TWO, BUILD_DEADLINE, real_multi_thread).expect("a runtime");
     assert_eq!(
@@ -67,6 +79,12 @@ fn a_multi_thread_plan_that_builds_in_time_gives_the_multi_thread_runtime() {
 /// by the deadline.
 #[test]
 fn a_build_that_outlasts_the_deadline_is_replaced_by_the_current_thread_runtime() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_build_that_outlasts_the_deadline_is_replaced_by_the_current_thread_runtime",
+    ) {
+        return;
+    }
     let deadline: Duration = Duration::from_millis(200);
     let started: Instant = Instant::now();
     let built: BuiltRuntime = build_with_deadline(TWO, deadline, move |workers, blocking| {
@@ -97,6 +115,12 @@ fn a_build_that_outlasts_the_deadline_is_replaced_by_the_current_thread_runtime(
 /// is replaced at once.
 #[test]
 fn a_build_that_panics_is_replaced_by_the_current_thread_runtime() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_build_that_panics_is_replaced_by_the_current_thread_runtime",
+    ) {
+        return;
+    }
     let built: BuiltRuntime = build_with_deadline(TWO, BUILD_DEADLINE, |_workers, _blocking| {
         panic!("OS can't spawn worker thread")
     })
@@ -107,6 +131,12 @@ fn a_build_that_panics_is_replaced_by_the_current_thread_runtime() {
 /// A build that reports an error is replaced at once.
 #[test]
 fn a_build_that_fails_is_replaced_by_the_current_thread_runtime() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_build_that_fails_is_replaced_by_the_current_thread_runtime",
+    ) {
+        return;
+    }
     let built: BuiltRuntime = build_with_deadline(TWO, BUILD_DEADLINE, |_workers, _blocking| {
         return Err(std::io::Error::other("no thread"));
     })
@@ -118,6 +148,12 @@ fn a_build_that_fails_is_replaced_by_the_current_thread_runtime() {
 /// a second call sees the flavor the first built.
 #[test]
 fn every_call_runs_on_the_same_runtime() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "every_call_runs_on_the_same_runtime",
+    ) {
+        return;
+    }
     // Whether one is built before the first need is the control of the child below: a sibling test of this process may have
     //  built it already, and that is no part of what this one says.
     assert_eq!(
@@ -194,6 +230,12 @@ fn child_that_has_needed_no_runtime_yet() {
 /// ```
 #[test]
 fn nothing_is_built_before_the_first_need() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "nothing_is_built_before_the_first_need",
+    ) {
+        return;
+    }
     // The child's own body is the assertion, and the name it is started on is checked by `passed`, so a mistyped name
     //  fails here rather than passing with `0 tests`.
     let child: String = child_path("child_that_has_needed_no_runtime_yet");
@@ -207,6 +249,12 @@ fn nothing_is_built_before_the_first_need() {
 /// A call from inside the runtime is refused with an error where `block_on` would panic.
 #[test]
 fn a_call_from_inside_the_runtime_is_refused() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_call_from_inside_the_runtime_is_refused",
+    ) {
+        return;
+    }
     let inner = run_on_runtime(async {
         return run_on_runtime(async {
             return 1;
@@ -225,6 +273,12 @@ fn a_call_from_inside_the_runtime_is_refused() {
 /// the control would fail if the task ran only when the caller drove the runtime.
 #[test]
 fn a_spawned_task_runs_while_the_caller_is_blocked() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_spawned_task_runs_while_the_caller_is_blocked",
+    ) {
+        return;
+    }
     let (sender, receiver) = std::sync::mpsc::channel::<u8>();
     let task = spawn_on_runtime(async move {
         let _sent = sender.send(7);
@@ -309,6 +363,12 @@ pub(super) fn this_read_of_the_late_runtime_is_held_back() -> bool {
 /// ```
 #[test]
 fn a_task_that_needs_a_worker_waits_for_a_build_that_is_still_coming() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_task_that_needs_a_worker_waits_for_a_build_that_is_still_coming",
+    ) {
+        return;
+    }
     let refused: RefusalForTheControl = a_control_refuses_every_task();
     let late: LateRuntimeForTheControl = a_control_stands_in_for_a_late_runtime();
     let began: Instant = Instant::now();
@@ -341,6 +401,12 @@ fn a_task_that_needs_a_worker_waits_for_a_build_that_is_still_coming() {
 /// ```
 #[test]
 fn a_task_that_needs_a_worker_does_not_wait_for_a_runtime_that_nothing_brings() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_task_that_needs_a_worker_does_not_wait_for_a_runtime_that_nothing_brings",
+    ) {
+        return;
+    }
     let refused: RefusalForTheControl = a_control_refuses_every_task();
     let began: Instant = Instant::now();
     let started: Option<tokio::task::JoinHandle<()>> =
@@ -375,6 +441,12 @@ fn a_task_that_needs_a_worker_does_not_wait_for_a_runtime_that_nothing_brings() 
 /// ```
 #[test]
 fn a_task_that_needs_a_worker_starts_when_the_build_arrives_as_the_caller_asks_about_it() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_task_that_needs_a_worker_starts_when_the_build_arrives_as_the_caller_asks_about_it",
+    ) {
+        return;
+    }
     let stand_in: Runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -434,6 +506,12 @@ const A_MOMENT_REACHED: Duration = Duration::from_secs(30);
 /// ```
 #[test]
 fn a_build_that_finishes_while_the_caller_gives_up_is_kept() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_build_that_finishes_while_the_caller_gives_up_is_kept",
+    ) {
+        return;
+    }
     let (release_sender, release) = std::sync::mpsc::channel::<()>();
     let (built_sender, built) = std::sync::mpsc::channel::<()>();
     // A task of the very runtime the build finishes with, so the control can tell that runtime from any other.
@@ -534,6 +612,12 @@ fn a_build_that_finishes_while_the_caller_gives_up_is_kept() {
 /// ```
 #[test]
 fn a_build_that_arrives_while_the_caller_stands_in_is_kept() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_build_that_arrives_while_the_caller_stands_in_is_kept",
+    ) {
+        return;
+    }
     let (began_sender, began) = std::sync::mpsc::channel::<()>();
     let (release_sender, release) = std::sync::mpsc::channel::<()>();
     let (built_sender, built) = std::sync::mpsc::channel::<()>();
@@ -606,6 +690,12 @@ fn a_build_that_arrives_while_the_caller_stands_in_is_kept() {
 /// ```
 #[test]
 fn a_build_that_arrives_after_the_channel_is_closed_takes_the_work_it_was_built_for() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_build_that_arrives_after_the_channel_is_closed_takes_the_work_it_was_built_for",
+    ) {
+        return;
+    }
     let built: BuiltRuntime = build_with_deadline(
         RuntimePlan::MultiThread {
             workers: ONE_WORKER,
