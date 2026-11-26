@@ -14,10 +14,18 @@
 
 /// Import the shared invocation fixtures.
 use crate::markdown_source::{
-    MarkdownSource, block_containers, paragraph_placements, verbatim_blocks,
+    MarkdownSource,
+    block_containers,
+    paragraph_placements,
+    verbatim_blocks,
 };
 use crate::run_output::RunOutput;
-use crate::run_test_support::{codes, read, run, write};
+use crate::run_test_support::{
+    codes,
+    read,
+    run,
+    write,
+};
 use crate::test_fs::Fixture;
 use satteri_ast::mdast::MdastNodeType;
 use serde::Deserialize;
@@ -96,7 +104,10 @@ fn without_leading_quote_markers(line: &str) -> &str {
 /// The tokens a language compares:
 ///  Rust source without the doc comment marker each line starts with,
 ///  and every language without the quote markers that place a line in a quotation.
-fn comparable_tokens<'text>(filename: &str, text: &'text str) -> Vec<&'text str> {
+fn comparable_tokens<'text>(
+    filename: &str,
+    text: &'text str,
+) -> Vec<&'text str> {
     let rust: bool = filename.ends_with(".rs");
     let mut found: Vec<&'text str> = Vec::<&'text str>::new();
     for line in text.lines() {
@@ -111,7 +122,12 @@ fn comparable_tokens<'text>(filename: &str, text: &'text str) -> Vec<&'text str>
 }
 
 /// Fix one source on standard input under a configuration and return the fixed source.
-fn fix_with(root: &Path, filename: &str, source: &str, configuration: &str) -> String {
+fn fix_with(
+    root: &Path,
+    filename: &str,
+    source: &str,
+    configuration: &str,
+) -> String {
     write(root, CONFIG_FILE, configuration);
     let output: RunOutput = run(
         root,
@@ -123,7 +139,11 @@ fn fix_with(root: &Path, filename: &str, source: &str, configuration: &str) -> S
 }
 
 /// Run `--fix` over one file of a disposable tree and return its new text and the codes still reported.
-fn fix_file(filename: &str, source: &str, configuration: &str) -> (String, Vec<String>) {
+fn fix_file(
+    filename: &str,
+    source: &str,
+    configuration: &str,
+) -> (String, Vec<String>) {
     let fixture: Fixture = Fixture::new();
     write(&fixture.path, CONFIG_FILE, configuration);
     write(&fixture.path, filename, source);

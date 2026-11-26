@@ -165,12 +165,25 @@ impl DeclaredType {
     /// The type in the words a mismatch prints.
     pub fn words(&self) -> &'static str {
         return match self {
-            DeclaredType::Integer { .. } => "an integer",
-            DeclaredType::Pointer { .. } => "a pointer",
-            DeclaredType::Array { .. } => "an array",
-            DeclaredType::Record { kind, .. } => kind.words(),
-            DeclaredType::Enumeration { .. } => "an enumeration",
-            DeclaredType::Float { .. } => "a floating-point type",
+            DeclaredType::Integer {
+                ..
+            } => "an integer",
+            DeclaredType::Pointer {
+                ..
+            } => "a pointer",
+            DeclaredType::Array {
+                ..
+            } => "an array",
+            DeclaredType::Record {
+                kind,
+                ..
+            } => kind.words(),
+            DeclaredType::Enumeration {
+                ..
+            } => "an enumeration",
+            DeclaredType::Float {
+                ..
+            } => "a floating-point type",
             DeclaredType::Other => "another kind",
         };
     }
@@ -179,12 +192,27 @@ impl DeclaredType {
     /// and nothing for a kind the comparison never reads a size from.
     pub fn byte_size(&self) -> Option<u64> {
         return match self {
-            DeclaredType::Integer { byte_size }
-            | DeclaredType::Pointer { byte_size }
-            | DeclaredType::Array { byte_size, .. }
-            | DeclaredType::Record { byte_size, .. }
-            | DeclaredType::Enumeration { byte_size, .. }
-            | DeclaredType::Float { byte_size } => Some(*byte_size),
+            DeclaredType::Integer {
+                byte_size,
+            }
+            | DeclaredType::Pointer {
+                byte_size,
+            }
+            | DeclaredType::Array {
+                byte_size,
+                ..
+            }
+            | DeclaredType::Record {
+                byte_size,
+                ..
+            }
+            | DeclaredType::Enumeration {
+                byte_size,
+                ..
+            }
+            | DeclaredType::Float {
+                byte_size,
+            } => Some(*byte_size),
             DeclaredType::Other => None,
         };
     }
@@ -231,23 +259,39 @@ impl DeclaredType {
 pub trait Declaration {
     /// The handle of the named structure or union,
     /// or nothing when the module declares none.
-    fn find_container(&self, name: &str, kind: ContainerKind) -> Option<u32>;
+    fn find_container(
+        &self,
+        name: &str,
+        kind: ContainerKind,
+    ) -> Option<u32>;
 
     /// The handle of the named enumeration,
     /// or nothing when the module declares none.
-    fn find_enumeration(&self, name: &str) -> Option<u32>;
+    fn find_enumeration(
+        &self,
+        name: &str,
+    ) -> Option<u32>;
 
     /// One handle's type,
     /// through every alias over it.
-    fn declared(&self, id: u32) -> Option<DeclaredType>;
+    fn declared(
+        &self,
+        id: u32,
+    ) -> Option<DeclaredType>;
 
     /// The size in bytes one handle describes.
-    fn byte_size(&self, id: u32) -> Option<u64> {
+    fn byte_size(
+        &self,
+        id: u32,
+    ) -> Option<u64> {
         return self.declared(id)?.byte_size();
     }
 
     /// Whether one handle is a base integer or an array of them.
-    fn is_base_integer(&self, id: u32) -> bool {
+    fn is_base_integer(
+        &self,
+        id: u32,
+    ) -> bool {
         return matches!(
             self.declared(id),
             Some(DeclaredType::Integer { .. } | DeclaredType::Array { .. })
@@ -255,7 +299,11 @@ pub trait Declaration {
     }
 
     /// Whether one handle is the given container kind.
-    fn is_container(&self, id: u32, kind: ContainerKind) -> bool {
+    fn is_container(
+        &self,
+        id: u32,
+        kind: ContainerKind,
+    ) -> bool {
         return matches!(
             self.declared(id),
             Some(DeclaredType::Record { kind: actual, .. }) if actual == kind

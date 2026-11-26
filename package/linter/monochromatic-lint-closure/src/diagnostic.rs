@@ -13,11 +13,19 @@
 //! ```
 
 /// Import the text builders.
-use crate::message::{help_message, primary_message};
+use crate::message::{
+    help_message,
+    primary_message,
+};
 /// Import the placement categories.
 use crate::placement::Placement;
 /// Import the diagnostic builder types of the compiler.
-use rustc_errors::{Diag, DiagCtxtHandle, Diagnostic, Level};
+use rustc_errors::{
+    Diag,
+    DiagCtxtHandle,
+    Diagnostic,
+    Level,
+};
 
 /// What:
 ///  Everything the message needs:
@@ -49,7 +57,11 @@ impl<'a> Diagnostic<'a> for ClosureFound {
     /// ```ts
     /// function intoDiag(self: ClosureFound): Diag;
     /// ```
-    fn into_diag(self, dcx: DiagCtxtHandle<'a>, level: Level) -> Diag<'a> {
+    fn into_diag(
+        self,
+        dcx: DiagCtxtHandle<'a>,
+        level: Level,
+    ) -> Diag<'a> {
         let mut diag: Diag<'a> = Diag::new(dcx, level, "");
         diag.primary_message(primary_message(&self.captures, self.placement));
         diag.help(help_message(&self.captures, self.placement));

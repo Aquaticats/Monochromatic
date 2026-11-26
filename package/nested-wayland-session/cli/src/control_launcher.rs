@@ -11,7 +11,10 @@ use std::time::Instant;
 /// the listener handle,
 /// and the wire response.
 use crate::{
-    launcher_format::{format_latest, format_log},
+    launcher_format::{
+        format_latest,
+        format_log,
+    },
     launcher_listen::LauncherLog,
     protocol::Response,
 };
@@ -42,7 +45,10 @@ const NO_BUS_MESSAGE: &str = "no private session bus (start with --launcher-log 
 /// ```ts
 /// function latest(log, startTime): Response { ... }
 /// ```
-pub fn latest(log: Option<&LauncherLog>, start_time: Instant) -> Response {
+pub fn latest(
+    log: Option<&LauncherLog>,
+    start_time: Instant,
+) -> Response {
     let Some(listener) = log else {
         return Response::Err(NO_BUS_MESSAGE.to_string());
     };
@@ -65,13 +71,16 @@ pub fn latest(log: Option<&LauncherLog>, start_time: Instant) -> Response {
 /// Why:
 ///       A test compares the list with the values it emitted,
 /// in the order it emitted them.
-pub fn log(log: Option<&LauncherLog>, count: usize) -> Response {
+pub fn log(
+    log: Option<&LauncherLog>,
+    count: usize,
+) -> Response {
     let Some(listener) = log else {
         return Response::Err(NO_BUS_MESSAGE.to_string());
     };
     let history = listener.lock();
     let records = history.last_n(count);
-    return Response::OkWith(format_log(&records))
+    return Response::OkWith(format_log(&records));
 }
 
 /// Empties the taskbar progress history.
@@ -85,7 +94,7 @@ pub fn clear(log: Option<&LauncherLog>) -> Response {
         return Response::Err(NO_BUS_MESSAGE.to_string());
     };
     listener.lock().clear();
-    return Response::Ok
+    return Response::Ok;
 }
 
 /// Unit tests for the no-bus refusal.

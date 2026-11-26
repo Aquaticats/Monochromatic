@@ -227,7 +227,7 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the writer of the notice stream, which a reader must never hold",
     },
     Allowed {
-        file: "foundation/diagnostic_lines_off_the_calling_thread.rs",
+        file: "foundation/lines_written_by_a_thread.rs",
         rule: "thread-start",
         why: "the writer of the diagnostic lines, which a reader must never hold: the wait belongs to a thread because the \
               line is said wherever the code reaches it, and the process waits for it once and bounded at its end; \
@@ -244,7 +244,7 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the line about a service manager that has not answered is said by a thread of its own, because the D-Bus call that waits for it blocks the thread provisioning runs on and nothing else can count those seconds; a timeout around awaited manager calls replaces it when the provisioning is a task",
     },
     Allowed {
-        file: "service/service_log_lines_off_the_calling_thread.rs",
+        file: "foundation/lines_written_by_a_thread.rs",
         rule: "thread-start",
         why: "the one thread that writes the service's log lines, and it exists because a caller must never wait for the stream: a landing was held 7.35 s by a full FIFO, and the journal's own disk held commits for 56 to 199 s (the audit of 0.6.1-alpha.14). Its job never returns while the process runs, which a job of the blocking pool cannot be, so nothing of that pool replaces it; the entry goes when the process's log is a stream a write cannot wait on, where a caller writes its own line",
     },
@@ -418,11 +418,6 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the sampler's own pause between its /proc reads",
     },
     Allowed {
-        file: "push/auto_push.rs",
-        rule: "blocking-sleep",
-        why: "the pause between attempts at the push lock",
-    },
-    Allowed {
         file: "push/push_tracking_ref_repair.rs",
         rule: "blocking-sleep",
         why: "the same pause between attempts at a reference lock, on the push a command outside the runtime makes; the \
@@ -502,46 +497,5 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the control-only hold between two of the add's steps, on the synchronous ZFS add route that `run_a_zfs_add` enters; it holds the \
               calling command thread, not a worker of the runtime, `CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_STEP` arms it, the control's release file ends \
               it and `HOLD_BOUND` bounds it. The entry goes when the add path is a task, where an awaited `tokio::time::sleep` ends the pause",
-    },
-    // One call on a known small file inside a task, which the plan allows once and the merge's own step batches.
-    Allowed {
-        file: "merge/merge_isolation_carry_place.rs",
-        rule: "storage-read-on-a-task",
-        why: "one metadata look, one rename and one removal of a known entry; the plan's rule batches such calls on the blocking pool, and the merge's carry step owns that conversion",
-    },
-    Allowed {
-        file: "merge/merge_isolation_changes.rs",
-        rule: "storage-read-on-a-task",
-        why: "one metadata look and one link read of a known path; the merge's own step owns batching them on the blocking pool",
-    },
-    Allowed {
-        file: "merge/merge_isolation_kept_copies_decisions.rs",
-        rule: "storage-read-on-a-task",
-        why: "a metadata look at the copy and one at the path it belongs to, once per kept copy; the merge's own step owns batching them on the blocking pool",
-    },
-    Allowed {
-        file: "merge/merge_isolation_recovery_records.rs",
-        rule: "storage-read-on-a-task",
-        why: "one read of a known merge record, once per recovery; the merge's own step owns batching it on the blocking pool",
-    },
-    Allowed {
-        file: "merge/merge_isolation_recovery_steps.rs",
-        rule: "storage-read-on-a-task",
-        why: "one metadata look at a known worktree path; the merge's own step owns batching it on the blocking pool",
-    },
-    Allowed {
-        file: "merge/merge_isolation_take_asides.rs",
-        rule: "storage-read-on-a-task",
-        why: "one metadata look, one link read and one removal of a known entry; the merge's own step owns batching them on the blocking pool",
-    },
-    Allowed {
-        file: "merge/merge_second_pass_tree.rs",
-        rule: "storage-read-on-a-task",
-        why: "one removal of a known private index file; the merge's own step owns batching it on the blocking pool",
-    },
-    Allowed {
-        file: "merge/merge_second_pass_worktree.rs",
-        rule: "storage-read-on-a-task",
-        why: "one read of the worktree's HEAD, once per second pass; the merge's own step owns batching it on the blocking pool",
     },
 ];

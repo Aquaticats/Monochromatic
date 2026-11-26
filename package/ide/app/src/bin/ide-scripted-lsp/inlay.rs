@@ -39,7 +39,10 @@ use serde_json::Value;
 /// ```ts
 /// function answer(id: unknown, firstLine: number): object { return { id, result: [/* two hints, and one on firstLine */] }; }
 /// ```
-fn answer(id: &Value, first_line: u64) -> Value {
+fn answer(
+    id: &Value,
+    first_line: u64,
+) -> Value {
     let mut hints = answer_hints();
     // A request for lines below the first also gets a hint on its first line, as a server answers the lines asked.
     if first_line > 0 {
@@ -69,7 +72,10 @@ fn answer_hints() -> Vec<Value> {
 
 /// Write one message,
 ///  turning a write failure into a line on standard error.
-fn send(wire: &Wire, message: Value) {
+fn send(
+    wire: &Wire,
+    message: Value,
+) {
     if let Err(error) = wire.send(message) {
         eprintln!("scripted language server cannot write an inlay-hint answer: {error}");
     }
@@ -100,7 +106,13 @@ fn send(wire: &Wire, message: Value) {
 ///   if (held.value) { wire.send(held.value); held.value = undefined; }
 /// }
 /// ```
-pub fn respond(wire: &Wire, id: &Value, step: Step, held: &mut Option<Value>, first_line: u64) {
+pub fn respond(
+    wire: &Wire,
+    id: &Value,
+    step: Step,
+    held: &mut Option<Value>,
+    first_line: u64,
+) {
     match step {
         Step::Silent => return,
         Step::Hold => {

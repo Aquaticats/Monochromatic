@@ -4,23 +4,23 @@
 //!  A file-size limit is the privilege-free way to make a write fail half way,
 //!  and the limit is a property of the whole process,
 //!  so the child runs alone and the parent's other tests never see it.
-//!  The child runner is a file of its own
-//!  so `test_support.rs`,
-//! which the crate's controls share,
-//! stays inside the code-line limit,
-//!  and it sits beside the umask and no-thread child runners that hold the same shape.
-//!  The child's three streams are the null device:
-//!  it inherits nothing,
+//!  The child's three streams are the null device or pipes this file reads:
+//!  it inherits no stream of this process,
 //!  so a parent whose standard output is a regular file already past the limit
 //!  cannot make the child's first print fail with `EFBIG`
 //!  and turn a passing control red.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! spawnSync(process.execPath, [testBinary, '--exact', name, '--ignored'], { env: { DIRECTORY: directory }, limits: { fsize: limit } });
+//! runChildUnderFileSizeLimit(name, 4096, directory); // spawnSync(testBinary, ['--exact', name, '--ignored'], { limits: { fsize: limit } })
 //! ```
 
-use std::process::Command;
+/// The one request for a child of this test binary, and the wait that ends it.
+use super::child_test_process::{ChildTest, finished};
+/// `OsStr` is borrowed operating-system text of raw bytes.
+use std::ffi::OsStr;
+/// `ExitStatus` is how a process ended: an exit code or the signal that ended it.
+use std::process::ExitStatus;
 
 /// Variable that tells a child test the directory it works in.
 pub(crate) const LIMITED_DIRECTORY_VARIABLE: &str = "CLI_GIT_LIMITED_CHILD_DIRECTORY";
@@ -36,35 +36,33 @@ pub(crate) const LIMITED_DIRECTORY_VARIABLE: &str = "CLI_GIT_LIMITED_CHILD_DIREC
 /// The limit is a property of the whole process,
 /// so the child runs alone and the parent's other tests
 ///  never see it.
-///  The child writes to no stream it inherits:
-///  a redirected run's standard output is one regular file,
-///  and a write past the limit made the child's own first print the failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// spawnSync(process.execPath, [testBinary, '--exact', name, '--ignored'], { env: { DIRECTORY: directory }, limits: { fsize: limit } });
+/// function runChildUnderFileSizeLimit(testName: string, limit: number, directory: string): ExitStatus {
+///   const ended = finished({ exactTest: testName, ignored: true, environment: [[LIMITED_DIRECTORY_VARIABLE, directory]], beforeTheExec: () => { ignore(SIGXFSZ); setrlimit(RLIMIT_FSIZE, limit); } });
+///   return ended.status;
+/// }
 /// ```
-pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, directory: &std::path::Path) -> std::process::ExitStatus {
-    use std::os::unix::process::CommandExt;
-    let mut command: Command = Command::new(crate::test_support::this_test_binary().expect("test binary"));
-    command
-        .args(["--exact", test_name, "--ignored", "--nocapture"])
-        .env(LIMITED_DIRECTORY_VARIABLE, directory)
-        .stdin(std::process::Stdio::null())
-        // The child's own prints say nothing the control reads, and a stream it does not share cannot hold the
-        // run's limit against a file the parent's shell already filled: a redirected test run stays green.
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
-    // SAFETY: between fork and exec only `signal` and `setrlimit`, both async-signal-safe, run.
-    unsafe {
-        command.pre_exec(move || {
-            libc::signal(libc::SIGXFSZ, libc::SIG_IGN);
-            let cap: libc::rlimit = libc::rlimit { rlim_cur: limit, rlim_max: limit };
-            if libc::setrlimit(libc::RLIMIT_FSIZE, &cap) != 0 {
-                return Err(std::io::Error::last_os_error());
+pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, directory: &std::path::Path) -> ExitStatus {
+    let environment: [(&str, &OsStr); 1] = [(LIMITED_DIRECTORY_VARIABLE, directory.as_os_str())];
+    let ended = finished(ChildTest {
+        exact_test: test_name,
+        environment: environment.as_slice(),
+        ignored: true,
+        before_the_exec: Some(Box::new(move || {
+            // SAFETY: between fork and exec only `signal` and `setrlimit`, both async-signal-safe, run.
+            unsafe {
+                libc::signal(libc::SIGXFSZ, libc::SIG_IGN);
+                let cap: libc::rlimit = libc::rlimit { rlim_cur: limit, rlim_max: limit };
+                if libc::setrlimit(libc::RLIMIT_FSIZE, &cap) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
             }
             return Ok(());
-        });
-    }
-    return command.status().expect("the child test starts");
+        })),
+        ..ChildTest::default()
+    })
+    .expect("the child under the size limit ends within the deadline");
+    return ended.status;
 }

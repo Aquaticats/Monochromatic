@@ -27,7 +27,10 @@
 /// The formatting traits a refusal's own words use.
 use std::fmt;
 /// The path types a step's file is taken as and kept as.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The step of the gate that refused.
@@ -131,7 +134,10 @@ impl fmt::Display for Refusal {
     /// The step,
     /// the file it read and the detail,
     /// in one line a person can act on.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         let Some(path): Option<&Path> = self.file.as_deref() else {
             return write!(formatter, "{} refused: {}", self.step.as_str(), self.detail);
         };
@@ -146,7 +152,11 @@ impl fmt::Display for Refusal {
 }
 
 /// One refusal built by a step that read `file`.
-pub fn refusal_at(step: Step, file: &Path, detail: String) -> Refusal {
+pub fn refusal_at(
+    step: Step,
+    file: &Path,
+    detail: String,
+) -> Refusal {
     return Refusal {
         step,
         file: Some(file.to_path_buf()),

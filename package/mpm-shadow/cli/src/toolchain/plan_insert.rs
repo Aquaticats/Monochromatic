@@ -21,16 +21,28 @@
 //! ```
 
 /// Imports the JSON value types the entry is built from.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Imports the span-reporting parser and the tree it hands back beside the positions.
-use monochromatic_jsonc_edit::{JsoncKind, JsoncSpanned, JsoncValue, parse_jsonc_with_spans, units_to_string};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncSpanned,
+    JsoncValue,
+    parse_jsonc_with_spans,
+    units_to_string,
+};
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports the declaration type and the entry encoder.
 use super::model::Declaration;
-use super::model_encode::{added_plan_entry_value, render_pretty_json};
+use super::model_encode::{
+    added_plan_entry_value,
+    render_pretty_json,
+};
 /// Imports `parse_plan` from `super::plan`.
 use super::plan::parse_plan;
 
@@ -145,28 +157,49 @@ fn misaligned(label: &str) -> ToolchainError {
 
 /// Consumes the spans of the children of `value`,
 /// whose own span the caller already read.
-fn skip_children(walk: &mut SpanWalk, value: &JsoncValue, label: &str) -> Result<(), ToolchainError> {
+fn skip_children(
+    walk: &mut SpanWalk,
+    value: &JsoncValue,
+    label: &str,
+) -> Result<(), ToolchainError> {
     match &value.kind {
-        JsoncKind::Record { entries } => {
+        JsoncKind::Record {
+            entries,
+        } => {
             for entry in entries {
                 walk.key().ok_or_else(|| return misaligned(label))?;
                 walk.value().ok_or_else(|| return misaligned(label))?;
                 skip_children(walk, &entry.value, label)?;
             }
         }
-        JsoncKind::Array { elements } => {
+        JsoncKind::Array {
+            elements,
+        } => {
             for element in elements {
                 walk.value().ok_or_else(|| return misaligned(label))?;
                 skip_children(walk, element, label)?;
             }
         }
-        JsoncKind::Null | JsoncKind::Boolean { .. } | JsoncKind::Number { .. } | JsoncKind::Text { .. } => {}
+        JsoncKind::Null
+        | JsoncKind::Boolean {
+            ..
+        }
+        | JsoncKind::Number {
+            ..
+        }
+        | JsoncKind::Text {
+            ..
+        } => {}
     }
     return Ok(());
 }
 
 /// Consumes the spans of `value` and of everything below it.
-fn skip_value(walk: &mut SpanWalk, value: &JsoncValue, label: &str) -> Result<(), ToolchainError> {
+fn skip_value(
+    walk: &mut SpanWalk,
+    value: &JsoncValue,
+    label: &str,
+) -> Result<(), ToolchainError> {
     walk.value().ok_or_else(|| return misaligned(label))?;
     return skip_children(walk, value, label);
 }
@@ -183,7 +216,10 @@ fn skip_value(walk: &mut SpanWalk, value: &JsoncValue, label: &str) -> Result<()
 /// ```ts
 /// function lineIndent(source: string, offset: number): string | undefined
 /// ```
-fn line_indent(source: &str, offset: usize) -> Option<String> {
+fn line_indent(
+    source: &str,
+    offset: usize,
+) -> Option<String> {
     let start: usize = source[..offset].rfind('\n')? + 1;
     let prefix: &str = &source[start..offset];
     if prefix.trim().is_empty() {
@@ -203,7 +239,10 @@ fn line_indent(source: &str, offset: usize) -> Option<String> {
 /// ```ts
 /// function lineLeading(source: string, offset: number): string
 /// ```
-fn line_leading(source: &str, offset: usize) -> String {
+fn line_leading(
+    source: &str,
+    offset: usize,
+) -> String {
     let start: usize = match source[..offset].rfind('\n') {
         Some(newline) => newline + 1,
         None => 0,
@@ -214,7 +253,10 @@ fn line_leading(source: &str, offset: usize) -> String {
 }
 
 /// The indentation of one entry in the object whose `{` is at `brace`, when no entry is there to copy it from.
-fn indent_below(source: &str, brace: usize) -> String {
+fn indent_below(
+    source: &str,
+    brace: usize,
+) -> String {
     return format!("{}{ONE_LEVEL}", line_leading(source, brace));
 }
 
@@ -222,7 +264,10 @@ fn indent_below(source: &str, brace: usize) -> String {
 /// the id as the key and the fields `added_plan_entry_value` writes,
 /// expanded the way the plans are written,
 /// with `indent` in front of every line.
-fn entry_text(indent: &str, declaration: &Declaration) -> String {
+fn entry_text(
+    indent: &str,
+    declaration: &Declaration,
+) -> String {
     let mut members: Map<String, Value> = Map::new();
     members.insert(declaration.id.clone(), added_plan_entry_value(declaration));
     let rendered: String = render_pretty_json(&Value::Object(members));
@@ -230,7 +275,12 @@ fn entry_text(indent: &str, declaration: &Declaration) -> String {
     // The first and last lines are the braces of the object that holds the one member;
     // the plan writes its own, so only the member's own lines are kept.
     let mut text: String = String::new();
-    for (index, line) in lines.iter().skip(1).take(lines.len().saturating_sub(2)).enumerate() {
+    for (index, line) in lines
+        .iter()
+        .skip(1)
+        .take(lines.len().saturating_sub(2))
+        .enumerate()
+    {
         if index > 0 {
             text.push('\n');
         }
@@ -250,12 +300,18 @@ fn entry_text(indent: &str, declaration: &Declaration) -> String {
 /// ```ts
 /// function placeAfter(source: string, valueEnd: number, objectEnd: number): Place
 /// ```
-fn place_after(source: &str, value_end: usize, object_end: usize) -> Place {
+fn place_after(
+    source: &str,
+    value_end: usize,
+    object_end: usize,
+) -> Place {
     let limit: usize = object_end.saturating_sub(1);
     let mut index: usize = value_end;
     let skip_blanks = |from: usize| -> usize {
         let mut cursor: usize = from;
-        while cursor < limit && (source.as_bytes()[cursor] == b' ' || source.as_bytes()[cursor] == b'\t') {
+        while cursor < limit
+            && (source.as_bytes()[cursor] == b' ' || source.as_bytes()[cursor] == b'\t')
+        {
             cursor += 1;
         }
         return cursor;
@@ -271,16 +327,26 @@ fn place_after(source: &str, value_end: usize, object_end: usize) -> Place {
             Some(newline) => index + newline,
             None => source.len(),
         };
-        return Place::AfterComment { value_end, comma_present, after_comment };
+        return Place::AfterComment {
+            value_end,
+            comma_present,
+            after_comment,
+        };
     }
     if source[index.min(source.len())..].starts_with("/*") {
         let after_comment: usize = match source[index..].find("*/") {
             Some(close) => index + close + 2,
             None => source.len(),
         };
-        return Place::AfterComment { value_end, comma_present, after_comment };
+        return Place::AfterComment {
+            value_end,
+            comma_present,
+            after_comment,
+        };
     }
-    return Place::AtLastValue { value_end };
+    return Place::AtLastValue {
+        value_end,
+    };
 }
 
 /// What:
@@ -296,31 +362,62 @@ fn place_after(source: &str, value_end: usize, object_end: usize) -> Place {
 /// ```ts
 /// function toolsRecord(source: string, label: string): ToolsRecord
 /// ```
-fn tools_record(source: &str, label: &str) -> Result<ToolsRecord, ToolchainError> {
+fn tools_record(
+    source: &str,
+    label: &str,
+) -> Result<ToolsRecord, ToolchainError> {
     let spanned: JsoncSpanned = match parse_jsonc_with_spans(source) {
         Ok(parsed) => parsed,
-        Err(error) => return Err(ToolchainError::config(format!("{label} is not valid JSONC: {error}"))),
+        Err(error) => {
+            return Err(ToolchainError::config(format!(
+                "{label} is not valid JSONC: {error}"
+            )));
+        }
     };
     let root: &JsoncValue = &spanned.value;
-    let JsoncKind::Record { entries } = &root.kind else {
-        return Err(ToolchainError::config(format!("{label} must hold a JSON object at its top level")));
+    let JsoncKind::Record {
+        entries,
+    } = &root.kind
+    else {
+        return Err(ToolchainError::config(format!(
+            "{label} must hold a JSON object at its top level"
+        )));
     };
-    let mut walk: SpanWalk = SpanWalk { values: &spanned.spans.values, keys: &spanned.spans.keys, value_index: 0, key_index: 0 };
+    let mut walk: SpanWalk = SpanWalk {
+        values: &spanned.spans.values,
+        keys: &spanned.spans.keys,
+        value_index: 0,
+        key_index: 0,
+    };
     walk.value().ok_or_else(|| return misaligned(label))?;
     for entry in entries {
         walk.key().ok_or_else(|| return misaligned(label))?;
         let key: String = match units_to_string(&entry.key.units) {
             Ok(text) => text,
-            Err(error) => return Err(ToolchainError::config(format!("{label}: a key is not valid text: {error}"))),
+            Err(error) => {
+                return Err(ToolchainError::config(format!(
+                    "{label}: a key is not valid text: {error}"
+                )));
+            }
         };
         if key != "tools" {
             skip_value(&mut walk, &entry.value, label)?;
             continue;
         }
-        let brace_span: monochromatic_jsonc_edit::JsoncSpan = walk.value().ok_or_else(|| return misaligned(label))?;
-        return tools_of(source, label, brace_span.start.offset, brace_span.end.offset, &entry.value, &mut walk);
+        let brace_span: monochromatic_jsonc_edit::JsoncSpan =
+            walk.value().ok_or_else(|| return misaligned(label))?;
+        return tools_of(
+            source,
+            label,
+            brace_span.start.offset,
+            brace_span.end.offset,
+            &entry.value,
+            &mut walk,
+        );
     }
-    return Err(ToolchainError::config(format!("{label} has no \"tools\" object")));
+    return Err(ToolchainError::config(format!(
+        "{label} has no \"tools\" object"
+    )));
 }
 
 /// Reads the members of the `tools` object at the span `[start, end)`.
@@ -332,32 +429,50 @@ fn tools_of(
     value: &JsoncValue,
     walk: &mut SpanWalk,
 ) -> Result<ToolsRecord, ToolchainError> {
-    if source.as_bytes().get(brace) != Some(&b'{') || end == 0 || source.as_bytes().get(end - 1) != Some(&b'}') {
+    if source.as_bytes().get(brace) != Some(&b'{')
+        || end == 0
+        || source.as_bytes().get(end - 1) != Some(&b'}')
+    {
         return Err(misaligned(label));
     }
     let closing_indent: String = line_leading(source, brace);
-    let JsoncKind::Record { entries } = &value.kind else {
-        return Err(ToolchainError::config(format!("{label}: \"tools\" must be an object keyed by tool id")));
+    let JsoncKind::Record {
+        entries,
+    } = &value.kind
+    else {
+        return Err(ToolchainError::config(format!(
+            "{label}: \"tools\" must be an object keyed by tool id"
+        )));
     };
     if entries.is_empty() {
         return Ok(ToolsRecord {
-            place: Place::Empty { brace: brace + 1, braces_broken: source[brace + 1..end - 1].contains('\n') },
+            place: Place::Empty {
+                brace: brace + 1,
+                braces_broken: source[brace + 1..end - 1].contains('\n'),
+            },
             member_indent: format!("{closing_indent}{ONE_LEVEL}"),
             closing_indent,
         });
     }
     let mut last: Option<(usize, usize)> = None;
     for entry in entries {
-        let key_span: monochromatic_jsonc_edit::JsoncSpan = walk.key().ok_or_else(|| return misaligned(label))?;
-        let value_span: monochromatic_jsonc_edit::JsoncSpan = walk.value().ok_or_else(|| return misaligned(label))?;
+        let key_span: monochromatic_jsonc_edit::JsoncSpan =
+            walk.key().ok_or_else(|| return misaligned(label))?;
+        let value_span: monochromatic_jsonc_edit::JsoncSpan =
+            walk.value().ok_or_else(|| return misaligned(label))?;
         last = Some((key_span.start.offset, value_span.end.offset));
         skip_children(walk, &entry.value, label)?;
     }
     let Some((last_key, last_value_end)) = last else {
         return Err(misaligned(label));
     };
-    let member_indent: String = line_indent(source, last_key).unwrap_or_else(|| return indent_below(source, brace));
-    return Ok(ToolsRecord { place: place_after(source, last_value_end, end), member_indent, closing_indent });
+    let member_indent: String =
+        line_indent(source, last_key).unwrap_or_else(|| return indent_below(source, brace));
+    return Ok(ToolsRecord {
+        place: place_after(source, last_value_end, end),
+        member_indent,
+        closing_indent,
+    });
 }
 
 /// What:
@@ -374,7 +489,11 @@ fn tools_of(
 /// ```ts
 /// export function planWithEntries(source: string, label: string, declarations: Declaration[]): string
 /// ```
-pub fn plan_with_entries(source: &str, label: &str, declarations: &[Declaration]) -> Result<String, ToolchainError> {
+pub fn plan_with_entries(
+    source: &str,
+    label: &str,
+    declarations: &[Declaration],
+) -> Result<String, ToolchainError> {
     if declarations.is_empty() {
         return Ok(source.to_string());
     }
@@ -385,8 +504,14 @@ pub fn plan_with_entries(source: &str, label: &str, declarations: &[Declaration]
     }
     let joined: String = entries.join(",\n");
     let insertions: Vec<(usize, String)> = match record.place {
-        Place::AtLastValue { value_end } => vec![(value_end, format!(",\n{joined}"))],
-        Place::AfterComment { value_end, comma_present, after_comment } => {
+        Place::AtLastValue {
+            value_end,
+        } => vec![(value_end, format!(",\n{joined}"))],
+        Place::AfterComment {
+            value_end,
+            comma_present,
+            after_comment,
+        } => {
             let mut parts: Vec<(usize, String)> = Vec::new();
             if !comma_present {
                 parts.push((value_end, ",".to_string()));
@@ -394,11 +519,17 @@ pub fn plan_with_entries(source: &str, label: &str, declarations: &[Declaration]
             parts.push((after_comment, format!("\n{joined}")));
             parts
         }
-        Place::Empty { brace, braces_broken: true } => {
+        Place::Empty {
+            brace,
+            braces_broken: true,
+        } => {
             // The newline and the closing brace the person wrote already follow; only the entry is added.
             vec![(brace, format!("\n{joined}"))]
         }
-        Place::Empty { brace, braces_broken: false } => {
+        Place::Empty {
+            brace,
+            braces_broken: false,
+        } => {
             vec![(brace, format!("\n{joined}\n{}", record.closing_indent))]
         }
     };
@@ -409,7 +540,10 @@ pub fn plan_with_entries(source: &str, label: &str, declarations: &[Declaration]
     for (offset, part) in ordered {
         text.insert_str(offset, &part);
     }
-    let ids: Vec<&str> = declarations.iter().map(|declaration| return declaration.id.as_str()).collect();
+    let ids: Vec<&str> = declarations
+        .iter()
+        .map(|declaration| return declaration.id.as_str())
+        .collect();
     if let Err(error) = parse_plan(&text, label) {
         return Err(ToolchainError::config(format!(
             "{label}: the entry for {} cannot be added: {}",

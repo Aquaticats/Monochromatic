@@ -19,6 +19,32 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// The owner a helper process is started with,
+/// which the child-test runner beside it asks for;
+/// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
+///  This crate's fixtures start their helpers through the `spawn_owned` and `own_group` this file holds,
+///  which `support` names on to every control.
+#[path = "../testing/test_process_owner.rs"]
+mod test_process_owner;
+
+/// The one place a test-binary child is started, waited for with a deadline and checked for its one passing test;
+/// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
+#[path = "../testing/child_test_process.rs"]
+mod child_test_process;
+
+/// The fixture lifecycle both test targets run on, written once and included here by `#[path]`
+/// as the unit tests include it.
+#[path = "../testing/fixture_support_shared_by_both_test_targets.rs"]
+mod fixture_support_shared_by_both_test_targets;
+
+/// The processes still in a helper's process group, and the leaders' own read of this process's ancestry.
+#[path = "binary_support_process_group_members.rs"]
+mod support_process_group_members;
+
+/// The executable, words and runtime directory a fixture's service starts with, and the manager's restart.
+#[path = "binary_support_fixture_service_start.rs"]
+mod support_fixture_service_start;
+
 /// Holding a wrapped commit between its preparation and its landing,
 /// and landing another session's commit in that window.
 #[path = "binary_hold_at_prepare_support.rs"]
@@ -1128,6 +1154,11 @@ mod zfs_holder_scan_guest;
 /// Plan step 18's `doctor` checks for steps 2 to 9 in the throwaway guest.
 #[path = "binary_zfs_doctor_route_guest_tests.rs"]
 mod zfs_doctor_route_guest;
+
+/// Plan step 20's Sanoid coverage, exclusions, prune and guard scope in the throwaway guest:
+/// Sanoid 2.3.0 with the Ubuntu package's 2.2.0 beside it.
+#[path = "binary_zfs_sanoid_coverage_guest_tests.rs"]
+mod zfs_sanoid_coverage_guest;
 
 /// Plan step 12's slot classes and `git worktree move` refusal in the throwaway guest.
 #[path = "binary_zfs_slot_state_guest_fixture.rs"]

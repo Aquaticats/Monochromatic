@@ -11,7 +11,10 @@ use std::io;
 /// Bounded reads of procfs files.
 use std::io::Read;
 /// Path views.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What the policy knows about one live process.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -164,7 +167,12 @@ pub fn parse_stat_fields(text: &str) -> Option<StatFields> {
     let parent: i32 = fields.get(PARENT_FIELD)?.parse().ok()?;
     let flags: u64 = fields.get(FLAGS_FIELD)?.parse().ok()?;
     let start_time: u64 = fields.get(START_TIME_FIELD)?.parse().ok()?;
-    return Some(StatFields { state, parent, flags, start_time });
+    return Some(StatFields {
+        state,
+        parent,
+        flags,
+        start_time,
+    });
 }
 
 /// Parses the parent id and start time from `/proc/<pid>/stat`,
@@ -175,7 +183,10 @@ pub fn parse_stat(text: &str) -> Option<(i32, u64)> {
 }
 
 /// Reads the real id from a `Uid:` or `Gid:` line of `/proc/<pid>/status`.
-pub fn parse_status_id(status: &str, label: &str) -> Option<u32> {
+pub fn parse_status_id(
+    status: &str,
+    label: &str,
+) -> Option<u32> {
     for line in status.lines() {
         if let Some(rest) = line.strip_prefix(label) {
             return rest.split_whitespace().next()?.parse().ok();
@@ -213,14 +224,21 @@ fn is_nul(byte: &u8) -> bool {
 /// whose files a non-root reader may not open and whose facts the policy does not need.
 /// A process of `only_uid` that this reader may not inspect is an error naming the file,
 /// so the caller can report it instead of mistaking it for an exit.
-pub fn read_process(proc_root: &Path, pid: i32, only_uid: u32) -> io::Result<Option<ProcessInfo>> {
+pub fn read_process(
+    proc_root: &Path,
+    pid: i32,
+    only_uid: u32,
+) -> io::Result<Option<ProcessInfo>> {
     let base = proc_root.join(pid.to_string());
     // The status file is world-readable, so the owner check never fails for another user's process.
     let Some(status_bytes) = vanishing(read_head(&base.join("status")))? else {
         return Ok(None);
     };
     let status = String::from_utf8_lossy(&status_bytes);
-    let (Some(uid), Some(gid)) = (parse_status_id(&status, "Uid:"), parse_status_id(&status, "Gid:")) else {
+    let (Some(uid), Some(gid)) = (
+        parse_status_id(&status, "Uid:"),
+        parse_status_id(&status, "Gid:"),
+    ) else {
         return Ok(None);
     };
     if uid != only_uid {
@@ -239,7 +257,12 @@ pub fn read_process(proc_root: &Path, pid: i32, only_uid: u32) -> io::Result<Opt
     let exe = match std::fs::read_link(base.join("exe")) {
         Ok(path) => path,
         Err(error) if means_vanished(&error) => return Ok(None),
-        Err(error) => return Err(io::Error::new(error.kind(), format!("{}: {error}", base.join("exe").display()))),
+        Err(error) => {
+            return Err(io::Error::new(
+                error.kind(),
+                format!("{}: {error}", base.join("exe").display()),
+            ));
+        }
     };
     let Some(cmdline) = read_vanishing(&base.join("cmdline"))? else {
         return Ok(None);
@@ -274,17 +297,30 @@ fn parse_pid_line(line: &str) -> Option<i32> {
 /// One small file against a pass over every process of the host:
 /// on this host a pass reads 949 process directories (about 26 ms of CPU),
 /// and the cgroup of `claude-code-bash` holds a fraction of them.
-pub fn read_cgroup_pids(cgroup_root: &Path, cgroup: &str) -> Option<Vec<i32>> {
-    let path = cgroup_root.join(cgroup.trim_start_matches('/')).join("cgroup.procs");
+pub fn read_cgroup_pids(
+    cgroup_root: &Path,
+    cgroup: &str,
+) -> Option<Vec<i32>> {
+    let path = cgroup_root
+        .join(cgroup.trim_start_matches('/'))
+        .join("cgroup.procs");
     let bytes = read_whole(&path).ok()?;
-    return Some(String::from_utf8_lossy(&bytes).lines().filter_map(parse_pid_line).collect());
+    return Some(
+        String::from_utf8_lossy(&bytes)
+            .lines()
+            .filter_map(parse_pid_line)
+            .collect(),
+    );
 }
 
 /// Reads only the start time of a process,
 /// from the world-readable stat file.
 /// Any failure is `None`,
 /// which callers use only to deduplicate reports.
-pub fn read_start_time(proc_root: &Path, pid: i32) -> Option<u64> {
+pub fn read_start_time(
+    proc_root: &Path,
+    pid: i32,
+) -> Option<u64> {
     let bytes = read_whole(&proc_root.join(pid.to_string()).join("stat")).ok()?;
     let (_parent, start_time) = parse_stat(&String::from_utf8_lossy(&bytes))?;
     return Some(start_time);

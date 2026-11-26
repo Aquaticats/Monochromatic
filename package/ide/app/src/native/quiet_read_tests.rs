@@ -11,9 +11,18 @@
 /// Shipped window setup shared with the watch tests.
 use super::watch_tests::open;
 /// The slow-writer helpers and texts of the write-wait tests.
-use super::write_wait_tests::{NEW, OLD, PAUSE, until_text, watch_texts};
+use super::write_wait_tests::{
+    NEW,
+    OLD,
+    PAUSE,
+    until_text,
+    watch_texts,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// The kind of change the navigation records for a reread no write was seen behind.
 use ide_app::change_watch::SourceChange;
 /// The quiet period a save must stay under for the assertion to apply.
@@ -32,9 +41,15 @@ use slint::ComponentHandle;
 /// const handle = openSync(path, 'w'); /* wait */ writeSync(handle, text); closeSync(handle);
 /// ```
 use std::{
-    fs::{self, OpenOptions},
+    fs::{
+        self,
+        OpenOptions,
+    },
     io::Write,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// A save in progress when a reread with no write behind it is asked for is shown only when finished.

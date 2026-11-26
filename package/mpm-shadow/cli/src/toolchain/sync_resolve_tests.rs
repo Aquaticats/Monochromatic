@@ -13,13 +13,38 @@ use clap::Command;
 use super::ci_detect::is_ci;
 use super::commands::subcommands;
 use super::error::ErrorKind;
-use super::fakes::{FakeHttp, FakeRunner};
-use super::lock_cmd::{LockMode, run_lock};
+use super::fakes::{
+    FakeHttp,
+    FakeRunner,
+};
+use super::lock_cmd::{
+    LockMode,
+    run_lock,
+};
 use super::scope::EnvMap;
-use super::sync::{FrozenReason, LockPolicy, run_lockfile_only, run_sync, run_sync_with};
+use super::sync::{
+    FrozenReason,
+    LockPolicy,
+    run_lockfile_only,
+    run_sync,
+    run_sync_with,
+};
 use super::sync_report_text::format_sync_report;
-use super::update_named_tests::{VITE_LINE, VITE_URL, WRANGLER_LINE, add_vite, locked_scope, moved_network};
-use super::update_tests::{CRATES_URL, NPM_URL, linux, read_lock, serve_registries};
+use super::update_named_tests::{
+    VITE_LINE,
+    VITE_URL,
+    WRANGLER_LINE,
+    add_vite,
+    locked_scope,
+    moved_network,
+};
+use super::update_tests::{
+    CRATES_URL,
+    NPM_URL,
+    linux,
+    read_lock,
+    serve_registries,
+};
 
 //region CI detection
 
@@ -61,7 +86,14 @@ fn an_ordinary_shell_and_an_explicit_ci_false_are_not_ci() {
     for pairs in rejected {
         assert!(!ci(pairs), "{pairs:?} should not be CI");
     }
-    assert!(!ci(&[("CI", "false"), ("GITHUB_ACTIONS", "true"), ("BUILD_NUMBER", "9")]), "CI=false turns detection off");
+    assert!(
+        !ci(&[
+            ("CI", "false"),
+            ("GITHUB_ACTIONS", "true"),
+            ("BUILD_NUMBER", "9")
+        ]),
+        "CI=false turns detection off"
+    );
 }
 
 //endregion
@@ -79,19 +111,41 @@ fn a_local_sync_resolves_a_new_entry_alone_and_keeps_every_other_row_identical()
     add_vite(&scope);
     let http = moved_network();
     let runner = FakeRunner::new();
-    let report = run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve).expect("synced");
-    assert_eq!(report.resolved, vec![("npm:vite".to_string(), "7.1.0".to_string())]);
+    let report =
+        run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve).expect("synced");
+    assert_eq!(
+        report.resolved,
+        vec![("npm:vite".to_string(), "7.1.0".to_string())]
+    );
     let requests = http.requests();
-    assert!(requests.iter().any(|url| return url == VITE_URL), "{requests:?}");
-    assert!(!requests.iter().any(|url| return url == NPM_URL) && !requests.iter().any(|url| return url == CRATES_URL), "no other tool is looked up: {requests:?}");
+    assert!(
+        requests.iter().any(|url| return url == VITE_URL),
+        "{requests:?}"
+    );
+    assert!(
+        !requests.iter().any(|url| return url == NPM_URL)
+            && !requests.iter().any(|url| return url == CRATES_URL),
+        "no other tool is looked up: {requests:?}"
+    );
     let after = read_lock(&scope);
     assert_eq!(after.tool("npm:vite").expect("vite").version, "7.1.0");
     for id in ["cargo:fd-find", "npm:wrangler", "pipx:slopo", "rust"] {
-        assert_eq!(after.tool(id), before.tool(id), "{id} did not move although the registries did");
+        assert_eq!(
+            after.tool(id),
+            before.tool(id),
+            "{id} did not move although the registries did"
+        );
     }
     run_lock(&scope, LockMode::Check).expect("the written lock passes the gate");
-    assert!(format_sync_report(&report).contains("toolchain install: locked npm:vite 7.1.0"), "{}", format_sync_report(&report));
-    assert!(!runner.calls().is_empty(), "the install step ran after the lock was written");
+    assert!(
+        format_sync_report(&report).contains("toolchain install: locked npm:vite 7.1.0"),
+        "{}",
+        format_sync_report(&report)
+    );
+    assert!(
+        !runner.calls().is_empty(),
+        "the install step ran after the lock was written"
+    );
 }
 
 #[test]
@@ -102,15 +156,35 @@ fn a_frozen_sync_refuses_a_new_entry_names_update_with_its_id_and_changes_nothin
         let lock_before = fs::read_to_string(&scope.lock_file).expect("read");
         let http = moved_network();
         let runner = FakeRunner::new();
-        let error = run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Frozen(reason)).expect_err("refused");
+        let error = run_sync_with(
+            &scope,
+            &env,
+            &runner,
+            &http,
+            &linux(),
+            LockPolicy::Frozen(reason),
+        )
+        .expect_err("refused");
         assert_eq!(error.kind, ErrorKind::Drift);
         assert!(names_in(&error.message), "{reason:?}: {error}");
         match reason {
-            FrozenReason::Flag => assert!(error.message.contains("`--frozen-lockfile` was given"), "{error}"),
-            FrozenReason::Ci => assert!(error.message.contains("a CI environment was detected"), "{error}"),
+            FrozenReason::Flag => assert!(
+                error.message.contains("`--frozen-lockfile` was given"),
+                "{error}"
+            ),
+            FrozenReason::Ci => assert!(
+                error.message.contains("a CI environment was detected"),
+                "{error}"
+            ),
         }
-        assert!(http.requests().is_empty() && runner.calls().is_empty(), "nothing is looked up or installed");
-        assert_eq!(fs::read_to_string(&scope.lock_file).expect("read"), lock_before);
+        assert!(
+            http.requests().is_empty() && runner.calls().is_empty(),
+            "nothing is looked up or installed"
+        );
+        assert_eq!(
+            fs::read_to_string(&scope.lock_file).expect("read"),
+            lock_before
+        );
     }
 }
 
@@ -129,19 +203,49 @@ fn a_changed_asset_option_re_resolves_only_that_tool() {
     let (_directory, scope, env) = locked_scope();
     let before = read_lock(&scope);
     let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
-    assert!(plan.contains(WRANGLER_LINE.trim_end_matches('\n')), "the fixture plan changed shape");
+    assert!(
+        plan.contains(WRANGLER_LINE.trim_end_matches('\n')),
+        "the fixture plan changed shape"
+    );
     fs::write(
         &scope.plan_file,
-        plan.replace("\"bins\": [\"wrangler\"] }", "\"bins\": [\"wrangler\"], \"options\": { \"asset\": \"wrangler-*\" } }"),
+        plan.replace(
+            "\"bins\": [\"wrangler\"] }",
+            "\"bins\": [\"wrangler\"], \"options\": { \"asset\": \"wrangler-*\" } }",
+        ),
     )
     .expect("change the asset option");
     let http = moved_network();
-    let report = run_sync_with(&scope, &env, &FakeRunner::new(), &http, &linux(), LockPolicy::Resolve).expect("synced");
-    assert_eq!(report.resolved, vec![("npm:wrangler".to_string(), "4.157.0".to_string())]);
+    let report = run_sync_with(
+        &scope,
+        &env,
+        &FakeRunner::new(),
+        &http,
+        &linux(),
+        LockPolicy::Resolve,
+    )
+    .expect("synced");
+    assert_eq!(
+        report.resolved,
+        vec![("npm:wrangler".to_string(), "4.157.0".to_string())]
+    );
     let after = read_lock(&scope);
-    assert_eq!(after.tool("npm:wrangler").expect("wrangler").declaration.options.asset.as_deref(), Some("wrangler-*"));
+    assert_eq!(
+        after
+            .tool("npm:wrangler")
+            .expect("wrangler")
+            .declaration
+            .options
+            .asset
+            .as_deref(),
+        Some("wrangler-*")
+    );
     for id in ["cargo:fd-find", "pipx:slopo", "rust"] {
-        assert_eq!(after.tool(id), before.tool(id), "{id} is not the changed tool and must not move");
+        assert_eq!(
+            after.tool(id),
+            before.tool(id),
+            "{id} is not the changed tool and must not move"
+        );
     }
     assert!(!http.requests().iter().any(|url| return url == CRATES_URL));
     run_lock(&scope, LockMode::Check).expect("plan and lock agree");
@@ -151,12 +255,26 @@ fn a_changed_asset_option_re_resolves_only_that_tool() {
     let frozen_plan = fs::read_to_string(&frozen_scope.plan_file).expect("read the plan");
     fs::write(
         &frozen_scope.plan_file,
-        frozen_plan.replace("\"bins\": [\"wrangler\"] }", "\"bins\": [\"wrangler\"], \"options\": { \"asset\": \"wrangler-*\" } }"),
+        frozen_plan.replace(
+            "\"bins\": [\"wrangler\"] }",
+            "\"bins\": [\"wrangler\"], \"options\": { \"asset\": \"wrangler-*\" } }",
+        ),
     )
     .expect("change the asset option");
-    let error = run_sync_with(&frozen_scope, &frozen_env, &FakeRunner::new(), &FakeHttp::new(), &linux(), LockPolicy::Frozen(FrozenReason::Ci))
-        .expect_err("refused");
-    assert!(error.message.contains("mpm-shadow update npm:wrangler") && error.message.contains("options.asset"), "{error}");
+    let error = run_sync_with(
+        &frozen_scope,
+        &frozen_env,
+        &FakeRunner::new(),
+        &FakeHttp::new(),
+        &linux(),
+        LockPolicy::Frozen(FrozenReason::Ci),
+    )
+    .expect_err("refused");
+    assert!(
+        error.message.contains("mpm-shadow update npm:wrangler")
+            && error.message.contains("options.asset"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -166,16 +284,43 @@ fn a_re_edited_entry_that_resolves_to_the_same_version_is_still_locked_and_repor
     let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
     fs::write(
         &scope.plan_file,
-        plan.replace("\"bins\": [\"fd\"] }", "\"bins\": [\"fd\"], \"options\": { \"asset\": \"fd-*\" } }"),
+        plan.replace(
+            "\"bins\": [\"fd\"] }",
+            "\"bins\": [\"fd\"], \"options\": { \"asset\": \"fd-*\" } }",
+        ),
     )
     .expect("change the asset option");
     let quiet = FakeHttp::new();
     serve_registries(&quiet, "10.5.0", "4.156.0", "0.9.0", "2026-10-30");
-    let report = run_sync_with(&scope, &env, &FakeRunner::new(), &quiet, &linux(), LockPolicy::Resolve).expect("synced");
-    assert_eq!(report.resolved, vec![("cargo:fd-find".to_string(), "10.5.0".to_string())]);
-    assert_eq!(quiet.requests(), vec![CRATES_URL.to_string()], "only the re-edited tool is looked up");
+    let report = run_sync_with(
+        &scope,
+        &env,
+        &FakeRunner::new(),
+        &quiet,
+        &linux(),
+        LockPolicy::Resolve,
+    )
+    .expect("synced");
+    assert_eq!(
+        report.resolved,
+        vec![("cargo:fd-find".to_string(), "10.5.0".to_string())]
+    );
+    assert_eq!(
+        quiet.requests(),
+        vec![CRATES_URL.to_string()],
+        "only the re-edited tool is looked up"
+    );
     let after = read_lock(&scope);
-    assert_eq!(after.tool("cargo:fd-find").expect("fd").declaration.options.asset.as_deref(), Some("fd-*"));
+    assert_eq!(
+        after
+            .tool("cargo:fd-find")
+            .expect("fd")
+            .declaration
+            .options
+            .asset
+            .as_deref(),
+        Some("fd-*")
+    );
     assert_eq!(after.tool("cargo:fd-find").expect("fd").version, "10.5.0");
     assert_eq!(after.tool("npm:wrangler"), before.tool("npm:wrangler"));
     run_lock(&scope, LockMode::Check).expect("plan and lock agree");
@@ -189,12 +334,24 @@ fn a_failed_lookup_of_the_new_entry_stops_before_anything_is_written_or_installe
     let http = moved_network();
     http.fail(VITE_URL, "timed out");
     let runner = FakeRunner::new();
-    let error = run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve).expect_err("stopped");
+    let error = run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve)
+        .expect_err("stopped");
     assert_eq!(error.kind, ErrorKind::Failure);
-    assert!(error.message.contains("npm:vite") && error.message.contains("timed out"), "{error}");
-    assert!(error.message.contains("wrote nothing and installed nothing"), "{error}");
+    assert!(
+        error.message.contains("npm:vite") && error.message.contains("timed out"),
+        "{error}"
+    );
+    assert!(
+        error
+            .message
+            .contains("wrote nothing and installed nothing"),
+        "{error}"
+    );
     assert!(runner.calls().is_empty());
-    assert_eq!(fs::read_to_string(&scope.lock_file).expect("read"), lock_before);
+    assert_eq!(
+        fs::read_to_string(&scope.lock_file).expect("read"),
+        lock_before
+    );
 }
 
 /// pnpm's non-frozen install updates the lockfile for any manifest change.
@@ -203,54 +360,123 @@ fn a_non_frozen_install_writes_an_offline_fixable_plan_edit_into_the_lock_withou
     let (_directory, scope, env) = locked_scope();
     let before = read_lock(&scope);
     let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
-    fs::write(&scope.plan_file, plan.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]")).expect("edit the bins");
+    fs::write(
+        &scope.plan_file,
+        plan.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]"),
+    )
+    .expect("edit the bins");
     let http = moved_network();
     let runner = FakeRunner::new();
-    let report = run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve).expect("synced");
+    let report =
+        run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve).expect("synced");
     assert!(report.resolved.is_empty(), "nothing needed resolving");
-    assert_eq!(report.rewritten, vec!["cargo:fd-find now differs from the plan in: bins".to_string()]);
+    assert_eq!(
+        report.rewritten,
+        vec!["cargo:fd-find now differs from the plan in: bins".to_string()]
+    );
     assert!(http.requests().is_empty(), "no lookup for an offline fix");
     let after = read_lock(&scope);
-    assert_eq!(after.tool("cargo:fd-find").expect("fd").declaration.bins, vec!["fd".to_string(), "fdfind".to_string()]);
-    assert_eq!(after.tool("cargo:fd-find").expect("fd").version, before.tool("cargo:fd-find").expect("fd").version, "the version stays");
+    assert_eq!(
+        after.tool("cargo:fd-find").expect("fd").declaration.bins,
+        vec!["fd".to_string(), "fdfind".to_string()]
+    );
+    assert_eq!(
+        after.tool("cargo:fd-find").expect("fd").version,
+        before.tool("cargo:fd-find").expect("fd").version,
+        "the version stays"
+    );
     for id in ["npm:wrangler", "pipx:slopo", "rust"] {
         assert_eq!(after.tool(id), before.tool(id), "{id}");
     }
     run_lock(&scope, LockMode::Check).expect("plan and lock agree");
-    assert!(!runner.calls().is_empty(), "the install step ran after the lock was rewritten");
+    assert!(
+        !runner.calls().is_empty(),
+        "the install step ran after the lock was rewritten"
+    );
     assert!(format_sync_report(&report).contains("toolchain install: lock updated from the plan: cargo:fd-find now differs from the plan in: bins"));
 }
 
 #[test]
-fn a_non_frozen_install_drops_a_removed_entry_and_a_frozen_one_refuses_naming_the_offline_command() {
+fn a_non_frozen_install_drops_a_removed_entry_and_a_frozen_one_refuses_naming_the_offline_command()
+{
     let (_directory, scope, env) = locked_scope();
     let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
-    let wrangler = plan.lines().find(|line| return line.contains("\"npm:wrangler\"")).expect("the wrangler line").to_string();
-    fs::write(&scope.plan_file, plan.replace(&format!("{wrangler}\n"), "")).expect("remove wrangler from the plan");
+    let wrangler = plan
+        .lines()
+        .find(|line| return line.contains("\"npm:wrangler\""))
+        .expect("the wrangler line")
+        .to_string();
+    fs::write(&scope.plan_file, plan.replace(&format!("{wrangler}\n"), ""))
+        .expect("remove wrangler from the plan");
     let before = fs::read_to_string(&scope.lock_file).expect("read");
-    let frozen = run_sync_with(&scope, &env, &FakeRunner::new(), &moved_network(), &linux(), LockPolicy::Frozen(FrozenReason::Ci))
-        .expect_err("refused");
-    assert!(frozen.message.contains("`mpm-shadow install --lockfile-only --offline`"), "{frozen}");
-    assert_eq!(fs::read_to_string(&scope.lock_file).expect("read"), before, "a frozen install writes nothing");
+    let frozen = run_sync_with(
+        &scope,
+        &env,
+        &FakeRunner::new(),
+        &moved_network(),
+        &linux(),
+        LockPolicy::Frozen(FrozenReason::Ci),
+    )
+    .expect_err("refused");
+    assert!(
+        frozen
+            .message
+            .contains("`mpm-shadow install --lockfile-only --offline`"),
+        "{frozen}"
+    );
+    assert_eq!(
+        fs::read_to_string(&scope.lock_file).expect("read"),
+        before,
+        "a frozen install writes nothing"
+    );
 
     let http = moved_network();
-    let report = run_sync_with(&scope, &env, &FakeRunner::new(), &http, &linux(), LockPolicy::Resolve).expect("synced");
-    assert_eq!(report.rewritten, vec!["npm:wrangler is no longer in the plan".to_string()]);
+    let report = run_sync_with(
+        &scope,
+        &env,
+        &FakeRunner::new(),
+        &http,
+        &linux(),
+        LockPolicy::Resolve,
+    )
+    .expect("synced");
+    assert_eq!(
+        report.rewritten,
+        vec!["npm:wrangler is no longer in the plan".to_string()]
+    );
     assert!(read_lock(&scope).tool("npm:wrangler").is_none());
     assert!(http.requests().is_empty());
 }
 
 #[test]
-fn a_frozen_install_refuses_an_offline_fixable_edit_naming_the_offline_command_and_writes_nothing() {
+fn a_frozen_install_refuses_an_offline_fixable_edit_naming_the_offline_command_and_writes_nothing()
+{
     for reason in [FrozenReason::Flag, FrozenReason::Ci] {
         let (_directory, scope, env) = locked_scope();
         let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
-        fs::write(&scope.plan_file, plan.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]")).expect("edit the bins");
+        fs::write(
+            &scope.plan_file,
+            plan.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]"),
+        )
+        .expect("edit the bins");
         let before = fs::read_to_string(&scope.lock_file).expect("read");
         let http = moved_network();
         let runner = FakeRunner::new();
-        let error = run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Frozen(reason)).expect_err("refused");
-        assert!(error.message.contains("`mpm-shadow install --lockfile-only --offline`"), "{reason:?}: {error}");
+        let error = run_sync_with(
+            &scope,
+            &env,
+            &runner,
+            &http,
+            &linux(),
+            LockPolicy::Frozen(reason),
+        )
+        .expect_err("refused");
+        assert!(
+            error
+                .message
+                .contains("`mpm-shadow install --lockfile-only --offline`"),
+            "{reason:?}: {error}"
+        );
         assert_eq!(fs::read_to_string(&scope.lock_file).expect("read"), before);
         assert!(http.requests().is_empty() && runner.calls().is_empty());
     }
@@ -260,12 +486,30 @@ fn a_frozen_install_refuses_an_offline_fixable_edit_naming_the_offline_command_a
 fn an_edit_that_needs_a_lookup_also_carries_the_offline_edits_in_one_write() {
     let (_directory, scope, env) = locked_scope();
     let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
-    fs::write(&scope.plan_file, plan.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]")).expect("edit the bins");
+    fs::write(
+        &scope.plan_file,
+        plan.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]"),
+    )
+    .expect("edit the bins");
     add_vite(&scope);
     let http = moved_network();
-    let report = run_sync_with(&scope, &env, &FakeRunner::new(), &http, &linux(), LockPolicy::Resolve).expect("synced");
-    assert_eq!(report.resolved, vec![("npm:vite".to_string(), "7.1.0".to_string())]);
-    assert_eq!(report.rewritten, vec!["cargo:fd-find now differs from the plan in: bins".to_string()]);
+    let report = run_sync_with(
+        &scope,
+        &env,
+        &FakeRunner::new(),
+        &http,
+        &linux(),
+        LockPolicy::Resolve,
+    )
+    .expect("synced");
+    assert_eq!(
+        report.resolved,
+        vec![("npm:vite".to_string(), "7.1.0".to_string())]
+    );
+    assert_eq!(
+        report.rewritten,
+        vec!["cargo:fd-find now differs from the plan in: bins".to_string()]
+    );
     assert_eq!(http.requests(), vec![VITE_URL.to_string()]);
     run_lock(&scope, LockMode::Check).expect("plan and lock agree");
 }
@@ -276,10 +520,18 @@ fn a_hand_edited_lock_is_refused_under_either_policy_before_any_lookup() {
         let (_directory, scope, env) = locked_scope();
         add_vite(&scope);
         let text = fs::read_to_string(&scope.lock_file).expect("read");
-        fs::write(&scope.lock_file, text.replace("\"version\": \"4.156.0\"", "\"version\": \"0.0.1\"")).expect("hand edit");
+        fs::write(
+            &scope.lock_file,
+            text.replace("\"version\": \"4.156.0\"", "\"version\": \"0.0.1\""),
+        )
+        .expect("hand edit");
         let http = moved_network();
-        let error = run_sync_with(&scope, &env, &FakeRunner::new(), &http, &linux(), policy).expect_err("refused");
-        assert!(error.message.contains("edited by hand"), "{policy:?}: {error}");
+        let error = run_sync_with(&scope, &env, &FakeRunner::new(), &http, &linux(), policy)
+            .expect_err("refused");
+        assert!(
+            error.message.contains("edited by hand"),
+            "{policy:?}: {error}"
+        );
         assert!(http.requests().is_empty());
     }
 }
@@ -297,13 +549,28 @@ fn a_missing_lock_is_resolved_and_written_in_full_when_not_explicitly_frozen() {
         let http = moved_network();
         let runner = FakeRunner::new();
         let report = run_sync_with(&scope, &env, &runner, &http, &linux(), policy).expect("synced");
-        let mut ids: Vec<String> = report.resolved.iter().map(|(id, _)| return id.clone()).collect();
+        let mut ids: Vec<String> = report
+            .resolved
+            .iter()
+            .map(|(id, _)| return id.clone())
+            .collect();
         ids.sort();
-        assert_eq!(ids, vec!["cargo:fd-find", "npm:wrangler", "pipx:slopo", "rust"], "{policy:?}: every entry is resolved");
+        assert_eq!(
+            ids,
+            vec!["cargo:fd-find", "npm:wrangler", "pipx:slopo", "rust"],
+            "{policy:?}: every entry is resolved"
+        );
         let lock = read_lock(&scope);
-        assert_eq!(lock.tool("npm:wrangler").expect("wrangler").version, "4.157.0", "{policy:?}: the newest versions are locked");
+        assert_eq!(
+            lock.tool("npm:wrangler").expect("wrangler").version,
+            "4.157.0",
+            "{policy:?}: the newest versions are locked"
+        );
         run_lock(&scope, LockMode::Check).expect("the written lock passes the gate");
-        assert!(!runner.calls().is_empty(), "{policy:?}: the install step ran after the lock was written");
+        assert!(
+            !runner.calls().is_empty(),
+            "{policy:?}: the install step ran after the lock was written"
+        );
     }
 }
 
@@ -316,13 +583,31 @@ fn a_missing_lock_is_refused_when_frozen_by_the_flag() {
     let http = moved_network();
     let runner = FakeRunner::new();
     for result in [
-        run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Frozen(FrozenReason::Flag)),
+        run_sync_with(
+            &scope,
+            &env,
+            &runner,
+            &http,
+            &linux(),
+            LockPolicy::Frozen(FrozenReason::Flag),
+        ),
         run_sync(&scope, &env, &runner, &http, &linux()),
     ] {
         let error = result.expect_err("refused");
         assert_eq!(error.kind, ErrorKind::Drift);
-        assert!(error.message.contains("`--frozen-lockfile` forbids install from creating it"), "{error}");
-        assert!(error.message.contains("`mpm-shadow install --no-frozen-lockfile`") && error.message.contains("`mpm-shadow update`"), "{error}");
+        assert!(
+            error
+                .message
+                .contains("`--frozen-lockfile` forbids install from creating it"),
+            "{error}"
+        );
+        assert!(
+            error
+                .message
+                .contains("`mpm-shadow install --no-frozen-lockfile`")
+                && error.message.contains("`mpm-shadow update`"),
+            "{error}"
+        );
     }
     assert!(!scope.lock_file.exists(), "nothing was written");
     assert!(http.requests().is_empty() && runner.calls().is_empty());
@@ -333,28 +618,72 @@ fn a_missing_lock_is_refused_when_frozen_by_the_flag() {
 //region the grammar
 
 fn install_command() -> Command {
-    return subcommands().into_iter().find(|command| return command.get_name() == "install").expect("an install verb");
+    return subcommands()
+        .into_iter()
+        .find(|command| return command.get_name() == "install")
+        .expect("an install verb");
 }
 
 #[test]
 fn the_install_grammar_takes_either_frozen_switch_but_not_both() {
-    let plain = install_command().try_get_matches_from(["install"]).expect("plain");
+    let plain = install_command()
+        .try_get_matches_from(["install"])
+        .expect("plain");
     assert!(!plain.get_flag("frozen-lockfile") && !plain.get_flag("no-frozen-lockfile"));
-    assert!(install_command().try_get_matches_from(["install", "--frozen-lockfile"]).expect("frozen").get_flag("frozen-lockfile"));
-    assert!(install_command().try_get_matches_from(["install", "--no-frozen-lockfile", "--global"]).expect("unfrozen").get_flag("no-frozen-lockfile"));
-    assert!(install_command().try_get_matches_from(["install", "--frozen-lockfile", "--no-frozen-lockfile"]).is_err());
+    assert!(
+        install_command()
+            .try_get_matches_from(["install", "--frozen-lockfile"])
+            .expect("frozen")
+            .get_flag("frozen-lockfile")
+    );
+    assert!(
+        install_command()
+            .try_get_matches_from(["install", "--no-frozen-lockfile", "--global"])
+            .expect("unfrozen")
+            .get_flag("no-frozen-lockfile")
+    );
+    assert!(
+        install_command()
+            .try_get_matches_from(["install", "--frozen-lockfile", "--no-frozen-lockfile"])
+            .is_err()
+    );
 }
 
 #[test]
 fn the_install_grammar_has_pnpms_lockfile_only_offline_and_alias() {
-    let only = install_command().try_get_matches_from(["install", "--lockfile-only", "--offline"]).expect("both");
+    let only = install_command()
+        .try_get_matches_from(["install", "--lockfile-only", "--offline"])
+        .expect("both");
     assert!(only.get_flag("lockfile-only") && only.get_flag("offline"));
-    assert!(install_command().try_get_matches_from(["install", "--offline"]).is_err(), "offline needs lockfile-only");
-    assert!(install_command().try_get_matches_from(["install", "--frozen-lock"]).is_err(), "the pre-pnpm spelling is gone");
-    assert_eq!(install_command().get_all_aliases().collect::<Vec<&str>>(), vec!["i"]);
-    assert!(install_command().try_get_matches_from(["install", "-g"]).expect("short global").get_flag("global"));
+    assert!(
+        install_command()
+            .try_get_matches_from(["install", "--offline"])
+            .is_err(),
+        "offline needs lockfile-only"
+    );
+    assert!(
+        install_command()
+            .try_get_matches_from(["install", "--frozen-lock"])
+            .is_err(),
+        "the pre-pnpm spelling is gone"
+    );
+    assert_eq!(
+        install_command().get_all_aliases().collect::<Vec<&str>>(),
+        vec!["i"]
+    );
+    assert!(
+        install_command()
+            .try_get_matches_from(["install", "-g"])
+            .expect("short global")
+            .get_flag("global")
+    );
     for old in ["sync", "lock", "status", "bin-paths"] {
-        assert!(subcommands().into_iter().all(|command| return command.get_name() != old), "{old} must not be a command");
+        assert!(
+            subcommands()
+                .into_iter()
+                .all(|command| return command.get_name() != old),
+            "{old} must not be a command"
+        );
     }
 }
 
@@ -365,8 +694,13 @@ fn lockfile_only_resolves_and_writes_the_new_entry_and_installs_nothing() {
     add_vite(&scope);
     let http = moved_network();
     let runner = FakeRunner::new();
-    let resolved = run_lockfile_only(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve).expect("locked").resolved;
-    assert_eq!(resolved, vec![("npm:vite".to_string(), "7.1.0".to_string())]);
+    let resolved = run_lockfile_only(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve)
+        .expect("locked")
+        .resolved;
+    assert_eq!(
+        resolved,
+        vec![("npm:vite".to_string(), "7.1.0".to_string())]
+    );
     assert!(runner.calls().is_empty(), "nothing was installed");
     let after = read_lock(&scope);
     for id in ["cargo:fd-find", "npm:wrangler", "pipx:slopo", "rust"] {
@@ -379,8 +713,15 @@ fn lockfile_only_resolves_and_writes_the_new_entry_and_installs_nothing() {
 fn lockfile_only_under_a_frozen_policy_refuses_a_plan_that_is_ahead() {
     let (_directory, scope, env) = locked_scope();
     add_vite(&scope);
-    let error = run_lockfile_only(&scope, &env, &FakeRunner::new(), &moved_network(), &linux(), LockPolicy::Frozen(FrozenReason::Ci))
-        .expect_err("refused");
+    let error = run_lockfile_only(
+        &scope,
+        &env,
+        &FakeRunner::new(),
+        &moved_network(),
+        &linux(),
+        LockPolicy::Frozen(FrozenReason::Ci),
+    )
+    .expect_err("refused");
     assert!(names_in(&error.message), "{error}");
 }
 

@@ -8,7 +8,10 @@ use super::*;
 use std::time::Instant;
 
 /// Imports the private bus and the test client.
-use crate::{bus_test_client, private_bus::PrivateBus};
+use crate::{
+    bus_test_client,
+    private_bus::PrivateBus,
+};
 
 /// A short bound for the tests that must see a step end,
 ///  so each takes a fraction of a second where the shipped bound takes seconds.
@@ -60,37 +63,61 @@ const _: () = {
 /// Starts a private bus and the silent peer on it.
 fn start_silent_peer() -> anyhow::Result<(PrivateBus, zbus::Connection)> {
     let bus = PrivateBus::start()?;
-    let builder = zbus::connection::Builder::address(bus.address()).name(SILENT_NAME).serve_at(SILENT_PATH, SilentPeer);
+    let builder = zbus::connection::Builder::address(bus.address())
+        .name(SILENT_NAME)
+        .serve_at(SILENT_PATH, SilentPeer);
     let peer = build_bounded(builder, "starting the silent test peer")?;
     return Ok((bus, peer));
 }
 
 /// Opens a proxy to the silent peer on `connection`.
 fn silent_proxy(connection: &zbus::Connection) -> anyhow::Result<bus_test_client::Proxy<'static>> {
-    return Ok(bus_test_client::Proxy::new(connection, SILENT_NAME, SILENT_PATH, SILENT_INTERFACE)?);
+    return Ok(bus_test_client::Proxy::new(
+        connection,
+        SILENT_NAME,
+        SILENT_PATH,
+        SILENT_INTERFACE,
+    )?);
 }
 
 /// A future that never finishes ends with an error naming the step and the bound.
 #[test]
 fn a_pending_step_ends_with_a_timeout_error() {
     let started = Instant::now();
-    let outcome = block_on_within(SHORT_BOUND, "a step that never ends", std::future::pending::<Result<(), zbus::Error>>());
+    let outcome = block_on_within(
+        SHORT_BOUND,
+        "a step that never ends",
+        std::future::pending::<Result<(), zbus::Error>>(),
+    );
     let elapsed = started.elapsed();
     let message = format!("{:#}", outcome.expect_err("a pending step cannot succeed"));
-    assert!(message.contains("a step that never ends did not finish within"), "{message}");
+    assert!(
+        message.contains("a step that never ends did not finish within"),
+        "{message}"
+    );
     assert!(elapsed >= SHORT_BOUND, "ended early: {elapsed:?}");
-    assert!(elapsed < SHORT_BOUND * LATE_FACTOR, "ended late: {elapsed:?}");
+    assert!(
+        elapsed < SHORT_BOUND * LATE_FACTOR,
+        "ended late: {elapsed:?}"
+    );
 }
 
 /// A step that finishes before the bound returns its value,
 ///  and a failing step keeps its own error.
 #[test]
 fn a_finished_step_returns_its_result_and_a_failed_step_its_error() -> anyhow::Result<()> {
-    let value = block_on_within(SHORT_BOUND, "an immediate step", async { return Ok::<u32, zbus::Error>(5) })?;
+    let value = block_on_within(SHORT_BOUND, "an immediate step", async {
+        return Ok::<u32, zbus::Error>(5);
+    })?;
     assert_eq!(value, 5);
-    let failure = block_on_within(SHORT_BOUND, "a failing step", async { return Err::<(), zbus::Error>(zbus::Error::Failure("boom".to_owned())) });
+    let failure = block_on_within(SHORT_BOUND, "a failing step", async {
+        return Err::<(), zbus::Error>(zbus::Error::Failure("boom".to_owned()));
+    });
     let message = format!("{:#}", failure.expect_err("the step fails"));
-    assert!(message.contains("a failing step failed") && message.contains("boom"), "{message}");
+    assert!(
+        message.contains("a failing step failed") && message.contains("boom"),
+        "{message}"
+    );
     return Ok(());
 }
 
@@ -102,11 +129,20 @@ fn a_call_without_a_method_bound_waits_for_the_outer_bound() -> anyhow::Result<(
     // Built without `method_timeout`, as the zbus 5 clients of this crate were.
     let unbounded = zbus::block_on(zbus::connection::Builder::address(bus.address()).build())?;
     assert_eq!(unbounded.method_timeout(), None);
-    let proxy = zbus::block_on(zbus::Proxy::new(&unbounded, SILENT_NAME, SILENT_PATH, SILENT_INTERFACE))?;
+    let proxy = zbus::block_on(zbus::Proxy::new(
+        &unbounded,
+        SILENT_NAME,
+        SILENT_PATH,
+        SILENT_INTERFACE,
+    ))?;
     // Positive control: the same proxy gets an answer from the method that does reply.
     let pong: u32 = zbus::block_on(proxy.call("Ping", &()))?;
     assert_eq!(pong, PONG);
-    let outcome = block_on_within(SHORT_BOUND, "an unbounded call to a silent peer", proxy.call::<_, _, u32>("Never", &()));
+    let outcome = block_on_within(
+        SHORT_BOUND,
+        "an unbounded call to a silent peer",
+        proxy.call::<_, _, u32>("Never", &()),
+    );
     let message = format!("{:#}", outcome.expect_err("the silent peer never answers"));
     assert!(message.contains("did not finish within"), "{message}");
     return Ok(());
@@ -117,9 +153,18 @@ fn a_call_without_a_method_bound_waits_for_the_outer_bound() -> anyhow::Result<(
 #[test]
 fn a_call_with_a_method_bound_ends_with_timed_out() -> anyhow::Result<()> {
     let (bus, _peer) = start_silent_peer()?;
-    let bounded = zbus::block_on(zbus::connection::Builder::address(bus.address()).method_timeout(SHORT_BOUND).build())?;
+    let bounded = zbus::block_on(
+        zbus::connection::Builder::address(bus.address())
+            .method_timeout(SHORT_BOUND)
+            .build(),
+    )?;
     assert_eq!(bounded.method_timeout(), Some(SHORT_BOUND));
-    let proxy = zbus::block_on(zbus::Proxy::new(&bounded, SILENT_NAME, SILENT_PATH, SILENT_INTERFACE))?;
+    let proxy = zbus::block_on(zbus::Proxy::new(
+        &bounded,
+        SILENT_NAME,
+        SILENT_PATH,
+        SILENT_INTERFACE,
+    ))?;
     let pong: u32 = zbus::block_on(proxy.call("Ping", &()))?;
     assert_eq!(pong, PONG);
     let started = Instant::now();
@@ -129,7 +174,10 @@ fn a_call_with_a_method_bound_ends_with_timed_out() -> anyhow::Result<()> {
         panic!("expected a timed-out I/O error, got {outcome:?}");
     };
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
-    assert!(elapsed >= SHORT_BOUND && elapsed < SHORT_BOUND * LATE_FACTOR, "ended at {elapsed:?}");
+    assert!(
+        elapsed >= SHORT_BOUND && elapsed < SHORT_BOUND * LATE_FACTOR,
+        "ended at {elapsed:?}"
+    );
     return Ok(());
 }
 
@@ -150,7 +198,9 @@ fn bus_steps_finish_far_inside_the_bound() -> anyhow::Result<()> {
     let bus = PrivateBus::start()?;
     let connect_started = Instant::now();
     let peer = build_bounded(
-        zbus::connection::Builder::address(bus.address()).name(SILENT_NAME).serve_at(SILENT_PATH, SilentPeer),
+        zbus::connection::Builder::address(bus.address())
+            .name(SILENT_NAME)
+            .serve_at(SILENT_PATH, SilentPeer),
         "connecting the measured peer",
     )?;
     let connect = connect_started.elapsed();
@@ -169,9 +219,14 @@ fn bus_steps_finish_far_inside_the_bound() -> anyhow::Result<()> {
     let call = call_started.elapsed();
     assert_eq!(pong, PONG);
 
-    println!("bus step times: connect and claim name {connect:?}, emit signal {emit:?}, method call {call:?}");
+    println!(
+        "bus step times: connect and claim name {connect:?}, emit signal {emit:?}, method call {call:?}"
+    );
     for (step, elapsed) in [("connect", connect), ("emit", emit), ("call", call)] {
-        assert!(elapsed < BUS_STEP_BOUND / LATE_FACTOR, "{step} took {elapsed:?} against a bound of {BUS_STEP_BOUND:?}");
+        assert!(
+            elapsed < BUS_STEP_BOUND / LATE_FACTOR,
+            "{step} took {elapsed:?} against a bound of {BUS_STEP_BOUND:?}"
+        );
     }
     return Ok(());
 }

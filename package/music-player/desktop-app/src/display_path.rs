@@ -128,7 +128,10 @@ pub fn last_segment(path: &str) -> &str {
 ///   return prefix === "" ? segment : `${prefix}/${segment}`;
 /// }
 /// ```
-pub fn join_display_path(prefix: &str, name: &str) -> String {
+pub fn join_display_path(
+    prefix: &str,
+    name: &str,
+) -> String {
     let segment = sanitize_component(name);
     if prefix.is_empty() {
         return segment;

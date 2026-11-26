@@ -12,7 +12,11 @@ const BIN: &str = env!("CARGO_BIN_EXE_forbidden-strings");
 
 /// Creates a new temporary root for each test process.
 fn fixture(label: &str) -> PathBuf {
-    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("path-names-{}-{}", label, std::process::id()));
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!(
+        "path-names-{}-{}",
+        label,
+        std::process::id()
+    ));
     fs::create_dir_all(&dir).expect("create test directory");
     return dir;
 }
@@ -36,16 +40,33 @@ fn pathname_hit_masks_the_name_in_every_finding() {
     fs::write(&source, "VAULTTOKEN_LONG\n").expect("write candidate bytes");
     let output = scanner(&root)
         .current_dir(&root)
-        .args(["--rules", "rules.txt", "--name-path", "private/VAULTTOKEN_LONG.txt"])
+        .args([
+            "--rules",
+            "rules.txt",
+            "--name-path",
+            "private/VAULTTOKEN_LONG.txt",
+        ])
         .arg(&source)
         .output()
         .expect("run scanner");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(1), "{stderr}");
-    assert!(stderr.contains("private/[REDACTED]:name:2 rule=0 input=0"), "{stderr}");
-    assert!(stderr.contains("private/[REDACTED]:1 rule=0 input=0"), "{stderr}");
-    assert!(!stderr.contains("VAULTTOKEN_LONG"), "matched name leaked: {stderr}");
-    assert!(!stderr.contains("content-only.txt"), "temporary path leaked: {stderr}");
+    assert!(
+        stderr.contains("private/[REDACTED]:name:2 rule=0 input=0"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("private/[REDACTED]:1 rule=0 input=0"),
+        "{stderr}"
+    );
+    assert!(
+        !stderr.contains("VAULTTOKEN_LONG"),
+        "matched name leaked: {stderr}"
+    );
+    assert!(
+        !stderr.contains("content-only.txt"),
+        "temporary path leaked: {stderr}"
+    );
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
@@ -65,8 +86,14 @@ fn walked_directory_name_fails_with_clean_content() {
         .expect("run scanner");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(1), "{stderr}");
-    assert!(stderr.contains("[REDACTED]/clean.txt:name:1 rule=0"), "{stderr}");
-    assert!(!stderr.contains("VAULTTOKEN_LONG"), "matched directory leaked: {stderr}");
+    assert!(
+        stderr.contains("[REDACTED]/clean.txt:name:1 rule=0"),
+        "{stderr}"
+    );
+    assert!(
+        !stderr.contains("VAULTTOKEN_LONG"),
+        "matched directory leaked: {stderr}"
+    );
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
@@ -88,7 +115,10 @@ fn explicit_external_parent_is_scanned() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(1), "{stderr}");
     assert!(stderr.contains("[REDACTED]/clean.txt:name:"), "{stderr}");
-    assert!(!stderr.contains("VAULTTOKEN_LONG"), "external path leaked: {stderr}");
+    assert!(
+        !stderr.contains("VAULTTOKEN_LONG"),
+        "external path leaked: {stderr}"
+    );
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
@@ -123,7 +153,10 @@ fn actual_filename_matches_in_empty_file() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(1), "{stderr}");
     assert!(stderr.contains("[REDACTED]:name:1 rule=0"), "{stderr}");
-    assert!(!stderr.contains("VAULTTOKEN_LONG"), "filename leaked: {stderr}");
+    assert!(
+        !stderr.contains("VAULTTOKEN_LONG"),
+        "filename leaked: {stderr}"
+    );
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
@@ -131,25 +164,47 @@ fn actual_filename_matches_in_empty_file() {
 #[test]
 fn masked_override_paths_keep_separate_operand_indexes() {
     let root = fixture("identical-masks");
-    fs::write(root.join("rules.txt"), "VAULTTOKEN_LONG\n\nSECOND_SECRET_LONG\n")
-        .expect("write rules");
+    fs::write(
+        root.join("rules.txt"),
+        "VAULTTOKEN_LONG\n\nSECOND_SECRET_LONG\n",
+    )
+    .expect("write rules");
     let first = root.join("first");
     let second = root.join("second");
     fs::write(&first, "clean").expect("write first");
     fs::write(&second, "clean").expect("write second");
     let output = scanner(&root)
         .current_dir(&root)
-        .args(["--rules", "rules.txt", "--name-path", "VAULTTOKEN_LONG", "--name-path", "SECOND_SECRET_LONG"])
+        .args([
+            "--rules",
+            "rules.txt",
+            "--name-path",
+            "VAULTTOKEN_LONG",
+            "--name-path",
+            "SECOND_SECRET_LONG",
+        ])
         .arg(&first)
         .arg(&second)
         .output()
         .expect("run scanner");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(1), "{stderr}");
-    assert!(stderr.contains("[REDACTED]:name:1 rule=0 input=0"), "{stderr}");
-    assert!(stderr.contains("[REDACTED]:name:1 rule=1 input=1"), "{stderr}");
-    assert!(!stderr.contains("VAULTTOKEN_LONG"), "first name leaked: {stderr}");
-    assert!(!stderr.contains("SECOND_SECRET_LONG"), "second name leaked: {stderr}");
+    assert!(
+        stderr.contains("[REDACTED]:name:1 rule=0 input=0"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("[REDACTED]:name:1 rule=1 input=1"),
+        "{stderr}"
+    );
+    assert!(
+        !stderr.contains("VAULTTOKEN_LONG"),
+        "first name leaked: {stderr}"
+    );
+    assert!(
+        !stderr.contains("SECOND_SECRET_LONG"),
+        "second name leaked: {stderr}"
+    );
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
@@ -166,9 +221,15 @@ fn unreadable_named_input_fails_closed_and_redacts_both_findings() {
         .expect("run scanner");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(1), "{stderr}");
-    assert!(stderr.contains("[REDACTED]:name:1 rule=0 input=0"), "{stderr}");
+    assert!(
+        stderr.contains("[REDACTED]:name:1 rule=0 input=0"),
+        "{stderr}"
+    );
     assert!(stderr.contains("[REDACTED]: read error:"), "{stderr}");
-    assert!(!stderr.contains("VAULTTOKEN_LONG"), "missing name leaked: {stderr}");
+    assert!(
+        !stderr.contains("VAULTTOKEN_LONG"),
+        "missing name leaked: {stderr}"
+    );
     fs::remove_dir_all(root).expect("remove fixture");
 }
 

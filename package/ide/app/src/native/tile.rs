@@ -2,28 +2,50 @@
 //!  and the window-thread step that swaps a finished tile in.
 
 /// Frame paint inputs and the frame presentation the swap hands over.
-use super::render::{Frame, Paint, render, show, stamp_for};
+use super::render::{
+    Frame,
+    Paint,
+    render,
+    show,
+    stamp_for,
+};
 /// The vertical mapping's side of the window:
 /// measured rows and keeping the view still.
 use super::rows;
 /// The tile worker and its result type.
-use super::tile_build::{TileBuilt, TileJob, TileWorker};
+use super::tile_build::{
+    TileBuilt,
+    TileJob,
+    TileWorker,
+};
 /// How much of the pass's output one poll takes.
 use super::tile_pass::TAKE_LIMIT;
 /// Parent state,
 /// the window,
 /// and the viewport's hold rule.
-use super::{AppWindow, State, viewport::holds, wheel};
+use super::{
+    AppWindow,
+    State,
+    viewport::holds,
+    wheel,
+};
 /// The part of a tall tile's lines its raster holds.
 use ide_app::shaped_text::Clip;
 /// Timer and toolkit-string bridges for the poll and the error message.
-use slint::{ComponentHandle, SharedString, TimerMode};
+use slint::{
+    ComponentHandle,
+    SharedString,
+    TimerMode,
+};
 /// Poll period of the worker's reply slot,
 /// the same as the other background pollers.
 use std::{
     cell::RefCell,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// What the measurements are valid for,
@@ -39,7 +61,10 @@ pub(super) mod wait;
 ///  from the poll.
 use pass::apply_pass;
 /// The measurement key and the pass request that the render and the tests also use.
-pub(super) use pass::{current_key, sync_pass};
+pub(super) use pass::{
+    current_key,
+    sync_pass,
+};
 /// Both timers of the tile poll run this.
 use wait::poll_unless_step_due;
 
@@ -143,7 +168,11 @@ pub(super) fn warm(
 }
 
 /// Start the repeated poll of the worker's replies unless it is already running.
-fn start_poll(window: &AppWindow, state: &Rc<RefCell<State>>, current: &mut State) {
+fn start_poll(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    current: &mut State,
+) {
     if current.tile_poll.running() {
         return;
     }
@@ -169,7 +198,12 @@ fn start_poll(window: &AppWindow, state: &Rc<RefCell<State>>, current: &mut Stat
 /// or a theme change is never shown.
 /// The tile's own lines must have the heights the map has for them,
 /// which `apply` makes so before asking.
-fn accepts(current: &State, paint: &Paint, built: &TileBuilt, height: f32) -> bool {
+fn accepts(
+    current: &State,
+    paint: &Paint,
+    built: &TileBuilt,
+    height: f32,
+) -> bool {
     return current.tile_job.is_some()
         && built.file == current.file_generation
         && built.active == paint.active
@@ -181,7 +215,10 @@ fn accepts(current: &State, paint: &Paint, built: &TileBuilt, height: f32) -> bo
 }
 
 /// Whether every line the tile measured has the row count the map holds for it.
-fn measured_rows_match(current: &State, built: &TileBuilt) -> bool {
+fn measured_rows_match(
+    current: &State,
+    built: &TileBuilt,
+) -> bool {
     for (line, rows) in built.measured.iter() {
         if current.row_map.rows_of(*line) != *rows {
             return false;
@@ -192,7 +229,10 @@ fn measured_rows_match(current: &State, built: &TileBuilt) -> bool {
 
 /// Take at most one finished tile from the worker and what the pass measured,
 /// and apply them when they are valid.
-pub(super) fn poll(window: &AppWindow, state: &Rc<RefCell<State>>) {
+pub(super) fn poll(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) {
     let (polled, pass) = {
         let mut current = state.borrow_mut();
         // This poll takes whatever has finished, so a wake-up still waiting for the end of the wait has no work left.

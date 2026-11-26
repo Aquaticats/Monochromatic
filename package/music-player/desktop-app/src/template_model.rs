@@ -50,12 +50,36 @@ pub struct TemplateField {
 /// ```
 pub fn track_template_fields() -> Vec<TemplateField> {
     return vec![
-        TemplateField { mode: "title", label: "Title", description: "The name the row shows as its title." },
-        TemplateField { mode: "file", label: "File name", description: "The file name without its extension." },
-        TemplateField { mode: "ext", label: "Extension", description: "The file extension." },
-        TemplateField { mode: "folder", label: "Folder", description: "The folder that holds the file." },
-        TemplateField { mode: "path", label: "Path", description: "The path from the library root." },
-        TemplateField { mode: "len", label: "Duration", description: "The duration in seconds; tf formats it." },
+        TemplateField {
+            mode: "title",
+            label: "Title",
+            description: "The name the row shows as its title.",
+        },
+        TemplateField {
+            mode: "file",
+            label: "File name",
+            description: "The file name without its extension.",
+        },
+        TemplateField {
+            mode: "ext",
+            label: "Extension",
+            description: "The file extension.",
+        },
+        TemplateField {
+            mode: "folder",
+            label: "Folder",
+            description: "The folder that holds the file.",
+        },
+        TemplateField {
+            mode: "path",
+            label: "Path",
+            description: "The path from the library root.",
+        },
+        TemplateField {
+            mode: "len",
+            label: "Duration",
+            description: "The duration in seconds; tf formats it.",
+        },
         TemplateField {
             mode: "peak",
             label: "True peak",
@@ -82,7 +106,11 @@ pub fn playing_template_fields() -> Vec<TemplateField> {
                 label: "Place in folder",
                 description: "Where the track is in its folder, counting from 1.",
             },
-            TemplateField { mode: "total", label: "Tracks in folder", description: "How many tracks the folder holds." },
+            TemplateField {
+                mode: "total",
+                label: "Tracks in folder",
+                description: "How many tracks the folder holds.",
+            },
         ],
     ]
     .concat();
@@ -299,7 +327,10 @@ pub fn template_function(name: &str) -> Option<TemplateFunction> {
             minimum: 1,
             maximum: 2,
             parameters: vec![
-                TemplateParameter { name: "seconds", description: String::from("Seconds: a duration, such as mi(len).") },
+                TemplateParameter {
+                    name: "seconds",
+                    description: String::from("Seconds: a duration, such as mi(len)."),
+                },
                 TemplateParameter {
                     name: "format",
                     description: String::from(
@@ -317,10 +348,18 @@ pub fn template_function(name: &str) -> Option<TemplateFunction> {
             parameters: vec![
                 TemplateParameter {
                     name: "mode",
-                    description: String::from("Mode: low, up or cap to change case; cut to keep the first characters."),
+                    description: String::from(
+                        "Mode: low, up or cap to change case; cut to keep the first characters.",
+                    ),
                 },
-                TemplateParameter { name: "text", description: String::from("Text: the text to convert.") },
-                TemplateParameter { name: "length", description: String::from("Length: how many characters cut keeps.") },
+                TemplateParameter {
+                    name: "text",
+                    description: String::from("Text: the text to convert."),
+                },
+                TemplateParameter {
+                    name: "length",
+                    description: String::from("Length: how many characters cut keeps."),
+                },
             ],
         }),
         _ => None,
@@ -357,7 +396,10 @@ pub fn field_modes(fields: &[TemplateField]) -> String {
 pub trait TemplateTrack {
     /// Text of one field,
     ///  or `None` when the track has no value for it or the mode names no field.
-    fn field_text(&self, mode: &str) -> Option<String>;
+    fn field_text(
+        &self,
+        mode: &str,
+    ) -> Option<String>;
 }
 
 /// What:
@@ -406,7 +448,10 @@ impl TemplateTrack for TrackFields {
     /// ```ts
     /// fieldText(mode: string) { return this[mode as keyof TrackFields]; }
     /// ```
-    fn field_text(&self, mode: &str) -> Option<String> {
+    fn field_text(
+        &self,
+        mode: &str,
+    ) -> Option<String> {
         return match mode {
             "title" => Some(self.title.clone()),
             "file" => Some(self.file.clone()),
@@ -457,7 +502,10 @@ impl TemplateTrack for PlayingTrackFields {
     /// ```ts
     /// fieldText(mode: string) { return mode === "track" ? this.placeInFolder : ...; }
     /// ```
-    fn field_text(&self, mode: &str) -> Option<String> {
+    fn field_text(
+        &self,
+        mode: &str,
+    ) -> Option<String> {
         return match mode {
             "track" => self.place_in_folder.as_ref().map(ToString::to_string),
             "total" => self.tracks_in_folder.as_ref().map(ToString::to_string),

@@ -4,9 +4,9 @@ Rebuild-from-scratch procedure for the Seafile replacement:
  a single-node Garage
 S3 store on Coolify behind a self-managed Caddy,
  synced to one or more clients by
-rclone bisync on an hourly schedule (systemd on Linux,
- launchd on macOS,
- Task
+rclone bisync on a schedule (every five minutes and on every change on Linux, through systemd,
+ hourly through launchd on macOS
+ and through Task
 Scheduler on Windows).
 
 Personal infrastructure,
@@ -30,6 +30,48 @@ The four older `main.kdbx.conflict*` files remain on both sides;
 they are historical artifacts,
 not evidence that the latest sync failed.
 
+## Sync on file change: live on this PC since 2026-11-25T22:01:09-05:00
+
+This PC runs the design confirmed in `doc/planning/garage-bisync-run-on-file-change.md`:
+directory-watcher starts a sync ten seconds after changes under `~/Plain` stop (at most a minute into a burst),
+each sync runs bisync twice,
+the timer runs every five minutes,
+and alerts come on the first failure of a streak, hourly while it lasts, and once on recovery.
+Names starting with `.` or `_` are not watched and sync on the timer (owner's decision).
+The Mac's agent runs both passes with `--conflict-resolve newer` since 2026-11-25T21:15:56-05:00.
+
+Open:
+
+- The first change-triggered sync on live data ran at 2026-11-25T23:19:37-05:00,
+  13 s after five files were deleted under `~/Plain`, and ended with both passes `Bisync successful`.
+- Smaller review findings left open are listed in the design record, section "Coverage and review fixes merged".
+- The five `main.kdbx.conflictN` copies were removed from this PC, the bucket and the Mac at 2026-11-25T23:19:24-05:00.
+- The other 29 conflict copies were resolved by 2026-11-25T23:53:24-05:00, so `~/Plain`, the bucket and the Mac hold none.
+  Seven were machine state (`Text/Reference/Legal/.git`, whose conflict ref pointed at a commit already in `main`, and two IDE files).
+  Thirteen documents had no unique text or a few superseded lines (owner: delete).
+  Seven were older versions of files later revised on purpose: `casl-spam-report-bell-2026-08.md.conflict2` equals the committed snapshot `a0248b6`,
+  whose lines the commit `0ccd0d9` removed; the `clinical-summary` set, `emails-to-send-2026-08-26.md` and the `carleton-handover` sidecar
+  each equal an earlier commit of the Health repository, and a named later commit removed their lines
+  (for example `90aaa00`, "correct ten problems the translation pass found in the English").
+  `Text/Notes/pcloud-console-client-mac-setup.md` was restored from `.conflict2`, a deliberate revision of `.conflict1`.
+  Every removed copy is backed up with checksums in `~/temp/agent/garage-*-conflict-copies-removed-2026-11-25/` (four folders, 7.2 MB);
+  the owner chose to keep them.
+- `Text/Reference/Health` is a Git working tree whose Git directory lives outside `~/Plain`.
+  Its pointer named the Bazzite path `/var/home/user/.local/share/health-records-git`, which does not exist on CachyOS;
+  the directory was restored at 2026-11-26T00:00:19-05:00 from the old Bazzite NVMe (`old-nvme-p2`, mounted read-only)
+  to `~/.local/share/health-records-git` (`git fsck` clean; last commit `cf05c3f`, 2026-09-25T03:46:26-04:00),
+  and `Health/.git` now reads `gitdir: /home/user/.local/share/health-records-git`.
+  206 of its 222 tracked files equal `HEAD`; 16 differ (14 Git LFS PDFs in `dist/`, `provider-requests.html`, `runbook-medication-continuity.md`).
+- Git works again in `Text/Reference/Health` and `Text/Reference/Legal` on this PC:
+  AppArmor's `git` profile had granted only project folders, and the twelfth batch of local rules
+  (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`) grants `~/Plain` and the Health Git directory.
+  Each Git run leaves one lock-holder record in the repository's `.git/cli-git-lock-holders/`,
+  removed by a later run (the Git wrapper's design); in Legal that folder is inside `~/Plain` and syncs.
+- The Mac keeps the files it set aside before its resync in
+  `/Users/user/temp/agent/mac-plain-pre-resync-backup-2026-11-25/` until the owner says to remove them.
+- The files this PC ran before the change are in `~/temp/agent/garage-live-units-before-sync-on-change-2026-11-25/`
+  (rollback steps: `doc/decision/garage-file-sync-change-watcher.md`).
+
 ## Client check (macOS, `ssh m1`) at 2026-11-25T18:51:49-05:00
 
 Read-only over ssh; nothing was changed.
@@ -43,6 +85,41 @@ The work folder `~/Library/Caches/rclone/bisync/` is empty.
 So this client has not synced since its agent was installed:
 its baseline listings either never existed at the agent's paths or were removed.
 Recovering needs a `--resync`, which the owner has not authorised.
+
+Read-only comparison at 2026-11-25T19:55:43-05:00, on the owner's go-ahead
+(`rclone check garage:files/Plain /Users/user/Plain --filter-from <the agent's filter> --fast-list --size-only --combined`,
+output in `~/temp/agent/mac-plain-vs-bucket-compare-2026-11-25/` on the Mac):
+10009 files match;
+214 exist only on the Mac, every one last modified before 2026-09-14,
+208 of them in one top-level folder of game mods;
+312 exist only in the bucket;
+12 differ in size, `main.kdbx` among them
+(the Mac's copy dated 2026-09-09, 901760 bytes; the bucket's dated 2026-11-25 18:01, 907268 bytes).
+rclone's `docs/content/bisync.md` at `v1.76.0` says `--resync` implies `--resync-mode path1`,
+so a default resync uploads the 214, downloads the 312,
+and overwrites the 12 on the Mac with the bucket's versions.
+The Mac's LaunchAgent gained `--conflict-resolve newer` and the settle pass at 2026-11-25T21:15:56-05:00
+(owner's choice: both passes through `/bin/sh -c` in the plist);
+its first run after the change ran both passes, each ending `Bisync successful`, and launchd recorded exit code 0.
+The plist it replaced is kept on the Mac in `~/temp/agent/mac-bisync-agent-plist-before-two-passes-2026-11-25/`.
+This PC's unit has one pass until the package `package/garage-file-sync/linux-client` goes live.
+
+Recovered at 2026-11-25T20:04:52-05:00 on the owner's word
+("Treat the bucket as the golden copy. I intentionally deleted the game mods from the bucket. Resync."):
+
+1.  The 12 files that differed were copied,
+    and the 214 Mac-only files moved,
+    into `/Users/user/temp/agent/mac-plain-pre-resync-backup-2026-11-25/` on the Mac
+    (`differing/` and `only-on-mac/`, with the two path lists);
+    nothing was deleted.
+2.  A fresh `rclone check --size-only` showed 0 Mac-only files.
+3.  `rclone bisync garage:files/Plain /Users/user/Plain` with the agent's flags plus `--resync`
+    exited 0 in 25.2 s, transferring 324 files (the 312 bucket-only and the 12 differing, bucket versions winning);
+    log at `resync.log` in the backup folder.
+4.  A second `rclone check --size-only`: 10333 match, nothing else.
+5.  `launchctl kickstart` of the agent: `Bisync successful` in 4.7 s, last exit code 0.
+
+The backup folder stays until the owner says to remove it.
 
 ## What this builds
 
@@ -77,8 +154,8 @@ Recovering needs a `--resync`, which the owner has not authorised.
   client's local file mtimes become the server-side LastModified,
    not the original
   authoring time.
-- An hourly scheduler per client:
-   a `user` systemd timer on Linux,
+- A scheduler per client:
+   a `user` systemd timer every five minutes plus a change watcher on Linux,
    a launchd
   LaunchAgent on macOS,
    a Task Scheduler job on Windows,
@@ -324,71 +401,65 @@ Status:
      so
     later runs finish in well under a minute.
 
-### Stage D (Linux): install the hourly systemd timer
+### Stage D (Linux): install the sync, its five-minute timer and the change watcher
 
-1.  Write `~/.config/systemd/user/rclone-bisync-garage.service`:
+Every file comes from [`package/garage-file-sync/linux-client`](../../package/garage-file-sync/linux-client/README.md),
+whose README explains each unit and whose unit files carry the reasons for each setting.
+The design and its measurements are in [`doc/planning/garage-bisync-run-on-file-change.md`](../planning/garage-bisync-run-on-file-change.md),
+and the choice of watcher in [`doc/decision/garage-file-sync-change-watcher.md`](../decision/garage-file-sync-change-watcher.md).
 
-     ```ini
-     [Unit]
-     Description=Bisync ~/Seafile/Plain with Garage S3
-     Documentation=https://rclone.org/bisync/
-     After=network-online.target
-     Wants=network-online.target
-
-     [Service]
-     Type=oneshot
-     WorkingDirectory=%h
-     TimeoutStartSec=3000
-     ExecStart=|@rclone bisync garage:files/Plain %h/Seafile/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
-     Nice=10
-     IOSchedulingClass=best-effort
-     IOSchedulingPriority=6
-     ```
-
-    `|@rclone` resolves the command through the account's default login shell on every start:
-    `|` selects the shell and `@` enables login-shell startup.
-    This was verified with systemd `262.1-1.fc45` and the account's Bash login shell.
-    The mpm shadow manages the toolchain;
-    the service follows the first `rclone` on the login shell's `PATH`.
-    The retired `%h/.local/share/mise/shims/rclone` path was replaced on `2026-11-07`;
-    its failure and recovery are recorded in
-    [the toolchain migration troubleshooting record](../troubleshooting/mpm-toolchain-migration.md).
-    `--conflict-resolve newer` preserves the winning file's original name;
-    see [the conflict diagnosis](../troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md).
-    The
-    `--filter-from`,
-     `--fast-list`,
-     and `--use-server-modtime` flags are mandatory
-    (phantom keys and the high-latency link);
-     see "What this builds".
-2.  Write `~/.config/systemd/user/rclone-bisync-garage.timer`:
-
-     ```ini
-     [Unit]
-     Description=Run Garage bisync hourly
-
-     [Timer]
-     OnCalendar=hourly
-     Persistent=true
-     RandomizedDelaySec=120
-
-     [Install]
-     WantedBy=timers.target
-     ```
-
+1.  Install directory-watcher through the repository toolchain:
+     `mise run toolchain:install`.
+    Expected:
+     `~/.local/share/monochromatic-dev/toolchain/bin/directory-watcher --version` prints `directory-watcher version v3.2.1`.
+2.  Copy the units and the watcher config:
+     `mise run //package/garage-file-sync/linux-client:install`.
+    Expected:
+     `copied 8 files; run systemctl --user daemon-reload before starting the units`,
+    and `mise run //package/garage-file-sync/linux-client:check:installed` then prints
+     `every installed copy under <home> matches this package`.
 3.  Run `systemctl --user daemon-reload`.
      Expected:
      no output.
 4.  Run `systemctl --user enable --now rclone-bisync-garage.timer`.
      Expected:
-    `Created symlink ... timers.target.wants/rclone-bisync-garage.timer`.
+     `systemctl --user list-timers rclone-bisync-garage.timer` shows a `NEXT` on a five-minute boundary, up to 30 s later.
 5.  Run `loginctl enable-linger $(id -un)` so the timer fires while logged out.
     Expected:
      `loginctl show-user $(id -un) -p Linger` then prints `Linger=yes`.
 6.  Trigger one run:
      `systemctl --user start rclone-bisync-garage.service`.
     Expected:
-     the run finishes and the journal shows `Bisync successful`.
+     the journal shows two `Bisync successful` lines, one per pass,
+    and `journalctl --user -u 'rclone-bisync-garage-recovered@*'` shows
+     `rclone-bisync-garage.service: finished cleanly with no open streak; no alert.`
+7.  Start the watcher:
+     `systemctl --user enable --now rclone-bisync-garage-watch.service`.
+    Expected:
+     its journal ends with `rclone-bisync-garage-watch.service: finished cleanly with no open streak; no alert.`,
+    and the watcher's inotify watch count
+     (`cat /proc/<MainPID>/fdinfo/* | grep -c '^inotify wd:'`)
+    equals the folders under `~/Plain` that are not inside a `.` or `_` name, plus one.
+    Measured on this PC at 2026-11-25T22:01:17-05:00: 1236 watches for 1235 such folders.
+
+`|@rclone` in the sync unit resolves the command through the account's default login shell on every start:
+`|` selects the shell and `@` enables login-shell startup.
+This was verified with systemd `262.1-1.fc45` and the account's Bash login shell.
+The mpm shadow manages the toolchain;
+the service follows the first `rclone` on the login shell's `PATH`.
+The retired `%h/.local/share/mise/shims/rclone` path was replaced on `2026-11-07`;
+its failure and recovery are recorded in
+[the toolchain migration troubleshooting record](../troubleshooting/mpm-toolchain-migration.md).
+The watcher's binary is named by absolute path instead,
+because neither `/bin/sh -l` nor the fish login shell finds the toolchain's `bin/`.
+`--conflict-resolve newer` preserves the winning file's original name;
+see [the conflict diagnosis](../troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md).
+The
+`--filter-from`,
+ `--fast-list`,
+ and `--use-server-modtime` flags are mandatory
+(phantom keys and the high-latency link);
+ see "What this builds".
 
 ### Stage D (macOS): install the hourly launchd agent
 
@@ -404,27 +475,14 @@ Status:
      <dict>
          <key>Label</key>
          <string>cat.aquati.rclone-bisync-garage</string>
+         <!-- Two passes: the second settles the mtimes the first upload leaves behind
+              (doc/troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md).
+              A failed first pass skips the second. -->
          <key>ProgramArguments</key>
          <array>
-             <string>/opt/homebrew/bin/rclone</string>
-             <string>bisync</string>
-             <string>garage:files/Plain</string>
-             <string>/Users/USERNAME/Plain</string>
-             <string>--config</string>
-             <string>/Users/USERNAME/.config/rclone/rclone.conf</string>
-             <string>--filter-from</string>
-             <string>/Users/USERNAME/.config/rclone/garage-filter.txt</string>
-             <string>--fast-list</string>
-             <string>--use-server-modtime</string>
-             <string>--transfers</string>
-             <string>16</string>
-             <string>--checkers</string>
-             <string>32</string>
-             <string>--s3-upload-concurrency</string>
-             <string>8</string>
-             <string>--resilient</string>
-             <string>--recover</string>
-             <string>-v</string>
+             <string>/bin/sh</string>
+             <string>-c</string>
+             <string>/opt/homebrew/bin/rclone bisync garage:files/Plain /Users/USERNAME/Plain --config /Users/USERNAME/.config/rclone/rclone.conf --filter-from /Users/USERNAME/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v &amp;&amp; /opt/homebrew/bin/rclone bisync garage:files/Plain /Users/USERNAME/Plain --config /Users/USERNAME/.config/rclone/rclone.conf --filter-from /Users/USERNAME/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v</string>
          </array>
          <key>StartCalendarInterval</key>
          <dict>
@@ -458,7 +516,7 @@ Status:
 3.  Trigger one run:
      `launchctl kickstart gui/$(id -u)/cat.aquati.rclone-bisync-garage`.
     Expected:
-     `~/Library/Logs/rclone-bisync-garage.log` ends with `Bisync successful`.
+     `~/Library/Logs/rclone-bisync-garage.log` ends with two `Bisync successful` lines, one per pass.
 
     A LaunchAgent runs only while the user is logged in (the Aqua session);
      there
@@ -607,7 +665,7 @@ Run each and match the exact string:
    `Format-Hex` of `%APPDATA%\rclone\garage-filter.txt` shows the same bytes).
 - The sync ran clean (Linux):
   `journalctl --user -u rclone-bisync-garage.service -n 40` contains
-  `Bisync successful`.
+  `Bisync successful` twice per run, one per pass.
 - The sync ran clean (macOS):
   `tail ~/Library/Logs/rclone-bisync-garage.log` contains `Bisync successful`.
 - The sync ran clean (Windows):
@@ -622,7 +680,11 @@ Run each and match the exact string:
   prints nothing.
 - The scheduler is armed (Linux):
   `systemctl --user list-timers rclone-bisync-garage.timer` prints a `NEXT`
-  timestamp.
+  timestamp within five and a half minutes.
+- The watcher runs (Linux):
+  `systemctl --user is-active rclone-bisync-garage-watch.service` prints `active`.
+- The installed files match the package (Linux):
+  `mise run //package/garage-file-sync/linux-client:check:installed` prints `every installed copy under <home> matches this package`.
 - The scheduler is armed (macOS):
   `launchctl print gui/$(id -u)/cat.aquati.rclone-bisync-garage` prints
   `state = waiting` (or `not running`) with the program path.

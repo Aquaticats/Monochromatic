@@ -79,5 +79,5 @@ pub fn demo_vt() -> Vec<u8> {
     // ```ts
     // return new TextEncoder().encode(chunks.join(""));
     // ```
-    return bytes
+    return bytes;
 }

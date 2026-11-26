@@ -17,9 +17,18 @@
 //!  proves the same rule against the kernel's real size report.
 
 use super::device_error::DeviceError;
-use super::read_reply::{MAXIMUM_READ_ATTEMPTS, ReadAttempt, retry_read};
+use super::read_reply::{
+    MAXIMUM_READ_ATTEMPTS,
+    ReadAttempt,
+    retry_read,
+};
 use crate::nvlist::NvList;
-use crate::requests::{INITIAL_REPLY_SIZE, MAXIMUM_REPLY_SIZE, Request, objset_stats};
+use crate::requests::{
+    INITIAL_REPLY_SIZE,
+    MAXIMUM_REPLY_SIZE,
+    Request,
+    objset_stats,
+};
 
 #[test]
 fn a_reply_ends_the_read_without_growing_anything() {

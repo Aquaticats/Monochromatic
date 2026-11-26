@@ -22,27 +22,43 @@
 //! ```
 
 /// Imports `BTreeMap` from `std::collections`.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `Map` and `Value` from `serde_json`.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::exposure`.
-use super::exposure::{MadeLink, link_directory, make_postinstall_links};
+use super::exposure::{
+    MadeLink,
+    link_directory,
+    make_postinstall_links,
+};
 /// Imports `LockedTool` and `Postinstall` from `super::model`.
-use super::model::{LockedTool, Postinstall};
-/// Imports `ScopeKind` from `super::scope`.
-use super::scope::ScopeKind;
+use super::model::{
+    LockedTool,
+    Postinstall,
+};
 /// Imports `write_atomically` from `super::publish`.
 use super::publish::write_atomically;
+/// Imports `ScopeKind` from `super::scope`.
+use super::scope::ScopeKind;
 
 /// The file name of the record,
 /// inside the scope's launcher directory.
@@ -74,8 +90,18 @@ fn record_file(ctx: &Context) -> PathBuf {
 fn read_record(file: &Path) -> (BTreeMap<PathBuf, PathBuf>, Option<String>) {
     let text: String = match fs::read_to_string(file) {
         Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (BTreeMap::new(), None),
-        Err(error) => return (BTreeMap::new(), Some(format!("cannot read {}, so no stale postinstall link is retired: {error}", file.display()))),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return (BTreeMap::new(), None);
+        }
+        Err(error) => {
+            return (
+                BTreeMap::new(),
+                Some(format!(
+                    "cannot read {}, so no stale postinstall link is retired: {error}",
+                    file.display()
+                )),
+            );
+        }
     };
     let mut links: BTreeMap<PathBuf, PathBuf> = BTreeMap::new();
     let parsed: Option<Value> = serde_json::from_str(&text).ok();
@@ -84,7 +110,13 @@ fn read_record(file: &Path) -> (BTreeMap<PathBuf, PathBuf>, Option<String>) {
         None => None,
     };
     let Some(entries) = links_value.and_then(Value::as_object) else {
-        return (links, Some(format!("{} is not a record of postinstall links, so no stale postinstall link is retired", file.display())));
+        return (
+            links,
+            Some(format!(
+                "{} is not a record of postinstall links, so no stale postinstall link is retired",
+                file.display()
+            )),
+        );
     };
     for (path, target) in entries {
         if let Some(target_text) = target.as_str() {
@@ -98,13 +130,18 @@ fn read_record(file: &Path) -> (BTreeMap<PathBuf, PathBuf>, Option<String>) {
 fn render_record(links: &BTreeMap<PathBuf, PathBuf>) -> Result<String, ToolchainError> {
     let mut entries: Map<String, Value> = Map::new();
     for (path, target) in links {
-        entries.insert(path.to_string_lossy().to_string(), Value::String(target.to_string_lossy().to_string()));
+        entries.insert(
+            path.to_string_lossy().to_string(),
+            Value::String(target.to_string_lossy().to_string()),
+        );
     }
     let mut root: Map<String, Value> = Map::new();
     root.insert(LINKS_KEY.to_string(), Value::Object(entries));
     return match serde_json::to_string_pretty(&Value::Object(root)) {
         Ok(text) => Ok(format!("{text}\n")),
-        Err(error) => Err(ToolchainError::failure(format!("cannot render the record of postinstall links: {error}"))),
+        Err(error) => Err(ToolchainError::failure(format!(
+            "cannot render the record of postinstall links: {error}"
+        ))),
     };
 }
 
@@ -154,7 +191,10 @@ fn resolved_beside(link: &Path) -> PathBuf {
 /// ```ts
 /// function isOwnLink(ctx: Context, path: string): boolean
 /// ```
-fn is_own_link(ctx: &Context, path: &Path) -> bool {
+fn is_own_link(
+    ctx: &Context,
+    path: &Path,
+) -> bool {
     if ctx.scope.kind == ScopeKind::Global {
         return true;
     }
@@ -191,7 +231,10 @@ enum Held {
 
 /// What is at `path`,
 /// judged against the target the record names.
-fn inspect(path: &Path, recorded_target: &Path) -> Held {
+fn inspect(
+    path: &Path,
+    recorded_target: &Path,
+) -> Held {
     let metadata: fs::Metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Held::Nothing,
@@ -219,7 +262,10 @@ fn inspect(path: &Path, recorded_target: &Path) -> Held {
 /// A recorded path outside this scope's own checkout is neither inspected nor removed,
 /// and leaves the record:
 /// the record was copied from the checkout that made it.
-fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainError> {
+fn reconcile(
+    ctx: &Context,
+    made: &[MadeLink],
+) -> Result<LinkNotices, ToolchainError> {
     let file: PathBuf = record_file(ctx);
     let (recorded, unreadable) = read_record(&file);
     let mut notices: LinkNotices = LinkNotices::default();
@@ -266,7 +312,10 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
     if let Some(parent) = file.parent()
         && let Err(error) = fs::create_dir_all(parent)
     {
-        return Err(ToolchainError::failure(format!("cannot create {}: {error}", parent.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot create {}: {error}",
+            parent.display()
+        )));
     }
     write_atomically(&file, &render_record(&kept)?)?;
     return Ok(notices);
@@ -285,7 +334,10 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
 /// ```ts
 /// export function syncPostinstallLinks(ctx: Context, tools: LockedTool[]): LinkNotices  // throws
 /// ```
-pub fn sync_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> Result<LinkNotices, ToolchainError> {
+pub fn sync_postinstall_links(
+    ctx: &Context,
+    tools: &[&LockedTool],
+) -> Result<LinkNotices, ToolchainError> {
     let outcome = make_postinstall_links(ctx, tools);
     let notices: Result<LinkNotices, ToolchainError> = reconcile(ctx, &outcome.made);
     if let Some(error) = outcome.error {

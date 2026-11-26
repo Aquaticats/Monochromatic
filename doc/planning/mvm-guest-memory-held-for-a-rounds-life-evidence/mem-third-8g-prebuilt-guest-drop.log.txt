@@ -1,0 +1,4 @@
+logger file sink: No ancestor node_modules directory was found; using fallback "<home>/.local/state/monochromatic/log"
+MemFree:         7756180 kB
+Cached:            58648 kB
+AnonPages:         49480 kB

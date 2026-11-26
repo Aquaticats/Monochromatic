@@ -36,7 +36,11 @@ fn kinds(text: &str) -> Vec<Construct> {
 
 /// The byte range of the `nth` occurrence of `needle` in `text`,
 ///  counted from zero.
-fn nth_span(text: &str, needle: &str, nth: usize) -> (usize, usize) {
+fn nth_span(
+    text: &str,
+    needle: &str,
+    nth: usize,
+) -> (usize, usize) {
     let start: usize = text
         .match_indices(needle)
         .nth(nth)
@@ -47,7 +51,10 @@ fn nth_span(text: &str, needle: &str, nth: usize) -> (usize, usize) {
 
 /// Assert that a scan finds exactly the given constructs,
 ///  each over exactly the given occurrence of the given text.
-fn assert_hits(text: &str, expected: &[(Construct, &str, usize)]) {
+fn assert_hits(
+    text: &str,
+    expected: &[(Construct, &str, usize)],
+) {
     let mut wanted: Vec<(Construct, usize, usize)> = Vec::new();
     for (construct, needle, nth) in expected {
         let span: (usize, usize) = nth_span(text, needle, *nth);

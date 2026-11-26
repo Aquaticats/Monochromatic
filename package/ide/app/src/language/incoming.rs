@@ -21,7 +21,11 @@
 /// ```ts
 /// import { MethodCall, jsonrpc, lsp } from 'helix-lsp';
 /// ```
-use helix_lsp::{MethodCall, jsonrpc, lsp};
+use helix_lsp::{
+    MethodCall,
+    jsonrpc,
+    lsp,
+};
 /// What:
 ///  `Value` is any JSON value;
 ///  `json!` is a macro that builds one from literal syntax.
@@ -33,7 +37,10 @@ use helix_lsp::{MethodCall, jsonrpc, lsp};
 /// ```ts
 /// type Value = unknown;
 /// ```
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 /// The exact sentence sent with every refused workspace edit.
 pub const EDIT_REFUSAL: &str = "read-only client: workspace edits are not applied";
@@ -139,7 +146,10 @@ pub struct ClientView<'a> {
 ///   return current ?? null;
 /// }
 /// ```
-pub fn configuration_section(settings: Option<&Value>, section: Option<&str>) -> Value {
+pub fn configuration_section(
+    settings: Option<&Value>,
+    section: Option<&str>,
+) -> Value {
     // What: `let Some(mut x) = option else { ... }` binds the inner value or leaves the function;
     //       `mut` lets the loop move `current` deeper into the object.
     // Why: A server without configured settings gets `null` for every item.
@@ -173,7 +183,11 @@ pub fn configuration_section(settings: Option<&Value>, section: Option<&str>) ->
 }
 
 /// Build a decision whose reply is a successful result.
-fn result(value: Value, effect: Effect, policy: &'static str) -> Decision {
+fn result(
+    value: Value,
+    effect: Effect,
+    policy: &'static str,
+) -> Decision {
     return Decision {
         // `Ok(...)` is the success variant of `Result`.
         reply: Ok(value),
@@ -217,7 +231,11 @@ fn edit_refusal_reply() -> Value {
 /// ```ts
 /// function decide(method: string, params: Params, client: ClientView): Decision { /* switch */ }
 /// ```
-pub fn decide(method: &str, params: jsonrpc::Params, client: &ClientView<'_>) -> Decision {
+pub fn decide(
+    method: &str,
+    params: jsonrpc::Params,
+    client: &ClientView<'_>,
+) -> Decision {
     // What: `MethodCall::parse` returns `Result`: a typed request, `Error::Unhandled` for a method
     //       helix-lsp does not model, or a parameter decoding error.
     // Why: The three outcomes need three different replies.

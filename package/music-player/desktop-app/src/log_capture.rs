@@ -16,7 +16,10 @@
 /// Why:
 /// A subscriber hands out a fresh writer per record,
 /// so the buffer must outlive each one.
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 /// What:
 /// `Capture` is the writer the subscriber writes each record through.
@@ -38,8 +41,14 @@ impl std::io::Write for Capture {
     /// `write` appends `bytes` and accepts the whole slice.
     /// Why:
     /// The formatter writes each record in several calls.
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.buffer.lock().expect("the capture buffer is readable").extend_from_slice(bytes);
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
+        self.buffer
+            .lock()
+            .expect("the capture buffer is readable")
+            .extend_from_slice(bytes);
         return Ok(bytes.len());
     }
 
@@ -77,7 +86,10 @@ impl<'writer> tracing_subscriber::fmt::MakeWriter<'writer> for Capture {
 /// Why:
 /// A test needs the records the installed pipeline would print,
 /// and the pipeline itself must not be installed globally.
-pub(crate) fn capture_records(rust_log: Option<&str>, emit: impl FnOnce()) -> String {
+pub(crate) fn capture_records(
+    rust_log: Option<&str>,
+    emit: impl FnOnce(),
+) -> String {
     let buffer: Arc<Mutex<Vec<u8>>> = Arc::default();
     let sink = Capture {
         buffer: Arc::clone(&buffer),
@@ -90,5 +102,6 @@ pub(crate) fn capture_records(rust_log: Option<&str>, emit: impl FnOnce()) -> St
     let guard = tracing::subscriber::set_default(subscriber);
     emit();
     drop(guard);
-    return String::from_utf8_lossy(&buffer.lock().expect("the captured records are readable")).into_owned();
+    return String::from_utf8_lossy(&buffer.lock().expect("the captured records are readable"))
+        .into_owned();
 }

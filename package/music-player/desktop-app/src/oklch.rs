@@ -192,18 +192,32 @@ pub fn srgb_to_oklch(color: Srgb8) -> Oklch {
     let red: f64 = srgb_decode(color.red);
     let green: f64 = srgb_decode(color.green);
     let blue: f64 = srgb_decode(color.blue);
-    let cone_l: f64 = (0.412_221_470_8 * red + 0.536_332_536_3 * green + 0.051_445_992_9 * blue).cbrt();
-    let cone_m: f64 = (0.211_903_498_2 * red + 0.680_699_545_1 * green + 0.107_396_956_6 * blue).cbrt();
-    let cone_s: f64 = (0.088_302_461_9 * red + 0.281_718_837_6 * green + 0.629_978_700_5 * blue).cbrt();
-    let lightness: f64 = 0.210_454_255_3 * cone_l + 0.793_617_785_0 * cone_m - 0.004_072_046_8 * cone_s;
-    let axis_a: f64 = 1.977_998_495_1 * cone_l - 2.428_592_205_0 * cone_m + 0.450_593_709_9 * cone_s;
-    let axis_b: f64 = 0.025_904_037_1 * cone_l + 0.782_771_766_2 * cone_m - 0.808_675_766_0 * cone_s;
+    let cone_l: f64 =
+        (0.412_221_470_8 * red + 0.536_332_536_3 * green + 0.051_445_992_9 * blue).cbrt();
+    let cone_m: f64 =
+        (0.211_903_498_2 * red + 0.680_699_545_1 * green + 0.107_396_956_6 * blue).cbrt();
+    let cone_s: f64 =
+        (0.088_302_461_9 * red + 0.281_718_837_6 * green + 0.629_978_700_5 * blue).cbrt();
+    let lightness: f64 =
+        0.210_454_255_3 * cone_l + 0.793_617_785_0 * cone_m - 0.004_072_046_8 * cone_s;
+    let axis_a: f64 =
+        1.977_998_495_1 * cone_l - 2.428_592_205_0 * cone_m + 0.450_593_709_9 * cone_s;
+    let axis_b: f64 =
+        0.025_904_037_1 * cone_l + 0.782_771_766_2 * cone_m - 0.808_675_766_0 * cone_s;
     if color.red == color.green && color.green == color.blue {
-        return Oklch { lightness, chroma: 0.0, hue: 0.0 };
+        return Oklch {
+            lightness,
+            chroma: 0.0,
+            hue: 0.0,
+        };
     }
     let chroma: f64 = axis_a.hypot(axis_b);
     let hue: f64 = axis_b.atan2(axis_a).to_degrees().rem_euclid(360.0);
-    return Oklch { lightness, chroma, hue };
+    return Oklch {
+        lightness,
+        chroma,
+        hue,
+    };
 }
 
 /// What:
@@ -226,9 +240,12 @@ pub fn oklch_to_linear(color: Oklch) -> [f64; 3] {
     let hue_radians: f64 = color.hue.to_radians();
     let axis_a: f64 = color.chroma * hue_radians.cos();
     let axis_b: f64 = color.chroma * hue_radians.sin();
-    let cone_l: f64 = (color.lightness + 0.396_337_777_4 * axis_a + 0.215_803_757_3 * axis_b).powi(3);
-    let cone_m: f64 = (color.lightness - 0.105_561_345_8 * axis_a - 0.063_854_172_8 * axis_b).powi(3);
-    let cone_s: f64 = (color.lightness - 0.089_484_177_5 * axis_a - 1.291_485_548_0 * axis_b).powi(3);
+    let cone_l: f64 =
+        (color.lightness + 0.396_337_777_4 * axis_a + 0.215_803_757_3 * axis_b).powi(3);
+    let cone_m: f64 =
+        (color.lightness - 0.105_561_345_8 * axis_a - 0.063_854_172_8 * axis_b).powi(3);
+    let cone_s: f64 =
+        (color.lightness - 0.089_484_177_5 * axis_a - 1.291_485_548_0 * axis_b).powi(3);
     return [
         4.076_741_662_1 * cone_l - 3.307_711_591_3 * cone_m + 0.230_969_929_2 * cone_s,
         -1.268_438_004_6 * cone_l + 2.609_757_401_1 * cone_m - 0.341_319_396_5 * cone_s,
@@ -283,12 +300,23 @@ pub fn is_in_gamut(color: Oklch) -> bool {
 /// ```
 pub fn gamut_map(color: Oklch) -> Oklch {
     if color.lightness >= 1.0 {
-        return Oklch { lightness: 1.0, chroma: 0.0, hue: color.hue };
+        return Oklch {
+            lightness: 1.0,
+            chroma: 0.0,
+            hue: color.hue,
+        };
     }
     if color.lightness <= 0.0 {
-        return Oklch { lightness: 0.0, chroma: 0.0, hue: color.hue };
+        return Oklch {
+            lightness: 0.0,
+            chroma: 0.0,
+            hue: color.hue,
+        };
     }
-    let wanted: Oklch = Oklch { chroma: color.chroma.max(0.0), ..color };
+    let wanted: Oklch = Oklch {
+        chroma: color.chroma.max(0.0),
+        ..color
+    };
     if is_in_gamut(wanted) {
         return wanted;
     }
@@ -296,7 +324,10 @@ pub fn gamut_map(color: Oklch) -> Oklch {
     let mut high: f64 = wanted.chroma;
     for _step in 0..CHROMA_SEARCH_STEPS {
         let middle: f64 = (low + high) / 2.0;
-        if is_in_gamut(Oklch { chroma: middle, ..wanted }) {
+        if is_in_gamut(Oklch {
+            chroma: middle,
+            ..wanted
+        }) {
             low = middle;
         } else {
             high = middle;
@@ -309,7 +340,10 @@ pub fn gamut_map(color: Oklch) -> Oklch {
         mapped_chroma = low,
         "reduced chroma to fit the sRGB gamut"
     );
-    return Oklch { chroma: low, ..wanted };
+    return Oklch {
+        chroma: low,
+        ..wanted
+    };
 }
 
 /// What:
@@ -339,10 +373,18 @@ pub fn oklch_to_srgb8(color: Oklch) -> Srgb8 {
     let mapped: Oklch = gamut_map(color);
     if mapped.chroma == 0.0 {
         let level: u8 = srgb_encode(mapped.lightness.powi(3));
-        return Srgb8 { red: level, green: level, blue: level };
+        return Srgb8 {
+            red: level,
+            green: level,
+            blue: level,
+        };
     }
     let channels: [f64; 3] = oklch_to_linear(mapped);
-    return Srgb8 { red: srgb_encode(channels[0]), green: srgb_encode(channels[1]), blue: srgb_encode(channels[2]) };
+    return Srgb8 {
+        red: srgb_encode(channels[0]),
+        green: srgb_encode(channels[1]),
+        blue: srgb_encode(channels[2]),
+    };
 }
 
 /// What:
@@ -357,7 +399,9 @@ pub fn oklch_to_srgb8(color: Oklch) -> Srgb8 {
 /// return 0.2126 * lin(red) + 0.7152 * lin(green) + 0.0722 * lin(blue);
 /// ```
 pub fn relative_luminance(color: Srgb8) -> f64 {
-    return 0.2126 * srgb_decode(color.red) + 0.7152 * srgb_decode(color.green) + 0.0722 * srgb_decode(color.blue);
+    return 0.2126 * srgb_decode(color.red)
+        + 0.7152 * srgb_decode(color.green)
+        + 0.0722 * srgb_decode(color.blue);
 }
 
 /// What:
@@ -373,7 +417,10 @@ pub fn relative_luminance(color: Srgb8) -> f64 {
 /// const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
 /// return (hi + 0.05) / (lo + 0.05);
 /// ```
-pub fn contrast_ratio(first: Srgb8, second: Srgb8) -> f64 {
+pub fn contrast_ratio(
+    first: Srgb8,
+    second: Srgb8,
+) -> f64 {
     let first_luminance: f64 = relative_luminance(first);
     let second_luminance: f64 = relative_luminance(second);
     let lighter: f64 = first_luminance.max(second_luminance);
@@ -391,7 +438,11 @@ pub fn contrast_ratio(first: Srgb8, second: Srgb8) -> f64 {
 /// ```ts
 /// const blendChannel = (layer: number, surface: number, alpha: number): number => Math.min(255, Math.max(0, Math.round(layer * alpha + surface * (1 - alpha))));
 /// ```
-fn blend_channel(layer_channel: u8, surface_channel: u8, alpha: f64) -> u8 {
+fn blend_channel(
+    layer_channel: u8,
+    surface_channel: u8,
+    alpha: f64,
+) -> u8 {
     let value: f64 = f64::from(layer_channel) * alpha + f64::from(surface_channel) * (1.0 - alpha);
     return value.round().clamp(0.0, 255.0) as u8;
 }
@@ -411,7 +462,11 @@ fn blend_channel(layer_channel: u8, surface_channel: u8, alpha: f64) -> u8 {
 /// ```ts
 /// const mix = (l, s) => Math.round(l * alpha + s * (1 - alpha));
 /// ```
-pub fn composite_over(layer: Srgb8, alpha: f64, surface: Srgb8) -> Srgb8 {
+pub fn composite_over(
+    layer: Srgb8,
+    alpha: f64,
+    surface: Srgb8,
+) -> Srgb8 {
     return Srgb8 {
         red: blend_channel(layer.red, surface.red, alpha),
         green: blend_channel(layer.green, surface.green, alpha),
@@ -436,14 +491,22 @@ pub fn composite_over(layer: Srgb8, alpha: f64, surface: Srgb8) -> Srgb8 {
 /// const diff = ((to.hue - from.hue + 540) % 360) - 180;
 /// return { lightness: lerp(from.L, to.L, t), chroma: lerp(from.C, to.C, t), hue: (from.hue + diff * t + 360) % 360 };
 /// ```
-pub fn mix_oklch(from: Oklch, to: Oklch, fraction: f64) -> Oklch {
+pub fn mix_oklch(
+    from: Oklch,
+    to: Oklch,
+    fraction: f64,
+) -> Oklch {
     let lightness: f64 = from.lightness + (to.lightness - from.lightness) * fraction;
     let chroma: f64 = from.chroma + (to.chroma - from.chroma) * fraction;
     let hue_from: f64 = if from.chroma < 1e-4 { to.hue } else { from.hue };
     let hue_to: f64 = if to.chroma < 1e-4 { from.hue } else { to.hue };
     let difference: f64 = (hue_to - hue_from + 540.0).rem_euclid(360.0) - 180.0;
     let hue: f64 = (hue_from + difference * fraction).rem_euclid(360.0);
-    return Oklch { lightness, chroma, hue };
+    return Oklch {
+        lightness,
+        chroma,
+        hue,
+    };
 }
 
 /// What:
@@ -459,7 +522,10 @@ pub fn mix_oklch(from: Oklch, to: Oklch, fraction: f64) -> Oklch {
 /// ```ts
 /// return 100 * Math.hypot(a.L - b.L, a.a - b.a, a.b - b.b);
 /// ```
-pub fn delta_e_ok(first: Srgb8, second: Srgb8) -> f64 {
+pub fn delta_e_ok(
+    first: Srgb8,
+    second: Srgb8,
+) -> f64 {
     let first_lch: Oklch = srgb_to_oklch(first);
     let second_lch: Oklch = srgb_to_oklch(second);
     let first_a: f64 = first_lch.chroma * first_lch.hue.to_radians().cos();
@@ -467,7 +533,8 @@ pub fn delta_e_ok(first: Srgb8, second: Srgb8) -> f64 {
     let second_a: f64 = second_lch.chroma * second_lch.hue.to_radians().cos();
     let second_b: f64 = second_lch.chroma * second_lch.hue.to_radians().sin();
     let delta_l: f64 = first_lch.lightness - second_lch.lightness;
-    return 100.0 * (delta_l * delta_l + (first_a - second_a).powi(2) + (first_b - second_b).powi(2)).sqrt();
+    return 100.0
+        * (delta_l * delta_l + (first_a - second_a).powi(2) + (first_b - second_b).powi(2)).sqrt();
 }
 
 /// Unit tests of `oklch`,

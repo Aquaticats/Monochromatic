@@ -23,13 +23,19 @@
 /// Imports the corpus track record.
 use crate::corpus::Track;
 /// Imports the candidate policy and the shared per-window sampling.
-use crate::evaluate::{Candidate, sampled_windows};
+use crate::evaluate::{
+    Candidate,
+    sampled_windows,
+};
 /// Imports the bench's one dBTP conversion.
 use crate::levels::peak_dbtp_or_silence;
 /// Imports the safe-provenance path set.
 use std::collections::HashSet;
 /// Imports the shared policy math.
-use truepeak_core::{Policy, default_policy};
+use truepeak_core::{
+    Policy,
+    default_policy,
+};
 
 /// A density's feasible no-classifier outcome.
 #[derive(Clone, Copy, Debug)]
@@ -79,7 +85,9 @@ pub fn evaluate_density(
         }
         decoded += threshold;
         let windows = sampled_windows(track, candidate);
-        let sampled_max = windows.iter().fold(0.0_f64, |peak, &window| return peak.max(window));
+        let sampled_max = windows
+            .iter()
+            .fold(0.0_f64, |peak, &window| return peak.max(window));
         let full_db = peak_dbtp_or_silence(f64::from(track.full_peak));
         if full_db > policy.ceiling_dbtp {
             max_under_read = max_under_read.max(full_db - peak_dbtp_or_silence(sampled_max));
@@ -96,7 +104,7 @@ pub fn evaluate_density(
         worst_quiet_db,
         probe_decoded_secs: decoded,
         feasible,
-    }
+    };
 }
 
 /// A provenance-dependent margin:
@@ -142,7 +150,9 @@ pub fn provenance_margin(
             continue;
         }
         let windows = sampled_windows(track, candidate);
-        let sampled_max = windows.iter().fold(0.0_f64, |peak, &window| return peak.max(window));
+        let sampled_max = windows
+            .iter()
+            .fold(0.0_f64, |peak, &window| return peak.max(window));
         let under_read = full_db - peak_dbtp_or_silence(sampled_max);
         if safe_paths.contains(&track.path) {
             max_under_read_safe = max_under_read_safe.max(under_read);
@@ -156,7 +166,7 @@ pub fn provenance_margin(
         margin_safe_db,
         margin_unsafe_db,
         worst_quiet_db: -margin_safe_db.max(margin_unsafe_db),
-    }
+    };
 }
 
 /// Sweep probe densities and return the feasible one with the smallest margin.
@@ -185,7 +195,13 @@ pub fn best_feasible(
                 window_seconds: threshold / window_count as f64,
                 probe_margin_db: 0.0,
             };
-            results.push(evaluate_density(&policy, tracks, candidate, target_secs, quiet_bound_db));
+            results.push(evaluate_density(
+                &policy,
+                tracks,
+                candidate,
+                target_secs,
+                quiet_bound_db,
+            ));
         }
     }
     // Best feasible first: smallest margin, then smallest decoded cost as a tie-break.
@@ -194,9 +210,9 @@ pub fn best_feasible(
             .feasible
             .cmp(&left.feasible)
             .then(left.margin_db.total_cmp(&right.margin_db))
-            .then(left.probe_decoded_secs.total_cmp(&right.probe_decoded_secs))
+            .then(left.probe_decoded_secs.total_cmp(&right.probe_decoded_secs));
     });
-    return results
+    return results;
 }
 
 /// Tests for the feasible no-classifier model.

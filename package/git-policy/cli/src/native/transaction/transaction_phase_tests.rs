@@ -200,11 +200,16 @@ fn kill_marker_sigkills_the_process_after_writing_its_marker() {
     use std::os::unix::process::ExitStatusExt;
     let root: PathBuf = fixture("phase-kill");
     let value: String = format!("service-staged:kill:{}", root.display());
-    let status = std::process::Command::new(crate::test_support::this_test_binary().expect("test binary"))
-        .args(["--exact", "transaction::transaction_phase::tests::child_reaches_service_staged", "--ignored"])
-        .env(PHASE_SIGNAL_VARIABLE, &value)
-        .status()
-        .expect("child test binary");
+    // The kill marker ends the child with `SIGKILL`, so this asks for the raw ending rather than for a passing test.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(PHASE_SIGNAL_VARIABLE, std::ffi::OsStr::new(value.as_str()))];
+    let status: std::process::ExitStatus = crate::child_test_process::finished(crate::child_test_process::ChildTest {
+        exact_test: "transaction::transaction_phase::tests::child_reaches_service_staged",
+        environment: environment.as_slice(),
+        ignored: true,
+        ..crate::child_test_process::ChildTest::default()
+    })
+    .expect("the child ends within the deadline")
+    .status;
     assert_eq!(status.signal(), Some(9));
     assert!(root.join("service-staged.reached").exists());
     remove(&root);

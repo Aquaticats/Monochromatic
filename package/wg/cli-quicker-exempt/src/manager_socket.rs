@@ -22,17 +22,31 @@
 /// The search path and the time limit of the system manager query.
 use crate::bounded_command::run_bounded;
 /// The message layout.
-use crate::dbus_wire::{MANAGER_PATH, Message, MethodCall, decode_message, encode_call, message_length};
-/// Reading a reply and writing a call.
-use std::io::{self, Read, Write};
+use crate::dbus_wire::{
+    MANAGER_PATH,
+    Message,
+    MethodCall,
+    decode_message,
+    encode_call,
+    message_length,
+};
 /// Argument bytes that need not be text.
 use std::ffi::OsString;
+/// Reading a reply and writing a call.
+use std::io::{
+    self,
+    Read,
+    Write,
+};
 /// Unix stream sockets.
 use std::os::unix::net::UnixStream;
 /// Sockets and paths.
 use std::path::PathBuf;
 /// Bounded waits.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long the system manager may take to say which process runs a user's manager.
 const MAIN_PID_TIMEOUT: Duration = Duration::from_secs(5);
@@ -79,9 +93,14 @@ pub enum ManagerError {
 /// Wording for reports.
 impl std::fmt::Display for ManagerError {
     /// Writes the plain text of the failure.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
-            ManagerError::Failed(text) | ManagerError::Refused(text) | ManagerError::TimedOut(text) => write!(formatter, "{text}"),
+            ManagerError::Failed(text)
+            | ManagerError::Refused(text)
+            | ManagerError::TimedOut(text) => write!(formatter, "{text}"),
         };
     }
 }
@@ -104,15 +123,25 @@ pub fn manager_main_pid(uid: u32) -> Result<i32, String> {
     ];
     let output = run_bounded("systemctl", &arguments, MAIN_PID_TIMEOUT)?;
     if !output.success {
-        return Err(format!("systemctl show user@{uid}.service exited with {}: {}", output.status, output.stderr.trim()));
+        return Err(format!(
+            "systemctl show user@{uid}.service exited with {}: {}",
+            output.status,
+            output.stderr.trim()
+        ));
     }
     let text = output.stdout.trim();
     let pid: i32 = match text.parse() {
         Ok(pid) => pid,
-        Err(_error) => return Err(format!("systemctl named no main process of user@{uid}.service ({text:?})")),
+        Err(_error) => {
+            return Err(format!(
+                "systemctl named no main process of user@{uid}.service ({text:?})"
+            ));
+        }
     };
     if pid <= 1 {
-        return Err(format!("the system manager reports no running main process of user@{uid}.service ({pid})"));
+        return Err(format!(
+            "the system manager reports no running main process of user@{uid}.service ({pid})"
+        ));
     }
     return Ok(pid);
 }
@@ -122,30 +151,45 @@ impl ManagerEndpoint {
     /// Where the user's manager of `uid` answers,
     /// and which process must be there.
     pub fn resolve(uid: u32) -> Result<ManagerEndpoint, String> {
-        return Ok(ManagerEndpoint { socket: manager_socket_path(uid), expected_pid: manager_main_pid(uid)? });
+        return Ok(ManagerEndpoint {
+            socket: manager_socket_path(uid),
+            expected_pid: manager_main_pid(uid)?,
+        });
     }
 }
 
-/// The login and the peer credentials,
-/// shared with every other D-Bus socket this program opens.
-use crate::dbus_login::{LoginError, login};
 /// The pid on the other end of a connected socket.
 pub use crate::dbus_login::peer_pid;
+/// The login and the peer credentials,
+/// shared with every other D-Bus socket this program opens.
+use crate::dbus_login::{
+    LoginError,
+    login,
+};
 
 /// Logs in on a private socket as the running process's user,
 /// through the login every D-Bus socket takes.
 fn authenticate(stream: &mut UnixStream) -> Result<(), ManagerError> {
     return match login(stream) {
         Ok(()) => Ok(()),
-        Err(LoginError::TimedOut(text)) => Err(ManagerError::TimedOut(format!("the manager's socket {text}"))),
-        Err(LoginError::Failed(text)) => Err(ManagerError::Failed(format!("the manager's socket {text}"))),
+        Err(LoginError::TimedOut(text)) => Err(ManagerError::TimedOut(format!(
+            "the manager's socket {text}"
+        ))),
+        Err(LoginError::Failed(text)) => {
+            Err(ManagerError::Failed(format!("the manager's socket {text}")))
+        }
     };
 }
 
 /// Classifies a socket failure as a timeout or a broken connection.
-fn socket_failure(error: &io::Error, what: &str) -> ManagerError {
+fn socket_failure(
+    error: &io::Error,
+    what: &str,
+) -> ManagerError {
     return match error.kind() {
-        io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => ManagerError::TimedOut(format!("{what} did not answer within the time the call allows")),
+        io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => ManagerError::TimedOut(format!(
+            "{what} did not answer within the time the call allows"
+        )),
         _ => ManagerError::Failed(format!("{what} failed: {error}")),
     };
 }
@@ -158,7 +202,11 @@ fn socket_failure(error: &io::Error, what: &str) -> ManagerError {
 /// a socket read timeout alone restarts with every read,
 /// so a manager that emits an unrelated message more often than the timeout
 /// kept an unanswered call blocked for ever.
-fn read_reply(stream: &mut UnixStream, serial: u32, deadline: Instant) -> Result<Message, ManagerError> {
+fn read_reply(
+    stream: &mut UnixStream,
+    serial: u32,
+    deadline: Instant,
+) -> Result<Message, ManagerError> {
     let mut buffer: Vec<u8> = Vec::new();
     loop {
         if let Some(length) = message_length(&buffer)
@@ -166,26 +214,41 @@ fn read_reply(stream: &mut UnixStream, serial: u32, deadline: Instant) -> Result
         {
             let message = match decode_message(buffer.get(..length).unwrap_or_default()) {
                 Ok(message) => message,
-                Err(error) => return Err(ManagerError::Failed(format!("the manager's reply could not be read: {error:?}"))),
+                Err(error) => {
+                    return Err(ManagerError::Failed(format!(
+                        "the manager's reply could not be read: {error:?}"
+                    )));
+                }
             };
-            if message.reply_serial == Some(serial) && (message.kind == crate::dbus_wire::METHOD_RETURN || message.kind == crate::dbus_wire::ERROR) {
+            if message.reply_serial == Some(serial)
+                && (message.kind == crate::dbus_wire::METHOD_RETURN
+                    || message.kind == crate::dbus_wire::ERROR)
+            {
                 return Ok(message);
             }
             buffer.drain(..length);
             continue;
         }
         if buffer.len() >= MAX_REPLY_BYTES {
-            return Err(ManagerError::Failed(format!("the manager's reply passed {MAX_REPLY_BYTES} bytes and was dropped")));
+            return Err(ManagerError::Failed(format!(
+                "the manager's reply passed {MAX_REPLY_BYTES} bytes and was dropped"
+            )));
         }
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
-            return Err(ManagerError::TimedOut("the manager's socket did not answer within the time the call allows".to_string()));
+            return Err(ManagerError::TimedOut(
+                "the manager's socket did not answer within the time the call allows".to_string(),
+            ));
         }
         // Each read waits no longer than what is left of the call's own deadline.
         let _read_timeout = stream.set_read_timeout(Some(left));
         let mut chunk = [0u8; 8192];
         match stream.read(&mut chunk) {
-            Ok(0) => return Err(ManagerError::Failed("the manager closed the socket before it answered".to_string())),
+            Ok(0) => {
+                return Err(ManagerError::Failed(
+                    "the manager closed the socket before it answered".to_string(),
+                ));
+            }
             Ok(count) => buffer.extend_from_slice(chunk.get(..count).unwrap_or_default()),
             Err(error) => return Err(socket_failure(&error, "the manager's socket")),
         }
@@ -205,14 +268,20 @@ pub struct ManagerClient {
 impl ManagerClient {
     /// Builds a client with the production timeout.
     pub fn new() -> ManagerClient {
-        return ManagerClient { timeout: CALL_TIMEOUT, next_serial: std::cell::Cell::new(1) };
+        return ManagerClient {
+            timeout: CALL_TIMEOUT,
+            next_serial: std::cell::Cell::new(1),
+        };
     }
 
     /// Builds a client that gives up after `timeout`,
     /// which a control uses so a silent manager ends the call quickly.
     #[cfg(test)]
     pub fn with_timeout(timeout: Duration) -> ManagerClient {
-        return ManagerClient { timeout, next_serial: std::cell::Cell::new(1) };
+        return ManagerClient {
+            timeout,
+            next_serial: std::cell::Cell::new(1),
+        };
     }
 
     /// The serial of the next call.
@@ -228,18 +297,31 @@ impl ManagerClient {
     /// so the policy says which happened:
     /// a refusal is reported loudly and moves nothing,
     /// and a timeout pauses the moves for a few seconds.
-    pub fn call(&self, endpoint: &ManagerEndpoint, call: &MethodCall) -> Result<Message, ManagerError> {
+    pub fn call(
+        &self,
+        endpoint: &ManagerEndpoint,
+        call: &MethodCall,
+    ) -> Result<Message, ManagerError> {
         // The one deadline of this call, from before the connect, which no answer can extend.
         let deadline = Instant::now() + self.timeout;
         let mut stream = match UnixStream::connect(&endpoint.socket) {
             Ok(stream) => stream,
-            Err(error) => return Err(ManagerError::Failed(format!("the manager's socket {} could not be reached: {error}", endpoint.socket.display()))),
+            Err(error) => {
+                return Err(ManagerError::Failed(format!(
+                    "the manager's socket {} could not be reached: {error}",
+                    endpoint.socket.display()
+                )));
+            }
         };
         let _read_timeout = stream.set_read_timeout(Some(self.timeout));
         let _write_timeout = stream.set_write_timeout(Some(self.timeout));
         let peer = match peer_pid(&stream) {
             Ok(peer) => peer,
-            Err(error) => return Err(ManagerError::Failed(format!("the process behind the manager's socket could not be read: {error}"))),
+            Err(error) => {
+                return Err(ManagerError::Failed(format!(
+                    "the process behind the manager's socket could not be read: {error}"
+                )));
+            }
         };
         if peer != endpoint.expected_pid {
             return Err(ManagerError::Refused(format!(
@@ -251,7 +333,14 @@ nothing was sent, and a process that is not that manager is never listened to",
         }
         authenticate(&mut stream)?;
         let serial = self.serial();
-        let bytes = encode_call(serial, MANAGER_PATH, call.interface, call.member, None, &call.arguments);
+        let bytes = encode_call(
+            serial,
+            MANAGER_PATH,
+            call.interface,
+            call.member,
+            None,
+            &call.arguments,
+        );
         if let Err(error) = stream.write_all(&bytes) {
             return Err(socket_failure(&error, "the call to the manager"));
         }
@@ -265,7 +354,9 @@ nothing was sent, and a process that is not that manager is never listened to",
                 None => "an unnamed error".to_string(),
             };
             let text = reply.first_text().unwrap_or_default();
-            return Err(ManagerError::Failed(format!("the manager answered {name}: {text}")));
+            return Err(ManagerError::Failed(format!(
+                "the manager answered {name}: {text}"
+            )));
         }
         return Ok(reply);
     }
@@ -275,7 +366,11 @@ nothing was sent, and a process that is not that manager is never listened to",
 /// so the policy is testable without a manager and the production path stays in one place.
 pub trait ManagerCaller {
     /// Runs one call for the watched user `uid`.
-    fn call(&self, uid: u32, call: &MethodCall) -> Result<Message, ManagerError>;
+    fn call(
+        &self,
+        uid: u32,
+        call: &MethodCall,
+    ) -> Result<Message, ManagerError>;
 }
 
 /// The production seam:
@@ -293,12 +388,18 @@ pub struct PrivateSocketManager {
 impl PrivateSocketManager {
     /// Builds the production seam.
     pub fn new() -> PrivateSocketManager {
-        return PrivateSocketManager { client: ManagerClient::new(), endpoint: std::cell::RefCell::new(None) };
+        return PrivateSocketManager {
+            client: ManagerClient::new(),
+            endpoint: std::cell::RefCell::new(None),
+        };
     }
 
     /// The endpoint of the user's manager,
     /// resolved on the first call and kept until a refusal shows the resolved pid is no longer the manager's.
-    fn endpoint(&self, uid: u32) -> Result<ManagerEndpoint, ManagerError> {
+    fn endpoint(
+        &self,
+        uid: u32,
+    ) -> Result<ManagerEndpoint, ManagerError> {
         let mut slot = self.endpoint.borrow_mut();
         if let Some(endpoint) = slot.as_ref() {
             return Ok(endpoint.clone());
@@ -319,7 +420,11 @@ impl PrivateSocketManager {
 impl ManagerCaller for PrivateSocketManager {
     /// Runs one call,
     /// with the peer check that refuses a socket answered by anything but the user's manager.
-    fn call(&self, uid: u32, call: &MethodCall) -> Result<Message, ManagerError> {
+    fn call(
+        &self,
+        uid: u32,
+        call: &MethodCall,
+    ) -> Result<Message, ManagerError> {
         let endpoint = self.endpoint(uid)?;
         let outcome = self.client.call(&endpoint, call);
         if matches!(outcome, Err(ManagerError::Refused(_))) {

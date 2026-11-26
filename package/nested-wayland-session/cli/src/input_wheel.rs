@@ -1,16 +1,30 @@
 //! Native wheel and touchpad scroll injection through the nested seat,
 //!  not a client test API.
 
-/// Application diagnostics describe malformed or currently unmapped input.
-use anyhow::{bail, Context, Result};
-/// Smithay distinguishes wheel axes from touchpad/finger gestures.
-use smithay::{
-    backend::input::{Axis, AxisSource},
-    input::pointer::{AxisFrame, MotionEvent},
-    utils::{Logical, Point, SERIAL_COUNTER},
-};
 /// Only the nested compositor's seat is touched.
 use crate::state::Compositor;
+/// Application diagnostics describe malformed or currently unmapped input.
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
+/// Smithay distinguishes wheel axes from touchpad/finger gestures.
+use smithay::{
+    backend::input::{
+        Axis,
+        AxisSource,
+    },
+    input::pointer::{
+        AxisFrame,
+        MotionEvent,
+    },
+    utils::{
+        Logical,
+        Point,
+        SERIAL_COUNTER,
+    },
+};
 
 /// Wayland `axis_value120` units in one wheel notch.
 ///
@@ -55,7 +69,7 @@ const PIXELS_PER_NOTCH: f64 = 10.0;
 /// ```
 #[must_use]
 pub fn notches_to_v120(notches: f64) -> i32 {
-    return (notches * V120_PER_NOTCH).round() as i32
+    return (notches * V120_PER_NOTCH).round() as i32;
 }
 
 /// Move the pointer to a logical point,
@@ -70,11 +84,19 @@ pub fn notches_to_v120(notches: f64) -> i32 {
 /// ```ts
 /// function pointPointerAt(state: Compositor, x: number, y: number): void { ... }
 /// ```
-fn point_pointer_at(state: &mut Compositor, x: f64, y: f64, what: &str) -> Result<()> {
+fn point_pointer_at(
+    state: &mut Compositor,
+    x: f64,
+    y: f64,
+    what: &str,
+) -> Result<()> {
     if !x.is_finite() || !y.is_finite() {
         bail!("{what} coordinates must be finite");
     }
-    let pointer = state.seat.get_pointer().context("nested seat has no pointer")?;
+    let pointer = state
+        .seat
+        .get_pointer()
+        .context("nested seat has no pointer")?;
     // Logical coordinates are local to the nested output, never the host desktop.
     let location: Point<f64, Logical> = (x, y).into();
     let under = state.surface_under(location);
@@ -87,10 +109,16 @@ fn point_pointer_at(state: &mut Compositor, x: f64, y: f64, what: &str) -> Resul
         );
     }
     let time = state.start_time.elapsed().as_millis() as u32;
-    pointer.motion(state, under, &MotionEvent {
-        location, serial: SERIAL_COUNTER.next_serial(), time,
-    });
-    return Ok(())
+    pointer.motion(
+        state,
+        under,
+        &MotionEvent {
+            location,
+            serial: SERIAL_COUNTER.next_serial(),
+            time,
+        },
+    );
+    return Ok(());
 }
 
 /// Inject wheel notches at logical coordinates;
@@ -108,27 +136,50 @@ fn point_pointer_at(state: &mut Compositor, x: f64, y: f64, what: &str) -> Resul
 /// pointer.move(x, y);
 /// pointer.wheel({ horizontalNotches, verticalNotches });
 /// ```
-pub fn wheel(state: &mut Compositor, x: f64, y: f64, horizontal: f64, vertical: f64) -> Result<()> {
+pub fn wheel(
+    state: &mut Compositor,
+    x: f64,
+    y: f64,
+    horizontal: f64,
+    vertical: f64,
+) -> Result<()> {
     let horizontal_v120 = notches_to_v120(horizontal);
     let vertical_v120 = notches_to_v120(vertical);
     if horizontal_v120 == 0 && vertical_v120 == 0 {
         bail!("wheel amounts are both smaller than one 120th of a notch");
     }
     point_pointer_at(state, x, y, "wheel")?;
-    let pointer = state.seat.get_pointer().context("nested seat has no pointer")?;
+    let pointer = state
+        .seat
+        .get_pointer()
+        .context("nested seat has no pointer")?;
     let time = state.start_time.elapsed().as_millis() as u32;
     let mut frame = AxisFrame::new(time).source(AxisSource::Wheel);
     if horizontal_v120 != 0 {
-        frame = frame.value(Axis::Horizontal, f64::from(horizontal_v120) / V120_PER_NOTCH * PIXELS_PER_NOTCH);
+        frame = frame.value(
+            Axis::Horizontal,
+            f64::from(horizontal_v120) / V120_PER_NOTCH * PIXELS_PER_NOTCH,
+        );
         frame = frame.v120(Axis::Horizontal, horizontal_v120);
     }
     if vertical_v120 != 0 {
-        frame = frame.value(Axis::Vertical, f64::from(vertical_v120) / V120_PER_NOTCH * PIXELS_PER_NOTCH);
+        frame = frame.value(
+            Axis::Vertical,
+            f64::from(vertical_v120) / V120_PER_NOTCH * PIXELS_PER_NOTCH,
+        );
         frame = frame.v120(Axis::Vertical, vertical_v120);
     }
     pointer.axis(state, frame);
     pointer.frame(state);
-    tracing::debug!(x, y, horizontal, vertical, horizontal_v120, vertical_v120, "injected nested wheel notches");
+    tracing::debug!(
+        x,
+        y,
+        horizontal,
+        vertical,
+        horizontal_v120,
+        vertical_v120,
+        "injected nested wheel notches"
+    );
     return Ok(());
 }
 
@@ -148,9 +199,18 @@ pub fn wheel(state: &mut Compositor, x: f64, y: f64, horizontal: f64, vertical: 
 /// pointer.move(x, y);
 /// pointer.touchpadScroll({ dx, dy });
 /// ```
-pub fn scroll(state: &mut Compositor, x: f64, y: f64, dx: f64, dy: f64) -> Result<()> {
+pub fn scroll(
+    state: &mut Compositor,
+    x: f64,
+    y: f64,
+    dx: f64,
+    dy: f64,
+) -> Result<()> {
     point_pointer_at(state, x, y, "scroll")?;
-    let pointer = state.seat.get_pointer().context("nested seat has no pointer")?;
+    let pointer = state
+        .seat
+        .get_pointer()
+        .context("nested seat has no pointer")?;
     let time = state.start_time.elapsed().as_millis() as u32;
     let mut frame = AxisFrame::new(time).source(AxisSource::Finger);
     if dx != 0.0 {
@@ -162,7 +222,7 @@ pub fn scroll(state: &mut Compositor, x: f64, y: f64, dx: f64, dy: f64) -> Resul
     pointer.axis(state, frame);
     pointer.frame(state);
     tracing::debug!(x, y, dx, dy, "injected a nested touchpad scroll");
-    return Ok(())
+    return Ok(());
 }
 
 /// Inject the finger-lift stop that ends a touchpad scroll.
@@ -177,13 +237,19 @@ pub fn scroll(state: &mut Compositor, x: f64, y: f64, dx: f64, dy: f64) -> Resul
 /// pointer.touchpadScrollStop();
 /// ```
 pub fn scroll_stop(state: &mut Compositor) -> Result<()> {
-    let pointer = state.seat.get_pointer().context("nested seat has no pointer")?;
+    let pointer = state
+        .seat
+        .get_pointer()
+        .context("nested seat has no pointer")?;
     let time = state.start_time.elapsed().as_millis() as u32;
-    let frame = AxisFrame::new(time).source(AxisSource::Finger).stop(Axis::Horizontal).stop(Axis::Vertical);
+    let frame = AxisFrame::new(time)
+        .source(AxisSource::Finger)
+        .stop(Axis::Horizontal)
+        .stop(Axis::Vertical);
     pointer.axis(state, frame);
     pointer.frame(state);
     tracing::debug!("injected a nested touchpad scroll stop");
-    return Ok(())
+    return Ok(());
 }
 
 /// What:

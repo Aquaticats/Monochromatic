@@ -20,7 +20,11 @@
 /// One source owner,
 ///  one window,
 ///  and the navigation state that opens other files.
-use super::{AppWindow, State, navigation::Navigation};
+use super::{
+    AppWindow,
+    State,
+    navigation::Navigation,
+};
 /// What:
 ///  `anyhow::Result<T>` is a value or an error with a readable chain of causes.
 /// Why:
@@ -37,12 +41,22 @@ use anyhow::Result;
 ///  and the states and replies it reports.
 use ide_app::language::{
     LanguageWorker,
-    identity::{DocumentStamp, ServerIdentity},
-    reply::{RequestKind, RequestOutcome},
+    identity::{
+        DocumentStamp,
+        ServerIdentity,
+    },
+    reply::{
+        RequestKind,
+        RequestOutcome,
+    },
     status::LanguageStatus,
 };
 /// Weak window handles and a retained repeating timer.
-use slint::{ComponentHandle, Timer, TimerMode};
+use slint::{
+    ComponentHandle,
+    Timer,
+    TimerMode,
+};
 /// What:
 ///  `Rc<RefCell<T>>` is one shared,
 ///  run-time borrow-checked owner on this thread;
@@ -59,10 +73,16 @@ use slint::{ComponentHandle, Timer, TimerMode};
 /// ```
 use std::{
     cell::RefCell,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     rc::Rc,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Window callbacks:
@@ -103,7 +123,10 @@ mod sync;
 mod targets;
 
 /// The file-open path places the caret at a target once its file is shown.
-pub(super) use targets::{Jump, place};
+pub(super) use targets::{
+    Jump,
+    place,
+};
 
 /// Server hints and diagnostics painted by the poll,
 ///  and the problem card yielding to the popup.
@@ -373,5 +396,8 @@ pub(super) fn bind(
         };
         poll::tick(&active, &tick_source, &tick_navigation, &mut current);
     });
-    return LanguageBinding { timer, language };
+    return LanguageBinding {
+        timer,
+        language,
+    };
 }

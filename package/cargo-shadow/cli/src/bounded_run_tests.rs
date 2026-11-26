@@ -19,10 +19,17 @@ use std::process::Command;
 // ```ts
 // // TS has one type for this: T[] / Set / Map / number
 // ```
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 // Imports `crate::bounded_run::{Bound, RunError, outpu...`.
-use crate::bounded_run::{Bound, RunError, output_within};
+use crate::bounded_run::{
+    Bound,
+    RunError,
+    output_within,
+};
 
 /// A bound with words the tests look for.
 fn bound(limit: Duration) -> Bound {
@@ -33,7 +40,11 @@ fn bound(limit: Duration) -> Bound {
     // ```ts
     // String(value)  // JS strings are always owned values
     // ```
-    return Bound { limit, what: "the slow command".to_string(), rerun: "slow-command --again".to_string() };
+    return Bound {
+        limit,
+        what: "the slow command".to_string(),
+        rerun: "slow-command --again".to_string(),
+    };
 }
 
 /// A child that outlives its bound is stopped and the error names it and the command to run again.
@@ -47,27 +58,53 @@ fn a_child_that_outlives_its_bound_is_stopped_and_named() {
     let started = Instant::now();
     let pid_file = directory.path().join("payload-pid");
     // The payload lives far longer than any bound the retries reach, so a run that ends is ended by its bound.
-    let script: String = format!("echo $$ > {}; : > {}; exec sleep 600", pid_file.display(), marker.display());
+    let script: String = format!(
+        "echo $$ > {}; : > {}; exec sleep 600",
+        pid_file.display(),
+        marker.display()
+    );
 
     // An attempt whose bound ended before the payload wrote its marker is repeated with a longer one (the bound counts scope startup).
     let (result, limit, judged) = crate::cgroup_test_support::run_until_the_payload_started(
         Duration::from_secs(2),
-        &|| { let _ = std::fs::remove_file(&marker); },
-        &|| { return marker.exists(); },
-        &mut |limit| { return output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit)); },
+        &|| {
+            let _ = std::fs::remove_file(&marker);
+        },
+        &|| {
+            return marker.exists();
+        },
+        &mut |limit| {
+            return output_within(
+                Command::new("sh").args(["-c", &script]),
+                None,
+                &bound(limit),
+            );
+        },
     );
 
     // The payload is gone the moment the run returned, before any cleanup of the test (fourth certification pass): a timeout that
     // returned at the deadline without stopping it would leave it running here.
-    assert!(!crate::contain_counterexample_tests::is_running(pid_in(&pid_file)), "the payload still runs after the run returned at its bound");
+    assert!(
+        !crate::contain_counterexample_tests::is_running(pid_in(&pid_file)),
+        "the payload still runs after the run returned at its bound"
+    );
     // With the first bound the child (five seconds) is stopped at the bound and not waited for.
-    assert!(judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2, "the judged run ended after {judged:?}, not at its bound of {limit:?}; the child was waited for or the bound was overshot");
+    assert!(
+        judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2,
+        "the judged run ended after {judged:?}, not at its bound of {limit:?}; the child was waited for or the bound was overshot"
+    );
     let _ = started;
-    assert!(marker.exists(), "the payload never started, so the bound was not the command's lifetime");
+    assert!(
+        marker.exists(),
+        "the payload never started, so the bound was not the command's lifetime"
+    );
     let error: RunError = result.expect_err("a timeout");
     assert!(matches!(error, RunError::TimedOut { .. }), "{error:?}");
     let message: String = error.to_string();
-    assert!(message.contains("the slow command") && message.contains("slow-command --again"), "{message}");
+    assert!(
+        message.contains("the slow command") && message.contains("slow-command --again"),
+        "{message}"
+    );
 }
 
 /// A child that finishes returns its output and status.
@@ -83,7 +120,12 @@ fn a_child_that_finishes_returns_its_output() {
     // ```ts
     // value ?? fallback
     // ```
-    let output = output_within(Command::new("sh").args(["-c", "echo out; echo err >&2; exit 3"]), None, &bound(Duration::from_secs(10))).expect("runs");
+    let output = output_within(
+        Command::new("sh").args(["-c", "echo out; echo err >&2; exit 3"]),
+        None,
+        &bound(Duration::from_secs(10)),
+    )
+    .expect("runs");
 
     // Borrow `&output.stdout`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
@@ -104,10 +146,19 @@ fn a_grandchild_that_keeps_the_pipes_open_does_not_hold_the_caller() {
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&bound`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let output = output_within(Command::new("sh").args(["-c", "sleep 5 & echo done"]), None, &bound(Duration::from_secs(10))).expect("runs");
+    let output = output_within(
+        Command::new("sh").args(["-c", "sleep 5 & echo done"]),
+        None,
+        &bound(Duration::from_secs(10)),
+    )
+    .expect("runs");
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(started.elapsed() < Duration::from_secs(3), "{:?}", started.elapsed());
+    assert!(
+        started.elapsed() < Duration::from_secs(3),
+        "{:?}",
+        started.elapsed()
+    );
     // Borrow `&output.stdout`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
@@ -138,7 +189,12 @@ fn large_input_and_output_do_not_deadlock() {
     // `Some`: the present or the absent value of an `Option`.
     // Borrow `&mut Command`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let output = output_within(&mut Command::new("cat"), Some(&input), &bound(Duration::from_secs(20))).expect("runs");
+    let output = output_within(
+        &mut Command::new("cat"),
+        Some(&input),
+        &bound(Duration::from_secs(20)),
+    )
+    .expect("runs");
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(output.stdout.len(), input.len());
@@ -154,7 +210,11 @@ fn a_child_that_ignores_its_input_is_reaped() {
 
     // `Some`: the present or the absent value of an `Option`.
     // Borrow `&input`: lends the value without copying or giving it away.
-    let result = output_within(Command::new("sh").args(["-c", "exit 0"]), Some(&input), &bound(Duration::from_secs(10)));
+    let result = output_within(
+        Command::new("sh").args(["-c", "exit 0"]),
+        Some(&input),
+        &bound(Duration::from_secs(10)),
+    );
 
     // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
     // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
@@ -179,7 +239,13 @@ fn a_child_that_ignores_its_input_is_reaped() {
     // list.map(f).filter(g)
     // ```
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(result.is_ok(), "{:?}", result.map(|output| { return output.status; }));
+    assert!(
+        result.is_ok(),
+        "{:?}",
+        result.map(|output| {
+            return output.status;
+        })
+    );
 }
 
 /// A program that does not exist is an I/O error naming nothing but the system's words.
@@ -187,7 +253,11 @@ fn a_child_that_ignores_its_input_is_reaped() {
 fn a_program_that_does_not_exist_is_an_io_error() {
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&mut Command`: lends the value without copying or giving it away.
-    let result = output_within(&mut Command::new("/nonexistent/program"), None, &bound(Duration::from_secs(1)));
+    let result = output_within(
+        &mut Command::new("/nonexistent/program"),
+        None,
+        &bound(Duration::from_secs(1)),
+    );
 
     // `Err(...)`: builds the success or the failure variant of a `Result`.
     // Macro `assert!`: builds or prints text (or a list) from a template.
@@ -201,7 +271,9 @@ fn a_program_that_does_not_exist_is_an_io_error() {
 /// stops the test,
 /// and it reads through the pinned procfs and a pidfd of the caller's namespace.
 fn alive(pid: i32) -> bool {
-    return crate::control_group::process_is_running(pid).unwrap_or_else(|reason| { panic!("whether process {pid} runs cannot be told: {reason}"); });
+    return crate::control_group::process_is_running(pid).unwrap_or_else(|reason| {
+        panic!("whether process {pid} runs cannot be told: {reason}");
+    });
 }
 
 /// Waits (a few milliseconds at a time,
@@ -221,7 +293,15 @@ fn delegated_transaction() -> (tempfile::TempDir, crate::journal::Transaction) {
     let workspace = crate::test_scratch::scratch();
     std::fs::create_dir_all(workspace.path().join("package/b/one")).expect("dir");
     std::fs::write(workspace.path().join("package/b/one/Cargo.lock"), "lock").expect("lock");
-    let transaction = crate::journal::begin(workspace.path(), &[crate::crates::LockSnapshot { crate_dir: "package/b/one".to_string(), source: "lock".to_string() }], false).expect("begin");
+    let transaction = crate::journal::begin(
+        workspace.path(),
+        &[crate::crates::LockSnapshot {
+            crate_dir: "package/b/one".to_string(),
+            source: "lock".to_string(),
+        }],
+        false,
+    )
+    .expect("begin");
     return (workspace, transaction);
 }
 
@@ -251,19 +331,39 @@ fn a_descendant_is_stopped_with_its_parent_at_the_bound() {
     // a longer one (it judges nothing about stopping a descendant at the bound).
     let (result, limit, judged) = crate::cgroup_test_support::run_until_the_payload_started(
         Duration::from_millis(400),
-        &|| { let _ = std::fs::remove_file(&pid_file); },
-        &|| { return std::fs::read_to_string(&pid_file).is_ok_and(|text| { return text.trim().parse::<i32>().is_ok(); }); },
-        &mut |limit| { return output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit)); },
+        &|| {
+            let _ = std::fs::remove_file(&pid_file);
+        },
+        &|| {
+            return std::fs::read_to_string(&pid_file).is_ok_and(|text| {
+                return text.trim().parse::<i32>().is_ok();
+            });
+        },
+        &mut |limit| {
+            return output_within(
+                Command::new("sh").args(["-c", &script]),
+                None,
+                &bound(limit),
+            );
+        },
     );
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(result.is_err());
-    assert!(judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2, "the judged run ended after {judged:?}, not at its bound of {limit:?}");
+    assert!(
+        judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2,
+        "the judged run ended after {judged:?}, not at its bound of {limit:?}"
+    );
     // Borrow `&pid_file`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
     // The run used a delegated scope (certification group 1).
-    crate::cgroup_test_support::assert_scope_record(&crate::journal_support::journal_dirs(workspace.path())[0].join("groups").display().to_string());
+    crate::cgroup_test_support::assert_scope_record(
+        &crate::journal_support::journal_dirs(workspace.path())[0]
+            .join("groups")
+            .display()
+            .to_string(),
+    );
     drop(transaction);
 }
 
@@ -283,7 +383,12 @@ fn a_descendant_left_after_a_normal_exit_is_stopped() {
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&script`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(10))).expect("runs");
+    let output = output_within(
+        Command::new("sh").args(["-c", &script]),
+        None,
+        &bound(Duration::from_secs(10)),
+    )
+    .expect("runs");
 
     // Borrow `&output.stdout`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
@@ -292,7 +397,12 @@ fn a_descendant_left_after_a_normal_exit_is_stopped() {
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
     // The run used a delegated scope (certification group 1).
-    crate::cgroup_test_support::assert_scope_record(&crate::journal_support::journal_dirs(workspace.path())[0].join("groups").display().to_string());
+    crate::cgroup_test_support::assert_scope_record(
+        &crate::journal_support::journal_dirs(workspace.path())[0]
+            .join("groups")
+            .display()
+            .to_string(),
+    );
     drop(transaction);
 }
 
@@ -328,16 +438,34 @@ fn a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_outpu
     );
 
     let started = Instant::now();
-    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit));
+    let result = output_within(
+        Command::new("sh").args(["-c", &script]),
+        None,
+        &bound(limit),
+    );
     let elapsed: Duration = started.elapsed();
 
     let output = result.expect("the holder of the pipe was stopped, so the output is complete");
-    assert!(pid_file.exists(), "the descendant was not established before the direct program ended");
-    assert!(elapsed < limit, "the call answered after {elapsed:?}, not within its bound {limit:?}: it waited for the holder of the pipes");
+    assert!(
+        pid_file.exists(),
+        "the descendant was not established before the direct program ended"
+    );
+    assert!(
+        elapsed < limit,
+        "the call answered after {elapsed:?}, not within its bound {limit:?}: it waited for the holder of the pipes"
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "started");
-    assert!(gone_soon(pid_in(&pid_file)), "the descendant in another session still runs");
+    assert!(
+        gone_soon(pid_in(&pid_file)),
+        "the descendant in another session still runs"
+    );
     // The run used a delegated scope (certification group 1).
-    crate::cgroup_test_support::assert_scope_record(&crate::journal_support::journal_dirs(workspace.path())[0].join("groups").display().to_string());
+    crate::cgroup_test_support::assert_scope_record(
+        &crate::journal_support::journal_dirs(workspace.path())[0]
+            .join("groups")
+            .display()
+            .to_string(),
+    );
     drop(transaction);
 }
 
@@ -350,7 +478,11 @@ fn a_timeout_names_the_command_the_user_ran() {
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     crate::bounded_run::set_rerun(Some("cargo build --release".to_string()));
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    let named = Bound { limit: Duration::from_millis(200), what: "`cargo update`".to_string(), rerun: crate::bounded_run::rerun_text() };
+    let named = Bound {
+        limit: Duration::from_millis(200),
+        what: "`cargo update`".to_string(),
+        rerun: crate::bounded_run::rerun_text(),
+    };
 
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&named`: lends the value without copying or giving it away.
@@ -379,36 +511,64 @@ fn a_timeout_names_the_command_the_user_ran() {
 /// so the helper repeats with a
 /// longer bound and the judged attempt is the one in which the payload started and was stopped with its parent.
 #[test]
-fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_bound_and_then_judged() {
+fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_bound_and_then_judged()
+{
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let (_workspace, transaction) = delegated_transaction();
     let directory = crate::test_scratch::scratch();
     let slow: std::path::PathBuf = directory.path().join("slow-systemd-run");
-    std::fs::write(&slow, "#!/bin/sh\nsleep 1\nexec systemd-run \"$@\"\n").expect("write the slow launcher");
-    std::fs::set_permissions(&slow, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("make it executable");
-    crate::bounded_run::use_route_settings_for_test(Some(crate::control_group::RouteSettings { systemd_run: slow.display().to_string(), ..crate::control_group::RouteSettings::default() }));
+    std::fs::write(&slow, "#!/bin/sh\nsleep 1\nexec systemd-run \"$@\"\n")
+        .expect("write the slow launcher");
+    std::fs::set_permissions(&slow, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+        .expect("make it executable");
+    crate::bounded_run::use_route_settings_for_test(Some(crate::control_group::RouteSettings {
+        systemd_run: slow.display().to_string(),
+        ..crate::control_group::RouteSettings::default()
+    }));
     let pid_file = directory.path().join("pid");
     let script = format!("sleep 30 & echo $! > {}; sleep 30", pid_file.display());
     let attempts: std::cell::Cell<u32> = std::cell::Cell::new(0);
 
     let (result, limit, judged) = crate::cgroup_test_support::run_until_the_payload_started(
         Duration::from_millis(400),
-        &|| { let _ = std::fs::remove_file(&pid_file); },
-        &|| { return std::fs::read_to_string(&pid_file).is_ok_and(|text| { return text.trim().parse::<i32>().is_ok(); }); },
+        &|| {
+            let _ = std::fs::remove_file(&pid_file);
+        },
+        &|| {
+            return std::fs::read_to_string(&pid_file).is_ok_and(|text| {
+                return text.trim().parse::<i32>().is_ok();
+            });
+        },
         &mut |limit| {
             attempts.set(attempts.get() + 1);
-            return output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit));
+            return output_within(
+                Command::new("sh").args(["-c", &script]),
+                None,
+                &bound(limit),
+            );
         },
     );
     crate::bounded_run::use_route_settings_for_test(None);
 
-    assert!(attempts.get() >= 2, "the first bound of 400 ms did not end during the one-second startup, so the schedule was not built");
-    assert!(limit > Duration::from_secs(1), "the judged bound {limit:?} is not longer than the startup");
+    assert!(
+        attempts.get() >= 2,
+        "the first bound of 400 ms did not end during the one-second startup, so the schedule was not built"
+    );
+    assert!(
+        limit > Duration::from_secs(1),
+        "the judged bound {limit:?} is not longer than the startup"
+    );
     // The retried run ended at its bound with the timeout, not with some other error.
-    assert!(matches!(result, Err(RunError::TimedOut { .. })), "the judged run did not end at its bound: {result:?}");
+    assert!(
+        matches!(result, Err(RunError::TimedOut { .. })),
+        "the judged run did not end at its bound: {result:?}"
+    );
     // Sixth pass, group 9: the judged attempt itself ended at its enlarged bound (a run that waited for the shell and its sleeps to end
     // would also be a timeout, but it would take as long as they live).
-    assert!(judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2, "the judged run ended after {judged:?}, not at its bound of {limit:?}");
+    assert!(
+        judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2,
+        "the judged run ended after {judged:?}, not at its bound of {limit:?}"
+    );
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
     drop(transaction);
 }
@@ -425,7 +585,12 @@ fn record_sync_fixture() {
     let Ok(file) = std::env::var(FIXTURE_RECORD_FILE) else {
         return;
     };
-    crate::bounded_run::append_record_with(std::path::Path::new(&file), &crate::control_group::Record::ProcessGroupStarting, true).expect("appends the record");
+    crate::bounded_run::append_record_with(
+        std::path::Path::new(&file),
+        &crate::control_group::Record::ProcessGroupStarting,
+        true,
+    )
+    .expect("appends the record");
 }
 
 /// Acceptance row V3 (certification,
@@ -440,8 +605,14 @@ fn record_sync_fixture() {
 /// A host without `strace` says so and stops (this host has it).
 #[test]
 fn the_record_sync_is_given_to_the_kernel_after_the_write() {
-    if std::process::Command::new("strace").arg("--version").output().is_err() {
-        crate::test_scratch::skip_or_fail("strace is not installed, so the system calls of the record cannot be observed here");
+    if std::process::Command::new("strace")
+        .arg("--version")
+        .output()
+        .is_err()
+    {
+        crate::test_scratch::skip_or_fail(
+            "strace is not installed, so the system calls of the record cannot be observed here",
+        );
         return;
     }
     let directory = crate::test_scratch::scratch();
@@ -453,7 +624,12 @@ fn the_record_sync_is_given_to_the_kernel_after_the_write() {
         .args(["-f", "-y", "-e", "trace=write,fsync", "-o"])
         .arg(&log)
         .arg(std::env::current_exe().expect("this test executable"))
-        .args(["--ignored", "--exact", "bounded_run_tests::record_sync_fixture", "--nocapture"])
+        .args([
+            "--ignored",
+            "--exact",
+            "bounded_run_tests::record_sync_fixture",
+            "--nocapture",
+        ])
         .env(FIXTURE_RECORD_FILE, &record)
         .status()
         .expect("strace runs the helper");
@@ -461,11 +637,25 @@ fn the_record_sync_is_given_to_the_kernel_after_the_write() {
     assert!(status.success(), "{status:?}");
     let text: String = std::fs::read_to_string(&log).expect("the strace log");
     let shown: String = format!("<{}>", record.display());
-    let calls: Vec<&str> = text.lines().filter(|line| { return line.contains(&shown); }).collect();
-    let write_at = calls.iter().position(|line| { return line.contains("write(") && line.contains("pgroup starting"); });
-    let sync_at = calls.iter().position(|line| { return line.contains("fsync(") && line.contains("= 0"); });
+    let calls: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            return line.contains(&shown);
+        })
+        .collect();
+    let write_at = calls.iter().position(|line| {
+        return line.contains("write(") && line.contains("pgroup starting");
+    });
+    let sync_at = calls.iter().position(|line| {
+        return line.contains("fsync(") && line.contains("= 0");
+    });
     let (Some(written), Some(synced)) = (write_at, sync_at) else {
-        panic!("the kernel was not given a write of the record and an fsync of its file: {calls:?}");
+        panic!(
+            "the kernel was not given a write of the record and an fsync of its file: {calls:?}"
+        );
     };
-    assert!(written < synced, "the record file was synchronized before it was written: {calls:?}");
+    assert!(
+        written < synced,
+        "the record file was synchronized before it was written: {calls:?}"
+    );
 }

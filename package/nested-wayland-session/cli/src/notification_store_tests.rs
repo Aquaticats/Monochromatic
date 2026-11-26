@@ -6,7 +6,10 @@
 use super::*;
 
 /// Builds a `Notify` call with the given replacement id and summary.
-fn call(replaces_id: u32, summary: &str) -> NotifyCall {
+fn call(
+    replaces_id: u32,
+    summary: &str,
+) -> NotifyCall {
     return NotifyCall {
         app_name: "app".to_string(),
         replaces_id,
@@ -38,9 +41,21 @@ fn replacement_keeps_the_id_and_counts() {
     store.notify(2, call(0, "other"));
     assert_eq!(store.notify(5, call(first, "a2")), first);
     assert_eq!(store.notify(9, call(first, "a3")), first);
-    let shown = store.find(first).expect("the notification is still visible");
-    assert_eq!((shown.call.summary.as_str(), shown.replaced_count, shown.updated_ms), ("a3", 2, 9));
-    assert_eq!(store.visible().first().map(|entry| return entry.id), Some(first));
+    let shown = store
+        .find(first)
+        .expect("the notification is still visible");
+    assert_eq!(
+        (
+            shown.call.summary.as_str(),
+            shown.replaced_count,
+            shown.updated_ms
+        ),
+        ("a3", 2, 9)
+    );
+    assert_eq!(
+        store.visible().first().map(|entry| return entry.id),
+        Some(first)
+    );
     assert_eq!(store.visible().len(), 2);
 }
 
@@ -50,7 +65,10 @@ fn replacement_keeps_the_id_and_counts() {
 fn unknown_replacement_id_is_accepted() {
     let mut store = NotificationStore::default();
     assert_eq!(store.notify(1, call(77, "x")), 77);
-    assert_eq!(store.find(77).map(|entry| return entry.replaced_count), Some(0));
+    assert_eq!(
+        store.find(77).map(|entry| return entry.replaced_count),
+        Some(0)
+    );
     // The counter has not moved, and the occupied id is never handed out again.
     store.set_last_id(76);
     assert_eq!(store.notify(2, call(0, "y")), 78);
@@ -73,9 +91,25 @@ fn close_call_reports_whether_the_id_was_visible() {
     assert!(store.close_call(2, id));
     assert!(!store.close_call(3, id));
     assert!(store.visible().is_empty());
-    let kinds: Vec<&NotificationEvent> = store.last_events(10).iter().map(|timed| return &timed.event).collect();
-    assert!(matches!(kinds[1], NotificationEvent::CloseCall { known: true, .. }));
-    assert!(matches!(kinds[2], NotificationEvent::CloseCall { known: false, .. }));
+    let kinds: Vec<&NotificationEvent> = store
+        .last_events(10)
+        .iter()
+        .map(|timed| return &timed.event)
+        .collect();
+    assert!(matches!(
+        kinds[1],
+        NotificationEvent::CloseCall {
+            known: true,
+            ..
+        }
+    ));
+    assert!(matches!(
+        kinds[2],
+        NotificationEvent::CloseCall {
+            known: false,
+            ..
+        }
+    ));
 }
 
 /// A control close logs the signal only for visible ids.

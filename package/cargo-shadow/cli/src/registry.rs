@@ -48,7 +48,10 @@ use std::cell::Cell;
 /// ```ts
 /// import { BTreeMap, BTreeSet } from 'std/collections';
 /// ```
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 /// What:
 /// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
 /// Why:
@@ -82,7 +85,10 @@ use std::fs;
 /// ```ts
 /// import { Path, PathBuf } from 'std/path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 /// `use std::thread::sleep;` imports `sleep` from the standard library so this file can name it unqualified.
 /// Why:
@@ -117,7 +123,10 @@ use std::thread::sleep;
 /// ```ts
 /// import { Duration, Instant } from 'std/time';
 /// ```
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 /// `use serde_json::Value;` imports `Value` from the external crate `serde_json` so this file can name it unqualified.
@@ -166,7 +175,11 @@ use crate::dump::fill_histories_from_dump;
 /// ```ts
 /// import { DumpSource, RegistryError, TextFetcher } from 'crate/http';
 /// ```
-use crate::http::{DumpSource, RegistryError, TextFetcher};
+use crate::http::{
+    DumpSource,
+    RegistryError,
+    TextFetcher,
+};
 /// What:
 /// `use crate::policy::VersionRecord;` imports `VersionRecord` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -241,17 +254,33 @@ pub trait Registry {
     /// Publish time (RFC 3339) of each version of a crate,
     /// from the sparse index;
     /// empty when the index has none.
-    fn pubtimes(&self, name: &str) -> Result<BTreeMap<String, String>, RegistryError>;
+    fn pubtimes(
+        &self,
+        name: &str,
+    ) -> Result<BTreeMap<String, String>, RegistryError>;
     /// The yanked versions of a crate.
-    fn yanked(&self, name: &str) -> Result<BTreeSet<String>, RegistryError>;
+    fn yanked(
+        &self,
+        name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError>;
     /// Every release of a crate;
     /// read from the cache when it lists all of `versions`.
-    fn history(&self, name: &str, versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError>;
+    fn history(
+        &self,
+        name: &str,
+        versions: &[String],
+    ) -> Result<Vec<VersionRecord>, RegistryError>;
     /// The account ids of the crate's listed individual owners.
-    fn owners(&self, name: &str) -> Result<BTreeSet<String>, RegistryError>;
+    fn owners(
+        &self,
+        name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError>;
     /// Warms the history cache for these crates before they are asked for one by one;
     /// a registry with nothing to warm does nothing.
-    fn prefetch(&self, _names: &BTreeSet<String>) -> Result<(), RegistryError> {
+    fn prefetch(
+        &self,
+        _names: &BTreeSet<String>,
+    ) -> Result<(), RegistryError> {
         // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
         // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
         //
@@ -330,12 +359,19 @@ pub fn sparse_index_path(name: &str) -> String {
 /// Why:
 /// `Result::map_err` takes it by path instead of a closure.
 fn registry_error_of_dump(error: crate::csv::DumpFormatError) -> RegistryError {
-    return RegistryError { message: error.message, status: None, retry_after_seconds: 0 };
+    return RegistryError {
+        message: error.message,
+        status: None,
+        retry_after_seconds: 0,
+    };
 }
 
 /// Reads a string field,
 /// empty when absent or not a string.
-fn string_field(object: &Value, key: &str) -> String {
+fn string_field(
+    object: &Value,
+    key: &str,
+) -> String {
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
     // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
     //
@@ -365,11 +401,18 @@ fn string_field(object: &Value, key: &str) -> String {
     // ```ts
     // list.map(f).filter(g)
     // ```
-    return object.get(key).and_then(Value::as_str).unwrap_or("").to_string();
+    return object
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
 }
 
 /// Reads an id that crates.io writes as a number and the cache writes as text.
-fn id_field(object: &Value, key: &str) -> String {
+fn id_field(
+    object: &Value,
+    key: &str,
+) -> String {
     // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
     // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
     //
@@ -420,7 +463,11 @@ fn id_field(object: &Value, key: &str) -> String {
 /// const indexLineError = (error: Error) => new RegistryError(`sparse index line: ${error.message}`);
 /// ```
 fn index_line_error(error: serde_json::Error) -> RegistryError {
-    return RegistryError { message: format!("sparse index line: {error}"), status: None, retry_after_seconds: 0 };
+    return RegistryError {
+        message: format!("sparse index line: {error}"),
+        status: None,
+        retry_after_seconds: 0,
+    };
 }
 
 /// The sparse index lines as JSON values;
@@ -493,7 +540,10 @@ pub fn parse_index_pubtimes(text: &str) -> Result<BTreeMap<String, String>, Regi
         // Adapter `.and_then(`: transforms or selects items with a closure.
         if record.get("vers").and_then(Value::as_str).is_some() {
             // Borrow `&record`: lends the value without copying or giving it away.
-            times.insert(string_field(&record, "vers"), string_field(&record, "pubtime"));
+            times.insert(
+                string_field(&record, "vers"),
+                string_field(&record, "pubtime"),
+            );
         }
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -521,10 +571,17 @@ pub fn parse_index_yanked(text: &str) -> Result<BTreeSet<String>, RegistryError>
 }
 
 /// The failure for a body that is not the JSON the API documents.
-fn body_error(what: &str, error: impl std::fmt::Display) -> RegistryError {
+fn body_error(
+    what: &str,
+    error: impl std::fmt::Display,
+) -> RegistryError {
     // `None`: the present or the absent value of an `Option`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    return RegistryError { message: format!("{what}: {error}"), status: None, retry_after_seconds: 0 };
+    return RegistryError {
+        message: format!("{what}: {error}"),
+        status: None,
+        retry_after_seconds: 0,
+    };
 }
 
 /// What:
@@ -562,7 +619,11 @@ pub fn parse_version_history(text: &str) -> Result<Vec<VersionRecord>, RegistryE
     // Borrow `&empty`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Adapter `.and_then(`: transforms or selects items with a closure.
-    for version in body.get("versions").and_then(Value::as_array).unwrap_or(&empty) {
+    for version in body
+        .get("versions")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty)
+    {
         // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
         // Why:      The collection stays usable after the walk and no item is copied until it must be.
         //
@@ -612,7 +673,11 @@ pub fn parse_owner_ids(text: &str) -> Result<BTreeSet<String>, RegistryError> {
     // Borrow `&empty`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Adapter `.and_then(`: transforms or selects items with a closure.
-    for user in body.get("users").and_then(Value::as_array).unwrap_or(&empty) {
+    for user in body
+        .get("users")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty)
+    {
         if string_field(user, "kind") == "user" {
             // Typed binding: `id: String`.
             let id: String = id_field(user, "id");
@@ -641,16 +706,28 @@ fn history_to_json(history: &[VersionRecord]) -> Value {
         entry.insert("num".to_string(), Value::String(record.num.clone()));
         // `.clone()`: an independent owned copy.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        entry.insert("createdAt".to_string(), Value::String(record.created_at.clone()));
+        entry.insert(
+            "createdAt".to_string(),
+            Value::String(record.created_at.clone()),
+        );
         // `.clone()`: an independent owned copy.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        entry.insert("publisherId".to_string(), Value::String(record.publisher_id.clone()));
+        entry.insert(
+            "publisherId".to_string(),
+            Value::String(record.publisher_id.clone()),
+        );
         // `.clone()`: an independent owned copy.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        entry.insert("trustpubRepository".to_string(), Value::String(record.trustpub_repository.clone()));
+        entry.insert(
+            "trustpubRepository".to_string(),
+            Value::String(record.trustpub_repository.clone()),
+        );
         // `.clone()`: an independent owned copy.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        entry.insert("repository".to_string(), Value::String(record.repository.clone()));
+        entry.insert(
+            "repository".to_string(),
+            Value::String(record.repository.clone()),
+        );
         entries.push(Value::Object(entry));
     }
     return Value::Array(entries);
@@ -817,10 +894,15 @@ pub struct CratesIo {
 /// ```
 impl CratesIo {
     /// Builds the registry for a repository root with the real spacing and backoff.
-    pub fn with_defaults(root: &Path, fetcher: Box<dyn TextFetcher>, dump: Box<dyn DumpSource>) -> CratesIo {
+    pub fn with_defaults(
+        root: &Path,
+        fetcher: Box<dyn TextFetcher>,
+        dump: Box<dyn DumpSource>,
+    ) -> CratesIo {
         // `let mut`: a binding that may change.
         // Typed binding: `registry: CratesIo`.
-        let mut registry: CratesIo = CratesIo::new(root, fetcher, API_MIN_INTERVAL, RATE_LIMIT_BACKOFF);
+        let mut registry: CratesIo =
+            CratesIo::new(root, fetcher, API_MIN_INTERVAL, RATE_LIMIT_BACKOFF);
         // `Some`: the present or the absent value of an `Option`.
         registry.dump = Some(dump);
         return registry;
@@ -828,7 +910,11 @@ impl CratesIo {
 
     /// Sets how many uncached crates make the dump worth reading;
     /// tests lower it.
-    pub fn with_dump(mut self, dump: Box<dyn DumpSource>, breakeven: usize) -> CratesIo {
+    pub fn with_dump(
+        mut self,
+        dump: Box<dyn DumpSource>,
+        breakeven: usize,
+    ) -> CratesIo {
         // `Some`: the present or the absent value of an `Option`.
         self.dump = Some(dump);
         self.dump_breakeven = breakeven;
@@ -837,7 +923,12 @@ impl CratesIo {
 
     /// Builds the registry for a repository root;
     /// `min_interval` and `backoff` are parameters so tests do not wait.
-    pub fn new(root: &Path, fetcher: Box<dyn TextFetcher>, min_interval: Duration, backoff: Duration) -> CratesIo {
+    pub fn new(
+        root: &Path,
+        fetcher: Box<dyn TextFetcher>,
+        min_interval: Duration,
+        backoff: Duration,
+    ) -> CratesIo {
         return CratesIo {
             cache_dir: root.join(HISTORY_CACHE_DIR),
             fetcher,
@@ -855,7 +946,10 @@ impl CratesIo {
     /// One API GET:
     /// waits out the spacing,
     /// then retries an HTTP 429 up to the attempt limit.
-    fn spaced_api_get(&self, url: &str) -> Result<String, RegistryError> {
+    fn spaced_api_get(
+        &self,
+        url: &str,
+    ) -> Result<String, RegistryError> {
         // `let mut`: a binding that may change.
         // Typed binding: `attempt: u32`.
         let mut attempt: u32 = 1;
@@ -892,7 +986,11 @@ impl CratesIo {
                         return Err(error);
                     }
                     // Typed binding: `pause: Duration`.
-                    let asked: Duration = if error.retry_after_seconds > 0 { Duration::from_secs(error.retry_after_seconds) } else { self.backoff * 2u32.pow(attempt - 1) };
+                    let asked: Duration = if error.retry_after_seconds > 0 {
+                        Duration::from_secs(error.retry_after_seconds)
+                    } else {
+                        self.backoff * 2u32.pow(attempt - 1)
+                    };
                     // Owner rule of 2026-11-03, "nothing should ever wait forever or indefinitely": a pause longer than the bound ends
                     // the call with an error that names the blocker; every file is kept.
                     if error.retry_after_seconds > 0 && asked > MAX_PAUSE {
@@ -909,7 +1007,9 @@ impl CratesIo {
                     // Typed binding: `pause: Duration`.
                     let pause: Duration = asked.min(MAX_PAUSE);
                     // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                    eprintln!("cargo-shadow: {url} answered HTTP 429 (attempt {attempt} of {RATE_LIMIT_ATTEMPTS}); retrying in {pause:?}");
+                    eprintln!(
+                        "cargo-shadow: {url} answered HTTP 429 (attempt {attempt} of {RATE_LIMIT_ATTEMPTS}); retrying in {pause:?}"
+                    );
                     sleep(pause);
                     attempt += 1;
                 }
@@ -952,7 +1052,10 @@ impl Registry for CratesIo {
     /// ```ts
     /// prefetch(names: Set<string>): void  // throws RegistryError
     /// ```
-    fn prefetch(&self, names: &BTreeSet<String>) -> Result<(), RegistryError> {
+    fn prefetch(
+        &self,
+        names: &BTreeSet<String>,
+    ) -> Result<(), RegistryError> {
         // `match`: picks the arm whose pattern fits the value.
         // Borrow `&dyn`: lends the value without copying or giving it away.
         // Typed binding: `dump: &dyn DumpSource`.
@@ -984,20 +1087,28 @@ impl Registry for CratesIo {
         }
         if uncached.len() < self.dump_breakeven {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.
-            eprintln!("cargo-shadow: {} crates lack a cached history (below {}); using the crates.io API for them", uncached.len(), self.dump_breakeven);
+            eprintln!(
+                "cargo-shadow: {} crates lack a cached history (below {}); using the crates.io API for them",
+                uncached.len(),
+                self.dump_breakeven
+            );
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             return Ok(());
         }
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
-        eprintln!("cargo-shadow: {} crates lack a cached history; reading {DATABASE_DUMP_URL}", uncached.len());
+        eprintln!(
+            "cargo-shadow: {} crates lack a cached history; reading {DATABASE_DUMP_URL}",
+            uncached.len()
+        );
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&uncached`: lends the value without copying or giving it away.
-        let result = fill_histories_from_dump(dump.open(DATABASE_DUMP_URL)?, &uncached, &self.cache_dir)
-            // `None`: the present or the absent value of an `Option`.
-            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-            // Closure `|error|`: an anonymous function, like a TS arrow function.
-            // `.map_err(...)`: converts the callee's error into this function's error type.
-            .map_err(registry_error_of_dump)?;
+        let result =
+            fill_histories_from_dump(dump.open(DATABASE_DUMP_URL)?, &uncached, &self.cache_dir)
+                // `None`: the present or the absent value of an `Option`.
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                // Closure `|error|`: an anonymous function, like a TS arrow function.
+                // `.map_err(...)`: converts the callee's error into this function's error type.
+                .map_err(registry_error_of_dump)?;
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!(
             "cargo-shadow: dump: {} found, {} written, {} already cached, {} left to the API (possible Trusted Publishing releases)",
@@ -1019,11 +1130,18 @@ impl Registry for CratesIo {
     /// ```ts
     /// pubtimes(name: string): Map<string, string>  // throws RegistryError
     /// ```
-    fn pubtimes(&self, name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+    fn pubtimes(
+        &self,
+        name: &str,
+    ) -> Result<BTreeMap<String, String>, RegistryError> {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&self.fetcher.get`: lends the value without copying or giving it away.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return parse_index_pubtimes(&self.fetcher.get(&format!("{SPARSE_INDEX_URL}/{}", sparse_index_path(name)))?);
+        return parse_index_pubtimes(
+            &self
+                .fetcher
+                .get(&format!("{SPARSE_INDEX_URL}/{}", sparse_index_path(name)))?,
+        );
     }
 
     /// What:
@@ -1035,11 +1153,18 @@ impl Registry for CratesIo {
     /// ```ts
     /// yanked(name: string): Set<string>  // throws RegistryError
     /// ```
-    fn yanked(&self, name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn yanked(
+        &self,
+        name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&self.fetcher.get`: lends the value without copying or giving it away.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return parse_index_yanked(&self.fetcher.get(&format!("{SPARSE_INDEX_URL}/{}", sparse_index_path(name)))?);
+        return parse_index_yanked(
+            &self
+                .fetcher
+                .get(&format!("{SPARSE_INDEX_URL}/{}", sparse_index_path(name)))?,
+        );
     }
 
     /// What:
@@ -1052,7 +1177,10 @@ impl Registry for CratesIo {
     /// ```ts
     /// owners(name: string): Set<string>  // throws RegistryError
     /// ```
-    fn owners(&self, name: &str) -> Result<BTreeSet<String>, RegistryError> {
+    fn owners(
+        &self,
+        name: &str,
+    ) -> Result<BTreeSet<String>, RegistryError> {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&self.spaced_api_get`: lends the value without copying or giving it away.
         // Macro `format!`: builds or prints text (or a list) from a template.
@@ -1072,7 +1200,11 @@ impl Registry for CratesIo {
     /// ```ts
     /// history(name: string, versions: string[]): VersionRecord[]  // throws RegistryError
     /// ```
-    fn history(&self, name: &str, versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+    fn history(
+        &self,
+        name: &str,
+        versions: &[String],
+    ) -> Result<Vec<VersionRecord>, RegistryError> {
         // Typed binding: `path: PathBuf`.
         // Macro `format!`: builds or prints text (or a list) from a template.
         let path: PathBuf = self.cache_dir.join(format!("{name}.json"));
@@ -1103,7 +1235,9 @@ impl Registry for CratesIo {
         // Borrow `&self.spaced_api_get`: lends the value without copying or giving it away.
         // Typed binding: `fresh: Vec<VersionRecord>`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        let fresh: Vec<VersionRecord> = parse_version_history(&self.spaced_api_get(&format!("{API_URL}/crates/{name}/versions"))?)?;
+        let fresh: Vec<VersionRecord> = parse_version_history(
+            &self.spaced_api_get(&format!("{API_URL}/crates/{name}/versions"))?,
+        )?;
         // Borrow `&self.cache_dir`: lends the value without copying or giving it away.
         if fs::create_dir_all(&self.cache_dir).is_ok() {
             // Borrow `&path`: lends the value without copying or giving it away.

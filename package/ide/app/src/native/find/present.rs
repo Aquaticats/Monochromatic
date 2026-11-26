@@ -7,7 +7,12 @@ use crate::native::State;
 /// A match is a source character range.
 use ide_app::find::FindRange;
 /// Count text and active-match rules are pure library functions with their own tests.
-use ide_app::find_navigation::{FindStatus, active, positioned_matches, status};
+use ide_app::find_navigation::{
+    FindStatus,
+    active,
+    positioned_matches,
+    status,
+};
 
 /// What:
 ///  `Option<T>` is a value or nothing;

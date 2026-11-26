@@ -27,13 +27,25 @@ const OTHER_SHADOW_CRATES: &[&str] = &["cargo-shadow", "mpm-shadow", "pnpm-shado
 #[test]
 fn every_shadow_crate_carries_the_same_copy_of_the_identity_rule() {
     let own_crate: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let packages: PathBuf = own_crate.parent().and_then(|shadow_folder| { return shadow_folder.parent(); }).expect("the package folder").to_path_buf();
+    let packages: PathBuf = own_crate
+        .parent()
+        .and_then(|shadow_folder| {
+            return shadow_folder.parent();
+        })
+        .expect("the package folder")
+        .to_path_buf();
     for file in COPIED_FILES {
         let own: String = fs::read_to_string(own_crate.join(file)).expect("read this crate's copy");
         for other in OTHER_SHADOW_CRATES {
             let path: PathBuf = packages.join(other).join("cli").join(file);
-            let copy: String = fs::read_to_string(&path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-            assert_eq!(own, copy, "{} differs from the copy in search-shadow: change both, byte for byte", path.display());
+            let copy: String = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            assert_eq!(
+                own,
+                copy,
+                "{} differs from the copy in search-shadow: change both, byte for byte",
+                path.display()
+            );
         }
     }
 }

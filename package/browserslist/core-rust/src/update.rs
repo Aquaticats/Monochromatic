@@ -27,7 +27,10 @@
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `get_bytes` from `crate::fetch::get_bytes`.
 /// Why:
@@ -67,7 +70,10 @@ use crate::integrity::parse_sha512;
 /// ```ts
 /// import { DataLock, PinnedPackage } from './lock';
 /// ```
-use crate::lock::{DataLock, PinnedPackage};
+use crate::lock::{
+    DataLock,
+    PinnedPackage,
+};
 /// What:
 ///  Import `DataSource, load_data` from `crate::source`.
 /// Why:
@@ -77,7 +83,10 @@ use crate::lock::{DataLock, PinnedPackage};
 /// ```ts
 /// import { DataSource, loadData } from './source';
 /// ```
-use crate::source::{DataSource, load_data};
+use crate::source::{
+    DataSource,
+    load_data,
+};
 /// What:
 ///  Import `Value` from `serde_json::Value`.
 /// Why:
@@ -90,14 +99,22 @@ use crate::source::{DataSource, load_data};
 use serde_json::Value;
 
 /// Mozilla's product-details document that carries `FIREFOX_ESR`.
-pub const MOZILLA_PRODUCT_DETAILS: &str = "https://product-details.mozilla.org/1.0/firefox_versions.json";
+pub const MOZILLA_PRODUCT_DETAILS: &str =
+    "https://product-details.mozilla.org/1.0/firefox_versions.json";
 
 /// The largest metadata answer accepted.
 const MAX_METADATA_BYTES: usize = 4 * 1024 * 1024;
 
 /// Build a data error for an answer from a remote document.
-fn answer_error(url: &str, message: &str) -> BrowserslistError {
-    return BrowserslistError::Data { file: url.to_string(), offset: None, message: message.to_string() };
+fn answer_error(
+    url: &str,
+    message: &str,
+) -> BrowserslistError {
+    return BrowserslistError::Data {
+        file: url.to_string(),
+        offset: None,
+        message: message.to_string(),
+    };
 }
 
 /// Fetch a URL and parse its body as a JSON object.
@@ -122,7 +139,10 @@ fn get_json_object(url: &str) -> Outcome<serde_json::Map<String, Value>> {
 /// ```ts
 /// async function latestPackage(registryUrl: string, name: string): Promise<PinnedPackage>;
 /// ```
-pub fn latest_package(registry_url: &str, name: &str) -> Outcome<PinnedPackage> {
+pub fn latest_package(
+    registry_url: &str,
+    name: &str,
+) -> Outcome<PinnedPackage> {
     let url = format!("{registry_url}/{name}/latest");
     let document = get_json_object(&url)?;
     let Some(Value::String(version)) = document.get("version") else {
@@ -133,10 +153,17 @@ pub fn latest_package(registry_url: &str, name: &str) -> Outcome<PinnedPackage> 
         None => None,
     };
     let Some(integrity) = found_integrity else {
-        return Err(answer_error(&url, "no \"dist.integrity\" string; a sha512 integrity is required"));
+        return Err(answer_error(
+            &url,
+            "no \"dist.integrity\" string; a sha512 integrity is required",
+        ));
     };
     parse_sha512(integrity)?;
-    return Ok(PinnedPackage { name: name.to_string(), version: version.clone(), integrity: integrity.to_string() });
+    return Ok(PinnedPackage {
+        name: name.to_string(),
+        version: version.clone(),
+        integrity: integrity.to_string(),
+    });
 }
 
 /// What:
@@ -168,7 +195,10 @@ pub fn latest_firefox_esr(mozilla_url: &str) -> Outcome<String> {
 /// ```ts
 /// async function buildLock(source: DataSource, mozillaUrl: string): Promise<DataLock>;
 /// ```
-pub fn build_lock(source: &DataSource, mozilla_url: &str) -> Outcome<DataLock> {
+pub fn build_lock(
+    source: &DataSource,
+    mozilla_url: &str,
+) -> Outcome<DataLock> {
     let lock = DataLock {
         caniuse_lite: latest_package(&source.registry_url, "caniuse-lite")?,
         node_releases: latest_package(&source.registry_url, "node-releases")?,

@@ -2,12 +2,15 @@
 
 /// Exercise the production parser and its preserved public configuration.
 use super::*;
-/// The startup scale shares its value type with the runtime `scale` verb.
-use crate::screen_geometry::OutputScale;
 /// The notification mode the new option selects.
 use crate::notification_mode::NotificationMode;
+/// The startup scale shares its value type with the runtime `scale` verb.
+use crate::screen_geometry::OutputScale;
 /// The announced key repeat pair defaults.
-use crate::state::{DEFAULT_REPEAT_DELAY_MS, DEFAULT_REPEAT_RATE};
+use crate::state::{
+    DEFAULT_REPEAT_DELAY_MS,
+    DEFAULT_REPEAT_RATE,
+};
 
 /// Build owned parser arguments from borrowed test literals.
 fn args(values: &[&str]) -> Vec<String> {
@@ -24,7 +27,8 @@ fn args(values: &[&str]) -> Vec<String> {
 ///  failing the test with the parser's own message when it rejects them.
 fn parsed(values: &[&str]) -> Config {
     // unwrap_or_else carries the rejected arguments into the failure message.
-    return parse_args(&args(values)).unwrap_or_else(|error| panic!("parse_args rejected {values:?}: {error}"));
+    return parse_args(&args(values))
+        .unwrap_or_else(|error| panic!("parse_args rejected {values:?}: {error}"));
 }
 
 /// Extract clap's typed error without requiring Config to implement Debug.
@@ -37,8 +41,13 @@ fn error_kind(values: &[&str]) -> clap::error::ErrorKind {
     // const error = expectThrown(() => parseArgs(values));
     // return expectInstance(error, CliError).kind;
     // ```
-    let error = parse_args(&args(values)).err().expect("expected parser error");
-    return error.downcast_ref::<clap::Error>().expect("typed clap error").kind();
+    let error = parse_args(&args(values))
+        .err()
+        .expect("expected parser error");
+    return error
+        .downcast_ref::<clap::Error>()
+        .expect("typed clap error")
+        .kind();
 }
 
 /// Help is a distinct successful-exit request,
@@ -47,8 +56,14 @@ fn error_kind(values: &[&str]) -> clap::error::ErrorKind {
 fn help_is_not_an_application_error() {
     assert_eq!(error_kind(&["--help"]), clap::error::ErrorKind::DisplayHelp);
     assert_eq!(error_kind(&["-h"]), clap::error::ErrorKind::DisplayHelp);
-    assert_eq!(error_kind(&["--version"]), clap::error::ErrorKind::DisplayVersion);
-    assert_eq!(error_kind(&["--size", "800x600", "--help"]), clap::error::ErrorKind::DisplayHelp);
+    assert_eq!(
+        error_kind(&["--version"]),
+        clap::error::ErrorKind::DisplayVersion
+    );
+    assert_eq!(
+        error_kind(&["--size", "800x600", "--help"]),
+        clap::error::ErrorKind::DisplayHelp
+    );
 }
 
 /// Default dimensions and optional values match the former parser.
@@ -66,7 +81,10 @@ fn defaults_are_preserved() {
     assert!(!config.isolate);
     assert_eq!(config.scale, OutputScale::ONE);
     // The announced key repeat pair keeps the production defaults.
-    assert_eq!((config.repeat_rate, config.repeat_delay), (DEFAULT_REPEAT_RATE, DEFAULT_REPEAT_DELAY_MS));
+    assert_eq!(
+        (config.repeat_rate, config.repeat_delay),
+        (DEFAULT_REPEAT_RATE, DEFAULT_REPEAT_DELAY_MS)
+    );
 }
 
 /// The key repeat pair is configurable and bounded.
@@ -76,7 +94,12 @@ fn repeat_options_set_and_bound_the_announced_pair() {
     assert_eq!((config.repeat_rate, config.repeat_delay), (30, 600));
     let off = parsed(&["--repeat-rate", "0", "app"]);
     assert_eq!(off.repeat_rate, 0);
-    for bad in [["--repeat-rate", "1001"], ["--repeat-rate", "-1"], ["--repeat-delay", "10001"], ["--repeat-delay", "soon"]] {
+    for bad in [
+        ["--repeat-rate", "1001"],
+        ["--repeat-rate", "-1"],
+        ["--repeat-delay", "10001"],
+        ["--repeat-delay", "soon"],
+    ] {
         let mut argv = bad.to_vec();
         argv.push("app");
         assert!(parse_args(&args(&argv)).is_err(), "{bad:?}");
@@ -102,7 +125,9 @@ fn invalid_scales_are_rejected() {
     // The joined spelling hands even "-1" to the value parser instead of clap's flag lookup.
     for value in ["0", "1.333", "3.5", "-1", "NaN", "two", ""] {
         let joined = format!("--scale={value}");
-        let error = parse_args(&args(&[joined.as_str(), "app"])).err().expect(value);
+        let error = parse_args(&args(&[joined.as_str(), "app"]))
+            .err()
+            .expect(value);
         assert!(error.to_string().contains("--scale"), "{value:?}: {error}");
     }
     assert!(parse_args(&args(&["--scale", "-1", "app"])).is_err());
@@ -113,10 +138,20 @@ fn invalid_scales_are_rejected() {
 #[test]
 fn all_parent_options_are_preserved() {
     let config = parsed(&[
-        "--socket", "a socket.sock", "--size", "800X600",
-        "--color-scheme", "dark", "--isolate",
-        "--app-cpu-quota", "200", "--app-cpu-weight", "20",
-        "--", "app", "a file.txt"
+        "--socket",
+        "a socket.sock",
+        "--size",
+        "800X600",
+        "--color-scheme",
+        "dark",
+        "--isolate",
+        "--app-cpu-quota",
+        "200",
+        "--app-cpu-weight",
+        "20",
+        "--",
+        "app",
+        "a file.txt",
     ]);
     assert_eq!(config.control_socket, Some(PathBuf::from("a socket.sock")));
     assert_eq!((config.width, config.height), (800, 600));
@@ -130,7 +165,15 @@ fn all_parent_options_are_preserved() {
 /// The memory cap and the task limit of the isolated app are accepted as given.
 #[test]
 fn app_memory_and_task_limits_are_accepted() {
-    let config = parsed(&["--isolate", "--app-memory-max", "3G", "--app-tasks-max", "77", "--", "app"]);
+    let config = parsed(&[
+        "--isolate",
+        "--app-memory-max",
+        "3G",
+        "--app-tasks-max",
+        "77",
+        "--",
+        "app",
+    ]);
     assert_eq!(config.app_memory_max, Some("3G".to_string()));
     assert_eq!(config.app_tasks_max, Some(77));
 }
@@ -151,7 +194,10 @@ fn child_options_are_not_parent_options() {
         let mut input = prefix;
         input.extend(["--help", "--size", "999x999", "--", "-h"]);
         let config = parsed(&input);
-        assert_eq!(config.child_command, ["app", "--help", "--size", "999x999", "--", "-h"]);
+        assert_eq!(
+            config.child_command,
+            ["app", "--help", "--size", "999x999", "--", "-h"]
+        );
         assert_eq!((config.width, config.height), (1280, 720));
     }
 }
@@ -166,7 +212,10 @@ fn separator_protects_child_executable_name() {
 /// A typo before the child command must not become an executable name.
 #[test]
 fn unknown_parent_option_is_rejected() {
-    assert_eq!(error_kind(&["--unknown", "app"]), clap::error::ErrorKind::UnknownArgument);
+    assert_eq!(
+        error_kind(&["--unknown", "app"]),
+        clap::error::ErrorKind::UnknownArgument
+    );
 }
 
 /// Repeated parent options keep the former parser's last-value behavior.
@@ -188,9 +237,17 @@ fn joined_parent_values_are_supported() {
 /// Missing command and option values fail before compositor startup.
 #[test]
 fn missing_inputs_are_errors() {
-    for input in [vec![], vec!["--"], vec!["--socket"], vec!["--size"],
-        vec!["--color-scheme"], vec!["--app-cpu-quota"], vec!["--app-cpu-weight"],
-        vec!["--app-memory-max"], vec!["--app-tasks-max"]] {
+    for input in [
+        vec![],
+        vec!["--"],
+        vec!["--socket"],
+        vec!["--size"],
+        vec!["--color-scheme"],
+        vec!["--app-cpu-quota"],
+        vec!["--app-cpu-weight"],
+        vec!["--app-memory-max"],
+        vec!["--app-tasks-max"],
+    ] {
         assert!(parse_args(&args(&input)).is_err());
     }
 }
@@ -198,7 +255,16 @@ fn missing_inputs_are_errors() {
 /// Invalid sizes retain positive signed-dimension validation.
 #[test]
 fn invalid_sizes_are_rejected() {
-    for size in ["0x1", "1x0", "-1x1", "1x-1", "x", "1x2x3", "huge", "2147483648x1"] {
+    for size in [
+        "0x1",
+        "1x0",
+        "-1x1",
+        "1x-1",
+        "x",
+        "1x2x3",
+        "huge",
+        "2147483648x1",
+    ] {
         assert!(parse_args(&args(&["--size", size, "app"])).is_err());
     }
 }
@@ -213,7 +279,9 @@ fn invalid_option_values_are_rejected() {
         ["--app-memory-max", "4G;x", "app"],
         ["--app-tasks-max", "not-a-number", "app"],
     ] {
-        let error = parse_args(&args(&input)).err().expect("expected validation error");
+        let error = parse_args(&args(&input))
+            .err()
+            .expect("expected validation error");
         assert!(error.to_string().contains(input[0]));
     }
 }
@@ -244,8 +312,13 @@ fn notifications_option_defaults_to_none_and_takes_three_values() {
         assert_eq!(parsed(&[&joined, "app"]).notifications, mode, "{joined}");
     }
     for bad in ["", "plasma", "KDE", "freedesktop,kde"] {
-        let error = parse_args(&args(&["--notifications", bad, "app"])).err().expect("expected validation error");
-        assert!(error.to_string().contains("--notifications"), "{bad:?}: {error}");
+        let error = parse_args(&args(&["--notifications", bad, "app"]))
+            .err()
+            .expect("expected validation error");
+        assert!(
+            error.to_string().contains("--notifications"),
+            "{bad:?}: {error}"
+        );
     }
 }
 
@@ -254,12 +327,20 @@ fn notifications_option_defaults_to_none_and_takes_three_values() {
 fn accent_color_option_takes_six_hex_digits() {
     assert_eq!(parsed(&["app"]).accent_color, None);
     let config = parsed(&["--accent-color", "3584e4", "--", "app"]);
-    assert_eq!(config.accent_color.map(|color| return color.to_string()), Some("3584E4".to_string()));
+    assert_eq!(
+        config.accent_color.map(|color| return color.to_string()),
+        Some("3584E4".to_string())
+    );
     assert_eq!(config.color_scheme, None);
     for bad in ["", "#3584E4", "3584E", "3584E4FF", "blue"] {
-        let error = parse_args(&args(&["--accent-color", bad, "app"])).err().expect("expected validation error");
+        let error = parse_args(&args(&["--accent-color", bad, "app"]))
+            .err()
+            .expect("expected validation error");
         let text = error.to_string();
-        assert!(text.contains("--accent-color") && text.contains("RRGGBB"), "{bad:?}: {text}");
+        assert!(
+            text.contains("--accent-color") && text.contains("RRGGBB"),
+            "{bad:?}: {text}"
+        );
     }
 }
 
@@ -319,9 +400,18 @@ fn gpu_option_parses_with_headless() {
     use crate::gpu_choice::GpuChoice;
     use std::path::PathBuf;
     let node = parsed(&["--headless", "--gpu", "/dev/dri/renderD128", "--", "app"]);
-    assert_eq!(node.gpu, GpuChoice::RenderNode(PathBuf::from("/dev/dri/renderD128")));
-    assert_eq!(parsed(&["--gpu", "software", "--headless", "app"]).gpu, GpuChoice::Software);
-    assert_eq!(parsed(&["--headless", "--gpu", "auto", "app"]).gpu, GpuChoice::Auto);
+    assert_eq!(
+        node.gpu,
+        GpuChoice::RenderNode(PathBuf::from("/dev/dri/renderD128"))
+    );
+    assert_eq!(
+        parsed(&["--gpu", "software", "--headless", "app"]).gpu,
+        GpuChoice::Software
+    );
+    assert_eq!(
+        parsed(&["--headless", "--gpu", "auto", "app"]).gpu,
+        GpuChoice::Auto
+    );
     let forwarded = parsed(&["--headless", "app", "--gpu", "software"]);
     assert_eq!(forwarded.gpu, GpuChoice::Auto);
     assert_eq!(forwarded.child_command, ["app", "--gpu", "software"]);
@@ -331,7 +421,9 @@ fn gpu_option_parses_with_headless() {
 #[test]
 fn gpu_option_rejects_a_bad_value_naming_the_choices() {
     for bad in ["amd", "renderD128", "relative/path"] {
-        let error = parse_args(&args(&["--headless", "--gpu", bad, "app"])).err().expect("rejected");
+        let error = parse_args(&args(&["--headless", "--gpu", bad, "app"]))
+            .err()
+            .expect("rejected");
         let text = format!("{error:#}");
         assert!(text.contains("auto, software"), "{bad}: {text}");
         assert!(text.contains("--list-gpus"), "{bad}: {text}");
@@ -343,9 +435,14 @@ fn gpu_option_rejects_a_bad_value_naming_the_choices() {
 #[test]
 fn gpu_option_without_headless_is_an_error_naming_headless() {
     for value in ["auto", "software", "/dev/dri/renderD128"] {
-        let error = parse_args(&args(&["--gpu", value, "app"])).err().expect("rejected");
+        let error = parse_args(&args(&["--gpu", value, "app"]))
+            .err()
+            .expect("rejected");
         let text = format!("{error:#}");
-        assert!(text.contains("--gpu is only valid together with --headless"), "{value}: {text}");
+        assert!(
+            text.contains("--gpu is only valid together with --headless"),
+            "{value}: {text}"
+        );
         assert!(text.contains("parent"), "{value}: {text}");
     }
 }
@@ -356,7 +453,10 @@ fn list_gpus_needs_no_command() {
     let config = parsed(&["--list-gpus"]);
     assert!(config.list_gpus);
     assert!(config.child_command.is_empty());
-    assert_eq!(error_kind(&["--list-gpus", "app"]), clap::error::ErrorKind::ArgumentConflict);
+    assert_eq!(
+        error_kind(&["--list-gpus", "app"]),
+        clap::error::ErrorKind::ArgumentConflict
+    );
     assert_eq!(
         error_kind(&["--list-gpus", "--headless", "--gpu", "software"]),
         clap::error::ErrorKind::ArgumentConflict,
@@ -367,5 +467,8 @@ fn list_gpus_needs_no_command() {
 /// A missing command is still an error without `--list-gpus`.
 #[test]
 fn missing_command_is_still_an_error() {
-    assert_eq!(error_kind(&["--headless"]), clap::error::ErrorKind::MissingRequiredArgument);
+    assert_eq!(
+        error_kind(&["--headless"]),
+        clap::error::ErrorKind::MissingRequiredArgument
+    );
 }

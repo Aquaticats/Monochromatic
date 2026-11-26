@@ -9,7 +9,11 @@
 /// ```ts
 /// // Throw contextual Error objects on malformed input.
 /// ```
-use anyhow::{bail, Context, Result};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 
 /// Parse a `WIDTHxHEIGHT` string into a positive `(width, height)` pair.
 ///
@@ -118,5 +122,5 @@ pub(super) fn parse_size(spec: &str) -> Result<(i32, i32)> {
     // ```ts
     // return [width, height];
     // ```
-    return Ok((width, height))
+    return Ok((width, height));
 }

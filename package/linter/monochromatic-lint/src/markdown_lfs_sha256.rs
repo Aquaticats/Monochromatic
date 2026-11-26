@@ -129,7 +129,11 @@ const INITIAL: [u32; 8] = [
 /// ```ts
 /// function choose(x: number, y: number, z: number): number { return (z ^ (x & (y ^ z))) >>> 0; }
 /// ```
-fn choose(x: u32, y: u32, z: u32) -> u32 {
+fn choose(
+    x: u32,
+    y: u32,
+    z: u32,
+) -> u32 {
     return z ^ (x & (y ^ z));
 }
 
@@ -150,7 +154,11 @@ fn choose(x: u32, y: u32, z: u32) -> u32 {
 /// ```ts
 /// function majority(x: number, y: number, z: number): number { return (y ^ ((x ^ y) & (y ^ z))) >>> 0; }
 /// ```
-fn majority(x: u32, y: u32, z: u32) -> u32 {
+fn majority(
+    x: u32,
+    y: u32,
+    z: u32,
+) -> u32 {
     return y ^ ((x ^ y) & (y ^ z));
 }
 
@@ -165,7 +173,10 @@ fn majority(x: u32, y: u32, z: u32) -> u32 {
 /// ```ts
 /// function compress(state: Uint32Array, block: Uint8Array): void;
 /// ```
-fn compress(state: &mut [u32; 8], block: &[u8]) {
+fn compress(
+    state: &mut [u32; 8],
+    block: &[u8],
+) {
     // The message schedule: 16 big-endian words from the block, then 48 derived words.
     let mut schedule: [u32; 64] = [0; 64];
     // as_chunks::<4>() views the block as its 16 four-byte groups; the unused remainder is empty.

@@ -12,13 +12,31 @@
 //! ```
 
 /// Import the line reader.
-use crate::workflow_lines::{Content, Entry, Line, parse_entry, read_lines, without_comment};
+use crate::workflow_lines::{
+    Content,
+    Entry,
+    Line,
+    parse_entry,
+    read_lines,
+    without_comment,
+};
 /// Import the records the walk fills in.
-use crate::workflow_model::{Job, Step, WalkError, Workflow};
+use crate::workflow_model::{
+    Job,
+    Step,
+    WalkError,
+    Workflow,
+};
 /// Import the value readers.
-use crate::workflow_run::{capture_run, capture_shell};
+use crate::workflow_run::{
+    capture_run,
+    capture_shell,
+};
 /// Import the key-path classification.
-use crate::workflow_shape::{Shape, shape};
+use crate::workflow_shape::{
+    Shape,
+    shape,
+};
 
 /// One open key or sequence item.
 struct Frame {
@@ -46,7 +64,10 @@ struct Walker<'a> {
 }
 
 /// Build a refusal at a workflow byte offset.
-fn refuse(offset: usize, message: &str) -> WalkError {
+fn refuse(
+    offset: usize,
+    message: &str,
+) -> WalkError {
     return WalkError {
         offset,
         message: String::from(message),
@@ -66,7 +87,10 @@ impl Walker<'_> {
     }
 
     /// Close every frame at or right of `column`.
-    fn close_from(&mut self, column: usize) {
+    fn close_from(
+        &mut self,
+        column: usize,
+    ) {
         loop {
             let Some(top) = self.frames.last() else {
                 return;
@@ -80,7 +104,11 @@ impl Walker<'_> {
 
     /// Open the sequence items for the dashes of a line,
     ///  starting a step when the first dash sits under a `steps` key.
-    fn open_dashes(&mut self, dashes: &[usize], offset: usize) {
+    fn open_dashes(
+        &mut self,
+        dashes: &[usize],
+        offset: usize,
+    ) {
         let Some(first) = dashes.first() else {
             return;
         };
@@ -116,7 +144,10 @@ impl Walker<'_> {
     }
 
     /// Whether an unread key form at `column` sits where the walk needs a plain key.
-    fn odd_key_matters(&self, column: usize) -> bool {
+    fn odd_key_matters(
+        &self,
+        column: usize,
+    ) -> bool {
         let mut names: Vec<&str> = Vec::new();
         for frame in &self.frames {
             if frame.indent < column {
@@ -131,7 +162,12 @@ impl Walker<'_> {
 impl Walker<'_> {
     /// Skip the lines a value continues over,
     ///  and return the index of the next line to read.
-    fn skip_value(&self, index: usize, column: usize, value: &str) -> usize {
+    fn skip_value(
+        &self,
+        index: usize,
+        column: usize,
+        value: &str,
+    ) -> usize {
         let visible: &str = without_comment(value);
         let mut next: usize = index + 1;
         if visible.is_empty() {
@@ -171,7 +207,11 @@ impl Walker<'_> {
     }
 
     /// Handle one `key: value` line at a classified path.
-    fn on_key(&mut self, index: usize, entry: &Entry<'_>) -> Result<usize, WalkError> {
+    fn on_key(
+        &mut self,
+        index: usize,
+        entry: &Entry<'_>,
+    ) -> Result<usize, WalkError> {
         let Content::Key {
             name,
             column,
@@ -240,7 +280,10 @@ impl Walker<'_> {
     }
 
     /// Read the line at `index` and return the index of the next line to read.
-    fn step(&mut self, index: usize) -> Result<usize, WalkError> {
+    fn step(
+        &mut self,
+        index: usize,
+    ) -> Result<usize, WalkError> {
         let (skippable, start, indent, text): (bool, usize, usize, String) = {
             let line: &Line<'_> = &self.lines[index];
             (
@@ -287,8 +330,12 @@ impl Walker<'_> {
         let entry: Entry<'_> = parse_entry(&self.lines[index]);
         self.open_dashes(&entry.dashes, line_start);
         match &entry.content {
-            Content::Key { .. } => return self.on_key(index, &entry),
-            Content::OddKey { column } if self.odd_key_matters(*column) => {
+            Content::Key {
+                ..
+            } => return self.on_key(index, &entry),
+            Content::OddKey {
+                column,
+            } if self.odd_key_matters(*column) => {
                 return Err(refuse(
                     start,
                     "a quoted, anchored, aliased, tagged or merge key; write a plain key",

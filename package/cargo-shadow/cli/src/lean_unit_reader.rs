@@ -23,9 +23,21 @@
 //! ```
 
 /// Named reads of paths and text.
-use crate::lean_text::{all_hex, extension_is};
+use crate::lean_text::{
+    all_hex,
+    extension_is,
+};
 /// Directory reading and metadata.
-use std::{collections::HashMap, fs, io::Read, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    fs,
+    io::Read,
+    os::unix::fs::MetadataExt,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// How many bytes of a fingerprint file hold the `rustc` field (it is the first field Cargo writes).
 pub const FINGERPRINT_HEAD_BYTES: usize = 512;
@@ -182,11 +194,16 @@ pub fn unit_hash_of_file_name(name: &str) -> Option<&str> {
 /// ```
 fn deps_by_hash(deps: &Path) -> HashMap<String, Vec<PathBuf>> {
     let mut groups: HashMap<String, Vec<PathBuf>> = HashMap::new();
-    let Ok(entries) = fs::read_dir(deps) else { return groups };
+    let Ok(entries) = fs::read_dir(deps) else {
+        return groups;
+    };
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().to_string();
         if let Some(hash) = unit_hash_of_file_name(&name) {
-            groups.entry(hash.to_string()).or_default().push(entry.path());
+            groups
+                .entry(hash.to_string())
+                .or_default()
+                .push(entry.path());
         }
     }
     return groups;
@@ -202,12 +219,19 @@ fn deps_by_hash(deps: &Path) -> HashMap<String, Vec<PathBuf>> {
 /// ```ts
 /// function readOldLayout(profile: string, found: ProfileUnits): void
 /// ```
-fn read_old_layout(profile: &Path, found: &mut ProfileUnits) {
+fn read_old_layout(
+    profile: &Path,
+    found: &mut ProfileUnits,
+) {
     let deps: HashMap<String, Vec<PathBuf>> = deps_by_hash(&profile.join("deps"));
-    let Ok(entries) = fs::read_dir(profile.join(".fingerprint")) else { return };
+    let Ok(entries) = fs::read_dir(profile.join(".fingerprint")) else {
+        return;
+    };
     for entry in entries.flatten() {
         let label: String = entry.file_name().to_string_lossy().to_string();
-        let Some((_, hash)) = label.rsplit_once('-') else { continue };
+        let Some((_, hash)) = label.rsplit_once('-') else {
+            continue;
+        };
         if hash.len() != HASH_LENGTH {
             found.unreadable.push(label);
             continue;
@@ -224,7 +248,12 @@ fn read_old_layout(profile: &Path, found: &mut ProfileUnits) {
         if let Some(artifacts) = deps.get(hash) {
             paths.extend(artifacts.iter().cloned());
         }
-        found.units.push(Unit { label, compiler, invoked, paths });
+        found.units.push(Unit {
+            label,
+            compiler,
+            invoked,
+            paths,
+        });
     }
 }
 
@@ -237,22 +266,42 @@ fn read_old_layout(profile: &Path, found: &mut ProfileUnits) {
 /// ```ts
 /// function readNewLayout(profile: string, found: ProfileUnits): void
 /// ```
-fn read_new_layout(profile: &Path, found: &mut ProfileUnits) {
-    let Ok(packages) = fs::read_dir(profile.join("build")) else { return };
+fn read_new_layout(
+    profile: &Path,
+    found: &mut ProfileUnits,
+) {
+    let Ok(packages) = fs::read_dir(profile.join("build")) else {
+        return;
+    };
     for package in packages.flatten() {
         // An old-layout unit (`build/<package>-<hash>`) has a fingerprint directory of the same name: it is read there.
-        if profile.join(".fingerprint").join(package.file_name()).exists() {
+        if profile
+            .join(".fingerprint")
+            .join(package.file_name())
+            .exists()
+        {
             continue;
         }
-        let Ok(hashes) = fs::read_dir(package.path()) else { continue };
+        let Ok(hashes) = fs::read_dir(package.path()) else {
+            continue;
+        };
         for unit in hashes.flatten() {
             let fingerprint: PathBuf = unit.path().join("fingerprint");
             if !fingerprint.is_dir() {
                 continue;
             }
-            let label: String = format!("{}-{}", package.file_name().to_string_lossy(), unit.file_name().to_string_lossy());
+            let label: String = format!(
+                "{}-{}",
+                package.file_name().to_string_lossy(),
+                unit.file_name().to_string_lossy()
+            );
             match compiler_in(&fingerprint) {
-                Some((compiler, invoked)) => found.units.push(Unit { label, compiler, invoked, paths: vec![unit.path()] }),
+                Some((compiler, invoked)) => found.units.push(Unit {
+                    label,
+                    compiler,
+                    invoked,
+                    paths: vec![unit.path()],
+                }),
                 None => found.unreadable.push(label),
             }
         }
@@ -273,7 +322,9 @@ pub fn read_profile(profile: &Path) -> ProfileRead {
     let old: bool = profile.join(".fingerprint").is_dir();
     let new: bool = profile.join("build").is_dir();
     if !old && !new {
-        return ProfileRead::Unknown(String::from("neither `.fingerprint` nor `build` exists, so the layout is not one this reader knows"));
+        return ProfileRead::Unknown(String::from(
+            "neither `.fingerprint` nor `build` exists, so the layout is not one this reader knows",
+        ));
     }
     let mut found: ProfileUnits = ProfileUnits::default();
     if old {
@@ -285,7 +336,10 @@ pub fn read_profile(profile: &Path) -> ProfileRead {
     if let Ok(entries) = fs::read_dir(profile.join("incremental")) {
         for entry in entries.flatten() {
             if let Ok(metadata) = entry.metadata() {
-                found.incremental.push(IncrementalDirectory { path: entry.path(), modified: metadata.mtime() });
+                found.incremental.push(IncrementalDirectory {
+                    path: entry.path(),
+                    modified: metadata.mtime(),
+                });
             }
         }
     }

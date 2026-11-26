@@ -10,23 +10,57 @@
 //!  look at the first frame hold the worker's measurement still so that only the window thread can have produced it.
 
 /// The production setter and the stamp of the displayed text.
-use super::annotate::{displayed, set_annotations};
+use super::annotate::{
+    displayed,
+    set_annotations,
+};
 /// Fixture records of the annotation tests.
-use super::annotation_tests::{block, hint, problem};
+use super::annotation_tests::{
+    block,
+    hint,
+    problem,
+};
 /// The reader fixture and its key helpers.
-use super::find_tests::{Reader, chord, status_for, type_text};
+use super::find_tests::{
+    Reader,
+    chord,
+    status_for,
+    type_text,
+};
 /// Counters of the window thread's work.
-use super::overscan_tile_tests::{counts, reset, worker_counts};
+use super::overscan_tile_tests::{
+    counts,
+    reset,
+    worker_counts,
+};
 /// The paint inputs and the tile description a fresh build needs.
-use super::render::{Paint, render, tile_cap, viewport_of};
+use super::render::{
+    Paint,
+    render,
+    tile_cap,
+    viewport_of,
+};
 /// The allowance the window thread may spend on one new width.
-use super::rewrap::{REWRAP_LINES, REWRAP_RASTER_BYTES, REWRAP_WORK};
+use super::rewrap::{
+    REWRAP_LINES,
+    REWRAP_RASTER_BYTES,
+    REWRAP_WORK,
+};
 /// The scrolling rule's clock and the check for a map that waits.
-use super::rows::{due, hold_clock};
+use super::rows::{
+    due,
+    hold_clock,
+};
 /// Window sizing for exact text widths.
-use super::sidebar_tests::{TEXT_LEFT, minimap_beside};
+use super::sidebar_tests::{
+    TEXT_LEFT,
+    minimap_beside,
+};
 /// The worker's pass gate.
-use super::tile_build::{BUILD_GATE, PASS_GATE};
+use super::tile_build::{
+    BUILD_GATE,
+    PASS_GATE,
+};
 /// The tile's pixels read back from the GPU.
 use super::tile_reads::tile_pixels;
 /// The wrap width rule.
@@ -34,7 +68,12 @@ use super::viewport::wrap_width;
 /// Wrapped fixtures,
 /// the open reader,
 /// and bounded waits.
-use super::wrap_tests::{long_text, open, settled, tabbed_text};
+use super::wrap_tests::{
+    long_text,
+    open,
+    settled,
+    tabbed_text,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// Library types that give the expected values.
@@ -42,17 +81,30 @@ use ide_app::{
     document::ReadingPosition,
     find_paint::rectangles,
     language::{
-        diagnostics::{DiagnosticsSnapshot, Severity, SourceGroup},
+        diagnostics::{
+            DiagnosticsSnapshot,
+            Severity,
+            SourceGroup,
+        },
         hints::HintsSnapshot,
     },
     row_map::CODE_ROW,
-    shaped_text::{ShapedView, TextShaper},
+    shaped_text::{
+        ShapedView,
+        TextShaper,
+    },
     virtual_row::CONTINUATION_INDENT,
 };
 /// Toolkit events and models.
 use slint::{
-    ComponentHandle, LogicalSize, Model,
-    platform::{Key, WindowEvent, update_timers_and_animations},
+    ComponentHandle,
+    LogicalSize,
+    Model,
+    platform::{
+        Key,
+        WindowEvent,
+        update_timers_and_animations,
+    },
 };
 /// Snapshots are shared values.
 use std::sync::Arc;
@@ -119,7 +171,11 @@ fn spent(reader: &Reader) -> Spent {
 /// Report the window width that leaves a text area `text_width` wide (the minimap takes its own share) to the toolkit
 ///  and run the change handlers once:
 /// the render the new width causes.
-pub(super) fn change_width(reader: &Reader, text_width: f32, height: f32) {
+pub(super) fn change_width(
+    reader: &Reader,
+    text_width: f32,
+    height: f32,
+) {
     reader.window.window().dispatch_event(WindowEvent::Resized {
         size: LogicalSize::new(TEXT_LEFT + text_width + minimap_beside(text_width), height),
     });
@@ -134,7 +190,10 @@ pub(super) fn hold_the_pass() -> std::sync::mpsc::Sender<()> {
 }
 
 /// The first character of `line`.
-fn start_of(reader: &Reader, line: usize) -> usize {
+fn start_of(
+    reader: &Reader,
+    line: usize,
+) -> usize {
     return reader.source.borrow().document.text().line_to_char(line);
 }
 
@@ -174,7 +233,10 @@ fn annotate_line(reader: &Reader) {
 
 /// Rows of `view` whose visible advance passes `width`,
 /// other than a row of one character (the one-token fallback).
-fn overflowing(view: &ShapedView, width: f32) -> Vec<String> {
+fn overflowing(
+    view: &ShapedView,
+    width: f32,
+) -> Vec<String> {
     let scale = view.viewport.scale;
     let mut found = Vec::new();
     for row in &view.rows {
@@ -230,7 +292,10 @@ fn rects(list: &[ide_app::shaped_text::ReadingRect]) -> Vec<[f32; 4]> {
 }
 
 /// Whether any pixel of the shown image has ink to the right of `limit` logical pixels.
-fn ink_past(reader: &super::find_tests::Reader, limit: f32) -> Option<usize> {
+fn ink_past(
+    reader: &super::find_tests::Reader,
+    limit: f32,
+) -> Option<usize> {
     let window = &reader.window;
     let scale = window.window().scale_factor();
     let image = tile_pixels(window, &reader.source).expect("source image pixels");

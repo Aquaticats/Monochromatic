@@ -20,11 +20,18 @@ use crate::configuration::ConfigBlock;
 use crate::resolved_rules::complete_rules;
 /// Import the incumbent Rust glob compiler;
 ///  it matches native path bytes.
-use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
+use globset::{
+    GlobBuilder,
+    GlobSet,
+    GlobSetBuilder,
+};
 /// Import the JSONC value type that matched configuration is held in before merging.
 use monochromatic_jsonc_edit::JsoncValue;
 /// Import native paths and the configuration value model.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One compiled block and its validated settings.
@@ -99,7 +106,10 @@ pub enum FileConfiguration {
 /// ```ts
 /// function compilePatterns(patterns: string[], directories: boolean): GlobSet;
 /// ```
-fn compile_patterns(patterns: &[String], directories: bool) -> Result<GlobSet, ConfigError> {
+fn compile_patterns(
+    patterns: &[String],
+    directories: bool,
+) -> Result<GlobSet, ConfigError> {
     let mut compiled = GlobSetBuilder::new();
     for pattern in patterns {
         // A trailing slash explicitly selects a directory's descendants.
@@ -141,7 +151,7 @@ fn compile_patterns(patterns: &[String], directories: bool) -> Result<GlobSet, C
 /// function prepareConfiguration(source: ConfigurationSource): PreparedConfiguration;
 /// ```
 pub fn prepare_configuration(
-    source: ConfigurationSource,
+    source: ConfigurationSource
 ) -> Result<PreparedConfiguration, ConfigError> {
     let mut blocks = Vec::with_capacity(source.blocks.len());
     for block in source.blocks {
@@ -173,7 +183,10 @@ pub fn prepare_configuration(
 /// ```
 impl PreparedConfiguration {
     /// Select matching blocks and finalize their full-group merge.
-    pub fn resolve(&self, relative_file: &Path) -> Result<FileConfiguration, ConfigError> {
+    pub fn resolve(
+        &self,
+        relative_file: &Path,
+    ) -> Result<FileConfiguration, ConfigError> {
         // An absolute path would silently use the wrong pattern base.
         // Parent components remain valid for files explicitly selected outside cwd with --config.
         if relative_file.is_absolute() {
@@ -199,7 +212,9 @@ impl PreparedConfiguration {
             return Ok(FileConfiguration::Unconfigured);
         }
         let rules = complete_rules(merge_values(settings.as_slice()))?;
-        return Ok(FileConfiguration::Configured { rules });
+        return Ok(FileConfiguration::Configured {
+            rules,
+        });
     }
 }
 

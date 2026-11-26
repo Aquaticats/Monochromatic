@@ -9,7 +9,10 @@ use super::*;
 
 // What:     `use std::time::{Duration, Instant};`. Injected clock values for the drain hold.
 // Why:      The hold depends only on the gaps between instants.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 // What:     `const RATE: u32 = 48_000;`. A common sample rate.
 // Why:      One frame count per second keeps the expected values readable.
@@ -101,7 +104,9 @@ fn position_updates_wait_for_the_emit_interval_of_audible_progress() {
     assert_eq!(clock.position_to_emit(96_000 - 7_200, RATE), None);
     // 0.2 s: the next update.
     let second = clock.position_to_emit(96_000 - 9_600, RATE);
-    assert!(second.is_some_and(|secs| return (secs - 2.0 * POSITION_EMIT_INTERVAL_SECS).abs() < 1e-9));
+    assert!(
+        second.is_some_and(|secs| return (secs - 2.0 * POSITION_EMIT_INTERVAL_SECS).abs() < 1e-9)
+    );
 }
 
 #[test]
@@ -179,8 +184,18 @@ fn frames_of_samples_of_an_unknown_channel_count_is_zero() {
 
 #[test]
 fn the_emit_interval_throttles_below_a_second() {
-    const { assert!(POSITION_EMIT_INTERVAL_SECS > 0.0, "a zero interval would emit every callback") };
-    const { assert!(POSITION_EMIT_INTERVAL_SECS < 1.0, "updates must arrive more than once per second") };
+    const {
+        assert!(
+            POSITION_EMIT_INTERVAL_SECS > 0.0,
+            "a zero interval would emit every callback"
+        )
+    };
+    const {
+        assert!(
+            POSITION_EMIT_INTERVAL_SECS < 1.0,
+            "updates must arrive more than once per second"
+        )
+    };
 }
 
 #[test]
@@ -303,7 +318,16 @@ fn drain_wait_reports_the_time_left_of_the_hold() {
     // No hold is running while frames are queued.
     assert_eq!(clock.drain_wait(start, hold), None);
     assert!(!clock.drain_finished(0, start, hold));
-    assert_eq!(clock.drain_wait(start, hold), Some(Duration::from_millis(50)));
-    assert_eq!(clock.drain_wait(start + Duration::from_millis(20), hold), Some(Duration::from_millis(30)));
-    assert_eq!(clock.drain_wait(start + Duration::from_millis(80), hold), Some(Duration::ZERO));
+    assert_eq!(
+        clock.drain_wait(start, hold),
+        Some(Duration::from_millis(50))
+    );
+    assert_eq!(
+        clock.drain_wait(start + Duration::from_millis(20), hold),
+        Some(Duration::from_millis(30))
+    );
+    assert_eq!(
+        clock.drain_wait(start + Duration::from_millis(80), hold),
+        Some(Duration::ZERO)
+    );
 }

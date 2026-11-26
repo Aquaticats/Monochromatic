@@ -15,7 +15,11 @@
 //! ```
 
 /// Import the JSONC value model and its string-literal encoder.
-use monochromatic_jsonc_edit::{JsoncKind, JsoncValue, encode_quoted};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncValue,
+    encode_quoted,
+};
 
 /// What:
 ///  Append two spaces per nesting level.
@@ -26,7 +30,10 @@ use monochromatic_jsonc_edit::{JsoncKind, JsoncValue, encode_quoted};
 /// ```ts
 /// function indent(output: string[], depth: number): void;
 /// ```
-fn indent(output: &mut String, depth: usize) {
+fn indent(
+    output: &mut String,
+    depth: usize,
+) {
     for _ in 0..depth {
         output.push_str("  ");
     }
@@ -47,15 +54,29 @@ fn indent(output: &mut String, depth: usize) {
 /// ```ts
 /// function write(value: JsoncValue, depth: number, output: string[]): void;
 /// ```
-fn write(value: &JsoncValue, depth: usize, output: &mut String) {
+fn write(
+    value: &JsoncValue,
+    depth: usize,
+    output: &mut String,
+) {
     match &value.kind {
-        JsoncKind::Text { units, .. } => output.push_str(encode_quoted(units).as_str()),
-        JsoncKind::Number { raw, .. } => output.push_str(raw.as_str()),
-        JsoncKind::Boolean { value: flag } => {
+        JsoncKind::Text {
+            units,
+            ..
+        } => output.push_str(encode_quoted(units).as_str()),
+        JsoncKind::Number {
+            raw,
+            ..
+        } => output.push_str(raw.as_str()),
+        JsoncKind::Boolean {
+            value: flag,
+        } => {
             output.push_str(if *flag { "true" } else { "false" });
         }
         JsoncKind::Null => output.push_str("null"),
-        JsoncKind::Array { elements } => {
+        JsoncKind::Array {
+            elements,
+        } => {
             if elements.is_empty() {
                 output.push_str("[]");
                 return;
@@ -73,7 +94,9 @@ fn write(value: &JsoncValue, depth: usize, output: &mut String) {
             indent(output, depth);
             output.push(']');
         }
-        JsoncKind::Record { entries } => {
+        JsoncKind::Record {
+            entries,
+        } => {
             if entries.is_empty() {
                 output.push_str("{}");
                 return;

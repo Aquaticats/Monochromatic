@@ -5,14 +5,27 @@
 /// The sentences under test,
 ///  the action that names the key,
 ///  and hover rendering.
-use super::{Action, hover_text::plain, message};
+use super::{
+    Action,
+    hover_text::plain,
+    message,
+};
 /// States,
 ///  outcomes,
 ///  and identities as the worker reports them.
 use ide_app::language::{
     identity::ServerIdentity,
-    reply::{HoverText, RequestFailure, RequestOutcome},
-    status::{DocumentState, LanguageStatus, ServerState, ServerStatus},
+    reply::{
+        HoverText,
+        RequestFailure,
+        RequestOutcome,
+    },
+    status::{
+        DocumentState,
+        LanguageStatus,
+        ServerState,
+        ServerStatus,
+    },
 };
 /// Paths name refused roots and directories.
 use std::path::PathBuf;
@@ -26,7 +39,10 @@ fn server() -> ServerIdentity {
 }
 
 /// A status for a file of the `scripted` language with one server row in `state`.
-fn status(document: DocumentState, state: Option<ServerState>) -> LanguageStatus {
+fn status(
+    document: DocumentState,
+    state: Option<ServerState>,
+) -> LanguageStatus {
     let mut servers = Vec::new();
     if let Some(found) = state {
         servers.push(ServerStatus {
@@ -45,7 +61,11 @@ fn status(document: DocumentState, state: Option<ServerState>) -> LanguageStatus
 }
 
 /// The sentence for one answer of the scripted server.
-fn single(action: Action, outcome: RequestOutcome, from: &LanguageStatus) -> String {
+fn single(
+    action: Action,
+    outcome: RequestOutcome,
+    from: &LanguageStatus,
+) -> String {
     return message::explain(action, &[(Some(server()), outcome)], from);
 }
 

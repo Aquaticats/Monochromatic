@@ -14,7 +14,10 @@ use super::check_folder_links;
 use crate::{
     layout_finding::LayoutFinding,
     layout_module_uses::collect_uses,
-    layout_test_support::{package_with, tree_of},
+    layout_test_support::{
+        package_with,
+        tree_of,
+    },
 };
 use std::path::Path;
 
@@ -24,7 +27,7 @@ fn findings_of(root: &Path) -> Vec<String> {
     let tree = tree_of(root);
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let uses = collect_uses(&tree);
-    let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), root);
+    let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), root, None);
     let prefix: String = format!("{}/", root.display());
     return found
         .iter()
@@ -325,4 +328,214 @@ fn layout_two_globs_on_one_line_are_one_finding_and_a_self_glob_is_none() {
         "{}",
         globs[0]
     );
+}
+
+/// Run the rule with an allow list and render each finding as `file:line message`,
+///  with the fixture folder removed.
+fn findings_with(
+    root: &Path,
+    lines: &str,
+) -> Vec<String> {
+    let tree = tree_of(root);
+    assert!(tree.problems.is_empty(), "{:?}", tree.problems);
+    let uses = collect_uses(&tree);
+    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"))
+        .expect("the fixture list is valid");
+    let prefix: String = format!("{}/", root.display());
+    return check_folder_links(&tree, uses.as_slice(), root, Some(&list))
+        .iter()
+        .map(|item| {
+            return format!("{}:{} {}", item.file.display(), item.line, item.message)
+                .replace(prefix.as_str(), "");
+        })
+        .collect::<Vec<String>>();
+}
+
+/// A package whose folders `a`,
+/// `b` and `c` use each other in one loop,
+///  with the links the rule asks for.
+#[cfg(unix)]
+fn a_loop_of_three() -> crate::test_fs::Fixture {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod b;\nmod c;\n"),
+        ("src/a/mod.rs", "use crate::b::X;\n"),
+        ("src/b/mod.rs", "use crate::c::X;\n"),
+        ("src/c/mod.rs", "use crate::a::X;\n"),
+    ]);
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/b", "../../b");
+    crate::layout_test_support::link(&fixture.path, "src/b/uses/c", "../../c");
+    crate::layout_test_support::link(&fixture.path, "src/c/uses/a", "../../a");
+    return fixture;
+}
+
+/// With every use of the loop on the list the loop is not reported.
+#[cfg(unix)]
+#[test]
+fn listed_uses_take_their_loop_out_of_the_report() {
+    let fixture = a_loop_of_three();
+    assert_eq!(findings_with(&fixture.path, "").len(), 1);
+    let listed: &str = "uses src/a -> src/b\nuses src/b -> src/c\nuses src/c -> src/a\n";
+    assert_eq!(findings_with(&fixture.path, listed), Vec::<String>::new());
+}
+
+/// A use that joins two folders already inside one listed loop is a finding,
+/// because a tolerated loop may only lose uses,
+/// and an entry that records a new use would make the list grow.
+#[cfg(unix)]
+#[test]
+fn a_new_use_inside_a_listed_loop_is_a_finding() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod b;\nmod c;\nmod d;\n"),
+        ("src/a/mod.rs", "use crate::b::X;\n"),
+        ("src/b/mod.rs", "use crate::c::X;\nuse crate::d::Y;\n"),
+        ("src/c/mod.rs", "use crate::a::X;\n"),
+        ("src/d/mod.rs", "use crate::a::X;\n"),
+    ]);
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/b", "../../b");
+    crate::layout_test_support::link(&fixture.path, "src/b/uses/c", "../../c");
+    crate::layout_test_support::link(&fixture.path, "src/b/uses/d", "../../d");
+    crate::layout_test_support::link(&fixture.path, "src/c/uses/a", "../../a");
+    crate::layout_test_support::link(&fixture.path, "src/d/uses/a", "../../a");
+    let listed: &str = "uses src/a -> src/b\nuses src/b -> src/c\nuses src/c -> src/a\n";
+    let found: Vec<String> = findings_with(&fixture.path, listed);
+    assert_eq!(found.len(), 2, "{found:#?}");
+    for text in &found {
+        assert!(
+            text.contains("and both sit inside one loop the allow list tolerates today"),
+            "{text}"
+        );
+    }
+    assert!(
+        found
+            .iter()
+            .any(|text| return text.contains("src/b uses the folder src/d")),
+        "{found:#?}"
+    );
+    assert!(
+        found
+            .iter()
+            .any(|text| return text.contains("src/d uses the folder src/a")),
+        "{found:#?}"
+    );
+}
+
+/// A listed use that no code makes any more is a finding on its own line.
+#[test]
+fn a_listed_use_that_no_code_makes_is_reported() {
+    let fixture = package_with(&a_uses_b());
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/b", "../../b");
+    let found: Vec<String> = findings_with(&fixture.path, "uses src/a -> src/z\n");
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].starts_with("allow-list.txt:1 The allow-list entry `uses src/a -> src/z`"),
+        "{}",
+        found[0]
+    );
+    assert!(
+        found[0].contains("tolerates nothing any more"),
+        "{}",
+        found[0]
+    );
+}
+
+/// A listed use whose two folders are no longer in one loop is a finding,
+/// because the entry no longer holds a loop out of the report.
+#[test]
+fn a_listed_use_that_holds_no_loop_is_reported() {
+    let fixture = package_with(&a_uses_b());
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/b", "../../b");
+    let found: Vec<String> = findings_with(&fixture.path, "uses src/a -> src/b\n");
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].contains("tolerates nothing any more"),
+        "{}",
+        found[0]
+    );
+}
+
+/// A listed key takes exactly the finding it names out of the report,
+///  and the second glob re-export of the same module stays a finding,
+///  which a fixture with one finding could not show.
+#[test]
+fn a_listed_key_takes_one_finding_out_of_the_report() {
+    let fixture = package_with(&[
+        (
+            "src/lib.rs",
+            "mod native;\npub use native::*;\npub use native::*;\n",
+        ),
+        ("src/native/mod.rs", "pub mod saving;\n"),
+        ("src/native/saving.rs", ""),
+    ]);
+    // The two glob re-exports and the use of the globbed folder.
+    assert_eq!(findings_with(&fixture.path, "").len(), 3);
+    let listed: &str = "missing-link src -> src/native\nglob src/lib.rs native\n";
+    let found: Vec<String> = findings_with(&fixture.path, listed);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(found[0].contains("re-exports every item"), "{}", found[0]);
+    // The second of the two, on its own line.
+    assert!(found[0].starts_with("src/lib.rs:3"), "{}", found[0]);
+}
+
+/// A listed key that names no finding is a finding of its own.
+#[test]
+fn a_listed_key_that_names_no_finding_is_reported() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod native;\npub use native::*;\n"),
+        ("src/native/mod.rs", "pub mod saving;\n"),
+        ("src/native/saving.rs", ""),
+    ]);
+    let found: Vec<String> = findings_with(&fixture.path, "glob src/lib.rs elsewhere\n");
+    assert_eq!(found.len(), 3, "{found:#?}");
+    assert!(
+        found
+            .iter()
+            .any(|text| return text.contains("tolerates nothing any more")),
+        "{found:#?}"
+    );
+}
+
+/// A new use that closes a loop of its own is reported once,
+///  by the loop finding,
+///  and never once per old use the new loop happens to join.
+#[cfg(unix)]
+#[test]
+fn a_new_mutual_use_inside_a_tolerated_loop_is_one_loop_finding() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod b;\nmod c;\n"),
+        ("src/a/mod.rs", "use crate::b::X;\nuse crate::c::Y;\n"),
+        ("src/b/mod.rs", "use crate::a::X;\n"),
+        ("src/c/mod.rs", "use crate::a::Z;\n"),
+    ]);
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/b", "../../b");
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/c", "../../c");
+    crate::layout_test_support::link(&fixture.path, "src/b/uses/a", "../../a");
+    crate::layout_test_support::link(&fixture.path, "src/c/uses/a", "../../a");
+    let listed: &str = "uses src/a -> src/b\nuses src/b -> src/a\n";
+    let found: Vec<String> = findings_with(&fixture.path, listed);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].starts_with("src/a/mod.rs:2 These folders use each other in a loop"),
+        "{}",
+        found[0]
+    );
+    assert!(found[0].contains("src/a uses src/c"), "{}", found[0]);
+    assert!(found[0].contains("src/c uses src/a"), "{}", found[0]);
+}
+
+/// The help for a missing link warns what a link into a loop does to `cargo package`,
+///  because a looped crate that only reads `Create the link:` writes one into a hang.
+#[test]
+fn the_missing_link_help_warns_about_a_looped_crate() {
+    let fixture = package_with(&a_uses_b());
+    let tree = tree_of(&fixture.path);
+    let uses = collect_uses(&tree);
+    let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), &fixture.path, None);
+    let help: &str = found[0].help.as_deref().expect("a missing link has help");
+    assert!(help.starts_with("Create the link: "), "{help}");
+    assert!(
+        help.contains("`cargo package` follows a link into a loop"),
+        "{help}"
+    );
+    assert!(help.contains("untangle that loop first"), "{help}");
+    assert!(help.contains("exclude"), "{help}");
 }

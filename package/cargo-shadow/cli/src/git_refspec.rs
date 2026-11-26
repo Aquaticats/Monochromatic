@@ -66,7 +66,12 @@ fn is_plain_component(part: &str) -> bool {
 /// export function isPlainRefName(name: string): boolean
 /// ```
 pub fn is_plain_ref_name(name: &str) -> bool {
-    if name.is_empty() || name.contains("..") || name.ends_with('.') || name.ends_with('/') || name.starts_with('/') {
+    if name.is_empty()
+        || name.contains("..")
+        || name.ends_with('.')
+        || name.ends_with('/')
+        || name.starts_with('/')
+    {
         return false;
     }
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
@@ -123,7 +128,9 @@ fn side(text: &str) -> Result<Side<'_>, String> {
         // console.error(text);   // eprintln!
         // [a, b]            // vec![a, b]
         // ```
-        return Err(format!("the fetch refspec side {text:?} is not a plain reference name or pattern"));
+        return Err(format!(
+            "the fetch refspec side {text:?} is not a plain reference name or pattern"
+        ));
     }
     // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
     // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
@@ -142,17 +149,25 @@ fn side(text: &str) -> Result<Side<'_>, String> {
         // // Some(value) is  value
         // // None        is  undefined
         // ```
-        None => Ok(Side { prefix: text, suffix: None }),
+        None => Ok(Side {
+            prefix: text,
+            suffix: None,
+        }),
         // `Some`: the present or the absent value of an `Option`.
         Some((prefix, suffix)) => {
             if suffix.contains('*') {
                 // `Err(...)`: builds the success or the failure variant of a `Result`.
                 // Macro `format!`: builds or prints text (or a list) from a template.
-                return Err(format!("the fetch refspec side {text:?} has more than one wildcard"));
+                return Err(format!(
+                    "the fetch refspec side {text:?} has more than one wildcard"
+                ));
             }
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `Some`: the present or the absent value of an `Option`.
-            Ok(Side { prefix, suffix: Some(suffix) })
+            Ok(Side {
+                prefix,
+                suffix: Some(suffix),
+            })
         }
     };
 }
@@ -230,7 +245,10 @@ fn parse_refspec(spec: &str) -> Result<Refspec<'_>, String> {
         // ```ts
         // const value = await expr;   // throws to the caller on failure
         // ```
-        return Ok(Refspec { source: side(without_force)?, destination: None });
+        return Ok(Refspec {
+            source: side(without_force)?,
+            destination: None,
+        });
     };
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Typed binding: `source: Side`.
@@ -241,11 +259,16 @@ fn parse_refspec(spec: &str) -> Result<Refspec<'_>, String> {
     if source.suffix.is_some() != destination.suffix.is_some() {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("the fetch refspec {spec:?} has a pattern on one side only"));
+        return Err(format!(
+            "the fetch refspec {spec:?} has a pattern on one side only"
+        ));
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `Some`: the present or the absent value of an `Option`.
-    return Ok(Refspec { source, destination: Some(destination) });
+    return Ok(Refspec {
+        source,
+        destination: Some(destination),
+    });
 }
 
 /// What:
@@ -260,7 +283,10 @@ fn parse_refspec(spec: &str) -> Result<Refspec<'_>, String> {
 /// ```ts
 /// export function mapThroughRefspecs(specs: string[], merge: string): string | undefined  // throws on a spec it cannot judge
 /// ```
-pub fn map_through_refspecs(specs: &[&str], merge: &str) -> Result<Option<String>, String> {
+pub fn map_through_refspecs(
+    specs: &[&str],
+    merge: &str,
+) -> Result<Option<String>, String> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
     //
@@ -317,7 +343,10 @@ pub fn map_through_refspecs(specs: &[&str], merge: &str) -> Result<Option<String
                     // `Ok(...)`: builds the success or the failure variant of a `Result`.
                     // `Some`: the present or the absent value of an `Option`.
                     // Macro `format!`: builds or prints text (or a list) from a template.
-                    return Ok(Some(format!("{}{middle}{destination_suffix}", destination.prefix)));
+                    return Ok(Some(format!(
+                        "{}{middle}{destination_suffix}",
+                        destination.prefix
+                    )));
                 }
             }
             _ => {

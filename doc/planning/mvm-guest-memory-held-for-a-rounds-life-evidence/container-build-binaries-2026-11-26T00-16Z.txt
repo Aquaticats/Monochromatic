@@ -1,0 +1,56 @@
+# The container build of 2026-11-26T00:16+00:00 and the floors of the binaries it made
+
+Built 2026-11-25T19:16 to 19:34 host time (2026-11-26T00:16 to 00:34Z) in a
+systemd-run user scope over podman, image `docker.io/library/ubuntu:24.04`,
+at `/opt/git-policy-cli-lock`, with Rust 1.100.0, the version the guest recipe pins.
+
+## Versions the build itself printed
+
+rustc 1.100.0 (0ef1bc386 2026-11-09)
+cargo 1.100.0 (3acc79c0c 2026-11-05)
+PRETTY_NAME="Ubuntu 24.04.5 LTS"
+ldd (Ubuntu GLIBC 2.39-0ubuntu8.12) 2.39
+
+## Files, sizes and sha256
+
+-rwxr-xr-x 2 user user 30529032 Nov 25 19:29 target/raised-deadline/release/monochromatic-git-policy-cli
+-rwxr-xr-x 1 user user 16929064 Nov 25 19:21 target/release/build/monochromatic-git-policy-cli/f3cc464aa4e210b1/out/native_binary-f3cc464aa4e210b1
+-rwxr-xr-x 2 user user 30512248 Nov 25 19:20 target/release/monochromatic-git-policy-cli
+
+e4bac8f84d6ba3a6ad00c6b411d4cb75f8f4ca7188a328c76a5dc7fca4c2d173  target/release/monochromatic-git-policy-cli
+00461abbec51bd4cdcb4123f0cd8907534d0ba8ed0ad2e33294e25c6b76cd254  target/release/build/monochromatic-git-policy-cli/f3cc464aa4e210b1/out/native_binary-f3cc464aa4e210b1
+88e2b8fbb5a8fc59c8ec21085f073f4b508890229b414738bfc9933ea5c69bc7  target/raised-deadline/release/monochromatic-git-policy-cli
+
+## Highest versioned glibc symbol each binary needs
+
+Read with `readelf --version-info`, keeping every GLIBC_x.y and taking the last in
+version order.
+
+target/release/monochromatic-git-policy-cli: GLIBC_2.39
+target/release/build/monochromatic-git-policy-cli/f3cc464aa4e210b1/out/native_binary-f3cc464aa4e210b1: GLIBC_2.39
+target/raised-deadline/release/monochromatic-git-policy-cli: GLIBC_2.39
+
+The guest is Ubuntu 24.04, glibc 2.39, so both binaries fit it exactly, with no
+margin: a rebuild that picks up one newer versioned symbol would not start there.
+
+## Baked absolute paths, from `strings` of the test binary
+
+/opt/git-policy-cli-lock/package/git-policy/clisrcmeasured
+/opt/git-policy-cli-lock/package/git-policy/clisrc/native/merge/word_merge_corpusa
+/opt/git-policy-cli-lock/package/git-policy/cli/target/release/monochromatic-git-policy-cligit-named
+/opt/git-policy-cli-lock/package/git-policy/cli/target/release/monochromatic-git-policy-cli--helpUsage:
+/opt/git-policy-cli-lock/package/git-policy/cli/target/release/monochromatic-git-policy-cli--journaljournal--abstract--patha
+/opt/git-policy-cli-lock/package/git-policy/cli/target/release/monochromatic-git-policy-climissing-root-reportgrandparentgrandparentmarker-filexmarkersilent-listenersocketa
+
+## The smoke run: both binaries start in an Ubuntu 24.04 container holding the same paths
+
+Read in a capped `systemd-run --user` scope over `podman run --rm` of the same image,
+with the build tree mounted read only at `/opt/git-policy-cli-lock`:
+
+```text
+ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39
+/opt/git-policy-cli-lock/package/git-policy/cli/target/release/build/monochromatic-git-policy-cli/f3cc464aa4e210b1/out/native_binary-f3cc464aa4e210b1
+zfs_managed_lock_guest::the_managed_lock_outlives_the_pointer_and_goes_after_the_clone: test
+
+1 test, 0 benchmarks
+```

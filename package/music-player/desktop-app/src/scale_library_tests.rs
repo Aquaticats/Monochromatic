@@ -80,9 +80,16 @@ impl Rng {
     /// ```ts
     /// const stream = (seed: bigint, index: bigint, salt: bigint) => new Rng(seed ^ index * K1 ^ salt * K2 | 1n);
     /// ```
-    fn stream(index: u64, salt: u64) -> Rng {
-        let mixed = SEED ^ index.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ salt.wrapping_mul(0xD6E8_FEB8_6659_FD93);
-        return Rng { state: mixed | 1 };
+    fn stream(
+        index: u64,
+        salt: u64,
+    ) -> Rng {
+        let mixed = SEED
+            ^ index.wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            ^ salt.wrapping_mul(0xD6E8_FEB8_6659_FD93);
+        return Rng {
+            state: mixed | 1,
+        };
     }
 
     /// What:
@@ -105,7 +112,10 @@ impl Rng {
     /// Why:
     /// name parts,
     /// word counts and track counts all need bounded choices.
-    fn below(&mut self, bound: usize) -> usize {
+    fn below(
+        &mut self,
+        bound: usize,
+    ) -> usize {
         return usize::try_from(self.next_u64() % (bound as u64)).unwrap_or(0);
     }
 
@@ -114,7 +124,10 @@ impl Rng {
     /// Why:
     /// subfolders,
     /// long titles and kana words are minorities with fixed rates.
-    fn chance(&mut self, percent: usize) -> bool {
+    fn chance(
+        &mut self,
+        percent: usize,
+    ) -> bool {
         return self.below(100) < percent;
     }
 
@@ -122,7 +135,10 @@ impl Rng {
     /// `pick` gives one item of a fixed table.
     /// Why:
     /// syllable and symbol tables are fixed lists chosen at random.
-    fn pick(&mut self, items: &[&'static str]) -> &'static str {
+    fn pick(
+        &mut self,
+        items: &[&'static str],
+    ) -> &'static str {
         return items[self.below(items.len())];
     }
 }
@@ -173,8 +189,13 @@ fn script_for(rng: &mut Rng) -> Script {
     };
 }
 
-const LATIN_SYLLABLES: &[&str] = &["ka", "lo", "ri", "ven", "sa", "mo", "tek", "zu", "ash", "lind", "ora", "quin", "bel", "dom", "fe", "yr"];
-const KANA: &[&str] = &["あ", "い", "か", "き", "さ", "し", "た", "な", "ア", "カ", "サ", "タ"];
+const LATIN_SYLLABLES: &[&str] = &[
+    "ka", "lo", "ri", "ven", "sa", "mo", "tek", "zu", "ash", "lind", "ora", "quin", "bel", "dom",
+    "fe", "yr",
+];
+const KANA: &[&str] = &[
+    "あ", "い", "か", "き", "さ", "し", "た", "な", "ア", "カ", "サ", "タ",
+];
 const HAN: &[&str] = &["夜", "光", "風", "海", "空", "月"];
 const CYRILLIC: &[&str] = &["ма", "ра", "лу", "ну", "ко", "ти", "шо", "зе", "ри", "бо"];
 const SYMBOLS: &[&str] = &["!!!", "#", "$", "&", "+", "~", "(", "[", "*"];
@@ -280,7 +301,11 @@ fn artist_name(index: usize) -> String {
 /// a few are very long,
 /// and a shared pool makes titles repeat across artists.
 fn track_title(rng: &mut Rng) -> String {
-    let words = if rng.chance(2) { 30 + rng.below(20) } else { 1 + rng.below(5) };
+    let words = if rng.chance(2) {
+        30 + rng.below(20)
+    } else {
+        1 + rng.below(5)
+    };
     let mut parts: Vec<String> = Vec::with_capacity(words);
     for _ in 0..words {
         if rng.chance(15) {
@@ -315,7 +340,11 @@ fn extension_for(rng: &mut Rng) -> &'static str {
 /// Why:
 /// the prefix keeps names unique inside a folder,
 /// and the byte limit keeps each component within the filesystem cap.
-fn file_name(prefix: &str, title: &str, extension: &str) -> String {
+fn file_name(
+    prefix: &str,
+    title: &str,
+    extension: &str,
+) -> String {
     let stem = format!("{prefix} {title}");
     let budget = MAX_COMPONENT_BYTES - extension.len() - 1;
     let mut kept = String::new();
@@ -333,7 +362,11 @@ fn file_name(prefix: &str, title: &str, extension: &str) -> String {
 /// Why:
 /// subfolders show the folder rail and the track list's nested headers,
 /// as real albums do.
-fn album_directory(folder: &str, track: usize, count: usize) -> String {
+fn album_directory(
+    folder: &str,
+    track: usize,
+    count: usize,
+) -> String {
     let album = 1 + (track * 12) / count.max(1);
     let mut directory = format!("{folder}/Album {album:02}");
     if album % 2 == 0 {
@@ -371,7 +404,11 @@ impl SyntheticLibrary {
     /// only the window tests need them,
     /// and building a million paths takes noticeable time.
     pub(crate) fn paths(&self) -> Vec<PathBuf> {
-        return self.names.iter().map(|name| return PathBuf::from(format!("/library/{name}"))).collect();
+        return self
+            .names
+            .iter()
+            .map(|name| return PathBuf::from(format!("/library/{name}")))
+            .collect();
     }
 }
 
@@ -384,7 +421,10 @@ impl SyntheticLibrary {
 /// ```ts
 /// const buildLibrary = (artists: number, tracksPerArtist: number): SyntheticLibrary => { ... };
 /// ```
-fn generate_library(artists: usize, tracks_per_artist: usize) -> SyntheticLibrary {
+fn generate_library(
+    artists: usize,
+    tracks_per_artist: usize,
+) -> SyntheticLibrary {
     let total = artists * tracks_per_artist;
     let loose = total * LOOSE_PERCENT / 100;
     let artist_tracks = total - loose;
@@ -393,7 +433,11 @@ fn generate_library(artists: usize, tracks_per_artist: usize) -> SyntheticLibrar
     for number in 0..loose {
         let extension = extension_for(&mut root_rng);
         let title = track_title(&mut root_rng);
-        names.push(file_name(&format!("Loose {} -", number + 1), &title, extension));
+        names.push(file_name(
+            &format!("Loose {} -", number + 1),
+            &title,
+            extension,
+        ));
     }
     let mut taken: HashSet<String> = HashSet::with_capacity(artists);
     for index in 0..artists {
@@ -405,15 +449,25 @@ fn generate_library(artists: usize, tracks_per_artist: usize) -> SyntheticLibrar
             let extension = extension_for(&mut rng);
             let title = track_title(&mut rng);
             let prefix = format!("{:0width$}", track + 1, width = count.to_string().len());
-            let directory = if subfolders { album_directory(&folder, track, count) } else { folder.clone() };
-            names.push(format!("{directory}/{}", file_name(&prefix, &title, extension)));
+            let directory = if subfolders {
+                album_directory(&folder, track, count)
+            } else {
+                folder.clone()
+            };
+            names.push(format!(
+                "{directory}/{}",
+                file_name(&prefix, &title, extension)
+            ));
         }
     }
     if names.len() <= REPLICATE_ABOVE {
         let unique: HashSet<&String> = names.iter().collect();
         assert_eq!(unique.len(), names.len(), "generated names must be unique");
     }
-    return SyntheticLibrary { artists, names };
+    return SyntheticLibrary {
+        artists,
+        names,
+    };
 }
 
 /// What:
@@ -433,7 +487,10 @@ const REPLICATE_ABOVE: usize = 100_000;
 /// folder names;
 /// a release build generates every name.
 /// Both give unique names of the same shapes.
-pub(crate) fn build_library(artists: usize, tracks_per_artist: usize) -> SyntheticLibrary {
+pub(crate) fn build_library(
+    artists: usize,
+    tracks_per_artist: usize,
+) -> SyntheticLibrary {
     let total = artists * tracks_per_artist;
     if !cfg!(debug_assertions) || total <= REPLICATE_ABOVE {
         return generate_library(artists, tracks_per_artist);
@@ -454,7 +511,10 @@ pub(crate) fn build_library(artists: usize, tracks_per_artist: usize) -> Synthet
             }
         }
     }
-    return SyntheticLibrary { artists, names };
+    return SyntheticLibrary {
+        artists,
+        names,
+    };
 }
 
 /// What:
@@ -462,9 +522,16 @@ pub(crate) fn build_library(artists: usize, tracks_per_artist: usize) -> Synthet
 /// Why:
 /// two artists with one folder name would merge into one folder,
 /// and the track count would shrink.
-fn unique_folder(taken: &mut HashSet<String>, index: usize) -> String {
+fn unique_folder(
+    taken: &mut HashSet<String>,
+    index: usize,
+) -> String {
     let drawn = artist_name(index);
-    let base = if drawn.trim().is_empty() { format!("artist {index}") } else { drawn };
+    let base = if drawn.trim().is_empty() {
+        format!("artist {index}")
+    } else {
+        drawn
+    };
     let mut candidate = base.clone();
     let mut counter = 2;
     while taken.contains(&candidate) {

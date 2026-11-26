@@ -14,7 +14,11 @@
 //!  which a test runner counts as a pass,
 //! so the refusals are proven to panic instead.
 
-use super::fixture::{Fixture, GUEST_VARIABLE, resolve};
+use super::fixture::{
+    Fixture,
+    GUEST_VARIABLE,
+    resolve,
+};
 use super::fixture_reply::expected_source;
 use std::ffi::OsString;
 

@@ -74,7 +74,7 @@ pub(crate) fn in_a_root_taking_any_name(root: &Path, test: &str) -> bool {
     if !in_a_root_namespace(INSIDE_VARIABLE, test) {
         return false;
     }
-    mount_a_tmpfs(root);
+    mount_a_tmpfs(root, None);
     stop_gaining_capabilities_across_exec();
     assert!(
         a_name_that_is_not_utf8_can_be_made(root),
@@ -110,28 +110,41 @@ fn a_name_that_is_not_utf8_can_be_made(root: &Path) -> bool {
 }
 
 /// What:
-///  Mount one tmpfs at the fixture root of this run.
+///  Mount one tmpfs at `root`, no bigger than `size_bytes` when that is given.
 /// Why:
-///   It is called only inside the namespace the control was re-executed in,
-///  where this process is root and may mount;
-///  the mount's options are the ones the gate's fixture root is made with:
+///   It is called only inside the namespace a control was re-executed in
+///  (`in_a_root_namespace`),
+///  where this process is root and may mount,
+///  and the mount lives in that namespace alone.
+///  The fixture-root control gives no size: its options are then the ones the gate's fixture root is made with,
 ///  `rw`,
 ///  the size the file system gives it,
 ///  and the mode the kernel gives a tmpfs root,
 ///  so a fixture here behaves as the fixture the gate makes does,
 ///  and a program a control starts from a fixture is runnable there as it is in the gate.
+///  The wrapper-store control gives a size measured from the build,
+///  so a file system holding copies of it is bounded instead of holding half of this host's memory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function mountATmpfs(root: string): void; // throws when the mount is refused
+/// function mountATmpfs(root: string, sizeBytes?: number): void; // throws when the mount is refused
 /// ```
-fn mount_a_tmpfs(root: &Path) {
+pub(crate) fn mount_a_tmpfs(root: &Path, size_bytes: Option<u64>) {
     let source: CString = CString::new("tmpfs").expect("a file system type holds no NUL");
     let target: CString = CString::new(root.as_os_str().as_bytes()).expect("a fixture path holds no NUL");
     let kind: CString = CString::new("tmpfs").expect("a file system type holds no NUL");
-    // SAFETY: the three names are NUL-terminated and outlive the call, and `mount` reads no other memory of ours.
-    let mounted: libc::c_int = unsafe { libc::mount(source.as_ptr(), target.as_ptr(), kind.as_ptr(), 0, std::ptr::null()) };
-    assert_eq!(mounted, 0, "a tmpfs is mounted at the fixture root {}: {}", root.display(), std::io::Error::last_os_error());
+    // What: the mount's options as the one string the kernel reads, which is empty unless a size was asked for.
+    // Why: `size=` is how a tmpfs is told how many bytes it may hold, and no option means the kernel's own size.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const options = sizeBytes === undefined ? '' : `size=${sizeBytes}`;
+    // ```
+    let options: CString = CString::new(size_bytes.map_or_else(String::new, |bytes| { return format!("size={bytes}"); }))
+        .expect("a mount option holds no NUL");
+    // SAFETY: all four values are NUL-terminated and outlive the call, and `mount` reads no other memory of ours.
+    let mounted: libc::c_int = unsafe { libc::mount(source.as_ptr(), target.as_ptr(), kind.as_ptr(), 0, options.as_ptr().cast()) };
+    assert_eq!(mounted, 0, "a tmpfs is mounted at {}: {}", root.display(), std::io::Error::last_os_error());
 }
 
 /// What:

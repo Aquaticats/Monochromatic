@@ -15,11 +15,20 @@
 ///  which differs from Rust's `str::trim` (it includes U+FEFF,
 ///  excludes U+0085).
 use crate::{
-    markdown_lfs_endpoint::{LfsUrlRejection, lfs_object_base},
+    markdown_lfs_endpoint::{
+        LfsUrlRejection,
+        lfs_object_base,
+    },
     markdown_trim_space::trim_space,
 };
 /// Import native paths and I/O error classification.
-use std::{io::ErrorKind, path::Path};
+use std::{
+    io::{
+        ErrorKind,
+        Read,
+    },
+    path::Path,
+};
 
 /// What:
 ///  The file name git-lfs reads for repository-level configuration.
@@ -132,7 +141,10 @@ pub struct LfsConfigError {
 /// Render the failure through the ordinary error interface.
 impl std::fmt::Display for LfsConfigError {
     /// Borrow the formatter only while writing the stored explanation.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.message.as_str());
     }
 }
@@ -141,19 +153,44 @@ impl std::fmt::Display for LfsConfigError {
 impl std::error::Error for LfsConfigError {}
 
 /// What:
+///  The most bytes this rule reads from one committed repository text file
+///  (`.lfsconfig` or the root `.gitattributes`):
+///  one mebibyte.
+/// Why:
+///  Both files are a person's to write,
+///  and a mistyped path would otherwise read a device or a disk image into memory.
+///  This repository's root `.gitattributes` is 774 bytes and its `.lfsconfig` is 61 bytes
+///  (measured 2026-11-25),
+///  and a line of either is short,
+///  so one mebibyte holds more than a thousand times this repository's own largest one.
+///  The siblings a reader might expect are an unbounded read and a per-line limit;
+///  a bound on the whole file is the one that also ends on a file that keeps growing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MAX_REPOSITORY_TEXT_BYTES: number = 1024 * 1024;
+/// ```
+pub(crate) const MAX_REPOSITORY_TEXT_BYTES: usize = 1024 * 1024;
+
+/// What:
 ///  Read one text file,
+///  at most `MAX_REPOSITORY_TEXT_BYTES` of it,
 ///  mapping absence to `None` and every other failure to a typed error.
 /// Why:
 ///  A missing `.lfsconfig` or `.gitattributes` is ordinary;
-///  a permission or encoding failure is not.
+///  a permission or encoding failure is not,
+///  and a file over the bound is refused rather than read,
+///  because the rule would read every byte of whatever the path names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function readOptionalText(path: Path): string | undefined; // rethrows non-ENOENT errors
 /// ```
 pub(crate) fn read_optional_text(path: &Path) -> Result<Option<String>, LfsConfigError> {
-    match std::fs::read_to_string(path) {
-        Ok(text) => return Ok(Some(text)),
+    // What: the file opened for a bounded read, or absence when the path is not there.
+    // Why: opening separately keeps the ordinary absence apart from every other failure.
+    let file: std::fs::File = match std::fs::File::open(path) {
+        Ok(found) => found,
         Err(error) => {
             if error.kind() == ErrorKind::NotFound {
                 return Ok(None);
@@ -162,7 +199,31 @@ pub(crate) fn read_optional_text(path: &Path) -> Result<Option<String>, LfsConfi
                 message: format!("Cannot read {}: {error}.", path.display()),
             });
         }
+    };
+    // One byte past the bound, so a file that grew after any earlier look is refused rather than swallowed.
+    let mut bytes: Vec<u8> = Vec::<u8>::new();
+    if let Err(error) = file
+        .take(MAX_REPOSITORY_TEXT_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+    {
+        return Err(LfsConfigError {
+            message: format!("Cannot read {}: {error}.", path.display()),
+        });
     }
+    if bytes.len() > MAX_REPOSITORY_TEXT_BYTES {
+        return Err(LfsConfigError {
+            message: format!(
+                "Cannot read {}: it is over the {MAX_REPOSITORY_TEXT_BYTES} bytes this rule reads from a repository file.",
+                path.display()
+            ),
+        });
+    }
+    return match String::from_utf8(bytes) {
+        Ok(text) => Ok(Some(text)),
+        Err(error) => Err(LfsConfigError {
+            message: format!("Cannot read {}: {error}.", path.display()),
+        }),
+    };
 }
 
 /// What:

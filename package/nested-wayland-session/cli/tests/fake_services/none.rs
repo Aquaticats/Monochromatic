@@ -1,16 +1,26 @@
 //! `--notifications none` keeps today's behavior:
 //!  no notification or job service exists on the bus.
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::Instant,
+};
 
+use super::support::{
+    err_message,
+    proxy,
+};
 use nested_wayland_session::{
-    control_job, control_notification,
+    control_job,
+    control_notification,
     notification_mode::NotificationMode,
     plasma_services::PlasmaServices,
     private_bus::PrivateBus,
-    protocol::{JobCommand, NotificationCommand},
+    protocol::{
+        JobCommand,
+        NotificationCommand,
+    },
 };
-use super::support::{err_message, proxy};
 
 /// Starting with mode `none` serves nothing,
 ///  and a client's call gets `ServiceUnknown`.
@@ -21,9 +31,24 @@ fn none_mode_leaves_both_services_unknown() -> anyhow::Result<()> {
     assert!(services.is_none());
     let client = nested_wayland_session::bus_test_client::connect(bus.address())?;
     for (name, path, interface, method) in [
-        ("org.freedesktop.Notifications", "/org/freedesktop/Notifications", "org.freedesktop.Notifications", "GetCapabilities"),
-        ("org.kde.kuiserver", "/JobViewServer", "org.kde.kuiserver", "requiresJobTracker"),
-        ("org.kde.JobViewServer", "/JobViewServer", "org.kde.JobViewServer", "requestView"),
+        (
+            "org.freedesktop.Notifications",
+            "/org/freedesktop/Notifications",
+            "org.freedesktop.Notifications",
+            "GetCapabilities",
+        ),
+        (
+            "org.kde.kuiserver",
+            "/JobViewServer",
+            "org.kde.kuiserver",
+            "requiresJobTracker",
+        ),
+        (
+            "org.kde.JobViewServer",
+            "/JobViewServer",
+            "org.kde.JobViewServer",
+            "requestView",
+        ),
     ] {
         let target = proxy(&client, name, path, interface);
         // A proxy to an unowned name may fail to build or fail on the call; both are ServiceUnknown.
@@ -32,7 +57,10 @@ fn none_mode_leaves_both_services_unknown() -> anyhow::Result<()> {
             Err(error) => zbus::Error::Failure(error.to_string()),
         };
         let text = error.to_string();
-        assert!(text.contains("ServiceUnknown") || text.contains("not provided by any"), "{name}: {text}");
+        assert!(
+            text.contains("ServiceUnknown") || text.contains("not provided by any"),
+            "{name}: {text}"
+        );
     }
     return Ok(());
 }
@@ -42,24 +70,48 @@ fn none_mode_leaves_both_services_unknown() -> anyhow::Result<()> {
 fn verbs_refuse_without_a_service() {
     for command in [
         NotificationCommand::List,
-        NotificationCommand::Log { count: 64 },
+        NotificationCommand::Log {
+            count: 64,
+        },
         NotificationCommand::Clear,
-        NotificationCommand::Close { id: 1, reason: 2 },
-        NotificationCommand::Action { id: 1, key: "default".to_owned() },
+        NotificationCommand::Close {
+            id: 1,
+            reason: 2,
+        },
+        NotificationCommand::Action {
+            id: 1,
+            key: "default".to_owned(),
+        },
     ] {
         let message = err_message(control_notification::run(None, &command));
-        assert_eq!(message, "no notification service (start with --notifications freedesktop or --notifications kde)");
+        assert_eq!(
+            message,
+            "no notification service (start with --notifications freedesktop or --notifications kde)"
+        );
     }
     for command in [
         JobCommand::List,
-        JobCommand::Log { count: 64 },
+        JobCommand::Log {
+            count: 64,
+        },
         JobCommand::Clear,
-        JobCommand::Suspend { id: 1 },
-        JobCommand::Resume { id: 1 },
-        JobCommand::Cancel { id: 1 },
-        JobCommand::Refresh { id: 1 },
+        JobCommand::Suspend {
+            id: 1,
+        },
+        JobCommand::Resume {
+            id: 1,
+        },
+        JobCommand::Cancel {
+            id: 1,
+        },
+        JobCommand::Refresh {
+            id: 1,
+        },
     ] {
         let message = err_message(control_job::run(None, &command));
-        assert_eq!(message, "no Plasma job service (start with --notifications kde)");
+        assert_eq!(
+            message,
+            "no Plasma job service (start with --notifications kde)"
+        );
     }
 }

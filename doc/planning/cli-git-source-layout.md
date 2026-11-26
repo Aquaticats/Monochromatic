@@ -181,6 +181,42 @@ moved verbatim on 2026-11-23:
 - #6261 native-layer move:
   "Defer until branches merge (Recommended)".
 
+The owner chose the moment on 2026-11-25 at about 22:05 -05:00,
+asked whether to split to cut build memory
+(one build of the wrapper peaked around 6.6 GiB,
+and half its test code left out measured 4.7 GiB, 0.70 times,
+`package/git-policy/cli/doc/development-profile-measurements.md`, "Memory per build, measured 2026-11-25"):
+"Window after live rounds (Recommended)".
+So no new round starts in `package/git-policy/cli`;
+when the rounds open at that moment have merged,
+the crate is formatted by the root `rustfmt.toml` in one commit,
+then the split's rounds run on that tree,
+and the ZFS route's rounds resume on the new layout.
+
+The two rounds the window waits for:
+plan step 17's forced kernel calls
+(`feat/git-policy-cli-zfs-step-17-forced-arm-act-proven-in-a-guest`)
+and plan step 22's guest half
+(`docs/git-policy-cli-zfs-step-22-guest-half-measurements`).
+Between them and the format the layout rules' two lists are regenerated against `main`
+and merged,
+because they were measured against an earlier `main` and no line of them may tolerate a finding
+that is gone
+(`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`,
+"When the rules land").
+Waiting for this window:
+debt ledger items 3 (the directory-chain descriptor tests),
+7,
+12,
+15 and 19,
+and issues 6483 to 6487,
+the threaded-only test failures
+(`package/git-policy/cli/doc/debt-ledger-2026-11-25.md`).
+
+Every other crate is formatted by the root `rustfmt.toml`,
+which the owner set on 2026-11-25;
+`package/git-policy/cli` is the one it waits for.
+
 ## What the code looks like now
 
 Measured on main at `2d82a3beb4`

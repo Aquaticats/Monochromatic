@@ -17,9 +17,20 @@
 use ide_app::{
     change_watch::SourceChange,
     document::Document,
-    file_reload::{QuietRead, read_reload_if_quiet},
-    refresh_policy::{REREAD_GAP, SourceRefresh, WRITE_QUIET},
-    reload_worker::{ReloadReply, ReloadRequest, ReloadWorker},
+    file_reload::{
+        QuietRead,
+        read_reload_if_quiet,
+    },
+    refresh_policy::{
+        REREAD_GAP,
+        SourceRefresh,
+        WRITE_QUIET,
+    },
+    reload_worker::{
+        ReloadReply,
+        ReloadRequest,
+        ReloadWorker,
+    },
 };
 /// What:
 ///  `File` opens a file to change its modification time;
@@ -40,7 +51,11 @@ use ide_app::{
 use std::{
     fs::File,
     path::Path,
-    time::{Duration, Instant, SystemTime},
+    time::{
+        Duration,
+        Instant,
+        SystemTime,
+    },
 };
 
 /// Quiet period the reader tests require:
@@ -56,7 +71,10 @@ const DISPLAYED: &str = "I am a big cat\n";
 const ON_DISK: &str = "I was a big cat, but now I am a human!\n";
 
 /// Write `ON_DISK` to `path` and give it the modification time `modified`.
-fn write_with_time(path: &Path, modified: SystemTime) {
+fn write_with_time(
+    path: &Path,
+    modified: SystemTime,
+) {
     std::fs::write(path, ON_DISK).expect("fixture source");
     // What: `File::options().write(true).open` opens for writing without truncating; `set_modified`
     //       changes the modification time only.
@@ -126,7 +144,8 @@ fn reply(worker: &mut ReloadWorker) -> ReloadReply {
 ///  an old one is read.
 #[test]
 fn a_quiet_read_drops_a_file_written_within_the_quiet_period() {
-    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable source directory");
+    let fixture =
+        tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable source directory");
     let path = fixture.path().join("source.txt");
     let document = Document::new(DISPLAYED);
     let now = SystemTime::now();
@@ -157,7 +176,8 @@ fn a_quiet_read_drops_a_file_written_within_the_quiet_period() {
 ///  and reads the same file once quiet.
 #[test]
 fn the_worker_reports_a_recent_write_instead_of_its_bytes() {
-    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable source directory");
+    let fixture =
+        tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable source directory");
     let path = fixture.path().join("source.txt");
     let document = Document::new(DISPLAYED);
     let mut worker = ReloadWorker::new().expect("start source worker");
@@ -267,7 +287,10 @@ fn a_reread_with_no_write_behind_it_requires_quiet() {
 /// ```ts
 /// const request = (path, snapshot) => ({ path, snapshot, generation: 7, requireQuiet: QUIET });
 /// ```
-fn request(path: &Path, snapshot: &Document) -> ReloadRequest {
+fn request(
+    path: &Path,
+    snapshot: &Document,
+) -> ReloadRequest {
     return ReloadRequest {
         path: path.to_path_buf(),
         snapshot: snapshot.clone(),

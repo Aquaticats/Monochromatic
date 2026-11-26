@@ -18,14 +18,29 @@
 //! ```
 
 /// Files and paths.
-use std::{fs, fs::File, path::{Path, PathBuf}};
+use std::{
+    fs,
+    fs::File,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// The non-blocking exclusive `flock`,
 /// and the device number split that `/proc/locks` prints.
-use rustix::fs::{FlockOperation, flock, major, minor};
+use rustix::fs::{
+    FlockOperation,
+    flock,
+    major,
+    minor,
+};
 
 /// Device and inode of the lock files.
-use crate::lean_identity::{Identity, identity_of};
+use crate::lean_identity::{
+    Identity,
+    identity_of,
+};
 
 /// The lock files Cargo keeps in a profile directory;
 /// every one that exists is taken,
@@ -101,7 +116,11 @@ pub enum LockOutcome {
 /// ```ts
 /// export const waiterLinesName = (table: string, device: bigint, inode: bigint): boolean => table.split('\n').some((l) => l.includes('->') && l.includes(`${hex(major(device))}:${hex(minor(device))}:${inode}`));
 /// ```
-pub fn waiter_lines_name(table: &str, device: u64, inode: u64) -> bool {
+pub fn waiter_lines_name(
+    table: &str,
+    device: u64,
+    inode: u64,
+) -> bool {
     let needle: String = format!("{:02x}:{:02x}:{}", major(device), minor(device), inode);
     for line in table.lines() {
         if !line.contains("->") {
@@ -128,7 +147,10 @@ pub fn waiter_lines_name(table: &str, device: u64, inode: u64) -> bool {
 /// ```ts
 /// export function lockProfileDirectory(profile: string, lockTable: string): LockOutcome
 /// ```
-pub fn lock_profile_directory(profile: &Path, lock_table: &Path) -> LockOutcome {
+pub fn lock_profile_directory(
+    profile: &Path,
+    lock_table: &Path,
+) -> LockOutcome {
     let mut files: Vec<File> = Vec::new();
     let mut names: Vec<PathBuf> = Vec::new();
     for name in LOCK_FILE_NAMES {
@@ -136,12 +158,22 @@ pub fn lock_profile_directory(profile: &Path, lock_table: &Path) -> LockOutcome 
         let file: File = match File::open(&path) {
             Ok(opened) => opened,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return LockOutcome::Unlockable { file: path, reason: error.to_string() },
+            Err(error) => {
+                return LockOutcome::Unlockable {
+                    file: path,
+                    reason: error.to_string(),
+                };
+            }
         };
         match flock(&file, FlockOperation::NonBlockingLockExclusive) {
             Ok(()) => {}
             Err(code) if code == rustix::io::Errno::WOULDBLOCK => return LockOutcome::Busy(path),
-            Err(code) => return LockOutcome::Unlockable { file: path, reason: code.to_string() },
+            Err(code) => {
+                return LockOutcome::Unlockable {
+                    file: path,
+                    reason: code.to_string(),
+                };
+            }
         }
         files.push(file);
         names.push(path);
@@ -151,13 +183,19 @@ pub fn lock_profile_directory(profile: &Path, lock_table: &Path) -> LockOutcome 
     }
     let table: String = fs::read_to_string(lock_table).unwrap_or_default();
     for path in &names {
-        if let Ok(Identity { device, inode }) = identity_of(path)
+        if let Ok(Identity {
+            device,
+            inode,
+        }) = identity_of(path)
             && waiter_lines_name(&table, device, inode)
         {
             return LockOutcome::Waiting(path.clone());
         }
     }
-    return LockOutcome::Held(HeldLocks { files, names });
+    return LockOutcome::Held(HeldLocks {
+        files,
+        names,
+    });
 }
 
 /// What:
@@ -174,5 +212,10 @@ pub fn describe_held(held: &HeldLocks) -> String {
     for name in held.names() {
         shown.push(name.display().to_string());
     }
-    return format!("exclusive flock on {} ({} files, no waiter queued in {})", shown.join(", "), held.files.len(), KERNEL_LOCK_TABLE);
+    return format!(
+        "exclusive flock on {} ({} files, no waiter queued in {})",
+        shown.join(", "),
+        held.files.len(),
+        KERNEL_LOCK_TABLE
+    );
 }

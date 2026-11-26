@@ -28,11 +28,12 @@
   "license": "LGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/ownership-marker/foreign-borrowed"
   },
   "publishConfig": {
     "access": "public",
     "provenance": true
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/ownership-marker/foreign-borrowed"
 }

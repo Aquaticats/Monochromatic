@@ -17,7 +17,11 @@
 /// ```ts
 /// import { Arbitrary, Unstructured } from 'arbitrary';
 /// ```
-use arbitrary::{Arbitrary, Result as ArbitraryResult, Unstructured};
+use arbitrary::{
+    Arbitrary,
+    Result as ArbitraryResult,
+    Unstructured,
+};
 
 /// What:
 ///      Cap on generated container nesting for ordinary documents.
@@ -56,7 +60,17 @@ const KEYS: [&str; 5] = ["a", "b", "key", "long-key-name", "ünïcøde"];
 ///           signed zero,
 ///           an integer past 2 to the 53,
 ///           and an exponent far beyond any binary64 range.
-const NUMBERS: [&str; 9] = ["0", "-0", "1e0", "1.500", "9007199254740993", "1e999999999999999999999999", "-1.5e3", "123", "1E+2"];
+const NUMBERS: [&str; 9] = [
+    "0",
+    "-0",
+    "1e0",
+    "1.500",
+    "9007199254740993",
+    "1e999999999999999999999999",
+    "-1.5e3",
+    "123",
+    "1E+2",
+];
 
 /// What:
 ///      String values,
@@ -130,7 +144,10 @@ pub struct GeneratedDocument {
 /// ```ts
 /// function freshKey(u: Unstructured, used: string[]): string;
 /// ```
-fn fresh_key<'b>(u: &mut Unstructured<'_>, used: &[&'b str]) -> ArbitraryResult<&'b str> {
+fn fresh_key<'b>(
+    u: &mut Unstructured<'_>,
+    used: &[&'b str],
+) -> ArbitraryResult<&'b str> {
     for _ in 0..KEYS.len() {
         let candidate = u.choose(&KEYS)?;
         if !used.contains(candidate) {
@@ -173,10 +190,14 @@ impl Builder {
     ///      Write one whitespace run.
     /// Why:
     ///       Spacing varies so emission is never accidentally identical to input formatting.
-    fn whitespace(&mut self, u: &mut Unstructured<'_>) -> ArbitraryResult<()> {
+    fn whitespace(
+        &mut self,
+        u: &mut Unstructured<'_>,
+    ) -> ArbitraryResult<()> {
         let count = u.int_in_range(0..=2)?;
         for _ in 0..count {
-            self.out.push(if u.arbitrary::<bool>()? { ' ' } else { '\t' });
+            self.out
+                .push(if u.arbitrary::<bool>()? { ' ' } else { '\t' });
         }
         return Ok(());
     }
@@ -186,7 +207,10 @@ impl Builder {
     ///  optionally preceded by whitespace.
     /// Why:
     ///       Comment placement and ownership depend on whether a token ends a line.
-    fn terminator(&mut self, u: &mut Unstructured<'_>) -> ArbitraryResult<()> {
+    fn terminator(
+        &mut self,
+        u: &mut Unstructured<'_>,
+    ) -> ArbitraryResult<()> {
         self.whitespace(u)?;
         let chosen = u.choose(&TERMINATORS)?;
         self.out.push_str(chosen);
@@ -199,7 +223,10 @@ impl Builder {
     /// Why:
     ///       Comments are the product's distinctive payload,
     ///           so they must appear often and in both styles.
-    fn maybe_comment(&mut self, u: &mut Unstructured<'_>) -> ArbitraryResult<()> {
+    fn maybe_comment(
+        &mut self,
+        u: &mut Unstructured<'_>,
+    ) -> ArbitraryResult<()> {
         if !u.arbitrary::<bool>()? {
             return Ok(());
         }
@@ -223,12 +250,19 @@ impl Builder {
     ///      Write one scalar value.
     /// Why:
     ///       Scalars are the leaves every container shape needs.
-    fn scalar(&mut self, u: &mut Unstructured<'_>) -> ArbitraryResult<()> {
+    fn scalar(
+        &mut self,
+        u: &mut Unstructured<'_>,
+    ) -> ArbitraryResult<()> {
         let choice = u.int_in_range(0..=3)?;
         if choice == 0 {
             self.out.push_str("null");
         } else if choice == 1 {
-            self.out.push_str(if u.arbitrary::<bool>()? { "true" } else { "false" });
+            self.out.push_str(if u.arbitrary::<bool>()? {
+                "true"
+            } else {
+                "false"
+            });
         } else if choice == 2 {
             let number = u.choose(&NUMBERS)?;
             self.out.push_str(number);
@@ -245,7 +279,11 @@ impl Builder {
     /// Why:
     ///       Nesting is where the depth bound and the iterative spine live,
     ///           so generated documents must contain it.
-    fn value(&mut self, u: &mut Unstructured<'_>, depth: usize) -> ArbitraryResult<()> {
+    fn value(
+        &mut self,
+        u: &mut Unstructured<'_>,
+        depth: usize,
+    ) -> ArbitraryResult<()> {
         self.maybe_comment(u)?;
         let want_container = depth < GEN_DEPTH_CAP && u.arbitrary::<bool>()?;
         if !want_container {
@@ -293,7 +331,11 @@ impl<'a> Arbitrary<'a> for GeneratedDocument {
     /// Why:
     ///       `Arbitrary` is how libFuzzer turns coverage feedback into structured input.
     fn arbitrary(u: &mut Unstructured<'a>) -> ArbitraryResult<Self> {
-        let mut builder = Builder { out: String::new(), comments: Vec::new(), max_depth: 0 };
+        let mut builder = Builder {
+            out: String::new(),
+            comments: Vec::new(),
+            max_depth: 0,
+        };
         // The contract requires a container root, so the root never starts as a scalar.
         builder.max_depth = 1;
         builder.out.push('{');
@@ -347,7 +389,10 @@ impl<'a> Arbitrary<'a> for GeneratedDocument {
 /// ```ts
 /// export function nestedDocument(depth: number, malformed: boolean): string;
 /// ```
-pub fn nested_document(depth: usize, malformed: bool) -> String {
+pub fn nested_document(
+    depth: usize,
+    malformed: bool,
+) -> String {
     let mut out = "[".repeat(depth);
     out.push('0');
     if !malformed {
@@ -366,7 +411,10 @@ pub fn nested_document(depth: usize, malformed: bool) -> String {
 /// ```ts
 /// export function mutate(source: string, u: Unstructured): string;
 /// ```
-pub fn mutated(source: &str, u: &mut Unstructured<'_>) -> ArbitraryResult<String> {
+pub fn mutated(
+    source: &str,
+    u: &mut Unstructured<'_>,
+) -> ArbitraryResult<String> {
     if source.is_empty() {
         return Ok(String::new());
     }
@@ -396,7 +444,11 @@ pub fn mutated(source: &str, u: &mut Unstructured<'_>) -> ArbitraryResult<String
 /// ```ts
 /// import { JsoncKind, JsoncNumberIdentity, JsoncValue } from 'monochromatic-jsonc-edit';
 /// ```
-use monochromatic_jsonc_edit::{JsoncKind, JsoncNumberIdentity, JsoncValue};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncNumberIdentity,
+    JsoncValue,
+};
 
 /// What:
 ///      Build one replacement value the edit target can write at an address.
@@ -413,18 +465,30 @@ pub fn replacement_value(u: &mut Unstructured<'_>) -> ArbitraryResult<JsoncValue
     let kind = if choice == 0 {
         JsoncKind::Null
     } else if choice == 1 {
-        JsoncKind::Boolean { value: u.arbitrary::<bool>()? }
+        JsoncKind::Boolean {
+            value: u.arbitrary::<bool>()?,
+        }
     } else if choice == 2 {
         let token = u.choose(&NUMBERS)?;
-        let identity = JsoncNumberIdentity::from_token(token)
-            .unwrap_or_else(|_| return JsoncNumberIdentity::from_token("0").expect("zero is a valid token"));
-        JsoncKind::Number { raw: (*token).to_string(), identity }
+        let identity = JsoncNumberIdentity::from_token(token).unwrap_or_else(|_| {
+            return JsoncNumberIdentity::from_token("0").expect("zero is a valid token");
+        });
+        JsoncKind::Number {
+            raw: (*token).to_string(),
+            identity,
+        }
     } else {
         let spelling = u.choose(&STRINGS)?;
         // A decode failure here would mean a generated spelling is not the valid JSON string it
         // claims to be, so fall back to an empty string rather than panicking inside the harness.
         let units = monochromatic_jsonc_edit::decode_quoted(spelling).unwrap_or_default();
-        JsoncKind::Text { units, raw: (*spelling).to_string() }
+        JsoncKind::Text {
+            units,
+            raw: (*spelling).to_string(),
+        }
     };
-    return Ok(JsoncValue { kind, comment: None });
+    return Ok(JsoncValue {
+        kind,
+        comment: None,
+    });
 }

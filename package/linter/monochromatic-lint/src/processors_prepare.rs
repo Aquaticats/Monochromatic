@@ -9,9 +9,16 @@
 //! ```
 
 /// Import exact line-copy helpers and immutable map models.
-use crate::processors_lines::{copy_line, physical_lines};
+use crate::processors_lines::{
+    copy_line,
+    physical_lines,
+};
 /// Keep synthetic scaffolding absent from mapped-line records.
-use crate::processors_model::{Guard, Mapping, ProcessorLanguage};
+use crate::processors_model::{
+    Guard,
+    Mapping,
+    ProcessorLanguage,
+};
 /// Detect a real top-level main declaration through native Rust syntax.
 use crate::rust_source::RustSource;
 /// Native node kinds avoid matches in strings,

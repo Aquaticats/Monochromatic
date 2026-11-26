@@ -24,15 +24,28 @@ use crate::workspace::DirectoryEntry;
 /// ```
 use ignore::{
     Match,
-    gitignore::{Gitignore, GitignoreBuilder, gitconfig_excludes_path},
+    gitignore::{
+        Gitignore,
+        GitignoreBuilder,
+        gitconfig_excludes_path,
+    },
 };
 /// Native names stay as bytes;
 ///  paths are never turned into text.
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     ffi::OsString,
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Find the work tree above a directory.
@@ -171,7 +184,11 @@ pub struct IgnoreMatcher {
 /// Ask one compiled rule file;
 ///  the first file that has an opinion decides,
 ///  a negation included.
-fn decide<'a>(rules: impl Iterator<Item = &'a Gitignore>, path: &Path, is_directory: bool) -> bool {
+fn decide<'a>(
+    rules: impl Iterator<Item = &'a Gitignore>,
+    path: &Path,
+    is_directory: bool,
+) -> bool {
     for file in rules {
         match file.matched(path, is_directory) {
             Match::Ignore(_) => return true,
@@ -234,7 +251,10 @@ impl IgnoreMatcher {
 
     /// The global excludes path,
     ///  read from git's configuration at most once per `GLOBAL_PATH_TTL`.
-    fn global(&mut self, now: Instant) -> Option<PathBuf> {
+    fn global(
+        &mut self,
+        now: Instant,
+    ) -> Option<PathBuf> {
         match &self.source {
             GlobalSource::File(path) => return path.clone(),
             GlobalSource::GitConfig => {}
@@ -254,7 +274,11 @@ impl IgnoreMatcher {
     /// A missing file is an empty rule set;
     ///  a file with invalid lines keeps its valid ones,
     ///  and the invalid ones are logged once per stamp.
-    fn compile(&mut self, file: &Path, root: &Path) -> Stamp {
+    fn compile(
+        &mut self,
+        file: &Path,
+        root: &Path,
+    ) -> Stamp {
         let stamp = Stamp::of(file);
         if let Some(found) = self.files.get(file)
             && found.stamp == stamp
@@ -298,7 +322,11 @@ impl IgnoreMatcher {
 
     /// Log a reason once per directory,
     ///  and again when it changes.
-    fn nothing_dimmed(&mut self, directory: &Path, reason: String) {
+    fn nothing_dimmed(
+        &mut self,
+        directory: &Path,
+        reason: String,
+    ) {
         if self.reasons.get(directory) == Some(&reason) {
             return;
         }
@@ -324,7 +352,11 @@ impl IgnoreMatcher {
     /// Git's index is not read,
     ///  so a tracked file that matches a pattern is reported ignored,
     ///  where git would not.
-    pub fn evaluate(&mut self, directory: &Path, entries: &[DirectoryEntry]) -> IgnoreAnswer {
+    pub fn evaluate(
+        &mut self,
+        directory: &Path,
+        entries: &[DirectoryEntry],
+    ) -> IgnoreAnswer {
         let Some(repository) = repository::find(directory) else {
             self.nothing_dimmed(directory, "no .git above this directory".to_string());
             return IgnoreAnswer::default();
@@ -407,7 +439,10 @@ impl IgnoreMatcher {
             top = %repository.top.display(),
             "decided which entries git ignores"
         );
-        return IgnoreAnswer { names, stamps };
+        return IgnoreAnswer {
+            names,
+            stamps,
+        };
     }
 }
 

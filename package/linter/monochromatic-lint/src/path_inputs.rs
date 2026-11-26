@@ -10,15 +10,26 @@
 //! ```
 
 /// Import the existing walker and its typed failure.
-use crate::file_discovery::{DiscoveryOptions, FileDiscoveryError, discover_literal_path};
+use crate::file_discovery::{
+    DiscoveryOptions,
+    FileDiscoveryError,
+    discover_literal_path,
+};
 /// Import the same glob grammar used for configuration selectors.
-use globset::{GlobBuilder, GlobMatcher};
+use globset::{
+    GlobBuilder,
+    GlobMatcher,
+};
 /// Import native path collection and I/O error classification.
 use std::collections::BTreeSet;
 /// Import the I/O error kind so a missing path can be told apart from other failures.
 use std::io::ErrorKind;
 /// Import the path component and path types used to normalise caller-supplied paths.
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// Determine whether a path token contains glob punctuation;
 ///  existing files are tested before calling this.
@@ -32,7 +43,10 @@ fn has_glob(text: &str) -> bool {
 }
 
 /// Retain complete literal path components before the first pattern component.
-fn walk_root(pattern: &Path, cwd: &Path) -> PathBuf {
+fn walk_root(
+    pattern: &Path,
+    cwd: &Path,
+) -> PathBuf {
     let mut prefix: PathBuf = PathBuf::new();
     for component in pattern.components() {
         if let Component::Normal(part) = component {

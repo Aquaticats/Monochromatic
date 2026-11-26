@@ -12,23 +12,41 @@
 //! describe('dead', () => { /* expansion, subtraction vector, alias and fallback paths */ });
 //! ```
 
-use crate::caniuse::{Agent, AgentTable};
+use crate::caniuse::{
+    Agent,
+    AgentTable,
+};
 use crate::data::BrowserData;
-use crate::dead::{dead_set, subtract_dead};
+use crate::dead::{
+    dead_set,
+    subtract_dead,
+};
 use crate::error::BrowserslistError;
 use crate::fixture::fixture_files;
 
 /// Build an agent whose literal versions are all released:
 /// three empty reserved slots follow them.
-fn agent(name: &str, versions: &[&str]) -> Agent {
-    let mut slots: Vec<Option<String>> = versions.iter().map(|version| return Some((*version).to_string())).collect();
+fn agent(
+    name: &str,
+    versions: &[&str],
+) -> Agent {
+    let mut slots: Vec<Option<String>> = versions
+        .iter()
+        .map(|version| return Some((*version).to_string()))
+        .collect();
     slots.extend([None, None, None]);
-    return Agent { name: name.to_string(), slots };
+    return Agent {
+        name: name.to_string(),
+        slots,
+    };
 }
 
 /// Build owned strings from literals.
 fn owned(items: &[&str]) -> Vec<String> {
-    return items.iter().map(|item| return (*item).to_string()).collect();
+    return items
+        .iter()
+        .map(|item| return (*item).to_string())
+        .collect();
 }
 
 /// Load the committed revision.
@@ -42,8 +60,25 @@ fn expansion_matches_the_spec() {
     let mut actual = dead_set(&committed().agents).expect("expands");
     actual.sort();
     let mut expected = owned(&[
-        "baidu 13.52", "bb 10", "bb 7", "ie 11", "ie 10", "ie 9", "ie 8", "ie 7", "ie 6", "ie 5.5", "ie_mob 11",
-        "ie_mob 10", "op_mob 12.1", "op_mob 12", "op_mob 11.5", "op_mob 11.1", "op_mob 11", "op_mob 10", "samsung 4",
+        "baidu 13.52",
+        "bb 10",
+        "bb 7",
+        "ie 11",
+        "ie 10",
+        "ie 9",
+        "ie 8",
+        "ie 7",
+        "ie 6",
+        "ie 5.5",
+        "ie_mob 11",
+        "ie_mob 10",
+        "op_mob 12.1",
+        "op_mob 12",
+        "op_mob 11.5",
+        "op_mob 11.1",
+        "op_mob 11",
+        "op_mob 10",
+        "samsung 4",
     ]);
     expected.sort();
     assert_eq!(actual, expected);
@@ -55,8 +90,20 @@ fn expansion_matches_the_spec() {
 #[test]
 fn subtraction_vector_from_the_spec() {
     let before = owned(&[
-        "baidu 13.52", "bb 10", "bb 7", "chrome 156", "ie 11", "ie 10", "ie 5.5", "ie_mob 11", "ie_mob 10",
-        "op_mob 80", "op_mob 12.1", "op_mob 10", "samsung 30", "samsung 4",
+        "baidu 13.52",
+        "bb 10",
+        "bb 7",
+        "chrome 156",
+        "ie 11",
+        "ie 10",
+        "ie 5.5",
+        "ie_mob 11",
+        "ie_mob 10",
+        "op_mob 80",
+        "op_mob 12.1",
+        "op_mob 10",
+        "samsung 30",
+        "samsung 4",
     ]);
     let after = subtract_dead(&before, &committed().agents).expect("subtracts");
     assert_eq!(after, owned(&["chrome 156", "op_mob 80", "samsung 30"]));
@@ -67,7 +114,13 @@ fn subtraction_vector_from_the_spec() {
 /// so a harness that skipped it would fail.
 #[test]
 fn control_fails_when_not_dead_is_skipped() {
-    let before = owned(&["chrome 156", "ie 11", "op_mob 80", "samsung 30", "samsung 4"]);
+    let before = owned(&[
+        "chrome 156",
+        "ie 11",
+        "op_mob 80",
+        "samsung 30",
+        "samsung 4",
+    ]);
     let after = subtract_dead(&before, &committed().agents).expect("subtracts");
     // An implementation that ignored `not dead` would return `before` unchanged.
     assert_ne!(after, before);
@@ -78,9 +131,18 @@ fn control_fails_when_not_dead_is_skipped() {
 /// and the order of survivors is kept.
 #[test]
 fn survivors_keep_their_order() {
-    let before = owned(&["samsung 30", "chrome 156", "ie 11", "android 4.4", "firefox 153"]);
+    let before = owned(&[
+        "samsung 30",
+        "chrome 156",
+        "ie 11",
+        "android 4.4",
+        "firefox 153",
+    ]);
     let after = subtract_dead(&before, &committed().agents).expect("subtracts");
-    assert_eq!(after, owned(&["samsung 30", "chrome 156", "android 4.4", "firefox 153"]));
+    assert_eq!(
+        after,
+        owned(&["samsung 30", "chrome 156", "android 4.4", "firefox 153"])
+    );
 }
 
 /// A missing browser fails with browserslist's `Unknown browser` wording,
@@ -89,7 +151,12 @@ fn survivors_keep_their_order() {
 fn missing_browser_fails() {
     let table = AgentTable::new(vec![agent("ie", &["10", "11"])]);
     let error = dead_set(&table).expect_err("baidu missing");
-    assert_eq!(error, BrowserslistError::Browserslist { message: "Unknown browser Baidu".to_string() });
+    assert_eq!(
+        error,
+        BrowserslistError::Browserslist {
+            message: "Unknown browser Baidu".to_string()
+        }
+    );
 }
 
 /// Build a table holding all six dead browsers so one rule at a time can be varied.
@@ -142,6 +209,12 @@ fn samsung_version_resolution() {
     assert_eq!(dotted.last().map(String::as_str), Some("samsung 4.0"));
     let only = dead_set(&six_browsers(agent("samsung", &["9"]))).expect("only version");
     assert_eq!(only.last().map(String::as_str), Some("samsung 9"));
-    let error = dead_set(&six_browsers(agent("samsung", &["5", "6"]))).expect_err("unknown version");
-    assert_eq!(error, BrowserslistError::Browserslist { message: "Unknown version 4 of samsung".to_string() });
+    let error =
+        dead_set(&six_browsers(agent("samsung", &["5", "6"]))).expect_err("unknown version");
+    assert_eq!(
+        error,
+        BrowserslistError::Browserslist {
+            message: "Unknown version 4 of samsung".to_string()
+        }
+    );
 }

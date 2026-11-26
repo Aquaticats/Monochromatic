@@ -12,6 +12,26 @@
 //! }
 //! ```
 #![feature(rustc_private)]
+// What:
+//  `#![feature(default_field_values)]` turns on the nightly compiler feature that lets a struct
+//  literal leave a field out when the struct declares a default value for it, spelled `..` at the
+//  end of the literal with no base expression after it.
+// Why:
+//  The `declare_late_lint!` macro in `src/declaration.rs` expands to rustc's own `declare_lint!`,
+//  which builds the compiler's `Lint` record exactly that way,
+//  and that macro carries no permission to use the feature on the crate that expands it,
+//  so this crate must enable the feature itself
+//  (rustc's error lists the same attribute under "help").
+// Gotcha:
+//  This is a compiler feature gate and not a dependency feature:
+//  it compiles only on a nightly toolchain, which is what every Dylint library needs anyway.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// // No 1:1 equivalent: TypeScript object literals always allow omitted optional members, so
+// // `{ name: 'avoidable_closure', defaultLevel: 'warn', desc: '...' }` needs no opt-in.
+// ```
+#![feature(default_field_values)]
 
 /// Link the compiler's diagnostic-building crate.
 extern crate rustc_errors;
@@ -52,18 +72,32 @@ mod verdict_tests;
 /// Import the capture-name list builder.
 use crate::capture::captured_names;
 /// Import the lint declaration and the pass struct that the macro generated.
-use crate::declaration::{AVOIDABLE_CLOSURE, AvoidableClosure};
+use crate::declaration::{
+    AVOIDABLE_CLOSURE,
+    AvoidableClosure,
+};
 /// Import the diagnostic value.
 use crate::diagnostic::ClosureFound;
 /// Import the ownership test that skips generated and foreign files.
 use crate::own_source::OwnSource;
 /// Import the placement classifier.
-use crate::placement::{Placement, classify_placement};
+use crate::placement::{
+    Placement,
+    classify_placement,
+};
 /// Import the compiler's high-level IR node types:
 /// expressions and closure kinds.
-use rustc_hir::{ClosureKind, Expr, ExprKind};
+use rustc_hir::{
+    ClosureKind,
+    Expr,
+    ExprKind,
+};
 /// Import the lint traits and the context passed to every check.
-use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_lint::{
+    LateContext,
+    LateLintPass,
+    LintContext,
+};
 /// Import the path of a source file as the compiler's source map records it.
 use rustc_span::FileName;
 
@@ -97,7 +131,10 @@ fn is_closure_expression(kind: ClosureKind) -> bool {
 /// ```ts
 /// function spanIsGeneratedOrForeign(expr: Expr): boolean { return ownSource.excludes(fileOf(expr.span)); }
 /// ```
-fn span_is_generated_or_foreign(cx: &LateContext<'_>, expr: &Expr<'_>) -> bool {
+fn span_is_generated_or_foreign(
+    cx: &LateContext<'_>,
+    expr: &Expr<'_>,
+) -> bool {
     let name: FileName = cx.sess().source_map().span_to_filename(expr.span);
     let Some(path) = name.into_local_path() else {
         return false;
@@ -130,7 +167,11 @@ impl<'tcx> LateLintPass<'tcx> for AvoidableClosure {
     ///   report(expr, captures, placement);
     /// }
     /// ```
-    fn check_expr(&mut self, cx: &LateContext<'tcx>, expr: &'tcx Expr<'tcx>) {
+    fn check_expr(
+        &mut self,
+        cx: &LateContext<'tcx>,
+        expr: &'tcx Expr<'tcx>,
+    ) {
         let ExprKind::Closure(closure) = expr.kind else {
             return;
         };

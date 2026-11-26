@@ -40,17 +40,6 @@
 /// ```
 use std::fs::File;
 /// What:
-/// `use std::io::Read;` imports the trait that adds `read_to_end` to an open file.
-/// Why:
-/// The bytes are read before they are checked to be UTF-8 text,
-/// so a decoding failure is reported as an error and not as an empty file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // Node's readFileSync is a free function; no import is needed.
-/// ```
-use std::io::Read;
-/// What:
 /// `use std::io;` imports the file-system error module.
 /// Why:
 /// Reads report `io::Result`,
@@ -61,6 +50,17 @@ use std::io::Read;
 /// // errors are thrown in Node; nothing is imported
 /// ```
 use std::io;
+/// What:
+/// `use std::io::Read;` imports the trait that adds `read_to_end` to an open file.
+/// Why:
+/// The bytes are read before they are checked to be UTF-8 text,
+/// so a decoding failure is reported as an error and not as an empty file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // Node's readFileSync is a free function; no import is needed.
+/// ```
+use std::io::Read;
 /// What:
 /// `use std::os::unix::fs::MetadataExt;` imports the trait that adds `ino`,
 /// `dev`,
@@ -94,7 +94,10 @@ use std::path::Path;
 /// ```ts
 /// // Date.now() * 1e6
 /// ```
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// How long before the child starts a file change time still counts as the child's.
 /// File times are stamped from a clock that can lag the wall clock by up to one scheduler tick,
@@ -242,7 +245,13 @@ pub fn timed<T>(work: impl RecordedWork<T>) -> (T, Window) {
     let result: T = work.run();
     // Typed binding: `end_ns: i128`.
     let end_ns: i128 = clock_ns();
-    return (result, Window { start_ns, end_ns });
+    return (
+        result,
+        Window {
+            start_ns,
+            end_ns,
+        },
+    );
 }
 
 /// What:
@@ -269,7 +278,8 @@ fn identity_of(file: &File) -> io::Result<(u64, u64, i128, u32)> {
     let metadata = file.metadata()?;
     // Typed binding: `changed_ns: i128`.
     // Cast `as i128`: converts between numeric types.
-    let changed_ns: i128 = (metadata.ctime() as i128) * 1_000_000_000 + (metadata.ctime_nsec() as i128);
+    let changed_ns: i128 =
+        (metadata.ctime() as i128) * 1_000_000_000 + (metadata.ctime_nsec() as i128);
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok((metadata.dev(), metadata.ino(), changed_ns, metadata.mode()));
 }
@@ -381,15 +391,29 @@ pub fn observe(path: &Path) -> io::Result<Option<Observed>> {
             // console.error(text);   // eprintln!
             // [a, b]            // vec![a, b]
             // ```
-            Err(error) => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("{} is not UTF-8 text: {error}", path.display()))),
+            Err(error) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("{} is not UTF-8 text: {error}", path.display()),
+                ));
+            }
         };
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `Some`: the present or the absent value of an `Option`.
-        return Ok(Some(Observed { device: before.0, inode: before.1, changed_ns: before.2, mode: before.3, text }));
+        return Ok(Some(Observed {
+            device: before.0,
+            inode: before.1,
+            changed_ns: before.2,
+            mode: before.3,
+            text,
+        }));
     }
     // `Err(...)`: builds the success or the failure variant of a `Result`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    return Err(io::Error::other(format!("{} kept changing while it was read", path.display())));
+    return Err(io::Error::other(format!(
+        "{} kept changing while it was read",
+        path.display()
+    )));
 }
 
 /// What:
@@ -407,7 +431,11 @@ pub fn observe(path: &Path) -> io::Result<Option<Observed>> {
 /// ```ts
 /// export function claimOutput(path: string, beforeText: string, window: Window): Claim  // throws on a read error
 /// ```
-pub fn claim_output(path: &Path, before_text: &str, window: Window) -> io::Result<Claim> {
+pub fn claim_output(
+    path: &Path,
+    before_text: &str,
+    window: Window,
+) -> io::Result<Claim> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `seen: Observed`.
@@ -424,7 +452,9 @@ pub fn claim_output(path: &Path, before_text: &str, window: Window) -> io::Resul
     }
     // A window that ends before it starts means the clock stepped back during the call: it proves nothing, so the changed file is
     // treated as the call's output. That is the safe direction, because a restore keeps the file it displaces.
-    if window.end_ns < window.start_ns || (seen.changed_ns >= window.start_ns && seen.changed_ns <= window.end_ns) {
+    if window.end_ns < window.start_ns
+        || (seen.changed_ns >= window.start_ns && seen.changed_ns <= window.end_ns)
+    {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(Claim::Ours(seen.text));
     }

@@ -4,11 +4,21 @@
 /// The tile poll that takes a finished tile.
 use super::poll;
 /// Parent state and the window.
-use crate::native::{AppWindow, State};
+use crate::native::{
+    AppWindow,
+    State,
+};
 /// Weak handles of the window and a single-shot timer.
-use slint::{ComponentHandle, TimerMode};
+use slint::{
+    ComponentHandle,
+    TimerMode,
+};
 /// The shared window state and the wait.
-use std::{cell::RefCell, rc::Rc, time::Duration};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::Duration,
+};
 
 /// What:
 ///  Take the finished tile unless a scroll step is due,
@@ -21,7 +31,10 @@ use std::{cell::RefCell, rc::Rc, time::Duration};
 ///  the single wake-up cuts that to the end of the wait.
 ///  Both timers run this function and `poll` stays the only place a tile is taken,
 ///  so a wake-up that a step made stale only finds the step due again and waits once more.
-pub(super) fn poll_unless_step_due(window: &AppWindow, state: &Rc<RefCell<State>>) {
+pub(super) fn poll_unless_step_due(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) {
     let wait_left = step_wait_left(&state.borrow());
     let Some(left) = wait_left else {
         poll(window, state);
@@ -43,7 +56,11 @@ pub(super) fn poll_unless_step_due(window: &AppWindow, state: &Rc<RefCell<State>
 /// Why:
 /// The handles are weak,
 /// so the wake-up never keeps the window or its state alive.
-fn wake_when_wait_ends(window: &AppWindow, state: &Rc<RefCell<State>>, left: Duration) {
+fn wake_when_wait_ends(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    left: Duration,
+) {
     let weak_window = window.as_weak();
     let weak_state = Rc::downgrade(state);
     state

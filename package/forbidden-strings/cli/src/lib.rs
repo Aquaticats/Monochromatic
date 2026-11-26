@@ -16,6 +16,16 @@
 // ```
 mod cli;
 
+/// Registers the per-file scan that runs in parallel over every candidate file.
+mod candidate_file_scan;
+/// Registers the `frx_load` child module:
+///  the forbidden-regex rule loader.
+mod frx_load;
+/// Registers the `frx_scan` child module:
+///  the forbidden-regex line scan.
+mod frx_scan;
+/// Registers the working-tree discovery the walk's tracked-file union reads through.
+mod git_working_tree;
 /// Registers the `rules` child module.
 // What:     `mod walk;` declares child modules whose source lives in sibling
 //           `.rs` files. `mod` registers each file with the compiler; it does
@@ -29,22 +39,12 @@ mod cli;
 // // in `include` paths; Rust requires explicit `mod` declarations.
 // ```
 mod rule;
-/// Registers the `walk` child module.
-mod walk;
-/// Registers the working-tree discovery the walk's tracked-file union reads through.
-mod git_working_tree;
-/// Registers the per-file scan that runs in parallel over every candidate file.
-mod candidate_file_scan;
-/// Registers the rules compilation and file listing that run side by side at startup.
-mod startup_work;
-/// Registers the `frx_load` child module:
-///  the forbidden-regex rule loader.
-mod frx_load;
-/// Registers the `frx_scan` child module:
-///  the forbidden-regex line scan.
-mod frx_scan;
 /// Shared structured findings keep embedded policies independent of terminal formatting.
 mod scan_finding;
+/// Registers the rules compilation and file listing that run side by side at startup.
+mod startup_work;
+/// Registers the `walk` child module.
+mod walk;
 /// Public findings contain only source locations and non-secret rule identities.
 pub use scan_finding::ScanFinding;
 /// Thread-isolated named-callback boundary for embedded rule loading.
@@ -54,18 +54,28 @@ mod load_request;
 /// and embedding hosts.
 mod rules_list;
 /// Embedding hosts build entries directly or parse the same list value the command line accepts.
-pub use rules_list::{parse_rules_list, RulesEntry, RulesListError};
+pub use rules_list::{
+    RulesEntry,
+    RulesListError,
+    parse_rules_list,
+};
 /// Reads the files of a rules list once and joins them into the text the scanner compiles.
 mod rules_snapshot;
 /// In-process candidate snapshots reuse the standalone scan core and redaction rules.
 mod scanner;
-/// Embedded consumers identify candidates independently of redacted display labels.
-pub use scanner::{CandidateScan, Scanner};
 /// Fixed-token cache warnings remain structured for embedded event reporting.
 pub use runtime_cache::CacheWarning;
 /// Embedding hosts say whether a load that misses may write the shared compiled-rules cache,
 ///  and ask beforehand whether the cache already holds the text.
-pub use runtime_cache::{compiled_rules_artifact_exists, CacheAccess};
+pub use runtime_cache::{
+    CacheAccess,
+    compiled_rules_artifact_exists,
+};
+/// Embedded consumers identify candidates independently of redacted display labels.
+pub use scanner::{
+    CandidateScan,
+    Scanner,
+};
 /// Lowercase hexadecimal spelling shared by digest directory names and redacted labels.
 mod bytes_as_lowercase_hex;
 /// Native-byte path normalization and protocol-safe display encoding.
@@ -176,8 +186,7 @@ pub const BUILTIN_PRECOMPILED: &[u8] =
 /// `rule=<name>` instead of a drifting numeric index;
 ///  a count mismatch against the
 /// decoded set fails the load closed.
-pub const BUILTIN_NAMES: &str =
-    include_str!(concat!(env!("OUT_DIR"), "/builtin-rules-names.txt"));
+pub const BUILTIN_NAMES: &str = include_str!(concat!(env!("OUT_DIR"), "/builtin-rules-names.txt"));
 
 /// Re-exports the forbidden-regex rule compiler's public surface.
 // What:     `pub use rule::frx::{...}` lifts the engine's rule-compiler entry
@@ -192,7 +201,13 @@ pub const BUILTIN_NAMES: &str =
 // ```ts
 // export { compileFromText, loadPrecompiled, LoadError } from "./rule/frx";
 // ```
-pub use rule::frx::{compile_from_text, compile_rules, load_precompiled, CompiledRules, LoadError};
+pub use rule::frx::{
+    CompiledRules,
+    LoadError,
+    compile_from_text,
+    compile_rules,
+    load_precompiled,
+};
 
 /// Imports dependencies used by this module.
 // What:     `use anyhow::Result;` imports `anyhow`'s one-parameter application
@@ -291,11 +306,17 @@ use crate::cli::Cli;
 
 /// Imports the per-file scan and the shared facts it reads,
 /// so the parallel scan below names a function and carries its state as data.
-use crate::candidate_file_scan::{scan_candidate_file, CandidateFileScan};
+use crate::candidate_file_scan::{
+    CandidateFileScan,
+    scan_candidate_file,
+};
 
 /// Imports the side-by-side startup work,
 /// so the rules compile while the working tree is listed.
-use crate::startup_work::{run_startup_work, StartupRequest};
+use crate::startup_work::{
+    StartupRequest,
+    run_startup_work,
+};
 /// Imports the listing result that carries the tracked-file union's diagnostic.
 use crate::walk::WorkingTreeListing;
 
@@ -349,8 +370,7 @@ fn build_skip_set(rules_entries: &[RulesEntry]) -> std::collections::HashSet<std
     // ```ts
     // const set = new Set<string>();
     // ```
-    let mut set: std::collections::HashSet<std::path::PathBuf> =
-        std::collections::HashSet::new();
+    let mut set: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
 
     // What:     `if let Ok(p) = std::fs::canonicalize(rules_path) { set.insert(p); }`.
     //           `canonicalize` resolves symlinks AND makes the path
@@ -372,7 +392,7 @@ fn build_skip_set(rules_entries: &[RulesEntry]) -> std::collections::HashSet<std
             set.insert(p);
         }
     }
-    return set
+    return set;
 }
 
 /// The three generated rule sources,
@@ -426,15 +446,14 @@ const SELF_MATCH_SOURCES: [&str; 3] = [
 // }
 // ```
 fn build_self_match_set(
-    repository_root: Option<&std::path::Path>,
+    repository_root: Option<&std::path::Path>
 ) -> std::collections::HashSet<std::path::PathBuf> {
-    let mut set: std::collections::HashSet<std::path::PathBuf> =
-        std::collections::HashSet::new();
+    let mut set: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
     let anchor: std::path::PathBuf = match repository_root {
         Some(root) => root.to_path_buf(),
         None => match std::env::current_dir() {
             Ok(cwd) => cwd,
-            Err(_) => { return set },
+            Err(_) => return set,
         },
     };
     for source in SELF_MATCH_SOURCES {
@@ -442,7 +461,7 @@ fn build_self_match_set(
             set.insert(p);
         }
     }
-    return set
+    return set;
 }
 
 /// Implements `is_walker_skipped`.
@@ -490,7 +509,7 @@ pub(crate) fn is_walker_skipped(
     if let Ok(canonical) = std::fs::canonicalize(path) {
         return skip_set.contains(&canonical);
     }
-    return false
+    return false;
 }
 
 /// Whether a file name is one of the scanner's own rules files (`forbidden-strings.*.txt`).
@@ -535,7 +554,7 @@ pub(crate) fn is_config_file_at_cwd(
     let Ok(canonical) = std::fs::canonicalize(path) else {
         return false;
     };
-    return canonical.parent() == Some(cwd)
+    return canonical.parent() == Some(cwd);
 }
 
 /// Defines the `BIN_PROBE_SIZE` constant.
@@ -592,9 +611,9 @@ const BIN_PROBE_SIZE: usize = 8192;
 // }
 // ```
 pub(crate) fn read_with_binary_check(path: &str) -> Result<Vec<u8>, std::io::Error> {
-/// Imports dependencies used by this module.
+    /// Imports dependencies used by this module.
     use std::fs::File;
-/// Imports dependencies used by this module.
+    /// Imports dependencies used by this module.
     use std::io::Read;
 
     let mut file = File::open(path)?;
@@ -612,7 +631,7 @@ pub(crate) fn read_with_binary_check(path: &str) -> Result<Vec<u8>, std::io::Err
     }
 
     file.read_to_end(&mut buf)?;
-    return Ok(buf)
+    return Ok(buf);
 }
 
 /// The rules list the `FORBIDDEN_STRINGS_RULES` variable carries,
@@ -763,7 +782,10 @@ pub fn run_cli_from_env() -> Result<i32> {
         Some(value) => match parse_rules_list(&value) {
             Ok(parsed) => parsed,
             Err(error) => {
-                eprintln!("forbidden-strings: invalid rules list in --rules or FORBIDDEN_STRINGS_RULES: {}", error);
+                eprintln!(
+                    "forbidden-strings: invalid rules list in --rules or FORBIDDEN_STRINGS_RULES: {}",
+                    error
+                );
                 return Ok(2);
             }
         },
@@ -799,7 +821,9 @@ pub fn run_cli_from_env() -> Result<i32> {
     // Logical path overrides pair one-for-one with explicit content file operands.
     let name_paths = cli.name_paths;
     if !name_paths.is_empty() && (all || name_paths.len() != files.len()) {
-        eprintln!("forbidden-strings: --name-path requires one value per positional file and cannot accompany --all");
+        eprintln!(
+            "forbidden-strings: --name-path requires one value per positional file and cannot accompany --all"
+        );
         return Ok(2);
     }
 
@@ -855,7 +879,8 @@ pub fn run_cli_from_env() -> Result<i32> {
         quiet_absence: !explicit_rules_source,
         list_working_tree: all,
     };
-    let (rules_result, listed_result): (Result<_>, Option<Result<WorkingTreeListing>>) = run_startup_work(&startup_request);
+    let (rules_result, listed_result): (Result<_>, Option<Result<WorkingTreeListing>>) =
+        run_startup_work(&startup_request);
 
     // What:     `let loaded = match rules_result { Ok(r) => r, Err(e) => { ...; return ... } };`
     //           destructures the `Result<LoadedRules>`. `Ok(r)` binds the loaded sets;
@@ -978,7 +1003,11 @@ pub fn run_cli_from_env() -> Result<i32> {
     // ```ts
     // const skipSet = buildSkipSet(rulesPath);
     // ```
-    let skip_set = if all { build_skip_set(&rules_entries) } else { std::collections::HashSet::new() };
+    let skip_set = if all {
+        build_skip_set(&rules_entries)
+    } else {
+        std::collections::HashSet::new()
+    };
 
     // What:     Canonical cwd, resolved once. `is_config_file_at_cwd`
     //           compares each candidate's canonical parent against this to
@@ -1041,8 +1070,8 @@ pub fn run_cli_from_env() -> Result<i32> {
     // return hits.length === 0 ? 0 : 1;
     // ```
     if hits.is_empty() {
-        return Ok(0)
+        return Ok(0);
     } else {
-        return Ok(1)
+        return Ok(1);
     }
 }

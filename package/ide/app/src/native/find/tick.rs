@@ -2,16 +2,30 @@
 //!  apply only its reply.
 
 /// Session state and the shared selection step.
-use super::{Find, session};
+use super::{
+    Find,
+    session,
+};
 /// Source state,
 ///  the window,
 ///  and the single rendering boundary.
-use crate::native::{AppWindow, State, render};
+use crate::native::{
+    AppWindow,
+    State,
+    render,
+};
 /// Accepted results keep their tag;
 ///  incremental typing selects the first match at or after the selection.
-use ide_app::find_navigation::{FindResults, at_or_after};
+use ide_app::find_navigation::{
+    FindResults,
+    at_or_after,
+};
 /// Every request carries the identity its reply must still match when it returns.
-use ide_app::find_worker::{FindIdentity, FindReply, FindRequest};
+use ide_app::find_worker::{
+    FindIdentity,
+    FindReply,
+    FindRequest,
+};
 /// What:
 ///  `Rc<RefCell<State>>` is the shared,
 ///  borrow-checked source state of this window.
@@ -23,12 +37,18 @@ use ide_app::find_worker::{FindIdentity, FindReply, FindRequest};
 /// ```ts
 /// type Shared<T> = { current: T };
 /// ```
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// The tag results must carry to describe the displayed file,
 ///  its revision,
 ///  and the current find text.
-pub(super) fn wanted(state: &State, find: &Find) -> FindIdentity {
+pub(super) fn wanted(
+    state: &State,
+    find: &Find,
+) -> FindIdentity {
     return FindIdentity {
         file: state.file_generation,
         revision: state.document.revision(),
@@ -67,7 +87,12 @@ pub(super) fn fail(
 /// Store an accepted reply beside the document and,
 ///  after an edit,
 ///  select the nearest match.
-fn apply(window: &AppWindow, state: &Rc<RefCell<State>>, find: &mut Find, reply: FindReply) {
+fn apply(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    find: &mut Find,
+    reply: FindReply,
+) {
     // What: `match` extracts the matches or the worker's diagnostic.
     // Why: A refused query or oversized file is shown in the bar instead of "No matches".
     //
@@ -127,7 +152,11 @@ fn apply(window: &AppWindow, state: &Rc<RefCell<State>>, find: &mut Find, reply:
 ///  its revision,
 ///  or the find text changed;
 ///  then poll once.
-pub(super) fn update(window: &AppWindow, state: &Rc<RefCell<State>>, find: &mut Find) {
+pub(super) fn update(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    find: &mut Find,
+) {
     if !find.open || !find.available {
         return;
     }

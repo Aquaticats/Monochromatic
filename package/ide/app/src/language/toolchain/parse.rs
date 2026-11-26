@@ -16,7 +16,10 @@ use serde_json::Value;
 /// ```ts
 /// type Path = string;
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Longest message kept from the lookup,
 ///  in characters.

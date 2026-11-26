@@ -43,7 +43,10 @@
 //!    tidying the cache never stops the application.
 
 /// The marker is written through the cache's private-file-and-rename step.
-use super::cache::{replace_atomically, unpack};
+use super::cache::{
+    replace_atomically,
+    unpack,
+};
 /// Errors name the folder and the remedy.
 use anyhow::Result;
 /// Folders,
@@ -54,9 +57,19 @@ use std::{
     fs,
     io::ErrorKind,
     os::unix::fs::DirBuilderExt,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
-    time::{Duration, Instant, SystemTime},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
+    time::{
+        Duration,
+        Instant,
+        SystemTime,
+    },
 };
 
 /// What:
@@ -281,7 +294,11 @@ pub fn mark_used(key_folder: &Path) -> Result<()> {
 /// ```ts
 /// function unpackMarked(keyFolder: string, name: string, bytes: Uint8Array): string
 /// ```
-pub fn unpack_marked(key_folder: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf> {
+pub fn unpack_marked(
+    key_folder: &Path,
+    name: &str,
+    bytes: &[u8],
+) -> Result<PathBuf> {
     if let Err(error) = mark_used(key_folder) {
         tracing::warn!(folder = %key_folder.display(), error = %format!("{error:#}"), "language parser cache use not recorded");
     }
@@ -336,7 +353,10 @@ fn last_use(key_folder: &Path) -> std::io::Result<SystemTime> {
 /// ```ts
 /// function removeFolder(runtimeFolder: string, name: string): void // throws on failure
 /// ```
-fn remove_folder(runtime_folder: &Path, name: &str) -> std::io::Result<()> {
+fn remove_folder(
+    runtime_folder: &Path,
+    name: &str,
+) -> std::io::Result<()> {
     let number = NEXT_REMOVAL.fetch_add(1, Ordering::Relaxed);
     let doomed = runtime_folder.join(format!(".{name}.removing-{}-{number}", std::process::id()));
     fs::rename(runtime_folder.join(name), &doomed)?;

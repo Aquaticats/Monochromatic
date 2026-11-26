@@ -11,37 +11,81 @@
 /// The source reader fixture,
 /// its disposable project,
 /// and the bounded waits.
-use super::find_tests::{Reader, key, memory_project, reader, replace_file};
+use super::find_tests::{
+    Reader,
+    key,
+    memory_project,
+    reader,
+    replace_file,
+};
 /// Window metrics shared with the layout tests.
-use super::sidebar_tests::{HEADER, TEXT_LEFT};
+use super::sidebar_tests::{
+    HEADER,
+    TEXT_LEFT,
+};
 /// The long wrapped text,
 /// the waits,
 /// and the window's measured state.
-use super::wrap_tests::{long_text, open, settled};
+use super::wrap_tests::{
+    long_text,
+    open,
+    settled,
+};
 /// The worker's counters,
 /// its gate,
 /// its reply type,
 /// and the accept rule.
 use super::{
     AppWindow,
-    minimap::{DEBOUNCE, Plan, SLIDE, THROTTLE, apply, plan},
-    minimap_worker::{Key as PictureKey, MINIMAP_GATE, OFF_WORKER_BUILDS, Reply},
-    overscan_tile_tests::{scroll_to, settle_tile},
+    minimap::{
+        DEBOUNCE,
+        Plan,
+        SLIDE,
+        THROTTLE,
+        apply,
+        plan,
+    },
+    minimap_worker::{
+        Key as PictureKey,
+        MINIMAP_GATE,
+        OFF_WORKER_BUILDS,
+        Reply,
+    },
+    overscan_tile_tests::{
+        scroll_to,
+        settle_tile,
+    },
     theme_tests::switch,
-    tile_reads::{draw_minimap, minimap_pixels},
+    tile_reads::{
+        draw_minimap,
+        minimap_pixels,
+    },
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// Library types that give the expected values.
-use ide_app::minimap::{BAND, Geometry, Heading, LEAD, band_count};
+use ide_app::minimap::{
+    BAND,
+    Geometry,
+    Heading,
+    LEAD,
+    band_count,
+};
 /// An empty scene stands for a finished picture in the accept rule's tests.
 use ide_app::tile_scene::TileScene;
 /// Toolkit events,
 /// models,
 /// and images.
 use slint::{
-    ComponentHandle, LogicalPosition, SharedPixelBuffer,
-    platform::{Key, PointerEventButton, WindowEvent, update_timers_and_animations},
+    ComponentHandle,
+    LogicalPosition,
+    SharedPixelBuffer,
+    platform::{
+        Key,
+        PointerEventButton,
+        WindowEvent,
+        update_timers_and_animations,
+    },
     private_unstable_api::re_exports::ColorScheme,
 };
 /// Counters,
@@ -50,7 +94,10 @@ use slint::{
 use std::{
     fs,
     sync::atomic::Ordering,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// What:
@@ -66,7 +113,11 @@ use std::{
 /// ```ts
 /// function overMinimap(window: AppWindow, x: number, y: number): Position;
 /// ```
-pub(super) fn over(window: &super::AppWindow, x: f32, y: f32) -> LogicalPosition {
+pub(super) fn over(
+    window: &super::AppWindow,
+    x: f32,
+    y: f32,
+) -> LogicalPosition {
     return LogicalPosition::new(TEXT_LEFT + window.get_viewport_width() + x, HEADER + y);
 }
 
@@ -92,7 +143,10 @@ pub(super) fn offset(reader: &Reader) -> f32 {
 }
 
 /// Press the left button at `at`.
-pub(super) fn press(reader: &Reader, at: LogicalPosition) {
+pub(super) fn press(
+    reader: &Reader,
+    at: LogicalPosition,
+) {
     reader
         .window
         .window()
@@ -103,15 +157,23 @@ pub(super) fn press(reader: &Reader, at: LogicalPosition) {
 }
 
 /// Move the pointer to `at` with the button as it is.
-fn travel(reader: &Reader, at: LogicalPosition) {
+fn travel(
+    reader: &Reader,
+    at: LogicalPosition,
+) {
     reader
         .window
         .window()
-        .dispatch_event(WindowEvent::PointerMoved { position: at });
+        .dispatch_event(WindowEvent::PointerMoved {
+            position: at,
+        });
 }
 
 /// Release the left button at `at`.
-pub(super) fn lift(reader: &Reader, at: LogicalPosition) {
+pub(super) fn lift(
+    reader: &Reader,
+    at: LogicalPosition,
+) {
     reader
         .window
         .window()
@@ -635,7 +697,10 @@ fn the_picture_is_built_on_the_worker_and_stays_inside_its_bounds() {
 /// The bands a scroll to `offset` shows,
 /// in the reader's window,
 /// with the heading the window has now.
-fn bands_at(reader: &Reader, offset: f32) -> std::ops::Range<usize> {
+fn bands_at(
+    reader: &Reader,
+    offset: f32,
+) -> std::ops::Range<usize> {
     let shape = geometry(reader);
     let heading = reader.source.borrow().minimap.heading;
     // A track taller than one texture is stacked from several, so no band the track shows is left out.
@@ -643,7 +708,10 @@ fn bands_at(reader: &Reader, offset: f32) -> std::ops::Range<usize> {
 }
 
 /// The scroll offset at which the top of the track is `top` logical pixels down the text.
-fn offset_of_top(shape: &Geometry, top: f32) -> f32 {
+fn offset_of_top(
+    shape: &Geometry,
+    top: f32,
+) -> f32 {
     let overhang = shape.slide(shape.max_offset());
     return shape.max_offset() * (top * shape.scale() / overhang);
 }
@@ -654,7 +722,10 @@ fn bands_of_key(key: PictureKey) -> std::ops::Range<usize> {
 }
 
 /// Wait until the picture on screen is the one for `bands` and no newer request is posted.
-fn picture_of_bands(reader: &Reader, bands: &std::ops::Range<usize>) {
+fn picture_of_bands(
+    reader: &Reader,
+    bands: &std::ops::Range<usize>,
+) {
     let mut waiting = Waiting::slow();
     loop {
         {
@@ -804,7 +875,10 @@ fn a_fling_is_given_a_picture_that_reaches_the_bands_it_is_heading_toward() {
         );
     }
     let down_top = (20.0 + 4.5) * BAND;
-    let Heading::Down { at } = opened.source.borrow().minimap.heading else {
+    let Heading::Down {
+        at,
+    } = opened.source.borrow().minimap.heading
+    else {
         panic!("a fling down is not heading down");
     };
     assert!(
@@ -829,7 +903,10 @@ fn a_fling_is_given_a_picture_that_reaches_the_bands_it_is_heading_toward() {
         );
     }
     let up_top = down_top - 4.5 * BAND;
-    let Heading::Up { at: turned_at } = opened.source.borrow().minimap.heading else {
+    let Heading::Up {
+        at: turned_at,
+    } = opened.source.borrow().minimap.heading
+    else {
         panic!("a fling up is not heading up");
     };
     assert!(
@@ -955,7 +1032,10 @@ fn pixel_at(
 }
 
 /// Turn the wheel over the window at `at` by one notch of 360 logical pixels.
-fn wheel(window: &AppWindow, at: LogicalPosition) {
+fn wheel(
+    window: &AppWindow,
+    at: LogicalPosition,
+) {
     window
         .window()
         .dispatch_event(WindowEvent::PointerScrolled {

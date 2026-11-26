@@ -4,7 +4,11 @@
 ///  so the platform is installed before the thread's first window.
 use super::gpu_snapshot::install_gpu_platform;
 /// Public toolkit snapshot and event-loop update APIs exercise the native text renderer.
-use slint::{ComponentHandle, SharedString, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    SharedString,
+    platform::update_timers_and_animations,
+};
 
 // The fixture is test-only and does not add font controls to the application interface.
 slint::slint! {

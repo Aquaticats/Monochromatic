@@ -15,7 +15,10 @@ use smithay::{
     desktop::Window,
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     wayland::{
-        compositor::{with_states, SurfaceData},
+        compositor::{
+            SurfaceData,
+            with_states,
+        },
         shell::xdg::XdgToplevelSurfaceData,
     },
 };
@@ -24,7 +27,10 @@ use smithay::{
 use crate::{
     protocol::Response,
     state::Compositor,
-    wire_text::{encode_text, format_records},
+    wire_text::{
+        encode_text,
+        format_records,
+    },
 };
 
 /// What the answers say about one window.
@@ -66,13 +72,16 @@ pub struct WindowInfo {
 /// ```ts
 /// const formatWindow = (index: number, info: WindowInfo) => `index=${index} app-id=${enc(info.appId)} ...`;
 /// ```
-fn format_window(index: usize, info: &WindowInfo) -> String {
+fn format_window(
+    index: usize,
+    info: &WindowInfo,
+) -> String {
     return format!(
         "index={index} app-id={} title={} focused={}",
         encode_text(&info.app_id),
         encode_text(&info.title),
         info.focused,
-    )
+    );
 }
 
 /// Format the `windows` answer.
@@ -96,7 +105,7 @@ pub fn format_windows(infos: &[WindowInfo]) -> String {
     for (index, info) in infos.iter().enumerate() {
         records.push(format_window(index, info));
     }
-    return format_records(&records)
+    return format_records(&records);
 }
 
 /// Format the `focus` answer.
@@ -136,10 +145,10 @@ pub fn format_focus(infos: &[WindowInfo]) -> String {
 fn index_of_focused(infos: &[WindowInfo]) -> Option<usize> {
     for (index, info) in infos.iter().enumerate() {
         if info.focused {
-            return Some(index)
+            return Some(index);
         }
     }
-    return None
+    return None;
 }
 
 /// Read a window's title and app ID.
@@ -155,9 +164,9 @@ fn index_of_focused(infos: &[WindowInfo]) -> Option<usize> {
 /// ```
 fn read_names(window: &Window) -> (String, String) {
     let Some(toplevel) = window.toplevel() else {
-        return (String::new(), String::new())
+        return (String::new(), String::new());
     };
-    return with_states(toplevel.wl_surface(), read_names_of_surface)
+    return with_states(toplevel.wl_surface(), read_names_of_surface);
 }
 
 /// Read the app ID and title stored on one surface's xdg toplevel data.
@@ -174,10 +183,13 @@ fn read_names(window: &Window) -> (String, String) {
 /// ```
 fn read_names_of_surface(states: &SurfaceData) -> (String, String) {
     let Some(data) = states.data_map.get::<XdgToplevelSurfaceData>() else {
-        return (String::new(), String::new())
+        return (String::new(), String::new());
     };
     let attributes = data.lock().unwrap_or_else(PoisonError::into_inner);
-    return (attributes.app_id.clone().unwrap_or_default(), attributes.title.clone().unwrap_or_default())
+    return (
+        attributes.app_id.clone().unwrap_or_default(),
+        attributes.title.clone().unwrap_or_default(),
+    );
 }
 
 /// The surface of the window that has keyboard focus,
@@ -194,7 +206,7 @@ fn read_names_of_surface(states: &SurfaceData) -> (String, String) {
 /// ```
 fn focused_surface(state: &Compositor) -> Option<WlSurface> {
     let keyboard = state.seat.get_keyboard()?;
-    return keyboard.current_focus()
+    return keyboard.current_focus();
 }
 
 /// Whether a toplevel has content the pointer can hit.
@@ -216,7 +228,7 @@ fn focused_surface(state: &Compositor) -> Option<WlSurface> {
 /// ```
 #[must_use]
 pub fn is_mapped(window: &Window) -> bool {
-    return !window.bbox().is_empty()
+    return !window.bbox().is_empty();
 }
 
 /// The mapped toplevels,
@@ -235,7 +247,7 @@ pub fn is_mapped(window: &Window) -> bool {
 /// const mappedWindows = (state: Compositor) => state.space.elements().filter(isMapped);
 /// ```
 fn mapped_windows(state: &Compositor) -> impl Iterator<Item = &Window> {
-    return state.space.elements().filter(is_mapped_element)
+    return state.space.elements().filter(is_mapped_element);
 }
 
 /// Whether a window reached through an iterator over references is mapped.
@@ -246,7 +258,7 @@ fn mapped_windows(state: &Compositor) -> impl Iterator<Item = &Window> {
 ///       `Iterator::filter` hands the predicate a reference to the item,
 ///  and takes it by path instead of a closure.
 fn is_mapped_element(window: &&Window) -> bool {
-    return is_mapped(window)
+    return is_mapped(window);
 }
 
 /// Describe every mapped toplevel,
@@ -271,9 +283,13 @@ pub fn describe_windows(state: &Compositor) -> Vec<WindowInfo> {
             (Some(toplevel), Some(surface)) => toplevel.wl_surface() == surface,
             _ => false,
         };
-        infos.push(WindowInfo { app_id, title, focused: is_focused });
+        infos.push(WindowInfo {
+            app_id,
+            title,
+            focused: is_focused,
+        });
     }
-    return infos
+    return infos;
 }
 
 /// Answer `windows`.
@@ -289,7 +305,7 @@ pub fn describe_windows(state: &Compositor) -> Vec<WindowInfo> {
 /// ```
 #[must_use]
 pub fn windows_response(state: &Compositor) -> Response {
-    return Response::OkWith(format_windows(&describe_windows(state)))
+    return Response::OkWith(format_windows(&describe_windows(state)));
 }
 
 /// Answer `focus`.
@@ -305,7 +321,7 @@ pub fn windows_response(state: &Compositor) -> Response {
 /// ```
 #[must_use]
 pub fn focus_response(state: &Compositor) -> Response {
-    return Response::OkWith(format_focus(&describe_windows(state)))
+    return Response::OkWith(format_focus(&describe_windows(state)));
 }
 
 /// Answer `close [INDEX]` by sending the window `xdg_toplevel.close`.
@@ -323,24 +339,32 @@ pub fn focus_response(state: &Compositor) -> Response {
 /// function closeResponse(state: Compositor, index?: number): Response { ... }
 /// ```
 #[must_use]
-pub fn close_response(state: &Compositor, index: Option<usize>) -> Response {
+pub fn close_response(
+    state: &Compositor,
+    index: Option<usize>,
+) -> Response {
     let infos = describe_windows(state);
     let target = match index {
         Some(chosen) if chosen < infos.len() => chosen,
-        Some(chosen) => return Response::Err(format!("no window with index {chosen}; there are {}", infos.len())),
+        Some(chosen) => {
+            return Response::Err(format!(
+                "no window with index {chosen}; there are {}",
+                infos.len()
+            ));
+        }
         None => match index_of_focused(&infos) {
             Some(focused) => focused,
             None => return Response::Err("no window has keyboard focus".to_string()),
         },
     };
     let Some(window) = mapped_windows(state).nth(target) else {
-        return Response::Err(format!("window {target} disappeared"))
+        return Response::Err(format!("window {target} disappeared"));
     };
     let Some(toplevel) = window.toplevel() else {
-        return Response::Err(format!("window {target} is not a toplevel"))
+        return Response::Err(format!("window {target} is not a toplevel"));
     };
     toplevel.send_close();
-    return Response::Ok
+    return Response::Ok;
 }
 
 /// What:

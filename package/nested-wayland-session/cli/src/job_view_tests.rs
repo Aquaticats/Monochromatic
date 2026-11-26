@@ -22,8 +22,19 @@ fn percent_accepts_integer_widths_only() {
         (Variant::from("50"), None),
         (Variant::Bool(true), None),
     ] {
-        let properties = HashMap::from([("percent".to_string(), owned(value.try_clone().expect("cloning a value without file descriptors succeeds")))]);
-        assert_eq!(percent_property(&properties, "percent"), expected, "{value:?}");
+        let properties = HashMap::from([(
+            "percent".to_string(),
+            owned(
+                value
+                    .try_clone()
+                    .expect("cloning a value without file descriptors succeeds"),
+            ),
+        )]);
+        assert_eq!(
+            percent_property(&properties, "percent"),
+            expected,
+            "{value:?}"
+        );
     }
     assert_eq!(percent_property(&HashMap::new(), "percent"), None);
 }
@@ -37,7 +48,10 @@ fn only_displayed_properties_are_decoded() {
         ("infoMessage".to_string(), owned(Variant::from("track 1"))),
         ("percent".to_string(), owned(Variant::U32(3))),
         ("suspended".to_string(), owned(Variant::Bool(true))),
-        ("descriptionField".to_string(), owned(Variant::from("ignored"))),
+        (
+            "descriptionField".to_string(),
+            owned(Variant::from("ignored")),
+        ),
     ]);
     assert_eq!(
         job_changes(&properties),

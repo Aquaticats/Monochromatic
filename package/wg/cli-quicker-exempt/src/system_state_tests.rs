@@ -3,7 +3,11 @@
 //! never by the no-login file.
 
 /// The state under test.
-use crate::system_state::{shutdown_target_means_stopping, HostSystemState, SystemState};
+use crate::system_state::{
+    HostSystemState,
+    SystemState,
+    shutdown_target_means_stopping,
+};
 
 /// Only an active or activating `shutdown.target` means a shutdown is under way.
 #[test]

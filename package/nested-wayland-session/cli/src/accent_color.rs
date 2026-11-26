@@ -23,7 +23,10 @@ fn refusal(text: &str) -> String {
 }
 
 /// Reads the two digits at `start` as one channel.
-fn channel(text: &str, start: usize) -> Result<u8, String> {
+fn channel(
+    text: &str,
+    start: usize,
+) -> Result<u8, String> {
     let Some(digits) = text.get(start..start + 2) else {
         return Err(refusal(text));
     };
@@ -116,8 +119,15 @@ impl AccentColor {
 /// Writes the color the way `--accent-color` reads it.
 impl std::fmt::Display for AccentColor {
     /// Formats as six uppercase hexadecimal digits.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return write!(formatter, "{:02X}{:02X}{:02X}", self.red, self.green, self.blue);
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        return write!(
+            formatter,
+            "{:02X}{:02X}{:02X}",
+            self.red, self.green, self.blue
+        );
     }
 }
 

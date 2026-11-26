@@ -14,19 +14,31 @@ use std::collections::HashMap;
 /// Imports `debug`,
 ///  `info`,
 ///  `warn` from `tracing`.
-use tracing::{debug, info, warn};
+use tracing::{
+    debug,
+    info,
+    warn,
+};
 /// Imports the items this module uses from `zbus`.
 use zbus::{
+    ObjectServer,
+    OwnedObjectPath,
+    OwnedVariant,
     object_server::SignalEmitter,
-    ObjectServer, OwnedObjectPath, OwnedVariant,
 };
 
 /// Imports the items this module uses from `crate`.
 use crate::{
-    job_store::{JobRequest, JobStore},
+    job_store::{
+        JobRequest,
+        JobStore,
+    },
     job_view::JobView,
     service_state::Shared,
-    value_summary::{summarize_map, ValueSummary},
+    value_summary::{
+        ValueSummary,
+        summarize_map,
+    },
 };
 
 /// The well-known name that owns the second and later interface versions and `org.kde.kuiserver`.
@@ -49,7 +61,8 @@ pub const REQUIRES_JOB_TRACKER: bool = false;
 
 /// What `registerService` refuses with,
 ///  copied from Plasma's `jobsmodel_p.cpp`.
-const REGISTER_SERVICE_REFUSAL: &str = "kuiserver proxying capabilities are deprecated and defunct.";
+const REGISTER_SERVICE_REFUSAL: &str =
+    "kuiserver proxying capabilities are deprecated and defunct.";
 
 /// Registers a job object and returns its path,
 ///  the shared tail of both `requestView` versions.
@@ -82,7 +95,9 @@ impl JobViewServerV1 {
     /// Creates the object over a shared store.
     #[must_use]
     pub fn new(store: Shared<JobStore>) -> Self {
-        return Self { store };
+        return Self {
+            store,
+        };
     }
 }
 
@@ -114,7 +129,12 @@ const _: () = {
                 signature: "s".to_string(),
                 text: app_icon_name,
             }];
-            let request = JobRequest { api: 1, desktop_entry: app_name, capabilities, hints };
+            let request = JobRequest {
+                api: 1,
+                desktop_entry: app_name,
+                capabilities,
+                hints,
+            };
             return grant_view(&self.store, server, request).await;
         }
     }
@@ -134,7 +154,9 @@ impl JobViewServerV2 {
     /// Creates the object over a shared store.
     #[must_use]
     pub fn new(store: Shared<JobStore>) -> Self {
-        return Self { store };
+        return Self {
+            store,
+        };
     }
 }
 
@@ -166,7 +188,12 @@ const _: () = {
             hints: HashMap<String, OwnedVariant>,
             #[zbus(object_server)] server: &ObjectServer,
         ) -> zbus::fdo::Result<OwnedObjectPath> {
-            let request = JobRequest { api: 2, desktop_entry, capabilities, hints: summarize_map(&hints) };
+            let request = JobRequest {
+                api: 2,
+                desktop_entry,
+                capabilities,
+                hints: summarize_map(&hints),
+            };
             return grant_view(&self.store, server, request).await;
         }
     }
@@ -183,7 +210,9 @@ impl Kuiserver {
     /// Creates the object over a shared store.
     #[must_use]
     pub fn new(store: Shared<JobStore>) -> Self {
-        return Self { store };
+        return Self {
+            store,
+        };
     }
 }
 
@@ -204,25 +233,41 @@ const _: () = {
         ///  as Plasma 6.7.5 does:
         ///  proxying through kuiserver is defunct.
         #[zbus(name = "registerService")]
-        async fn register_service(&self, service: String, object_path: String) -> zbus::fdo::Result<()> {
+        async fn register_service(
+            &self,
+            service: String,
+            object_path: String,
+        ) -> zbus::fdo::Result<()> {
             let detail = format!("service={service} path={object_path} refused");
-            self.store.lock().log_kuiserver_call(self.store.now_ms(), "registerService", &detail);
+            self.store
+                .lock()
+                .log_kuiserver_call(self.store.now_ms(), "registerService", &detail);
             warn!(%service, %object_path, "refused a kuiserver registerService call");
-            return Err(zbus::fdo::Error::NotSupported(REGISTER_SERVICE_REFUSAL.to_string()));
+            return Err(zbus::fdo::Error::NotSupported(
+                REGISTER_SERVICE_REFUSAL.to_string(),
+            ));
         }
 
         /// Answers an empty list,
         ///  as Plasma 6.7.5 does.
         #[zbus(name = "registeredJobContacts")]
         async fn registered_job_contacts(&self) -> Vec<String> {
-            self.store.lock().log_kuiserver_call(self.store.now_ms(), "registeredJobContacts", "empty");
+            self.store.lock().log_kuiserver_call(
+                self.store.now_ms(),
+                "registeredJobContacts",
+                "empty",
+            );
             return Vec::new();
         }
 
         /// Answers `REQUIRES_JOB_TRACKER`.
         #[zbus(name = "requiresJobTracker")]
         async fn requires_job_tracker(&self) -> bool {
-            self.store.lock().log_kuiserver_call(self.store.now_ms(), "requiresJobTracker", "false");
+            self.store.lock().log_kuiserver_call(
+                self.store.now_ms(),
+                "requiresJobTracker",
+                "false",
+            );
             return REQUIRES_JOB_TRACKER;
         }
 
@@ -235,7 +280,11 @@ const _: () = {
             &self,
             #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
         ) -> zbus::fdo::Result<()> {
-            self.store.lock().log_kuiserver_call(self.store.now_ms(), "emitJobUrlsChanged", "empty");
+            self.store.lock().log_kuiserver_call(
+                self.store.now_ms(),
+                "emitJobUrlsChanged",
+                "empty",
+            );
             debug!("emitting an empty jobUrlsChanged");
             Self::job_urls_changed(&emitter, Vec::new()).await?;
             return Ok(());
@@ -243,10 +292,16 @@ const _: () = {
 
         /// Announces the destination URLs of unfinished jobs.
         #[zbus(signal, name = "jobUrlsChanged")]
-        pub async fn job_urls_changed(emitter: &SignalEmitter<'_>, urls: Vec<String>) -> zbus::Result<()>;
+        pub async fn job_urls_changed(
+            emitter: &SignalEmitter<'_>,
+            urls: Vec<String>,
+        ) -> zbus::Result<()>;
 
         /// Announces whether apps must keep tracking jobs themselves.
         #[zbus(signal, name = "requiresJobTrackerChanged")]
-        pub async fn requires_job_tracker_changed(emitter: &SignalEmitter<'_>, required: bool) -> zbus::Result<()>;
+        pub async fn requires_job_tracker_changed(
+            emitter: &SignalEmitter<'_>,
+            required: bool,
+        ) -> zbus::Result<()>;
     }
 };

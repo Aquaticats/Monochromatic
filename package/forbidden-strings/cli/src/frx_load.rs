@@ -31,22 +31,36 @@
 //! appended" ordering the `--builtin-rules` contract documents.
 
 /// Imports the CLI-boundary error channel and its construction macro.
-use anyhow::{anyhow, Result};
+use anyhow::{
+    Result,
+    anyhow,
+};
 
 /// Imports the engine's compiled-ruleset type held by each loaded set.
 use forbidden_regex::RegexSet;
 
 /// Native rule-file paths must not be converted to lossy strings before filesystem reads.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the list entry type and the snapshot that reads and joins its files.
-use crate::{rules_list::RulesEntry, rules_snapshot::RulesSnapshot};
+use crate::{
+    rules_list::RulesEntry,
+    rules_snapshot::RulesSnapshot,
+};
 
 /// Imports runtime cache module,
 ///  what a load may write there,
 ///  hybrid matcher,
 ///  and precompiled builtin path.
-use crate::{load_precompiled, runtime_cache, runtime_cache::CacheAccess, runtime_matcher::RuntimeRules};
+use crate::{
+    load_precompiled,
+    runtime_cache,
+    runtime_cache::CacheAccess,
+    runtime_matcher::RuntimeRules,
+};
 
 /// Imports text compiler used only by in-memory fuzzing loader.
 #[cfg(feature = "fuzzing")]
@@ -69,7 +83,11 @@ pub(crate) enum ScanMatcher {
 /// Matcher delegation preserving one scan interface.
 impl ScanMatcher {
     /// Reports `(line index, local rule id)` pairs.
-    pub(crate) fn line_matches(&self, buf: &[u8], starts: &[usize]) -> Vec<(usize, usize)> {
+    pub(crate) fn line_matches(
+        &self,
+        buf: &[u8],
+        starts: &[usize],
+    ) -> Vec<(usize, usize)> {
         match self {
             Self::Runtime(rules) => return rules.line_matches(buf, starts),
             Self::Regex(set) => return set.line_matches(buf, starts),
@@ -122,7 +140,7 @@ impl LoadedRules {
     /// Returns the optional rules files that were absent and skipped,
     ///  so an embedding host without a log subscriber can report them.
     pub(crate) fn skipped_optional(&self) -> &[PathBuf] {
-        return &self.skipped
+        return &self.skipped;
     }
 
     /// Iterates each compiled set with its rule-id base offset and name table.
@@ -132,12 +150,12 @@ impl LoadedRules {
     ///  so runtime and
     /// builtin findings never collide.
     pub(crate) fn iter_sets(&self) -> impl Iterator<Item = &ScanSet> {
-        return self.sets.iter()
+        return self.sets.iter();
     }
 
     /// Returns redacted runtime-cache warning records in load order.
     pub(crate) fn cache_warnings(&self) -> &[runtime_cache::CacheWarning] {
-        return &self.cache_warnings
+        return &self.cache_warnings;
     }
 }
 
@@ -167,11 +185,11 @@ fn baseline_error<Reason: std::fmt::Display>(reason: Reason) -> anyhow::Error {
 /// disagrees with the compiled set is a build-invariant break,
 ///  surfaced fail-closed
 /// rather than misattributing findings.
-fn parse_builtin_names(text: &str, expected: usize) -> Result<Vec<Option<String>>> {
-    let names: Vec<Option<String>> = text
-        .lines()
-        .map(name_of_sidecar_line)
-        .collect();
+fn parse_builtin_names(
+    text: &str,
+    expected: usize,
+) -> Result<Vec<Option<String>>> {
+    let names: Vec<Option<String>> = text.lines().map(name_of_sidecar_line).collect();
     if names.len() != expected {
         return Err(anyhow!(
             "builtin baseline: name sidecar holds {} entries for {} rules",
@@ -179,7 +197,7 @@ fn parse_builtin_names(text: &str, expected: usize) -> Result<Vec<Option<String>
             expected,
         ));
     }
-    return Ok(names)
+    return Ok(names);
 }
 
 /// Loads the runtime rules file and,
@@ -215,7 +233,14 @@ pub fn load(
     builtin_names: &str,
 ) -> Result<LoadedRules> {
     let entries: [RulesEntry; 1] = [single_entry(rules_path.as_ref(), builtin_rules, explicit)];
-    return load_listed(&entries, builtin_rules, !explicit, CacheAccess::ReadWrite, precompiled, builtin_names);
+    return load_listed(
+        &entries,
+        builtin_rules,
+        !explicit,
+        CacheAccess::ReadWrite,
+        precompiled,
+        builtin_names,
+    );
 }
 
 /// Builds the one-entry list the one-path contract means.
@@ -223,8 +248,15 @@ pub fn load(
 /// Only the implicit default file may be absent,
 ///  and only when the shipped baseline can scan alone;
 ///  a path named by a flag or the environment is required.
-pub(crate) fn single_entry(path: &Path, builtin_rules: bool, explicit: bool) -> RulesEntry {
-    return RulesEntry { path: path.to_path_buf(), optional: builtin_rules && !explicit };
+pub(crate) fn single_entry(
+    path: &Path,
+    builtin_rules: bool,
+    explicit: bool,
+) -> RulesEntry {
+    return RulesEntry {
+        path: path.to_path_buf(),
+        optional: builtin_rules && !explicit,
+    };
 }
 
 /// Loads the files of a rules list and,
@@ -315,7 +347,11 @@ pub(crate) fn load_listed(
         });
     }
 
-    return Ok(LoadedRules { sets, cache_warnings, skipped })
+    return Ok(LoadedRules {
+        sets,
+        cache_warnings,
+        skipped,
+    });
 }
 
 /// Builds a single-set `LoadedRules` from in-memory rule text,
@@ -347,18 +383,23 @@ pub fn load_from_text(text: &str) -> std::result::Result<LoadedRules, crate::Loa
         }],
         cache_warnings: Vec::new(),
         skipped: Vec::new(),
-    })
+    });
 }
 
 /// Compile cache-free hybrid rules through the production matcher for fuzz/embedding controls.
 #[cfg(any(test, feature = "fuzzing"))]
 pub(crate) fn hybrid_from_text(text: &str) -> Result<LoadedRules> {
     // RuntimeRules owns both literal and regex subsets; errors retain their fixed redacted reasons.
-    let compiled: RuntimeRules = RuntimeRules::compile(text).map_err(|error| return anyhow!(error))?;
+    let compiled: RuntimeRules =
+        RuntimeRules::compile(text).map_err(|error| return anyhow!(error))?;
     // Copy non-secret identities before moving the compiled matcher into the owning set.
     let names: Vec<Option<String>> = compiled.names().to_vec();
     return Ok(LoadedRules {
-        sets: vec![ScanSet { matcher: ScanMatcher::Runtime(compiled), base: 0, names }],
+        sets: vec![ScanSet {
+            matcher: ScanMatcher::Runtime(compiled),
+            base: 0,
+            names,
+        }],
         cache_warnings: Vec::new(),
         skipped: Vec::new(),
     });

@@ -23,7 +23,10 @@
 /// ```ts
 /// import { Decision, DecisionKind } from "./decision";
 /// ```
-use crate::decision::{Decision, DecisionKind};
+use crate::decision::{
+    Decision,
+    DecisionKind,
+};
 
 /// What:
 ///      `use crate::error::TruePeakError;`.
@@ -50,7 +53,10 @@ use crate::error::TruePeakError;
 /// ```ts
 /// import { normalizationGain, probeEstimatedPeak } from "./gain";
 /// ```
-use crate::gain::{normalization_gain, probe_estimated_peak};
+use crate::gain::{
+    normalization_gain,
+    probe_estimated_peak,
+};
 
 /// What:
 ///      `use crate::meter::TruePeakMeter;`.
@@ -94,7 +100,10 @@ use crate::policy::Policy;
 /// ```ts
 /// import { AudioSpec, TruePeakSource } from "./source";
 /// ```
-use crate::source::{AudioSpec, TruePeakSource};
+use crate::source::{
+    AudioSpec,
+    TruePeakSource,
+};
 
 /// What:
 ///      `use crate::bucketpolicy::TrackProvenance;`.
@@ -121,7 +130,10 @@ use crate::bucketpolicy::TrackProvenance;
 /// ```ts
 /// import { ZoomPlan, zoomProbe } from "./probe";
 /// ```
-use crate::probe::{ZoomPlan, zoom_probe};
+use crate::probe::{
+    ZoomPlan,
+    zoom_probe,
+};
 
 /// What:
 ///      `fn full_scan(source: &mut dyn TruePeakSource, channels: usize) -> Result<(f32,
@@ -140,7 +152,10 @@ use crate::probe::{ZoomPlan, zoom_probe};
 /// ```ts
 /// function fullScan(source: TruePeakSource, channels: number): [number, number] { ... }
 /// ```
-fn full_scan(source: &mut dyn TruePeakSource, channels: usize) -> Result<(f32, u64), TruePeakError> {
+fn full_scan(
+    source: &mut dyn TruePeakSource,
+    channels: usize,
+) -> Result<(f32, u64), TruePeakError> {
     // What:     `let mut meter = TruePeakMeter::new(channels);`. The accumulator.
     // Why:      One meter for the whole track.
     //
@@ -203,7 +218,7 @@ fn full_scan(source: &mut dyn TruePeakSource, channels: usize) -> Result<(f32, u
     // ```ts
     // return [meter.peak(), Math.floor(samples / channels)];
     // ```
-    return Ok((meter.peak(), samples / channels as u64))
+    return Ok((meter.peak(), samples / channels as u64));
 }
 
 /// What:
@@ -240,7 +255,7 @@ fn silence_decision(spec: AudioSpec) -> Decision {
         kind: DecisionKind::FullScanExact,
         measured_peak: 0.0,
         duration_secs: spec.duration_secs,
-    }
+    };
 }
 
 /// What:
@@ -296,10 +311,14 @@ fn exact_decision(
     // ```
     return Ok(Decision {
         gain: normalization_gain(peak),
-        kind: if short { DecisionKind::ShortFullScan } else { DecisionKind::FullScanExact },
+        kind: if short {
+            DecisionKind::ShortFullScan
+        } else {
+            DecisionKind::FullScanExact
+        },
         measured_peak: peak,
         duration_secs: frames as f64 / f64::from(spec.rate),
-    })
+    });
 }
 
 /// What:
@@ -363,7 +382,7 @@ pub fn resolve_full_scan(
     // ```ts
     // return exactDecision(policy, source, spec, channels);
     // ```
-    return exact_decision(policy, source, spec, channels)
+    return exact_decision(policy, source, spec, channels);
 }
 
 /// What:
@@ -395,7 +414,7 @@ pub fn resolve_decision(
     // ```ts
     // return resolveDecisionFor(policy, source, TrackProvenance.unknown(), null);
     // ```
-    return resolve_decision_for(policy, source, TrackProvenance::unknown(), None)
+    return resolve_decision_for(policy, source, TrackProvenance::unknown(), None);
 }
 
 /// What:
@@ -549,7 +568,7 @@ pub fn resolve_decision_for(
         kind: DecisionKind::ProbeEstimate,
         measured_peak: sampled_max,
         duration_secs: spec.duration_secs,
-    })
+    });
 }
 
 /// What:

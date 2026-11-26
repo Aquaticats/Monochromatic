@@ -144,7 +144,9 @@ impl Diagnostic {
             severity,
             causes: [],
             filename,
-            labels: vec![Label { span }],
+            labels: vec![Label {
+                span,
+            }],
             related: [],
             url: None,
             help: None,

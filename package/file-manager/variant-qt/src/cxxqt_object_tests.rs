@@ -1,6 +1,9 @@
 //! Verifies Rust-owned state exposed through generated Qt bindings.
 
-use super::{AppBridgeRust, QString};
+use super::{
+    AppBridgeRust,
+    QString,
+};
 
 /// Ensures default construction preserves QML's visible initial state.
 #[test]

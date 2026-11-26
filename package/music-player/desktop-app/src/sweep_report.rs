@@ -15,7 +15,10 @@ use std::collections::HashSet;
 /// Imports the path type that names a track.
 use std::path::PathBuf;
 /// Imports the shared ownership and lock types that share the sink and the claims.
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 /// Imports the cache handle that a sweep job carries.
 use crate::peakcache::CacheHandle;

@@ -242,7 +242,7 @@ async function run(chosen: Options): Promise<void> {
     'free',
     `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
     'free',
-    'cargo build --release --tests --locked --jobs 1',
+    'cargo build --release --tests --locked --features test-only-switches --jobs 1',
   ].join('\n');
   guestStart({ chosen, script: build, log: 'settling-command-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
   guestFinish({ chosen, log: 'settling-command-build.log', timeout: CRATE_BUILD_TIMEOUT_MS + 180_000, });
@@ -254,7 +254,7 @@ async function run(chosen: Options): Promise<void> {
     `export CLI_GIT_ZFS_SETTLING_PREFIX=${OPENZFS_PREFIX}`,
     `export CLI_GIT_ZFS_SETTLING_ROOT=${FIXTURE_ROOT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
-    'if cargo nextest run --release --locked --lib --run-ignored all --no-capture --status-level fail ' +
+    'if cargo nextest run --release --locked --features test-only-switches --lib --run-ignored all --no-capture --status-level fail ' +
       '--filterset "test(the_settling_command_guest_arms)" ' +
       '> /root/settling-command-arm.log 2>&1; then status=0; else status=$?; fi',
     'cp /root/settling-command-arm.log /mnt/shared/settling-command-arm.log || true',

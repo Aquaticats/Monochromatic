@@ -8,16 +8,29 @@
 //! test('a use names both modules and its line', () => expect(collectUses(tree)[0].line).toBe(2));
 //! ```
 
-use super::{ModuleUse, collect_uses, folder_of};
+use super::{
+    ModuleUse,
+    collect_uses,
+    folder_of,
+};
 use crate::{
     layout_module_tree::ModuleTree,
-    layout_test_support::{module_in, package_with, tree_of},
+    layout_test_support::{
+        module_in,
+        package_with,
+        tree_of,
+    },
     test_fs::Fixture,
 };
 
 /// The files that the uses of a file with the given path as written end up in,
 ///  as sorted paths relative to the fixture.
-fn targets_of(fixture: &Fixture, tree: &ModuleTree, from_file: &str, text: &str) -> Vec<String> {
+fn targets_of(
+    fixture: &Fixture,
+    tree: &ModuleTree,
+    from_file: &str,
+    text: &str,
+) -> Vec<String> {
     let from: usize = module_in(tree, &fixture.path, from_file);
     let mut targets: Vec<String> = collect_uses(tree)
         .into_iter()

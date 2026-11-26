@@ -12,7 +12,10 @@
 //! recording host instead of each file inventing its own.
 
 /// Imports the cell types that the recording host keeps its log in.
-use std::cell::{Cell, RefCell};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 /// Imports the shared ownership type that shares the log with the test.
 use std::rc::Rc;
 
@@ -21,16 +24,25 @@ use music_player::command::Command;
 /// Imports the menu action that the recording host logs.
 use music_player::track_menu::TrackMenuAction;
 /// Imports the key and window event types that tests dispatch.
-use slint::platform::{Key, WindowEvent};
+use slint::platform::{
+    Key,
+    WindowEvent,
+};
 /// Imports the component handle and the shared string that build events.
-use slint::{ComponentHandle, SharedString};
+use slint::{
+    ComponentHandle,
+    SharedString,
+};
 
 /// Imports the window under test.
 use crate::AppWindow;
 /// Imports the host trait that the recording host implements.
 use crate::ui_host::Host;
 /// Imports the projection and the state updater of the screen.
-use crate::ui_screen::{project, update_state};
+use crate::ui_screen::{
+    project,
+    update_state,
+};
 /// Imports the screen state that tests fill.
 use crate::ui_screen_view::ScreenState;
 
@@ -101,7 +113,10 @@ impl RecordingHost {
 impl Host for RecordingHost {
     /// What:
     /// `send` records the command.
-    fn send(&self, command: Command) {
+    fn send(
+        &self,
+        command: Command,
+    ) {
         self.sent.borrow_mut().push(Self::describe(&command));
     }
 
@@ -119,7 +134,11 @@ impl Host for RecordingHost {
 
     /// What:
     /// `run_row_action` records the action instead of touching a file.
-    fn run_row_action(&self, _window: &AppWindow, action: TrackMenuAction) {
+    fn run_row_action(
+        &self,
+        _window: &AppWindow,
+        action: TrackMenuAction,
+    ) {
         self.row_actions.borrow_mut().push(action);
     }
 }
@@ -177,7 +196,10 @@ pub(crate) fn advance(milliseconds: u64) {
 /// Why:
 /// the app wires the same callbacks to the engine;
 /// the session file and the engine are never touched.
-pub(crate) fn fresh_window_at(width: f32, height: f32) -> (AppWindow, Rc<RecordingHost>) {
+pub(crate) fn fresh_window_at(
+    width: f32,
+    height: f32,
+) -> (AppWindow, Rc<RecordingHost>) {
     init_platform();
     crate::ui_hints::set_test_clock_ms(CLOCK_MS.get());
     update_state(|state| {
@@ -187,7 +209,8 @@ pub(crate) fn fresh_window_at(width: f32, height: f32) -> (AppWindow, Rc<Recordi
     crate::ui_settings::replace_auto_play_saver(|_enabled| return Ok(()));
     crate::ui_text_size::replace_saver(|_sizes| return Ok(()));
     let app = AppWindow::new().expect("the window should build on the testing backend");
-    app.window().set_size(slint::LogicalSize::new(width, height));
+    app.window()
+        .set_size(slint::LogicalSize::new(width, height));
     app.global::<crate::Theme>().set_scheme_override(1);
     let host = Rc::new(RecordingHost::default());
     let as_host: Rc<dyn Host> = Rc::clone(&host) as Rc<dyn Host>;
@@ -196,8 +219,10 @@ pub(crate) fn fresh_window_at(width: f32, height: f32) -> (AppWindow, Rc<Recordi
     crate::ui_search::wire_route(&app);
     crate::ui_search::wire_open(&app, Rc::clone(&as_host));
     crate::ui_menu::wire_request(&app);
-    app.show().expect("the window should show on the testing backend");
-    app.window().dispatch_event(WindowEvent::WindowActiveChanged(true));
+    app.show()
+        .expect("the window should show on the testing backend");
+    app.window()
+        .dispatch_event(WindowEvent::WindowActiveChanged(true));
     project(&app);
     settle();
     return (app, host);
@@ -236,21 +261,34 @@ fn key_text(key: &str) -> SharedString {
 
 /// What:
 /// `key_down` sends one key press.
-pub(crate) fn key_down(app: &AppWindow, key: &str) {
-    app.window().dispatch_event(WindowEvent::KeyPressed { text: key_text(key) });
+pub(crate) fn key_down(
+    app: &AppWindow,
+    key: &str,
+) {
+    app.window().dispatch_event(WindowEvent::KeyPressed {
+        text: key_text(key),
+    });
     settle();
 }
 
 /// What:
 /// `key_up` sends one key release.
-pub(crate) fn key_up(app: &AppWindow, key: &str) {
-    app.window().dispatch_event(WindowEvent::KeyReleased { text: key_text(key) });
+pub(crate) fn key_up(
+    app: &AppWindow,
+    key: &str,
+) {
+    app.window().dispatch_event(WindowEvent::KeyReleased {
+        text: key_text(key),
+    });
     settle();
 }
 
 /// What:
 /// `tap` presses and releases one key.
-pub(crate) fn tap(app: &AppWindow, key: &str) {
+pub(crate) fn tap(
+    app: &AppWindow,
+    key: &str,
+) {
     key_down(app, key);
     key_up(app, key);
 }
@@ -263,7 +301,11 @@ pub(crate) fn tap(app: &AppWindow, key: &str) {
 /// Why:
 /// Slint tracks the modifiers from the modifier key events,
 /// so a chord must press them first.
-pub(crate) fn chord(app: &AppWindow, modifiers: &[&str], key: &str) {
+pub(crate) fn chord(
+    app: &AppWindow,
+    modifiers: &[&str],
+    key: &str,
+) {
     for modifier in modifiers {
         key_down(app, modifier);
     }
@@ -303,13 +345,23 @@ pub(crate) const LIBRARY: [&str; 8] = [
 pub(crate) fn load_library(app: &AppWindow) {
     /// Imports the update type that tests send into the window.
     use music_player::command::Update;
-    let names: Vec<String> = LIBRARY.iter().map(|name| return (*name).to_owned()).collect();
-    let paths: Vec<std::path::PathBuf> = LIBRARY.iter().map(|name| return std::path::PathBuf::from("/nonexistent-library").join(name)).collect();
+    let names: Vec<String> = LIBRARY
+        .iter()
+        .map(|name| return (*name).to_owned())
+        .collect();
+    let paths: Vec<std::path::PathBuf> = LIBRARY
+        .iter()
+        .map(|name| return std::path::PathBuf::from("/nonexistent-library").join(name))
+        .collect();
     crate::ui_screen::apply_update(app, &Update::Library(paths));
     crate::ui_screen::apply_update(app, &Update::Queue(names));
     crate::ui_screen::apply_update(
         app,
-        &Update::NowPlaying { index: Some(1), name: LIBRARY[1].to_owned(), duration: 200.0 },
+        &Update::NowPlaying {
+            index: Some(1),
+            name: LIBRARY[1].to_owned(),
+            duration: 200.0,
+        },
     );
     crate::ui_screen::apply_update(app, &Update::Position(100.0));
     settle();
@@ -327,7 +379,10 @@ pub(crate) fn focus_label(app: &AppWindow) -> String {
 /// `tab_labels` presses Tab `count` times and lists the focus label after each press.
 /// Why:
 /// the focus order is the sequence of labels.
-pub(crate) fn tab_labels(app: &AppWindow, count: usize) -> Vec<String> {
+pub(crate) fn tab_labels(
+    app: &AppWindow,
+    count: usize,
+) -> Vec<String> {
     return (0..count)
         .map(|_| {
             tap(app, "Tab");
@@ -350,8 +405,14 @@ struct LogSink(
 /// Append the writer's bytes to the sink's shared buffer.
 impl std::io::Write for LogSink {
     /// Appends one write to the buffer and reports every byte as written.
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().expect("the log buffer lock is not poisoned").extend_from_slice(bytes);
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
+        self.0
+            .lock()
+            .expect("the log buffer lock is not poisoned")
+            .extend_from_slice(bytes);
         return Ok(bytes.len());
     }
 
@@ -370,7 +431,8 @@ impl std::io::Write for LogSink {
 /// so a test that runs the click there reads exactly
 /// the lines the end-to-end run would keep.
 pub(crate) fn logged_by(action: impl FnOnce()) -> String {
-    let buffer: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let buffer: std::sync::Arc<std::sync::Mutex<Vec<u8>>> =
+        std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let writer: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::clone(&buffer);
     let subscriber = tracing_subscriber::fmt()
         .with_max_level(tracing::Level::TRACE)
@@ -378,6 +440,11 @@ pub(crate) fn logged_by(action: impl FnOnce()) -> String {
         .with_writer(move || return LogSink(std::sync::Arc::clone(&writer)))
         .finish();
     tracing::subscriber::with_default(subscriber, action);
-    return String::from_utf8(buffer.lock().expect("the log buffer lock is not poisoned").clone())
-        .expect("the log is UTF-8");
+    return String::from_utf8(
+        buffer
+            .lock()
+            .expect("the log buffer lock is not poisoned")
+            .clone(),
+    )
+    .expect("the log is UTF-8");
 }

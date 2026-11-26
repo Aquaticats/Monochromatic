@@ -52,7 +52,10 @@ use std::time::Duration;
 /// ```ts
 /// const sleep = (ms: number) => new Promise(done => setTimeout(done, ms));
 /// ```
-use tokio::time::{Instant, sleep};
+use tokio::time::{
+    Instant,
+    sleep,
+};
 
 /// The kernel's list of processes that the reading thread started and has not reaped yet,
 /// zombies included:

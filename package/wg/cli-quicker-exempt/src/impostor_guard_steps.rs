@@ -4,20 +4,25 @@
 //! `SIGKILL` for an impostor,
 //! and `systemctl --user daemon-reexec` for the manager.
 
-/// The session bus connection and its socket.
-use crate::session_bus::BusConnection;
-/// The manager's main process.
-use crate::manager_socket::manager_main_pid;
-/// Bounded commands and the fixed search path.
-use crate::bounded_command::run_bounded;
 /// The name the guard watches,
 /// the rule it asks for,
 /// and what it reads.
-use super::{GuardSteps, MANAGER_BUS_NAME, Ownership, match_rule};
-/// Turning a descriptor into an owned one.
-use std::os::fd::FromRawFd;
+use super::{
+    GuardSteps,
+    MANAGER_BUS_NAME,
+    Ownership,
+    match_rule,
+};
+/// Bounded commands and the fixed search path.
+use crate::bounded_command::run_bounded;
+/// The manager's main process.
+use crate::manager_socket::manager_main_pid;
+/// The session bus connection and its socket.
+use crate::session_bus::BusConnection;
 /// Argument bytes that need not be text.
 use std::ffi::OsString;
+/// Turning a descriptor into an owned one.
+use std::os::fd::FromRawFd;
 /// The bus socket's path.
 use std::path::PathBuf;
 /// Bounded waits.
@@ -35,14 +40,20 @@ pub fn session_bus_path(uid: u32) -> PathBuf {
 /// and keeps the unique connection name as well as the pid:
 /// the pid alone is not an identity the kernel keeps,
 /// and the kill proves the unique name again before it signals.
-pub fn owner_of(connection: &mut BusConnection, name: &str) -> Ownership {
+pub fn owner_of(
+    connection: &mut BusConnection,
+    name: &str,
+) -> Ownership {
     let unique = match connection.call_owner(name) {
         Ok(Some(unique)) => unique,
         Ok(None) => return Ownership::Nobody,
         Err(_error) => return Ownership::Unknown,
     };
     return match connection.call_owner_pid(&unique) {
-        Ok(pid) => Ownership::Owner { pid, unique },
+        Ok(pid) => Ownership::Owner {
+            pid,
+            unique,
+        },
         Err(_error) => Ownership::Unknown,
     };
 }
@@ -52,14 +63,20 @@ pub trait OwnerLookup {
     /// The pid the bus reports for `unique`,
     /// or `None` when the bus does not name one,
     /// which is no proof of anything.
-    fn pid_of(&mut self, unique: &str) -> Option<i32>;
+    fn pid_of(
+        &mut self,
+        unique: &str,
+    ) -> Option<i32>;
 }
 
 /// Signals a process through a handle that keeps it that process.
 pub trait SignalSend {
     /// Signals `pid`,
     /// and only the process the handle was opened for.
-    fn send(&self, pid: i32) -> Result<(), String>;
+    fn send(
+        &self,
+        pid: i32,
+    ) -> Result<(), String>;
 }
 
 /// The bus,
@@ -72,7 +89,10 @@ struct BusLookup<'a> {
 /// Asking the bus.
 impl OwnerLookup for BusLookup<'_> {
     /// The pid the bus reports for a unique connection name.
-    fn pid_of(&mut self, unique: &str) -> Option<i32> {
+    fn pid_of(
+        &mut self,
+        unique: &str,
+    ) -> Option<i32> {
         return self.connection.call_owner_pid(unique).ok();
     }
 }
@@ -84,7 +104,10 @@ pub struct PidfdSignal;
 /// Opening the handle and signalling through it.
 impl SignalSend for PidfdSignal {
     /// Signals the process the handle was opened for.
-    fn send(&self, pid: i32) -> Result<(), String> {
+    fn send(
+        &self,
+        pid: i32,
+    ) -> Result<(), String> {
         // SAFETY: pidfd_open takes a pid and flags and returns a new descriptor or a negative value.
         let raw = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0) };
         if raw < 0 {
@@ -109,7 +132,10 @@ impl SignalSend for PidfdSignal {
             )
         };
         if result < 0 {
-            return Err(format!("pid {pid} could not be signalled through its process descriptor: {}", std::io::Error::last_os_error()));
+            return Err(format!(
+                "pid {pid} could not be signalled through its process descriptor: {}",
+                std::io::Error::last_os_error()
+            ));
         }
         return Ok(());
     }
@@ -144,10 +170,14 @@ pub fn kill_proven(
     pid: i32,
 ) -> Result<(), String> {
     let Some(named) = lookup.pid_of(unique) else {
-        return Err(format!("the bus no longer names a process for {unique}, so pid {pid} is not signalled"));
+        return Err(format!(
+            "the bus no longer names a process for {unique}, so pid {pid} is not signalled"
+        ));
     };
     if named != pid {
-        return Err(format!("{unique} now names pid {named} and not pid {pid}, so pid {pid} is not signalled"));
+        return Err(format!(
+            "{unique} now names pid {named} and not pid {pid}, so pid {pid} is not signalled"
+        ));
     }
     return signal.send(pid);
 }
@@ -159,7 +189,11 @@ pub fn kill_proven(
 /// `setpriv --regid <uid>` asks for a group that need not exist,
 /// and an unprivileged caller cannot switch to a group it does not belong to,
 /// so the re-execution failed exactly on the hosts that most needed it.
-pub fn setpriv_arguments(uid: u32, gid: u32, arguments: &[&str]) -> Vec<OsString> {
+pub fn setpriv_arguments(
+    uid: u32,
+    gid: u32,
+    arguments: &[&str],
+) -> Vec<OsString> {
     let mut full: Vec<OsString> = vec![
         OsString::from("--reuid"),
         OsString::from(uid.to_string()),
@@ -178,11 +212,20 @@ pub fn setpriv_arguments(uid: u32, gid: u32, arguments: &[&str]) -> Vec<OsString
 
 /// Running a bounded `systemctl` as the user,
 /// with the user's own primary group.
-fn systemctl_user(uid: u32, gid: u32, arguments: &[&str]) -> Result<(), String> {
+fn systemctl_user(
+    uid: u32,
+    gid: u32,
+    arguments: &[&str],
+) -> Result<(), String> {
     let full = setpriv_arguments(uid, gid, arguments);
     let output = run_bounded("setpriv", &full, COMMAND_TIMEOUT)?;
     if !output.success {
-        return Err(format!("systemctl --user {} exited with {}: {}", arguments.join(" "), output.status, output.stderr.trim()));
+        return Err(format!(
+            "systemctl --user {} exited with {}: {}",
+            arguments.join(" "),
+            output.status,
+            output.stderr.trim()
+        ));
     }
     return Ok(());
 }
@@ -203,14 +246,24 @@ pub struct RealSteps {
 impl RealSteps {
     /// Builds the steps with a bus connection that is opened when it is first needed.
     pub fn new(timeout: Duration) -> RealSteps {
-        return RealSteps { connection: None, timeout };
+        return RealSteps {
+            connection: None,
+            timeout,
+        };
     }
 
     /// The bus connection,
     /// opened or reopened.
-    fn connect(&mut self, uid: u32) -> Result<&mut BusConnection, String> {
+    fn connect(
+        &mut self,
+        uid: u32,
+    ) -> Result<&mut BusConnection, String> {
         if self.connection.is_none() {
-            let connection = match BusConnection::connect(&session_bus_path(uid), self.timeout, &match_rule(MANAGER_BUS_NAME)) {
+            let connection = match BusConnection::connect(
+                &session_bus_path(uid),
+                self.timeout,
+                &match_rule(MANAGER_BUS_NAME),
+            ) {
                 Ok(connection) => connection,
                 Err(error) => return Err(error.to_string()),
             };
@@ -227,13 +280,19 @@ impl RealSteps {
 impl GuardSteps for RealSteps {
     /// The main process of the user's manager,
     /// as the system manager reports it.
-    fn expected_pid(&self, uid: u32) -> Option<i32> {
+    fn expected_pid(
+        &self,
+        uid: u32,
+    ) -> Option<i32> {
         return manager_main_pid(uid).ok();
     }
 
     /// Who holds the name now,
     /// asking the bus again when the connection broke.
-    fn ownership(&mut self, uid: u32) -> Ownership {
+    fn ownership(
+        &mut self,
+        uid: u32,
+    ) -> Ownership {
         let connection = match self.connect(uid) {
             Ok(connection) => connection,
             Err(_error) => return Ownership::Unknown,
@@ -247,7 +306,11 @@ impl GuardSteps for RealSteps {
 
     /// Waits for the bus's own event that the name's owner changed,
     /// which the guard acts on at once instead of waiting out the poll.
-    fn wait_for_change(&mut self, uid: u32, timeout: Duration) -> bool {
+    fn wait_for_change(
+        &mut self,
+        uid: u32,
+        timeout: Duration,
+    ) -> bool {
         let full = self.timeout;
         let connection = match self.connect(uid) {
             Ok(connection) => connection,
@@ -267,18 +330,33 @@ impl GuardSteps for RealSteps {
     /// `SIGKILL`,
     /// never `SIGTERM`:
     /// an impostor manager stops the units it started when it is asked to stop.
-    fn kill(&mut self, uid: u32, unique: &str, pid: i32) -> Result<(), String> {
+    fn kill(
+        &mut self,
+        uid: u32,
+        unique: &str,
+        pid: i32,
+    ) -> Result<(), String> {
         let connection = match self.connect(uid) {
             Ok(connection) => connection,
-            Err(error) => return Err(format!("the bus cannot be asked whether {unique} still names pid {pid}: {error}")),
+            Err(error) => {
+                return Err(format!(
+                    "the bus cannot be asked whether {unique} still names pid {pid}: {error}"
+                ));
+            }
         };
-        let mut lookup = BusLookup { connection };
+        let mut lookup = BusLookup {
+            connection,
+        };
         return kill_proven(&mut lookup, &PidfdSignal, unique, pid);
     }
 
     /// Asks the manager to take the name again,
     /// as the watched user with that user's primary group.
-    fn reexec(&self, uid: u32, gid: u32) -> Result<(), String> {
+    fn reexec(
+        &self,
+        uid: u32,
+        gid: u32,
+    ) -> Result<(), String> {
         return systemctl_user(uid, gid, &["daemon-reexec"]);
     }
 }

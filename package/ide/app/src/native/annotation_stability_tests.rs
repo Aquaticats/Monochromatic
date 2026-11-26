@@ -19,32 +19,60 @@
 /// The window whose scroll the tests drive.
 use super::AppWindow;
 /// The production setter and the stamp of the displayed text.
-use super::annotate::{displayed, set_annotations};
+use super::annotate::{
+    displayed,
+    set_annotations,
+};
 /// The frame reader.
 use super::annotation_paint_tests::frame;
 /// Snapshot builders and the text origin shared with the behavior tests.
-use super::annotation_tests::{TEXT_LEFT, TEXT_TOP, hint, problem};
+use super::annotation_tests::{
+    TEXT_LEFT,
+    TEXT_TOP,
+    hint,
+    problem,
+};
 /// The complete reader fixture,
 ///  its opener,
 ///  and its bounded wait.
-use super::find_tests::{Reader, reader};
+use super::find_tests::{
+    Reader,
+    reader,
+};
 /// The clock the scrolling rule reads,
 /// which a test holds and moves.
 use super::rows::hold_clock;
 /// Two renders of one scene differ by one level in a few texels on the GPU.
-use super::tile_reads::{same_pixels, same_texel};
+use super::tile_reads::{
+    same_pixels,
+    same_texel,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{Facts, Waiting};
+use crate::native::waiting_tests::{
+    Facts,
+    Waiting,
+};
 /// Snapshot records exactly as the Language module builds them.
 use ide_app::language::{
-    diagnostics::{Diagnostic, DiagnosticsSnapshot, Severity, SourceGroup},
-    hints::{HintsSnapshot, InlayHint},
+    diagnostics::{
+        Diagnostic,
+        DiagnosticsSnapshot,
+        Severity,
+        SourceGroup,
+    },
+    hints::{
+        HintsSnapshot,
+        InlayHint,
+    },
 };
 /// The vertical mapping and the heights virtual rows are built from.
 use ide_app::{
     minimap::width_for,
     row_map::RowMap,
-    virtual_row::{BLOCK_GAP, ROW_HEIGHT},
+    virtual_row::{
+        BLOCK_GAP,
+        ROW_HEIGHT,
+    },
 };
 /// What:
 ///  Frames and pixels read back from the rendered window;
@@ -57,9 +85,17 @@ use ide_app::{
 /// ```ts
 /// import { type Rgba8Pixel, type SharedPixelBuffer } from 'slint';
 /// ```
-use slint::{Rgba8Pixel, SharedPixelBuffer, platform::update_timers_and_animations};
+use slint::{
+    Rgba8Pixel,
+    SharedPixelBuffer,
+    platform::update_timers_and_animations,
+};
 /// Disposable fixtures and shared snapshot pointers.
-use std::{fs, sync::Arc, time::Duration};
+use std::{
+    fs,
+    sync::Arc,
+    time::Duration,
+};
 
 /// More than the 200 ms of stillness after which rows may move the view;
 /// a test moves its held clock by this.
@@ -137,13 +173,20 @@ fn numbered(count: usize) -> String {
 }
 
 /// Character offset of column `column` on line `line` of the numbered fixture.
-fn at(line: usize, column: usize) -> usize {
+fn at(
+    line: usize,
+    column: usize,
+) -> usize {
     return line * LINE + column;
 }
 
 /// Install `hints` and `problems` for the text the reader displays now;
 ///  the hints answer for every line.
-fn inject(reader: &Reader, hints: Vec<InlayHint>, problems: Vec<Diagnostic>) {
+fn inject(
+    reader: &Reader,
+    hints: Vec<InlayHint>,
+    problems: Vec<Diagnostic>,
+) {
     let stamp = displayed(&reader.source.borrow());
     let lines = reader.source.borrow().document.text().len_lines();
     let hint_snapshot = Arc::new(HintsSnapshot {
@@ -185,7 +228,10 @@ fn map(reader: &Reader) -> RowMap {
 /// ```ts
 /// function band(shown: Frame, y: number): Pixel[];
 /// ```
-fn band(shown: &SharedPixelBuffer<Rgba8Pixel>, y: f32) -> &[Rgba8Pixel] {
+fn band(
+    shown: &SharedPixelBuffer<Rgba8Pixel>,
+    y: f32,
+) -> &[Rgba8Pixel] {
     let width = shown.width() as usize;
     let left = (TEXT_LEFT - GUTTER) as usize;
     // The minimap stands at the right edge of the view and moves its box with the scroll, so it is not text.
@@ -271,7 +317,10 @@ fn unshifted_rows(
 /// ```ts
 /// function withinOneLevel(left: Pixel[], right: Pixel[]): boolean;
 /// ```
-fn within_one_level(left: &[Rgba8Pixel], right: &[Rgba8Pixel]) -> bool {
+fn within_one_level(
+    left: &[Rgba8Pixel],
+    right: &[Rgba8Pixel],
+) -> bool {
     if left.len() != right.len() {
         return false;
     }
@@ -478,7 +527,10 @@ fn shot(reader: &Reader) -> (SharedPixelBuffer<Rgba8Pixel>, RowMap, String) {
 ///  and the first differing texel with both colors.
 /// Why:
 ///  The size of a difference tells render noise (one level) from a changed picture (many levels).
-fn level_difference(left: &[Rgba8Pixel], right: &[Rgba8Pixel]) -> String {
+fn level_difference(
+    left: &[Rgba8Pixel],
+    right: &[Rgba8Pixel],
+) -> String {
     let mut count = 0;
     let mut largest = 0;
     let mut first = None;
@@ -751,7 +803,10 @@ fn rows_arriving_above_the_view_move_no_visible_pixel() {
 /// Scroll one pixel away from `offset` and back,
 ///  as the reader's wheel would;
 ///  the scroll the rows must wait for has to be the latest thing that happened when they arrive.
-fn scroll(window: &AppWindow, offset: f32) {
+fn scroll(
+    window: &AppWindow,
+    offset: f32,
+) {
     window.set_scroll_y(-(offset + 1.0));
     update_timers_and_animations();
     window.set_scroll_y(-offset);

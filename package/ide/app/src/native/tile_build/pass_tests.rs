@@ -4,13 +4,19 @@
 /// The handle under test and its pass slots.
 use super::TileWorker;
 /// The output a pass hands to the window.
-use crate::native::tile_pass::{PassKey, PassOutput};
+use crate::native::tile_pass::{
+    PassKey,
+    PassOutput,
+};
 /// The shaper a worker is started with.
 use ide_app::shaped_text::TextShaper;
 
 /// An output of the pass posted as number `generation`,
 /// with no lines.
-fn finished(generation: u64, done: bool) -> PassOutput {
+fn finished(
+    generation: u64,
+    done: bool,
+) -> PassOutput {
     return PassOutput {
         key: PassKey {
             file: 1,

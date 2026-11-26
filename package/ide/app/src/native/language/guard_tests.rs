@@ -3,8 +3,12 @@
 
 /// The checks under test and the request record they compare against.
 use super::{
-    Action, Pending,
-    guard::{Verdict, verdict},
+    Action,
+    Pending,
+    guard::{
+        Verdict,
+        verdict,
+    },
 };
 /// What:
 ///  `Rope` is Helix's character-indexed text buffer.
@@ -24,8 +28,15 @@ use ide_app::annotation::Annotations;
 use ide_app::language::{
     diagnostics::DiagnosticsSnapshot,
     hints::HintsSnapshot,
-    identity::{DocumentStamp, ServerIdentity},
-    reply::{LanguageReply, RequestKind, RequestOutcome},
+    identity::{
+        DocumentStamp,
+        ServerIdentity,
+    },
+    reply::{
+        LanguageReply,
+        RequestKind,
+        RequestOutcome,
+    },
 };
 /// Snapshots arrive behind shared pointers.
 use std::sync::Arc;
@@ -47,7 +58,11 @@ fn waiting() -> Pending {
 }
 
 /// A reply to request `number` of `kind` about `stamp`.
-fn reply(number: u64, kind: RequestKind, stamp: DocumentStamp) -> LanguageReply {
+fn reply(
+    number: u64,
+    kind: RequestKind,
+    stamp: DocumentStamp,
+) -> LanguageReply {
     return LanguageReply {
         request: number,
         stamp,

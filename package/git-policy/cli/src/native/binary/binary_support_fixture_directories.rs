@@ -5,6 +5,17 @@
 //!  Making a fixture needs the fixture type and the limits,
 //! and nothing in the file of the helpers that run commands uses anything but its result,
 //! so the directory work lives in a file of its own.
+//!  Where a fixture root is,
+//!  how one folder is named and removed,
+//!  and the core-dump limit
+//!  are written once for this target and the library's unit tests in
+//!  `../testing/fixture_support_shared_by_both_test_targets.rs`,
+//!  which both include by `#[path]`
+//!  (`doc/debt-ledger-2026-11-25.md`, item 11).
+//!  This file keeps what only the binary controls need:
+//!  the wrapper link a fixture's `bin/git` points at,
+//!  the fixture type itself,
+//!  and the report a vanished fixture root is answered with.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,55 +28,22 @@ use crate::support_fixture_service::Fixture;
 use crate::support_program_names_and_time_bound::WRAPPER;
 use crate::support_resource_limits::ServiceLaunch;
 
-/// Environment variable that moves the fixture root,
-/// for example onto a tmpfs for speed.
-pub const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
-
-/// The directory fixtures are created in:
-///  Cargo's per-target scratch directory,
-/// never `/tmp`:
-/// a shared tmpfs with a per-user quota fills up
-///  when failing tests leave fixtures behind (issue 1809),
-/// and then every command of every session fails.
-///  A run that sets `CLI_GIT_TEST_ROOT` keeps its fixtures in the directory that variable names
-///  (`bin/native-gate-fixture-root.ts` names the gate's),
-/// and without it a container keeps them inside the wrapper crate's own folder (`target/tmp`),
-/// so a fixture crate written below the fixture root must declare a `[workspace]` of its own
-///  (`binary_package_repair_tests.rs`,
-///  `shared_target_manifest`),
-/// or Cargo finds the wrapper crate above it and refuses to build the fixture
-///  (`doc/troubleshooting/cargo-fixture-crate-joins-the-wrapper-workspace.md`).
-pub fn fixture_root() -> PathBuf {
-    let root: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE)
-        .map_or_else(|| { return PathBuf::from(env!("CARGO_TARGET_TMPDIR")); }, PathBuf::from);
-    std::fs::create_dir_all(&root).expect("fixture root");
-    return root;
-}
-
 /// What:
-///  Every directory that is a system temporary directory:
-///  `/tmp`,
-///  `/var/tmp`,
-///  and `TMPDIR` when the run sets it to one.
+///  The shared fixture helpers this file used to define,
+///  named here so every `crate::support_fixture_directories::name` and `support::name` path stays the same.
 /// Why:
-///   A fixture root there fills a shared tmpfs with the trees of tests that never removed them (issue 1809),
-/// so the location control compares the root it uses against this list.
-///  Reading `TMPDIR` compares against it
-/// without calling the temporary-directory function that the lint configuration bans.
-///  An empty `TMPDIR` names no directory and is left out,
-/// and an entry is what its path resolves to,
-///  because a `TMPDIR` that is a link to the root is that root.
-pub fn system_temporary_directories() -> Vec<PathBuf> {
-    let listed: Vec<PathBuf> = vec![PathBuf::from("/tmp"), PathBuf::from("/var/tmp")];
-    let set: Option<PathBuf> = std::env::var_os("TMPDIR")
-        .map(PathBuf::from)
-        .filter(|directory| { return !directory.as_os_str().is_empty(); });
-    return listed
-        .into_iter()
-        .chain(set)
-        .map(|directory| { return std::fs::canonicalize(&directory).unwrap_or(directory); })
-        .collect();
-}
+///  Both test targets now read one copy of the helpers
+///  (`../testing/fixture_support_shared_by_both_test_targets.rs`),
+///  and a caller that named one of them through this module goes on working.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from '../shared/fixture-support.ts';
+/// ```
+pub(crate) use crate::fixture_support_shared_by_both_test_targets::{
+    FIXTURE_ROOT_VARIABLE, REMOVAL_PAUSE, REMOVAL_TRIES, forbid_core_dumps, fixture_root, made_fixture_folder,
+    missing_fixture_root_report, remove_patiently, run_fixture_root, settle_fixture, system_temporary_directories,
+};
 
 /// What:
 ///  Read the fixture's wrapper once per test process,
@@ -107,6 +85,8 @@ pub fn warm_wrapper(linked: &Path) {
 ///  private copy bought nothing but 22 MB of writes per fixture and a cold first start of a new inode per test.
 ///  The fallback follows the link's own failure and not a comparison of device numbers,
 /// which bind mounts defeat.
+///  The store of a run stands in the run's shared fixture root, so every test process of one run links the one copy
+///  (`fixture_in`).
 ///  169 fixtures that each copied wrote about 3.7 GB (169 times 21.9 MB) in one wave
 ///  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
 pub fn link_built_wrapper(built: &Path, to: &Path, store_root: &Path) {
@@ -127,9 +107,10 @@ pub fn link_built_wrapper(built: &Path, to: &Path, store_root: &Path) {
 }
 
 /// Create a fixture in the fixture root:
-///  `<root>/wrapper/monochromatic-git-policy-cli` (hard link of the built executable) and `<root>/bin/git` (symbolic link to it).
+///  `<root>/wrapper/monochromatic-git-policy-cli` (hard link of the built executable, of the run's one stored copy of
+///  it, or a copy of its bytes, as `fixture_in` says) and `<root>/bin/git` (symbolic link to it).
 pub fn fixture(name: &str) -> Fixture {
-    return fixture_in(fixture_root().as_path(), name);
+    return fixture_in(fixture_root().as_path(), run_fixture_root().as_path(), name);
 }
 
 /// What:
@@ -142,8 +123,8 @@ pub fn fixture(name: &str) -> Fixture {
 ///  (`fixture_root_taking_any_name`,
 ///  whose doc says how the re-execution works);
 ///  this wrapper only supplies the root the binary controls use,
-///  which is `CARGO_TARGET_TMPDIR`,
-///  or the directory `CLI_GIT_TEST_ROOT` names.
+///  which is the `test-fixtures/process-<pid>` folder beside the build output,
+///  or the `process-<pid>` folder under the directory `CLI_GIT_TEST_ROOT` names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,99 +135,35 @@ pub fn in_a_fixture_root_taking_any_name(test: &str) -> bool {
 }
 
 /// What:
-///  What is known about a fixture root that could not be used,
-/// so the failure names the folder that went:
-/// whether the root exists,
-/// and what its parent and its grandparent hold,
-/// or that they are gone too.
+///  Create a fixture in `directory` whose wrapper comes from `store_root`,
+///  which may be on another filesystem than the build;
+///  see `fixture`.
 /// Why:
-///  A run of the gate once lost its fixture root between `create_dir_all` and the next `create_dir`,
-/// and 217 later tests failed with a bare `NotFound`
-/// (`doc/handover/repository-move-dangling-link-items.md`,
-/// open harness item);
-/// nothing in the log said what removed it or how far up the loss went.
+///   The wrapper is a hard link of the built executable where `directory`'s file system is the build's,
+///  and otherwise a hard link of the one stored copy of the build in `store_root`
+///  (`wrapper_store`, which publishes the copy without a lock and prunes another build's idle ones).
+///  The store of a run stands in the run's shared fixture root,
+///  so every process of the run links the one copy instead of writing a copy of the whole executable into a folder of
+///  its own:
+///  the gate's root is a 768 MiB tmpfs, and a copy per process filled it (issue 6488).
+///  A control that puts its fixtures on a file system of its own passes that file system as both,
+///  because a store on the build's file system cannot be linked there either.
+///  Every call names a folder of its own,
+///  so two tests that pass the same name never share one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const report = `the fixture root ${root} ${await exists(root) ? 'exists' : 'does not exist'}; ...`;
+/// const root = madeFixtureFolder(directory, 'native-binary', name);
+/// linkBuiltWrapper(WRAPPER, join(root, 'wrapper', 'monochromatic-git-policy-cli'), storeRoot);
 /// ```
-pub fn missing_fixture_root_report(root: &Path) -> String {
-    let parent: &Path = root.parent().unwrap_or(root);
-    let grandparent: &Path = parent.parent().unwrap_or(parent);
-    let state: &str = if root.exists() { "exists" } else { "does not exist" };
-    return format!(
-        "the fixture root {} {state}; {}; {}",
-        root.display(),
-        what_a_folder_holds("its parent", parent),
-        what_a_folder_holds("its grandparent", grandparent)
-    );
-}
-
-/// How many entries of a folder the report names before it says there are more.
-const REPORTED_ENTRIES: usize = 40;
-
-/// The phrase that says what a folder holds,
-/// or that it does not exist,
-/// or why it cannot be listed.
-fn what_a_folder_holds(label: &str, folder: &Path) -> String {
-    if !folder.exists() {
-        return format!("{label} {} does not exist", folder.display());
-    }
-    let listing = match std::fs::read_dir(folder) {
-        Ok(listed) => listed,
-        Err(error) => return format!("{label} {} cannot be listed: {error}", folder.display()),
-    };
-    let mut names: Vec<String> = Vec::new();
-    for entry in listing.flatten() {
-        names.push(entry.file_name().to_string_lossy().into_owned());
-    }
-    names.sort();
-    let more: usize = names.len().saturating_sub(REPORTED_ENTRIES);
-    names.truncate(REPORTED_ENTRIES);
-    let tail: String = if more == 0 { String::new() } else { format!(" and {more} more") };
-    return format!("{label} {} holds: {}{tail}", folder.display(), names.join(", "));
-}
-
-/// How many fixture folders this binary test process has made,
-/// which names each call's folder its own.
-/// Why:
-///   A run of `cargo test` is many tests as threads of one process,
-/// and two tests that pass one name took one folder,
-/// whose removal each made while the other was writing in it
-/// (`doc/troubleshooting/git-policy-cli-controls-that-name-one-fixture-folder.md`).
-static FIXTURES_MADE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-/// The number this call's folder is named with:
-/// one number for every call, in the order the process makes them.
-fn the_number_of_this_fixture() -> u64 {
-    return FIXTURES_MADE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-}
-
-/// Create a fixture in `directory`,
-/// which may be on another filesystem than the build;
-/// see `fixture`.
-/// Every call names a folder of its own,
-/// so two tests that pass the same name never share one.
-pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
+pub fn fixture_in(directory: &Path, store_root: &Path, name: &str) -> Fixture {
     forbid_core_dumps();
-    if let Err(error) = std::fs::create_dir_all(directory) {
-        // A root that vanished (a container gate lost `target/tmp` after 5,018 of 5,265 tests on 2026-11-04) leaves nothing
-        //  to say what became of it: the report names the root, its parent and its grandparent.
-        panic!("fixture directory root: {error}; {}", missing_fixture_root_report(directory));
-    }
-    let created: PathBuf = directory.join(format!("native-binary-{}-{}-{name}", std::process::id(), the_number_of_this_fixture()));
-    if created.exists() {
-        std::fs::remove_dir_all(&created).expect("remove stale fixture");
-    }
-    if let Err(error) = std::fs::create_dir(&created) {
-        panic!("fresh fixture: {error}; {}", missing_fixture_root_report(directory));
-    }
-    let root: PathBuf = std::fs::canonicalize(&created).expect("canonical fixture");
+    let root: PathBuf = made_fixture_folder(directory, "native-binary", name);
     for subdirectory in ["wrapper", "bin", "home"] {
         std::fs::create_dir(root.join(subdirectory)).expect("fixture directory");
     }
     let wrapper: PathBuf = root.join("wrapper/monochromatic-git-policy-cli");
-    link_built_wrapper(Path::new(WRAPPER), wrapper.as_path(), directory);
+    link_built_wrapper(Path::new(WRAPPER), wrapper.as_path(), store_root);
     std::os::unix::fs::symlink(&wrapper, root.join("bin/git")).expect("git-named link");
     return Fixture {
         root,
@@ -256,46 +173,6 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
         service_launch: std::sync::Mutex::new(ServiceLaunch::default()),
         socket_folders: std::sync::Mutex::new(crate::support_socket_folders::SocketFolders::default()),
     };
-}
-
-/// How many times a removal that finds the directory still gaining entries is tried,
-/// and the pause between tries.
-pub const REMOVAL_TRIES: usize = 50;
-
-/// The pause between two tries of a removal.
-pub const REMOVAL_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
-
-/// What:
-///  Remove the tree at `root` with `attempt`,
-/// trying again while the directory is not empty.
-/// Why:
-///   A landed commit or a command that stopped a service leaves a child finishing for a moment,
-/// and removing a directory that
-///  still gains entries fails with "not empty";
-/// that is an event that ends by itself,
-/// so the removal waits for it.
-/// A tree that
-///  is already gone is not a failure,
-/// and any other error is returned at once.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await rm(root, { recursive: true, maxRetries: tries, retryDelay: pause })
-/// ```
-pub fn remove_patiently(root: &Path, attempt: &dyn Fn(&Path) -> std::io::Result<()>, tries: usize, pause: std::time::Duration) -> std::io::Result<()> {
-    let mut last: std::io::Result<()> = Ok(());
-    for _ in 0..tries {
-        match attempt(root) {
-            Ok(()) => return Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::DirectoryNotEmpty => {
-                last = Err(error);
-                std::thread::sleep(pause);
-            }
-            Err(error) => return Err(error),
-        }
-    }
-    return last;
 }
 
 /// Remove only the fixture directory a control created.
@@ -348,25 +225,4 @@ pub fn copy_executable(from: &Path, to: &Path) {
         .expect("start fixture copy")
         .success();
     assert!(copied, "fixture copy failed: {from:?} to {to:?}");
-}
-
-/// What:
-///  Forbid core dumps for this test process and everything it starts,
-/// once.
-/// Why:
-///   The binary tests kill services and abort wrappers on purpose,
-/// and each dump costs the system's core-dump handler processor
-///  time and disk writes on a disk other sessions share.
-/// The limit is inherited across `fork` and `exec`,
-/// and the hard limit
-///  stops a child from raising it;
-/// it is the harness's,
-/// and the product sets none.
-pub fn forbid_core_dumps() {
-    static ONCE: std::sync::Once = std::sync::Once::new();
-    ONCE.call_once(|| {
-        let none: libc::rlimit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
-        // SAFETY: `setrlimit` reads the one `rlimit` it is given and touches no memory of ours.
-        let _set = unsafe { libc::setrlimit(libc::RLIMIT_CORE, &none) };
-    });
 }

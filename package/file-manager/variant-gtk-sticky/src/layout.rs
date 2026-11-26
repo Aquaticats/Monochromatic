@@ -26,7 +26,10 @@
 ///  imports cells for closure-captured GTK state.
 /// Why:
 ///  focus state and the scroll callback mutate from signal handlers.
-use std::cell::{Cell, RefCell};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 /// What:
 ///  imports the hash-map container.
 /// Why:
@@ -57,8 +60,17 @@ use gtk4::prelude::*;
 ///      controllers;
 ///  reveal retries use glib timers.
 use gtk4::{
-    Adjustment, Align, Box as GtkBox, EventControllerKey, Fixed, Orientation, Overlay, PolicyType,
-    ScrolledWindow, Widget, glib,
+    Adjustment,
+    Align,
+    Box as GtkBox,
+    EventControllerKey,
+    Fixed,
+    Orientation,
+    Overlay,
+    PolicyType,
+    ScrolledWindow,
+    Widget,
+    glib,
 };
 
 /// What:
@@ -66,13 +78,21 @@ use gtk4::{
 /// Why:
 ///  every pane position is one `band::positions` call;
 ///  the adapter computes none of it itself.
-use crate::band::{self, Placement};
+use crate::band::{
+    self,
+    Placement,
+};
 /// What:
 ///  imports pane geometry constants and the debug-tint env name.
 /// Why:
 ///  canvas sizing and reveal extents share the pane grid;
 ///  rails draw only in debug runs.
-use crate::constants::{DEBUG_TINT_ENV, PANE_GAP, PANE_HEIGHT, PANE_WIDTH};
+use crate::constants::{
+    DEBUG_TINT_ENV,
+    PANE_GAP,
+    PANE_HEIGHT,
+    PANE_WIDTH,
+};
 
 /// What:
 ///  imports the stable pane identity type from the original app's crate.
@@ -108,7 +128,10 @@ pub(crate) trait PaneWidgetBuilder {
     /// Why:
     ///  the layout owns placement,
     ///  the implementor owns what a pane shows.
-    fn build_widget(&self, id: PaneId) -> Widget;
+    fn build_widget(
+        &self,
+        id: PaneId,
+    ) -> Widget;
 }
 
 /// What:
@@ -187,14 +210,17 @@ impl StickyLayout {
                 }
             }
         });
-        return layout
+        return layout;
     }
 
     /// What:
     ///  register the observer invoked after every scroll-driven reposition.
     /// Why:
     ///  the controller mirrors observable state into the boundary-test file on scroll.
-    pub(crate) fn set_on_scroll(&self, observer: Box<dyn Fn()>) {
+    pub(crate) fn set_on_scroll(
+        &self,
+        observer: Box<dyn Fn()>,
+    ) {
         self.on_scroll.replace(Some(observer));
     }
 
@@ -203,7 +229,7 @@ impl StickyLayout {
     /// Why:
     ///  callers should not know the root happens to be a `GtkScrolledWindow`.
     pub(crate) fn widget(&self) -> Widget {
-        return self.outer.clone().upcast::<Widget>()
+        return self.outer.clone().upcast::<Widget>();
     }
 
     /// What:
@@ -211,14 +237,17 @@ impl StickyLayout {
     /// Why:
     ///  observed-state output reports it and computes pinning from it.
     pub(crate) fn vertical_scroll(&self) -> f64 {
-        return self.outer.vadjustment().value()
+        return self.outer.vadjustment().value();
     }
 
     /// What:
     ///  attach a key controller to the layout's root scroller.
     /// Why:
     ///  keyboard navigation is installed by `keys.rs` without seeing the concrete root.
-    pub(crate) fn add_column_key_controller(&self, controller: EventControllerKey) {
+    pub(crate) fn add_column_key_controller(
+        &self,
+        controller: EventControllerKey,
+    ) {
         self.outer.add_controller(controller);
     }
 
@@ -227,14 +256,17 @@ impl StickyLayout {
     /// Why:
     ///  Left/Right navigation computes its target relative to this value.
     pub(crate) fn focused_column(&self) -> usize {
-        return self.focused_column.get()
+        return self.focused_column.get();
     }
 
     /// What:
     ///  record the column that just received pane focus.
     /// Why:
     ///  spawn and keyboard navigation both update the origin for the next Left/Right move.
-    pub(crate) fn set_focused_column(&self, column: usize) {
+    pub(crate) fn set_focused_column(
+        &self,
+        column: usize,
+    ) {
         self.focused_column.set(column);
     }
 
@@ -243,12 +275,15 @@ impl StickyLayout {
     ///  returning whether it existed.
     /// Why:
     ///  keyboard navigation can stop event propagation only when focus actually moved.
-    pub(crate) fn focus_widget(&self, id: PaneId) -> bool {
+    pub(crate) fn focus_widget(
+        &self,
+        id: PaneId,
+    ) -> bool {
         let Some(widget) = self.widgets.borrow().get(&id).cloned() else {
             return false;
         };
         widget.grab_focus();
-        return true
+        return true;
     }
 
     /// What:
@@ -283,7 +318,10 @@ impl StickyLayout {
     ///  remove pane widgets whose ids no longer appear in `live`.
     /// Why:
     ///  closed panes must leave the canvas and the widget map.
-    fn remove_stale(&self, live: &[PaneId]) {
+    fn remove_stale(
+        &self,
+        live: &[PaneId],
+    ) {
         let mut stale: Vec<PaneId> = Vec::new();
         for id in self.widgets.borrow().keys() {
             if !live.contains(id) {
@@ -312,8 +350,11 @@ impl StickyLayout {
         }
         let widget = builder.build_widget(placement.id);
         widget.set_size_request(PANE_WIDTH, PANE_HEIGHT);
-        self.canvas
-            .put(&widget, column_x(placement.column), band::row_y(placement.row));
+        self.canvas.put(
+            &widget,
+            column_x(placement.column),
+            band::row_y(placement.row),
+        );
         self.widgets.borrow_mut().insert(placement.id, widget);
     }
 
@@ -321,7 +362,10 @@ impl StickyLayout {
     ///  size the canvas to the whole pane grid.
     /// Why:
     ///  the scroller's ranges on both axes follow the canvas's requested size.
-    fn set_content_size(&self, placements: &[Placement]) {
+    fn set_content_size(
+        &self,
+        placements: &[Placement],
+    ) {
         let mut extent: Option<(usize, usize)> = None;
         for placement in placements {
             extent = match extent {
@@ -392,7 +436,10 @@ impl StickyLayout {
     ///  hence the bounded retry timer,
     ///  a cost the
     ///      original also pays and the browser build does not.
-    pub(crate) fn scroll_to_pane(self: &Rc<Self>, id: PaneId) {
+    pub(crate) fn scroll_to_pane(
+        self: &Rc<Self>,
+        id: PaneId,
+    ) {
         let Some(placement) = band::placement_by_id(&self.placements.borrow(), id) else {
             return;
         };
@@ -422,7 +469,7 @@ impl StickyLayout {
                     }
                     return glib::ControlFlow::Break;
                 }
-                return glib::ControlFlow::Continue
+                return glib::ControlFlow::Continue;
             },
         );
     }
@@ -433,7 +480,7 @@ impl StickyLayout {
 /// Why:
 ///  panes tile across the strip at a fixed stride shared with the pure band math.
 fn column_x(column: usize) -> f64 {
-    return column as f64 * f64::from(PANE_WIDTH + PANE_GAP)
+    return column as f64 * f64::from(PANE_WIDTH + PANE_GAP);
 }
 
 /// What:
@@ -441,7 +488,11 @@ fn column_x(column: usize) -> f64 {
 ///  returning whether it is.
 /// Why:
 ///  callers retry until layout settles because scroll bounds update after content changes.
-fn reveal(adj: &Adjustment, start: f64, extent: f64) -> bool {
+fn reveal(
+    adj: &Adjustment,
+    start: f64,
+    extent: f64,
+) -> bool {
     let page = adj.page_size();
     let value = adj.value();
     if start >= value && start + extent <= value + page {
@@ -455,5 +506,5 @@ fn reveal(adj: &Adjustment, start: f64, extent: f64) -> bool {
     };
     adj.set_value(target.clamp(0.0, max));
     let settled = adj.value();
-    return start >= settled && start + extent <= settled + page
+    return start >= settled && start + extent <= settled + page;
 }

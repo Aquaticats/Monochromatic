@@ -27,7 +27,12 @@ mod semantic_fixture;
 pub mod rust_style;
 
 /// Import owned JSONC values and the production operations under test.
-use monochromatic_jsonc_edit::{JsoncEntry, JsoncKey, JsoncValue, emit_jsonc_value};
+use monochromatic_jsonc_edit::{
+    JsoncEntry,
+    JsoncKey,
+    JsoncValue,
+    emit_jsonc_value,
+};
 use monochromatic_lint::config_merge::merge_values;
 use monochromatic_lint::configuration::parse_configuration;
 /// Import decoded-key deduplication for an independent order invariant.
@@ -116,7 +121,10 @@ pub fn check_merge(document: &JsoncValue) {
 /// ```ts
 /// function entry(name: string, value: JsoncValue): JsoncEntry;
 /// ```
-fn entry(name: &str, value: JsoncValue) -> JsoncEntry {
+fn entry(
+    name: &str,
+    value: JsoncValue,
+) -> JsoncEntry {
     return JsoncEntry {
         key: JsoncKey::from_text(name),
         value,

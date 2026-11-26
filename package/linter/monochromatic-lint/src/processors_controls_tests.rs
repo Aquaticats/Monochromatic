@@ -10,7 +10,15 @@
 //! ```
 
 /// Import the real consumer seam and immutable fixture helpers.
-use super::{Edit, Fix, FixClass, ProcessorLanguage, finding, fixed, inputs};
+use super::{
+    Edit,
+    Fix,
+    FixClass,
+    ProcessorLanguage,
+    finding,
+    fixed,
+    inputs,
+};
 /// Application guards apply to original hosts,
 ///  not just extracted strings.
 use crate::edits::apply_fixes;

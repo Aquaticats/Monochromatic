@@ -24,7 +24,10 @@ use std::cmp::Ordering;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `OWN_CRATE_PREFIX` from `crate::constants`.
 use crate::constants::OWN_CRATE_PREFIX;
@@ -36,19 +39,40 @@ use super::across_roots::winning_version;
 /// Imports `is_repository_published`,
 /// and `shell_word` for the tool id inside the printed `mpm update` hint,
 /// from `super::cargo_installs`.
-use super::cargo_installs::{is_repository_published, shell_word};
+use super::cargo_installs::{
+    is_repository_published,
+    shell_word,
+};
 /// Imports what this module uses from `super::cargo_record`.
-use super::cargo_record::{RecordedInstall, install_naming_bin, read_recorded_installs};
+use super::cargo_record::{
+    RecordedInstall,
+    install_naming_bin,
+    read_recorded_installs,
+};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports what this module uses from `super::layout`.
-use super::layout::{applies_to_family, cargo_bin_dir, cargo_home_dir, find_tool_bin};
+use super::layout::{
+    applies_to_family,
+    cargo_bin_dir,
+    cargo_home_dir,
+    find_tool_bin,
+};
+/// Imports what this module uses from `super::old_copy_places`.
+use super::managed_losers::{
+    LoserPlan,
+    plan_losers,
+};
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 /// Imports what this module uses from `super::old_copy_places`.
-use super::managed_losers::{LoserPlan, plan_losers};
-/// Imports what this module uses from `super::old_copy_places`.
-use super::old_copy_places::{LinkScan, PlaceKind, Places, links_to_copy, places_of};
+use super::old_copy_places::{
+    LinkScan,
+    PlaceKind,
+    Places,
+    links_to_copy,
+    places_of,
+};
 /// Imports what this module uses from `super::scope`.
 use super::scope::toolchain_roots;
 
@@ -119,7 +143,10 @@ fn resolved(path: &Path) -> PathBuf {
 
 /// Whether `path` lies inside a toolchain root of this user (either scope's),
 /// so it is a managed copy and not an old one.
-fn inside_a_toolchain_root(ctx: &Context, path: &Path) -> bool {
+fn inside_a_toolchain_root(
+    ctx: &Context,
+    path: &Path,
+) -> bool {
     let target: PathBuf = resolved(path);
     let mut roots: Vec<PathBuf> = toolchain_roots(ctx.env);
     roots.push(ctx.scope.toolchain_root.clone());
@@ -132,7 +159,10 @@ fn inside_a_toolchain_root(ctx: &Context, path: &Path) -> bool {
 }
 
 /// The entries of the shared cargo bin directory named like the declared bins of `tool`.
-fn candidates_of(ctx: &Context, tool: &LockedTool) -> Vec<Candidate> {
+fn candidates_of(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Vec<Candidate> {
     let directory: PathBuf = cargo_bin_dir(ctx.env, &ctx.scope.home);
     let mut found: Vec<Candidate> = Vec::new();
     for bin in &tool.declaration.bins {
@@ -143,13 +173,22 @@ fn candidates_of(ctx: &Context, tool: &LockedTool) -> Vec<Candidate> {
         if metadata.is_dir() || inside_a_toolchain_root(ctx, &path) {
             continue;
         }
-        found.push(Candidate { bin: bin.clone(), path, is_link: metadata.file_type().is_symlink() });
+        found.push(Candidate {
+            bin: bin.clone(),
+            path,
+            is_link: metadata.file_type().is_symlink(),
+        });
     }
     return found;
 }
 
 /// A plan that keeps the copy for `reason` and moves no link.
-fn kept_plan(tool: &LockedTool, candidate: &Candidate, managed: Option<PathBuf>, reason: String) -> OldCopyPlan {
+fn kept_plan(
+    tool: &LockedTool,
+    candidate: &Candidate,
+    managed: Option<PathBuf>,
+    reason: String,
+) -> OldCopyPlan {
     return OldCopyPlan {
         tool_id: tool.declaration.id.clone(),
         bin: candidate.bin.clone(),
@@ -177,11 +216,16 @@ fn precondition_reason(
     }
     for (id, _) in failed {
         if *id == tool.declaration.id {
-            return Some(format!("the managed install of {id} failed in this run, so this may be the only working copy"));
+            return Some(format!(
+                "the managed install of {id} failed in this run, so this may be the only working copy"
+            ));
         }
     }
     let Some(version) = managed_version else {
-        return Some("there is no finished managed copy yet, so this may be the only working copy".to_string());
+        return Some(
+            "there is no finished managed copy yet, so this may be the only working copy"
+                .to_string(),
+        );
     };
     if let Some(install) = recorded
         && compare_versions(&install.version, version) == Ordering::Greater
@@ -199,13 +243,19 @@ fn precondition_reason(
 
 /// The reasons the copy stays after its links were looked at:
 /// places that could not be seen or listed.
-fn scan_reasons(places: &Places, scan: &LinkScan) -> Vec<String> {
+fn scan_reasons(
+    places: &Places,
+    scan: &LinkScan,
+) -> Vec<String> {
     let mut reasons: Vec<String> = Vec::new();
     for reason in &places.incomplete {
         reasons.push(format!("a place could not be searched for links: {reason}"));
     }
     for directory in &scan.unreadable {
-        reasons.push(format!("{} could not be listed, so links in it are unseen", directory.display()));
+        reasons.push(format!(
+            "{} could not be listed, so links in it are unseen",
+            directory.display()
+        ));
     }
     return reasons;
 }
@@ -224,14 +274,27 @@ fn scan_reasons(places: &Places, scan: &LinkScan) -> Vec<String> {
 /// ```ts
 /// function planLinks(candidate: Candidate, tool: LockedTool, managed: string, places: Places): OldCopyPlan
 /// ```
-fn plan_links(candidate: &Candidate, tool: &LockedTool, managed: PathBuf, places: &Places) -> OldCopyPlan {
+fn plan_links(
+    candidate: &Candidate,
+    tool: &LockedTool,
+    managed: PathBuf,
+    places: &Places,
+) -> OldCopyPlan {
     let scan: LinkScan = links_to_copy(places, &candidate.path);
     let mut repoints: Vec<Repoint> = Vec::new();
     for found in &scan.found {
-        repoints.push(Repoint { link: found.path.clone(), kind: found.kind, target: managed.clone() });
+        repoints.push(Repoint {
+            link: found.path.clone(),
+            kind: found.kind,
+            target: managed.clone(),
+        });
     }
     let reasons: Vec<String> = scan_reasons(places, &scan);
-    let kept: Option<String> = if reasons.is_empty() { None } else { Some(reasons.join("; ")) };
+    let kept: Option<String> = if reasons.is_empty() {
+        None
+    } else {
+        Some(reasons.join("; "))
+    };
     return OldCopyPlan {
         tool_id: tool.declaration.id.clone(),
         bin: candidate.bin.clone(),
@@ -258,11 +321,18 @@ fn plan_links(candidate: &Candidate, tool: &LockedTool, managed: PathBuf, places
 /// ```ts
 /// function planCargoBinCopies(ctx: Context, failed: [string, string][], places: Places | undefined): OldCopyPlan[]
 /// ```
-fn plan_cargo_bin_copies(ctx: &Context, failed: &[(String, String)], places: &mut Option<Places>) -> Vec<OldCopyPlan> {
-    let installs: Vec<RecordedInstall> = read_recorded_installs(&cargo_home_dir(ctx.env, &ctx.scope.home));
+fn plan_cargo_bin_copies(
+    ctx: &Context,
+    failed: &[(String, String)],
+    places: &mut Option<Places>,
+) -> Vec<OldCopyPlan> {
+    let installs: Vec<RecordedInstall> =
+        read_recorded_installs(&cargo_home_dir(ctx.env, &ctx.scope.home));
     let mut plans: Vec<OldCopyPlan> = Vec::new();
     for tool in ctx.tools {
-        if !is_repository_published(tool) || !applies_to_family(&tool.declaration.os, ctx.host.family) {
+        if !is_repository_published(tool)
+            || !applies_to_family(&tool.declaration.os, ctx.host.family)
+        {
             continue;
         }
         for candidate in candidates_of(ctx, tool) {
@@ -273,16 +343,33 @@ fn plan_cargo_bin_copies(ctx: &Context, failed: &[(String, String)], places: &mu
                 continue;
             }
             let managed_version: Option<String> = winning_version(ctx.scope, tool);
-            let mine: Option<PathBuf> = find_tool_bin(tool, &candidate.bin, ctx.scope, ctx.env, &[]);
-            if let Some(reason) = precondition_reason(tool, &candidate, recorded, managed_version.as_deref(), failed) {
+            let mine: Option<PathBuf> =
+                find_tool_bin(tool, &candidate.bin, ctx.scope, ctx.env, &[]);
+            if let Some(reason) = precondition_reason(
+                tool,
+                &candidate,
+                recorded,
+                managed_version.as_deref(),
+                failed,
+            ) {
                 plans.push(kept_plan(tool, &candidate, mine, reason));
                 continue;
             }
             let Some(managed) = mine else {
-                plans.push(kept_plan(tool, &candidate, None, "the managed copy of this bin is missing or not executable".to_string()));
+                plans.push(kept_plan(
+                    tool,
+                    &candidate,
+                    None,
+                    "the managed copy of this bin is missing or not executable".to_string(),
+                ));
                 continue;
             };
-            plans.push(plan_links(&candidate, tool, managed, places_of(places, ctx.scope, ctx.env, ctx.runner)));
+            plans.push(plan_links(
+                &candidate,
+                tool,
+                managed,
+                places_of(places, ctx.scope, ctx.env, ctx.runner),
+            ));
         }
     }
     return plans;
@@ -302,9 +389,16 @@ fn plan_cargo_bin_copies(ctx: &Context, failed: &[(String, String)], places: &mu
 /// ```ts
 /// export function planOldCopies(ctx: Context, failed: [string, string][]): OldCopyPlans
 /// ```
-pub fn plan_old_copies(ctx: &Context, failed: &[(String, String)]) -> OldCopyPlans {
+pub fn plan_old_copies(
+    ctx: &Context,
+    failed: &[(String, String)],
+) -> OldCopyPlans {
     let mut places: Option<Places> = None;
     let plans: Vec<OldCopyPlan> = plan_cargo_bin_copies(ctx, failed, &mut places);
     let losers: Vec<LoserPlan> = plan_losers(ctx, failed, &mut places);
-    return OldCopyPlans { plans, losers, places: places.unwrap_or_default() };
+    return OldCopyPlans {
+        plans,
+        losers,
+        places: places.unwrap_or_default(),
+    };
 }

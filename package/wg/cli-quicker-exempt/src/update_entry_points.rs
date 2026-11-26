@@ -9,7 +9,10 @@
 /// Raw Unix path bytes for argument comparison.
 use std::os::unix::ffi::OsStrExt;
 /// Executable paths and install roots.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// `mise` task names that fetch from the network.
 /// The `:global` forms and the aliases that run a fetching task are listed too.
@@ -76,9 +79,13 @@ impl MatchReason {
             MatchReason::MiseTask => "a mise toolchain task that fetches from the network",
             MatchReason::MpmShadowVerb => "an mpm-shadow command that fetches from the network",
             MatchReason::MpmShim => "the mpm shadow",
-            MatchReason::ToolchainScript => "the TypeScript mpm-shadow launcher, which downloads from the network",
+            MatchReason::ToolchainScript => {
+                "the TypeScript mpm-shadow launcher, which downloads from the network"
+            }
             MatchReason::ToolchainPath => "an executable under the toolchain install roots",
-            MatchReason::PiAgent => "Pi, the agent harness whose provider traffic stays outside the tunnel",
+            MatchReason::PiAgent => {
+                "Pi, the agent harness whose provider traffic stays outside the tunnel"
+            }
         };
     }
 
@@ -114,7 +121,10 @@ fn is_slash(byte: &u8) -> bool {
 /// The file name comes from the resolved `exe` link,
 /// which a process cannot rewrite after `exec`,
 /// unlike the first command-line word that `exec -a` sets freely.
-fn is_program(exe: &Path, program: &str) -> bool {
+fn is_program(
+    exe: &Path,
+    program: &str,
+) -> bool {
     return match exe.file_name() {
         Some(name) => name.as_bytes() == program.as_bytes(),
         None => false,
@@ -126,7 +136,10 @@ fn is_program(exe: &Path, program: &str) -> bool {
 /// or `mpm-shadow` started under the name `mpm`.
 /// The command-line name counts only for `mpm-shadow`,
 /// so `exec -a mpm /usr/bin/curl` does not match.
-fn is_mpm_shadow(exe: &Path, args: &[Vec<u8>]) -> bool {
+fn is_mpm_shadow(
+    exe: &Path,
+    args: &[Vec<u8>],
+) -> bool {
     if is_program(exe, "mpm") {
         return true;
     }
@@ -138,7 +151,10 @@ fn is_mpm_shadow(exe: &Path, args: &[Vec<u8>]) -> bool {
 }
 
 /// Reports whether any argument after the first equals one of `names`.
-fn has_argument_in(args: &[Vec<u8>], names: &[&str]) -> bool {
+fn has_argument_in(
+    args: &[Vec<u8>],
+    names: &[&str],
+) -> bool {
     for argument in args.iter().skip(1) {
         for name in names {
             if argument.as_slice() == name.as_bytes() {
@@ -150,7 +166,10 @@ fn has_argument_in(args: &[Vec<u8>], names: &[&str]) -> bool {
 }
 
 /// Reports whether the first argument that is not a flag is one of `names`.
-fn first_word_in(args: &[Vec<u8>], names: &[&str]) -> bool {
+fn first_word_in(
+    args: &[Vec<u8>],
+    names: &[&str],
+) -> bool {
     for argument in args.iter().skip(1) {
         if argument.first() == Some(&b'-') {
             continue;
@@ -184,7 +203,10 @@ fn runs_toolchain_script(args: &[Vec<u8>]) -> bool {
 /// before that rewrite the exec event carries node and the entry Pi runs.
 /// The first word counts only for `node`,
 /// so `exec -a pi /usr/bin/curl` does not match.
-fn is_pi_agent(exe: &Path, args: &[Vec<u8>]) -> bool {
+fn is_pi_agent(
+    exe: &Path,
+    args: &[Vec<u8>],
+) -> bool {
     if !is_program(exe, "node") {
         return false;
     }
@@ -203,7 +225,10 @@ fn is_pi_agent(exe: &Path, args: &[Vec<u8>]) -> bool {
 
 /// Reports whether `exe` lies below one of `roots`,
 /// comparing whole path components.
-fn is_under_any(exe: &Path, roots: &[PathBuf]) -> bool {
+fn is_under_any(
+    exe: &Path,
+    roots: &[PathBuf],
+) -> bool {
     for root in roots {
         if exe.starts_with(root) {
             return true;
@@ -218,7 +243,11 @@ fn is_under_any(exe: &Path, roots: &[PathBuf]) -> bool {
 /// `exe` is the resolved executable,
 /// `args` the raw command line with the program name first,
 /// and `install_roots` the toolchain root spellings of the watched user.
-pub fn classify(exe: &Path, args: &[Vec<u8>], install_roots: &[PathBuf]) -> Option<MatchReason> {
+pub fn classify(
+    exe: &Path,
+    args: &[Vec<u8>],
+    install_roots: &[PathBuf],
+) -> Option<MatchReason> {
     if is_under_any(exe, install_roots) {
         return Some(MatchReason::ToolchainPath);
     }

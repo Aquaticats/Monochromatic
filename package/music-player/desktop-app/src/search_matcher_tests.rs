@@ -15,14 +15,23 @@ fn terms(words: &[&str]) -> Vec<String> {
 
 // What:     `fn tier(name: &str, words: &[&str]) -> Option<i32>` test helper: tiers a name against literal terms.
 // Why:      Most cases tier one name, and this keeps each assertion on one line.
-fn tier(name: &str, words: &[&str]) -> Option<i32> {
+fn tier(
+    name: &str,
+    words: &[&str],
+) -> Option<i32> {
     return match_tier(name, &terms(words));
 }
 
 // What:     `fn span(start: i32, end: i32) -> SearchHighlight` test helper: builds one expected highlight range.
 // Why:      Highlight cases compare lists of ranges, and the literal struct form is long.
-fn span(start: i32, end: i32) -> SearchHighlight {
-    return SearchHighlight { start, end };
+fn span(
+    start: i32,
+    end: i32,
+) -> SearchHighlight {
+    return SearchHighlight {
+        start,
+        end,
+    };
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -155,14 +164,20 @@ fn every_term_must_match() {
 // Why:      `live cam` must find `Camellia Live`, because each term starts some word of the name.
 #[test]
 fn terms_may_match_in_any_word_order() {
-    assert_eq!(tier("camellia live", &["live", "cam"]), Some(TIER_WORD_START));
+    assert_eq!(
+        tier("camellia live", &["live", "cam"]),
+        Some(TIER_WORD_START)
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
 // Why:      With several terms, tier one needs the name to start with the first term while every term still matches.
 #[test]
 fn first_term_at_start_is_tier_one() {
-    assert_eq!(tier("live camellia", &["live", "cam"]), Some(TIER_NAME_PREFIX));
+    assert_eq!(
+        tier("live camellia", &["live", "cam"]),
+        Some(TIER_NAME_PREFIX)
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.

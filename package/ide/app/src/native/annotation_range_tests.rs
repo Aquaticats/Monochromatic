@@ -7,21 +7,39 @@
 /// The production setter and the stamp of the displayed text.
 use super::annotate::displayed;
 /// The fixture text and the helpers that read a line's block.
-use super::annotation_tests::{FIXTURE, block, hint};
+use super::annotation_tests::{
+    FIXTURE,
+    block,
+    hint,
+};
 /// The complete reader fixture.
-use super::find_tests::{Reader, reader};
+use super::find_tests::{
+    Reader,
+    reader,
+};
 /// The production render.
 use super::render;
 /// Snapshot records exactly as the Language module builds them.
-use ide_app::language::{hints::HintsSnapshot, identity::DocumentStamp};
+use ide_app::language::{
+    hints::HintsSnapshot,
+    identity::DocumentStamp,
+};
 /// Disposable fixtures and shared snapshot pointers.
-use std::{fs, sync::Arc};
+use std::{
+    fs,
+    sync::Arc,
+};
 
 /// Hand a hints snapshot for the lines `asked.0` up to,
 ///  not including,
 ///  `asked.1` to the store the way the Language poll does,
 ///  then render once as the poll's caller does.
-fn answer(reader: &Reader, stamp: DocumentStamp, asked: (usize, usize), items: Vec<(usize, &str)>) {
+fn answer(
+    reader: &Reader,
+    stamp: DocumentStamp,
+    asked: (usize, usize),
+    items: Vec<(usize, &str)>,
+) {
     let mut hints = Vec::new();
     for (position, label) in items {
         hints.push(hint(position, label));
@@ -43,7 +61,10 @@ fn answer(reader: &Reader, stamp: DocumentStamp, asked: (usize, usize), items: V
 
 /// How many hint texts the block above `line` holds,
 ///  as the state hands them to the window and to the minimap's request.
-fn hints_above(reader: &Reader, line: usize) -> usize {
+fn hints_above(
+    reader: &Reader,
+    line: usize,
+) -> usize {
     return match block(reader, line) {
         Some(found) => found.hints.len(),
         None => 0,
@@ -104,7 +125,10 @@ fn an_answer_for_other_lines_adds_no_hint_to_a_line_it_did_not_ask_about() {
 
 /// The height of the block above `line`,
 ///  or nothing when it has none.
-fn block_rows(reader: &Reader, line: usize) -> f32 {
+fn block_rows(
+    reader: &Reader,
+    line: usize,
+) -> f32 {
     return match block(reader, line) {
         Some(found) => found.height(),
         None => 0.0,

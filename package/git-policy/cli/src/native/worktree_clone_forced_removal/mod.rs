@@ -72,6 +72,37 @@
 //!   `SIGTERM` through a pin,
 //!   a wait,
 //!   then `SIGKILL` to the survivors while the caller still lives.
+//! - `namespace_owner.rs`:
+//!   the user namespace that owns a mount namespace,
+//!   and the read that tells a locked holder.
+//! - `recorded_handle.rs`:
+//!   the add's recorded handle of the slot's underlay,
+//!   the two calls that take and reopen it,
+//!   and a descriptor's mount id.
+//! - `descriptor_calls.rs`:
+//!   the descriptor-relative opens,
+//!   creates,
+//!   directory calls and the rename,
+//!   which the act and the progress file both make.
+//! - `mount_namespace_child.rs`:
+//!   the single-threaded child that enters one holder namespace and runs one
+//!   piece of the act there,
+//!   and the bounded report it hands back.
+//! - `the_copy_taken_out_of_a_namespace.rs`:
+//!   the act itself, in two stages:
+//!   the structural stage that proves the copy and makes way 7's directory,
+//!   and the unmount stage that takes the copy out by the handle or by the move.
+//! - `removal_progress_file.rs`:
+//!   the progress file the handler advances while the act lives,
+//!   and the reads the wrapper makes of it.
+//! - `forced_receipt.rs`:
+//!   the receipt the act files for its own answer.
+//! - `the_acts_journal_lines.rs`:
+//!   the handler's journal lines, which the records record makes the record of
+//!   who a forced removal ended.
+//! - `the_refusal_sentences.rs`:
+//!   the sentences a forced removal prints,
+//!   other than the service-manager one.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -112,6 +143,43 @@ pub mod holder_preflight;
 /// The signal stage.
 pub mod blocker_end;
 
+/// The user namespace that owns a mount namespace.
+pub mod namespace_owner;
+
+/// The add's recorded handle and the calls that take and reopen it.
+pub mod recorded_handle;
+
+/// The descriptor-relative calls the act and the progress file make.
+pub mod descriptor_calls;
+
+/// The child that enters one holder namespace and runs one piece of the act.
+pub mod mount_namespace_child;
+
+/// The act on one holder namespace's copy, in its two stages.
+pub mod the_copy_taken_out_of_a_namespace;
+
+/// The progress file the handler advances while the act lives.
+pub mod removal_progress_file;
+
+/// The receipt the act files for its own answer.
+pub mod forced_receipt;
+
+/// The handler's journal lines.
+pub mod the_acts_journal_lines;
+
+/// The sentences a forced removal prints.
+pub mod the_refusal_sentences;
+
+/// The fixture the forced act's guest arm runs in.
+#[cfg(test)]
+#[path = "the_forced_act_guest_fixture_tests.rs"]
+mod the_forced_act_guest_fixture;
+
+/// The guest arm that proves every kernel call of the act in a throwaway guest.
+#[cfg(test)]
+#[path = "the_forced_act_guest_arms_tests.rs"]
+mod the_forced_act_guest_arms;
+
 /// Every word this arm writes or answers.
 pub use forced_removal_words::{
     CALLER_PROPERTY, DESTINATION_DIRECTORY_PREFIX, FAILED_STEP_MAXIMUM_BYTES, FORCE_PROPERTY, PROGRESS_FILE_SUFFIX,
@@ -151,6 +219,42 @@ pub use holder_endings::{
 };
 /// The reads before the first act, and their refusals.
 pub use holder_preflight::{ForcedPlan, ForcedRefusal, PreflightReads, Route, plan_the_forced_removal};
+/// The user namespace that owns a mount namespace.
+pub use namespace_owner::{NamespaceOwner, OUR_USER_NAMESPACE, OwnerRefusal, identity_of, open_a_namespace, our_user_namespace, owner_of, read_the_owner};
+/// The add's recorded handle and the calls that take and reopen it.
+pub use recorded_handle::{
+    HANDLE_RECORD_VERSION, HandleRefusal, MAXIMUM_HANDLE_BYTES, RecordedHandle, folder_facts, mount_id_of, name_the_handle,
+    open_from_the_handle,
+};
+/// The descriptor-relative calls the act and the progress file make.
+pub use descriptor_calls::{
+    create_at, make_directory_at, open_directory, open_directory_below, open_file_below, remove_directory_at, remove_entry_at,
+    rename_at, sync_directory,
+};
+/// The child that enters one holder namespace and runs one piece of the act.
+pub use mount_namespace_child::{ActOutcome, ActReport, ChildRefusal, MAXIMUM_HEADER_BYTES, run_in};
+/// The act on one holder namespace's copy.
+pub use the_copy_taken_out_of_a_namespace::{
+    CopyRefusal, DESTINATION_MODE, NamespaceCopy, Ready, WayOut, make_the_way_ready, row_of, rows_of, take_the_copy_out,
+    topmost_at,
+};
+/// The progress file the handler advances while the act lives.
+pub use removal_progress_file::{
+    MAXIMUM_PROGRESS_BYTES, PROGRESS_KIND, PROGRESS_VERSION, ProgressFile, ProgressReading, ProgressRefusal, ProgressWriting,
+    parse_progress, progress_text,
+};
+/// The receipt the act files for its own answer.
+pub use forced_receipt::{FilingRefusal, TheActsAnswer, file_the_receipt, receipt_of, refusal_answer};
+/// The handler's journal lines.
+pub use the_acts_journal_lines::{
+    ABlockersEnd, AClosingLine, ADestinationDirectory, AHolderNotEnded, APropagationChange, ARefusedNamespace, AStoppedUnit,
+    AStructuralRefusal, LINE_PREFIX, TheActsJournal, as_a_block, dataset_word, quoted,
+};
+/// The sentences a forced removal prints.
+pub use the_refusal_sentences::{
+    TheHolder, WhyNotStopped, a_holder_that_would_not_end, a_locked_holder, caller_holds_in_its_working_directory,
+    the_callers_namespace_holds,
+};
 /// The signal stage.
 pub use blocker_end::{
     ASK, Blocker, EndResult, Endability, KILL, MOST_BLOCKERS_ONE_ACT_HOLDS, SignalStage, end_the_blockers,

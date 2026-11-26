@@ -11,7 +11,10 @@
 /// Import native paths and the atomic counter used only for unique fixture names.
 use std::path::PathBuf;
 /// Import the atomic counter that gives every fixture directory a unique name.
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// What:
 ///  A process-local sequence shared safely by concurrent tests.
@@ -55,7 +58,9 @@ impl Fixture {
         let name = format!("monochromatic-lint-test-{}-{sequence}", std::process::id());
         let path = crate::test_scratch::scratch_root().join(name);
         std::fs::create_dir(&path).expect("exclusively create test directory");
-        return Fixture { path };
+        return Fixture {
+            path,
+        };
     }
 }
 

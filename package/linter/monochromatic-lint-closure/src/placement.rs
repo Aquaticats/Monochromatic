@@ -20,7 +20,11 @@ use rustc_hir::def_id::DefId;
 /// expressions,
 /// call kinds,
 /// nodes.
-use rustc_hir::{Expr, ExprKind, Node};
+use rustc_hir::{
+    Expr,
+    ExprKind,
+    Node,
+};
 /// Import the lint context that gives access to type information.
 use rustc_lint::LateContext;
 /// Import the compiler's type kind enum to inspect what a callee expression is.
@@ -97,7 +101,10 @@ enum Slot {
 /// ```ts
 /// function classifyPlacement(closure: Expr): Placement;
 /// ```
-pub fn classify_placement<'tcx>(cx: &LateContext<'tcx>, closure: &'tcx Expr<'tcx>) -> Placement {
+pub fn classify_placement<'tcx>(
+    cx: &LateContext<'tcx>,
+    closure: &'tcx Expr<'tcx>,
+) -> Placement {
     let (subject, boxed): (&'tcx Expr<'tcx>, bool) = look_through_box(cx, closure);
     let parent: Node<'tcx> = cx.tcx.parent_hir_node(subject.hir_id);
     if let Node::LetStmt(local) = parent {
@@ -112,7 +119,10 @@ pub fn classify_placement<'tcx>(cx: &LateContext<'tcx>, closure: &'tcx Expr<'tcx
         return Placement::Other;
     };
     return match declared_slot(cx, parent_expr, subject) {
-        Slot::Declared { callee, index } => {
+        Slot::Declared {
+            callee,
+            index,
+        } => {
             if parameter_requires_static(cx, callee, index, boxed) {
                 Placement::KeptByCallee
             } else {
@@ -172,7 +182,10 @@ fn look_through_box<'tcx>(
 /// ```ts
 /// function functionDefinition(callee: Expr): DefId | undefined;
 /// ```
-fn function_definition<'tcx>(cx: &LateContext<'tcx>, callee: &'tcx Expr<'tcx>) -> Option<DefId> {
+fn function_definition<'tcx>(
+    cx: &LateContext<'tcx>,
+    callee: &'tcx Expr<'tcx>,
+) -> Option<DefId> {
     let callee_type = cx.typeck_results().expr_ty(callee);
     let TyKind::FnDef(definition, _) = callee_type.kind() else {
         return None;
@@ -238,7 +251,10 @@ fn declared_slot<'tcx>(
 /// ```ts
 /// function argumentIndex(args: Expr[], arg: Expr): number | undefined;
 /// ```
-fn argument_index(arguments: &[Expr<'_>], argument: &Expr<'_>) -> Option<usize> {
+fn argument_index(
+    arguments: &[Expr<'_>],
+    argument: &Expr<'_>,
+) -> Option<usize> {
     for (index, candidate) in arguments.iter().enumerate() {
         if candidate.hir_id == argument.hir_id {
             return Some(index);

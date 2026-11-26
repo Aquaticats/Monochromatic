@@ -18,7 +18,14 @@
 //! ```
 
 /// Imports `monochromatic_dependency_catalog::{Change, ManifestFile, SyncInput, SyncOutput, check, sync}`.
-use monochromatic_dependency_catalog::{Change, ManifestFile, SyncInput, SyncOutput, check, sync};
+use monochromatic_dependency_catalog::{
+    Change,
+    ManifestFile,
+    SyncInput,
+    SyncOutput,
+    check,
+    sync,
+};
 
 /// One real crate:
 /// its path and the stale and expected manifest texts.
@@ -81,7 +88,10 @@ fn narrowed_catalog() -> String {
     let output: SyncOutput = sync(&input).expect("fixtures sync");
     assert!(!output.catalog.changes.is_empty());
     for change in &output.catalog.changes {
-        assert!(matches!(change, Change::CatalogEntryPruned { .. }), "unexpected catalog change {change:?}");
+        assert!(
+            matches!(change, Change::CatalogEntryPruned { .. }),
+            "unexpected catalog change {change:?}"
+        );
     }
     return output.catalog.expected;
 }
@@ -112,7 +122,12 @@ fn stale_manifests_become_the_typescript_output() {
     let output: SyncOutput = sync(&input).expect("fixtures sync");
     assert_eq!(output.catalog.expected, catalog);
     for fixture in fixtures() {
-        assert_eq!(output.expected_manifest(fixture.path), Some(fixture.expected), "{}", fixture.path);
+        assert_eq!(
+            output.expected_manifest(fixture.path),
+            Some(fixture.expected),
+            "{}",
+            fixture.path
+        );
     }
 }
 
@@ -131,7 +146,12 @@ fn check_mode_names_the_drifting_crates() {
     assert!(!report.is_clean());
     assert_eq!(report.drifts.len(), 4);
     for drift in &report.drifts {
-        assert_eq!(drift.changes, vec![Change::GeneratedTableWritten], "{}", drift.path);
+        assert_eq!(
+            drift.changes,
+            vec![Change::GeneratedTableWritten],
+            "{}",
+            drift.path
+        );
         assert_ne!(drift.actual, drift.expected);
     }
     assert_eq!(report.affected_crates.len(), 4);

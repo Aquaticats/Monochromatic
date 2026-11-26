@@ -3,14 +3,23 @@
 //!  and which result identifier the next pull request carries.
 
 /// The store and the types of its records.
-use super::{DiagnosticStore, StoredSet};
+use super::{
+    DiagnosticStore,
+    StoredSet,
+};
 /// Pull answers carry their freshness;
 ///  their items are converted later.
 use crate::language::diagnostics::Freshness;
 /// Sets are keyed by server process and stamped with the text they were accepted for.
-use crate::language::identity::{DocumentStamp, ServerIdentity};
+use crate::language::identity::{
+    DocumentStamp,
+    ServerIdentity,
+};
 /// The protocol's diagnostic record and each server's column unit.
-use helix_lsp::{OffsetEncoding, lsp};
+use helix_lsp::{
+    OffsetEncoding,
+    lsp,
+};
 
 /// What:
 ///  Forget the pull result identifier of `server`.
@@ -124,7 +133,10 @@ impl DiagnosticStore {
     /// ```ts
     /// previousResultId(server: ServerIdentity): string | undefined
     /// ```
-    pub(crate) fn previous_result_id(&self, server: &ServerIdentity) -> Option<String> {
+    pub(crate) fn previous_result_id(
+        &self,
+        server: &ServerIdentity,
+    ) -> Option<String> {
         let mut stored = false;
         for set in self.sets.iter() {
             if set.pulled && &set.server == server {

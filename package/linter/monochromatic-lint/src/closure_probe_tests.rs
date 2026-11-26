@@ -11,16 +11,33 @@
 //! test('a missing program skips', () => expect(prepare([executables(['x'])], dir, cargo, search)).toEqual(skipped(...)));
 //! ```
 
-use super::{PackageSetup, Readiness, check_executables, find_executable, prepare, qmake_setup};
-use crate::{closure_manifest::Prerequisite, test_fs::Fixture};
+use super::{
+    PackageSetup,
+    Readiness,
+    check_executables,
+    find_executable,
+    prepare,
+    qmake_setup,
+};
+use crate::{
+    closure_manifest::Prerequisite,
+    test_fs::Fixture,
+};
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Write an empty file,
 /// executable on Unix.
-fn write_program(directory: &Path, name: &str, executable: bool) -> PathBuf {
+fn write_program(
+    directory: &Path,
+    name: &str,
+    executable: bool,
+) -> PathBuf {
     std::fs::create_dir_all(directory).expect("directory");
     let path: PathBuf = directory.join(name);
     std::fs::write(&path, "").expect("program file");

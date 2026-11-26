@@ -22,7 +22,10 @@
 /// ```ts
 /// import { replaceAt, setKeyComment } from './editSpine';
 /// ```
-use crate::edit_spine::{set_comment_at, set_key_comment};
+use crate::edit_spine::{
+    set_comment_at,
+    set_key_comment,
+};
 /// What:
 ///      Import the edit failure enum and its underlying causes.
 /// Why:
@@ -32,7 +35,11 @@ use crate::edit_spine::{set_comment_at, set_key_comment};
 /// ```ts
 /// import { JsoncEditError, JsoncPathNotFoundError, JsoncTypeError } from './error';
 /// ```
-use crate::error::{JsoncEditError, JsoncPathNotFoundError, JsoncTypeError};
+use crate::error::{
+    JsoncEditError,
+    JsoncPathNotFoundError,
+    JsoncTypeError,
+};
 /// What:
 ///      Import the member lookup helper and the address walk.
 /// Why:
@@ -43,7 +50,10 @@ use crate::error::{JsoncEditError, JsoncPathNotFoundError, JsoncTypeError};
 /// ```ts
 /// import { findEntryIndex, resolve } from './navigate';
 /// ```
-use crate::navigate::{find_entry_index, resolve};
+use crate::navigate::{
+    find_entry_index,
+    resolve,
+};
 /// What:
 ///      Import the address segment type.
 /// Why:
@@ -63,7 +73,11 @@ use crate::path::JsoncPathSegment;
 /// ```ts
 /// import { JsoncComment, JsoncKind, JsoncValue } from './value';
 /// ```
-use crate::value::{JsoncComment, JsoncKind, JsoncValue};
+use crate::value::{
+    JsoncComment,
+    JsoncKind,
+    JsoncValue,
+};
 
 /// What:
 ///      Split one address into its parent address and its final key name.
@@ -79,13 +93,20 @@ use crate::value::{JsoncComment, JsoncKind, JsoncValue};
 ///
 /// # Errors
 /// Returns a shape failure when the address is empty or ends in an array index.
-fn split_key_path(path: &[JsoncPathSegment]) -> Result<(&[JsoncPathSegment], &str), JsoncEditError> {
+fn split_key_path(
+    path: &[JsoncPathSegment]
+) -> Result<(&[JsoncPathSegment], &str), JsoncEditError> {
     let Some((last, parent)) = path.split_last() else {
         return Err(JsoncEditError::Type {
-            error: JsoncTypeError { message: String::from("jsonc key comment: empty path has no key") },
+            error: JsoncTypeError {
+                message: String::from("jsonc key comment: empty path has no key"),
+            },
         });
     };
-    let JsoncPathSegment::Key { key } = last else {
+    let JsoncPathSegment::Key {
+        key,
+    } = last
+    else {
         return Err(JsoncEditError::Type {
             error: JsoncTypeError {
                 message: String::from("jsonc key comment: final segment is not a key"),
@@ -161,19 +182,28 @@ pub fn jsonc_key_comment<'a>(
 ) -> Result<Option<&'a JsoncComment>, JsoncEditError> {
     let (parent_path, key) = split_key_path(path)?;
     let parent = resolve(root, parent_path)?;
-    let JsoncKind::Record { entries } = &parent.kind else {
+    let JsoncKind::Record {
+        entries,
+    } = &parent.kind
+    else {
         return Err(JsoncEditError::PathNotFound {
-            error: JsoncPathNotFoundError { path: Vec::from(path) },
+            error: JsoncPathNotFoundError {
+                path: Vec::from(path),
+            },
         });
     };
     let Some(index) = find_entry_index(entries, key) else {
         return Err(JsoncEditError::PathNotFound {
-            error: JsoncPathNotFoundError { path: Vec::from(path) },
+            error: JsoncPathNotFoundError {
+                path: Vec::from(path),
+            },
         });
     };
     let Some(entry) = entries.get(index) else {
         return Err(JsoncEditError::PathNotFound {
-            error: JsoncPathNotFoundError { path: Vec::from(path) },
+            error: JsoncPathNotFoundError {
+                path: Vec::from(path),
+            },
         });
     };
     return Ok(entry.key.comment.as_ref());

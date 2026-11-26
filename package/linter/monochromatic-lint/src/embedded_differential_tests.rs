@@ -23,15 +23,31 @@
 use std::{
     ffi::OsString,
     io::Write,
-    path::{Path, PathBuf},
-    process::{Child, Command, Output, Stdio},
-    sync::atomic::{AtomicU64, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+        Output,
+        Stdio,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// The in-process entry and the finding renderer the executable uses.
 use monochromatic_lint::{
     diagnostic::render,
-    run_embedded::{EmbeddedFailure, EmbeddedRequest, EmbeddedRun, fix_source},
+    run_embedded::{
+        EmbeddedFailure,
+        EmbeddedRequest,
+        EmbeddedRun,
+        fix_source,
+    },
     run_finish::PROGRAM,
 };
 
@@ -88,7 +104,9 @@ impl Fixture {
         )
         .expect("attributes");
         std::fs::write(top.join(IMAGE_PATH), IMAGE).expect("image");
-        return Fixture { root };
+        return Fixture {
+            root,
+        };
     }
 
     /// The directory both runs start from.
@@ -107,7 +125,10 @@ impl Drop for Fixture {
 }
 
 /// The configuration the wrapper writes for the LFS rule with these exclude patterns.
-fn configuration(severity: &str, exclude: &[&str]) -> String {
+fn configuration(
+    severity: &str,
+    exclude: &[&str],
+) -> String {
     let patterns: String = serde_json::to_string(exclude).expect("patterns as JSON");
     return format!(
         "[{{\"files\":[\"**/*.md\",\"**/*.mdx\"],\"rules\":{{\"{RULE}\":{{\"severity\":\"{severity}\",\"exclude\":{patterns}}}}}}}]"
@@ -138,7 +159,10 @@ struct Case {
 }
 
 /// Run the executable the way the wrapper used to start it.
-fn run_executable(fixture: &Fixture, case: &Case) -> Output {
+fn run_executable(
+    fixture: &Fixture,
+    case: &Case,
+) -> Output {
     let configuration_file: PathBuf = fixture.root.join("configuration.jsonc");
     std::fs::write(
         &configuration_file,
@@ -169,7 +193,10 @@ fn run_executable(fixture: &Fixture, case: &Case) -> Output {
 }
 
 /// Run the in-process entry on the same input.
-fn run_in_process(fixture: &Fixture, case: &Case) -> Result<EmbeddedRun, EmbeddedFailure> {
+fn run_in_process(
+    fixture: &Fixture,
+    case: &Case,
+) -> Result<EmbeddedRun, EmbeddedFailure> {
     let document: String = configuration(case.severity, case.exclude.as_slice());
     let top: PathBuf = fixture.top();
     return fix_source(&EmbeddedRequest {
@@ -182,7 +209,10 @@ fn run_in_process(fixture: &Fixture, case: &Case) -> Result<EmbeddedRun, Embedde
 
 /// Assert the two runs agree on one case,
 ///  and return whether the executable reported the run as usable.
-fn assert_same(fixture: &Fixture, case: &Case) -> bool {
+fn assert_same(
+    fixture: &Fixture,
+    case: &Case,
+) -> bool {
     let executable: Output = run_executable(fixture, case);
     let embedded: Result<EmbeddedRun, EmbeddedFailure> = run_in_process(fixture, case);
     let status: i32 = executable
@@ -234,7 +264,11 @@ fn assert_same(fixture: &Fixture, case: &Case) -> bool {
 }
 
 /// A case with default options and a UTF-8 name.
-fn case(label: &'static str, name: &str, source: &[u8]) -> Case {
+fn case(
+    label: &'static str,
+    name: &str,
+    source: &[u8],
+) -> Case {
     return Case {
         label,
         name: OsString::from(name),
@@ -245,7 +279,10 @@ fn case(label: &'static str, name: &str, source: &[u8]) -> Case {
 }
 
 /// The object URL text for the given digest and path.
-fn object_url(digest: &str, path: &str) -> String {
+fn object_url(
+    digest: &str,
+    path: &str,
+) -> String {
     return format!("{ENDPOINT}/{digest}/{path}");
 }
 
@@ -403,7 +440,11 @@ fn error_messages(stderr: &[u8]) -> String {
 
 /// Assert both runs failed the same way after the source was linted:
 ///  the same non-zero status and the explanation made of the records the executable printed.
-fn assert_same_failed_run(fixture: &Fixture, case: &Case, status: u8) {
+fn assert_same_failed_run(
+    fixture: &Fixture,
+    case: &Case,
+    status: u8,
+) {
     let executable: Output = run_executable(fixture, case);
     let embedded: EmbeddedFailure = run_in_process(fixture, case).expect_err("the run fails");
     assert_eq!(

@@ -10,7 +10,10 @@
 /// The request the window waits for.
 use super::Pending;
 /// Identities and replies.
-use ide_app::language::{identity::DocumentStamp, reply::LanguageReply};
+use ide_app::language::{
+    identity::DocumentStamp,
+    reply::LanguageReply,
+};
 
 /// What:
 ///  Whether a reply may be applied,

@@ -15,13 +15,23 @@
 //! further timeout would need a stall of a whole request timeout,
 //!  every time.
 
-use crate::support::{self, PRODUCT_TIMEOUT, Probe};
+use crate::support::{
+    self,
+    PRODUCT_TIMEOUT,
+    Probe,
+};
 use ide_app::language::{
     hints::HintWindow,
-    reply::{RequestKind, RequestOutcome},
+    reply::{
+        RequestKind,
+        RequestOutcome,
+    },
 };
 use serde_json::Value;
-use std::{path::Path, time::Instant};
+use std::{
+    path::Path,
+    time::Instant,
+};
 
 /// Request timeout of the scripted server in the tests where a request must time out,
 ///  in
@@ -77,7 +87,10 @@ fn hint_requests(lines: &[Value]) -> Vec<&Value> {
 /// Display `BEFORE`,
 ///  report the window,
 ///  and wait for the hints of that text.
-fn display_with_hints(probe: &mut Probe, root: &Path) {
+fn display_with_hints(
+    probe: &mut Probe,
+    root: &Path,
+) {
     probe.open(&root.join("main.scripted"), BEFORE);
     probe.until_ready();
     assert!(
@@ -96,7 +109,10 @@ fn display_with_hints(probe: &mut Probe, root: &Path) {
 ///  Every snapshot handed out after the reload must describe
 /// the new text;
 ///  `what` names the wait in a failure.
-fn wait_for_reloaded_hints(probe: &mut Probe, what: &str) {
+fn wait_for_reloaded_hints(
+    probe: &mut Probe,
+    what: &str,
+) {
     let stamp = probe.stamp();
     probe.wait_for(what);
     while probe.hints.is_none() {

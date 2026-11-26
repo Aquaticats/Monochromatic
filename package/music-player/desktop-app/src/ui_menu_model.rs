@@ -11,12 +11,21 @@
 //! only draws them.
 
 /// Imports the keyboard platform and the shortcut action that a menu row can name.
-use music_player::keymap::{KeyboardPlatform, ShortcutAction};
+use music_player::keymap::{
+    KeyboardPlatform,
+    ShortcutAction,
+};
 /// Imports the shortcut text that a row shows.
 use music_player::keymap_bindings::shortcut_text;
 /// Imports the track menu actions,
 /// their labels and the list and dividers of a menu.
-use music_player::track_menu::{TrackMenuAction, access_label, label, track_menu_actions_for, track_menu_divider_flags};
+use music_player::track_menu::{
+    TrackMenuAction,
+    access_label,
+    label,
+    track_menu_actions_for,
+    track_menu_divider_flags,
+};
 
 /// What:
 /// `MenuItemView` is one menu row as plain values.
@@ -115,7 +124,10 @@ pub fn shortcut_action_of(action: TrackMenuAction) -> Option<ShortcutAction> {
 /// ```ts
 /// const menuItems = (size: string | null, platform: KeyboardPlatform): MenuItemView[] => { ... };
 /// ```
-pub fn menu_items(size_text: Option<&str>, platform: KeyboardPlatform) -> Vec<MenuItemView> {
+pub fn menu_items(
+    size_text: Option<&str>,
+    platform: KeyboardPlatform,
+) -> Vec<MenuItemView> {
     let actions = track_menu_actions_for();
     let dividers = track_menu_divider_flags(actions);
     let mut items: Vec<MenuItemView> = Vec::with_capacity(actions.len());
@@ -169,7 +181,10 @@ pub fn short_folder(folder: &str) -> String {
     if names.len() <= 2 {
         return names.join(&separator);
     }
-    return format!("\u{2026}{separator}{}", names[names.len() - 2..].join(&separator));
+    return format!(
+        "\u{2026}{separator}{}",
+        names[names.len() - 2..].join(&separator)
+    );
 }
 
 /// What:
@@ -184,8 +199,16 @@ pub fn short_folder(folder: &str) -> String {
 /// ```ts
 /// const detailsText = (file: string, size: string | null, folder: string) => `${file} \u00b7 ${size ?? "size unknown"} \u00b7 ${shortFolder(folder)}`;
 /// ```
-pub fn details_text(file_name: &str, size: Option<&str>, folder: &str) -> String {
-    return format!("{file_name} \u{b7} {} \u{b7} {}", size.unwrap_or("size unknown"), short_folder(folder));
+pub fn details_text(
+    file_name: &str,
+    size: Option<&str>,
+    folder: &str,
+) -> String {
+    return format!(
+        "{file_name} \u{b7} {} \u{b7} {}",
+        size.unwrap_or("size unknown"),
+        short_folder(folder)
+    );
 }
 
 /// What:

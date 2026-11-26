@@ -11,7 +11,10 @@
 
 /// Import the production checks,
 ///  source context and effective severities.
-use super::{check_max_lines, check_rustdoc};
+use super::{
+    check_max_lines,
+    check_rustdoc,
+};
 use crate::diagnostic::Severity;
 use crate::rust_source::RustSource;
 

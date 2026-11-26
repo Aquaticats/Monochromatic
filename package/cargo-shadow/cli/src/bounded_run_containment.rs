@@ -10,18 +10,36 @@
 //! The items are re-exported from `bounded_run`,
 //! so their paths there are unchanged.
 
-/// The trace text,
-/// the notice gate and the start hook that exist in a test build only.
-#[cfg(test)]
-use crate::bounded_run::{NOTICE_ENTERED, NOTICE_GATE, START_HOOK, trace_text};
 /// The bounds,
 /// the scope state,
 /// the error and the helpers of the bounded run that the containment uses.
-use crate::bounded_run::{Bound, QUIESCE_BOUND, POLL_INTERVAL, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, append_record_with, configure_stdio, find_route, trace};
+use crate::bounded_run::{
+    Bound,
+    POLL_INTERVAL,
+    QUIESCE_BOUND,
+    READER_GRACE,
+    REAP_BOUND,
+    RunError,
+    ScopeState,
+    WEAKER_NOTICE_GIVEN,
+    append_record,
+    append_record_with,
+    configure_stdio,
+    find_route,
+    trace,
+};
+/// The trace text,
+/// the notice gate and the start hook that exist in a test build only.
+#[cfg(test)]
+use crate::bounded_run::{
+    NOTICE_ENTERED,
+    NOTICE_GATE,
+    START_HOOK,
+    trace_text,
+};
 
 /// Imports `std::io` for this file.
 use std::io;
-
 
 /// Imports `std::os::fd::OwnedFd` for this file.
 use std::os::fd::OwnedFd;
@@ -30,10 +48,17 @@ use std::os::fd::OwnedFd;
 use std::os::unix::process::CommandExt;
 
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `std::process::{Child, Command, ExitStatus, Output, Stdio}` for this file.
-use std::process::{Child, Command, ExitStatus};
+use std::process::{
+    Child,
+    Command,
+    ExitStatus,
+};
 
 /// Imports `std::rc::Rc` for this file.
 use std::rc::Rc;
@@ -42,30 +67,54 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 /// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// Imports `std::sync::mpsc::{Receiver, RecvTimeoutError}` for this file.
-use std::sync::mpsc::{Receiver, RecvTimeoutError};
+use std::sync::mpsc::{
+    Receiver,
+    RecvTimeoutError,
+};
 
 /// Imports `std::thread` for this file.
 use std::thread;
 
 /// Imports `std::time::{Duration, Instant}` for this file.
-use std::time::{Duration, Instant};
-
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports `rustix::event::{PollFd, PollFlags, Timespec, poll}` for this file.
-use rustix::event::{PollFd, PollFlags, Timespec, poll};
+use rustix::event::{
+    PollFd,
+    PollFlags,
+    Timespec,
+    poll,
+};
 
 /// Imports `rustix::io::Errno` for this file.
 use rustix::io::Errno;
 
 /// Imports `rustix::process::{Pid, Signal, kill_process_group, test_kill_process_group}` for this file.
-use rustix::process::{Pid, PidfdFlags, Signal, kill_process_group, pidfd_open, test_kill_process_group};
-
+use rustix::process::{
+    Pid,
+    PidfdFlags,
+    Signal,
+    kill_process_group,
+    pidfd_open,
+    test_kill_process_group,
+};
 
 /// Imports the control group pieces for this file.
-use crate::control_group::{ControlGroup, GroupUnavailable, Record, Route};
+use crate::control_group::{
+    ControlGroup,
+    GroupUnavailable,
+    Record,
+    Route,
+};
 
 /// What:
 /// `fn reap(child: &mut Child) -> Option<ExitStatus>` waits for the direct child,
@@ -112,12 +161,18 @@ pub(crate) fn reap(child: &mut Child) -> Option<ExitStatus> {
 /// ```ts
 /// function waitForExit(watch: Descriptor | undefined, remainingMs: number): void
 /// ```
-pub(crate) fn wait_for_exit(watch: Option<&OwnedFd>, remaining: Duration) {
+pub(crate) fn wait_for_exit(
+    watch: Option<&OwnedFd>,
+    remaining: Duration,
+) {
     let Some(descriptor) = watch else {
         thread::sleep(POLL_INTERVAL.min(remaining));
         return;
     };
-    let timeout: Timespec = Timespec { tv_sec: i64::try_from(remaining.as_secs()).unwrap_or(0), tv_nsec: i64::from(remaining.subsec_nanos()) };
+    let timeout: Timespec = Timespec {
+        tv_sec: i64::try_from(remaining.as_secs()).unwrap_or(0),
+        tv_nsec: i64::from(remaining.subsec_nanos()),
+    };
     let mut watched = [PollFd::new(descriptor, PollFlags::IN)];
     // An interrupted or failed poll only means the next turn of the loop asks `try_wait` again.
     let _ = poll(&mut watched, Some(&timeout));
@@ -150,7 +205,9 @@ pub(crate) enum Containment {
 /// export function weakerNotice(unavailable: GroupUnavailable): string
 /// ```
 pub(crate) fn weaker_notice(unavailable: &GroupUnavailable) -> String {
-    return format!("cargo-shadow: no delegated control group ({unavailable}); a process that leaves the process group cannot be stopped or found, so quiescence is not shown and a recovery of this run waits for `cargo-shadow acknowledge`");
+    return format!(
+        "cargo-shadow: no delegated control group ({unavailable}); a process that leaves the process group cannot be stopped or found, so quiescence is not shown and a recovery of this run waits for `cargo-shadow acknowledge`"
+    );
 }
 
 /// What:
@@ -166,8 +223,13 @@ pub(crate) fn weaker_notice(unavailable: &GroupUnavailable) -> String {
 pub(crate) fn contain() -> Containment {
     return match find_route() {
         Ok(route) => match ControlGroup::plan(&route) {
-            Ok(group) => Containment::Scope { group, route },
-            Err(error) => weaker(GroupUnavailable { reason: format!("a scope name cannot be made ({error})") }),
+            Ok(group) => Containment::Scope {
+                group,
+                route,
+            },
+            Err(error) => weaker(GroupUnavailable {
+                reason: format!("a scope name cannot be made ({error})"),
+            }),
         },
         Err(unavailable) => weaker(unavailable),
     };
@@ -205,7 +267,10 @@ pub(crate) fn weaker(unavailable: GroupUnavailable) -> Containment {
 /// ```ts
 /// function stopProcessGroup(child: ChildProcess, group: number): boolean
 /// ```
-pub(crate) fn stop_process_group(child: &mut Child, group: Pid) -> bool {
+pub(crate) fn stop_process_group(
+    child: &mut Child,
+    group: Pid,
+) -> bool {
     let reaped: bool = {
         let _ = kill_process_group(group, Signal::KILL);
         reap(child).is_some()
@@ -244,15 +309,24 @@ pub(crate) fn stop_process_group(child: &mut Child, group: Pid) -> bool {
 /// ```ts
 /// function stopEverything(containment: Containment, child: ChildProcess): boolean
 /// ```
-pub(crate) fn stop_everything(containment: &Containment, child: &mut Child) -> bool {
+pub(crate) fn stop_everything(
+    containment: &Containment,
+    child: &mut Child,
+) -> bool {
     return match containment {
-        Containment::Scope { group, .. } => {
+        Containment::Scope {
+            group,
+            ..
+        } => {
             let _ = child.kill();
             let reaped: bool = reap(child).is_some();
             let stopped: bool = match group.stop(QUIESCE_BOUND) {
                 Ok(done) => done,
                 Err(error) => {
-                    eprintln!("cargo-shadow: warning: the scope {} could not be shown empty ({error})", group.directory().display());
+                    eprintln!(
+                        "cargo-shadow: warning: the scope {} could not be shown empty ({error})",
+                        group.directory().display()
+                    );
                     false
                 }
             };
@@ -280,11 +354,28 @@ pub(crate) fn stop_everything(containment: &Containment, child: &mut Child) -> b
 /// ```ts
 /// function settle(containment: Containment, scope: ScopeState | undefined): void
 /// ```
-pub(crate) fn settle(containment: &Containment, scope: &Option<Rc<ScopeState>>) {
-    if let (Containment::Scope { group, .. }, Some(state)) = (containment, scope)
-        && let Err(error) = append_record(&state.log, &Record::Settled { path: group.directory().to_path_buf() })
+pub(crate) fn settle(
+    containment: &Containment,
+    scope: &Option<Rc<ScopeState>>,
+) {
+    if let (
+        Containment::Scope {
+            group,
+            ..
+        },
+        Some(state),
+    ) = (containment, scope)
+        && let Err(error) = append_record(
+            &state.log,
+            &Record::Settled {
+                path: group.directory().to_path_buf(),
+            },
+        )
     {
-        eprintln!("cargo-shadow: warning: the end of the run in {} could not be recorded ({error}); a recovery will ask for an acknowledgement", group.directory().display());
+        eprintln!(
+            "cargo-shadow: warning: the end of the run in {} could not be recorded ({error}); a recovery will ask for an acknowledgement",
+            group.directory().display()
+        );
     }
 }
 
@@ -298,13 +389,21 @@ pub(crate) fn settle(containment: &Containment, scope: &Option<Rc<ScopeState>>) 
 /// ```ts
 /// function failStarted(containment: Containment, child: ChildProcess, scope: ScopeState | undefined, bound: Bound, error: RunError): RunError
 /// ```
-pub(crate) fn fail_started(containment: &Containment, child: &mut Child, scope: &Option<Rc<ScopeState>>, bound: &Bound, error: RunError) -> RunError {
+pub(crate) fn fail_started(
+    containment: &Containment,
+    child: &mut Child,
+    scope: &Option<Rc<ScopeState>>,
+    bound: &Bound,
+    error: RunError,
+) -> RunError {
     if stop_everything(containment, child) {
         settle(containment, scope);
         return error;
     }
     lose(scope);
-    return RunError::NotQuiescent { what: bound.what.clone() };
+    return RunError::NotQuiescent {
+        what: bound.what.clone(),
+    };
 }
 
 /// What:
@@ -317,11 +416,18 @@ pub(crate) fn fail_started(containment: &Containment, child: &mut Child, scope: 
 /// ```ts
 /// function finished(receiver: Promise<Buffer>, what: string): Buffer  // throws RunError
 /// ```
-pub(crate) fn finished(receiver: &Receiver<io::Result<Vec<u8>>>, what: &str) -> Result<Vec<u8>, RunError> {
+pub(crate) fn finished(
+    receiver: &Receiver<io::Result<Vec<u8>>>,
+    what: &str,
+) -> Result<Vec<u8>, RunError> {
     return match receiver.recv_timeout(READER_GRACE) {
         Ok(Ok(bytes)) => Ok(bytes),
         Ok(Err(error)) => Err(RunError::Io(error)),
-        Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => Err(RunError::IncompleteOutput { what: what.to_string() }),
+        Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => {
+            Err(RunError::IncompleteOutput {
+                what: what.to_string(),
+            })
+        }
     };
 }
 
@@ -378,7 +484,10 @@ pub(crate) fn lose(scope: &Option<Rc<ScopeState>>) {
 /// ```
 pub(crate) fn program_resolves(command: &Command) -> bool {
     let program: &std::ffi::OsStr = command.get_program();
-    let relative_to: PathBuf = command.get_current_dir().map(Path::to_path_buf).unwrap_or_default();
+    let relative_to: PathBuf = command
+        .get_current_dir()
+        .map(Path::to_path_buf)
+        .unwrap_or_default();
     if program.as_encoded_bytes().contains(&b'/') {
         return crate::control_group::is_executable_file(&relative_to.join(program));
     }
@@ -394,7 +503,8 @@ pub(crate) fn program_resolves(command: &Command) -> bool {
     }
     if let Some(search) = own_path {
         for directory in std::env::split_paths(&search) {
-            if crate::control_group::is_executable_file(&relative_to.join(directory).join(program)) {
+            if crate::control_group::is_executable_file(&relative_to.join(directory).join(program))
+            {
                 return true;
             }
         }
@@ -415,7 +525,9 @@ pub(crate) fn program_resolves(command: &Command) -> bool {
 /// ```
 #[cfg(test)]
 pub(crate) fn run_start_hook() {
-    if let Some(hook) = START_HOOK.with(|slot| { return slot.borrow().clone(); }) {
+    if let Some(hook) = START_HOOK.with(|slot| {
+        return slot.borrow().clone();
+    }) {
         hook();
     }
 }
@@ -442,14 +554,21 @@ pub(crate) fn run_start_hook() {}
 /// ```ts
 /// function noteLauncher(log: string, scope: string, child: ChildProcess): void
 /// ```
-pub(crate) fn note_launcher(log: &Path, scope: &Path, child: &Child) {
+pub(crate) fn note_launcher(
+    log: &Path,
+    scope: &Path,
+    child: &Child,
+) {
     let pid: i32 = i32::try_from(child.id()).unwrap_or(0);
     let noted: io::Result<()> = match crate::control_group::process_start(pid) {
         Ok(start) => record_launcher(log, scope, pid, start),
         Err(error) => Err(error),
     };
     if let Err(error) = noted {
-        eprintln!("cargo-shadow: warning: the launcher of {} could not be recorded ({error}); if this wrapper is killed, a recovery will ask for an acknowledgement", scope.display());
+        eprintln!(
+            "cargo-shadow: warning: the launcher of {} could not be recorded ({error}); if this wrapper is killed, a recovery will ask for an acknowledgement",
+            scope.display()
+        );
     }
 }
 
@@ -474,9 +593,23 @@ pub(crate) fn open_pidfd(pid: Pid) -> Option<OwnedFd> {
 /// `fn record_launcher(log: &Path, scope: &Path, pid: i32, start: u64) -> io::Result<()>` appends the launcher record.
 /// Why:
 /// A function replaces the closure that `note_launcher` passed to `and_then`.
-pub(crate) fn record_launcher(log: &Path, scope: &Path, pid: i32, start: u64) -> io::Result<()> {
+pub(crate) fn record_launcher(
+    log: &Path,
+    scope: &Path,
+    pid: i32,
+    start: u64,
+) -> io::Result<()> {
     let pid_namespace: u64 = crate::control_group::pid_namespace_id()?;
-    return append_record_with(log, &Record::Launcher { pid, start, pid_namespace, path: scope.to_path_buf() }, false);
+    return append_record_with(
+        log,
+        &Record::Launcher {
+            pid,
+            start,
+            pid_namespace,
+            path: scope.to_path_buf(),
+        },
+        false,
+    );
 }
 
 /// What:
@@ -484,7 +617,10 @@ pub(crate) fn record_launcher(log: &Path, scope: &Path, pid: i32, start: u64) ->
 /// Why:
 /// `Result::map_err` takes it by path instead of a closure.
 pub(crate) fn scope_record_failed(error: io::Error) -> RunError {
-    return RunError::Io(io::Error::new(error.kind(), format!("{error} (a program whose scope cannot be recorded is not started)")));
+    return RunError::Io(io::Error::new(
+        error.kind(),
+        format!("{error} (a program whose scope cannot be recorded is not started)"),
+    ));
 }
 
 /// What:
@@ -492,7 +628,10 @@ pub(crate) fn scope_record_failed(error: io::Error) -> RunError {
 /// Why:
 /// `Result::map_err` takes it by path instead of a closure.
 pub(crate) fn group_announcement_failed(error: io::Error) -> RunError {
-    return RunError::Io(io::Error::new(error.kind(), format!("{error} (a child whose process group cannot be announced is not started)")));
+    return RunError::Io(io::Error::new(
+        error.kind(),
+        format!("{error} (a child whose process group cannot be announced is not started)"),
+    ));
 }
 
 /// What:
@@ -509,11 +648,23 @@ pub(crate) fn group_announcement_failed(error: io::Error) -> RunError {
 /// ```ts
 /// function startContained(command: Command, containment: Containment, scope: ScopeState | undefined, hasInput: boolean, cleanEnvironment: boolean): ChildProcess  // throws RunError
 /// ```
-pub(crate) fn start_contained(command: &mut Command, containment: &Containment, scope: Option<&Rc<ScopeState>>, has_input: bool, clean_environment: bool) -> Result<Child, RunError> {
+pub(crate) fn start_contained(
+    command: &mut Command,
+    containment: &Containment,
+    scope: Option<&Rc<ScopeState>>,
+    has_input: bool,
+    clean_environment: bool,
+) -> Result<Child, RunError> {
     match containment {
-        Containment::Scope { group, route } => {
+        Containment::Scope {
+            group,
+            route,
+        } => {
             if !program_resolves(command) {
-                return Err(RunError::Io(io::Error::new(io::ErrorKind::NotFound, format!("{:?} was not found (os error 2)", command.get_program()))));
+                return Err(RunError::Io(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("{:?} was not found (os error 2)", command.get_program()),
+                )));
             }
             if let Some(state) = scope {
                 append_record(&state.log, &group.record()).map_err(scope_record_failed)?;
@@ -523,7 +674,15 @@ pub(crate) fn start_contained(command: &mut Command, containment: &Containment, 
             configure_stdio(&mut launch, has_input);
             // The text computes a file name, so this statement exists in a test build only.
             #[cfg(test)]
-            trace_text(format!("launch scope {}", group.directory().file_name().map_or_else(String::new, |name| { return name.to_string_lossy().into_owned(); })));
+            trace_text(format!(
+                "launch scope {}",
+                group
+                    .directory()
+                    .file_name()
+                    .map_or_else(String::new, |name| {
+                        return name.to_string_lossy().into_owned();
+                    })
+            ));
             let child: Child = launch.spawn().map_err(RunError::Io)?;
             // The direct child of this process, as the kernel numbered it: a test compares it with what the program says it is.
             trace(format_args!("spawned {}", child.id()));
@@ -541,7 +700,8 @@ pub(crate) fn start_contained(command: &mut Command, containment: &Containment, 
             // The child's group is its process id, known only after the spawn: a "starting" line is durable before it, so a
             // wrapper killed in between is seen by a recovery as one that may have a child running.
             if let Some(state) = scope {
-                append_record(&state.log, &Record::ProcessGroupStarting).map_err(group_announcement_failed)?;
+                append_record(&state.log, &Record::ProcessGroupStarting)
+                    .map_err(group_announcement_failed)?;
             }
             run_start_hook();
             trace(format_args!("launch pgroup"));
@@ -558,7 +718,12 @@ pub(crate) fn start_contained(command: &mut Command, containment: &Containment, 
                 if !stopped {
                     lose(&Some(Rc::clone(state)));
                 }
-                return Err(RunError::Io(io::Error::new(error.kind(), format!("{error} (the child was stopped because its process group could not be recorded)"))));
+                return Err(RunError::Io(io::Error::new(
+                    error.kind(),
+                    format!(
+                        "{error} (the child was stopped because its process group could not be recorded)"
+                    ),
+                )));
             }
             return Ok(child);
         }

@@ -8,11 +8,22 @@
 /// The wire parser is the same interface the Unix control socket consumes.
 use std::path::PathBuf;
 
-use nested_wayland_session::protocol::{parse_command, Command, KeyAction, PointerButton};
+use nested_wayland_session::protocol::{
+    Command,
+    KeyAction,
+    PointerButton,
+    parse_command,
+};
 
 /// A key command with a name and an action.
-fn key(name: &str, action: KeyAction) -> Result<Command, String> {
-    return Ok(Command::Key { name: name.to_string(), action });
+fn key(
+    name: &str,
+    action: KeyAction,
+) -> Result<Command, String> {
+    return Ok(Command::Key {
+        name: name.to_string(),
+        action,
+    });
 }
 
 /// Press,
@@ -24,9 +35,23 @@ fn key(name: &str, action: KeyAction) -> Result<Command, String> {
 fn key_actions_include_hold() {
     assert_eq!(parse_command("key f10"), key("f10", KeyAction::Tap));
     assert_eq!(parse_command("key f10 tap"), key("f10", KeyAction::Tap));
-    assert_eq!(parse_command("key Menu press"), key("Menu", KeyAction::Press));
-    assert_eq!(parse_command("key ctrl+shift+f5 release"), key("ctrl+shift+f5", KeyAction::Release));
-    assert_eq!(parse_command("key right hold 1500"), key("right", KeyAction::Hold { millis: 1500 }));
+    assert_eq!(
+        parse_command("key Menu press"),
+        key("Menu", KeyAction::Press)
+    );
+    assert_eq!(
+        parse_command("key ctrl+shift+f5 release"),
+        key("ctrl+shift+f5", KeyAction::Release)
+    );
+    assert_eq!(
+        parse_command("key right hold 1500"),
+        key(
+            "right",
+            KeyAction::Hold {
+                millis: 1500
+            }
+        )
+    );
     assert_eq!(parse_command("key code:68"), key("code:68", KeyAction::Tap));
     assert_eq!(parse_command("key ctrl++"), key("ctrl++", KeyAction::Tap));
 }
@@ -98,7 +123,10 @@ fn click_options_reject_bad_input() {
         "click 1 2 left; quit",
     ] {
         let message = parse_command(command).expect_err(command);
-        assert!(message.starts_with("click") || message.starts_with("unknown button"), "{command}: {message}");
+        assert!(
+            message.starts_with("click") || message.starts_with("unknown button"),
+            "{command}: {message}"
+        );
     }
 }
 
@@ -131,7 +159,14 @@ fn drag_parses_end_points_and_options() {
             modifiers: "shift".to_string(),
         }),
     );
-    for command in ["drag", "drag 1 2 3", "drag 1 2 3 x", "drag 1 2 3 4 steps=0", "drag 1 2 3 4 steps=1001", "drag 1 2 3 inf"] {
+    for command in [
+        "drag",
+        "drag 1 2 3",
+        "drag 1 2 3 x",
+        "drag 1 2 3 4 steps=0",
+        "drag 1 2 3 4 steps=1001",
+        "drag 1 2 3 inf",
+    ] {
         assert!(parse_command(command).is_err(), "{command}");
     }
 }
@@ -143,9 +178,23 @@ fn drag_parses_end_points_and_options() {
 fn scroll_parses_travel_and_steps() {
     assert_eq!(
         parse_command("scroll 100 200 0 -48.5 steps=4 step-ms=8"),
-        Ok(Command::Scroll { x: 100.0, y: 200.0, dx: 0.0, dy: -48.5, steps: 4, step_ms: 8, modifiers: String::new() }),
+        Ok(Command::Scroll {
+            x: 100.0,
+            y: 200.0,
+            dx: 0.0,
+            dy: -48.5,
+            steps: 4,
+            step_ms: 8,
+            modifiers: String::new()
+        }),
     );
-    for command in ["scroll", "scroll 1 2 3", "scroll 1 2 3 NaN", "scroll 1 2 3 4 left", "scroll 1 2 3 4 steps=0"] {
+    for command in [
+        "scroll",
+        "scroll 1 2 3",
+        "scroll 1 2 3 NaN",
+        "scroll 1 2 3 4 left",
+        "scroll 1 2 3 4 steps=0",
+    ] {
         assert!(parse_command(command).is_err(), "{command}");
     }
 }
@@ -157,19 +206,31 @@ fn scroll_parses_travel_and_steps() {
 fn drop_file_quotes_spaces_and_takes_several_paths() {
     assert_eq!(
         parse_command("drop-file \"/music/My Album/a b.mp3\""),
-        Ok(Command::DropFile { paths: vec![PathBuf::from("/music/My Album/a b.mp3")], x: None, y: None }),
+        Ok(Command::DropFile {
+            paths: vec![PathBuf::from("/music/My Album/a b.mp3")],
+            x: None,
+            y: None
+        }),
     );
     assert_eq!(
         parse_command("drop-file \"/m/a b.mp3\" /m/c.mp3 \"/m/q\\\"uote.mp3\" at 100 40"),
         Ok(Command::DropFile {
-            paths: vec![PathBuf::from("/m/a b.mp3"), PathBuf::from("/m/c.mp3"), PathBuf::from("/m/q\"uote.mp3")],
+            paths: vec![
+                PathBuf::from("/m/a b.mp3"),
+                PathBuf::from("/m/c.mp3"),
+                PathBuf::from("/m/q\"uote.mp3")
+            ],
             x: Some(100.0),
             y: Some(40.0),
         }),
     );
     assert_eq!(
         parse_command("drop-file /m/a.mp3 /m/b.mp3"),
-        Ok(Command::DropFile { paths: vec![PathBuf::from("/m/a.mp3"), PathBuf::from("/m/b.mp3")], x: None, y: None }),
+        Ok(Command::DropFile {
+            paths: vec![PathBuf::from("/m/a.mp3"), PathBuf::from("/m/b.mp3")],
+            x: None,
+            y: None
+        }),
     );
 }
 
@@ -179,12 +240,21 @@ fn drop_file_quotes_spaces_and_takes_several_paths() {
 fn drop_file_keeps_the_earlier_form_and_quoted_keywords() {
     assert_eq!(
         parse_command("drop-file /tmp/a.mp3 100 40"),
-        Ok(Command::DropFile { paths: vec![PathBuf::from("/tmp/a.mp3")], x: Some(100.0), y: Some(40.0) }),
+        Ok(Command::DropFile {
+            paths: vec![PathBuf::from("/tmp/a.mp3")],
+            x: Some(100.0),
+            y: Some(40.0)
+        }),
     );
     assert_eq!(
         parse_command("drop-file /m/x \"at\" 1 2"),
         Ok(Command::DropFile {
-            paths: vec![PathBuf::from("/m/x"), PathBuf::from("at"), PathBuf::from("1"), PathBuf::from("2")],
+            paths: vec![
+                PathBuf::from("/m/x"),
+                PathBuf::from("at"),
+                PathBuf::from("1"),
+                PathBuf::from("2")
+            ],
             x: None,
             y: None,
         }),
@@ -214,7 +284,10 @@ fn drop_file_rejects_malformed_lines() {
 #[test]
 fn session_verbs_parse() {
     assert_eq!(parse_command("repeat-info"), Ok(Command::RepeatInfo(None)));
-    assert_eq!(parse_command("repeat-info 30 400"), Ok(Command::RepeatInfo(Some((30, 400)))));
+    assert_eq!(
+        parse_command("repeat-info 30 400"),
+        Ok(Command::RepeatInfo(Some((30, 400))))
+    );
     assert_eq!(parse_command("focus"), Ok(Command::Focus));
     assert_eq!(parse_command("windows"), Ok(Command::Windows));
     assert_eq!(parse_command("display"), Ok(Command::Display));
@@ -223,7 +296,19 @@ fn session_verbs_parse() {
     assert_eq!(parse_command("a11y"), Ok(Command::Accessibility));
     assert_eq!(parse_command("close"), Ok(Command::CloseWindow(None)));
     assert_eq!(parse_command("close 1"), Ok(Command::CloseWindow(Some(1))));
-    for command in ["repeat-info 30", "repeat-info -1 200", "repeat-info 30 20000", "repeat-info 2000 200", "repeat-info a b", "focus now", "cursor now", "gpu now", "a11y tree", "close x", "close 1 2"] {
+    for command in [
+        "repeat-info 30",
+        "repeat-info -1 200",
+        "repeat-info 30 20000",
+        "repeat-info 2000 200",
+        "repeat-info a b",
+        "focus now",
+        "cursor now",
+        "gpu now",
+        "a11y tree",
+        "close x",
+        "close 1 2",
+    ] {
         assert!(parse_command(command).is_err(), "{command}");
     }
 }

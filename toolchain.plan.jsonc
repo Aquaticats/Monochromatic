@@ -145,6 +145,13 @@
         "watchexec"
       ]
     },
+    "directory-watcher": {
+      "request": "github:seungyeop-lee/directory-watcher@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "directory-watcher"
+      ]
+    },
     "sops": {
       "request": "github:getsops/sops@latest",
       "route": "bin-sourced",

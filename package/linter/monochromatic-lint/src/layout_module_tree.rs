@@ -26,7 +26,11 @@
 ///  the module-body reader and its declaration type.
 use crate::{
     layout_reference_paths::RawReference,
-    layout_source_facts::{BodyFacts, ModuleDeclaration, collect_body_facts},
+    layout_source_facts::{
+        BodyFacts,
+        ModuleDeclaration,
+        collect_body_facts,
+    },
     markdown_lfs_target::lexical_normal,
     rust_source::RustSource,
     rust_tests_in_sidecars::is_sidecar_path,
@@ -36,7 +40,11 @@ use crate::{
 use ra_ap_syntax::SyntaxNode;
 /// Import an ordered map,
 ///  native paths and shared ownership.
-use std::{collections::BTreeMap, path::PathBuf, rc::Rc};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    rc::Rc,
+};
 
 /// What:
 ///  A path a module's code names,
@@ -173,7 +181,11 @@ fn is_test_file(file: &std::path::Path) -> bool {
 /// ```ts
 /// function loadsItself(tree: ModuleTree, from: number | undefined, file: Path): boolean;
 /// ```
-fn loads_itself(tree: &ModuleTree, from: Option<usize>, file: &std::path::Path) -> bool {
+fn loads_itself(
+    tree: &ModuleTree,
+    from: Option<usize>,
+    file: &std::path::Path,
+) -> bool {
     let mut current: Option<usize> = from;
     while let Some(index) = current {
         if tree.modules[index].file == file {
@@ -196,7 +208,10 @@ fn loads_itself(tree: &ModuleTree, from: Option<usize>, file: &std::path::Path) 
 /// ```ts
 /// function locate(parent: Pending, declaration: ModuleDeclaration): { file: Path; childrenFolder: Path } | string;
 /// ```
-fn locate(parent: &Pending, declaration: &ModuleDeclaration) -> Result<(PathBuf, PathBuf), String> {
+fn locate(
+    parent: &Pending,
+    declaration: &ModuleDeclaration,
+) -> Result<(PathBuf, PathBuf), String> {
     if let Some(attribute) = &declaration.path_attribute {
         let file: PathBuf = lexical_normal(&parent.path_base.join(attribute));
         let folder: PathBuf = file
@@ -246,7 +261,11 @@ fn locate(parent: &Pending, declaration: &ModuleDeclaration) -> Result<(PathBuf,
 /// ```ts
 /// function readPending(tree: ModuleTree, item: Pending, queue: Pending[]): void;
 /// ```
-fn read_pending(tree: &mut ModuleTree, item: Pending, queue: &mut Vec<Pending>) {
+fn read_pending(
+    tree: &mut ModuleTree,
+    item: Pending,
+    queue: &mut Vec<Pending>,
+) {
     let (source, body): (Rc<RustSource>, SyntaxNode) = match &item.inline {
         Some((host, braces)) => (Rc::clone(host), braces.clone()),
         None => {
@@ -272,7 +291,10 @@ fn read_pending(tree: &mut ModuleTree, item: Pending, queue: &mut Vec<Pending>) 
     let mut references: Vec<FoundReference> = Vec::<FoundReference>::new();
     for raw in facts.references {
         let line: usize = source.span(raw.offset, 0).line;
-        references.push(FoundReference { raw, line });
+        references.push(FoundReference {
+            raw,
+            line,
+        });
     }
     tree.modules.push(ModuleNode {
         file: item.file.clone(),

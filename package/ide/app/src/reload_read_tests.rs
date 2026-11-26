@@ -1,7 +1,10 @@
 //! A highlighting engine that could not start fails only files some language applies to.
 
 /// The classification under test and the engine type it receives.
-use super::{SyntaxEngine, classify};
+use super::{
+    SyntaxEngine,
+    classify,
+};
 /// What:
 ///  `Rope` is the text type highlighting reads;
 ///  `Path` names the file.

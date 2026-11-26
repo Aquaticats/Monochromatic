@@ -25,13 +25,17 @@
 
 /// Imports the ordered map that keeps prepared batches in order until they can be handed on.
 use std::collections::BTreeMap;
-/// Imports the atomic flag,
-/// the counter and their ordering that coordinate the preparer threads.
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-/// Imports the channel module that carries prepared batches back to the feeding thread.
-use std::sync::mpsc;
 /// Imports the shared ownership type that shares the names with the preparer threads.
 use std::sync::Arc;
+/// Imports the atomic flag,
+/// the counter and their ordering that coordinate the preparer threads.
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicUsize,
+    Ordering,
+};
+/// Imports the channel module that carries prepared batches back to the feeding thread.
+use std::sync::mpsc;
 /// Imports the thread module that runs the preparers.
 use std::thread;
 /// Imports the duration type of the pause between batches,
@@ -41,7 +45,10 @@ use std::time::Duration;
 /// Imports the index that receives the batches.
 use crate::search_index::SearchIndex;
 /// Imports the prepared batch and the function that prepares it.
-use crate::search_index_batch::{PreparedBatch, prepare_batch};
+use crate::search_index_batch::{
+    PreparedBatch,
+    prepare_batch,
+};
 /// Imports the service that owns the index and the stream thread.
 use crate::search_service::SearchService;
 
@@ -72,7 +79,11 @@ pub(crate) trait BatchSink {
     /// Why:
     /// a cancelled feed answers `false`,
     /// which stops the preparation.
-    fn accept(&mut self, number: usize, prepared: PreparedBatch) -> bool;
+    fn accept(
+        &mut self,
+        number: usize,
+        prepared: PreparedBatch,
+    ) -> bool;
 }
 
 /// A callable of the same shape is a sink too,
@@ -82,7 +93,11 @@ impl<F: FnMut(usize, PreparedBatch) -> bool> BatchSink for F {
     /// `accept` calls the callable.
     /// Why:
     /// it lets a plain callable stand in for a sink.
-    fn accept(&mut self, number: usize, prepared: PreparedBatch) -> bool {
+    fn accept(
+        &mut self,
+        number: usize,
+        prepared: PreparedBatch,
+    ) -> bool {
         return self(number, prepared);
     }
 }
@@ -118,7 +133,11 @@ impl BatchSink for InPlaceFeed<'_> {
     /// Why:
     /// a newer feed must win,
     /// and a refused batch ends this one.
-    fn accept(&mut self, _number: usize, prepared: PreparedBatch) -> bool {
+    fn accept(
+        &mut self,
+        _number: usize,
+        prepared: PreparedBatch,
+    ) -> bool {
         if !self.service.feed_is_current(self.epoch) {
             tracing::info!(epoch = self.epoch, "library feed cancelled by a newer one");
             self.finished = false;
@@ -165,7 +184,11 @@ impl BatchSink for SideFeed<'_> {
     /// `accept` appends one batch to the fresh index unless the feed was cancelled.
     /// Why:
     /// a newer feed must win.
-    fn accept(&mut self, _number: usize, prepared: PreparedBatch) -> bool {
+    fn accept(
+        &mut self,
+        _number: usize,
+        prepared: PreparedBatch,
+    ) -> bool {
         if !self.service.feed_is_current(self.epoch) {
             tracing::info!(epoch = self.epoch, "library feed cancelled by a newer one");
             self.finished = false;
@@ -189,7 +212,11 @@ impl BatchSink for SideFeed<'_> {
 ///  them can happen in any order.
 /// `sink` returns false to stop early,
 /// which also stops the preparers.
-pub(crate) fn prepare_in_order(names: &[String], batch: usize, sink: &mut impl BatchSink) {
+pub(crate) fn prepare_in_order(
+    names: &[String],
+    batch: usize,
+    sink: &mut impl BatchSink,
+) {
     let chunks: Vec<&[String]> = names.chunks(batch.max(1)).collect();
     let available: usize = match thread::available_parallelism() {
         Ok(count) => count.get(),
@@ -224,7 +251,10 @@ pub(crate) fn prepare_in_order(names: &[String], batch: usize, sink: &mut impl B
                     if number >= work_list.len() || halt.load(Ordering::Acquire) {
                         return;
                     }
-                    if worker_outbox.send((number, prepare_batch(work_list[number]))).is_err() {
+                    if worker_outbox
+                        .send((number, prepare_batch(work_list[number])))
+                        .is_err()
+                    {
                         return;
                     }
                 }
@@ -269,13 +299,22 @@ pub const FEED_BATCH: usize = 10_000;
 /// ```ts
 /// function feedLibrary(service: SearchService, names: string[], batch: number, pauseMs: number): void { /* thread */ }
 /// ```
-pub fn feed_library(service: &Arc<SearchService>, names: Arc<Vec<String>>, batch: usize, pause: Duration) {
+pub fn feed_library(
+    service: &Arc<SearchService>,
+    names: Arc<Vec<String>>,
+    batch: usize,
+    pause: Duration,
+) {
     let epoch: u64 = service.begin_feed();
     let worker: Arc<SearchService> = Arc::clone(service);
     tracing::info!(tracks = names.len(), epoch, "library feed started");
     let _detached = thread::spawn(move || {
         if worker.adopt_streamed(&names) {
-            tracing::info!(tracks = names.len(), epoch, "the streamed index already holds this library");
+            tracing::info!(
+                tracks = names.len(),
+                epoch,
+                "the streamed index already holds this library"
+            );
             return;
         }
         if worker.track_count() == 0 {
@@ -301,13 +340,29 @@ fn path_bytes(names: &[String]) -> usize {
 /// Why:
 /// the index is empty,
 /// so every track added is a track that was not searchable before.
-fn feed_in_place(service: &SearchService, names: &[String], epoch: u64, batch: usize, pause: Duration) {
+fn feed_in_place(
+    service: &SearchService,
+    names: &[String],
+    epoch: u64,
+    batch: usize,
+    pause: Duration,
+) {
     let generation: u64 = service.reset(names.len(), path_bytes(names));
-    let mut feed = InPlaceFeed { service, epoch, generation, pause, finished: true };
+    let mut feed = InPlaceFeed {
+        service,
+        epoch,
+        generation,
+        pause,
+        finished: true,
+    };
     prepare_in_order(names, batch, &mut feed);
     if feed.finished {
         service.finish(generation);
-        tracing::info!(tracks = names.len(), epoch, "library feed finished in place");
+        tracing::info!(
+            tracks = names.len(),
+            epoch,
+            "library feed finished in place"
+        );
     }
 }
 
@@ -317,13 +372,29 @@ fn feed_in_place(service: &SearchService, names: &[String], epoch: u64, batch: u
 /// the live index still answers for the previous library,
 /// and replacing it at the end avoids a flash of
 /// empty results during a rescan.
-fn feed_on_the_side(service: &SearchService, names: &[String], epoch: u64, batch: usize, pause: Duration) {
+fn feed_on_the_side(
+    service: &SearchService,
+    names: &[String],
+    epoch: u64,
+    batch: usize,
+    pause: Duration,
+) {
     let mut fresh: SearchIndex = SearchIndex::new(0);
     fresh.reserve(names.len(), path_bytes(names), path_bytes(names) / 2);
-    let mut feed = SideFeed { service, epoch, fresh, pause, finished: true };
+    let mut feed = SideFeed {
+        service,
+        epoch,
+        fresh,
+        pause,
+        finished: true,
+    };
     prepare_in_order(names, batch, &mut feed);
     if feed.finished && service.feed_is_current(epoch) {
         service.install(feed.fresh);
-        tracing::info!(tracks = names.len(), epoch, "library feed installed from the side");
+        tracing::info!(
+            tracks = names.len(),
+            epoch,
+            "library feed installed from the side"
+        );
     }
 }

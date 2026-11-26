@@ -68,6 +68,6 @@ pub const USAGE_EXIT_CODE: i32 = 2;
 /// export const SHADOWED_NAMES: readonly string[] = ['rg', 'grep', 'egrep', /* ... */ 'cloc'];
 /// ```
 pub const SHADOWED_NAMES: &[&str] = &[
-    "rg", "grep", "egrep", "fgrep", "ugrep", "ug", "ag", "ack", "find", "fd", "fdfind", "bfs", "tree", "du", "ncdu", "tokei",
-    "cloc",
+    "rg", "grep", "egrep", "fgrep", "ugrep", "ug", "ag", "ack", "find", "fd", "fdfind", "bfs",
+    "tree", "du", "ncdu", "tokei", "cloc",
 ];

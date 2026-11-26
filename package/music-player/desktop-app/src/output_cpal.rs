@@ -73,7 +73,10 @@
 /// ```ts
 /// let playing = false; // a cross-thread boolean flag
 /// ```
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// What:
 ///      `use std::sync::Arc;`.
@@ -143,7 +146,11 @@ use std::thread::Thread;
 /// ```ts
 /// // no equivalent: TS methods don't need their interface imported to be callable
 /// ```
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::traits::{
+    DeviceTrait,
+    HostTrait,
+    StreamTrait,
+};
 
 /// What:
 ///      `use cpal::{BufferSize, StreamConfig};`.
@@ -168,7 +175,10 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 /// ```ts
 /// import { BufferSize, StreamConfig } from "cpal";
 /// ```
-use cpal::{BufferSize, StreamConfig};
+use cpal::{
+    BufferSize,
+    StreamConfig,
+};
 
 /// What:
 ///      `use ringbuf::traits::{Consumer, Split};`.
@@ -183,7 +193,10 @@ use cpal::{BufferSize, StreamConfig};
 /// ```ts
 /// // no equivalent: importing interfaces to unlock .split()/.popSlice()
 /// ```
-use ringbuf::traits::{Consumer, Split};
+use ringbuf::traits::{
+    Consumer,
+    Split,
+};
 
 /// What:
 ///      `use ringbuf::{HeapProd, HeapRb};`.
@@ -205,7 +218,10 @@ use ringbuf::traits::{Consumer, Split};
 /// ```ts
 /// // a fixed-size lock-free queue split into a writer and a reader
 /// ```
-use ringbuf::{HeapProd, HeapRb};
+use ringbuf::{
+    HeapProd,
+    HeapRb,
+};
 
 /// What:
 ///      `use crate::error::PlayerError;`.
@@ -432,7 +448,7 @@ impl Output {
             stream: None,
             playing,
             worker,
-        })
+        });
     }
 
     /// What:
@@ -744,7 +760,7 @@ impl Output {
         // ```ts
         // return producer;
         // ```
-        return Ok(producer)
+        return Ok(producer);
     }
 
     /// What:
@@ -762,7 +778,10 @@ impl Output {
     /// ```ts
     /// setPlaying(on: boolean): void { Atomics.store(playingFlag, 0, on ? 1 : 0); }
     /// ```
-    pub fn set_playing(&self, on: bool) {
+    pub fn set_playing(
+        &self,
+        on: bool,
+    ) {
         // What:     `self.playing.store(on, Ordering::Relaxed);`. The atomic WRITE: store
         //           `on` into the shared flag. `Relaxed` matches the loose ordering used by
         //           the callback's `.load` (a lone flag needs no stronger guarantee).
@@ -788,7 +807,11 @@ impl Output {
     /// ```ts
     /// setDraining(_on: boolean): void {}
     /// ```
-    pub fn set_draining(&self, _on: bool) {}
+    pub fn set_draining(
+        &self,
+        _on: bool,
+    ) {
+    }
 
     /// What:
     ///      `pub fn meter_snapshot(&self) -> MeterSnapshot`.

@@ -1,13 +1,30 @@
 //! Reads the profile metadata used by the supported native browser launchers.
 
 /// Imports the file, path, and native argument types used by browser profile stores.
-use std::{collections::BTreeMap, env, ffi::OsString, fs, path::{Component, Path, PathBuf}};
+use std::{
+    collections::BTreeMap,
+    env,
+    ffi::OsString,
+    fs,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
+};
 
 /// Imports GLib's INI reader for Firefox's profile and compatibility files.
-use gio::glib::{self, KeyFile, KeyFileFlags};
+use gio::glib::{
+    self,
+    KeyFile,
+    KeyFileFlags,
+};
 
 /// Imports SQLite's connection and read-only flag for Firefox Selectable Profiles.
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{
+    Connection,
+    OpenFlags,
+};
 
 /// What: Describes a named profile's browser arguments before adding the target.
 /// Why: The picker binds a visible name to exact arguments without a shell command.
@@ -51,10 +68,13 @@ pub(crate) struct FirefoxProfile {
 fn last_platform(profile: &Path) -> Option<PathBuf> {
     // Load the existing compatibility file. A new profile may have no such file.
     let metadata = KeyFile::new();
-    metadata.load_from_file(profile.join("compatibility.ini"), KeyFileFlags::NONE).ok()?;
+    metadata
+        .load_from_file(profile.join("compatibility.ini"), KeyFileFlags::NONE)
+        .ok()?;
     let path = metadata.string("Compatibility", "LastPlatformDir").ok()?;
     let recorded_path = Path::new(path.as_str());
-    let canonical = fs::canonicalize(recorded_path).unwrap_or_else(|_| return recorded_path.to_path_buf());
+    let canonical =
+        fs::canonicalize(recorded_path).unwrap_or_else(|_| return recorded_path.to_path_buf());
     return Some(canonical);
 }
 
@@ -81,7 +101,10 @@ fn group_profiles(path: &Path) -> rusqlite::Result<Vec<(String, String)>> {
 /// ```ts
 /// function profileDirectory(root: Path, storedPath: string): Path | undefined;
 /// ```
-fn profile_directory(root: &Path, stored_path: &str) -> Option<PathBuf> {
+fn profile_directory(
+    root: &Path,
+    stored_path: &str,
+) -> Option<PathBuf> {
     if stored_path.is_empty() {
         return None;
     }
@@ -128,7 +151,9 @@ pub(crate) fn firefox_profiles_at(root: &Path) -> Vec<FirefoxProfile> {
         if !group.starts_with("Profile") {
             continue;
         }
-        let Ok(stored_path) = index.string(group, "Path") else { continue; };
+        let Ok(stored_path) = index.string(group, "Path") else {
+            continue;
+        };
         let anchor = profile_directory(root, stored_path.as_str());
         if let Ok(store) = index.string(group, "StoreID")
             && single_component(store.as_str())
@@ -142,7 +167,14 @@ pub(crate) fn firefox_profiles_at(root: &Path) -> Vec<FirefoxProfile> {
             && let Ok(name) = index.string(group, "Name")
         {
             let platform = last_platform(&path);
-            profiles.insert(path.clone(), FirefoxProfile { name: name.to_string(), platform, path });
+            profiles.insert(
+                path.clone(),
+                FirefoxProfile {
+                    name: name.to_string(),
+                    platform,
+                    path,
+                },
+            );
         }
     }
     // Firefox can leave selectable group metadata with no StoreID in the legacy catalog.
@@ -156,7 +188,9 @@ pub(crate) fn firefox_profiles_at(root: &Path) -> Vec<FirefoxProfile> {
     }
 
     for (database, anchor_platform) in groups {
-        let Ok(rows) = group_profiles(&database) else { continue; };
+        let Ok(rows) = group_profiles(&database) else {
+            continue;
+        };
         let mut members = Vec::new();
         let mut platforms = std::collections::BTreeSet::new();
         for (name, stored_path) in rows {
@@ -165,7 +199,11 @@ pub(crate) fn firefox_profiles_at(root: &Path) -> Vec<FirefoxProfile> {
                 if let Some(found) = &platform {
                     platforms.insert(found.clone());
                 }
-                members.push(FirefoxProfile { name, platform, path });
+                members.push(FirefoxProfile {
+                    name,
+                    platform,
+                    path,
+                });
             }
         }
         // With no anchor, use a shared installation only if the evidence agrees across every known member.
@@ -197,7 +235,10 @@ pub(crate) fn firefox_profiles() -> Vec<FirefoxProfile> {
     let current = glib::user_config_dir().join("mozilla/firefox");
     let mut profiles = firefox_profiles_at(&legacy);
     for profile in firefox_profiles_at(&current) {
-        if !profiles.iter().any(|stored| return stored.path == profile.path) {
+        if !profiles
+            .iter()
+            .any(|stored| return stored.path == profile.path)
+        {
             profiles.push(profile);
         }
     }
@@ -229,8 +270,16 @@ pub(crate) fn profiles_for_firefox(
         }
 
         // `--new-tab` receives the URI appended by the common launcher.
-        let arguments = vec!["--profile".into(), profile.path.clone().into_os_string(), "--new-tab".into()];
-        selected.push(Profile { name: profile.name.clone(), directory: profile.path.clone(), arguments });
+        let arguments = vec![
+            "--profile".into(),
+            profile.path.clone().into_os_string(),
+            "--new-tab".into(),
+        ];
+        selected.push(Profile {
+            name: profile.name.clone(),
+            directory: profile.path.clone(),
+            arguments,
+        });
     }
     return selected;
 }
@@ -264,10 +313,19 @@ pub(crate) fn helium_root() -> PathBuf {
 /// function heliumProfiles(root: Path): Profile[];
 /// ```
 pub(crate) fn helium_profiles(root: &Path) -> Vec<Profile> {
-    let Ok(canonical_root) = fs::canonicalize(root) else { return Vec::new(); };
-    let Ok(content) = fs::read(canonical_root.join("Local State")) else { return Vec::new(); };
-    let Ok(state) = serde_json::from_slice::<serde_json::Value>(&content) else { return Vec::new(); };
-    let Some(entries) = state.pointer("/profile/info_cache").and_then(serde_json::Value::as_object) else {
+    let Ok(canonical_root) = fs::canonicalize(root) else {
+        return Vec::new();
+    };
+    let Ok(content) = fs::read(canonical_root.join("Local State")) else {
+        return Vec::new();
+    };
+    let Ok(state) = serde_json::from_slice::<serde_json::Value>(&content) else {
+        return Vec::new();
+    };
+    let Some(entries) = state
+        .pointer("/profile/info_cache")
+        .and_then(serde_json::Value::as_object)
+    else {
         return Vec::new();
     };
 
@@ -286,9 +344,19 @@ pub(crate) fn helium_profiles(root: &Path) -> Vec<Profile> {
         if !directory.is_dir() {
             continue;
         }
-        let name = details["name"].as_str().filter(|text| return !text.is_empty()).unwrap_or(key);
-        let arguments = vec![data_argument.clone(), format!("--profile-directory={key}").into()];
-        profiles.push(Profile { name: name.to_owned(), directory, arguments });
+        let name = details["name"]
+            .as_str()
+            .filter(|text| return !text.is_empty())
+            .unwrap_or(key);
+        let arguments = vec![
+            data_argument.clone(),
+            format!("--profile-directory={key}").into(),
+        ];
+        profiles.push(Profile {
+            name: name.to_owned(),
+            directory,
+            arguments,
+        });
     }
     return profiles;
 }

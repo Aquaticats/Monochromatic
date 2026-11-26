@@ -439,7 +439,10 @@ pub use app::run;
 /// ```ts
 /// export { parseArgs, Config } from "./cli";
 /// ```
-pub use cli::{parse_args, Config};
+pub use cli::{
+    Config,
+    parse_args,
+};
 
 /// Exposes supported deterministic nested appearance values.
 pub use appearance_portal::ColorSchemePreference;

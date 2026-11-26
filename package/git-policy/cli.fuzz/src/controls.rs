@@ -29,27 +29,52 @@
 /// ```ts
 /// import { stripWrapperControls } from 'git-policy-cli';
 /// ```
-use crate::control_tables::{CONTROL_TOKENS, TABLE_COMMANDS, VALUELESS_TOKENS};
-use git_policy_cli::candidate_error::{CandidateError, CandidateFailure};
-use git_policy_cli::candidate_prediction::{CandidateRequest, PreparedCandidates};
+use crate::control_tables::{
+    CONTROL_TOKENS,
+    TABLE_COMMANDS,
+    VALUELESS_TOKENS,
+};
+use git_policy_cli::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use git_policy_cli::candidate_prediction::{
+    CandidateRequest,
+    PreparedCandidates,
+};
 use git_policy_cli::command_commit::parse_commit_region;
 /// The record of one tool cache directory the policy may exempt,
 ///  which the shipped checks take as their allowed worktree directories.
 use git_policy_cli::effective_target::ToolCacheDirectory;
-use git_policy_cli::global_arguments::{GlobalOutcome, global_layout};
+use git_policy_cli::global_arguments::{
+    GlobalOutcome,
+    global_layout,
+};
 /// The production conversion of raw bytes to an argument,
 /// so the generators feed the code under test the same way.
 use git_policy_cli::path_bytes::os_from_path_bytes as argument;
-use git_policy_cli::policy_checks::{ShippedChecks, shipped_checks};
+use git_policy_cli::policy_checks::{
+    ShippedChecks,
+    shipped_checks,
+};
 use git_policy_cli::policy_content::LifecycleContent;
-use git_policy_cli::policy_registry::{POLICY_REGISTRY, PolicyId};
+use git_policy_cli::policy_registry::{
+    POLICY_REGISTRY,
+    PolicyId,
+};
 use git_policy_cli::repository_facts::RepositoryFacts;
 /// What one abort form would discard besides the operation's own state.
-use git_policy_cli::repository_facts_abort_discard::{AbortDiscard, DiscardBaseline};
+use git_policy_cli::repository_facts_abort_discard::{
+    AbortDiscard,
+    DiscardBaseline,
+};
 use git_policy_cli::repository_location::RepositoryLocation;
 /// The operation a guarded form ends, and the commit a skip writes back.
 use git_policy_cli::rule_abort_operation::{
-    AbortOperation, OperationEnd, SKIP_RESTORES, ended_operation,
+    AbortOperation,
+    OperationEnd,
+    SKIP_RESTORES,
+    ended_operation,
 };
 /// The answer one `git add` selection question gives.
 use git_policy_cli::rule_add_explicit::StagedSelection;
@@ -58,13 +83,29 @@ use git_policy_cli::rule_commit_sequencer::SequencerState;
 /// The guarded form whose abort or skip the lifecycle judges.
 use git_policy_cli::rule_linked_worktree::GuardedCommand;
 use git_policy_cli::rule_worktree_dirty::DirtyScope;
+/// The subject's record of the directory a command was started in,
+///  which its shipped checks take as their fifth argument.
+use git_policy_cli::start_directory::StartDirectory;
 use git_policy_cli::transaction_git::GitContext;
-use git_policy_cli::worktree_identity::{WorktreeIdentity, common_directory};
-use git_policy_cli::wrapped_command::{WrappedOutcome, run_wrapped_command};
-use git_policy_cli::wrapper_controls::{
-    ControlMeaning, Controls, control_meaning, is_escaped, no_controls,
+use git_policy_cli::worktree_identity::{
+    WorktreeIdentity,
+    common_directory,
 };
-use git_policy_cli::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
+use git_policy_cli::wrapped_command::{
+    WrappedOutcome,
+    run_wrapped_command,
+};
+use git_policy_cli::wrapper_controls::{
+    ControlMeaning,
+    Controls,
+    control_meaning,
+    is_escaped,
+    no_controls,
+};
+use git_policy_cli::wrapper_invocation::{
+    StrippedInvocation,
+    strip_wrapper_controls,
+};
 /// What:
 ///  `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
 ///       Sibling the reader might expect:
@@ -77,11 +118,17 @@ use git_policy_cli::wrapper_invocation::{StrippedInvocation, strip_wrapper_contr
 /// ```ts
 /// // string, but byte-preserving.
 /// ```
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `size_of` is the width of the mode's own type, in bytes.
 use std::mem::size_of;
 /// `PathBuf` is an owned filesystem path of raw bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The spelling of the `git commit` hatch,
@@ -221,7 +268,10 @@ pub fn separated_arguments(data: &[u8]) -> Option<(Vec<OsString>, usize)> {
 /// ```ts
 /// function removedTokens(before: string[], after: string[]): string[] | undefined;
 /// ```
-pub fn removed_tokens(before: &[OsString], after: &[OsString]) -> Option<Vec<OsString>> {
+pub fn removed_tokens(
+    before: &[OsString],
+    after: &[OsString],
+) -> Option<Vec<OsString>> {
     let mut removed: Vec<OsString> = Vec::<OsString>::new();
     // How many tokens of `after` have been matched so far.
     let mut matched: usize = 0;
@@ -265,7 +315,10 @@ fn is_wrapper_token(token: &OsStr) -> bool {
 /// ```ts
 /// const asked = (tokens: string[], meaning: ControlMeaning) => tokens.some(t => controlMeaning(t) === meaning);
 /// ```
-fn any_asks(tokens: &[OsString], meaning: ControlMeaning) -> bool {
+fn any_asks(
+    tokens: &[OsString],
+    meaning: ControlMeaning,
+) -> bool {
     for token in tokens {
         if control_meaning(token.as_encoded_bytes()) == Some(meaning) {
             return true;
@@ -283,7 +336,10 @@ fn any_asks(tokens: &[OsString], meaning: ControlMeaning) -> bool {
 /// ```ts
 /// const has = (tokens: string[], bytes: string) => tokens.includes(bytes);
 /// ```
-fn has_token(tokens: &[OsString], bytes: &[u8]) -> bool {
+fn has_token(
+    tokens: &[OsString],
+    bytes: &[u8],
+) -> bool {
     for token in tokens {
         if token.as_encoded_bytes() == bytes {
             return true;
@@ -390,7 +446,10 @@ pub fn check_control_removal(arguments: &[OsString]) {
 /// ```ts
 /// function checkSeparator(args: string[], separator: number): void;
 /// ```
-pub fn check_separator(arguments: &[OsString], separator: usize) {
+pub fn check_separator(
+    arguments: &[OsString],
+    separator: usize,
+) {
     let stripped: StrippedInvocation = strip_wrapper_controls(arguments);
     // `&list[n..]` borrows the tokens from index `n` on.
     let tail: &[OsString] = &arguments[separator..];
@@ -470,11 +529,17 @@ impl RepositoryFacts for FixedFacts {
         return Ok(self.index);
     }
 
-    fn staged_selection(&mut self, _pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
+    fn staged_selection(
+        &mut self,
+        _pathspecs: Vec<OsString>,
+    ) -> Result<StagedSelection, String> {
         return Ok(self.selection.clone());
     }
 
-    fn worktree_dirty(&mut self, _scope: DirtyScope) -> Result<bool, String> {
+    fn worktree_dirty(
+        &mut self,
+        _scope: DirtyScope,
+    ) -> Result<bool, String> {
         return Ok(self.dirty);
     }
 
@@ -489,7 +554,10 @@ impl RepositoryFacts for FixedFacts {
     /// ```ts
     /// ignoredFilesTheTreeTracks(revision) { return this.ignoredAndTracked; }
     /// ```
-    fn ignored_files_the_tree_tracks(&mut self, _revision: Option<&OsStr>) -> Result<Vec<String>, String> {
+    fn ignored_files_the_tree_tracks(
+        &mut self,
+        _revision: Option<&OsStr>,
+    ) -> Result<Vec<String>, String> {
         return Ok(self.ignored_and_tracked.clone());
     }
 
@@ -504,7 +572,10 @@ impl RepositoryFacts for FixedFacts {
     /// ```ts
     /// untrackedFilesTheTreeTracks(revision) { return this.untrackedAndTracked; }
     /// ```
-    fn untracked_files_the_tree_tracks(&mut self, _revision: &OsStr) -> Result<Vec<String>, String> {
+    fn untracked_files_the_tree_tracks(
+        &mut self,
+        _revision: &OsStr,
+    ) -> Result<Vec<String>, String> {
         return Ok(self.untracked_and_tracked.clone());
     }
 
@@ -529,7 +600,10 @@ impl RepositoryFacts for FixedFacts {
     ///     ? [Buffer.from('Would remove notes.txt')] : [];
     /// }
     /// ```
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+    fn clean_deleted_paths(
+        &mut self,
+        arguments: Vec<OsString>,
+    ) -> Result<Vec<Vec<u8>>, String> {
         // Only the answer that carries a pattern names anything; the same clean without one deletes what the
         //  worktree itself ignores, which is nothing this fake repository holds.
         let carries_pattern: bool = arguments.iter().any(|one| {
@@ -598,9 +672,14 @@ impl RepositoryFacts for FixedFacts {
     ///     conflicted: [] };
     /// }
     /// ```
-    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+    fn abort_discard(
+        &mut self,
+        command: GuardedCommand,
+    ) -> Result<AbortDiscard, String> {
         // The operation a form ends is the command's own reading, so the answer names the state the guard judges.
-        let Some((aborted, ends)): Option<(AbortOperation, OperationEnd)> = ended_operation(command) else {
+        let Some((aborted, ends)): Option<(AbortOperation, OperationEnd)> =
+            ended_operation(command)
+        else {
             return Ok(AbortDiscard::NothingWaiting);
         };
         if !self.operation_waits {
@@ -630,7 +709,10 @@ impl RepositoryFacts for FixedFacts {
         });
     }
 
-    fn remote_guess_creates_branch(&mut self, _target: &OsStr) -> Result<bool, String> {
+    fn remote_guess_creates_branch(
+        &mut self,
+        _target: &OsStr,
+    ) -> Result<bool, String> {
         return Ok(self.remote_guess);
     }
 
@@ -885,6 +967,21 @@ const PUSH_DRY_RUN_STARTS: &[&[u8]] = &[b"--dr"];
 const PUSH_DRY_RUN_LETTER: u8 = b'n';
 
 /// What:
+///  `GIT_FATAL_STATUS` is the exit status Git gives a fatal error, 128;
+///  `i32` is the 32-bit signed integer a child's status is read into,
+///  where the sibling `i64` is wider than any status and the sibling `u8` cannot hold a negative one.
+/// Why:
+///   A `git commit` form real Git refuses ends with Git's own fatal status,
+///  and the repository link gate stops with it too,
+///  so the frontier check must accept it from a command it did not let through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const GIT_FATAL_STATUS = 128;
+/// ```
+const GIT_FATAL_STATUS: i32 = 128;
+
+/// What:
 ///  Whether some token could make Git treat a command as a dry run:
 ///  a long option
 ///       with one of the given starts,
@@ -898,7 +995,11 @@ const PUSH_DRY_RUN_LETTER: u8 = b'n';
 /// const mayBeDryRun = (region: string[], starts: string[], letter: string) =>
 ///   region.some(t => starts.some(s => t.startsWith(s)) || (/^-[^-]/.test(t) && t.includes(letter)));
 /// ```
-fn may_be_dry_run(region: &[OsString], starts: &[&[u8]], letter: u8) -> bool {
+fn may_be_dry_run(
+    region: &[OsString],
+    starts: &[&[u8]],
+    letter: u8,
+) -> bool {
     for token in region {
         let bytes: &[u8] = token.as_encoded_bytes();
         for start in starts {
@@ -934,7 +1035,8 @@ pub enum FrontierSeen {
     Forwarded,
     /// A policy or fixed transform stopped the command with exit status 1.
     Rejected,
-    /// The command stopped with exit status 2.
+    /// The command stopped with exit status 2,
+    ///  or with Git's own fatal status when the stop names Git's answer.
     Refused,
 }
 
@@ -953,7 +1055,10 @@ pub enum FrontierSeen {
 /// ```ts
 /// function checkFrontier(args: string[], mode: number): FrontierSeen;
 /// ```
-pub fn check_frontier(arguments: &[OsString], mode: Mode) -> FrontierSeen {
+pub fn check_frontier(
+    arguments: &[OsString],
+    mode: Mode,
+) -> FrontierSeen {
     let stripped: StrippedInvocation = strip_wrapper_controls(arguments);
     // `mut` lets the lifecycle state what content policies can read.
     let mut checks: ShippedChecks<FixedFacts> = shipped_checks(
@@ -961,13 +1066,41 @@ pub fn check_frontier(arguments: &[OsString], mode: Mode) -> FrontierSeen {
         stripped.arguments.clone(),
         LifecycleContent::None,
         Vec::<ToolCacheDirectory>::new(),
+        // What:     `StartDirectory::at(Path::new("/"))` builds the directory the command starts in from one fixed
+        //           absolute path, and the leading `&` lends it to the call. `StartDirectory` is the subject's own
+        //           record of that directory; `Path::new` borrows a filesystem path whose bytes are baked into the
+        //           program, and the owned sibling a reader might expect is `PathBuf`.
+        // Why:      The fifth argument says where the invocation started, so a relative path it decides about
+        //           resolves as the wrapper would resolve it; the fuzz checks have no real invocation directory,
+        //           and one fixed directory keeps an input answering the same on every run without reading the
+        //           directory of the process every test shares.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // shippedChecks(facts, args, content, [], startDirectoryAt('/'));
+        // ```
+        &StartDirectory::at(Path::new("/")),
     );
     // `&[]` is an empty environment: no lease is inherited.
     let outcome: WrappedOutcome = run_wrapped_command(&stripped, &[], &mut checks);
     // `match` picks by variant and binds the fields each ending carries.
     let forwarded: Vec<OsString> = match outcome {
-        WrappedOutcome::Exit { code, stderr } => {
-            assert!(code == 1 || code == 2, "a stop exits 1 or 2, got {code}");
+        WrappedOutcome::Exit {
+            code,
+            stderr,
+        } => {
+            // What:     A stop ends with status 1, 2, or Git's fatal status 128.
+            // Why:      The wrapper refuses a `git commit` form real Git refuses with Git's own status, which is
+            //           128, and the repository link gate stops with 128 too, so neither may look like a defect.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // assert(code === 1 || code === 2 || code === GIT_FATAL_STATUS);
+            // ```
+            assert!(
+                code == 1 || code == 2 || code == GIT_FATAL_STATUS,
+                "a stop exits 1, 2 or Git's fatal status, got {code}: {arguments:?}"
+            );
             // A real commit writes its own events and diagnostics while it runs, so its ending carries no text.
             let commit_wrote_itself: bool = stderr.is_empty()
                 && stripped.layout.outcome == GlobalOutcome::Command
@@ -982,7 +1115,8 @@ pub fn check_frontier(arguments: &[OsString], mode: Mode) -> FrontierSeen {
             return FrontierSeen::Refused;
         }
         WrappedOutcome::Forward {
-            arguments: sent, ..
+            arguments: sent,
+            ..
         } => sent,
     };
     if stripped.layout.outcome != GlobalOutcome::Command {

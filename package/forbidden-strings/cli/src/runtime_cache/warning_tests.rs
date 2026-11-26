@@ -1,13 +1,19 @@
 //! Cache-warning JSON protocol tests.
 
-use super::{CacheWarning, CacheWarningReason};
+use super::{
+    CacheWarning,
+    CacheWarningReason,
+};
 
 /// Every load failure renders exact closed JSON without dynamic data.
 #[test]
 fn load_failure_reasons_render_exact_json() {
     let cases = [
         (CacheWarningReason::Missing, "missing"),
-        (CacheWarningReason::CacheRootUnavailable, "cache-root-unavailable"),
+        (
+            CacheWarningReason::CacheRootUnavailable,
+            "cache-root-unavailable",
+        ),
         (CacheWarningReason::Unreadable, "unreadable"),
         (CacheWarningReason::SourceMismatch, "source-mismatch"),
         (CacheWarningReason::Incompatible, "incompatible"),

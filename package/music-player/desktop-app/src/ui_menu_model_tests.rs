@@ -45,8 +45,14 @@ fn human_size_uses_kb_mb_and_gb_steps() {
 #[test]
 fn every_row_but_the_shuffle_row_shows_its_shortcut_on_windows_and_linux() {
     let items = menu_items(None, KeyboardPlatform::WindowsLinux);
-    let shortcuts: Vec<&str> = items.iter().map(|item| return item.shortcut.as_str()).collect();
-    assert_eq!(shortcuts, vec!["Enter", "", "", "Ctrl+Shift+E", "Ctrl+Shift+C", "Delete"]);
+    let shortcuts: Vec<&str> = items
+        .iter()
+        .map(|item| return item.shortcut.as_str())
+        .collect();
+    assert_eq!(
+        shortcuts,
+        vec!["Enter", "", "", "Ctrl+Shift+E", "Ctrl+Shift+C", "Delete"]
+    );
 }
 
 #[test]
@@ -59,9 +65,28 @@ fn the_shortcuts_use_the_mac_glyphs_on_the_mac_map() {
 #[test]
 fn a_long_folder_is_shortened_to_its_last_two_folders() {
     let sep = std::path::MAIN_SEPARATOR;
-    let deep = ["", "var", "mnt", "encrypted", "temp", "agent", "agent-polish2", "work", "lib-main", "Camellia"].join(&sep.to_string());
-    assert_eq!(short_folder(&deep), format!("\u{2026}{sep}lib-main{sep}Camellia"));
-    assert_eq!(short_folder(&["", "music", "Camellia"].join(&sep.to_string())), format!("music{sep}Camellia"), "two folders need no ellipsis");
+    let deep = [
+        "",
+        "var",
+        "mnt",
+        "encrypted",
+        "temp",
+        "agent",
+        "agent-polish2",
+        "work",
+        "lib-main",
+        "Camellia",
+    ]
+    .join(&sep.to_string());
+    assert_eq!(
+        short_folder(&deep),
+        format!("\u{2026}{sep}lib-main{sep}Camellia")
+    );
+    assert_eq!(
+        short_folder(&["", "music", "Camellia"].join(&sep.to_string())),
+        format!("music{sep}Camellia"),
+        "two folders need no ellipsis"
+    );
     assert_eq!(short_folder("Camellia"), "Camellia");
     assert_eq!(short_folder(""), "", "an empty folder stays empty");
 }
@@ -69,15 +94,39 @@ fn a_long_folder_is_shortened_to_its_last_two_folders() {
 #[test]
 fn the_details_message_is_short_enough_for_a_toast_whatever_the_folder_depth() {
     let sep = std::path::MAIN_SEPARATOR.to_string();
-    let folder = ["", "var", "mnt", "encrypted", "temp", "agent", "agent-polish2", "work", "lib-main", "Camellia"].join(&sep);
+    let folder = [
+        "",
+        "var",
+        "mnt",
+        "encrypted",
+        "temp",
+        "agent",
+        "agent-polish2",
+        "work",
+        "lib-main",
+        "Camellia",
+    ]
+    .join(&sep);
     let message = details_text("04 Quo Vadis.wav", Some("1.3 MB"), &folder);
-    assert_eq!(message, format!("04 Quo Vadis.wav \u{b7} 1.3 MB \u{b7} \u{2026}{sep}lib-main{sep}Camellia"));
+    assert_eq!(
+        message,
+        format!("04 Quo Vadis.wav \u{b7} 1.3 MB \u{b7} \u{2026}{sep}lib-main{sep}Camellia")
+    );
     assert!(message.chars().count() < 60, "{message}");
-    assert_eq!(details_text("a.wav", None, "Camellia"), "a.wav \u{b7} size unknown \u{b7} Camellia");
+    assert_eq!(
+        details_text("a.wav", None, "Camellia"),
+        "a.wav \u{b7} size unknown \u{b7} Camellia"
+    );
 }
 
 #[test]
 fn the_menu_actions_that_change_nothing_visible_confirm_in_plain_words() {
-    assert_eq!(copied_text("04 Quo Vadis.wav"), "Copied 04 Quo Vadis.wav to the clipboard");
-    assert_eq!(shown_in_file_manager_text("04 Quo Vadis.wav"), "Opened the folder of 04 Quo Vadis.wav in your file manager");
+    assert_eq!(
+        copied_text("04 Quo Vadis.wav"),
+        "Copied 04 Quo Vadis.wav to the clipboard"
+    );
+    assert_eq!(
+        shown_in_file_manager_text("04 Quo Vadis.wav"),
+        "Opened the folder of 04 Quo Vadis.wav in your file manager"
+    );
 }

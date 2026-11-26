@@ -28,24 +28,37 @@
 /// Imports the corpus track record.
 use crate::corpus::Track;
 /// Imports the candidate policy and the shared per-window sampling.
-use crate::evaluate::{Candidate, sampled_windows};
+use crate::evaluate::{
+    Candidate,
+    sampled_windows,
+};
 /// Imports the bench's one dBTP conversion.
 use crate::levels::peak_dbtp_or_silence;
+/// Imports `anyhow`'s error context and result alias,
+///  so a dump that cannot be written names its file.
+use anyhow::{
+    Context,
+    Result,
+};
+/// Imports serde's derive so the dump row serializes with correct escaping.
+use serde::Serialize;
 /// Imports formatting for the rule's report line.
 use std::fmt;
 /// Imports file creation for the feature dump.
 use std::fs::File;
 /// Imports buffered writing for the feature dump.
-use std::io::{BufWriter, Write};
+use std::io::{
+    BufWriter,
+    Write,
+};
 /// Imports the borrowed path type for the dump location.
 use std::path::Path;
-/// Imports `anyhow`'s error context and result alias,
-///  so a dump that cannot be written names its file.
-use anyhow::{Context, Result};
-/// Imports serde's derive so the dump row serializes with correct escaping.
-use serde::Serialize;
 /// Imports the shared gain and policy math.
-use truepeak_core::{Policy, default_policy, probe_estimated_peak};
+use truepeak_core::{
+    Policy,
+    default_policy,
+    probe_estimated_peak,
+};
 
 /// One long track's probe features and its harness-only violator label.
 struct LongFeatures {
@@ -104,7 +117,10 @@ impl fmt::Display for FullScanRule {
     /// Write the cutoff,
     ///  the routed/violator counts,
     ///  and the decoded gap on one line.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(
             formatter,
             "full-scan if sampled_max_db >= {:.3}dB | routes {}/{} long tracks, catches all {} violators | real_decoded={:.1}s (target {:.1}s, delta {:+.1}s) worst_quiet={:+.3}dB",
@@ -116,7 +132,7 @@ impl fmt::Display for FullScanRule {
             self.target_secs,
             self.decoded_secs - self.target_secs,
             self.worst_quiet_db,
-        )
+        );
     }
 }
 
@@ -134,7 +150,10 @@ impl fmt::Display for FullScanRule {
 ///  Why:
 ///  a
 /// feature only helps if the two groups separate on it.
-pub fn diagnose(tracks: &[Track], candidate: Candidate) {
+pub fn diagnose(
+    tracks: &[Track],
+    candidate: Candidate,
+) {
     let policy: Policy = default_policy();
     let features = long_features(tracks, candidate, &policy);
     let report = |label: &str, group: Vec<&LongFeatures>| {
@@ -144,7 +163,7 @@ pub fn diagnose(tracks: &[Track], candidate: Candidate) {
         }
         let pct = |values: &mut Vec<f64>, fraction: f64| {
             values.sort_by(f64::total_cmp);
-            return values[((values.len() as f64 - 1.0) * fraction) as usize]
+            return values[((values.len() as f64 - 1.0) * fraction) as usize];
         };
         let mut maxes: Vec<f64> = group.iter().map(|f| return f.sampled_max_db).collect();
         let mut reads: Vec<f64> = group.iter().map(|f| return f.under_read_db).collect();
@@ -152,40 +171,63 @@ pub fn diagnose(tracks: &[Track], candidate: Candidate) {
         println!(
             "  {label}: n={} | sampled_max_db [{:.2} {:.2} {:.2}] under_read_db [{:.2} {:.2} {:.2}] dur [{:.0} {:.0} {:.0}]",
             group.len(),
-            pct(&mut maxes, 0.0), pct(&mut maxes, 0.5), pct(&mut maxes, 1.0),
-            pct(&mut reads, 0.0), pct(&mut reads, 0.5), pct(&mut reads, 1.0),
-            pct(&mut durs, 0.0), pct(&mut durs, 0.5), pct(&mut durs, 1.0),
+            pct(&mut maxes, 0.0),
+            pct(&mut maxes, 0.5),
+            pct(&mut maxes, 1.0),
+            pct(&mut reads, 0.0),
+            pct(&mut reads, 0.5),
+            pct(&mut reads, 1.0),
+            pct(&mut durs, 0.0),
+            pct(&mut durs, 0.5),
+            pct(&mut durs, 1.0),
         );
     };
-    println!("feature distributions [min median max] at margin {:.3}dB:", candidate.probe_margin_db);
-    report("violators    ", features.iter().filter(|f| return f.is_violator).collect());
-    report("non-violators", features.iter().filter(|f| return !f.is_violator).collect());
+    println!(
+        "feature distributions [min median max] at margin {:.3}dB:",
+        candidate.probe_margin_db
+    );
+    report(
+        "violators    ",
+        features.iter().filter(|f| return f.is_violator).collect(),
+    );
+    report(
+        "non-violators",
+        features.iter().filter(|f| return !f.is_violator).collect(),
+    );
 }
 
 /// Extract probe features and the violator label for every long track.
-fn long_features(tracks: &[Track], candidate: Candidate, policy: &Policy) -> Vec<LongFeatures> {
+fn long_features(
+    tracks: &[Track],
+    candidate: Candidate,
+    policy: &Policy,
+) -> Vec<LongFeatures> {
     let threshold = candidate.window_count as f64 * candidate.window_seconds;
     return tracks
         .iter()
         .filter(|track| return track.duration_secs > threshold)
         .map(|track| {
             let windows = sampled_windows(track, candidate);
-            let sampled_max = windows.iter().fold(0.0_f64, |peak, &window| return peak.max(window));
+            let sampled_max = windows
+                .iter()
+                .fold(0.0_f64, |peak, &window| return peak.max(window));
             let estimated = probe_estimated_peak(sampled_max, candidate.probe_margin_db);
             let probe = (policy.ceiling_dbtp - peak_dbtp_or_silence(estimated)).min(0.0);
-            let exact = (policy.ceiling_dbtp - peak_dbtp_or_silence(f64::from(track.full_peak))).min(0.0);
+            let exact =
+                (policy.ceiling_dbtp - peak_dbtp_or_silence(f64::from(track.full_peak))).min(0.0);
             let error = probe - exact;
             return LongFeatures {
                 path: track.path.clone(),
                 windows,
                 sampled_max_db: peak_dbtp_or_silence(sampled_max),
-                under_read_db: peak_dbtp_or_silence(f64::from(track.full_peak)) - peak_dbtp_or_silence(sampled_max),
+                under_read_db: peak_dbtp_or_silence(f64::from(track.full_peak))
+                    - peak_dbtp_or_silence(sampled_max),
                 duration_secs: track.duration_secs,
                 error_db: error,
                 is_violator: error > policy.max_too_loud_db || error < policy.max_too_quiet_db,
-            }
+            };
         })
-        .collect()
+        .collect();
 }
 
 /// One row of the per-track feature dump,
@@ -231,19 +273,22 @@ pub fn write_long_features(
     let policy: Policy = default_policy();
     let features = long_features(tracks, candidate, &policy);
     // The parent of a bare file name is empty, and means the working directory itself.
-    let directory = out_path.parent().filter(|parent| return !parent.as_os_str().is_empty());
+    let directory = out_path
+        .parent()
+        .filter(|parent| return !parent.as_os_str().is_empty());
     if let Some(parent) = directory {
         std::fs::create_dir_all(parent).with_context(|| {
             return format!(
                 "create the feature dump directory {} for {}",
                 parent.display(),
                 out_path.display(),
-            )
+            );
         })?;
     }
-    let mut writer = BufWriter::new(File::create(out_path).with_context(|| {
-        return format!("open the feature dump {}", out_path.display())
-    })?);
+    let mut writer = BufWriter::new(
+        File::create(out_path)
+            .with_context(|| return format!("open the feature dump {}", out_path.display()))?,
+    );
     for feature in &features {
         let row = LongFeatureRow {
             path: &feature.path,
@@ -258,10 +303,10 @@ pub fn write_long_features(
         writer.write_all(b"\n")?;
     }
     // An unflushed buffer would drop rows at exit without an error.
-    writer.flush().with_context(|| {
-        return format!("flush the feature dump {}", out_path.display())
-    })?;
-    return Ok(())
+    writer
+        .flush()
+        .with_context(|| return format!("flush the feature dump {}", out_path.display()))?;
+    return Ok(());
 }
 
 /// Fit the simplest full-recall full-scan rule from the loudest-window feature.
@@ -280,7 +325,11 @@ pub fn write_long_features(
 /// far its over-routing pushes the decoded budget past the target,
 ///  which is the evidence
 /// that probe-only features do not separate violators cleanly.
-pub fn fit_full_scan_rule(tracks: &[Track], candidate: Candidate, target_secs: f64) -> FullScanRule {
+pub fn fit_full_scan_rule(
+    tracks: &[Track],
+    candidate: Candidate,
+    target_secs: f64,
+) -> FullScanRule {
     let policy: Policy = default_policy();
     let features = long_features(tracks, candidate, &policy);
     let violators: Vec<&LongFeatures> = features.iter().filter(|f| return f.is_violator).collect();
@@ -307,9 +356,9 @@ pub fn fit_full_scan_rule(tracks: &[Track], candidate: Candidate, target_secs: f
         .iter()
         .map(|feature| {
             if feature.sampled_max_db >= cutoff_db {
-                return threshold + feature.duration_secs
+                return threshold + feature.duration_secs;
             } else {
-                return threshold
+                return threshold;
             }
         })
         .sum();
@@ -327,7 +376,7 @@ pub fn fit_full_scan_rule(tracks: &[Track], candidate: Candidate, target_secs: f
         decoded_secs: short_secs + long_secs,
         target_secs,
         worst_quiet_db,
-    }
+    };
 }
 
 /// What:

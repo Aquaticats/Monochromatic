@@ -1,7 +1,18 @@
 //! Verifies named application cgroups plus exact browser and agent process-to-cgroup discovery.
 
+/// Discovery functions and injectable roots.
+use crate::application_targets::{
+    ScanRoots,
+    TOOLCHAIN_UPDATES_SLICE,
+    is_in_updates_slice,
+    is_pi_service_name,
+    is_toolchain_updates_slice_name,
+    is_unconditionally_marked_cgroup,
+    scan_application_targets,
+};
 /// The applications a name claims.
 use crate::desktop_applications::{
+    DesktopApplication,
     desktop_application_of_name,
     is_application_executable,
     is_chatgpt_service_name,
@@ -12,17 +23,6 @@ use crate::desktop_applications::{
     is_interpreter_service_name,
     is_odytty_service_name,
     is_qure_service_name,
-    DesktopApplication,
-};
-/// Discovery functions and injectable roots.
-use crate::application_targets::{
-    is_pi_service_name,
-    is_in_updates_slice,
-    is_unconditionally_marked_cgroup,
-    is_toolchain_updates_slice_name,
-    scan_application_targets,
-    ScanRoots,
-    TOOLCHAIN_UPDATES_SLICE,
 };
 /// Standard fixture errors.
 use std::io;
@@ -87,15 +87,25 @@ fn firefox_nightly_service_name_stays_channel_specific() {
 #[test]
 fn firefox_release_service_name_stays_channel_specific() {
     // Assert the release desktop service is accepted.
-    assert!(is_firefox_release_service_name("app-firefox@fixture.service"));
+    assert!(is_firefox_release_service_name(
+        "app-firefox@fixture.service"
+    ));
     // Assert the ESR desktop service remains tunnel-routed.
-    assert!(!is_firefox_release_service_name("app-firefox\\x2desr@fixture.service"));
+    assert!(!is_firefox_release_service_name(
+        "app-firefox\\x2desr@fixture.service"
+    ));
     // Nightly has its own matcher and must not become a release-service match.
-    assert!(!is_firefox_release_service_name("app-firefox\\x2dnightly@fixture.service"));
+    assert!(!is_firefox_release_service_name(
+        "app-firefox\\x2dnightly@fixture.service"
+    ));
     // A similarly named scope is selected only by executable discovery.
-    assert!(!is_firefox_release_service_name("app-firefox@fixture.scope"));
+    assert!(!is_firefox_release_service_name(
+        "app-firefox@fixture.scope"
+    ));
     // A wrapper service does not identify the release browser.
-    assert!(!is_firefox_release_service_name("app-firefox-wrapper@fixture.service"));
+    assert!(!is_firefox_release_service_name(
+        "app-firefox-wrapper@fixture.service"
+    ));
 }
 
 /// Accepts exact ChatGPT,
@@ -162,17 +172,14 @@ fn scan_combines_named_and_process_targets() -> io::Result<()> {
     let steam_service = app_slice.join("app-steam@abc.service");
     let steam_scope = app_slice.join("app-steam@abc.scope");
     let steam_helper = app_slice.join("app-steam-helper.service");
-    let helium_service = app_slice.join(
-        "app-chrome\\x2dcadlkienfkclaiaibeoongdcgmdikeeg\\x2dDefault@abc.service",
-    );
+    let helium_service =
+        app_slice.join("app-chrome\\x2dcadlkienfkclaiaibeoongdcgmdikeeg\\x2dDefault@abc.service");
     let helium_scope = app_slice.join("app-org.chromium.Chromium-42.scope");
     let pale_moon_scope = app_slice.join("app-palemoon-44.scope");
     let pale_moon_bin_scope = app_slice.join("app-palemoon-bin-45.scope");
-    let firefox_nightly_service =
-        app_slice.join("app-firefox\\x2dnightly@abc.service");
+    let firefox_nightly_service = app_slice.join("app-firefox\\x2dnightly@abc.service");
     let firefox_nightly_bin_scope = app_slice.join("app-firefox-nightly-bin-49.scope");
-    let firefox_nightly_launcher_scope =
-        app_slice.join("app-firefox-nightly-launcher-50.scope");
+    let firefox_nightly_launcher_scope = app_slice.join("app-firefox-nightly-launcher-50.scope");
     let firefox_release_service = app_slice.join("app-firefox@fixture.service");
     let firefox_release_bin_scope = app_slice.join("app-release-bin.scope");
     let firefox_release_launcher_scope = app_slice.join("app-release-launcher.scope");
@@ -367,7 +374,11 @@ fn scan_combines_named_and_process_targets() -> io::Result<()> {
     ];
     expected.sort();
     assert_eq!(scan.targets, expected);
-    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
+    assert!(
+        scan.without_application.is_empty(),
+        "{:?}",
+        scan.without_application
+    );
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
@@ -515,7 +526,11 @@ fn scan_discovers_chatgpt_and_interpreter_cgroups() -> io::Result<()> {
     ];
     expected.sort();
     assert_eq!(scan.targets, expected);
-    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
+    assert!(
+        scan.without_application.is_empty(),
+        "{:?}",
+        scan.without_application
+    );
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
@@ -628,7 +643,11 @@ fn scan_discovers_qure_cgroups() -> io::Result<()> {
     ];
     expected.sort();
     assert_eq!(scan.targets, expected);
-    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
+    assert!(
+        scan.without_application.is_empty(),
+        "{:?}",
+        scan.without_application
+    );
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
@@ -693,7 +712,11 @@ fn scan_discovers_odytty_cgroups() -> io::Result<()> {
     let mut expected = vec![odytty_service, odytty_runtime];
     expected.sort();
     assert_eq!(scan.targets, expected);
-    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
+    assert!(
+        scan.without_application.is_empty(),
+        "{:?}",
+        scan.without_application
+    );
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
@@ -722,7 +745,9 @@ fn toolchain_updates_slice_name_is_exact() {
     assert!(!is_toolchain_updates_slice_name(
         "app-monochromatic-updates.slice"
     ));
-    assert!(!is_toolchain_updates_slice_name("monochromatic-updates.slice"));
+    assert!(!is_toolchain_updates_slice_name(
+        "monochromatic-updates.slice"
+    ));
     assert!(!is_toolchain_updates_slice_name(
         "app-Monochromatic\\x2dupdates.slice"
     ));
@@ -763,7 +788,11 @@ fn scan_discovers_only_the_toolchain_updates_slice() -> io::Result<()> {
         cgroup_root: &cgroup_root,
     })?;
     assert_eq!(scan.targets, vec![updates_slice]);
-    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
+    assert!(
+        scan.without_application.is_empty(),
+        "{:?}",
+        scan.without_application
+    );
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
@@ -797,7 +826,10 @@ fn pi_agent_service_names_are_marked_by_name() {
 #[test]
 fn only_a_pi_unit_and_the_slice_are_marked_by_name_alone() {
     let prefix = "/user.slice/user-1000.slice/user@1000.service/app.slice/";
-    for leaf in ["pi-wg-quicker-model-providers-off-the-tunnel.service", TOOLCHAIN_UPDATES_SLICE] {
+    for leaf in [
+        "pi-wg-quicker-model-providers-off-the-tunnel.service",
+        TOOLCHAIN_UPDATES_SLICE,
+    ] {
         let cgroup = format!("{prefix}{leaf}");
         assert!(is_unconditionally_marked_cgroup(&cgroup, 1000), "{leaf}");
     }
@@ -818,10 +850,19 @@ fn only_a_pi_unit_and_the_slice_are_marked_by_name_alone() {
         1000
     ));
     // A service the watcher does not name is left to the process watch.
-    assert!(!is_unconditionally_marked_cgroup(&format!("{prefix}other.service"), 1000));
-    assert!(!is_unconditionally_marked_cgroup(&format!("{prefix}pi-agent.scope"), 1000));
+    assert!(!is_unconditionally_marked_cgroup(
+        &format!("{prefix}other.service"),
+        1000
+    ));
+    assert!(!is_unconditionally_marked_cgroup(
+        &format!("{prefix}pi-agent.scope"),
+        1000
+    ));
     // Only the watched user's app slice is scanned.
-    assert!(!is_unconditionally_marked_cgroup(&format!("{prefix}pi-agent.service"), 2000));
+    assert!(!is_unconditionally_marked_cgroup(
+        &format!("{prefix}pi-agent.service"),
+        2000
+    ));
     assert!(!is_unconditionally_marked_cgroup(
         "/user.slice/user-1000.slice/user@1000.service/pi-agent.service",
         1000
@@ -845,24 +886,39 @@ fn a_cgroup_name_claims_one_application_and_that_application_has_one_program() {
         desktop_application_of_name("app-ghostty-surface-transient-1.scope"),
         Some(DesktopApplication::Ghostty)
     );
-    assert_eq!(desktop_application_of_name("app-steam@abc.service"), Some(DesktopApplication::Steam));
+    assert_eq!(
+        desktop_application_of_name("app-steam@abc.service"),
+        Some(DesktopApplication::Steam)
+    );
     assert_eq!(
         desktop_application_of_name("app-chatgpt@abc.service"),
         Some(DesktopApplication::Chatgpt)
     );
-    assert_eq!(desktop_application_of_name("app-org.example.Other.scope"), None);
+    assert_eq!(
+        desktop_application_of_name("app-org.example.Other.scope"),
+        None
+    );
     // A Pi unit and the slice are names alone, so no application's program is asked for.
     assert_eq!(
         desktop_application_of_name("pi-wg-quicker-model-providers-off-the-tunnel.service"),
         None
     );
-    assert!(is_application_executable(DesktopApplication::Ghostty, Path::new("/usr/bin/ghostty")));
-    assert!(!is_application_executable(DesktopApplication::Ghostty, Path::new("/usr/bin/ghostty-wrapper")));
+    assert!(is_application_executable(
+        DesktopApplication::Ghostty,
+        Path::new("/usr/bin/ghostty")
+    ));
+    assert!(!is_application_executable(
+        DesktopApplication::Ghostty,
+        Path::new("/usr/bin/ghostty-wrapper")
+    ));
     assert!(is_application_executable(
         DesktopApplication::Steam,
         Path::new("/var/home/user/.local/share/Steam/ubuntu12_32/steam")
     ));
-    assert!(!is_application_executable(DesktopApplication::Steam, Path::new("/usr/bin/steamcmd")));
+    assert!(!is_application_executable(
+        DesktopApplication::Steam,
+        Path::new("/usr/bin/steamcmd")
+    ));
     assert!(is_application_executable(
         DesktopApplication::FirefoxRelease,
         Path::new("/fixture/opt/firefox/firefox-bin")
@@ -875,7 +931,10 @@ fn a_cgroup_name_claims_one_application_and_that_application_has_one_program() {
         DesktopApplication::Chatgpt,
         Path::new("/usr/lib/chatgpt/chatgpt")
     ));
-    assert!(!is_application_executable(DesktopApplication::Chatgpt, Path::new("/usr/bin/curl")));
+    assert!(!is_application_executable(
+        DesktopApplication::Chatgpt,
+        Path::new("/usr/bin/curl")
+    ));
 }
 
 /// A unit a user named after a desktop application and filled with another program is not marked,
@@ -956,7 +1015,11 @@ fn scan_discovers_pi_agent_units() -> io::Result<()> {
         cgroup_root: &cgroup_root,
     })?;
     assert_eq!(scan.targets, vec![agent_unit]);
-    assert!(scan.without_application.is_empty(), "{:?}", scan.without_application);
+    assert!(
+        scan.without_application.is_empty(),
+        "{:?}",
+        scan.without_application
+    );
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
@@ -967,12 +1030,24 @@ fn scan_discovers_pi_agent_units() -> io::Result<()> {
 /// because a name is a name the user chooses.
 #[test]
 fn the_slice_is_matched_by_whole_path_components() {
-    let slice = format!("/user.slice/user-1000.slice/user@1000.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}");
+    let slice = format!(
+        "/user.slice/user-1000.slice/user@1000.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}"
+    );
     assert!(is_in_updates_slice(&slice, 1000));
     assert!(is_in_updates_slice(&format!("{slice}/x.scope"), 1000));
-    assert!(is_in_updates_slice(&format!("{slice}/x.scope/app.slice/y"), 1000));
-    for outside in [format!("{slice}-task.scope"), format!("{slice}x"), "/user.slice/user-1000.slice/user@1000.service/app.slice/x.scope".to_string()] {
+    assert!(is_in_updates_slice(
+        &format!("{slice}/x.scope/app.slice/y"),
+        1000
+    ));
+    for outside in [
+        format!("{slice}-task.scope"),
+        format!("{slice}x"),
+        "/user.slice/user-1000.slice/user@1000.service/app.slice/x.scope".to_string(),
+    ] {
         assert!(!is_in_updates_slice(&outside, 1000), "{outside}");
     }
-    assert!(!is_in_updates_slice(&slice, 2000), "another user's slice is another place");
+    assert!(
+        !is_in_updates_slice(&slice, 2000),
+        "another user's slice is another place"
+    );
 }

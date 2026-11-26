@@ -25,31 +25,54 @@ use std::cmp::Ordering;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
 
 /// Imports what this module uses from `super::across_roots`.
-use super::across_roots::{WinningCopy, winning_copy};
+use super::across_roots::{
+    WinningCopy,
+    winning_copy,
+};
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{current_link, finished_versions_of, is_repository_published, version_directory};
+use super::cargo_installs::{
+    current_link,
+    finished_versions_of,
+    is_repository_published,
+    version_directory,
+};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports what this module uses from `super::layout`.
-use super::layout::{applies_to_family, find_bin_under, find_tool_bin, tool_install_dir};
+use super::layout::{
+    applies_to_family,
+    find_bin_under,
+    find_tool_bin,
+    tool_install_dir,
+};
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 /// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
-/// Imports `find_tool` from `super::util`.
-use super::util::find_tool;
 /// Imports `Repoint` from `super::old_copies`.
 use super::old_copies::Repoint;
 /// Imports what this module uses from `super::old_copy_places`.
-use super::old_copy_places::{Places, links_to_copy, places_of};
+use super::old_copy_places::{
+    Places,
+    links_to_copy,
+    places_of,
+};
 /// Imports `current_link_of` and `is_published_archive` from `super::published_archive`.
-use super::published_archive::{current_link_of, is_published_archive};
+use super::published_archive::{
+    current_link_of,
+    is_published_archive,
+};
+/// Imports `find_tool` from `super::util`.
+use super::util::find_tool;
 
 /// One older version of a tool in a root that does not hold the newest copy.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -93,7 +116,11 @@ pub struct LoserPlan {
 }
 
 /// The directory of `version` of the tool in `root`.
-fn version_dir_in(root: &Path, tool: &LockedTool, version: &str) -> Option<PathBuf> {
+fn version_dir_in(
+    root: &Path,
+    tool: &LockedTool,
+    version: &str,
+) -> Option<PathBuf> {
     if is_published_archive(tool) {
         return tool_install_dir(root, &tool.declaration.id, version).ok();
     }
@@ -102,7 +129,11 @@ fn version_dir_in(root: &Path, tool: &LockedTool, version: &str) -> Option<PathB
 
 /// The file of `bin` inside one version directory,
 /// when the version holds it.
-fn bin_in(directory: &Path, tool: &LockedTool, bin: &str) -> Option<PathBuf> {
+fn bin_in(
+    directory: &Path,
+    tool: &LockedTool,
+    bin: &str,
+) -> Option<PathBuf> {
     if is_published_archive(tool) {
         return find_bin_under(directory, bin);
     }
@@ -116,7 +147,11 @@ fn bin_in(directory: &Path, tool: &LockedTool, bin: &str) -> Option<PathBuf> {
 /// The older copies of the tool in `root`,
 /// newest first,
 /// each with its declared bins.
-fn older_copies_in(root: &Path, tool: &LockedTool, winner: &WinningCopy) -> Vec<LoserCopy> {
+fn older_copies_in(
+    root: &Path,
+    tool: &LockedTool,
+    winner: &WinningCopy,
+) -> Vec<LoserCopy> {
     let mut copies: Vec<LoserCopy> = Vec::new();
     for version in finished_versions_of(root, tool) {
         if compare_versions(&version, &winner.version) != Ordering::Less {
@@ -131,13 +166,20 @@ fn older_copies_in(root: &Path, tool: &LockedTool, winner: &WinningCopy) -> Vec<
                 bins.push((bin.clone(), file));
             }
         }
-        copies.push(LoserCopy { version, directory, bins });
+        copies.push(LoserCopy {
+            version,
+            directory,
+            bins,
+        });
     }
     return copies;
 }
 
 /// The `current` link of the tool in `root`.
-fn current_in(root: &Path, tool: &LockedTool) -> Option<PathBuf> {
+fn current_in(
+    root: &Path,
+    tool: &LockedTool,
+) -> Option<PathBuf> {
     if is_published_archive(tool) {
         return current_link_of(root, &tool.declaration.id).ok();
     }
@@ -146,16 +188,25 @@ fn current_in(root: &Path, tool: &LockedTool) -> Option<PathBuf> {
 
 /// Why the older copies stay before any link is looked at,
 /// or `None`.
-fn precondition_reason(ctx: &Context, tool: &LockedTool, copies: &[LoserCopy], failed: &[(String, String)]) -> Option<String> {
+fn precondition_reason(
+    ctx: &Context,
+    tool: &LockedTool,
+    copies: &[LoserCopy],
+    failed: &[(String, String)],
+) -> Option<String> {
     for (id, _) in failed {
         if *id == tool.declaration.id {
-            return Some(format!("the managed install of {id} failed in this run, so this may be the only working copy"));
+            return Some(format!(
+                "the managed install of {id} failed in this run, so this may be the only working copy"
+            ));
         }
     }
     for copy in copies {
         for (bin, _) in &copy.bins {
             if find_tool_bin(tool, bin, ctx.scope, ctx.env, &[]).is_none() {
-                return Some(format!("the newest copy has no working {bin}, so this may be the only working one"));
+                return Some(format!(
+                    "the newest copy has no working {bin}, so this may be the only working one"
+                ));
             }
         }
     }
@@ -174,7 +225,15 @@ fn precondition_reason(ctx: &Context, tool: &LockedTool, copies: &[LoserCopy], f
 /// ```ts
 /// function planRoot(ctx: Context, tool: LockedTool, winner: WinningCopy, root: string, places: Places): LoserPlan
 /// ```
-fn plan_root(ctx: &Context, tool: &LockedTool, winner: &WinningCopy, root: PathBuf, copies: Vec<LoserCopy>, failed: &[(String, String)], places: &Places) -> LoserPlan {
+fn plan_root(
+    ctx: &Context,
+    tool: &LockedTool,
+    winner: &WinningCopy,
+    root: PathBuf,
+    copies: Vec<LoserCopy>,
+    failed: &[(String, String)],
+    places: &Places,
+) -> LoserPlan {
     let mut repoints: Vec<Repoint> = Vec::new();
     let mut unreadable: Vec<PathBuf> = Vec::new();
     for copy in &copies {
@@ -185,7 +244,11 @@ fn plan_root(ctx: &Context, tool: &LockedTool, winner: &WinningCopy, root: PathB
                 continue;
             };
             for found in scan.found {
-                repoints.push(Repoint { link: found.path, kind: found.kind, target: target.clone() });
+                repoints.push(Repoint {
+                    link: found.path,
+                    kind: found.kind,
+                    target: target.clone(),
+                });
             }
         }
     }
@@ -197,17 +260,27 @@ fn plan_root(ctx: &Context, tool: &LockedTool, winner: &WinningCopy, root: PathB
     }
     if root != ctx.scope.toolchain_root {
         for reason in &places.incomplete {
-            reasons.push(format!("another scope's links may point at it and a place could not be searched: {reason}"));
+            reasons.push(format!(
+                "another scope's links may point at it and a place could not be searched: {reason}"
+            ));
         }
     }
     for directory in unreadable {
-        reasons.push(format!("{} could not be listed, so links in it are unseen", directory.display()));
+        reasons.push(format!(
+            "{} could not be listed, so links in it are unseen",
+            directory.display()
+        ));
     }
-    let kept: Option<String> = if reasons.is_empty() { None } else { Some(reasons.join("; ")) };
-    let forward: Option<(PathBuf, PathBuf)> = match (current_in(&root, tool), current_in(&winner.root, tool)) {
-        (Some(link), Some(target)) => Some((link, target)),
-        _ => None,
+    let kept: Option<String> = if reasons.is_empty() {
+        None
+    } else {
+        Some(reasons.join("; "))
     };
+    let forward: Option<(PathBuf, PathBuf)> =
+        match (current_in(&root, tool), current_in(&winner.root, tool)) {
+            (Some(link), Some(target)) => Some((link, target)),
+            _ => None,
+        };
     return LoserPlan {
         tool_id: tool.declaration.id.clone(),
         root,
@@ -222,7 +295,10 @@ fn plan_root(ctx: &Context, tool: &LockedTool, winner: &WinningCopy, root: PathB
 }
 
 /// Orders two re-points by the link they move.
-fn compare_repoints(left: &Repoint, right: &Repoint) -> Ordering {
+fn compare_repoints(
+    left: &Repoint,
+    right: &Repoint,
+) -> Ordering {
     return left.link.cmp(&right.link);
 }
 
@@ -238,7 +314,10 @@ fn compare_repoints(left: &Repoint, right: &Repoint) -> Ordering {
 /// ```ts
 /// export function emptiedBy(ctx: Context, plan: LoserPlan): boolean
 /// ```
-pub fn emptied_by(ctx: &Context, plan: &LoserPlan) -> bool {
+pub fn emptied_by(
+    ctx: &Context,
+    plan: &LoserPlan,
+) -> bool {
     let Some(tool) = find_tool(ctx.tools, &plan.tool_id) else {
         return false;
     };
@@ -267,16 +346,25 @@ pub fn emptied_by(ctx: &Context, plan: &LoserPlan) -> bool {
 /// ```ts
 /// export function planLosers(ctx: Context, failed: [string, string][], places: Places | undefined): LoserPlan[]
 /// ```
-pub fn plan_losers(ctx: &Context, failed: &[(String, String)], places: &mut Option<Places>) -> Vec<LoserPlan> {
+pub fn plan_losers(
+    ctx: &Context,
+    failed: &[(String, String)],
+    places: &mut Option<Places>,
+) -> Vec<LoserPlan> {
     let mut plans: Vec<LoserPlan> = Vec::new();
     for tool in ctx.tools {
-        if !is_repository_published(tool) || !applies_to_family(&tool.declaration.os, ctx.host.family) {
+        if !is_repository_published(tool)
+            || !applies_to_family(&tool.declaration.os, ctx.host.family)
+        {
             continue;
         }
         let Some(winner) = winning_copy(ctx.scope, tool) else {
             continue;
         };
-        for root in [ctx.scope.toolchain_root.clone(), ctx.scope.other_toolchain_root.clone()] {
+        for root in [
+            ctx.scope.toolchain_root.clone(),
+            ctx.scope.other_toolchain_root.clone(),
+        ] {
             if root == winner.root {
                 continue;
             }
@@ -285,7 +373,9 @@ pub fn plan_losers(ctx: &Context, failed: &[(String, String)], places: &mut Opti
                 continue;
             }
             let searched: &Places = places_of(places, ctx.scope, ctx.env, ctx.runner);
-            plans.push(plan_root(ctx, tool, &winner, root, copies, failed, searched));
+            plans.push(plan_root(
+                ctx, tool, &winner, root, copies, failed, searched,
+            ));
         }
     }
     return plans;

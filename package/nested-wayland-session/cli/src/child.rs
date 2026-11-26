@@ -25,7 +25,10 @@
 use std::{
     ffi::OsStr,
     process::Command,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// What:
@@ -38,8 +41,11 @@ use std::{
 /// import { Timer, TimeoutAction, LoopHandle } from "smithay/calloop";
 /// ```
 use smithay::reexports::calloop::{
-    timer::{TimeoutAction, Timer},
     LoopHandle,
+    timer::{
+        TimeoutAction,
+        Timer,
+    },
 };
 
 /// What:
@@ -57,7 +63,10 @@ use crate::lazy_error_text::with_message;
 ///  Structured log macros.
 /// Why:
 ///       Report spawn and exit events.
-use tracing::{info, warn};
+use tracing::{
+    info,
+    warn,
+};
 
 /// What:
 ///      `use crate::{state::Compositor, systemd::Isolation};`.
@@ -71,7 +80,10 @@ use tracing::{info, warn};
 /// ```ts
 /// import { Compositor } from "./state"; import { Isolation } from "./systemd";
 /// ```
-use crate::{state::Compositor, systemd::Isolation};
+use crate::{
+    state::Compositor,
+    systemd::Isolation,
+};
 
 /// How often to poll the hosted child for exit.
 ///
@@ -177,7 +189,10 @@ pub fn spawn_child(
     //           `.with_context(closure)` lazily attaches a message on error; `?` unwraps
     //           or returns the error.
     // Why:      Actually launch the client, failing cleanly if the binary is missing.
-    let child = with_message(cmd.spawn(), format_args!("failed to spawn hosted client: {program}"))?;
+    let child = with_message(
+        cmd.spawn(),
+        format_args!("failed to spawn hosted client: {program}"),
+    )?;
 
     // What:     `info!(...)`. Log the spawn with the socket the child will use.
     // Why:      Make the wiring visible for debugging.
@@ -213,7 +228,10 @@ pub fn request_hosted_client_shutdown(state: &mut Compositor) {
 }
 
 /// Returns whether pending graceful shutdown passed its fallback deadline.
-fn shutdown_expired(deadline: Option<Instant>, now: Instant) -> bool {
+fn shutdown_expired(
+    deadline: Option<Instant>,
+    now: Instant,
+) -> bool {
     return matches!(deadline, Some(value) if now >= value);
 }
 
@@ -238,9 +256,13 @@ fn shutdown_expired(deadline: Option<Instant>, now: Instant) -> bool {
 /// ```ts
 /// function onChildPollTimer(_deadline, _metadata, state) { pollChild(state); return reschedule(POLL_INTERVAL); }
 /// ```
-fn on_child_poll_timer(_deadline: Instant, _metadata: &mut (), state: &mut Compositor) -> TimeoutAction {
+fn on_child_poll_timer(
+    _deadline: Instant,
+    _metadata: &mut (),
+    state: &mut Compositor,
+) -> TimeoutAction {
     poll_child(state);
-    return TimeoutAction::ToDuration(POLL_INTERVAL)
+    return TimeoutAction::ToDuration(POLL_INTERVAL);
 }
 
 /// What:

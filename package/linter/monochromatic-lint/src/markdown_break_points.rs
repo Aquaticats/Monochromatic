@@ -18,7 +18,10 @@ const ABBREVIATIONS: &[&str] = &[
 ];
 
 /// Recognize an abbreviation ending at this period without lowercasing and shifting source offsets.
-fn abbreviation_at(source: &str, end: usize) -> bool {
+fn abbreviation_at(
+    source: &str,
+    end: usize,
+) -> bool {
     for abbreviation in ABBREVIATIONS {
         // Checked subtraction and slicing reject short or non-character-aligned candidates without guessing offsets.
         let Some(start): Option<usize> = end.checked_sub(abbreviation.len()) else {
@@ -58,7 +61,11 @@ fn separator(character: Option<char>) -> bool {
 }
 
 /// Find content before any existing line ending across the node tail and its following paragraph source.
-fn needs_break(slice_tail: &str, trailing: &str, paragraph_tail: bool) -> bool {
+fn needs_break(
+    slice_tail: &str,
+    trailing: &str,
+    paragraph_tail: bool,
+) -> bool {
     // Borrow both stretches; neither creates a copied whitespace lookahead or a fixed-size cutoff.
     for text in [slice_tail, trailing] {
         for byte in text.bytes() {
@@ -85,7 +92,11 @@ fn needs_break(slice_tail: &str, trailing: &str, paragraph_tail: bool) -> bool {
 /// ```ts
 /// function breakOffsets(slice, trailingSource, paragraphTail): number[];
 /// ```
-pub(crate) fn break_offsets(slice: &str, trailing: &str, paragraph_tail: bool) -> Vec<usize> {
+pub(crate) fn break_offsets(
+    slice: &str,
+    trailing: &str,
+    paragraph_tail: bool,
+) -> Vec<usize> {
     // Own a variable-length result list; usize indexes source bytes rather than UTF-16 columns.
     let mut offsets: Vec<usize> = Vec::<usize>::new();
     for (index, character) in slice.char_indices() {

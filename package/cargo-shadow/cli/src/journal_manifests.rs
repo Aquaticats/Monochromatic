@@ -19,13 +19,23 @@ use std::fs;
 /// Imports `io` for the file-system error type.
 use std::io;
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the ownership evidence reader.
 use crate::file_owner::observe;
 /// Imports the manifest index name,
 /// the kept-file naming and the replace outcome.
-use crate::journal::{KeepAs, MANIFEST_INDEX_FILE, REFUSED_SUFFIX, ReplaceOutcome, decode_path, replace_keeping_with_hook};
+use crate::journal::{
+    KeepAs,
+    MANIFEST_INDEX_FILE,
+    REFUSED_SUFFIX,
+    ReplaceOutcome,
+    decode_path,
+    replace_keeping_with_hook,
+};
 
 /// One manifest recovered from a journal.
 pub(crate) struct JournaledManifest {
@@ -66,7 +76,10 @@ pub(crate) fn read_manifest_index(directory: &Path) -> io::Result<Vec<JournaledM
     /// Why:
     /// A function replaces the closure that every refusal of this reader called.
     fn corrupt(why: &str) -> io::Error {
-        return io::Error::new(io::ErrorKind::InvalidData, format!("the manifest index is corrupt: {why}"));
+        return io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("the manifest index is corrupt: {why}"),
+        );
     }
     // `let mut`: a binding that may change.
     let mut lines = text.lines();
@@ -123,7 +136,11 @@ pub(crate) fn read_manifest_index(directory: &Path) -> io::Result<Vec<JournaledM
         // Macro `format!`: builds or prints text (or a list) from a template.
         let before: String = fs::read_to_string(directory.join(format!("m{}.toml", found.len())))?;
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        found.push(JournaledManifest { crate_dir: crate_dir.to_string(), path, before });
+        found.push(JournaledManifest {
+            crate_dir: crate_dir.to_string(),
+            path,
+            before,
+        });
     }
     // `Some`: the present or the absent value of an `Option`.
     if ended != Some(found.len()) {
@@ -166,7 +183,12 @@ pub(crate) enum RootDecision {
 /// ```ts
 /// function recoverManifests(manifests: JournaledManifest[], decisions: Map<string, RootDecision>, messages: string[]): boolean
 /// ```
-pub(crate) fn recover_manifests(manifests: &[JournaledManifest], decisions: &[(String, RootDecision)], between: &dyn Fn(&Path), messages: &mut Vec<String>) -> bool {
+pub(crate) fn recover_manifests(
+    manifests: &[JournaledManifest],
+    decisions: &[(String, RootDecision)],
+    between: &dyn Fn(&Path),
+    messages: &mut Vec<String>,
+) -> bool {
     let mut all_settled: bool = true;
     for manifest in manifests {
         // Closure `|(crate_dir, _)|`: an anonymous function, like a TS arrow function.
@@ -211,12 +233,16 @@ pub(crate) fn recover_manifests(manifests: &[JournaledManifest], decisions: &[(S
         let live: String = match observe(&manifest.path) {
             Ok(Some(found)) => found.text,
             Ok(None) => {
-                messages.push(format!("{shown} is missing; the manifest of a killed run was not put back"));
+                messages.push(format!(
+                    "{shown} is missing; the manifest of a killed run was not put back"
+                ));
                 continue;
             }
             Err(error) => {
                 all_settled = false;
-                messages.push(format!("{shown} could not be read ({error}); its journal was kept"));
+                messages.push(format!(
+                    "{shown} could not be read ({error}); its journal was kept"
+                ));
                 continue;
             }
         };

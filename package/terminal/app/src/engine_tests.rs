@@ -9,7 +9,10 @@
 //           `*_tests.rs` files are exempt from the linter).
 
 use super::*;
-use crate::scroll::{DEFAULT_CELL_HEIGHT_PX, DEFAULT_CELL_WIDTH_PX};
+use crate::scroll::{
+    DEFAULT_CELL_HEIGHT_PX,
+    DEFAULT_CELL_WIDTH_PX,
+};
 
 #[test]
 fn extracts_vt_text_and_bold_style() -> Result<(), TerminalError> {
@@ -35,7 +38,7 @@ fn extracts_vt_text_and_bold_style() -> Result<(), TerminalError> {
         .find(|cell| return cell.text == "p")
         .expect("rendered plain p cell");
     assert!(!plain_cell.bold);
-    return Ok(())
+    return Ok(());
 }
 
 #[test]
@@ -57,5 +60,5 @@ fn scrolls_to_scrollback_top() -> Result<(), TerminalError> {
         .map(|cell| return cell.text.as_str())
         .collect();
     assert!(top_text.contains("one"));
-    return Ok(())
+    return Ok(());
 }

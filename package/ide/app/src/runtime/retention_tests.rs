@@ -1,12 +1,25 @@
 //! Removal of unused key folders on disposable cache folders,
 //!  with injected times.
 
-use super::{MARKER, Sweep, UNUSED_LIMIT, mark_used, remove_unused, unpack_marked};
+use super::{
+    MARKER,
+    Sweep,
+    UNUSED_LIMIT,
+    mark_used,
+    remove_unused,
+    unpack_marked,
+};
 use std::{
     fs,
-    os::unix::fs::{PermissionsExt, symlink},
+    os::unix::fs::{
+        PermissionsExt,
+        symlink,
+    },
     path::Path,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 /// The key of the build running in each test.
@@ -19,7 +32,10 @@ fn days(count: u64) -> Duration {
 
 /// Set the modification time of a file or folder,
 ///  without following a link at `path`'s end.
-fn set_time(path: &Path, time: SystemTime) {
+fn set_time(
+    path: &Path,
+    time: SystemTime,
+) {
     let handle = fs::File::open(path).expect("open to set its time");
     handle.set_modified(time).expect("set modification time");
 }
@@ -27,7 +43,11 @@ fn set_time(path: &Path, time: SystemTime) {
 /// A key folder holding a cached library,
 ///  with its marker last renewed at `used`,
 ///  or no marker.
-fn key_folder(runtime: &Path, key: &str, used: Option<SystemTime>) {
+fn key_folder(
+    runtime: &Path,
+    key: &str,
+    used: Option<SystemTime>,
+) {
     let folder = runtime.join(key);
     fs::create_dir_all(folder.join("grammars")).expect("key folder");
     fs::write(folder.join("grammars/sql.so"), b"library").expect("cached library");

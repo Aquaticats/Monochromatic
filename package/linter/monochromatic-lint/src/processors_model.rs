@@ -10,7 +10,10 @@
 
 /// Import the host diagnostic and owned,
 ///  shared snapshot handle.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// What:
 ///  Arc shares immutable owned records,
 ///  unlike Rc (single-thread only) or Box (one owner).
@@ -66,7 +69,10 @@ pub struct ProcessorError {
 /// Render the affected host and operation for application error handling.
 impl std::fmt::Display for ProcessorError {
     /// Borrow the formatter only for this write.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return write!(
             formatter,
             "{} at byte {}: {}",
@@ -162,7 +168,10 @@ impl Mapping {
     }
 
     /// Carry an unsupported operation to its original host anchor.
-    pub(crate) fn error(&self, message: &str) -> ProcessorError {
+    pub(crate) fn error(
+        &self,
+        message: &str,
+    ) -> ProcessorError {
         // Delegate original-host addressing to the shared diagnostic mapper.
         let offset: usize = crate::processors_spans::anchor(self);
         return ProcessorError {
@@ -174,7 +183,11 @@ impl Mapping {
     }
 
     /// Carry a native extraction error at its actual direct-source position to the original host.
-    pub(crate) fn error_at(&self, offset: usize, message: &str) -> ProcessorError {
+    pub(crate) fn error_at(
+        &self,
+        offset: usize,
+        message: &str,
+    ) -> ProcessorError {
         let mut error: ProcessorError = self.error(message);
         if let Some((mapped, _)) = crate::processors_spans::host_range(self, offset, offset) {
             error.offset = mapped;
@@ -183,7 +196,10 @@ impl Mapping {
     }
 
     /// Produce the explicit processing-failure record expected by the fixing/output engines.
-    pub(crate) fn failure(&self, message: &str) -> Diagnostic {
+    pub(crate) fn failure(
+        &self,
+        message: &str,
+    ) -> Diagnostic {
         // Map the processor's authored anchor, never synthetic main text.
         let error: ProcessorError = self.error(message);
         let span = crate::processors_spans::host_span(self.root(), error.offset, 0);

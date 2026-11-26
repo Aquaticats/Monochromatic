@@ -22,7 +22,10 @@ use ide_app::language::identity::DocumentStamp;
 /// ```ts
 /// const now = performance.now();
 /// ```
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long the pointer rests on one character before hover information is asked for.
 pub(super) const REST: Duration = Duration::from_millis(350);
@@ -127,7 +130,10 @@ impl Rest {
     ///  so a rest that was not asked for yet starts again,
     ///  whether the pointer was over a character or over none,
     ///  and remembers that the text under it may have changed.
-    pub(super) fn follow(&mut self, view: View) {
+    pub(super) fn follow(
+        &mut self,
+        view: View,
+    ) {
         let Some(seen) = self.seen else {
             self.seen = Some(view);
             return;
@@ -174,7 +180,10 @@ impl Rest {
     ///  The rest is now a rest over that character,
     ///  asked about once.
     ///  Left as a rest over no character it would close the popup of the answer as soon as it is shown.
-    pub(super) fn asked_about(&mut self, character: usize) {
+    pub(super) fn asked_about(
+        &mut self,
+        character: usize,
+    ) {
         if let Some((_, since)) = self.at {
             self.at = Some((Some(character), since));
         }
@@ -183,7 +192,11 @@ impl Rest {
 
     /// The pointer moved to `character` at `spot`;
     ///  a different character restarts the rest.
-    pub(super) fn moved(&mut self, character: Option<usize>, spot: Spot) {
+    pub(super) fn moved(
+        &mut self,
+        character: Option<usize>,
+        spot: Spot,
+    ) {
         self.spot = Some(spot);
         self.seen = Some(View {
             offset: spot.offset,
@@ -270,7 +283,11 @@ impl Rest {
 /// ```ts
 /// function characterAt(state: State, y: number, x: number): number | undefined
 /// ```
-pub(super) fn character_at(state: &State, y: f32, x: f32) -> Option<usize> {
+pub(super) fn character_at(
+    state: &State,
+    y: f32,
+    x: f32,
+) -> Option<usize> {
     if y < 0.0 || x < 0.0 || y >= state.row_map.height() {
         return None;
     }

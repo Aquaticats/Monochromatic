@@ -10415,6 +10415,12 @@ and each shown to fail against the shape it replaces:
   and two files start a child on macOS or Windows only,
   which the owner's "Ignore Win and mac until I say so."
   keeps unconverted.
+  Round of 2026-11-25 (`fix/git-policy-cli-merge-file-calls-off-the-runtime`,
+  `713b8c1f53` to `7304e3db72`):
+  the merge's reads are converted and their rows are gone,
+  seven of them rather than eight because `merge/merge_second_pass_worktree.rs` had already stopped reading inside a task,
+  which leaves 54 rows (`package/git-policy/cli/doc/debt-ledger-2026-11-25.md`,
+  item 18).
   An entry whose code is gone fails the suite,
   so the list shrinks as the move lands.
 - What the guards do not see:

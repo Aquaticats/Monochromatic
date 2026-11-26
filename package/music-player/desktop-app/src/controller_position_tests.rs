@@ -12,12 +12,22 @@ use super::*;
 
 // What:     `use ringbuf::{HeapCons, HeapRb};` and the ring traits.
 // Why:      The test builds the ring itself and pops from it the way the output callback does.
-use ringbuf::traits::{Consumer, Observer, Split};
-use ringbuf::{HeapCons, HeapRb};
+use ringbuf::traits::{
+    Consumer,
+    Observer,
+    Split,
+};
+use ringbuf::{
+    HeapCons,
+    HeapRb,
+};
 
 // What:     `use std::sync::{Arc, Mutex};`.
 // Why:      The update callback appends what the controller emits to a list the test reads.
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 // What:     `use std::time::Duration;`.
 // Why:      The drain hold and the idle park are spans of time that the tests build and compare.
@@ -51,7 +61,12 @@ enum Seen {
 //           `TRACK_SECONDS` of a sine.
 // Why:      A real file keeps the decoder, the chunking and the end-of-stream signal real; the two tracks differ in
 //           pitch and level so the samples around a join prove which track they belong to.
-fn write_tone_wav(path: &Path, rate: u32, hz: f64, amplitude: f64) {
+fn write_tone_wav(
+    path: &Path,
+    rate: u32,
+    hz: f64,
+    amplitude: f64,
+) {
     let frames = rate * TRACK_SECONDS;
     let data_bytes = frames * 2;
     let mut bytes: Vec<u8> = Vec::new();
@@ -88,8 +103,15 @@ struct Rig {
 // What:     `fn rig(tag: &str, second_rate: u32) -> Rig`. Build the rig in a fresh temporary directory; the second
 //           track has `second_rate`, so a different value forces the "output must be rebuilt" path.
 // Why:      Tests must never touch the user's music or session.
-fn rig(tag: &str, second_rate: u32) -> Rig {
-    let directory = crate::test_scratch::scratch_root().join(format!("mp-position-{}-{}", std::process::id(), tag));
+fn rig(
+    tag: &str,
+    second_rate: u32,
+) -> Rig {
+    let directory = crate::test_scratch::scratch_root().join(format!(
+        "mp-position-{}-{}",
+        std::process::id(),
+        tag
+    ));
     std::fs::create_dir_all(&directory).expect("the test directory should be creatable");
     let first = directory.join("t1.wav");
     let second = directory.join("t2.wav");
@@ -102,7 +124,10 @@ fn rig(tag: &str, second_rate: u32) -> Rig {
             let mut list = sink.lock().expect("the update list should not be poisoned");
             match update {
                 Update::Position(secs) => list.push(Seen::Position(secs)),
-                Update::NowPlaying { name, .. } => list.push(Seen::NowPlaying(name)),
+                Update::NowPlaying {
+                    name,
+                    ..
+                } => list.push(Seen::NowPlaying(name)),
                 _ => {}
             }
         }),
@@ -112,10 +137,18 @@ fn rig(tag: &str, second_rate: u32) -> Rig {
     controller.queue.set_tracks(vec![first, second]);
     controller.queue.play_index(0);
     controller.playing = true;
-    assert!(controller.load_current(), "the first test track should load");
+    assert!(
+        controller.load_current(),
+        "the first test track should load"
+    );
     let (producer, consumer) = HeapRb::<f32>::new(RATE as usize).split();
     controller.producer = Some(producer);
-    return Rig { controller, consumer, seen, directory }
+    return Rig {
+        controller,
+        consumer,
+        seen,
+        directory,
+    };
 }
 
 // What:     `fn pump_all(controller: &mut Controller)`. Pump until the controller has nothing to push.
@@ -131,7 +164,10 @@ fn pump_all(controller: &mut Controller) {
 // What:     `fn consume(consumer: &mut HeapCons<f32>, samples: usize) -> Vec<f32>`. Pop up to `samples` as the output
 //           would.
 // Why:      The consumer's read index is the only thing the audible position may depend on.
-fn consume(consumer: &mut HeapCons<f32>, samples: usize) -> Vec<f32> {
+fn consume(
+    consumer: &mut HeapCons<f32>,
+    samples: usize,
+) -> Vec<f32> {
     let mut taken = Vec::new();
     while taken.len() < samples {
         match consumer.try_pop() {
@@ -139,7 +175,7 @@ fn consume(consumer: &mut HeapCons<f32>, samples: usize) -> Vec<f32> {
             None => break,
         }
     }
-    return taken
+    return taken;
 }
 
 // What:     `fn decode_all(path: &Path) -> Vec<f32>`. Every sample of a file, decoded straight from the source.
@@ -162,11 +198,13 @@ fn positions(seen: &Arc<Mutex<Vec<Seen>>>) -> Vec<f64> {
     let list = seen.lock().expect("the update list should not be poisoned");
     return list
         .iter()
-        .filter_map(|item| return match item {
-            Seen::Position(secs) => Some(*secs),
-            Seen::NowPlaying(_) => None,
+        .filter_map(|item| {
+            return match item {
+                Seen::Position(secs) => Some(*secs),
+                Seen::NowPlaying(_) => None,
+            };
         })
-        .collect()
+        .collect();
 }
 
 // What:     `fn now_playing(seen: &Arc<Mutex<Vec<Seen>>>) -> Vec<String>`. Every `NowPlaying` name emitted so far.
@@ -175,17 +213,19 @@ fn now_playing(seen: &Arc<Mutex<Vec<Seen>>>) -> Vec<String> {
     let list = seen.lock().expect("the update list should not be poisoned");
     return list
         .iter()
-        .filter_map(|item| return match item {
-            Seen::NowPlaying(name) => Some(name.clone()),
-            Seen::Position(_) => None,
+        .filter_map(|item| {
+            return match item {
+                Seen::NowPlaying(name) => Some(name.clone()),
+                Seen::Position(_) => None,
+            };
         })
-        .collect()
+        .collect();
 }
 
 // What:     `fn names(list: &[&str]) -> Vec<String>`. Owned strings for comparisons.
 // Why:      Keeps assertions on `now_playing` short.
 fn names(list: &[&str]) -> Vec<String> {
-    return list.iter().map(|item| return (*item).to_string()).collect()
+    return list.iter().map(|item| return (*item).to_string()).collect();
 }
 
 #[test]
@@ -193,7 +233,11 @@ fn guard_a_full_ring_moves_no_position_before_the_output_takes_a_sample() {
     // The old behavior counted every pushed frame as played: a full one-second ring meant Position(~1.0).
     let mut rig = rig("full-ring", RATE);
     pump_all(&mut rig.controller);
-    assert_eq!(rig.consumer.occupied_len(), RATE as usize, "the ring should be full");
+    assert_eq!(
+        rig.consumer.occupied_len(),
+        RATE as usize,
+        "the ring should be full"
+    );
     assert!(!rig.controller.tick_playback());
     assert_eq!(positions(&rig.seen), vec![0.0]);
     assert!(rig.controller.audible_secs().abs() < 1e-9);
@@ -205,15 +249,27 @@ fn guard_position_follows_the_frames_the_output_consumed() {
     pump_all(&mut rig.controller);
     assert_eq!(consume(&mut rig.consumer, 4_000).len(), 4_000);
     rig.controller.tick_playback();
-    let last = positions(&rig.seen).last().copied().expect("a position should have been emitted");
-    assert!((last - 0.5).abs() < 1e-9, "half a second consumed should read 0.5, got {last}");
+    let last = positions(&rig.seen)
+        .last()
+        .copied()
+        .expect("a position should have been emitted");
+    assert!(
+        (last - 0.5).abs() < 1e-9,
+        "half a second consumed should read 0.5, got {last}"
+    );
     // The decoder refills the ring; the position still reads only what was consumed.
     pump_all(&mut rig.controller);
     assert!((rig.controller.audible_secs() - 0.5).abs() < 1e-9);
     assert_eq!(consume(&mut rig.consumer, 800).len(), 800);
     rig.controller.tick_playback();
-    let after = positions(&rig.seen).last().copied().expect("a position should have been emitted");
-    assert!((after - 0.6).abs() < 1e-9, "0.6 s consumed should read 0.6, got {after}");
+    let after = positions(&rig.seen)
+        .last()
+        .copied()
+        .expect("a position should have been emitted");
+    assert!(
+        (after - 0.6).abs() < 1e-9,
+        "0.6 s consumed should read 0.6, got {after}"
+    );
 }
 
 #[test]
@@ -249,10 +305,16 @@ fn guard_a_same_format_next_track_follows_in_the_same_ring_and_is_announced_when
             break;
         }
     }
-    assert!(staged_while_old_audible, "the next track should be staged while the old one is audible");
+    assert!(
+        staged_while_old_audible,
+        "the next track should be staged while the old one is audible"
+    );
     // The second track is announced exactly when the output has consumed the first one, to the 1 000-sample step.
     let announced = announced_at_samples.expect("the second track should be announced");
-    assert!((TRACK_SAMPLES..TRACK_SAMPLES + 1_000).contains(&announced), "announced after {announced} samples");
+    assert!(
+        (TRACK_SAMPLES..TRACK_SAMPLES + 1_000).contains(&announced),
+        "announced after {announced} samples"
+    );
     assert_eq!(now_playing(&rig.seen), names(&["t1.wav", "t2.wav"]));
     assert_eq!(rig.controller.queue.current_index(), Some(1));
     assert!(rig.controller.staged.is_none());
@@ -262,7 +324,10 @@ fn guard_a_same_format_next_track_follows_in_the_same_ring_and_is_announced_when
     let second = decode_all(&rig.directory.join("t2.wav"));
     assert_eq!(first.len(), TRACK_SAMPLES);
     for (index, sample) in first.iter().enumerate() {
-        assert!((played[index] - sample * first_gain).abs() < 1e-5, "sample {index} of the first track differs");
+        assert!(
+            (played[index] - sample * first_gain).abs() < 1e-5,
+            "sample {index} of the first track differs"
+        );
     }
     for index in 0..1_000 {
         assert!(
@@ -272,8 +337,15 @@ fn guard_a_same_format_next_track_follows_in_the_same_ring_and_is_announced_when
     }
     // The position of the new track counts from its own first frame.
     let all = positions(&rig.seen);
-    assert!(all.iter().any(|secs| return (secs - f64::from(TRACK_SECONDS)).abs() < 0.11), "the old track reaches its length");
-    assert!(all.last().is_some_and(|secs| return *secs < 1.0), "the new track counts from zero");
+    assert!(
+        all.iter()
+            .any(|secs| return (secs - f64::from(TRACK_SECONDS)).abs() < 0.11),
+        "the old track reaches its length"
+    );
+    assert!(
+        all.last().is_some_and(|secs| return *secs < 1.0),
+        "the new track counts from zero"
+    );
 }
 
 #[test]
@@ -298,14 +370,26 @@ fn guard_a_different_format_next_track_waits_for_the_tail_and_no_sample_is_lost(
             break;
         }
     }
-    assert!(handed_off, "the handoff should happen once the ring played out");
-    assert!(saw_tail_while_draining, "the decoder should finish while audio is still queued");
-    assert_eq!(consumed, TRACK_SAMPLES, "every sample of the first track should reach the output");
+    assert!(
+        handed_off,
+        "the handoff should happen once the ring played out"
+    );
+    assert!(
+        saw_tail_while_draining,
+        "the decoder should finish while audio is still queued"
+    );
+    assert_eq!(
+        consumed, TRACK_SAMPLES,
+        "every sample of the first track should reach the output"
+    );
     assert_eq!(now_playing(&rig.seen), names(&["t1.wav", "t2.wav"]));
     assert_eq!(rig.controller.queue.current_index(), Some(1));
     // The last position of the finished track is its full length, and the new track starts from zero.
     let all = positions(&rig.seen);
-    assert!(all.iter().any(|secs| return (secs - f64::from(TRACK_SECONDS)).abs() < 0.11));
+    assert!(
+        all.iter()
+            .any(|secs| return (secs - f64::from(TRACK_SECONDS)).abs() < 0.11)
+    );
     assert!(all.last().is_some_and(|secs| return secs.abs() < 1e-9));
     assert!(!rig.controller.clock.is_draining());
 }
@@ -347,8 +431,14 @@ fn seek_resets_the_position_to_the_target_and_counts_from_there() {
     assert!((rig.controller.audible_secs() - 2.0).abs() < 1e-9);
     consume(&mut rig.consumer, 4_000);
     rig.controller.tick_playback();
-    let last = positions(&rig.seen).last().copied().expect("a position should have been emitted");
-    assert!((last - 2.5).abs() < 1e-9, "half a second after the seek should read 2.5, got {last}");
+    let last = positions(&rig.seen)
+        .last()
+        .copied()
+        .expect("a position should have been emitted");
+    assert!(
+        (last - 2.5).abs() < 1e-9,
+        "half a second after the seek should read 2.5, got {last}"
+    );
 }
 
 #[test]
@@ -379,7 +469,10 @@ fn seeking_while_the_next_track_is_staged_seeks_the_audible_track() {
     }
     assert_eq!(rig.controller.queue.current_index(), Some(0));
     rig.controller.seek(1.0);
-    assert!(rig.controller.staged.is_none(), "the seek cancels the staged track");
+    assert!(
+        rig.controller.staged.is_none(),
+        "the seek cancels the staged track"
+    );
     assert!(!rig.controller.clock.has_boundary());
     assert!((rig.controller.audible_secs() - 1.0).abs() < 1e-9);
     assert_eq!(rig.controller.queue.current_index(), Some(0));
@@ -393,10 +486,15 @@ fn seeking_while_the_next_track_is_staged_seeks_the_audible_track() {
     let played = consume(&mut consumer, 500);
     assert_eq!(played.len(), 500);
     let found = (0..reference.len() - played.len()).find(|&offset| {
-        return played.iter().enumerate().all(|(index, sample)| return (sample - reference[offset + index] * gain).abs() < 1e-5)
+        return played.iter().enumerate().all(|(index, sample)| {
+            return (sample - reference[offset + index] * gain).abs() < 1e-5;
+        });
     });
     let start = found.expect("the samples after the seek should be a run of the first track");
-    assert!(start.abs_diff(RATE as usize) <= 2_048, "the run starts near 1.0 s, not at {start}");
+    assert!(
+        start.abs_diff(RATE as usize) <= 2_048,
+        "the run starts near 1.0 s, not at {start}"
+    );
     // Nothing was announced for the second track.
     assert_eq!(now_playing(&rig.seen), names(&["t1.wav"]));
 }
@@ -433,7 +531,9 @@ fn a_queue_change_while_staged_reloads_instead_of_announcing_the_stale_track() {
         assert!(guard < 1_000, "the next track should be staged");
     }
     // Switching to repeat-one makes the natural next track the current one again, not the staged file.
-    rig.controller.queue.set_playback_mode(crate::command::PlaybackMode::Repeat);
+    rig.controller
+        .queue
+        .set_playback_mode(crate::command::PlaybackMode::Repeat);
     let mut handed_off = false;
     for _ in 0..1_000 {
         pump_all(&mut rig.controller);
@@ -482,20 +582,29 @@ fn the_shutdown_snapshot_keeps_the_ui_fields_of_the_stored_session() {
         track_rows_template: Some("$mi(title)$".to_string()),
         playing_template: Some("$mi(track)$".to_string()),
         auto_play_on_select: false,
-        text_sizes: crate::text_size::TextSizes::default().with(crate::text_size::TextElement::FolderName, 21),
+        text_sizes: crate::text_size::TextSizes::default()
+            .with(crate::text_size::TextElement::FolderName, 21),
         ..Session::default()
     };
     let snapshot = rig.controller.session_over(stored);
     assert_eq!(
-        snapshot.text_sizes.get(crate::text_size::TextElement::FolderName),
+        snapshot
+            .text_sizes
+            .get(crate::text_size::TextElement::FolderName),
         21,
         "a shutdown save must not reset the text sizes",
     );
-    assert!(!snapshot.auto_play_on_select, "a shutdown save must not turn Auto-play on select on");
+    assert!(
+        !snapshot.auto_play_on_select,
+        "a shutdown save must not turn Auto-play on select on"
+    );
     assert_eq!(snapshot.track_rows_template.as_deref(), Some("$mi(title)$"));
     assert_eq!(snapshot.playing_template.as_deref(), Some("$mi(track)$"));
     let off = rig.controller.session_over(Session::default());
-    assert!(off.auto_play_on_select, "and it must not turn it off either");
+    assert!(
+        off.auto_play_on_select,
+        "and it must not turn it off either"
+    );
 }
 
 #[cfg(target_os = "linux")]
@@ -508,8 +617,13 @@ fn the_shutdown_snapshot_reads_the_stored_session_of_the_config_home() {
         auto_play_on_select: false,
         ..Session::default()
     };
-    stored.save().expect("the stored session is written to the disposable home");
+    stored
+        .save()
+        .expect("the stored session is written to the disposable home");
     let snapshot = rig.controller.current_session();
-    assert!(!snapshot.auto_play_on_select, "the snapshot keeps the stored setting");
+    assert!(
+        !snapshot.auto_play_on_select,
+        "the snapshot keeps the stored setting"
+    );
     assert_eq!(snapshot.track_rows_template.as_deref(), Some("$mi(title)$"));
 }

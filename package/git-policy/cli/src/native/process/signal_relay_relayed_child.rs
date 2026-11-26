@@ -83,6 +83,25 @@ impl SignalGuard {
         // The token holds the child and whether the descriptor points at it.
         return Ok(RelayedChild { child: Some(started), published });
     }
+
+    /// What:
+    ///  `start_relayed` for a synchronous caller,
+    /// which has no runtime to await the start on.
+    /// Why:
+    ///   A caller that relays a child's output while it runs waits on that child itself,
+    ///   so it has no task to start a child from,
+    ///   and a start the system refuses for lack of processes must be retried just as the awaited one is.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// startRelayedNow(command: Command): RelayedChild
+    /// ```
+    pub fn start_relayed_now(&self, command: &mut Command) -> io::Result<RelayedChild> {
+        let started: std::process::Child = crate::start_retry::RetryStart::spawn_retrying(command)?;
+        let published: bool = self.relays() && publish_child(started.id());
+        // The token holds the child and whether the descriptor points at it.
+        return Ok(RelayedChild { child: Some(started), published });
+    }
 }
 
 /// What:
@@ -115,6 +134,23 @@ impl SignalGuard {
         // Nothing is published: this system has no handler.
         return Ok(RelayedChild { child: Some(started), published: false });
     }
+
+    /// What:
+    ///  `start_relayed_now` for a system with no signal relay:
+    /// the child is started and handed over,
+    /// and nothing is published.
+    /// Why:
+    ///   Keeps the call site identical on every platform.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// startRelayedNow(command: Command): RelayedChild
+    /// ```
+    pub fn start_relayed_now(&self, command: &mut Command) -> io::Result<RelayedChild> {
+        let started: std::process::Child = crate::start_retry::RetryStart::spawn_retrying(command)?;
+        // Nothing is published: this system has no handler.
+        return Ok(RelayedChild { child: Some(started), published: false });
+    }
 }
 
 /// Methods over a relayed child.
@@ -134,6 +170,22 @@ impl RelayedChild {
     pub fn take_child(&mut self) -> Option<std::process::Child> {
         // `take()` moves the child out and leaves `None`, so the token no longer owns it but still retires the relay.
         return self.child.take();
+    }
+
+    /// What:
+    ///  The process number of the child this token points the relay at,
+    ///  or zero once the waiter has taken it.
+    /// Why:
+    ///   A caller that records the child it started reads the number while the token still holds the child,
+    ///   which is the only moment the number is certainly that child's.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// childNumber(): number { return this.child?.pid ?? 0; }
+    /// ```
+    pub fn child_number(&self) -> u32 {
+        // `map_or` answers the fallback when the child was already taken.
+        return self.child.as_ref().map_or(0, std::process::Child::id);
     }
 }
 

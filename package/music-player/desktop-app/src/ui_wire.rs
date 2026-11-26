@@ -18,9 +18,15 @@ use music_player::command::Command;
 /// Imports the engine that receives the commands.
 use music_player::engine::Engine;
 /// Imports the row activation rule.
-use music_player::row_activation::{RowActivation, row_activation_for};
+use music_player::row_activation::{
+    RowActivation,
+    row_activation_for,
+};
 /// Imports the component handle that reaches the window.
-use slint::{ComponentHandle, SharedString};
+use slint::{
+    ComponentHandle,
+    SharedString,
+};
 
 /// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
@@ -30,9 +36,17 @@ use crate::AppWindow;
 /// Imports the conversion of the window's integer to a playback mode.
 use crate::ui_playback::int_to_playback_mode;
 /// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_screen, read_state, write_screen};
+use crate::ui_screen::{
+    project,
+    read_screen,
+    read_state,
+    write_screen,
+};
 /// Imports the folder selection and the page scope lookup.
-use crate::ui_screen_view::{select_folder_label, selected_page_scope};
+use crate::ui_screen_view::{
+    select_folder_label,
+    selected_page_scope,
+};
 
 thread_local! {
     /// What:
@@ -55,7 +69,10 @@ thread_local! {
 /// ```ts
 /// function wire(app: AppWindow, engine: Engine): void { ... }
 /// ```
-pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
+pub(crate) fn wire(
+    app: &AppWindow,
+    engine: &Rc<Engine>,
+) {
     MAIN_WINDOW.set(Some(app.as_weak()));
     let host: Rc<dyn Host> = Rc::clone(engine) as Rc<dyn Host>;
     wire_host_callbacks(app, &host);
@@ -92,7 +109,10 @@ pub(crate) fn mark_user_acted() {
 /// the window tests register the same callbacks with a recording host,
 /// so a click or a key reaches the same code as
 /// in the application.
-pub(crate) fn wire_host_callbacks(app: &AppWindow, host: &Rc<dyn Host>) {
+pub(crate) fn wire_host_callbacks(
+    app: &AppWindow,
+    host: &Rc<dyn Host>,
+) {
     wire_transport(app, host);
     wire_library(app, host);
     wire_keys(app, host);
@@ -105,7 +125,10 @@ pub(crate) fn wire_host_callbacks(app: &AppWindow, host: &Rc<dyn Host>) {
 /// seek and mode callbacks.
 /// Why:
 /// the transport deck and the mode group send these without knowing the engine.
-fn wire_transport(app: &AppWindow, host: &Rc<dyn Host>) {
+fn wire_transport(
+    app: &AppWindow,
+    host: &Rc<dyn Host>,
+) {
     let toggle_host = Rc::clone(host);
     app.on_toggle_play(move || {
         mark_user_acted();
@@ -151,13 +174,19 @@ fn wire_transport(app: &AppWindow, host: &Rc<dyn Host>) {
 /// Why:
 /// these change the selected folder or start a track,
 /// and each one ends with a window projection.
-fn wire_library(app: &AppWindow, host: &Rc<dyn Host>) {
+fn wire_library(
+    app: &AppWindow,
+    host: &Rc<dyn Host>,
+) {
     let row_host = Rc::clone(host);
     let row_weak = app.as_weak();
     app.on_select_index(move |index| {
         if let Some(window) = row_weak.upgrade() {
             mark_user_acted();
-            play_row(row_host.as_ref(), usize::try_from(index).unwrap_or(usize::MAX));
+            play_row(
+                row_host.as_ref(),
+                usize::try_from(index).unwrap_or(usize::MAX),
+            );
             project(&window);
         }
     });
@@ -200,7 +229,10 @@ fn wire_library(app: &AppWindow, host: &Rc<dyn Host>) {
 /// a click that changed nothing is otherwise the same silence as a click the compositor never sent.
 /// A hover writes a move per frame,
 /// so only the press and the release are written.
-fn log_folder_pointer_event(label: SharedString, kind: SharedString) {
+fn log_folder_pointer_event(
+    label: SharedString,
+    kind: SharedString,
+) {
     if kind.as_str() == "move" {
         return;
     }
@@ -218,7 +250,10 @@ fn log_folder_pointer_event(label: SharedString, kind: SharedString) {
 /// Why:
 /// the window answers true when a shortcut used the key,
 /// so the focused field keeps every other key.
-fn wire_keys(app: &AppWindow, host: &Rc<dyn Host>) {
+fn wire_keys(
+    app: &AppWindow,
+    host: &Rc<dyn Host>,
+) {
     crate::ui_hints::install_texts(app);
     let key_weak = app.as_weak();
     let press_host = Rc::clone(host);
@@ -278,7 +313,11 @@ fn wire_keys(app: &AppWindow, host: &Rc<dyn Host>) {
 /// function showMissingChooserMessage(): void { mainWindow?.showError(NO_DIALOG_MESSAGE); }
 /// ```
 fn show_missing_chooser_message() {
-    let main_window = MAIN_WINDOW.with(std::cell::RefCell::clone).into_inner().as_ref().and_then(slint::Weak::upgrade);
+    let main_window = MAIN_WINDOW
+        .with(std::cell::RefCell::clone)
+        .into_inner()
+        .as_ref()
+        .and_then(slint::Weak::upgrade);
     if let Some(window) = main_window {
         crate::ui_overlays::show_error(&window, music_player::dialog_backend::NO_DIALOG_MESSAGE);
     }
@@ -296,7 +335,11 @@ fn show_missing_chooser_message() {
 /// function showChooserFailureMessage(message: string): void { mainWindow?.showError(message); }
 /// ```
 fn show_chooser_failure_message(message: String) {
-    let main_window = MAIN_WINDOW.with(std::cell::RefCell::clone).into_inner().as_ref().and_then(slint::Weak::upgrade);
+    let main_window = MAIN_WINDOW
+        .with(std::cell::RefCell::clone)
+        .into_inner()
+        .as_ref()
+        .and_then(slint::Weak::upgrade);
     if let Some(window) = main_window {
         crate::ui_overlays::show_error(&window, &message);
     }
@@ -321,7 +364,9 @@ fn show_chooser_failure_message(message: String) {
 pub(crate) fn open_folder_dialog(sender: music_player::engine::CommandSender) {
     std::thread::spawn(move || {
         match music_player::folder_chooser::advice(music_player::folder_chooser::choose_folder()) {
-            music_player::folder_chooser::ChooserAdvice::Open { folder } => sender.send(Command::OpenRoot {
+            music_player::folder_chooser::ChooserAdvice::Open {
+                folder,
+            } => sender.send(Command::OpenRoot {
                 root: folder,
                 select: None,
                 play: false,
@@ -332,9 +377,12 @@ pub(crate) fn open_folder_dialog(sender: music_player::engine::CommandSender) {
                 tracing::warn!("no folder chooser is available; the user is told how to proceed");
                 let _ = slint::invoke_from_event_loop(show_missing_chooser_message);
             }
-            music_player::folder_chooser::ChooserAdvice::TellFailure { message } => {
+            music_player::folder_chooser::ChooserAdvice::TellFailure {
+                message,
+            } => {
                 tracing::error!(%message, "the user is told why the folder chooser failed");
-                let _ = slint::invoke_from_event_loop(move || show_chooser_failure_message(message));
+                let _ =
+                    slint::invoke_from_event_loop(move || show_chooser_failure_message(message));
             }
         }
     });
@@ -368,9 +416,19 @@ pub(crate) fn open_folder_dialog(sender: music_player::engine::CommandSender) {
 /// ```ts
 /// const playRow = (index: number) => send(rowActivationFor(autoPlayOnSelect, current === index), index);
 /// ```
-pub(crate) fn play_row(engine: &dyn Host, index: usize) {
-    let (current, auto_play_on_select) = { let state = read_screen(); (state.current_index, state.auto_play_on_select) };
-    send_row_activation(engine, index, row_activation_for(auto_play_on_select, current == Some(index)));
+pub(crate) fn play_row(
+    engine: &dyn Host,
+    index: usize,
+) {
+    let (current, auto_play_on_select) = {
+        let state = read_screen();
+        (state.current_index, state.auto_play_on_select)
+    };
+    send_row_activation(
+        engine,
+        index,
+        row_activation_for(auto_play_on_select, current == Some(index)),
+    );
 }
 
 /// What:
@@ -391,9 +449,16 @@ pub(crate) fn play_row(engine: &dyn Host, index: usize) {
 /// ```ts
 /// const playRowNow = (index: number) => send(rowActivationFor(true, current === index), index);
 /// ```
-pub(crate) fn play_row_now(engine: &dyn Host, index: usize) {
+pub(crate) fn play_row_now(
+    engine: &dyn Host,
+    index: usize,
+) {
     let current = read_screen().current_index;
-    send_row_activation(engine, index, row_activation_for(true, current == Some(index)));
+    send_row_activation(
+        engine,
+        index,
+        row_activation_for(true, current == Some(index)),
+    );
 }
 
 /// What:
@@ -406,7 +471,11 @@ pub(crate) fn play_row_now(engine: &dyn Host, index: usize) {
 /// `SelectIndex`
 /// loads paused,
 /// so a start at once is `Play` after it.
-fn send_row_activation(engine: &dyn Host, index: usize, activation: RowActivation) {
+fn send_row_activation(
+    engine: &dyn Host,
+    index: usize,
+    activation: RowActivation,
+) {
     match activation {
         RowActivation::TogglePlay => engine.send(Command::TogglePlay),
         RowActivation::SelectOnly => engine.send(Command::SelectIndex(index)),
@@ -423,7 +492,10 @@ fn send_row_activation(engine: &dyn Host, index: usize, activation: RowActivatio
 /// and scopes the engine to it.
 /// Why:
 /// the selection and the engine scope come from the same state write.
-pub(crate) fn select_folder(engine: &dyn Host, label: &str) {
+pub(crate) fn select_folder(
+    engine: &dyn Host,
+    label: &str,
+) {
     let chosen_scope: Option<Vec<usize>> = select_folder_label(&mut write_screen(), label);
     if let Some(scope) = chosen_scope {
         engine.send(Command::SetPageScope(scope));
@@ -440,7 +512,10 @@ pub(crate) fn select_folder(engine: &dyn Host, label: &str) {
 /// and Play with nothing selected must start the first row of
 /// the page the user is looking at (EM2).
 pub(crate) fn toggle_play(engine: &dyn Host) {
-    let nothing_selected: bool = { let state = read_screen(); state.current_index.is_none() && !state.names.is_empty() };
+    let nothing_selected: bool = {
+        let state = read_screen();
+        state.current_index.is_none() && !state.names.is_empty()
+    };
     if nothing_selected {
         let scope: Vec<usize> = read_state(selected_page_scope);
         engine.send(Command::SetPageScope(scope));

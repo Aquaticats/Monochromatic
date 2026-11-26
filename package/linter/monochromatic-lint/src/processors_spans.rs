@@ -14,12 +14,19 @@ use crate::diagnostic::Span;
 /// Use the established Markdown UTF-16 position convention.
 use crate::markdown_positions::MarkdownPositions;
 /// Borrow immutable layer and language records.
-use crate::processors_model::{Mapping, ProcessorLanguage};
+use crate::processors_model::{
+    Mapping,
+    ProcessorLanguage,
+};
 /// Resolve Rust host positions using its existing byte-column convention.
 use crate::rust_source::RustSource;
 
 /// Map one range to its authored intersection in the direct parent.
-pub(crate) fn direct(mapping: &Mapping, start: usize, end: usize) -> Option<(usize, usize)> {
+pub(crate) fn direct(
+    mapping: &Mapping,
+    start: usize,
+    end: usize,
+) -> Option<(usize, usize)> {
     if mapping.text.is_empty() && mapping.lines.is_empty() && start == 0 && end == 0 {
         // An empty authored container has an anchor, not synthetic bytes to suppress.
         return Some((mapping.anchor, mapping.anchor));
@@ -52,7 +59,11 @@ pub(crate) fn direct(mapping: &Mapping, start: usize, end: usize) -> Option<(usi
 
 /// Resolve a nested range to the original host;
 ///  malformed spans fail before slicing.
-pub(crate) fn host_range(mapping: &Mapping, start: usize, end: usize) -> Option<(usize, usize)> {
+pub(crate) fn host_range(
+    mapping: &Mapping,
+    start: usize,
+    end: usize,
+) -> Option<(usize, usize)> {
     if start > end
         || end > mapping.text.len()
         || !mapping.text.is_char_boundary(start)
@@ -82,7 +93,11 @@ pub(crate) fn anchor(mapping: &Mapping) -> usize {
 }
 
 /// Resolve line and column units from the original host's language.
-pub(crate) fn host_span(root: &Mapping, start: usize, length: usize) -> Span {
+pub(crate) fn host_span(
+    root: &Mapping,
+    start: usize,
+    length: usize,
+) -> Span {
     if root.language == ProcessorLanguage::Rust {
         let parsed: RustSource = RustSource::new(root.filename.clone(), root.text.clone());
         let mut span: Span = parsed.span(start, length);

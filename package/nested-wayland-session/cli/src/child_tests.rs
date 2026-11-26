@@ -1,11 +1,17 @@
 //! Focused tests for hosted-child environment isolation.
 
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 use super::*;
 
 /// Returns explicit environment mutation stored on command builder.
-fn environment_change(command: &Command, key: &str) -> Option<Option<OsString>> {
+fn environment_change(
+    command: &Command,
+    key: &str,
+) -> Option<Option<OsString>> {
     return command
         .get_envs()
         .find(|(candidate, _value)| return *candidate == OsStr::new(key))
@@ -43,8 +49,14 @@ fn child_environment_isolates_wayland_and_private_bus() {
         environment_change(&command, "DBUS_SESSION_BUS_ADDRESS"),
         Some(Some(OsString::from("unix:path=/tmp/private-bus"))),
     );
-    assert_eq!(environment_change(&command, "DBUS_STARTER_ADDRESS"), Some(None));
-    assert_eq!(environment_change(&command, "DBUS_STARTER_BUS_TYPE"), Some(None));
+    assert_eq!(
+        environment_change(&command, "DBUS_STARTER_ADDRESS"),
+        Some(None)
+    );
+    assert_eq!(
+        environment_change(&command, "DBUS_STARTER_BUS_TYPE"),
+        Some(None)
+    );
 }
 
 /// Prevents clipboard libraries from falling back to the host X11 connection.
@@ -72,7 +84,10 @@ fn child_environment_removes_host_x11_fallback() {
 fn child_environment_without_override_keeps_session_bus_inherited() {
     let mut command = Command::new("app");
     configure_child_environment(&mut command, OsStr::new("wayland-nested"), None, &[]);
-    assert_eq!(environment_change(&command, "DBUS_SESSION_BUS_ADDRESS"), None);
+    assert_eq!(
+        environment_change(&command, "DBUS_SESSION_BUS_ADDRESS"),
+        None
+    );
     assert_eq!(environment_change(&command, "DBUS_STARTER_ADDRESS"), None);
     assert_eq!(environment_change(&command, "DBUS_STARTER_BUS_TYPE"), None);
 }
@@ -91,11 +106,17 @@ fn child_environment_applies_gpu_variables() {
         None,
         &[("LIBGL_ALWAYS_SOFTWARE", Some("1")), ("DRI_PRIME", None)],
     );
-    assert_eq!(environment_change(&command, "LIBGL_ALWAYS_SOFTWARE"), Some(Some(OsString::from("1"))));
+    assert_eq!(
+        environment_change(&command, "LIBGL_ALWAYS_SOFTWARE"),
+        Some(Some(OsString::from("1")))
+    );
     assert_eq!(environment_change(&command, "DRI_PRIME"), Some(None));
 
     let mut untouched = Command::new("app");
     configure_child_environment(&mut untouched, OsStr::new("wayland-nested"), None, &[]);
-    assert_eq!(environment_change(&untouched, "LIBGL_ALWAYS_SOFTWARE"), None);
+    assert_eq!(
+        environment_change(&untouched, "LIBGL_ALWAYS_SOFTWARE"),
+        None
+    );
     assert_eq!(environment_change(&untouched, "DRI_PRIME"), None);
 }

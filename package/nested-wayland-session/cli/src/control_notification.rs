@@ -6,13 +6,22 @@
 
 /// Imports `debug`,
 ///  `warn` from `tracing`.
-use tracing::{debug, warn};
+use tracing::{
+    debug,
+    warn,
+};
 
 /// Imports the items this module uses from `crate`.
 use crate::{
-    notification_format::{format_event_list, format_visible_list},
+    notification_format::{
+        format_event_list,
+        format_visible_list,
+    },
     plasma_services::PlasmaServices,
-    protocol::{NotificationCommand, Response},
+    protocol::{
+        NotificationCommand,
+        Response,
+    },
 };
 
 /// The refusal every notification verb gives when the session serves no notification service.
@@ -28,9 +37,15 @@ const NO_SERVICE_MESSAGE: &str =
 ///       `ok 0` and the refusal are different answers:
 ///  the first means the service runs and is quiet,
 ///  the second means nothing can be observed at all.
-pub fn run(services: Option<&PlasmaServices>, command: &NotificationCommand) -> Response {
+pub fn run(
+    services: Option<&PlasmaServices>,
+    command: &NotificationCommand,
+) -> Response {
     let Some(active) = services else {
-        debug!(?command, "refused a notification verb: no notification service");
+        debug!(
+            ?command,
+            "refused a notification verb: no notification service"
+        );
         return Response::Err(NO_SERVICE_MESSAGE.to_string());
     };
     let store = active.notifications();
@@ -39,7 +54,9 @@ pub fn run(services: Option<&PlasmaServices>, command: &NotificationCommand) -> 
             let guard = store.lock();
             return Response::OkWith(format_visible_list(guard.visible(), store.now_ms()));
         }
-        NotificationCommand::Log { count } => {
+        NotificationCommand::Log {
+            count,
+        } => {
             let guard = store.lock();
             return Response::OkWith(format_event_list(&guard.last_events(*count)));
         }
@@ -47,13 +64,23 @@ pub fn run(services: Option<&PlasmaServices>, command: &NotificationCommand) -> 
             store.lock().clear();
             return Response::Ok;
         }
-        NotificationCommand::Close { id, reason } => return close(active, *id, *reason),
-        NotificationCommand::Action { id, key } => return invoke_action(active, *id, key),
+        NotificationCommand::Close {
+            id,
+            reason,
+        } => return close(active, *id, *reason),
+        NotificationCommand::Action {
+            id,
+            key,
+        } => return invoke_action(active, *id, key),
     }
 }
 
 /// Closes a visible notification and emits `NotificationClosed`.
-fn close(services: &PlasmaServices, id: u32, reason: u32) -> Response {
+fn close(
+    services: &PlasmaServices,
+    id: u32,
+    reason: u32,
+) -> Response {
     let store = services.notifications();
     if !store.lock().close_visible(store.now_ms(), id, reason) {
         return Response::Err(format!("no visible notification with id {id}"));
@@ -78,7 +105,11 @@ fn offered_keys(actions: &[String]) -> Vec<&str> {
 }
 
 /// Emits `ActionInvoked` for a visible notification that offered the action.
-fn invoke_action(services: &PlasmaServices, id: u32, key: &str) -> Response {
+fn invoke_action(
+    services: &PlasmaServices,
+    id: u32,
+    key: &str,
+) -> Response {
     let store = services.notifications();
     {
         let mut guard = store.lock();

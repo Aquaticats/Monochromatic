@@ -24,7 +24,10 @@ use crate::nvlist::data_type::MAX_DEPTH;
 
 /// A packed list of one string pair,
 /// whose bytes the tests then damage.
-fn one_string_pair(name: &str, value: &str) -> Vec<u8> {
+fn one_string_pair(
+    name: &str,
+    value: &str,
+) -> Vec<u8> {
     let mut list: NvList = NvList::new();
     list.add_str(name, value);
     return list.pack().expect("a simple list packs");
@@ -67,7 +70,9 @@ fn another_encoding_is_refused() {
     packed[0] = 1;
     assert_eq!(
         NvList::unpack(&packed),
-        Err(NvError::UnsupportedEncoding { encoding: 1 })
+        Err(NvError::UnsupportedEncoding {
+            encoding: 1
+        })
     );
 }
 
@@ -77,7 +82,9 @@ fn another_byte_order_is_refused() {
     packed[1] = 0;
     assert_eq!(
         NvList::unpack(&packed),
-        Err(NvError::UnsupportedEndian { byte_order: 0 })
+        Err(NvError::UnsupportedEndian {
+            byte_order: 0
+        })
     );
 }
 
@@ -87,7 +94,9 @@ fn another_version_is_refused() {
     packed[4..8].copy_from_slice(&1i32.to_le_bytes());
     assert_eq!(
         NvList::unpack(&packed),
-        Err(NvError::UnsupportedVersion { version: 1 })
+        Err(NvError::UnsupportedVersion {
+            version: 1
+        })
     );
 }
 
@@ -104,7 +113,13 @@ fn a_pair_size_past_the_buffer_is_refused() {
     let mut packed: Vec<u8> = one_string_pair("k", "v");
     packed[FIRST_PAIR..FIRST_PAIR + 4].copy_from_slice(&10_000i32.to_le_bytes());
     let error = NvList::unpack(&packed).expect_err("a pair cannot be longer than the buffer");
-    assert!(matches!(error, NvError::BadPairSize { at: FIRST_PAIR, .. }));
+    assert!(matches!(
+        error,
+        NvError::BadPairSize {
+            at: FIRST_PAIR,
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -112,7 +127,13 @@ fn a_negative_pair_size_is_refused() {
     let mut packed: Vec<u8> = one_string_pair("k", "v");
     packed[FIRST_PAIR..FIRST_PAIR + 4].copy_from_slice(&(-1i32).to_le_bytes());
     let error = NvList::unpack(&packed).expect_err("a negative size is malformed");
-    assert!(matches!(error, NvError::BadPairSize { size: -1, .. }));
+    assert!(matches!(
+        error,
+        NvError::BadPairSize {
+            size: -1,
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -120,7 +141,12 @@ fn a_zero_length_name_is_refused() {
     let mut packed: Vec<u8> = one_string_pair("k", "v");
     packed[FIRST_PAIR + 4..FIRST_PAIR + 6].copy_from_slice(&0i16.to_le_bytes());
     let error = NvList::unpack(&packed).expect_err("a name has at least its NUL");
-    assert_eq!(error, NvError::BadName { name_length: 0 });
+    assert_eq!(
+        error,
+        NvError::BadName {
+            name_length: 0
+        }
+    );
 }
 
 #[test]
@@ -130,7 +156,12 @@ fn a_name_without_its_nul_is_refused() {
     let name_nul_at: usize = FIRST_PAIR + 16 + 1;
     packed[name_nul_at] = b'z';
     let error = NvList::unpack(&packed).expect_err("the name must end in a NUL");
-    assert!(matches!(error, NvError::BadName { name_length: 2 }));
+    assert!(matches!(
+        error,
+        NvError::BadName {
+            name_length: 2
+        }
+    ));
 }
 
 #[test]
@@ -138,7 +169,12 @@ fn a_negative_element_count_is_refused() {
     let mut packed: Vec<u8> = one_string_pair("k", "v");
     packed[FIRST_PAIR + 8..FIRST_PAIR + 12].copy_from_slice(&(-1i32).to_le_bytes());
     let error = NvList::unpack(&packed).expect_err("a count cannot be negative");
-    assert_eq!(error, NvError::BadArrayCount { elements: -1 });
+    assert_eq!(
+        error,
+        NvError::BadArrayCount {
+            elements: -1
+        }
+    );
 }
 
 #[test]

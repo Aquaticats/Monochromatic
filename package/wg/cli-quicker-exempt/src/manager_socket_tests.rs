@@ -11,26 +11,60 @@
 //! and no manager is started.
 
 /// The login and the peer credentials.
-use crate::dbus_login::{external_token, peer_pid};
-/// The channel under test.
-use crate::manager_socket::{ManagerCaller, ManagerClient, ManagerEndpoint, ManagerError, PrivateSocketManager};
+use crate::dbus_login::{
+    external_token,
+    peer_pid,
+};
 /// The message layout.
-use crate::dbus_wire::{Argument, MethodCall, MANAGER_INTERFACE, decode_message, encode_reply};
+use crate::dbus_wire::{
+    Argument,
+    MANAGER_INTERFACE,
+    MethodCall,
+    decode_message,
+    encode_reply,
+};
+/// The channel under test.
+use crate::manager_socket::{
+    ManagerCaller,
+    ManagerClient,
+    ManagerEndpoint,
+    ManagerError,
+    PrivateSocketManager,
+};
 /// Reading and writing the fake manager's socket.
-use std::io::{Read, Write};
+use std::io::{
+    Read,
+    Write,
+};
 /// A real Unix socket the fake manager listens on.
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::os::unix::net::{
+    UnixListener,
+    UnixStream,
+};
 /// Fixture paths.
 use std::path::PathBuf;
-/// The server thread and the waits.
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+/// The server thread and the waits.
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The method the tests call.
 fn a_call() -> MethodCall {
-    return MethodCall { interface: MANAGER_INTERFACE, member: "StopUnit", arguments: vec![Argument::Text("wg-quicker-update-x.scope".to_string()), Argument::Text("replace".to_string())] };
+    return MethodCall {
+        interface: MANAGER_INTERFACE,
+        member: "StopUnit",
+        arguments: vec![
+            Argument::Text("wg-quicker-update-x.scope".to_string()),
+            Argument::Text("replace".to_string()),
+        ],
+    };
 }
 
 /// One fake manager:
@@ -113,7 +147,10 @@ fn socket_directory(name: &str) -> PathBuf {
 }
 
 /// Builds a fake manager that answers every call with `answer`.
-fn fake_manager(name: &str, answer: Answer) -> FakeManager {
+fn fake_manager(
+    name: &str,
+    answer: Answer,
+) -> FakeManager {
     let base = socket_directory(name);
     let _removed = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).expect("make the fixture directory");
@@ -141,16 +178,26 @@ fn fake_manager(name: &str, answer: Answer) -> FakeManager {
                         if begin != "BEGIN\r\n" {
                             continue;
                         }
-                        let Some(call) = read_message(&mut stream) else { continue };
-                        let Ok(message) = decode_message(&call) else { continue };
-                        recorded.lock().map(|mut calls| return calls.push(message.member.clone().unwrap_or_default())).ok();
+                        let Some(call) = read_message(&mut stream) else {
+                            continue;
+                        };
+                        let Ok(message) = decode_message(&call) else {
+                            continue;
+                        };
+                        recorded
+                            .lock()
+                            .map(|mut calls| {
+                                return calls.push(message.member.clone().unwrap_or_default());
+                            })
+                            .ok();
                         match answer {
                             Answer::Return => {
                                 let reply = encode_reply(message.serial, None);
                                 let _wrote_return = stream.write_all(&reply);
                             }
                             Answer::Error(error_name, error_text) => {
-                                let reply = encode_reply(message.serial, Some((error_name, error_text)));
+                                let reply =
+                                    encode_reply(message.serial, Some((error_name, error_text)));
                                 let _wrote_error = stream.write_all(&reply);
                             }
                             Answer::Silence => std::thread::sleep(Duration::from_millis(400)),
@@ -167,13 +214,20 @@ fn fake_manager(name: &str, answer: Answer) -> FakeManager {
                             }
                         }
                     }
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(2)),
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(2))
+                    }
                     Err(_other) => break,
                 }
             }
         })
         .expect("start the fake manager");
-    return FakeManager { socket, received, stop, thread: Some(thread) };
+    return FakeManager {
+        socket,
+        received,
+        stop,
+        thread: Some(thread),
+    };
 }
 
 /// Stops the fake manager and waits for its thread.
@@ -188,7 +242,11 @@ impl FakeManager {
 
     /// The calls the fake manager received.
     fn calls(&self) -> Vec<String> {
-        return self.received.lock().map(|calls| return calls.clone()).unwrap_or_default();
+        return self
+            .received
+            .lock()
+            .map(|calls| return calls.clone())
+            .unwrap_or_default();
     }
 }
 
@@ -205,7 +263,10 @@ impl Drop for FakeManager {
 /// with the pid the test process has,
 /// because the server runs in it.
 fn endpoint_of(manager: &FakeManager) -> ManagerEndpoint {
-    return ManagerEndpoint { socket: manager.socket.clone(), expected_pid: i32::try_from(std::process::id()).unwrap_or(0) };
+    return ManagerEndpoint {
+        socket: manager.socket.clone(),
+        expected_pid: i32::try_from(std::process::id()).unwrap_or(0),
+    };
 }
 
 /// A manager that sends anything but the reply does not extend the call's deadline:
@@ -226,10 +287,19 @@ fn a_manager_that_sends_other_messages_does_not_extend_the_call() {
     });
     let finished_in_time = receiver.recv_timeout(Duration::from_secs(1)).is_ok();
     let elapsed = started.elapsed();
-    assert!(finished_in_time, "the call ended at its own deadline and not when the noise stopped, after {elapsed:?}");
+    assert!(
+        finished_in_time,
+        "the call ended at its own deadline and not when the noise stopped, after {elapsed:?}"
+    );
     let outcome = worker.join().expect("the call thread returns");
-    assert!(matches!(outcome, Err(ManagerError::TimedOut(_))), "{outcome:?}");
-    assert!(elapsed < Duration::from_secs(1), "the call ended well before the noise stopped, after {elapsed:?}");
+    assert!(
+        matches!(outcome, Err(ManagerError::TimedOut(_))),
+        "{outcome:?}"
+    );
+    assert!(
+        elapsed < Duration::from_secs(1),
+        "the call ended well before the noise stopped, after {elapsed:?}"
+    );
     manager.close();
 }
 
@@ -245,7 +315,10 @@ fn quick_client() -> ManagerClient {
 fn the_peer_pid_is_the_process_that_listens() {
     let manager = fake_manager("peer-pid", Answer::Return);
     let stream = UnixStream::connect(&manager.socket).expect("connect the fake manager");
-    assert_eq!(peer_pid(&stream).ok(), Some(i32::try_from(std::process::id()).unwrap_or(0)));
+    assert_eq!(
+        peer_pid(&stream).ok(),
+        Some(i32::try_from(std::process::id()).unwrap_or(0))
+    );
 }
 
 /// A socket answered by a process that is not the user's manager is refused,
@@ -256,18 +329,36 @@ fn the_peer_pid_is_the_process_that_listens() {
 #[test]
 fn a_socket_answered_by_another_process_is_refused_and_nothing_is_sent() {
     let manager = fake_manager("refused", Answer::Return);
-    let endpoint = ManagerEndpoint { socket: manager.socket.clone(), expected_pid: 999_999 };
-    let error = quick_client().call(&endpoint, &a_call()).expect_err("a stranger answers");
+    let endpoint = ManagerEndpoint {
+        socket: manager.socket.clone(),
+        expected_pid: 999_999,
+    };
+    let error = quick_client()
+        .call(&endpoint, &a_call())
+        .expect_err("a stranger answers");
     match &error {
         ManagerError::Refused(text) => {
-            assert!(text.contains("999999"), "the refusal names the pid the manager should have: {text}");
-            assert!(text.contains(&std::process::id().to_string()), "the refusal names the pid that answered: {text}");
-            assert!(text.contains(&manager.socket.display().to_string()), "the refusal names the socket: {text}");
+            assert!(
+                text.contains("999999"),
+                "the refusal names the pid the manager should have: {text}"
+            );
+            assert!(
+                text.contains(&std::process::id().to_string()),
+                "the refusal names the pid that answered: {text}"
+            );
+            assert!(
+                text.contains(&manager.socket.display().to_string()),
+                "the refusal names the socket: {text}"
+            );
         }
         other => panic!("not refused: {other:?}"),
     }
     std::thread::sleep(Duration::from_millis(100));
-    assert!(manager.calls().is_empty(), "a message was sent to a process that is not the manager: {:?}", manager.calls());
+    assert!(
+        manager.calls().is_empty(),
+        "a message was sent to a process that is not the manager: {:?}",
+        manager.calls()
+    );
 }
 
 /// The same socket,
@@ -276,7 +367,9 @@ fn a_socket_answered_by_another_process_is_refused_and_nothing_is_sent() {
 #[test]
 fn the_manager_is_called_when_it_is_the_peer() {
     let manager = fake_manager("called", Answer::Return);
-    let reply = quick_client().call(&endpoint_of(&manager), &a_call()).expect("the manager answers");
+    let reply = quick_client()
+        .call(&endpoint_of(&manager), &a_call())
+        .expect("the manager answers");
     assert_eq!(reply.kind, crate::dbus_wire::METHOD_RETURN);
     assert_eq!(manager.calls(), ["StopUnit"]);
 }
@@ -284,11 +377,19 @@ fn the_manager_is_called_when_it_is_the_peer() {
 /// An error reply keeps the manager's error name and text.
 #[test]
 fn an_error_reply_keeps_its_name_and_text() {
-    let manager = fake_manager("error", Answer::Error("org.freedesktop.systemd1.NoSuchProcess", "No such process"));
-    let error = quick_client().call(&endpoint_of(&manager), &a_call()).expect_err("the manager refuses");
+    let manager = fake_manager(
+        "error",
+        Answer::Error("org.freedesktop.systemd1.NoSuchProcess", "No such process"),
+    );
+    let error = quick_client()
+        .call(&endpoint_of(&manager), &a_call())
+        .expect_err("the manager refuses");
     match error {
         ManagerError::Failed(text) => {
-            assert!(text.contains("org.freedesktop.systemd1.NoSuchProcess"), "{text}");
+            assert!(
+                text.contains("org.freedesktop.systemd1.NoSuchProcess"),
+                "{text}"
+            );
             assert!(text.contains("No such process"), "{text}");
         }
         other => panic!("not a manager error: {other:?}"),
@@ -300,7 +401,9 @@ fn an_error_reply_keeps_its_name_and_text() {
 #[test]
 fn a_silent_manager_is_a_timeout() {
     let manager = fake_manager("silent", Answer::Silence);
-    let error = quick_client().call(&endpoint_of(&manager), &a_call()).expect_err("nobody answers");
+    let error = quick_client()
+        .call(&endpoint_of(&manager), &a_call())
+        .expect_err("nobody answers");
     assert!(matches!(error, ManagerError::TimedOut(_)), "{error:?}");
 }
 
@@ -308,10 +411,18 @@ fn a_silent_manager_is_a_timeout() {
 /// never a silent skip.
 #[test]
 fn a_missing_socket_is_a_failure_naming_it() {
-    let endpoint = ManagerEndpoint { socket: PathBuf::from("/nonexistent/directory/systemd/private"), expected_pid: 1 };
-    let error = quick_client().call(&endpoint, &a_call()).expect_err("no socket");
+    let endpoint = ManagerEndpoint {
+        socket: PathBuf::from("/nonexistent/directory/systemd/private"),
+        expected_pid: 1,
+    };
+    let error = quick_client()
+        .call(&endpoint, &a_call())
+        .expect_err("no socket");
     match error {
-        ManagerError::Failed(text) => assert!(text.contains("/nonexistent/directory/systemd/private"), "{text}"),
+        ManagerError::Failed(text) => assert!(
+            text.contains("/nonexistent/directory/systemd/private"),
+            "{text}"
+        ),
         other => panic!("not a failure: {other:?}"),
     }
 }
@@ -329,8 +440,20 @@ fn the_login_token_spells_the_user_id_in_hexadecimal() {
 #[test]
 fn the_production_seam_refuses_a_stranger_and_keeps_a_refusal_from_hiding() {
     let manager = fake_manager("seam", Answer::Return);
-    let seam = PrivateSocketManager { client: quick_client(), endpoint: std::cell::RefCell::new(Some(ManagerEndpoint { socket: manager.socket.clone(), expected_pid: 1 })) };
-    assert!(matches!(seam.call(0, &a_call()), Err(ManagerError::Refused(_))));
+    let seam = PrivateSocketManager {
+        client: quick_client(),
+        endpoint: std::cell::RefCell::new(Some(ManagerEndpoint {
+            socket: manager.socket.clone(),
+            expected_pid: 1,
+        })),
+    };
+    assert!(matches!(
+        seam.call(0, &a_call()),
+        Err(ManagerError::Refused(_))
+    ));
     assert!(manager.calls().is_empty());
-    assert!(seam.endpoint.borrow().is_none(), "a refusal must make the endpoint be resolved again");
+    assert!(
+        seam.endpoint.borrow().is_none(),
+        "a refusal must make the endpoint be resolved again"
+    );
 }

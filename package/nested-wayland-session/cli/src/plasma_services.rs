@@ -10,7 +10,10 @@
 
 /// Imports `sync::Arc`,
 ///  `time::Instant` from `std`.
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::Instant,
+};
 
 /// Imports `Result` from `anyhow`.
 use anyhow::Result;
@@ -18,20 +21,33 @@ use anyhow::Result;
 use tracing::info;
 /// Imports `connection::Builder`,
 ///  `Connection` from `zbus`.
-use zbus::{connection::Builder, Connection};
+use zbus::{
+    Connection,
+    connection::Builder,
+};
 
 /// Imports the items this module uses from `crate`.
 use crate::{
+    bus_step_bound::{
+        block_on_bounded,
+        build_bounded,
+    },
     job_server::{
-        JobViewServerV1, JobViewServerV2, Kuiserver, JOB_VIEW_SERVER_NAME, JOB_VIEW_SERVER_PATH,
+        JOB_VIEW_SERVER_NAME,
+        JOB_VIEW_SERVER_PATH,
+        JobViewServerV1,
+        JobViewServerV2,
         KUISERVER_NAME,
+        Kuiserver,
     },
     job_store::JobStore,
-    bus_step_bound::{block_on_bounded, build_bounded},
     job_view::JOB_VIEW_INTERFACE,
     notification_mode::NotificationMode,
     notification_service::{
-        Notifications, NOTIFICATIONS_INTERFACE, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH,
+        NOTIFICATIONS_INTERFACE,
+        NOTIFICATIONS_NAME,
+        NOTIFICATIONS_PATH,
+        Notifications,
     },
     notification_store::NotificationStore,
     private_bus::PrivateBus,
@@ -64,17 +80,28 @@ impl PlasmaServices {
     ///      `pub fn start(mode, bus, start_time) -> Result<Option<Self>>`.
     ///  The names are owned before this returns,
     ///  so a hosted client started afterwards finds them.
-    pub fn start(mode: NotificationMode, bus: Arc<PrivateBus>, start_time: Instant) -> Result<Option<Self>> {
+    pub fn start(
+        mode: NotificationMode,
+        bus: Arc<PrivateBus>,
+        start_time: Instant,
+    ) -> Result<Option<Self>> {
         if !mode.serves_notifications() {
             info!("no notification service requested; calls to it get ServiceUnknown");
             return Ok(None);
         }
         let notifications = Shared::new(NotificationStore::default(), start_time);
-        let jobs = if mode.serves_jobs() { Some(Shared::new(JobStore::default(), start_time)) } else { None };
+        let jobs = if mode.serves_jobs() {
+            Some(Shared::new(JobStore::default(), start_time))
+        } else {
+            None
+        };
         // zbus 6 defers a bad name or path to `build()`, so the setters return the builder itself.
         let mut builder = Builder::address(bus.address())
             .name(NOTIFICATIONS_NAME)
-            .serve_at(NOTIFICATIONS_PATH, Notifications::new(notifications.clone()));
+            .serve_at(
+                NOTIFICATIONS_PATH,
+                Notifications::new(notifications.clone()),
+            );
         if let Some(store) = &jobs {
             builder = builder
                 .name(JOB_VIEW_SERVER_NAME)
@@ -85,7 +112,13 @@ impl PlasmaServices {
         }
         let connection = build_bounded(builder, "starting the private notification services")?;
         info!(?mode, "started the private notification services");
-        return Ok(Some(Self { connection, mode, notifications, jobs, _bus: bus }));
+        return Ok(Some(Self {
+            connection,
+            mode,
+            notifications,
+            jobs,
+            _bus: bus,
+        }));
     }
 
     /// Returns which services are served.
@@ -108,7 +141,11 @@ impl PlasmaServices {
     }
 
     /// Emits `NotificationClosed(id, reason)` as a broadcast from the service path.
-    pub fn emit_closed(&self, id: u32, reason: u32) -> Result<()> {
+    pub fn emit_closed(
+        &self,
+        id: u32,
+        reason: u32,
+    ) -> Result<()> {
         block_on_bounded(
             "emitting NotificationClosed on the private bus",
             self.connection.emit_signal(
@@ -123,10 +160,20 @@ impl PlasmaServices {
     }
 
     /// Emits `ActionInvoked(id, key)` as a broadcast from the service path.
-    pub fn emit_action(&self, id: u32, key: &str) -> Result<()> {
+    pub fn emit_action(
+        &self,
+        id: u32,
+        key: &str,
+    ) -> Result<()> {
         block_on_bounded(
             "emitting ActionInvoked on the private bus",
-            self.connection.emit_signal(None::<&str>, NOTIFICATIONS_PATH, NOTIFICATIONS_INTERFACE, "ActionInvoked", &(id, key)),
+            self.connection.emit_signal(
+                None::<&str>,
+                NOTIFICATIONS_PATH,
+                NOTIFICATIONS_INTERFACE,
+                "ActionInvoked",
+                &(id, key),
+            ),
         )?;
         return Ok(());
     }
@@ -137,10 +184,15 @@ impl PlasmaServices {
     ///      `pub fn emit_job_signal(&self, path: &str, name: &str) -> Result<()>`.
     ///  Plasma's Qt adaptor broadcasts these signals;
     ///  the app's match rule selects them by path.
-    pub fn emit_job_signal(&self, path: &str, name: &str) -> Result<()> {
+    pub fn emit_job_signal(
+        &self,
+        path: &str,
+        name: &str,
+    ) -> Result<()> {
         block_on_bounded(
             "emitting a job view signal on the private bus",
-            self.connection.emit_signal(None::<&str>, path, JOB_VIEW_INTERFACE, name, &()),
+            self.connection
+                .emit_signal(None::<&str>, path, JOB_VIEW_INTERFACE, name, &()),
         )?;
         return Ok(());
     }

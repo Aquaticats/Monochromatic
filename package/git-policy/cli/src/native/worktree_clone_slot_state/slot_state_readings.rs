@@ -27,7 +27,7 @@
 //! ```
 
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
-use crate::worktree_clone_binding_record::plan_folder_read::{PlanStop, refuse_while_a_plan_names_the_clone};
+use crate::worktree_clone_binding_record::plan_folder_read::the_plan_naming_the_clone;
 use crate::worktree_clone_binding_record::record_publication::{RecordRefusalAtTheFile, read_binding};
 use crate::worktree_clone_binding_record::registration_home::binding_name;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
@@ -134,10 +134,10 @@ pub enum PlanReading {
 /// const plan = readPlan(commonDir, cloneGuid, cloneDataset);
 /// ```
 pub fn read_plan(common_dir: &Path, clone_guid: Option<DatasetGuid>, clone_dataset: &str) -> PlanReading {
-    return match refuse_while_a_plan_names_the_clone(common_dir, clone_guid, clone_dataset) {
-        Ok(()) => PlanReading::NoPlan,
-        Err(PlanStop::NamesTheClone(stop)) => PlanReading::NamesTheClone { plan: stop.plan.clone() },
-        Err(PlanStop::Unreadable(stop)) => PlanReading::Unreadable { plan: stop.plan.clone(), reason: stop.sentence.clone() },
+    return match the_plan_naming_the_clone(common_dir, clone_guid, clone_dataset) {
+        Ok(None) => PlanReading::NoPlan,
+        Ok(Some(found)) => PlanReading::NamesTheClone { plan: found.plan },
+        Err(unreadable) => PlanReading::Unreadable { plan: unreadable.plan, reason: unreadable.sentence },
     };
 }
 

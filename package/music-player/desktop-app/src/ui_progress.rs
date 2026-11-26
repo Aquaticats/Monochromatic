@@ -24,7 +24,10 @@
 /// ```ts
 /// // Mutex<T> ~ a shared value you must lock() before touching
 /// ```
-use std::sync::{LazyLock, Mutex};
+use std::sync::{
+    LazyLock,
+    Mutex,
+};
 
 /// What:
 /// `use std::cell::RefCell;`.
@@ -47,7 +50,10 @@ use std::cell::RefCell;
 /// ```ts
 /// type Duration = number; // milliseconds
 /// ```
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///      `use music_player::command::Update;`.
@@ -82,7 +88,11 @@ use music_player::launcher::Launcher;
 /// state machine and its input and output types.
 /// Why:
 /// this module feeds every engine message to the machine and delivers what it decides.
-use music_player::launcher::taskbar_state::{TaskbarInput, TaskbarProgress, TaskbarUpdate};
+use music_player::launcher::taskbar_state::{
+    TaskbarInput,
+    TaskbarProgress,
+    TaskbarUpdate,
+};
 
 /// What:
 ///      `use music_player::progress::{ProgressDebouncer, ProgressUpdateKind};`.
@@ -96,8 +106,13 @@ use music_player::launcher::taskbar_state::{TaskbarInput, TaskbarProgress, Taskb
 /// ```ts
 /// import { ProgressDebouncer, ProgressUpdateKind } from "music-player/progress";
 /// ```
-use music_player::progress::{ProgressDebouncer, ProgressUpdateKind};
+use music_player::progress::{
+    ProgressDebouncer,
+    ProgressUpdateKind,
+};
 
+/// Imports the window that shows the progress.
+use crate::AppWindow;
 /// What:
 ///      `use crate::{apply_update, AppWindow};`.
 ///  Import the parent binary module's
@@ -112,8 +127,6 @@ use music_player::progress::{ProgressDebouncer, ProgressUpdateKind};
 /// import { applyUpdate, AppWindow } from "./main";
 /// ```
 use crate::ui_screen::apply_update;
-/// Imports the window that shows the progress.
-use crate::AppWindow;
 
 // What: `thread_local! { static TASKBAR_STATE: RefCell<TaskbarProgress> = ... }`. The one state machine behind the
 // taskbar bar, kept on the UI thread (`thread_local!` gives each thread its own copy; `RefCell` allows mutation through
@@ -144,9 +157,17 @@ static UI_CLOCK_START: LazyLock<Instant> = LazyLock::new(Instant::now);
 /// Why:
 /// the decision is already made by the state machine;
 /// this only delivers it.
-fn send_taskbar_update(app: &AppWindow, launcher: &Launcher, update: TaskbarUpdate) {
+fn send_taskbar_update(
+    app: &AppWindow,
+    launcher: &Launcher,
+    update: TaskbarUpdate,
+) {
     let fraction = update.fraction();
-    tracing::debug!(percent = update.percent, visible = update.visible, "taskbar progress delivered to the launcher");
+    tracing::debug!(
+        percent = update.percent,
+        visible = update.visible,
+        "taskbar progress delivered to the launcher"
+    );
     launcher.set_progress(fraction, update.visible);
     // The Windows taskbar takes the same fraction and visibility.
     #[cfg(windows)]
@@ -168,7 +189,11 @@ fn send_taskbar_update(app: &AppWindow, launcher: &Launcher, update: TaskbarUpda
 /// so a track change and
 /// its position reset can never be dropped from the taskbar;
 /// the seek flag lets the caller keep the seek bar in step.
-fn drive_taskbar(app: &AppWindow, launcher: &Launcher, update: &Update) -> bool {
+fn drive_taskbar(
+    app: &AppWindow,
+    launcher: &Launcher,
+    update: &Update,
+) -> bool {
     let handled_at = UI_CLOCK_START.elapsed();
     let (input, decided) = {
         let mut state = TASKBAR_STATE.with(Clone::clone).borrow_mut();
@@ -196,7 +221,7 @@ fn should_surface_progress(
     let mut debouncer = progress_debouncer
         .lock()
         .expect("progress debouncer lock should not be poisoned");
-    return debouncer.should_surface(elapsed, kind)
+    return debouncer.should_surface(elapsed, kind);
 }
 
 /// What:
@@ -235,13 +260,17 @@ pub(crate) fn apply_update_with_progress_debounce(
         }
         // A new track resets the seek bar together with the new duration. The engine's own `Position(0)` follows, but
         // the gate may drop it, which would leave the old position drawn against the new duration.
-        Update::NowPlaying { .. } => {
-            let _ = should_surface_progress(progress_debouncer, elapsed, ProgressUpdateKind::Immediate);
+        Update::NowPlaying {
+            ..
+        } => {
+            let _ =
+                should_surface_progress(progress_debouncer, elapsed, ProgressUpdateKind::Immediate);
             apply_update(app, &update);
             apply_update(app, &Update::Position(0.0));
         }
         Update::Playing(_) => {
-            let _ = should_surface_progress(progress_debouncer, elapsed, ProgressUpdateKind::Immediate);
+            let _ =
+                should_surface_progress(progress_debouncer, elapsed, ProgressUpdateKind::Immediate);
             apply_update(app, &update);
         }
         _ => apply_update(app, &update),
@@ -287,7 +316,10 @@ use windows::Win32::Foundation::HWND;
 /// ```
 #[cfg(windows)]
 use windows::Win32::System::Com::{
-    CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
+    CLSCTX_INPROC_SERVER,
+    COINIT_APARTMENTTHREADED,
+    CoCreateInstance,
+    CoInitializeEx,
 };
 
 /// What:
@@ -305,7 +337,12 @@ use windows::Win32::System::Com::{
 /// import { ITaskbarList3, TaskbarList, TBPF_NORMAL, TBPF_NOPROGRESS } from "windows-shell";
 /// ```
 #[cfg(windows)]
-use windows::Win32::UI::Shell::{ITaskbarList3, TBPF_NOPROGRESS, TBPF_NORMAL, TaskbarList};
+use windows::Win32::UI::Shell::{
+    ITaskbarList3,
+    TBPF_NOPROGRESS,
+    TBPF_NORMAL,
+    TaskbarList,
+};
 
 // What:     `thread_local! { static TASKBAR: RefCell<Option<ITaskbarList3>> = const { RefCell::new(None) }; }`.
 //           A per-thread static holding the cached COM interface, or `None` until first
@@ -344,18 +381,6 @@ thread_local! {
 #[cfg(windows)]
 fn window_hwnd(app: &AppWindow) -> Option<HWND> {
     /// What:
-    ///      `use slint::ComponentHandle;`.
-    ///  Brings the `.window()` accessor into scope
-    ///           (a trait method is callable only when its trait is imported).
-    /// Why:
-    ///       `app.window()` returns the `slint::Window` the next call needs.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// import { ComponentHandle } from "slint";
-    /// ```
-    use slint::ComponentHandle;
-    /// What:
     ///      `use i_slint_backend_winit::WinitWindowAccessor;`.
     ///  The extension trait
     ///           adding `.with_winit_window(...)` to `slint::Window` on the winit backend.
@@ -382,7 +407,22 @@ fn window_hwnd(app: &AppWindow) -> Option<HWND> {
     /// ```ts
     /// import { HasWindowHandle, RawWindowHandle } from "winit/raw-window-handle";
     /// ```
-    use i_slint_backend_winit::winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use i_slint_backend_winit::winit::raw_window_handle::{
+        HasWindowHandle,
+        RawWindowHandle,
+    };
+    /// What:
+    ///      `use slint::ComponentHandle;`.
+    ///  Brings the `.window()` accessor into scope
+    ///           (a trait method is callable only when its trait is imported).
+    /// Why:
+    ///       `app.window()` returns the `slint::Window` the next call needs.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// import { ComponentHandle } from "slint";
+    /// ```
+    use slint::ComponentHandle;
     // What:     `app.window().with_winit_window(|w| { ... }).flatten()`. `with_winit_window`
     //           runs the closure with the live winit `Window`, returning
     //           `Some(closure_result)` or `None` if there is no winit window. The closure
@@ -528,7 +568,11 @@ fn create_taskbar_list() -> Option<ITaskbarList3> {
 /// function setWindowsTaskbarProgress(app, fraction, visible): void { ... }
 /// ```
 #[cfg(windows)]
-fn set_windows_taskbar_progress(app: &AppWindow, fraction: f64, visible: bool) {
+fn set_windows_taskbar_progress(
+    app: &AppWindow,
+    fraction: f64,
+    visible: bool,
+) {
     // What:     `let hwnd = match window_hwnd(app) { Some(h) => h, None => return };`.
     //           Resolve the window handle, or bail out silently if it is not ready.
     // Why:      Without a handle there is nothing to drive; best-effort like the Linux path

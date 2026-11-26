@@ -30,7 +30,11 @@ use ignore::WalkState;
 
 /// Imports the entry type the walker hands the filter and the visitors,
 /// and the two traits a worker visitor and its maker implement.
-use ignore::{DirEntry, ParallelVisitor, ParallelVisitorBuilder};
+use ignore::{
+    DirEntry,
+    ParallelVisitor,
+    ParallelVisitorBuilder,
+};
 
 /// Imports dependencies used by this module.
 // What:     `use anyhow::{anyhow, Result};` imports `anyhow`'s error-construction
@@ -42,7 +46,10 @@ use ignore::{DirEntry, ParallelVisitor, ParallelVisitorBuilder};
 // ```ts
 // type Result<T> = T; // failures throw Error objects
 // ```
-use anyhow::{anyhow, Result};
+use anyhow::{
+    Result,
+    anyhow,
+};
 
 /// Imports dependencies used by this module.
 // What:     `use std::sync::{Arc, Mutex};` imports two thread-safe
@@ -65,7 +72,10 @@ use anyhow::{anyhow, Result};
 // ```ts
 // // No equivalent. Imagine SharedArrayBuffer + a worker-pool lock.
 // ```
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 /// Whether the walker may descend into an entry:
 /// everything except the `.git` and `.jj` directories,
@@ -85,7 +95,9 @@ struct FileCollector {
 impl<'scope> ParallelVisitorBuilder<'scope> for FileCollector {
     /// One visitor for one worker thread.
     fn build(&mut self) -> Box<dyn ParallelVisitor + 'scope> {
-        return Box::new(FileVisitor { files: Arc::clone(&self.files) });
+        return Box::new(FileVisitor {
+            files: Arc::clone(&self.files),
+        });
     }
 }
 
@@ -100,7 +112,10 @@ impl ParallelVisitor for FileVisitor {
     /// Records the entry when it is a regular file with a UTF-8 path,
     /// and always lets the walk continue;
     /// an entry that errored (for example permission denied on a subtree) is skipped silently.
-    fn visit(&mut self, entry: Result<DirEntry, ignore::Error>) -> WalkState {
+    fn visit(
+        &mut self,
+        entry: Result<DirEntry, ignore::Error>,
+    ) -> WalkState {
         let Ok(found) = entry else {
             return WalkState::Continue;
         };
@@ -171,7 +186,7 @@ fn listing_key(path: &str) -> Vec<u8> {
             without_dots.push(part.as_os_str());
         }
     }
-    return crate::path_name_bytes::normalized_path(&without_dots)
+    return crate::path_name_bytes::normalized_path(&without_dots);
 }
 
 /// What state the index at `index_path` is in,
@@ -186,11 +201,17 @@ fn listing_key(path: &str) -> Vec<u8> {
 ///  Reopening is safe here:
 ///  Git never writes into the same index file,
 ///  it replaces it.
-fn unreadable_index_cause(index_path: &std::path::Path, error: &impl std::fmt::Display) -> String {
+fn unreadable_index_cause(
+    index_path: &std::path::Path,
+    error: &impl std::fmt::Display,
+) -> String {
     return match std::fs::File::open(index_path) {
         Err(open_error) => format!("it cannot be read ({})", open_error),
-        Ok(_) => format!("it does not hold a Git index this scanner can parse ({})", error),
-    }
+        Ok(_) => format!(
+            "it does not hold a Git index this scanner can parse ({})",
+            error
+        ),
+    };
 }
 
 /// Implements `list_files`.
@@ -273,7 +294,9 @@ pub fn list_files(root: &str) -> Result<WorkingTreeListing> {
     // and each visitor sees every entry its thread walks.
     // Each visitor holds a clone of the shared list,
     // so every worker locks it only to push a path.
-    let mut collector = FileCollector { files: Arc::clone(&shared_files) };
+    let mut collector = FileCollector {
+        files: Arc::clone(&shared_files),
+    };
     walker.visit(&mut collector);
 
     // What:     `Arc::try_unwrap(files)` succeeds if this `Arc` is the
@@ -365,8 +388,14 @@ pub fn list_files(root: &str) -> Result<WorkingTreeListing> {
     match crate::git_working_tree::discover(root_path) {
         crate::git_working_tree::Discovery::WorkingTree(tree) => working_tree = Some(tree),
         crate::git_working_tree::Discovery::NoRepository => {}
-        crate::git_working_tree::Discovery::Unusable { entry, cause } => {
-            union_gap = Some(UnionGap { at: entry, cause });
+        crate::git_working_tree::Discovery::Unusable {
+            entry,
+            cause,
+        } => {
+            union_gap = Some(UnionGap {
+                at: entry,
+                cause,
+            });
         }
     }
     if let Some(tree) = working_tree {
@@ -470,12 +499,18 @@ pub fn list_files(root: &str) -> Result<WorkingTreeListing> {
             }
             Err(error) => {
                 let cause: String = unreadable_index_cause(&index_path, &error);
-                union_gap = Some(UnionGap { at: index_path, cause });
+                union_gap = Some(UnionGap {
+                    at: index_path,
+                    cause,
+                });
             }
         }
     }
 
-    return Ok(WorkingTreeListing { files, union_gap })
+    return Ok(WorkingTreeListing {
+        files,
+        union_gap,
+    });
 }
 
 /// Registers the `tests` child module.

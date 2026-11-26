@@ -13,24 +13,45 @@
 
 /// The registry is assembled in code on this thread,
 ///  never from project or user configuration.
-use super::config::{LanguageSetup, Languages};
+use super::config::{
+    LanguageSetup,
+    Languages,
+};
 /// The file watchers servers registered,
 ///  and the changes waiting for them.
 use super::watched_files::WatchedFiles;
 /// The steps a command or event is dispatched to,
 ///  and the wait that ends the thread.
-use super::{attach, forward, lifecycle, notice, reap, request, session::Session, traffic};
+use super::{
+    attach,
+    forward,
+    lifecycle,
+    notice,
+    reap,
+    request,
+    session::Session,
+    traffic,
+};
 /// Commands and one-shot replies.
 use super::{
     hints::HintWindow,
-    identity::{DocumentStamp, ServerIdentity},
+    identity::{
+        DocumentStamp,
+        ServerIdentity,
+    },
     reply::PositionRequest,
-    sync::{DocumentOpen, DocumentReload},
+    sync::{
+        DocumentOpen,
+        DocumentReload,
+    },
 };
 /// The changes the change watcher forwards.
 use crate::change_watch::ServerChange;
 /// Start failures name the operation that failed.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 /// What:
 ///  `StreamExt` adds `.next()` to streams,
 ///  which are sequences of values that arrive over
@@ -47,9 +68,15 @@ use anyhow::{Context, Result};
 /// ```ts
 /// for await (const [server, call] of registry.incoming) { }
 /// ```
-use futures_util::{StreamExt, stream::FuturesUnordered};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
 /// helix-lsp's server table and its key type.
-use helix_lsp::{LanguageServerId, Registry};
+use helix_lsp::{
+    LanguageServerId,
+    Registry,
+};
 /// What:
 ///  `PathBuf` is an owned filesystem path;
 ///  `Arc` is a thread-safe shared pointer;
@@ -67,7 +94,10 @@ use helix_lsp::{LanguageServerId, Registry};
 use std::{
     path::PathBuf,
     sync::Arc,
-    thread::{self, JoinHandle},
+    thread::{
+        self,
+        JoinHandle,
+    },
     time::Duration,
 };
 /// What:
@@ -314,7 +344,11 @@ impl Worker {
     /// ```ts
     /// timer(delay: number, event: Internal) { setTimeout(() => internal.push(event), delay); }
     /// ```
-    pub(super) fn timer(&self, delay: Duration, event: Internal) {
+    pub(super) fn timer(
+        &self,
+        delay: Duration,
+        event: Internal,
+    ) {
         // `clone` copies the sender so the task owns its own handle to the queue.
         let internal = self.internal.clone();
         tokio::spawn(async move {
@@ -327,21 +361,33 @@ impl Worker {
     }
 
     /// Run one command from the interface thread.
-    async fn handle(&mut self, command: Command) {
+    async fn handle(
+        &mut self,
+        command: Command,
+    ) {
         match command {
             Command::Open(open) => lifecycle::open(self, open).await,
             Command::Reload(reload) => lifecycle::reload(self, reload),
             Command::Close => lifecycle::close(self),
-            Command::Request { number, request } => {
+            Command::Request {
+                number,
+                request,
+            } => {
                 request::position(self, number, request).await;
             }
-            Command::Hints { stamp, window } => request::window(self, stamp, window),
+            Command::Hints {
+                stamp,
+                window,
+            } => request::window(self, stamp, window),
         }
         self.publish();
     }
 
     /// Run one event a timer task handed back.
-    fn on_internal(&mut self, event: Internal) {
+    fn on_internal(
+        &mut self,
+        event: Internal,
+    ) {
         match event {
             Internal::StartDeadline(server) => attach::start_deadline(self, server),
             Internal::HoldExpired(serial) => {

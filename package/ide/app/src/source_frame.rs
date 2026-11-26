@@ -11,7 +11,10 @@ use crate::document::Document;
 /// In-file find ranges are painted from the same shaped rows as selection.
 use crate::find::FindRanges;
 /// Physical tile geometry determines materialized rows and font scale.
-use crate::shaped_text::{Clip, Viewport};
+use crate::shaped_text::{
+    Clip,
+    Viewport,
+};
 /// Syntax spans belong to the source paint key even when text is unchanged.
 use crate::source_style::SourceStyles;
 /// Pointer equality avoids walking unchanged classifications on caret-only updates.
@@ -73,7 +76,10 @@ pub struct FrameStamp {
 ///  using shared snapshot identity before comparing new span contents.
 impl PartialEq for FrameStamp {
     /// Unchanged source classifications require no per-span equality scan.
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(
+        &self,
+        other: &Self,
+    ) -> bool {
         return self.revision == other.revision
             && self.selection == other.selection
             && self.viewport == other.viewport
@@ -88,7 +94,10 @@ impl PartialEq for FrameStamp {
 
 /// Whether two shared values are the same allocation or equal,
 /// which skips the comparison for the same one.
-fn shared_or_equal<T: PartialEq + ?Sized>(left: &Arc<T>, right: &Arc<T>) -> bool {
+fn shared_or_equal<T: PartialEq + ?Sized>(
+    left: &Arc<T>,
+    right: &Arc<T>,
+) -> bool {
     return Arc::ptr_eq(left, right) || left == right;
 }
 
@@ -106,7 +115,10 @@ impl FrameStamp {
     /// ```ts
     /// sameExceptAnnotations(other: FrameStamp): boolean;
     /// ```
-    pub fn same_except_annotations(&self, other: &Self) -> bool {
+    pub fn same_except_annotations(
+        &self,
+        other: &Self,
+    ) -> bool {
         return other.revision == self.revision
             && other.selection == self.selection
             && other.viewport == self.viewport
@@ -156,7 +168,10 @@ impl FrameStamp {
     /// ```ts
     /// withClip(clip?: Clip): FrameStamp;
     /// ```
-    pub fn with_clip(mut self, clip: Option<Clip>) -> Self {
+    pub fn with_clip(
+        mut self,
+        clip: Option<Clip>,
+    ) -> Self {
         self.viewport.clip = clip;
         return self;
     }
@@ -164,7 +179,10 @@ impl FrameStamp {
     /// Replace the in-file find ranges of this stamp;
     ///  a different match list is a different frame.
     /// The stamp is consumed and returned so existing callers without matches stay unchanged.
-    pub fn with_matches(mut self, matches: FindRanges) -> Self {
+    pub fn with_matches(
+        mut self,
+        matches: FindRanges,
+    ) -> Self {
         self.matches = matches;
         return self;
     }
@@ -172,7 +190,11 @@ impl FrameStamp {
     /// Replace the visible hint labels and diagnostic marks and their inks;
     ///  any difference is a different frame.
     /// The stamp is consumed and returned so existing callers without annotations stay unchanged.
-    pub fn with_annotations(mut self, annotations: Arc<Visible>, colors: AnnotationColors) -> Self {
+    pub fn with_annotations(
+        mut self,
+        annotations: Arc<Visible>,
+        colors: AnnotationColors,
+    ) -> Self {
         self.annotations = annotations;
         // `Some` records that this frame paints annotations with these inks.
         self.annotation_colors = Some(colors);

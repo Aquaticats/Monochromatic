@@ -15,16 +15,29 @@
 /// black text and red selected text.
 use ide_app::code_colors::CodeColors;
 /// The document under test and the position that selects a range.
-use ide_app::document::{Document, ReadingAffinity, ReadingPosition};
+use ide_app::document::{
+    Document,
+    ReadingAffinity,
+    ReadingPosition,
+};
 /// The row height of the tile.
-use ide_app::row_map::{CODE_ROW, RowMap};
+use ide_app::row_map::{
+    CODE_ROW,
+    RowMap,
+};
 /// The shaper and the viewport that lay the rows out.
-use ide_app::shaped_text::{TextShaper, Viewport};
+use ide_app::shaped_text::{
+    TextShaper,
+    Viewport,
+};
 /// What a tile draws,
 /// read as data.
 use ide_app::tile_scene::{
     Item,
-    read::{DrawnRun, drawn_runs},
+    read::{
+        DrawnRun,
+        drawn_runs,
+    },
     tile_items,
 };
 
@@ -52,7 +65,10 @@ fn code(count: usize) -> String {
 
 /// The items of a tile of `count` lines with the first `selected` lines selected,
 /// and the tile's height.
-fn items_of(count: usize, selected: usize) -> (Vec<Item>, f32) {
+fn items_of(
+    count: usize,
+    selected: usize,
+) -> (Vec<Item>, f32) {
     let mut document = Document::new(&code(count));
     let head = if selected >= count {
         document.text().len_chars()
@@ -93,7 +109,12 @@ fn a_selected_rows_clips_are_as_tall_as_the_row_and_not_the_tile() {
     let (items, height) = items_of(40, 40);
     let mut clips = 0;
     for item in &items {
-        if let Item::Clip { top, bottom, .. } = item {
+        if let Item::Clip {
+            top,
+            bottom,
+            ..
+        } = item
+        {
             clips += 1;
             let tall = bottom - top;
             assert!(
@@ -112,7 +133,10 @@ fn a_selected_rows_clips_are_as_tall_as_the_row_and_not_the_tile() {
 
 /// The runs drawn in each ink on each row:
 /// the selected copies and the ordinary ones.
-fn copies(runs: &[DrawnRun], row: usize) -> (usize, usize) {
+fn copies(
+    runs: &[DrawnRun],
+    row: usize,
+) -> (usize, usize) {
     let mut selected = 0;
     let mut ordinary = 0;
     for run in runs {

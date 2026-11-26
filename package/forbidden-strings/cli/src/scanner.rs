@@ -10,23 +10,35 @@
 
 /// Import the existing loader's rule sets that one scanner owns.
 use crate::frx_load::LoadedRules;
-/// The loader's named unwind boundary returns no partial ruleset after a panic.
-use crate::load_request;
 /// Imports the content matcher that reports line findings for one candidate's bytes.
 use crate::frx_scan::scan_content;
+/// The loader's named unwind boundary returns no partial ruleset after a panic.
+use crate::load_request;
 /// Imports the pathname masker and its display-plus-findings result.
-use crate::path_scan::{PathScanRecords, scan_path_records};
-/// Imports the binary-probe length and the structured finding model returned to callers.
-use crate::{BIN_PROBE_SIZE, ScanFinding};
-/// Import the incumbent load-error channel.
-use anyhow::Result;
-/// Imports the fixed-token cache diagnostic retained from loading,
-///  and what a load may write into the shared compiled-rules cache.
-use crate::runtime_cache::{CacheAccess, CacheWarning};
+use crate::path_scan::{
+    PathScanRecords,
+    scan_path_records,
+};
 /// Imports the list entry a host passes to name its rules files.
 use crate::rules_list::RulesEntry;
+/// Imports the fixed-token cache diagnostic retained from loading,
+///  and what a load may write into the shared compiled-rules cache.
+use crate::runtime_cache::{
+    CacheAccess,
+    CacheWarning,
+};
+/// Imports the binary-probe length and the structured finding model returned to callers.
+use crate::{
+    BIN_PROBE_SIZE,
+    ScanFinding,
+};
+/// Import the incumbent load-error channel.
+use anyhow::Result;
 /// Native paths preserve operating-system encoding until matching/display boundaries.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Caller-owned identity plus safely displayable results from one exact candidate snapshot.
@@ -74,8 +86,17 @@ impl Scanner {
     /// ```ts
     /// function loadScanner(runtimeRulesPath, builtinRules, explicitlySelectedPath): Scanner;
     /// ```
-    pub fn load(runtime_rules_path: &Path, builtin_rules: bool, explicit: bool) -> Result<Scanner> {
-        return Scanner::load_writing_cache(runtime_rules_path, builtin_rules, explicit, CacheAccess::ReadWrite)
+    pub fn load(
+        runtime_rules_path: &Path,
+        builtin_rules: bool,
+        explicit: bool,
+    ) -> Result<Scanner> {
+        return Scanner::load_writing_cache(
+            runtime_rules_path,
+            builtin_rules,
+            explicit,
+            CacheAccess::ReadWrite,
+        );
     }
 
     /// What:
@@ -98,8 +119,11 @@ impl Scanner {
         access: CacheAccess,
     ) -> Result<Scanner> {
         // Propagate the loader's existing redacted failure instead of accepting an incomplete ruleset.
-        let loaded: LoadedRules = load_request::load(runtime_rules_path, builtin_rules, explicit, access)?;
-        return Ok(Scanner { loaded });
+        let loaded: LoadedRules =
+            load_request::load(runtime_rules_path, builtin_rules, explicit, access)?;
+        return Ok(Scanner {
+            loaded,
+        });
     }
 
     /// What:
@@ -114,8 +138,11 @@ impl Scanner {
     /// ```ts
     /// function loadScannerFromList(entries: { path: string; optional: boolean }[], builtinRules: boolean): Scanner;
     /// ```
-    pub fn load_entries(entries: &[RulesEntry], builtin_rules: bool) -> Result<Scanner> {
-        return Scanner::load_entries_writing_cache(entries, builtin_rules, CacheAccess::ReadWrite)
+    pub fn load_entries(
+        entries: &[RulesEntry],
+        builtin_rules: bool,
+    ) -> Result<Scanner> {
+        return Scanner::load_entries_writing_cache(entries, builtin_rules, CacheAccess::ReadWrite);
     }
 
     /// What:
@@ -136,7 +163,9 @@ impl Scanner {
     ) -> Result<Scanner> {
         // Propagate the loader's existing redacted failure instead of accepting an incomplete ruleset.
         let loaded: LoadedRules = load_request::load_entries(entries, builtin_rules, access)?;
-        return Ok(Scanner { loaded });
+        return Ok(Scanner {
+            loaded,
+        });
     }
 
     /// Borrow the optional rules files that were absent and skipped,
@@ -159,13 +188,22 @@ impl Scanner {
     /// ```ts
     /// function scan(identity, logicalPath, exactBytes): CandidateScan;
     /// ```
-    pub fn scan(&self, identity: usize, logical_path: &Path, bytes: &[u8]) -> CandidateScan {
+    pub fn scan(
+        &self,
+        identity: usize,
+        logical_path: &Path,
+        bytes: &[u8],
+    ) -> CandidateScan {
         // Canonical pathname records own a safe display path before content diagnostics are attached.
         let pathname: PathScanRecords = scan_path_records(logical_path, &self.loaded);
         // Mirror the standalone reader: binary files retain their first 8 KiB, not an invented clean/skip result.
         let probe_length: usize = bytes.len().min(BIN_PROBE_SIZE);
         let probe: &[u8] = &bytes[..probe_length];
-        let content: &[u8] = if memchr::memchr(0, probe).is_some() { probe } else { bytes };
+        let content: &[u8] = if memchr::memchr(0, probe).is_some() {
+            probe
+        } else {
+            bytes
+        };
         let mut findings: Vec<ScanFinding> = pathname.findings;
         findings.extend(scan_content(content, &self.loaded));
         return CandidateScan {
@@ -182,7 +220,9 @@ impl Scanner {
 pub fn scanner_from_text_for_fuzzing(text: &str) -> Result<Scanner> {
     // Propagate the existing redacted compiler failure; never construct a partial scanner.
     let loaded: LoadedRules = crate::frx_load::hybrid_from_text(text)?;
-    return Ok(Scanner { loaded });
+    return Ok(Scanner {
+        loaded,
+    });
 }
 
 /// Embedded-consumer controls use cache-free,

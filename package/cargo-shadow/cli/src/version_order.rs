@@ -37,7 +37,11 @@ use std::cmp::Ordering;
 /// ```ts
 /// import { ParsedVersion, compare_versions, parse_version } from 'monochromatic_dependency_catalog/version';
 /// ```
-use monochromatic_dependency_catalog::version::{ParsedVersion, compare_versions, parse_version};
+use monochromatic_dependency_catalog::version::{
+    ParsedVersion,
+    compare_versions,
+    parse_version,
+};
 
 /// Parses a full version;
 /// `None` when the text is not a version.
@@ -47,7 +51,10 @@ pub fn parsed(version: &str) -> Option<ParsedVersion> {
 
 /// Orders two version texts;
 /// text that is not a version sorts first.
-pub fn compare_texts(left: &str, right: &str) -> Ordering {
+pub fn compare_texts(
+    left: &str,
+    right: &str,
+) -> Ordering {
     return match (parsed(left), parsed(right)) {
         (Some(a), Some(b)) => compare_versions(&a, &b),
         (Some(_), None) => Ordering::Greater,
@@ -87,7 +94,10 @@ pub fn is_prerelease_text(version: &str) -> bool {
 /// ```ts
 /// export function caretCompatible({ version, candidate }): boolean
 /// ```
-pub fn caret_compatible(version: &str, candidate: &str) -> bool {
+pub fn caret_compatible(
+    version: &str,
+    candidate: &str,
+) -> bool {
     let (a, b) = match (parsed(version), parsed(candidate)) {
         (Some(first), Some(second)) => (first, second),
         _ => return false,

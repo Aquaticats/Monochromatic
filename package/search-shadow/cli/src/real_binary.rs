@@ -48,7 +48,10 @@ use std::os::unix::fs::PermissionsExt;
 /// ```ts
 /// // TS uses plain strings for both.
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the check that tells a shadow,
 /// of any version,
@@ -158,7 +161,11 @@ fn is_executable_file(path: &Path) -> bool {
 ///   return undefined;
 /// }
 /// ```
-pub fn find_in_path(name: &str, path_variable: &str, skip: &Path) -> Option<PathBuf> {
+pub fn find_in_path(
+    name: &str,
+    path_variable: &str,
+    skip: &Path,
+) -> Option<PathBuf> {
     // What:     `for directory in path_variable.split(':')` loops over the pieces of the PATH text. `split(':')`
     // yields each piece lazily; `directory` is a borrowed `&str`.
     // Why:      PATH is a colon-separated list searched in order.

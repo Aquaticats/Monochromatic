@@ -9,13 +9,27 @@
 //! every wait advances timers and lets the workers answer.
 
 /// The complete reader fixture and its disposable project.
-use super::find_tests::{Reader, memory_project, reader};
+use super::find_tests::{
+    Reader,
+    memory_project,
+    reader,
+};
 /// Window resizing and layout settling for exact sizes.
-use super::sidebar_tests::{GUTTER, HEADER, TEXT_LEFT, resize};
+use super::sidebar_tests::{
+    GUTTER,
+    HEADER,
+    TEXT_LEFT,
+    resize,
+};
 /// The production window and its state.
 use super::{
-    AppWindow, State,
-    tile_reads::{same_rows, shown, sign_pixels},
+    AppWindow,
+    State,
+    tile_reads::{
+        same_rows,
+        shown,
+        sign_pixels,
+    },
 };
 /// The wrap width rule and the worker's gates and limits.
 use super::{
@@ -24,16 +38,30 @@ use super::{
     tile::current_key,
     tile_build::PASS_GATE,
     tile_pass::TAKE_LIMIT,
-    viewport::{CARET_ROOM, place, wrap_width},
+    viewport::{
+        CARET_ROOM,
+        place,
+        wrap_width,
+    },
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// Library types that give the expected values.
-use ide_app::{row_map::RowMap, shaped_text::TextShaper};
+use ide_app::{
+    row_map::RowMap,
+    shaped_text::TextShaper,
+};
 /// Toolkit events and models.
 use slint::{
-    ComponentHandle, LogicalPosition, Model,
-    platform::{Key, PointerEventButton, WindowEvent, update_timers_and_animations},
+    ComponentHandle,
+    LogicalPosition,
+    Model,
+    platform::{
+        Key,
+        PointerEventButton,
+        WindowEvent,
+        update_timers_and_animations,
+    },
 };
 /// Shared state,
 /// files,
@@ -42,7 +70,10 @@ use std::{
     cell::RefCell,
     fs,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Longest wait for a worker answer;
@@ -82,7 +113,11 @@ pub(super) fn tabbed_text(count: usize) -> String {
 }
 
 /// The window y of the code row of `top_line`.
-fn screen(state: &Rc<RefCell<State>>, top_line: usize, window: &AppWindow) -> f32 {
+fn screen(
+    state: &Rc<RefCell<State>>,
+    top_line: usize,
+    window: &AppWindow,
+) -> f32 {
     return state.borrow().row_map.code_top(top_line) + window.get_scroll_y();
 }
 
@@ -95,7 +130,10 @@ fn worker_measured_ahead(state: &Rc<RefCell<State>>) -> bool {
 }
 
 /// A press and release at `position` after the double-click interval has passed.
-fn click(window: &AppWindow, position: LogicalPosition) {
+fn click(
+    window: &AppWindow,
+    position: LogicalPosition,
+) {
     std::thread::sleep(Duration::from_millis(520));
     window.window().dispatch_event(WindowEvent::PointerPressed {
         position,
@@ -111,7 +149,10 @@ fn click(window: &AppWindow, position: LogicalPosition) {
 }
 
 /// Whether the worker has measured the whole text at the current wrap width and nothing is queued.
-pub(super) fn measured(state: &Rc<RefCell<State>>, scale: f32) -> bool {
+pub(super) fn measured(
+    state: &Rc<RefCell<State>>,
+    scale: f32,
+) -> bool {
     let current = state.borrow();
     let mut posted = None;
     if let Some((key, _)) = current.pass_posted {
@@ -155,7 +196,10 @@ pub(super) fn open(text: &str) -> (tempfile::TempDir, Reader) {
 }
 
 /// The vertical extent a fresh shaper gives `text` when every line is measured at the state's wrap width.
-fn expected_extent(state: &Rc<RefCell<State>>, scale: f32) -> f32 {
+fn expected_extent(
+    state: &Rc<RefCell<State>>,
+    scale: f32,
+) -> f32 {
     let current = state.borrow();
     let lines = current.document.text().len_lines();
     let mut shaper = TextShaper::new();
@@ -621,7 +665,11 @@ fn the_caret_after_a_full_row_stays_inside_the_view() {
 
 /// The window point over visual row `visual` of the first line,
 /// `x` logical pixels into the text.
-fn point(window: &AppWindow, visual: usize, x: f32) -> LogicalPosition {
+fn point(
+    window: &AppWindow,
+    visual: usize,
+    x: f32,
+) -> LogicalPosition {
     return LogicalPosition::new(
         TEXT_LEFT + x,
         HEADER + visual as f32 * 24.0 + 12.0 + window.get_scroll_y(),

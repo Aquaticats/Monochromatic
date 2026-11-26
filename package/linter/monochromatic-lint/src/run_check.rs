@@ -28,17 +28,33 @@ use crate::{
     fix_loop::SourceChecker,
     markdown_dispatch::check_markdown_rules,
     markdown_lfs_context::LfsImageContext,
-    markdown_rule_settings::{MarkdownRuleSettings, markdown_rule_settings},
+    markdown_rule_settings::{
+        MarkdownRuleSettings,
+        markdown_rule_settings,
+    },
     markdown_source::MarkdownSource,
-    processors::{ProcessorLanguage, VirtualSource},
+    processors::{
+        ProcessorLanguage,
+        VirtualSource,
+    },
     run_check_shell::shell_findings,
-    run_failure::{host_span, processing_failure, processor_failure},
+    run_failure::{
+        host_span,
+        processing_failure,
+        processor_failure,
+    },
     run_lfs::LfsRepos,
-    run_paths::{Language, logical_path},
+    run_paths::{
+        Language,
+        logical_path,
+    },
     run_plan::FilePlan,
     rust_dispatch::check_syntax_rules,
     rust_file_engine::RustFileEngine,
-    rust_rule_settings::{RustRuleSettings, rust_rule_settings},
+    rust_rule_settings::{
+        RustRuleSettings,
+        rust_rule_settings,
+    },
     rust_source::RustSource,
 };
 /// Import the JSONC value that carries a virtual file's resolved rules.
@@ -348,7 +364,9 @@ impl<'run> HostChecker<'run> {
         };
         let logical: PathBuf = logical_path(&self.plan.relative, suffix);
         let rules: JsoncValue = match self.plan.config.resolve(&logical) {
-            Ok(FileConfiguration::Configured { rules }) => rules,
+            Ok(FileConfiguration::Configured {
+                rules,
+            }) => rules,
             Ok(FileConfiguration::Ignored) | Ok(FileConfiguration::Unconfigured) => return Ok(()),
             Err(error) => return Err(error.to_string()),
         };
@@ -424,7 +442,10 @@ mod snapshot;
 /// ```
 impl SourceChecker for HostChecker<'_> {
     /// Wrap the infallible snapshot check in the loop's result type.
-    fn check(&mut self, source: &str) -> Result<Vec<Diagnostic>, FixError> {
+    fn check(
+        &mut self,
+        source: &str,
+    ) -> Result<Vec<Diagnostic>, FixError> {
         let mut findings: Vec<Diagnostic> = self.check_snapshot(source);
         // A fix outside this run's scope is withheld; its finding is still reported.
         for finding in &mut findings {

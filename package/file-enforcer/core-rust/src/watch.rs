@@ -21,7 +21,11 @@
 /// Imports `CollectingSink`,
 /// `Event`,
 /// `EventSink` from `crate::event`.
-use crate::event::{CollectingSink, Event, EventSink};
+use crate::event::{
+    CollectingSink,
+    Event,
+    EventSink,
+};
 /// Imports `OutputScope` from `crate::output_scope`.
 use crate::output_scope::OutputScope;
 /// Imports `STAGING_MARKER` from `crate::publish`.
@@ -31,7 +35,13 @@ use crate::publish::STAGING_MARKER;
 /// `RunRequest`,
 /// `WatchPaths`,
 /// `run_detailed` from `crate::run`.
-use crate::run::{EXIT_CLEAN, RunMode, RunRequest, WatchPaths, run_detailed};
+use crate::run::{
+    EXIT_CLEAN,
+    RunMode,
+    RunRequest,
+    WatchPaths,
+    run_detailed,
+};
 /// Imports `Shared` from `crate::server`.
 use crate::server::Shared;
 /// Imports `RpcSink` from `crate::server_connection`.
@@ -39,22 +49,35 @@ use crate::server_connection::RpcSink;
 /// Imports `RecommendedWatcher`,
 /// `RecursiveMode`,
 /// `Watcher` from `notify`.
-use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{
+    RecommendedWatcher,
+    RecursiveMode,
+    Watcher,
+};
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
 /// Imports `BTreeSet` from `std::collections`.
 use std::collections::BTreeSet;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports `Ordering` from `std::sync::atomic`.
 use std::sync::atomic::Ordering;
 /// Imports `RecvTimeoutError`,
 /// `channel` from `std::sync::mpsc`.
-use std::sync::mpsc::{RecvTimeoutError, channel};
+use std::sync::mpsc::{
+    RecvTimeoutError,
+    channel,
+};
 /// Imports `Duration`,
 /// `Instant` from `std::time`.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long the file system must stay quiet before a cycle runs.
 const QUIET_PERIOD: Duration = Duration::from_millis(200);
@@ -98,13 +121,20 @@ fn nearest_existing(path: &Path) -> PathBuf {
 /// ```ts
 /// function watchTargets(root: string, config: string, paths: WatchPaths): Set<string>
 /// ```
-fn watch_targets(root: &Path, config: &Path, paths: &WatchPaths) -> BTreeSet<PathBuf> {
+fn watch_targets(
+    root: &Path,
+    config: &Path,
+    paths: &WatchPaths,
+) -> BTreeSet<PathBuf> {
     let mut targets: BTreeSet<PathBuf> = BTreeSet::new();
     if let Some(parent) = config.parent() {
         targets.insert(nearest_existing(parent));
     }
     for file in &paths.files {
-        let parent = Path::new(file).parent().map(Path::to_path_buf).unwrap_or_default();
+        let parent = Path::new(file)
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_default();
         targets.insert(nearest_existing(&root.join(parent)));
     }
     for directory in &paths.directories {
@@ -126,8 +156,16 @@ fn watch_targets(root: &Path, config: &Path, paths: &WatchPaths) -> BTreeSet<Pat
 /// ```ts
 /// function syncWatches(watcher: Watcher, current: Set<string>, wanted: Set<string>): boolean
 /// ```
-fn sync_watches(watcher: &mut RecommendedWatcher, current: &mut BTreeSet<PathBuf>, wanted: &BTreeSet<PathBuf>) -> bool {
-    for stale in current.difference(wanted).cloned().collect::<Vec<PathBuf>>() {
+fn sync_watches(
+    watcher: &mut RecommendedWatcher,
+    current: &mut BTreeSet<PathBuf>,
+    wanted: &BTreeSet<PathBuf>,
+) -> bool {
+    for stale in current
+        .difference(wanted)
+        .cloned()
+        .collect::<Vec<PathBuf>>()
+    {
         let _ = watcher.unwatch(&stale);
         current.remove(&stale);
     }
@@ -150,7 +188,12 @@ fn sync_watches(watcher: &mut RecommendedWatcher, current: &mut BTreeSet<PathBuf
 /// ```ts
 /// function runLocked(shared: Shared, request: RunRequest, sink: EventSink, paths: WatchPaths): number
 /// ```
-fn run_locked(shared: &Shared, request: &RunRequest, sink: &mut dyn EventSink, paths: &mut WatchPaths) -> i32 {
+fn run_locked(
+    shared: &Shared,
+    request: &RunRequest,
+    sink: &mut dyn EventSink,
+    paths: &mut WatchPaths,
+) -> i32 {
     let _guard = shared.run_lock.lock();
     return run_detailed(request, &shared.registry, sink, paths);
 }
@@ -170,9 +213,20 @@ fn run_locked(shared: &Shared, request: &RunRequest, sink: &mut dyn EventSink, p
 /// ```ts
 /// function cycle(shared: Shared, sink: RpcSink, request: RunRequest, changed: Set<string>, paths: WatchPaths): void
 /// ```
-fn cycle(shared: &Shared, sink: &mut RpcSink, base: &RunRequest, changed: &BTreeSet<String>, paths: &mut WatchPaths) {
+fn cycle(
+    shared: &Shared,
+    sink: &mut RpcSink,
+    base: &RunRequest,
+    changed: &BTreeSet<String>,
+    paths: &mut WatchPaths,
+) {
     let mut collected = CollectingSink::default();
-    let check = RunRequest { mode: RunMode::Check { expected_dir: None }, ..base.clone() };
+    let check = RunRequest {
+        mode: RunMode::Check {
+            expected_dir: None,
+        },
+        ..base.clone()
+    };
     let mut seen = WatchPaths::default();
     let code = run_locked(shared, &check, &mut collected, &mut seen);
     if !seen.files.is_empty() || !seen.directories.is_empty() {
@@ -194,13 +248,22 @@ fn cycle(shared: &Shared, sink: &mut RpcSink, base: &RunRequest, changed: &BTree
         return;
     }
     for drift in drifts {
-        let path = drift.fields.get("path").and_then(Value::as_str).unwrap_or_default();
+        let path = drift
+            .fields
+            .get("path")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         if changed.contains(path) {
-            let message = format!("{path} is generated and was edited; it is being regenerated, edit its source instead");
+            let message = format!(
+                "{path} is generated and was edited; it is being regenerated, edit its source instead"
+            );
             sink.emit(Event::new("warning", "generated-file-edited", &message));
         }
     }
-    let write = RunRequest { mode: RunMode::Write, ..base.clone() };
+    let write = RunRequest {
+        mode: RunMode::Write,
+        ..base.clone()
+    };
     let mut after = WatchPaths::default();
     run_locked(shared, &write, sink, &mut after);
     if !after.files.is_empty() || !after.directories.is_empty() {
@@ -218,7 +281,11 @@ fn cycle(shared: &Shared, sink: &mut RpcSink, base: &RunRequest, changed: &BTree
 /// ```ts
 /// async function watchConnection(shared: Shared, sink: RpcSink, configPath: string): Promise<void>
 /// ```
-pub fn watch_connection(shared: &Shared, mut sink: RpcSink, config_path: &Path) {
+pub fn watch_connection(
+    shared: &Shared,
+    mut sink: RpcSink,
+    config_path: &Path,
+) {
     let root = shared.options.root.clone();
     let base = RunRequest {
         root: root.clone(),
@@ -229,12 +296,20 @@ pub fn watch_connection(shared: &Shared, mut sink: RpcSink, config_path: &Path) 
     };
     let (sender, receiver) = channel();
     let Ok(mut watcher) = notify::recommended_watcher(sender) else {
-        sink.emit(Event::new("error", "watch-unavailable", "the operating system's file watcher could not start"));
+        sink.emit(Event::new(
+            "error",
+            "watch-unavailable",
+            "the operating system's file watcher could not start",
+        ));
         return;
     };
     let mut current: BTreeSet<PathBuf> = BTreeSet::new();
     let mut paths = WatchPaths::default();
-    sink.emit(Event::new("watching", "watch-started", "watching; the first run brings every generated file current"));
+    sink.emit(Event::new(
+        "watching",
+        "watch-started",
+        "watching; the first run brings every generated file current",
+    ));
     let mut changed: BTreeSet<String> = BTreeSet::new();
     cycle(shared, &mut sink, &base, &changed, &mut paths);
     let mut last_ping = Instant::now();
@@ -264,7 +339,9 @@ pub fn watch_connection(shared: &Shared, mut sink: RpcSink, config_path: &Path) 
                 collect_changed(&root, first, &mut changed);
                 let debounce_started = Instant::now();
                 while debounce_started.elapsed() < MAX_DEBOUNCE {
-                    let Ok(next) = receiver.recv_timeout(QUIET_PERIOD) else { break };
+                    let Ok(next) = receiver.recv_timeout(QUIET_PERIOD) else {
+                        break;
+                    };
                     collect_changed(&root, next, &mut changed);
                 }
             }
@@ -288,7 +365,11 @@ pub fn watch_connection(shared: &Shared, mut sink: RpcSink, config_path: &Path) 
 /// ```ts
 /// function collectChanged(root: string, event: Event, changed: Set<string>): void
 /// ```
-fn collect_changed(root: &Path, received: Result<notify::Event, notify::Error>, changed: &mut BTreeSet<String>) {
+fn collect_changed(
+    root: &Path,
+    received: Result<notify::Event, notify::Error>,
+    changed: &mut BTreeSet<String>,
+) {
     let Ok(event) = received else { return };
     // Reading a file is an access event; the run itself reads files, so counting accesses would loop forever.
     if matches!(event.kind, notify::EventKind::Access(_)) {

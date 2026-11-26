@@ -55,7 +55,10 @@ pub mod qobject {
         ///  accept-drop) as the app fills in.
         #[qinvokable]
         #[cxx_name = "logFromQml"]
-        fn log_from_qml(&self, message: &QString);
+        fn log_from_qml(
+            &self,
+            message: &QString,
+        );
     }
 }
 
@@ -81,7 +84,7 @@ impl Default for AppBridgeRust {
     fn default() -> Self {
         return Self {
             greeting: QString::from("Monochromatic file manager (Qt / cxx-qt)"),
-        }
+        };
     }
 }
 
@@ -97,7 +100,10 @@ impl qobject::AppBridge {
     ///  and routes it through the same
     ///      off-thread logging the whole app uses,
     ///  so it never blocks a frame.
-    pub fn log_from_qml(&self, message: &QString) {
+    pub fn log_from_qml(
+        &self,
+        message: &QString,
+    ) {
         tracing::info!(target: "app_bridge", message = %message, "logFromQml invoked from QML");
     }
 }

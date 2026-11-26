@@ -8,7 +8,11 @@ use super::setup::LanguageSetup;
 ///  which servers are given.
 use crate::language::{
     root::RootView,
-    toolchain::{ToolchainRequest, ToolchainState, search::search_path},
+    toolchain::{
+        ToolchainRequest,
+        ToolchainState,
+        search::search_path,
+    },
 };
 /// What:
 ///  `HashMap` is a key-value table;
@@ -22,7 +26,10 @@ use crate::language::{
 /// ```
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -60,7 +67,10 @@ pub(super) fn spellings(root: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// function resolve(root: string, setup: LanguageSetup): ToolchainState
 /// ```
-pub(super) fn resolve(root: &Path, setup: &LanguageSetup) -> ToolchainState {
+pub(super) fn resolve(
+    root: &Path,
+    setup: &LanguageSetup,
+) -> ToolchainState {
     let request = ToolchainRequest {
         project_root: root.to_path_buf(),
         project_spellings: spellings(root),

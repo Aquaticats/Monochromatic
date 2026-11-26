@@ -1,14 +1,25 @@
 //! Nonblocking navigation replies and lazy directory refresh scheduling.
 
 /// Toolkit callbacks retain only UI-thread owners and immutable worker replies.
-use super::{AppWindow, Navigation, State, open, present, search, watch};
+use super::{
+    AppWindow,
+    Navigation,
+    State,
+    open,
+    present,
+    search,
+    watch,
+};
 /// Queue failures remain actionable diagnostics with their affected directory path.
 use anyhow::Result;
 /// Timed retry/refresh bounds avoid reading an inaccessible folder on every UI tick.
 use std::{
     cell::RefCell,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Consume the sole directory reply and retain its error until that same target recovers.

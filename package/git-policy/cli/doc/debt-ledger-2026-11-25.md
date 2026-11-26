@@ -130,6 +130,29 @@ then migrate in classes (Git-directory reads, record folders, user paths);
 make `common_directory_of` the one `commondir` reader.
 Size: 138 sites in about 100 files; 6 `commondir` copies; about 40 copied bounded-read or open bodies.
 
+Round of 2026-11-25, branch `fix/git-policy-cli-raw-file-reads-through-the-plain-file-reader`:
+the guard landed as `source_guard/raw_file_reads_tests.rs`,
+and its first measurement was 151 calls in 101 release files
+(159 calls in 107 files by text, less the six test-only files the declaration scan leaves out).
+Seventeen sites in eleven release files moved onto `plain_file`:
+`commondir`,
+`HEAD`,
+the `.git` pointer file,
+`FETCH_HEAD`,
+a rebase or sequencer todo list,
+and a configuration file,
+with `foundation/common_directory_of_a_git_directory.rs` as the one `commondir` reader.
+What is left is on `KEPT_SITES` of the guard: 134 calls in 91 files, in five named classes.
+The classes for later rounds: the system's own facts (`system`),
+the wrapper's own records (`own-record`),
+the remaining Git-directory reads (`git-directory`: the index, pack files, `MERGE_MSG`, `sequencer/opts`,
+a registration's `gitdir`, `.git/info/exclude`),
+paths the person's project holds (`person-path`),
+and the copied bounded-read or non-blocking-open bodies
+(`invocation/real_git_candidate.rs`'s `read_up_to`,
+`worktree/worktree_clean_content.rs`'s and `account_companion/companion_mount_table.rs`'s `read_at_most`,
+and `foundation/private_storage.rs`'s `read_regular_file`, which `repo_read` and four other folders still name).
+
 ### Item 3. Tests change process-wide state, which only a process per test makes safe
 
 Category 1, tests.
@@ -200,6 +223,18 @@ The uncapped scan finds 70 `Mutex`, `Atomic` or `OnceLock` statics in 39 test-on
 ((audit scratch, not kept)); I read the ones named here and not the rest,
 and several carry an `ONE_AT_A_TIME` mutex.
 
+Round of 2026-11-25:
+issue 6478 is fixed and merged,
+a descriptor-room control of 3b whose count another thread can change,
+(`3ce0c713e9`,
+its test named for the one thread it measures),
+and five threaded-only failures are filed and open:
+6483 (the content-safety control misses a same-tick write),
+6484 (two heartbeat controls share one manager switch),
+6485 (two supervisor controls plant kills in one process-wide registry),
+6486 (four `run_progress` controls read the shared test process) and
+6487 (the process-wide blocking room in `foundation`).
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
@@ -231,6 +266,17 @@ Confirmed repeats in one test executable, each checked by reading the helper cha
 `worktree_copying/worktree_copy_stage_claim_tests.rs:787`),
 and in the binary target `timing-signal` (`binary/binary_commit_timing_tests.rs:1380,2610`).
 Other repeated names are in different executables (lib against `native_binary`) and do not collide.
+
+Landed 2026-11-25 as `c14f1156c9`:
+`fixture()` names every call's folder with the number that call took
+(`native-unit-<process id>-<the number this call took>-<name>`),
+the binary target's helper names its own the same way,
+and the folder is made with `create_dir` only,
+so no call deletes another's live folder.
+The three controls that failed threaded went with it,
+and their causes are in
+`doc/troubleshooting/git-policy-cli-controls-that-name-one-fixture-folder.md` and
+`doc/troubleshooting/git-policy-cli-control-windows-taken-in-two-orders.md`.
 
 Cost: seen today (`DirectoryNotEmpty`, and the `create_dir` panic at `test_support.rs:332`, per the practices guide);
 the cross-module pairs (`work-lease`, `claim-names`) appear only in an unfiltered threaded run.
@@ -376,6 +422,21 @@ Fix: one helper in `testing/` that starts the child with `spawn_owned`, a deadli
 check; migrate the 35 sites; this is the runner item 3 needs.
 Size: 35 sites, 6 helper bodies.
 
+Landed 2026-11-25, in two commits on `refactor/git-policy-cli-test-binary-children-through-one-helper`:
+`31f4014890` and `d5e781a32a`,
+merged as `1911c927c0`.
+`testing/child_test_process.rs` holds the one request and its three faces (`started`, `finished`, `passed`),
+with a deadline, the two pipes read once the child is gone, and the check that exactly one test ran and passed;
+`testing/test_process_owner.rs` holds the ownership those children stand on, which the binary controls' crate and the
+candidate consumer's crate include by path, because the library's test-only modules are invisible to them.
+The umask, no-threads, file-size-limit, root-namespace and merge-mode bodies keep their caller-facing functions and
+hold no child start of their own, and `rg -n -- '"--exact"' src` answers one line: the runner's own argument list.
+Each of the five moved sites that started a child with no owner lost its line in
+`source_guard/test_children_not_yet_owned.txt` in the same round (`d5e781a32a`).
+Status: incomplete, unapproved and not final.
+No independent review has read it, the guest arms of the two ZFS controls of this item were skipped in this host run,
+and item 3's mechanisms have not been moved onto it yet.
+
 ### Item 11. The lib and binary test targets each keep a copy of the fixture support, and the copies diverged
 
 Category 4, tests.
@@ -391,6 +452,25 @@ Cost: a fix lands in one target and not the other (items 4 and 5 are two such).
 Fix: one file included by `#[path]` in both targets; `binary/binary_tests.rs:33` already includes
 `../testing/real_git_lfs_the_run_requires.rs` this way.
 Size: 8 helpers.
+
+Landed 2026-11-25, in `07fe505696` on `refactor/git-policy-cli-fixture-support-one-copy-for-both-test-targets`,
+and merged into item 10's branch by `5e30b7665a`,
+both on `main` as `1911c927c0`.
+`testing/fixture_support_shared_by_both_test_targets.rs` holds the fixture folders,
+the names they are made under and the removal,
+and both targets include it by `#[path]`;
+the report of that round is
+`fixture-support-one-copy-for-both-test-targets-2026-11-25/keep/report-pi-fixture-support-one-copy-for-both-test-targets.md`.
+The merge kept one definition of the helper ownership,
+in `testing/test_process_owner.rs`,
+because that file is the one the candidate consumer's crate takes,
+and that crate keeps no fixture folders to run
+(item 10's file, whose three includers are unchanged):
+`OwnedGroups`, `group_of`, `own_group` and `spawn_owned` are there,
+with this item's read-back in `own` and item 10's `end_owned_groups`,
+and the shared fixture file no longer defines or names any of them.
+Status: incomplete, unapproved and not final.
+The merge's checks ran on the host only, no container gate was run, and the guest arms were skipped.
 
 ### Item 12. One-line byte tests are copied into 101 definitions
 
@@ -501,20 +581,48 @@ Cost: reading only.
 Fix: low priority; rename cost is high, so only with item 16.
 Size: 4 names.
 
-### Item 18. The runtime guard has sixty-three recorded exceptions, and it reads one file at a time
+### Item 18. The runtime guard has fifty-four recorded exceptions, and it reads one file at a time
 
 Category 3, release; already tracked.
-`source_guard/blocking_code_off_the_runtime_rules_tests.rs` holds 63 `Allowed` rows:
-31 `blocking-sleep`, 22 `thread-start`, 8 `storage-read-on-a-task` (all in `merge/`:
-`merge_isolation_carry_place.rs`, `merge_isolation_changes.rs`, `merge_isolation_kept_copies_decisions.rs`,
-`merge_isolation_recovery_records.rs`, `merge_isolation_recovery_steps.rs`, `merge_isolation_take_asides.rs`,
-`merge_second_pass_tree.rs`, `merge_second_pass_worktree.rs`), 2 `unretried-start` (macOS and Windows only).
+`source_guard/blocking_code_off_the_runtime_rules_tests.rs` holds 54 `Allowed` rows (measured 2026-11-25 with
+`rg -c '    Allowed \{'`): 30 `blocking-sleep`, 22 `thread-start`, 2 `unretried-start` (macOS and Windows only).
 Each row names its removal condition.
 The scan's own header says it follows no call, so a synchronous helper that reads a file and is called from an
 `async fn` is invisible to it (inferred; not measured).
-Fix: one conversion round for the eight `merge/` reads ("the merge's own step owns it"), then the owner's tokio plan
-finishes the rest; keep the list as the tracker.
-Size: 63 rows.
+
+Round of 2026-11-25, branch `fix/git-policy-cli-merge-file-calls-off-the-runtime`,
+merged as `10f4826fdc`:
+the `merge/` reads are converted and their rows are gone.
+The ledger's "eight" was seven by the time the round started
+(`rg -c 'rule: "storage-read-on-a-task"'` printed 7 before the first edit):
+`merge_second_pass_worktree.rs`, which this item named too, has held no row and no file call inside an `async fn` since
+an earlier round, so the round met seven files and the guard held 61 rows then.
+Each file's row went in the commit that moved its calls, and every call moved is a job of
+`run_blocking_job_within_the_budget`, the crate's own way onto the blocking pool:
+
+- `713b8c1f53` `merge_isolation_carry_place.rs`: the look, the write of the private name, the removals and the renames.
+  The same commit gave `rename_that_never_replaces.rs` `rename_noreplace_on_the_blocking_pool` (with `TheAnswerOfARename`)
+  and `ProofNothingCanWrite` a `remove_on_the_blocking_pool`, because three files of `merge/` need them.
+- `92844c5aac` `merge_isolation_changes.rs`: the entry look and the link read.
+- `67a4fc171d` `merge_isolation_kept_copies_decisions.rs`: the two looks per copy, the identity and permission comparison,
+  the removals, the put-back rename and the record-folder reads.
+- `cc99b4bcee` `merge_isolation_recovery_records.rs`: the listing and the read of every record, as one job.
+- `91658658b3` `merge_isolation_recovery_steps.rs`: every path's identity in one job before any content is read, and the
+  look and the walk of each path a directory may stand at in one job.
+- `7a09da710e` `merge_isolation_take_asides.rs`: every file call there; `put_back` is `put_back_awaiting`, and its only
+  caller `install_entries_awaiting` awaits it.
+- `7304e3db72` `merge_second_pass_tree.rs`: the scratch directory and its sweep, and the removal of the scratch index.
+
+The guard was shown failing with one call planted back on a task in `merge_second_pass_tree.rs`
+(`merge/merge_second_pass_tree.rs:395 [storage-read-on-a-task]`), and green again once the plant was restored.
+
+What is still read on a task in these files:
+the holders scan of `index_lock_holders` (`/proc` reads, which the plan allows inline), and the folder readers
+`kept_copies`, `asides_of`, `live_merge_keys`, `stale_carry_names_of` and `list_merge_intents` where another merge file
+calls them; the calls inside the seven files were moved, the helpers were not made awaited.
+
+Fix for the rest: the owner's tokio plan finishes the remaining 54 rows; keep the list as the tracker.
+Size: 54 rows.
 
 ### Item 19. Lists written as fixed-length arrays carry a hand-counted length
 
@@ -596,4 +704,5 @@ Items that wait name what they wait on.
   `doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`.
 - Item 15: one round per file once the repository's linter runs in this package's worktrees.
 - Items 16 and 17: a question for the owner.
-- Item 18: stays the guard's own list; the eight `merge/` reads get one conversion round later.
+- Item 18: the `merge/` reads were converted in `fix/git-policy-cli-merge-file-calls-off-the-runtime`
+  (2026-11-25, `713b8c1f53` to `7304e3db72`); the remaining rows wait on the owner's tokio plan.

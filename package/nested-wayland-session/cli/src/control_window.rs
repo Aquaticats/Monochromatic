@@ -10,13 +10,22 @@ use std::sync::PoisonError;
 use smithay::{
     desktop::Window,
     wayland::{
-        compositor::{with_states, SurfaceData},
-        shell::xdg::{ToplevelSurface, XdgToplevelSurfaceData},
+        compositor::{
+            SurfaceData,
+            with_states,
+        },
+        shell::xdg::{
+            ToplevelSurface,
+            XdgToplevelSurfaceData,
+        },
     },
 };
 
 /// Imports the compositor state and the wire response.
-use crate::{protocol::Response, state::Compositor};
+use crate::{
+    protocol::Response,
+    state::Compositor,
+};
 
 /// Returns the toplevel of the one hosted window,
 /// if it has mapped one.
@@ -30,7 +39,7 @@ use crate::{protocol::Response, state::Compositor};
 ///  not on the space element that wraps it.
 fn hosted_toplevel(state: &Compositor) -> Option<&ToplevelSurface> {
     let window: &Window = state.space.elements().next()?;
-    return window.toplevel()
+    return window.toplevel();
 }
 
 /// Escapes text so it fits on one response line and stays reversible.
@@ -63,7 +72,7 @@ pub fn escape_text(text: &str) -> String {
             other => escaped.push(other),
         }
     }
-    return escaped
+    return escaped;
 }
 
 /// Reads the title the hosted client set,
@@ -77,7 +86,7 @@ pub fn escape_text(text: &str) -> String {
 ///  so reading it here always reflects the latest request.
 pub fn title(state: &Compositor) -> Option<String> {
     let toplevel = hosted_toplevel(state)?;
-    return with_states(toplevel.wl_surface(), read_title)
+    return with_states(toplevel.wl_surface(), read_title);
 }
 
 /// Reads the title from one surface's stored toplevel attributes.
@@ -95,7 +104,7 @@ pub fn title(state: &Compositor) -> Option<String> {
 fn read_title(states: &SurfaceData) -> Option<String> {
     let data = states.data_map.get::<XdgToplevelSurfaceData>()?;
     let attributes = data.lock().unwrap_or_else(PoisonError::into_inner);
-    return attributes.title.clone()
+    return attributes.title.clone();
 }
 
 /// Reads the app ID the hosted client set,
@@ -108,7 +117,7 @@ fn read_title(states: &SurfaceData) -> Option<String> {
 /// the attribute reflects the client's latest request.
 pub fn app_id(state: &Compositor) -> Option<String> {
     let toplevel = hosted_toplevel(state)?;
-    return with_states(toplevel.wl_surface(), read_app_id)
+    return with_states(toplevel.wl_surface(), read_app_id);
 }
 
 /// Reads the app ID from one surface's stored toplevel attributes.
@@ -126,7 +135,7 @@ pub fn app_id(state: &Compositor) -> Option<String> {
 fn read_app_id(states: &SurfaceData) -> Option<String> {
     let data = states.data_map.get::<XdgToplevelSurfaceData>()?;
     let attributes = data.lock().unwrap_or_else(PoisonError::into_inner);
-    return attributes.app_id.clone()
+    return attributes.app_id.clone();
 }
 
 /// Builds the `title` answer:
@@ -138,7 +147,7 @@ fn read_app_id(states: &SurfaceData) -> Option<String> {
 /// Why:
 ///       An empty payload gives the documented `ok ` answer for a client without a title.
 pub fn title_response(state: &Compositor) -> Response {
-    return Response::OkWith(escape_text(&title(state).unwrap_or_default()))
+    return Response::OkWith(escape_text(&title(state).unwrap_or_default()));
 }
 
 /// Builds the `app-id` answer:
@@ -148,7 +157,7 @@ pub fn title_response(state: &Compositor) -> Response {
 /// What:
 ///      `pub fn app_id_response(state: &Compositor) -> Response`.
 pub fn app_id_response(state: &Compositor) -> Response {
-    return Response::OkWith(escape_text(&app_id(state).unwrap_or_default()))
+    return Response::OkWith(escape_text(&app_id(state).unwrap_or_default()));
 }
 
 /// Unit tests for the escaping rule.

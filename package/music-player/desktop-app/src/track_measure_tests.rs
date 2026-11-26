@@ -8,11 +8,18 @@ use super::*;
 
 // What:     `use truepeak_core::{Decision, DecisionKind};` names the decision kinds the cases build.
 // Why:      A decision is the input of `measure_from_decision`, and its kind picks the exact flag.
-use truepeak_core::{Decision, DecisionKind};
+use truepeak_core::{
+    Decision,
+    DecisionKind,
+};
 
 // What:     `fn decision(kind, measured_peak, duration_secs) -> Decision` builds one cached decision.
 // Why:      Only the peak, the kind and the length matter here, so the gain is a fixed placeholder.
-fn decision(kind: DecisionKind, measured_peak: f32, duration_secs: f64) -> Decision {
+fn decision(
+    kind: DecisionKind,
+    measured_peak: f32,
+    duration_secs: f64,
+) -> Decision {
     return Decision {
         gain: 1.0,
         kind,
@@ -68,7 +75,10 @@ fn exact_peak_text_formats_a_full_scan_peak() {
         peak_dbtp: Some(-21.1),
         peak_exact: true,
     };
-    assert_eq!(exact_peak_text(Some(&measure)), Some("\u{2212}21.1 dBTP".to_string()));
+    assert_eq!(
+        exact_peak_text(Some(&measure)),
+        Some("\u{2212}21.1 dBTP".to_string())
+    );
 }
 
 #[test]
@@ -122,7 +132,10 @@ fn measure_from_probe_estimate_decision_is_sampled() {
 fn measure_from_silent_decision_keeps_minus_infinity() {
     let measure = measure_from_decision(&decision(DecisionKind::FullScanExact, 0.0, 20.0));
     assert_eq!(measure.peak_dbtp, Some(f64::NEG_INFINITY));
-    assert_eq!(exact_peak_text(Some(&measure)), Some("\u{2212}\u{221E} dBTP".to_string()));
+    assert_eq!(
+        exact_peak_text(Some(&measure)),
+        Some("\u{2212}\u{221E} dBTP".to_string())
+    );
 }
 
 #[test]

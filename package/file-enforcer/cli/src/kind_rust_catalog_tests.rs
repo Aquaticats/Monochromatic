@@ -15,17 +15,23 @@
 /// Imports the kind under test.
 use crate::kind_rust_catalog::RustCatalogBuilder;
 /// Imports the tree and run helpers.
-use crate::test_support::{count_code, read_text, run_config, scratch_dir, write_files};
+use crate::test_support::{
+    count_code,
+    read_text,
+    run_config,
+    scratch_dir,
+    write_files,
+};
 /// Imports `ConfigScope` from `monochromatic_file_enforcer::config_decode`.
 use monochromatic_file_enforcer::config_decode::ConfigScope;
 /// Imports `RuleConfig` from `monochromatic_file_enforcer::config_types`.
 use monochromatic_file_enforcer::config_types::RuleConfig;
 /// Imports `RuleRegistry` from `monochromatic_file_enforcer::registry`.
 use monochromatic_file_enforcer::registry::RuleRegistry;
-/// Imports `RunMode` from `monochromatic_file_enforcer::run`.
-use monochromatic_file_enforcer::run::RunMode;
 /// Imports `RuleBuilder` from `monochromatic_file_enforcer::rule`.
 use monochromatic_file_enforcer::rule::RuleBuilder;
+/// Imports `RunMode` from `monochromatic_file_enforcer::run`.
+use monochromatic_file_enforcer::run::RunMode;
 /// Imports `Path` from `std::path`.
 use std::path::Path;
 
@@ -48,7 +54,11 @@ fn registry() -> RuleRegistry {
 }
 
 /// Run a config in repository scope.
-fn run_repository(root: &Path, config: &str, mode: RunMode) -> (i32, Vec<monochromatic_file_enforcer::event::Event>) {
+fn run_repository(
+    root: &Path,
+    config: &str,
+    mode: RunMode,
+) -> (i32, Vec<monochromatic_file_enforcer::event::Event>) {
     return run_config(root, config, ConfigScope::Repository, mode, &registry());
 }
 
@@ -58,21 +68,53 @@ fn run_repository(root: &Path, config: &str, mode: RunMode) -> (i32, Vec<monochr
 #[test]
 fn drift_is_detected_and_write_repairs_it() {
     let dir = scratch_dir();
-    write_files(dir.path(), &[("rust-catalog.toml", EMPTY_CATALOG), ("package/cli/a/Cargo.toml", LITERAL_CRATE)]);
-    let (check_code, check) = run_repository(dir.path(), CATALOG_ONLY, RunMode::Check { expected_dir: None });
+    write_files(
+        dir.path(),
+        &[
+            ("rust-catalog.toml", EMPTY_CATALOG),
+            ("package/cli/a/Cargo.toml", LITERAL_CRATE),
+        ],
+    );
+    let (check_code, check) = run_repository(
+        dir.path(),
+        CATALOG_ONLY,
+        RunMode::Check {
+            expected_dir: None,
+        },
+    );
     assert_eq!(check_code, 1, "{check:?}");
-    assert_eq!(count_code(&check, "drift-content"), 2, "the catalog and the manifest both drift: {check:?}");
+    assert_eq!(
+        count_code(&check, "drift-content"),
+        2,
+        "the catalog and the manifest both drift: {check:?}"
+    );
     assert_eq!(count_code(&check, "kind-not-wired"), 0);
     let (write_code, write) = run_repository(dir.path(), CATALOG_ONLY, RunMode::Write);
     assert_eq!(write_code, 0, "{write:?}");
     assert!(read_text(dir.path(), "rust-catalog.toml").contains("anyhow = \">=1\""));
     let manifest = read_text(dir.path(), "package/cli/a/Cargo.toml");
-    assert!(manifest.contains("anyhow = { workspace = true }"), "{manifest}");
-    assert!(manifest.contains("[workspace.dependencies]\nanyhow = \">=1\"\n"), "{manifest}");
-    let (clean_code, clean) = run_repository(dir.path(), CATALOG_ONLY, RunMode::Check { expected_dir: None });
+    assert!(
+        manifest.contains("anyhow = { workspace = true }"),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("[workspace.dependencies]\nanyhow = \">=1\"\n"),
+        "{manifest}"
+    );
+    let (clean_code, clean) = run_repository(
+        dir.path(),
+        CATALOG_ONLY,
+        RunMode::Check {
+            expected_dir: None,
+        },
+    );
     assert_eq!(clean_code, 0, "{clean:?}");
     let (again_code, again) = run_repository(dir.path(), CATALOG_ONLY, RunMode::Write);
-    assert_eq!((again_code, count_code(&again, "file-written")), (0, 0), "a clean tree is not rewritten: {again:?}");
+    assert_eq!(
+        (again_code, count_code(&again, "file-written")),
+        (0, 0),
+        "a clean tree is not rewritten: {again:?}"
+    );
 }
 
 /// The rule composes with a `toml-keys` rule before it:
@@ -85,13 +127,31 @@ fn composes_with_toml_keys_rules_that_run_before_it() {
       {"kind": "rust-catalog", "id": "catalog", "catalog": "rust-catalog.toml", "manifests": ["package/*/*/Cargo.toml"]}
     ]}"#;
     let dir = scratch_dir();
-    write_files(dir.path(), &[("rust-catalog.toml", EMPTY_CATALOG), ("package/cli/a/Cargo.toml", LITERAL_CRATE)]);
+    write_files(
+        dir.path(),
+        &[
+            ("rust-catalog.toml", EMPTY_CATALOG),
+            ("package/cli/a/Cargo.toml", LITERAL_CRATE),
+        ],
+    );
     let (code, events) = run_repository(dir.path(), config, RunMode::Write);
     assert_eq!(code, 0, "{events:?}");
     let manifest = read_text(dir.path(), "package/cli/a/Cargo.toml");
-    assert!(manifest.contains("edition = \"2024\""), "the key rule's change is kept: {manifest}");
-    assert!(manifest.contains("anyhow = { workspace = true }"), "the catalog rule saw and kept it: {manifest}");
-    let (clean_code, clean) = run_repository(dir.path(), config, RunMode::Check { expected_dir: None });
+    assert!(
+        manifest.contains("edition = \"2024\""),
+        "the key rule's change is kept: {manifest}"
+    );
+    assert!(
+        manifest.contains("anyhow = { workspace = true }"),
+        "the catalog rule saw and kept it: {manifest}"
+    );
+    let (clean_code, clean) = run_repository(
+        dir.path(),
+        config,
+        RunMode::Check {
+            expected_dir: None,
+        },
+    );
     assert_eq!(clean_code, 0, "{clean:?}");
 }
 
@@ -107,8 +167,18 @@ fn either_order_with_a_toml_keys_rule_gives_the_same_manifest() {
     let mut results: Vec<String> = Vec::new();
     for rules in [format!("{keys},{catalog}"), format!("{catalog},{keys}")] {
         let dir = scratch_dir();
-        write_files(dir.path(), &[("rust-catalog.toml", EMPTY_CATALOG), ("package/cli/a/Cargo.toml", LITERAL_CRATE)]);
-        let (code, events) = run_repository(dir.path(), &format!("{{\"rules\": [{rules}]}}"), RunMode::Write);
+        write_files(
+            dir.path(),
+            &[
+                ("rust-catalog.toml", EMPTY_CATALOG),
+                ("package/cli/a/Cargo.toml", LITERAL_CRATE),
+            ],
+        );
+        let (code, events) = run_repository(
+            dir.path(),
+            &format!("{{\"rules\": [{rules}]}}"),
+            RunMode::Write,
+        );
         assert_eq!(code, 0, "{events:?}");
         results.push(read_text(dir.path(), "package/cli/a/Cargo.toml"));
     }
@@ -126,11 +196,19 @@ fn a_conforming_toml_keys_rule_does_not_block_a_later_catalog_change() {
       {"kind": "rust-catalog", "id": "catalog", "catalog": "rust-catalog.toml", "manifests": ["package/*/*/Cargo.toml"]}
     ]}"#;
     let dir = scratch_dir();
-    write_files(dir.path(), &[("rust-catalog.toml", EMPTY_CATALOG), ("package/cli/a/Cargo.toml", LITERAL_CRATE)]);
+    write_files(
+        dir.path(),
+        &[
+            ("rust-catalog.toml", EMPTY_CATALOG),
+            ("package/cli/a/Cargo.toml", LITERAL_CRATE),
+        ],
+    );
     let (code, events) = run_repository(dir.path(), config, RunMode::Write);
     assert_eq!(code, 0, "{events:?}");
     assert_eq!(count_code(&events, "rule-order"), 0);
-    assert!(read_text(dir.path(), "package/cli/a/Cargo.toml").contains("anyhow = { workspace = true }"));
+    assert!(
+        read_text(dir.path(), "package/cli/a/Cargo.toml").contains("anyhow = { workspace = true }")
+    );
 }
 
 /// A rule that does not compose and reads a manifest must still come after the catalog rule that rewrites it.
@@ -141,10 +219,24 @@ fn a_non_composing_reader_before_the_catalog_rule_is_rejected() {
       {"kind": "rust-catalog", "id": "catalog", "catalog": "rust-catalog.toml", "manifests": ["package/*/*/Cargo.toml"]}
     ]}"#;
     let dir = scratch_dir();
-    write_files(dir.path(), &[("rust-catalog.toml", EMPTY_CATALOG), ("package/cli/a/Cargo.toml", LITERAL_CRATE)]);
+    write_files(
+        dir.path(),
+        &[
+            ("rust-catalog.toml", EMPTY_CATALOG),
+            ("package/cli/a/Cargo.toml", LITERAL_CRATE),
+        ],
+    );
     let (code, events) = run_repository(dir.path(), config, RunMode::Write);
-    assert_eq!((code, count_code(&events, "rule-order")), (1, 1), "{events:?}");
-    assert_eq!(read_text(dir.path(), "package/cli/a/Cargo.toml"), LITERAL_CRATE, "a failing run writes nothing");
+    assert_eq!(
+        (code, count_code(&events, "rule-order")),
+        (1, 1),
+        "{events:?}"
+    );
+    assert_eq!(
+        read_text(dir.path(), "package/cli/a/Cargo.toml"),
+        LITERAL_CRATE,
+        "a failing run writes nothing"
+    );
 }
 
 /// A missing catalog fails the run and names the file.
@@ -152,7 +244,13 @@ fn a_non_composing_reader_before_the_catalog_rule_is_rejected() {
 fn a_missing_catalog_is_a_failure() {
     let dir = scratch_dir();
     write_files(dir.path(), &[("package/cli/a/Cargo.toml", LITERAL_CRATE)]);
-    let (code, events) = run_repository(dir.path(), CATALOG_ONLY, RunMode::Check { expected_dir: None });
+    let (code, events) = run_repository(
+        dir.path(),
+        CATALOG_ONLY,
+        RunMode::Check {
+            expected_dir: None,
+        },
+    );
     assert_eq!(code, 1, "{events:?}");
     assert_eq!(count_code(&events, "catalog-missing"), 1, "{events:?}");
 }
@@ -164,12 +262,19 @@ fn an_invalid_manifest_fails_the_whole_run() {
     let dir = scratch_dir();
     write_files(
         dir.path(),
-        &[("rust-catalog.toml", EMPTY_CATALOG), ("package/cli/a/Cargo.toml", LITERAL_CRATE), ("package/cli/b/Cargo.toml", "[package\n")],
+        &[
+            ("rust-catalog.toml", EMPTY_CATALOG),
+            ("package/cli/a/Cargo.toml", LITERAL_CRATE),
+            ("package/cli/b/Cargo.toml", "[package\n"),
+        ],
     );
     let (code, events) = run_repository(dir.path(), CATALOG_ONLY, RunMode::Write);
     assert_eq!(code, 1, "{events:?}");
     assert_eq!(count_code(&events, "manifest-invalid"), 1, "{events:?}");
-    assert_eq!(read_text(dir.path(), "package/cli/a/Cargo.toml"), LITERAL_CRATE);
+    assert_eq!(
+        read_text(dir.path(), "package/cli/a/Cargo.toml"),
+        LITERAL_CRATE
+    );
     assert_eq!(read_text(dir.path(), "rust-catalog.toml"), EMPTY_CATALOG);
 }
 
@@ -177,10 +282,26 @@ fn an_invalid_manifest_fails_the_whole_run() {
 #[test]
 fn an_invalid_catalog_fails_the_run() {
     let dir = scratch_dir();
-    write_files(dir.path(), &[("rust-catalog.toml", "[catalog\n"), ("package/cli/a/Cargo.toml", LITERAL_CRATE)]);
-    let (code, events) = run_repository(dir.path(), CATALOG_ONLY, RunMode::Check { expected_dir: None });
+    write_files(
+        dir.path(),
+        &[
+            ("rust-catalog.toml", "[catalog\n"),
+            ("package/cli/a/Cargo.toml", LITERAL_CRATE),
+        ],
+    );
+    let (code, events) = run_repository(
+        dir.path(),
+        CATALOG_ONLY,
+        RunMode::Check {
+            expected_dir: None,
+        },
+    );
     assert_eq!(code, 1, "{events:?}");
-    assert_eq!(count_code(&events, "catalog-invalid") + count_code(&events, "manifest-invalid"), 1, "{events:?}");
+    assert_eq!(
+        count_code(&events, "catalog-invalid") + count_code(&events, "manifest-invalid"),
+        1,
+        "{events:?}"
+    );
 }
 
 /// A dependency the sync refuses (an exact pin) fails the run with the sync's explanation.
@@ -188,7 +309,13 @@ fn an_invalid_catalog_fails_the_run() {
 fn an_exact_pin_is_refused_with_the_sync_diagnostic() {
     let pinned = "[package]\nname = \"a\"\nversion = \"0.1.0\"\n\n[dependencies]\nanyhow = \"=1.0.1\"\n\n[workspace]\n";
     let dir = scratch_dir();
-    write_files(dir.path(), &[("rust-catalog.toml", EMPTY_CATALOG), ("package/cli/a/Cargo.toml", pinned)]);
+    write_files(
+        dir.path(),
+        &[
+            ("rust-catalog.toml", EMPTY_CATALOG),
+            ("package/cli/a/Cargo.toml", pinned),
+        ],
+    );
     let (code, events) = run_repository(dir.path(), CATALOG_ONLY, RunMode::Write);
     assert_eq!(code, 1, "{events:?}");
     assert_eq!(count_code(&events, "catalog-sync-failed"), 1, "{events:?}");
@@ -204,8 +331,20 @@ fn an_unused_entry_is_a_warning_when_pruning_is_off() {
         # Generated by file-enforcer from rust-catalog.toml; edit the catalog, not this table (doc/decision/rust-dependency-catalog.md).\n\
         [workspace.dependencies]\nanyhow = \">=1\"\n";
     let dir = scratch_dir();
-    write_files(dir.path(), &[("rust-catalog.toml", catalog), ("package/cli/a/Cargo.toml", manifest)]);
-    let (code, events) = run_repository(dir.path(), CATALOG_ONLY, RunMode::Check { expected_dir: None });
+    write_files(
+        dir.path(),
+        &[
+            ("rust-catalog.toml", catalog),
+            ("package/cli/a/Cargo.toml", manifest),
+        ],
+    );
+    let (code, events) = run_repository(
+        dir.path(),
+        CATALOG_ONLY,
+        RunMode::Check {
+            expected_dir: None,
+        },
+    );
     assert_eq!(count_code(&events, "catalog-warning"), 1, "{events:?}");
     assert_eq!(code, 0, "{events:?}");
 }
@@ -213,8 +352,15 @@ fn an_unused_entry_is_a_warning_when_pruning_is_off() {
 /// The builder refuses an entry of another kind.
 #[test]
 fn the_builder_refuses_another_kind() {
-    let other = RuleConfig::Mirror { id: "m".to_string(), from: "a".to_string(), to: "b".to_string() };
-    let error = RustCatalogBuilder.build(&other).err().expect("a mirror entry is refused");
+    let other = RuleConfig::Mirror {
+        id: "m".to_string(),
+        from: "a".to_string(),
+        to: "b".to_string(),
+    };
+    let error = RustCatalogBuilder
+        .build(&other)
+        .err()
+        .expect("a mirror entry is refused");
     assert_eq!(error.code, "kind-unknown");
     assert_eq!(error.rule.as_deref(), Some("m"));
 }

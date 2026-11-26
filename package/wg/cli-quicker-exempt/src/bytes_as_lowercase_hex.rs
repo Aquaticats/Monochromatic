@@ -38,7 +38,10 @@ pub fn bytes_as_lowercase_hex(bytes: &[u8]) -> String {
 /// Why:
 ///       A unit name escapes one byte at a time after a `\x` prefix,
 ///  and it must spell that byte exactly as the path components do.
-pub fn push_lowercase_hex_byte(out: &mut String, byte: u8) {
+pub fn push_lowercase_hex_byte(
+    out: &mut String,
+    byte: u8,
+) {
     out.push(char::from(HEX_DIGITS[usize::from(byte >> 4)]));
     out.push(char::from(HEX_DIGITS[usize::from(byte & 0x0f)]));
 }

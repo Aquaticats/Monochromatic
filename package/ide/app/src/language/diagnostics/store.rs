@@ -1,13 +1,26 @@
 //! Which pushed and pulled diagnostic sets describe the displayed revision.
 
 /// Conversion and grouping live beside the public types.
-use super::{Diagnostic, DiagnosticsSnapshot, Freshness, SourceGroup, add_to_group, convert};
+use super::{
+    Diagnostic,
+    DiagnosticsSnapshot,
+    Freshness,
+    SourceGroup,
+    add_to_group,
+    convert,
+};
 /// Sets are keyed by server process and stamped with the text they were accepted for.
-use crate::language::identity::{DocumentStamp, ServerIdentity};
+use crate::language::identity::{
+    DocumentStamp,
+    ServerIdentity,
+};
 /// Conversion happens against the rope of the displayed revision.
 use helix_core::Rope;
 /// The protocol's diagnostic record and each server's column unit.
-use helix_lsp::{OffsetEncoding, lsp};
+use helix_lsp::{
+    OffsetEncoding,
+    lsp,
+};
 /// Dropping a server's pull result identifier is shared with the pull answers.
 use pulled::forget_result_id;
 
@@ -129,7 +142,10 @@ enum Ending<'a> {
 /// Which holds a choice names.
 impl Ending<'_> {
     /// Whether `hold` is one of the holds this choice names.
-    fn names(&self, hold: &Hold) -> bool {
+    fn names(
+        &self,
+        hold: &Hold,
+    ) -> bool {
         return match self {
             Ending::Server(server) => &hold.server == *server,
             Ending::Serial(serial) => hold.serial == *serial,
@@ -138,13 +154,19 @@ impl Ending<'_> {
 }
 
 /// Orders source groups by their source text.
-fn by_source(left: &SourceGroup, right: &SourceGroup) -> std::cmp::Ordering {
+fn by_source(
+    left: &SourceGroup,
+    right: &SourceGroup,
+) -> std::cmp::Ordering {
     return left.source.cmp(&right.source);
 }
 
 /// Orders diagnostics by their start,
 ///  then their end.
-fn by_range(left: &Diagnostic, right: &Diagnostic) -> std::cmp::Ordering {
+fn by_range(
+    left: &Diagnostic,
+    right: &Diagnostic,
+) -> std::cmp::Ordering {
     return (left.start, left.end).cmp(&(right.start, right.end));
 }
 
@@ -226,10 +248,17 @@ impl DiagnosticStore {
 
     /// A file is displayed:
     ///  forget everything about the previous one.
-    pub(crate) fn open(&mut self, stamp: DocumentStamp, version: i32) {
+    pub(crate) fn open(
+        &mut self,
+        stamp: DocumentStamp,
+        version: i32,
+    ) {
         self.close();
         // `Some(...)` wraps the record in the "value present" variant of `Option`.
-        self.document = Some(Tracked { stamp, version });
+        self.document = Some(Tracked {
+            stamp,
+            version,
+        });
     }
 
     /// No file is displayed:
@@ -268,7 +297,10 @@ impl DiagnosticStore {
         servers: &[ServerIdentity],
     ) -> u64 {
         self.serial += 1;
-        self.document = Some(Tracked { stamp, version });
+        self.document = Some(Tracked {
+            stamp,
+            version,
+        });
         // What: `retain` keeps only the items for which the closure returns true; `|set|` is a
         //       closure parameter, like `set =>` in an arrow function.
         // Why: Pulled sets stay stored but unshown, because an "unchanged" answer may re-stamp them.
@@ -319,7 +351,10 @@ impl DiagnosticStore {
     ///   return ending.length;
     /// }
     /// ```
-    fn end_holds(&mut self, ending: Ending<'_>) -> usize {
+    fn end_holds(
+        &mut self,
+        ending: Ending<'_>,
+    ) -> usize {
         let Some(tracked) = self.document.as_ref() else {
             self.holds.clear();
             return 0;
@@ -363,7 +398,10 @@ impl DiagnosticStore {
     /// finds the hold itself,
     ///  because it also changes it.
     #[cfg(test)]
-    pub(crate) fn is_held(&self, server: &ServerIdentity) -> bool {
+    pub(crate) fn is_held(
+        &self,
+        server: &ServerIdentity,
+    ) -> bool {
         // `iter().any(...)` is `Array.prototype.some`; `&self.holds` is only read.
         for hold in self.holds.iter() {
             if &hold.server == server {
@@ -385,7 +423,11 @@ impl DiagnosticStore {
     /// ```ts
     /// answered(server: ServerIdentity, stamp: DocumentStamp): boolean
     /// ```
-    pub(crate) fn answered(&mut self, server: &ServerIdentity, stamp: DocumentStamp) -> bool {
+    pub(crate) fn answered(
+        &mut self,
+        server: &ServerIdentity,
+        stamp: DocumentStamp,
+    ) -> bool {
         // What: `as_ref()` borrows the value inside the `Option`; `is_none_or` is true for
         //       "nothing" or when the closure accepts the value.
         // Why: An answer about an older revision proves nothing about the latest change.
@@ -407,7 +449,10 @@ impl DiagnosticStore {
 
     /// The fixed delay after reload number `serial` passed;
     ///  returns true when a hold ended.
-    pub(crate) fn hold_expired(&mut self, serial: u64) -> bool {
+    pub(crate) fn hold_expired(
+        &mut self,
+        serial: u64,
+    ) -> bool {
         return self.end_holds(Ending::Serial(serial)) > 0;
     }
 
@@ -480,7 +525,10 @@ impl DiagnosticStore {
                     }
                 }
                 if let Some(position) = open_hold {
-                    self.holds[position].kept = Some(Kept { encoding, items });
+                    self.holds[position].kept = Some(Kept {
+                        encoding,
+                        items,
+                    });
                     return PushVerdict::Held;
                 }
                 Freshness::Unversioned
@@ -517,7 +565,10 @@ impl DiagnosticStore {
     ///  its sets,
     ///  hold,
     ///  and result identifier are removed.
-    pub(crate) fn server_exited(&mut self, server: &ServerIdentity) {
+    pub(crate) fn server_exited(
+        &mut self,
+        server: &ServerIdentity,
+    ) {
         let sets = std::mem::take(&mut self.sets);
         for set in sets {
             if &set.server != server {
@@ -546,7 +597,10 @@ impl DiagnosticStore {
     /// ```ts
     /// snapshot(text: Rope): DiagnosticsSnapshot | undefined
     /// ```
-    pub(crate) fn snapshot(&self, text: &Rope) -> Option<DiagnosticsSnapshot> {
+    pub(crate) fn snapshot(
+        &self,
+        text: &Rope,
+    ) -> Option<DiagnosticsSnapshot> {
         // The trailing `?` returns `None` when no document is tracked.
         let tracked = self.document.as_ref()?;
         let mut groups: Vec<SourceGroup> = Vec::new();

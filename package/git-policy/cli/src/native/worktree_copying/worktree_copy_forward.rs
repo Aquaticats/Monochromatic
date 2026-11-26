@@ -245,6 +245,30 @@ fn run_plain_of(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> ForwardedRun {
+    // What: A typed network command whose remote ssh carries relays Git's error stream and names the next step after a refusal.
+    // Why:  Every child this route starts reaches Git here, the fetch a merging `pull` runs for the wrapper's own work included,
+    //       and a command ssh does not carry keeps the inherited streams it always had.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const relayed = relayWhenSshCarries(git, argv, env, owner); if (relayed?.value) return forwardedRun(relayed.value);
+    // ```
+    #[cfg(unix)]
+    match crate::typed_network_command_relay::relay_when_ssh_carries(real_git, arguments, overlay, owner) {
+        Some(Ok(ending)) => {
+            return match ending {
+                crate::typed_network_command_relay::TypedNetworkCommandEnding::Ran(code) => ForwardedRun::Ran(code),
+                crate::typed_network_command_relay::TypedNetworkCommandEnding::Signalled(signal) => ForwardedRun::Killed(signal),
+            };
+        }
+        Some(Err(error)) => {
+            return ForwardedRun::Failed {
+                stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()),
+                code: crate::action::ENGINE_FAILURE_EXIT_CODE,
+            };
+        }
+        None => {}
+    }
     // `match` on the start result: the status is Git's, the death by a signal is Git's own too, and an unstartable Git
     //  is an engine failure.
     match run_real_git(real_git, arguments, overlay, owner) {
@@ -565,6 +589,64 @@ fn run_settled(
         signalled: Option<i32>,
     }
 
+    /// What:
+    ///  The relayed run of one step of the copy route, when the step and its words are a typed network command ssh carries.
+    /// Why:
+    ///  The copy route starts the person's step itself, so it is the third place a typed network command reaches Git;
+    ///  a step that is not the person's own, or whose remote ssh does not carry, answers nothing and keeps the inherited
+    ///  streams.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// relayedStep(owner, argv, env, step) { return step.kind === 'person' ? relayWhenSshCarries(git, argv, env, owner) : undefined; }
+    /// ```
+    impl ForwardedGit<'_> {
+    #[cfg(unix)]
+    fn relayed_step(&self, owner: StartOwner, arguments: &[OsString], overlay: &[(OsString, OsString)], step: &GitStep<'_>) -> Option<std::io::Result<ChildOutcome>> {
+        // What: `matches!` asks which step this is: only the person's own step is their command.
+        // Why:   The ladder's own steps are the wrapper's work and carry no typed command.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (step.kind !== 'person') return undefined;
+        // ```
+        if !matches!(step, GitStep::Person) {
+            return None;
+        }
+        // What: `Some(..)` carries the ending as a `ChildOutcome`, the way the other starts of this runner report.
+        // Why:   The call site already knows how to report an exit code and a death by a signal.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const relayed = relayWhenSshCarries(self.realGit, argv, env, owner);
+        // return relayed && ('ran' in relayed ? { exited: relayed.ran } : { signaled: relayed.signalled });
+        // ```
+        return match crate::typed_network_command_relay::relay_when_ssh_carries(self.real_git, arguments, overlay, owner) {
+            Some(Ok(crate::typed_network_command_relay::TypedNetworkCommandEnding::Ran(code))) => Some(Ok(ChildOutcome::Exited(code))),
+            Some(Ok(crate::typed_network_command_relay::TypedNetworkCommandEnding::Signalled(signal))) => Some(Ok(ChildOutcome::Signaled(signal))),
+            Some(Err(error)) => Some(Err(error)),
+            None => None,
+        };
+    }
+
+    /// What:
+    ///  The same for a system with no relay:
+    ///  no step is relayed,
+    ///  so every step keeps the start it had.
+    /// Why:
+    ///   Keeps the call site identical on every platform.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// relayedStep(): undefined
+    /// ```
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    fn relayed_step(&self, _owner: StartOwner, _arguments: &[OsString], _overlay: &[(OsString, OsString)], _step: &GitStep<'_>) -> Option<std::io::Result<ChildOutcome>> {
+        return None;
+    }
+    }
+
     impl GitRunner for ForwardedGit<'_> {
         fn run(&mut self, step: &GitStep<'_>, child_started: &mut dyn ChildStarted) -> Result<GitStatus, WorktreeCopyError> {
             let mut child_overlay: Vec<(OsString, OsString)> = self.overlay.to_vec();
@@ -601,7 +683,10 @@ fn run_settled(
             let ceiling: Option<std::time::Duration> = if ladder_started { crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()) } else { None };
             let ran: std::io::Result<ChildOutcome> = match ceiling {
                 Some(longest) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), longest, owner),
-                None => run_real_git_naming(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), child_started, owner),
+                None => match self.relayed_step(owner, child_arguments.as_slice(), child_overlay.as_slice(), step) {
+                    Some(answered) => answered,
+                    None => run_real_git_naming(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), child_started, owner),
+                },
             };
             match ran {
                 Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),

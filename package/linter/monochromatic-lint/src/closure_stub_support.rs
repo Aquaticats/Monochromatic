@@ -17,11 +17,17 @@
 /// Import native paths,
 ///  the process type that runs the compiler and the once-per-process cell.
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     sync::{
         OnceLock,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 
@@ -115,7 +121,10 @@ pub(crate) fn scenario(files: &[(&str, &str)]) -> Scenario {
     for (name, text) in files {
         std::fs::write(directory.join(name), text).expect("an answer file is written");
     }
-    return Scenario { directory, cargo };
+    return Scenario {
+        directory,
+        cargo,
+    };
 }
 
 /// Read what the stub logged,

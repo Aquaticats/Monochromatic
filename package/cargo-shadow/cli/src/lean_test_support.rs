@@ -7,10 +7,27 @@
 /// Files,
 /// times,
 /// and the pipes and channels the controls of a call that must answer need.
-use std::{fs, fs::File, path::{Path, PathBuf}, sync::mpsc, time::{Duration, UNIX_EPOCH}};
+use std::{
+    fs,
+    fs::File,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::mpsc,
+    time::{
+        Duration,
+        UNIX_EPOCH,
+    },
+};
 
 /// The pipe a name is given.
-use rustix::fs::{CWD, FileType, Mode, mknodat};
+use rustix::fs::{
+    CWD,
+    FileType,
+    Mode,
+    mknodat,
+};
 
 /// The lock file name of a profile directory.
 pub const BUILD_LOCK: &str = ".cargo-build-lock";
@@ -50,7 +67,9 @@ where
     std::thread::spawn(move || {
         let _ = sender.send(work());
     });
-    return receiver.recv_timeout(ANSWER_WITHIN).expect("the call answered instead of waiting for the other end of a pipe");
+    return receiver
+        .recv_timeout(ANSWER_WITHIN)
+        .expect("the call answered instead of waiting for the other end of a pipe");
 }
 
 /// What:
@@ -76,9 +95,15 @@ pub fn make_pipe(path: &Path) {
 /// ```ts
 /// export const setTime = (path: string, seconds: number): void => utimesSync(path, seconds, seconds);
 /// ```
-pub fn set_time(path: &Path, seconds: i64) {
+pub fn set_time(
+    path: &Path,
+    seconds: i64,
+) {
     let file: File = File::open(path).expect("open to set the time");
-    file.set_modified(UNIX_EPOCH + Duration::from_secs(u64::try_from(seconds).expect("positive time"))).expect("set the time");
+    file.set_modified(
+        UNIX_EPOCH + Duration::from_secs(u64::try_from(seconds).expect("positive time")),
+    )
+    .expect("set the time");
 }
 
 /// What:
@@ -90,7 +115,10 @@ pub fn set_time(path: &Path, seconds: i64) {
 /// ```ts
 /// export function makeProfile(root: string, name: string): string
 /// ```
-pub fn make_profile(root: &Path, name: &str) -> PathBuf {
+pub fn make_profile(
+    root: &Path,
+    name: &str,
+) -> PathBuf {
     let profile: PathBuf = root.join(name);
     fs::create_dir_all(profile.join(".fingerprint")).expect("fingerprint directory");
     fs::create_dir_all(profile.join("deps")).expect("deps directory");
@@ -111,13 +139,27 @@ pub fn make_profile(root: &Path, name: &str) -> PathBuf {
 /// ```ts
 /// export function addOldUnit(profile: string, pkg: string, hash: string, compiler: bigint, invoked: number): string[]
 /// ```
-pub fn add_old_unit(profile: &Path, package: &str, hash: &str, compiler: u64, invoked: i64) -> Vec<PathBuf> {
-    let fingerprint: PathBuf = profile.join(".fingerprint").join(format!("{package}-{hash}"));
+pub fn add_old_unit(
+    profile: &Path,
+    package: &str,
+    hash: &str,
+    compiler: u64,
+    invoked: i64,
+) -> Vec<PathBuf> {
+    let fingerprint: PathBuf = profile
+        .join(".fingerprint")
+        .join(format!("{package}-{hash}"));
     fs::create_dir_all(&fingerprint).expect("unit fingerprint");
-    fs::write(fingerprint.join(format!("lib-{package}.json")), format!("{{\"rustc\":{compiler},\"features\":\"[]\"}}")).expect("fingerprint json");
+    fs::write(
+        fingerprint.join(format!("lib-{package}.json")),
+        format!("{{\"rustc\":{compiler},\"features\":\"[]\"}}"),
+    )
+    .expect("fingerprint json");
     fs::write(fingerprint.join("invoked.timestamp"), b"").expect("invoked");
     set_time(&fingerprint.join("invoked.timestamp"), invoked);
-    let artifact: PathBuf = profile.join("deps").join(format!("lib{package}-{hash}.rlib"));
+    let artifact: PathBuf = profile
+        .join("deps")
+        .join(format!("lib{package}-{hash}.rlib"));
     fs::write(&artifact, vec![7_u8; 4096]).expect("artifact");
     let build: PathBuf = profile.join("build").join(format!("{package}-{hash}"));
     fs::create_dir_all(&build).expect("build unit");
@@ -134,11 +176,21 @@ pub fn add_old_unit(profile: &Path, package: &str, hash: &str, compiler: u64, in
 /// ```ts
 /// export function addNewUnit(profile: string, pkg: string, hash: string, compiler: bigint, invoked: number): string
 /// ```
-pub fn add_new_unit(profile: &Path, package: &str, hash: &str, compiler: u64, invoked: i64) -> PathBuf {
+pub fn add_new_unit(
+    profile: &Path,
+    package: &str,
+    hash: &str,
+    compiler: u64,
+    invoked: i64,
+) -> PathBuf {
     let unit: PathBuf = profile.join("build").join(package).join(hash);
     fs::create_dir_all(unit.join("fingerprint")).expect("new unit fingerprint");
     fs::create_dir_all(unit.join("out")).expect("new unit out");
-    fs::write(unit.join("fingerprint").join(format!("lib-{package}.json")), format!("{{\"rustc\":{compiler}}}")).expect("json");
+    fs::write(
+        unit.join("fingerprint").join(format!("lib-{package}.json")),
+        format!("{{\"rustc\":{compiler}}}"),
+    )
+    .expect("json");
     fs::write(unit.join("fingerprint").join("invoked.timestamp"), b"").expect("invoked");
     set_time(&unit.join("fingerprint").join("invoked.timestamp"), invoked);
     fs::write(unit.join("out").join("artifact"), vec![9_u8; 4096]).expect("artifact");
@@ -154,7 +206,11 @@ pub fn add_new_unit(profile: &Path, package: &str, hash: &str, compiler: u64, in
 /// ```ts
 /// export function addIncremental(profile: string, name: string, modified: number): string
 /// ```
-pub fn add_incremental(profile: &Path, name: &str, modified: i64) -> PathBuf {
+pub fn add_incremental(
+    profile: &Path,
+    name: &str,
+    modified: i64,
+) -> PathBuf {
     let directory: PathBuf = profile.join("incremental").join(name);
     fs::create_dir_all(&directory).expect("incremental directory");
     fs::write(directory.join("dep-graph.bin"), vec![1_u8; 4096]).expect("incremental file");
@@ -192,7 +248,11 @@ pub fn copy_a_program(directory: &Path) -> PathBuf {
         }
     }
     let program: PathBuf = directory.join("fixture-program");
-    fs::copy(found.expect("the search path names a sleep program"), &program).expect("copy the program into the fixture");
+    fs::copy(
+        found.expect("the search path names a sleep program"),
+        &program,
+    )
+    .expect("copy the program into the fixture");
     return program;
 }
 
@@ -206,7 +266,10 @@ pub fn copy_a_program(directory: &Path) -> PathBuf {
 /// ```ts
 /// export function ageEverything(path: string, seconds: number): void
 /// ```
-pub fn age_everything(path: &Path, seconds: i64) {
+pub fn age_everything(
+    path: &Path,
+    seconds: i64,
+) {
     if fs::symlink_metadata(path).expect("metadata").is_dir() {
         for entry in fs::read_dir(path).expect("read the directory") {
             age_everything(&entry.expect("entry").path(), seconds);
@@ -226,12 +289,20 @@ pub fn age_everything(path: &Path, seconds: i64) {
 /// ```ts
 /// export function makeTree(base: string, relative: string, ledger?: string): string
 /// ```
-pub fn make_tree(base: &Path, relative: &str, ledger: Option<&Path>) -> PathBuf {
+pub fn make_tree(
+    base: &Path,
+    relative: &str,
+    ledger: Option<&Path>,
+) -> PathBuf {
     let tree: PathBuf = base.join(relative);
     let profile: PathBuf = make_profile(&tree, "debug");
     add_old_unit(&profile, "alpha", "00000000000000aa", 111, NOW - 100 * DAY);
     if let Some(root) = ledger {
-        fs::write(tree.join(".cargo-shadow-workspace"), format!("{}\n", root.display())).expect("ledger");
+        fs::write(
+            tree.join(".cargo-shadow-workspace"),
+            format!("{}\n", root.display()),
+        )
+        .expect("ledger");
     }
     return tree;
 }

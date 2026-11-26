@@ -11,7 +11,13 @@
 //! ```
 
 /// Import the items under test.
-use super::{CONSTRUCTS, Construct, ShellClass, ShellDialect, classify_shell};
+use super::{
+    CONSTRUCTS,
+    Construct,
+    ShellClass,
+    ShellDialect,
+    classify_shell,
+};
 
 /// Every dialect's suffix reads back to the same dialect.
 #[test]

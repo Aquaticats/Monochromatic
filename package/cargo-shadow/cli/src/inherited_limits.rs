@@ -47,7 +47,10 @@ use std::io;
 /// The control files read:
 /// borrowed from the caller,
 /// and owned when joined under the slice directory.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The kernel's default I/O weight,
 /// which a cgroup that sets nothing has,
@@ -113,7 +116,11 @@ impl InheritedLimits {
         if let Some(quota) = self.cpu_quota_per_sec_usec {
             // A quota below one step is still a cap: it is carried as one step, never dropped.
             let permyriad: u64 = (quota / MICROSECONDS_PER_PERMYRIAD).max(1);
-            properties.push(format!("CPUQuota={}.{:02}%", permyriad / 100, permyriad % 100));
+            properties.push(format!(
+                "CPUQuota={}.{:02}%",
+                permyriad / 100,
+                permyriad % 100
+            ));
         }
         if let Some(tasks) = self.tasks_max {
             properties.push(format!("TasksMax={tasks}"));
@@ -133,8 +140,12 @@ impl InheritedLimits {
     /// ```ts
     /// tighten(other: InheritedLimits): void
     /// ```
-    fn tighten(&mut self, other: &InheritedLimits) {
-        self.cpu_quota_per_sec_usec = smaller(self.cpu_quota_per_sec_usec, other.cpu_quota_per_sec_usec);
+    fn tighten(
+        &mut self,
+        other: &InheritedLimits,
+    ) {
+        self.cpu_quota_per_sec_usec =
+            smaller(self.cpu_quota_per_sec_usec, other.cpu_quota_per_sec_usec);
         self.memory_max = smaller(self.memory_max, other.memory_max);
         self.tasks_max = smaller(self.tasks_max, other.tasks_max);
         self.io_weight = lighter(self.io_weight, other.io_weight);
@@ -151,7 +162,10 @@ impl InheritedLimits {
 /// ```ts
 /// function smaller(left?: number, right?: number): number | undefined
 /// ```
-fn smaller(left: Option<u64>, right: Option<u64>) -> Option<u64> {
+fn smaller(
+    left: Option<u64>,
+    right: Option<u64>,
+) -> Option<u64> {
     return match (left, right) {
         (Some(a), Some(b)) => Some(a.min(b)),
         (Some(a), None) => Some(a),
@@ -170,9 +184,18 @@ fn smaller(left: Option<u64>, right: Option<u64>) -> Option<u64> {
 /// ```ts
 /// function lighter(left?: number, right?: number): number | undefined
 /// ```
-fn lighter(left: Option<u64>, right: Option<u64>) -> Option<u64> {
-    let weight: u64 = left.unwrap_or(DEFAULT_IO_WEIGHT).min(right.unwrap_or(DEFAULT_IO_WEIGHT));
-    return if weight == DEFAULT_IO_WEIGHT { None } else { Some(weight) };
+fn lighter(
+    left: Option<u64>,
+    right: Option<u64>,
+) -> Option<u64> {
+    let weight: u64 = left
+        .unwrap_or(DEFAULT_IO_WEIGHT)
+        .min(right.unwrap_or(DEFAULT_IO_WEIGHT));
+    return if weight == DEFAULT_IO_WEIGHT {
+        None
+    } else {
+        Some(weight)
+    };
 }
 
 /// What:
@@ -235,7 +258,9 @@ fn parse_cpu_max(text: &str) -> io::Result<Option<u64>> {
     if period_value == 0 {
         return Err(invalid("a cpu.max period of zero".to_string()));
     }
-    return Ok(Some(quota_value.saturating_mul(MICROSECONDS_PER_SECOND) / period_value));
+    return Ok(Some(
+        quota_value.saturating_mul(MICROSECONDS_PER_SECOND) / period_value,
+    ));
 }
 
 /// What:
@@ -257,7 +282,10 @@ fn parse_io_weight(text: &str) -> io::Result<Option<u64>> {
         return match rest.trim().parse::<u64>() {
             Ok(weight) if weight == DEFAULT_IO_WEIGHT => Ok(None),
             Ok(weight) => Ok(Some(weight)),
-            Err(_error) => Err(invalid(format!("not an io.weight default: {:?}", rest.trim()))),
+            Err(_error) => Err(invalid(format!(
+                "not an io.weight default: {:?}",
+                rest.trim()
+            ))),
         };
     }
     return Err(invalid("an io.weight without a default line".to_string()));
@@ -275,16 +303,28 @@ fn parse_io_weight(text: &str) -> io::Result<Option<u64>> {
 /// ```ts
 /// function readLimitFile(directory: string, name: string, parse: (text: string) => number | undefined): number | undefined  // throws
 /// ```
-fn read_limit_file(directory: &Path, name: &str, parse: fn(&str) -> io::Result<Option<u64>>) -> io::Result<Option<u64>> {
+fn read_limit_file(
+    directory: &Path,
+    name: &str,
+    parse: fn(&str) -> io::Result<Option<u64>>,
+) -> io::Result<Option<u64>> {
     let path: PathBuf = directory.join(name);
     let text: String = match std::fs::read_to_string(&path) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(io::Error::new(error.kind(), format!("{}: {error}", path.display()))),
+        Err(error) => {
+            return Err(io::Error::new(
+                error.kind(),
+                format!("{}: {error}", path.display()),
+            ));
+        }
     };
     return match parse(&text) {
         Ok(found) => Ok(found),
-        Err(error) => Err(io::Error::new(error.kind(), format!("{}: {error}", path.display()))),
+        Err(error) => Err(io::Error::new(
+            error.kind(),
+            format!("{}: {error}", path.display()),
+        )),
     };
 }
 
@@ -331,7 +371,9 @@ fn components(cgroup: &str) -> io::Result<Vec<&str>> {
         }
     }
     if leaves_the_mount {
-        return Err(invalid(format!("the cgroup path {cgroup:?} is not below the mount")));
+        return Err(invalid(format!(
+            "the cgroup path {cgroup:?} is not below the mount"
+        )));
     }
     return Ok(parts);
 }
@@ -351,11 +393,18 @@ fn components(cgroup: &str) -> io::Result<Vec<&str>> {
 /// ```ts
 /// export function readInheritedLimits(cgroupRoot: string, origin: string, destination: string): InheritedLimits  // throws
 /// ```
-pub(crate) fn read_inherited_limits(cgroup_root: &Path, origin: &str, destination: &str) -> io::Result<InheritedLimits> {
+pub(crate) fn read_inherited_limits(
+    cgroup_root: &Path,
+    origin: &str,
+    destination: &str,
+) -> io::Result<InheritedLimits> {
     let origin_parts: Vec<&str> = components(origin)?;
     let destination_parts: Vec<&str> = components(destination)?;
     let mut shared: usize = 0;
-    while shared < origin_parts.len() && shared < destination_parts.len() && origin_parts[shared] == destination_parts[shared] {
+    while shared < origin_parts.len()
+        && shared < destination_parts.len()
+        && origin_parts[shared] == destination_parts[shared]
+    {
         shared += 1;
     }
     let mut limits: InheritedLimits = InheritedLimits::default();
@@ -400,17 +449,30 @@ pub(crate) fn own_cgroup(text: &str) -> io::Result<String> {
 /// ```ts
 /// export function callerLimits(ownCgroupFile: string, cgroupRoot: string, sliceDir: string): InheritedLimits  // throws
 /// ```
-pub(crate) fn caller_limits(own_cgroup_file: &Path, cgroup_root: &Path, slice_dir: &Path) -> io::Result<InheritedLimits> {
+pub(crate) fn caller_limits(
+    own_cgroup_file: &Path,
+    cgroup_root: &Path,
+    slice_dir: &Path,
+) -> io::Result<InheritedLimits> {
     let text: String = match std::fs::read_to_string(own_cgroup_file) {
         Ok(found) => found,
-        Err(error) => return Err(io::Error::new(error.kind(), format!("{}: {error}", own_cgroup_file.display()))),
+        Err(error) => {
+            return Err(io::Error::new(
+                error.kind(),
+                format!("{}: {error}", own_cgroup_file.display()),
+            ));
+        }
     };
     let origin: String = match own_cgroup(&text) {
         Ok(found) => found,
         Err(error) => return Err(invalid(format!("{}: {error}", own_cgroup_file.display()))),
     };
     let Ok(relative) = slice_dir.strip_prefix(cgroup_root) else {
-        return Err(invalid(format!("{} is not below {}", slice_dir.display(), cgroup_root.display())));
+        return Err(invalid(format!(
+            "{} is not below {}",
+            slice_dir.display(),
+            cgroup_root.display()
+        )));
     };
     let Some(destination) = relative.to_str() else {
         return Err(invalid(format!("{} is not UTF-8", relative.display())));

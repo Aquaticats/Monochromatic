@@ -15,18 +15,38 @@
 //!  and the level is set here,
 //!  because these tests read records below the default.
 
-use crate::support::{self, PRODUCT_TIMEOUT, Probe, SERVER};
+use crate::support::{
+    self,
+    PRODUCT_TIMEOUT,
+    Probe,
+    SERVER,
+};
 use ide_app::language::{
-    reply::{RequestKind, RequestOutcome},
-    status::{DocumentState, ServerState},
+    reply::{
+        RequestKind,
+        RequestOutcome,
+    },
+    status::{
+        DocumentState,
+        ServerState,
+    },
 };
 use ide_app::logging;
 use std::{
-    io::{self, Write},
+    io::{
+        self,
+        Write,
+    },
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
-use tracing_subscriber::{EnvFilter, fmt::MakeWriter};
+use tracing_subscriber::{
+    EnvFilter,
+    fmt::MakeWriter,
+};
 
 /// A log writer that keeps every byte in memory,
 ///  shared with the test that reads it.
@@ -34,7 +54,10 @@ use tracing_subscriber::{EnvFilter, fmt::MakeWriter};
 struct Capture(Arc<Mutex<Vec<u8>>>);
 
 impl Write for Capture {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> io::Result<usize> {
         self.0.lock().expect("log buffer").extend_from_slice(bytes);
         return Ok(bytes.len());
     }
@@ -75,7 +98,10 @@ fn capture_the_log() -> Capture {
 ///  whole lines.
 ///  A record starts with its time,
 ///  then its level.
-fn records_at(text: &str, level: &str) -> Vec<String> {
+fn records_at(
+    text: &str,
+    level: &str,
+) -> Vec<String> {
     let mut found = Vec::new();
     for line in text.lines() {
         if line.split_whitespace().nth(1) == Some(level) {
@@ -92,7 +118,10 @@ const TAIL_FIELD: &str = "stderr_tail=";
 const ENDED: &str = "language server process ended";
 
 /// The whole lines of the log that contain `text`.
-fn records_with(log: &str, text: &str) -> Vec<String> {
+fn records_with(
+    log: &str,
+    text: &str,
+) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for line in log.lines() {
         if line.contains(text) {
@@ -103,7 +132,11 @@ fn records_with(log: &str, text: &str) -> Vec<String> {
 }
 
 /// Assert that a record with this level and this ending is in the log.
-fn assert_record(text: &str, level: &str, ending: &str) {
+fn assert_record(
+    text: &str,
+    level: &str,
+    ending: &str,
+) {
     let mut ended = false;
     for line in records_at(text, level).iter() {
         if line.ends_with(ending) {

@@ -4,13 +4,18 @@
 use crate::language::reply::LanguageReply;
 /// Latest-value results the worker publishes.
 use crate::language::{
-    diagnostics::DiagnosticsSnapshot, hints::HintsSnapshot, status::LanguageStatus,
+    diagnostics::DiagnosticsSnapshot,
+    hints::HintsSnapshot,
+    status::LanguageStatus,
 };
 /// `Arc` is a thread-safe shared pointer.
 use std::sync::Arc;
 /// `mpsc` is a queue,
 ///  and `watch` a single-slot latest-value cell.
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{
+    mpsc,
+    watch,
+};
 
 /// The sending ends of every channel the interface thread polls.
 pub(in crate::language) struct Outputs {
@@ -42,7 +47,10 @@ impl Outputs {
     /// ```ts
     /// reply(reply: LanguageReply) { if (!queue.offer(reply)) log.warn('dropped'); }
     /// ```
-    pub(in crate::language) fn reply(&self, reply: LanguageReply) {
+    pub(in crate::language) fn reply(
+        &self,
+        reply: LanguageReply,
+    ) {
         if let Err(error) = self.replies.try_send(reply) {
             tracing::warn!(%error, "dropped a language reply because the reply queue is full or closed");
         }

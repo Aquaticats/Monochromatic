@@ -9,8 +9,8 @@
  with OpenZFS 2.4.4 and the Rust toolchain, then builds this crate's `native_binary` test target inside it, runs the
  adoption and store controls there, runs the store's publication-fsync probe, and destroys the guest.
 
- Usage: node e2e/mount-git-worktree-clone-datasets-guest.ts <create|prepare|run|delegation|snapdir|destroy|all> [--name <guest>]
-          [--log-dir <dir>] [--keep-guest]
+ Usage: node e2e/mount-git-worktree-clone-datasets-guest.ts <create|prepare|run|sweep|delegation|snapdir|destroy|all>
+          [--name <guest>] [--log-dir <dir>] [--keep-guest]
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
 
  `delegation` answers the owner's question of 2026-11-22 by a run: under the
@@ -93,6 +93,7 @@ const EXPECTED_SWEEP_MARKERS = [
   'SWEEP attached item=1 slot=one origin=checkout-snapshot',
   'SWEEP first-attach outcome=attached slot=one',
   'SWEEP twice-swept receipt=done',
+  'SWEEP second-request answered=done mounts=1',
   'SWEEP refusal item=5 step=key-unavailable receipt=refused',
   'SWEEP attached item=5 slot=two',
   'SWEEP refusal item=2 step=intent',
@@ -397,7 +398,7 @@ function recipe({ chosen, step, }: { readonly chosen: Options; readonly step: st
 }
 
 /**
- Build the test target inside the guest and run the adoption control there.
+ Push this checkout into the guest and build the crate's test target and executable there.
 
  The snapshot is the same repository-shaped tree the container gate builds from
  (`bin/native-wrapper-snapshot.ts`), so the arm compiles against the path crates the wrapper links, the ZFS binding
@@ -405,9 +406,9 @@ function recipe({ chosen, step, }: { readonly chosen: Options; readonly step: st
 
  @param chosen - the run's options
 
- @throws Error naming the step that refused, or the marker the pulled log lacks
+ @throws Error naming the step that refused
  */
-async function run(chosen: Options): Promise<void> {
+async function buildInGuest(chosen: Options): Promise<void> {
   const context = join(chosen.logDir, 'snapshot');
   rmSync(context, { recursive: true, force: true, });
   mkdirSync(context, { recursive: true, mode: 0o700, });
@@ -431,18 +432,29 @@ async function run(chosen: Options): Promise<void> {
     // because mvm's template sets the agent's OOMPolicy=continue, so the agent survives and still reports it
     // (doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md).
     `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
-    'CARGO_BUILD_JOBS=1 cargo build --release --tests --locked > /root/adoption-build.log 2>&1',
+    'CARGO_BUILD_JOBS=1 cargo build --release --tests --locked --features test-only-switches > /root/adoption-build.log 2>&1',
     'tail --lines=3 /root/adoption-build.log',
   ].join('\n');
   guestStart({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
   guestFinish({ chosen, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS + 180_000, });
+}
+
+/**
+ Build the test target inside the guest and run the adoption control there.
+
+ @param chosen - the run's options
+
+ @throws Error naming the step that refused, or the marker the pulled log lacks
+ */
+async function run(chosen: Options): Promise<void> {
+  await buildInGuest(chosen);
   storeDataset({ chosen, });
   const arm = [
     'set -eu',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
     `export ${GUEST_VARIABLE}=${chosen.name}`,
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
       `--filterset "test(zfs_adoption_guest)" > /root/adoption-arm.log 2>&1; then status=0; else status=$?; fi`,
     'tail --lines=40 /root/adoption-arm.log',
     'test "$status" = 0',
@@ -495,7 +507,7 @@ function holderScanArms({ chosen, }: { readonly chosen: Options; }): void {
     `export CLI_GIT_ZFS_SCAN_POOL=${SCAN_POOL}`,
     'export CLI_GIT_ZFS_SCAN_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SCAN_CHECKOUT=${SCAN_CHECKOUT}`,
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
       '--filterset "test(zfs_holder_scan_guest)" > /root/holder-scan-arm.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=80 /root/holder-scan-arm.log',
     'test "$status" = 0',
@@ -635,7 +647,7 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
     `export CLI_GIT_ZFS_SWEEP_POOL=${SWEEP_POOL}`,
     'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${SWEEP_CHECKOUT}`,
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
       '--filterset "test(zfs_sweep_guest)" > /root/sweep-arm.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=60 /root/sweep-arm.log',
     'test "$status" = 0',
@@ -881,7 +893,7 @@ function unmountArms({ chosen, }: { readonly chosen: Options; }): void {
     `export CLI_GIT_ZFS_SWEEP_POOL=${SWEEP_POOL}`,
     'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${SWEEP_CHECKOUT}`,
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
       `--filterset "test(zfs_unmount_guest)" > /root/unmount-arm.log 2>&1; then status=0; else status=$?; fi`,
     'tail --lines=60 /root/unmount-arm.log',
     'test "$status" = 0',
@@ -906,6 +918,13 @@ const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
   create: (chosen) => recipe({ chosen, step: 'create', }),
   prepare: (chosen) => recipe({ chosen, step: 'prepare', }),
   run,
+  // Plan step 8's sweep arms alone, for a round whose arm is one of them: the same push, build and store dataset the
+  // whole run makes, and none of the arms that follow the sweep.
+  sweep: async (chosen: Options): Promise<void> => {
+    await buildInGuest(chosen);
+    storeDataset({ chosen, });
+    sweepArms({ chosen, });
+  },
   delegation: (chosen) => delegation({ chosen, }),
   snapdir: (chosen) => snapdirMatrix({ chosen, }),
   destroy: (chosen) => recipe({ chosen, step: 'destroy', }),

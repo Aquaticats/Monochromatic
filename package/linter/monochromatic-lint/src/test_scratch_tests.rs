@@ -10,7 +10,10 @@
 //! test('the root is outside every manifest', () => expect(hasOwningManifest(scratchRoot())).toBe(false));
 //! ```
 
-use super::{has_owning_manifest, scratch_root};
+use super::{
+    has_owning_manifest,
+    scratch_root,
+};
 use std::path::PathBuf;
 
 /// No Cargo.toml owns the scratch root,

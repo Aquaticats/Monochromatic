@@ -2804,6 +2804,23 @@ arrow functions,
 try/finally,
 missing TSDoc).
 
+## Carried onto `main` on 2026-11-25
+
+The `json-keys` kind was written by a session that ended on 2026-11-10,
+and it sat unmerged on `feat/file-enforcer-repository-link-rule` (`929b127fc0`)
+until the owner chose to carry it onto `main`,
+as issue 1124's comment of 2026-11-25 records.
+It lands in two steps,
+because the pinned file-enforcer `0.1.3` cannot read the `json-keys` kind:
+the crate code first,
+released as the library `monochromatic-file-enforcer` `0.1.3-alpha.1` and the binary
+`monochromatic-file-enforcer-cli` `0.1.4-alpha.1`,
+both locked in `toolchain.lock.json`;
+then the `file-enforcer.config.jsonc` rules and the regenerated `package.json` manifests.
+Issue 1124 holds the acceptance:
+no generated `package.json` carries the pre-transfer repository URL,
+and a guard fails when a generator template is edited back to the old owner.
+
 ## How to respond
 
 Reply in the session that resumes this work;

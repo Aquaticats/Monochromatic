@@ -140,7 +140,9 @@ impl OutputScale {
     /// Why:
     ///       The default for `--scale`,
     ///  matching the behavior before scaling existed.
-    pub const ONE: Self = Self { per_120: SCALE_DENOMINATOR };
+    pub const ONE: Self = Self {
+        per_120: SCALE_DENOMINATOR,
+    };
 
     /// Parse a decimal scale such as `1`,
     ///  `1.25`,
@@ -180,14 +182,20 @@ impl OutputScale {
         // ```
         let value = match text.parse::<f64>() {
             Ok(number) => number,
-            Err(_) => return Err(format!("scale must be a decimal number such as 1, 1.25, or 2, got: {text}")),
+            Err(_) => {
+                return Err(format!(
+                    "scale must be a decimal number such as 1, 1.25, or 2, got: {text}"
+                ));
+            }
         };
 
         // What:     `.is_finite()` is false for infinity and NaN, which the float parser
         //           accepts as the words `inf` and `NaN`.
         // Why:      Neither can be converted to 120ths.
         if !value.is_finite() {
-            return Err(format!("scale must be a finite number such as 1, 1.25, or 2, got: {text}"));
+            return Err(format!(
+                "scale must be a finite number such as 1, 1.25, or 2, got: {text}"
+            ));
         }
 
         // What:     `value * f64::from(SCALE_DENOMINATOR)` converts to 120ths; `f64::from`
@@ -229,7 +237,9 @@ impl OutputScale {
         // ```ts
         // return { per120: nearest };
         // ```
-        return Ok(Self { per_120: nearest as u32 });
+        return Ok(Self {
+            per_120: nearest as u32,
+        });
     }
 
     /// The scale numerator over 120,
@@ -375,7 +385,10 @@ impl ScreenGeometry {
     /// }
     /// ```
     #[must_use]
-    pub fn parent_request(self, parent_scale: f64) -> (u32, u32) {
+    pub fn parent_request(
+        self,
+        parent_scale: f64,
+    ) -> (u32, u32) {
         let divisor = usable_parent_scale(parent_scale);
         let (width, height) = self.physical_size();
         // `as u32` saturates: a negative or oversized float becomes 0 or `u32::MAX`.
@@ -397,13 +410,18 @@ impl ScreenGeometry {
     ///  anything farther off means the parent
     ///           kept its own size (for example a maximized window).
     #[must_use]
-    pub fn fits_framebuffer(self, framebuffer: (i32, i32), parent_scale: f64) -> bool {
+    pub fn fits_framebuffer(
+        self,
+        framebuffer: (i32, i32),
+        parent_scale: f64,
+    ) -> bool {
         let tolerance = usable_parent_scale(parent_scale).ceil() as i32;
         let (width, height) = self.physical_size();
         // `abs_diff` returns the unsigned distance between two signed integers without overflow.
         let width_distance = framebuffer.0.abs_diff(width);
         let height_distance = framebuffer.1.abs_diff(height);
-        return width_distance <= tolerance.unsigned_abs() && height_distance <= tolerance.unsigned_abs();
+        return width_distance <= tolerance.unsigned_abs()
+            && height_distance <= tolerance.unsigned_abs();
     }
 
     /// The geometry after the parent window changed size by itself.
@@ -429,7 +447,11 @@ impl ScreenGeometry {
     /// }
     /// ```
     #[must_use]
-    pub fn after_parent_resize(self, framebuffer: (i32, i32), parent_scale: f64) -> Self {
+    pub fn after_parent_resize(
+        self,
+        framebuffer: (i32, i32),
+        parent_scale: f64,
+    ) -> Self {
         if self.fits_framebuffer(framebuffer, parent_scale) {
             return self;
         }
@@ -437,7 +459,11 @@ impl ScreenGeometry {
         // `.max(1)` keeps a degenerate framebuffer from producing a zero-sized screen.
         let logical_width = ((f64::from(framebuffer.0) / factor).round() as i32).max(1);
         let logical_height = ((f64::from(framebuffer.1) / factor).round() as i32).max(1);
-        return Self { logical_width, logical_height, scale: self.scale };
+        return Self {
+            logical_width,
+            logical_height,
+            scale: self.scale,
+        };
     }
 }
 

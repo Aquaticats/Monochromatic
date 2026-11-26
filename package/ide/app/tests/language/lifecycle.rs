@@ -5,12 +5,28 @@
 //!  launch refusal,
 //! and shutdown without leftover processes.
 
-use crate::support::{self, PRODUCT_TIMEOUT, Probe, SERVER};
+use crate::support::{
+    self,
+    PRODUCT_TIMEOUT,
+    Probe,
+    SERVER,
+};
 use ide_app::language::{
     config::LanguageSetup,
-    launch::{LaunchRequest, ServerLaunch, launch_directly},
-    reply::{RequestFailure, RequestKind, RequestOutcome},
-    status::{DocumentState, ServerState},
+    launch::{
+        LaunchRequest,
+        ServerLaunch,
+        launch_directly,
+    },
+    reply::{
+        RequestFailure,
+        RequestKind,
+        RequestOutcome,
+    },
+    status::{
+        DocumentState,
+        ServerState,
+    },
 };
 use serde_json::Value;
 
@@ -262,7 +278,10 @@ fn refused_launch_is_reported_and_nothing_is_spawned() {
     )) {
         second.step();
     }
-    let Some(ServerState::LaunchRefused { reason }) = second.state(SERVER) else {
+    let Some(ServerState::LaunchRefused {
+        reason,
+    }) = second.state(SERVER)
+    else {
         panic!("unexpected state {:?}", second.state(SERVER));
     };
     assert!(reason.contains("contains the project"), "{reason}");

@@ -64,8 +64,14 @@
 /// ```
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{
-    __m512i, _mm512_and_si512, _mm512_loadu_si512, _mm512_or_si512, _mm512_permutexvar_epi8,
-    _mm512_set1_epi8, _mm512_setzero_si512, _mm512_test_epi8_mask,
+    __m512i,
+    _mm512_and_si512,
+    _mm512_loadu_si512,
+    _mm512_or_si512,
+    _mm512_permutexvar_epi8,
+    _mm512_set1_epi8,
+    _mm512_setzero_si512,
+    _mm512_test_epi8_mask,
 };
 
 /// What:
@@ -95,7 +101,13 @@ use std::arch::x86_64::{
 /// ```
 #[cfg(target_arch = "aarch64")]
 use std::arch::aarch64::{
-    uint8x16_t, vandq_u8, vdupq_n_u8, vld1q_u8_x4, vmaxvq_u8, vorrq_u8, vqtbl4q_u8,
+    uint8x16_t,
+    vandq_u8,
+    vdupq_n_u8,
+    vld1q_u8_x4,
+    vmaxvq_u8,
+    vorrq_u8,
+    vqtbl4q_u8,
 };
 
 /// What:
@@ -110,7 +122,10 @@ use std::arch::aarch64::{
 /// ```ts
 /// import { Dfa, accept_bit } from "crate/dfa/table";
 /// ```
-use crate::dfa::table::{Dfa, accept_bit};
+use crate::dfa::table::{
+    Dfa,
+    accept_bit,
+};
 
 /// What:
 ///     Largest state count the permute kernel supports (one lane per state).
@@ -273,7 +288,7 @@ impl Dfa {
             ctx,
             start: self.start as u8,
             end_bit: accept_bit(false, true),
-        })
+        });
     }
 
     /// Fills `out[i]` with whether the DFA matches `lines[i]`,
@@ -295,7 +310,11 @@ impl Dfa {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn is_match_batch_sheng(&self, lines: &[&[u8]], out: &mut [bool]) {
+    pub fn is_match_batch_sheng(
+        &self,
+        lines: &[&[u8]],
+        out: &mut [bool],
+    ) {
         let Some(tables) = self.build_sheng() else {
             self.is_match_batch_scalar(lines, out);
             return;
@@ -363,14 +382,19 @@ impl Dfa {
 /// ```
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f,avx512bw,avx512vbmi")]
-unsafe fn sheng_all_avx512(tables: &ShengTables, lines: &[&[u8]], out: &mut [bool]) {
+unsafe fn sheng_all_avx512(
+    tables: &ShengTables,
+    lines: &[&[u8]],
+    out: &mut [bool],
+) {
     let accept = unsafe { _mm512_loadu_si512(tables.accept.as_ptr().cast::<__m512i>()) };
     for (line, slot) in lines.iter().zip(out.iter_mut()) {
         let mut state = _mm512_set1_epi8(tables.start as i8);
         let mut acc = _mm512_setzero_si512();
         for &byte in *line {
-            let column =
-                unsafe { _mm512_loadu_si512(tables.trans[byte as usize].as_ptr().cast::<__m512i>()) };
+            let column = unsafe {
+                _mm512_loadu_si512(tables.trans[byte as usize].as_ptr().cast::<__m512i>())
+            };
             let masks = _mm512_permutexvar_epi8(state, accept);
             let ctx = _mm512_set1_epi8(tables.ctx[byte as usize] as i8);
             acc = _mm512_or_si512(acc, _mm512_and_si512(masks, ctx));
@@ -405,7 +429,10 @@ unsafe fn sheng_all_avx512(tables: &ShengTables, lines: &[&[u8]], out: &mut [boo
 /// ```
 #[cfg(target_arch = "aarch64")]
 #[inline]
-unsafe fn sheng_line_neon(tables: &ShengTables, line: &[u8]) -> bool {
+unsafe fn sheng_line_neon(
+    tables: &ShengTables,
+    line: &[u8],
+) -> bool {
     // What:    Edition 2024: an `unsafe fn` body is not an implicit unsafe context, and every
     //          NEON intrinsic here is unsafe, so the whole scan runs inside one unsafe block.
     // Why:     The surrounding function uses this step to keep the matcher behavior correct at

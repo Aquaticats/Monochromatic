@@ -40,8 +40,14 @@ fn editor_view_reports_the_kept_note_only_while_the_template_does_not_apply() {
         selection_end: 10,
     });
     let broken_view = editor_view(&broken);
-    assert_eq!(broken_view.kept_note, music_player::template_editor::TEMPLATE_KEPT_NOTE);
-    assert_eq!(broken_view.mistakes, vec!["mi has no field called nope. Pick a name from the Fields list."]);
+    assert_eq!(
+        broken_view.kept_note,
+        music_player::template_editor::TEMPLATE_KEPT_NOTE
+    );
+    assert_eq!(
+        broken_view.mistakes,
+        vec!["mi has no field called nope. Pick a name from the Fields list."]
+    );
 }
 
 #[test]
@@ -49,7 +55,10 @@ fn each_template_row_leads_with_its_material_symbol() {
     assert_eq!(icon_name(TemplateKind::TrackRows), "queue_music");
     assert_eq!(icon_name(TemplateKind::PlayingTrack), "play_circle");
     let editor = TemplateEditorState::initial(&[]);
-    let icons: Vec<&str> = settings_rows(&editor).iter().map(|row| return row.icon).collect();
+    let icons: Vec<&str> = settings_rows(&editor)
+        .iter()
+        .map(|row| return row.icon)
+        .collect();
     assert_eq!(icons, vec!["queue_music", "play_circle"]);
 }
 

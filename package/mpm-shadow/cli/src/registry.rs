@@ -13,11 +13,17 @@
 use std::fs;
 
 /// Imports the borrowed path type and the owned one.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `CRATE_ARCHIVE_SUFFIX`,
 /// `OWN_CRATE_PREFIX` from `crate::constants`.
-use crate::constants::{CRATE_ARCHIVE_SUFFIX, OWN_CRATE_PREFIX};
+use crate::constants::{
+    CRATE_ARCHIVE_SUFFIX,
+    OWN_CRATE_PREFIX,
+};
 /// Imports `split_entry_name` from `crate::version`.
 use crate::version::split_entry_name;
 
@@ -100,7 +106,11 @@ fn child_names(directory: &Path) -> Vec<String> {
 /// ```ts
 /// function entryFromName(name: string, suffix: string, directory: string): RegistryEntry | undefined
 /// ```
-fn entry_from_name(name: &str, suffix: &str, directory: &Path) -> Option<RegistryEntry> {
+fn entry_from_name(
+    name: &str,
+    suffix: &str,
+    directory: &Path,
+) -> Option<RegistryEntry> {
     // What:     `name.strip_suffix(suffix)` removes the suffix and returns `Some(rest)`, or `None` when the name does
     //           not end with it. `?` leaves the function with `None` when the value is `None`, and otherwise unwraps it.
     // Why:      An archive must end in `.crate`; an extracted directory has no suffix (the empty suffix always matches).

@@ -16,9 +16,9 @@
 //! ```
 
 use super::real_git_lfs_the_run_requires::{PROGRAM, REQUIRED_VARIABLE, required};
-use crate::test_support::child_test_process::run_with_environment;
+use crate::child_test_process::{ChildTest, finished};
 use crate::test_support::{fixture, remove};
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
 /// What:
@@ -78,23 +78,24 @@ fn the_requirement_from_the_environment_decides_whether_a_control_fails() {
     let empty: PathBuf = fixture("real-git-lfs-required");
     let search: OsString = empty.clone().into_os_string();
     // The arm that states the program must be there: the control fails, and the failure names the variable.
-    let stated: std::process::Output = run_with_environment(THIS_CONTROL, &[
-        (OsString::from(CHILD_VARIABLE), OsString::from("1")),
-        (OsString::from(REQUIRED_VARIABLE), OsString::from("1")),
-        (OsString::from("PATH"), search.clone()),
-    ]);
+    let environment: [(&str, &OsStr); 3] = [(CHILD_VARIABLE, OsStr::new("1")), (REQUIRED_VARIABLE, OsStr::new("1")), ("PATH", search.as_os_str())];
+    let stated: std::process::Output = finished(ChildTest { exact_test: THIS_CONTROL, environment: environment.as_slice(), ..ChildTest::default() })
+        .expect("the child control ends within the deadline");
     let said: String = format!("{}{}", String::from_utf8_lossy(stated.stdout.as_slice()), String::from_utf8_lossy(stated.stderr.as_slice()));
     assert!(!stated.status.success(), "a run that states the program must be there fails the control: {said}");
     assert!(said.contains(REQUIRED_VARIABLE), "the failure names the variable that made the absence a failure: {said}");
     assert!(said.contains("1 failed"), "the child ran the control and it failed: {said}");
     // The control of that arm: with the same absent program and no statement, the control passes and says it did not run.
-    let unstated: std::process::Output = run_with_environment(THIS_CONTROL, &[
-        (OsString::from(CHILD_VARIABLE), OsString::from("1")),
+    let unstated_environment: [(&str, &OsStr); 3] = [
+        (CHILD_VARIABLE, OsStr::new("1")),
         // An empty value states nothing, as the btrfs and end-to-end acknowledgements read theirs, so the gate's own
         // value cannot leak into this arm through the parent's environment.
-        (OsString::from(REQUIRED_VARIABLE), OsString::new()),
-        (OsString::from("PATH"), search),
-    ]);
+        (REQUIRED_VARIABLE, OsStr::new("")),
+        ("PATH", search.as_os_str()),
+    ];
+    let unstated: std::process::Output =
+        finished(ChildTest { exact_test: THIS_CONTROL, environment: unstated_environment.as_slice(), ..ChildTest::default() })
+            .expect("the child control ends within the deadline");
     let unstated_said: String =
         format!("{}{}", String::from_utf8_lossy(unstated.stdout.as_slice()), String::from_utf8_lossy(unstated.stderr.as_slice()));
     assert!(unstated.status.success(), "a run that states nothing passes the control: {unstated_said}");

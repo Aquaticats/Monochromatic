@@ -34,7 +34,13 @@ use slint::ComponentHandle;
 /// Imports the state reader of the screen.
 use crate::ui_screen::read_screen;
 /// Imports the window and the generated globals that the line reads.
-use crate::{AppWindow, Focus, FolderLayout, Keys, TrackLayout};
+use crate::{
+    AppWindow,
+    Focus,
+    FolderLayout,
+    Keys,
+    TrackLayout,
+};
 
 thread_local! {
     /// What:
@@ -105,7 +111,10 @@ fn badges_shown(window: &AppWindow) -> Vec<String> {
 /// Why:
 /// the menu's geometry properties keep the last menu's values after it closes,
 /// and the log should show only an open menu's.
-fn menu_pixels(window: &AppWindow, length: f32) -> i32 {
+fn menu_pixels(
+    window: &AppWindow,
+    length: f32,
+) -> i32 {
     if !window.get_menu_open() {
         return 0;
     }
@@ -218,7 +227,10 @@ struct StateSnapshot {
 /// Why:
 /// see the module description.
 /// The line starts with `ui_state ` so a reader can pick it out of the log.
-pub(crate) fn emit(window: &AppWindow, reason: &str) {
+pub(crate) fn emit(
+    window: &AppWindow,
+    reason: &str,
+) {
     SEQUENCE.set(SEQUENCE.get() + 1);
     let sequence = SEQUENCE.get();
     let zone = FocusZone::from_int(window.global::<Focus>().get_zone());
@@ -265,7 +277,11 @@ pub(crate) fn emit(window: &AppWindow, reason: &str) {
             ring_visible: window.global::<Focus>().get_ring_visible(),
             focus_request: window.get_focus_request(),
             badges,
-            first_run_title: if window.get_first_run_state() == 0 { String::new() } else { window.get_first_run_title().to_string() },
+            first_run_title: if window.get_first_run_state() == 0 {
+                String::new()
+            } else {
+                window.get_first_run_title().to_string()
+            },
             deck_disabled: window.global::<crate::DeckState>().get_disabled(),
             auto_play_on_select: state.auto_play_on_select,
             text_size_pane_title_px: state.text_sizes.get(TextElement::PaneTitle),
@@ -277,7 +293,10 @@ pub(crate) fn emit(window: &AppWindow, reason: &str) {
     let line = match serde_json::to_string(&snapshot) {
         Ok(text) => text,
         Err(error) => {
-            tracing::warn!(?error, "the window state could not be written as a log line");
+            tracing::warn!(
+                ?error,
+                "the window state could not be written as a log line"
+            );
             return;
         }
     };

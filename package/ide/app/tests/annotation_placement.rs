@@ -14,7 +14,10 @@
 ///  its tab stops,
 ///  and the production vertical movement.
 use ide_app::{
-    document::{Document, ReadingPosition},
+    document::{
+        Document,
+        ReadingPosition,
+    },
     shaped_text::TextShaper,
     tab_stop::TAB_SPACES,
     vertical_motion::vertical,
@@ -63,7 +66,10 @@ struct RecordedHint {
 /// ```ts
 /// function splice(line: string, hints: RecordedHint[]): [string, number[]];
 /// ```
-fn splice(line: &str, hints: &[RecordedHint]) -> (String, Vec<usize>) {
+fn splice(
+    line: &str,
+    hints: &[RecordedHint],
+) -> (String, Vec<usize>) {
     // What: `.chars().count()` counts Unicode scalar values, the unit of every source position here.
     // Why: The recorded `before` text ends exactly at the hint's position on the line.
     //
@@ -107,7 +113,11 @@ fn splice(line: &str, hints: &[RecordedHint]) -> (String, Vec<usize>) {
 
 /// Logical x of every source boundary of one line,
 ///  shaped alone with the production shaper.
-fn boundaries(shaper: &mut TextShaper, text: &str, map: &[usize]) -> Vec<f32> {
+fn boundaries(
+    shaper: &mut TextShaper,
+    text: &str,
+    map: &[usize],
+) -> Vec<f32> {
     let document = Document::new(text);
     let row = shaper.row(&document, 0, 1.0);
     let mut result = Vec::new();
@@ -131,7 +141,10 @@ fn boundaries(shaper: &mut TextShaper, text: &str, map: &[usize]) -> Vec<f32> {
 /// ```ts
 /// function displacement(line: string, hints: RecordedHint[]): [number, number];
 /// ```
-fn displacement(line: &str, hints: &[RecordedHint]) -> (f32, f32) {
+fn displacement(
+    line: &str,
+    hints: &[RecordedHint],
+) -> (f32, f32) {
     let mut shaper = TextShaper::new();
     let mut identity = Vec::new();
     for index in 0..=line.chars().count() {

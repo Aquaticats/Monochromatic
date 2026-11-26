@@ -4,12 +4,15 @@
 
 /// Imports the set these checks read.
 use super::RegexSet;
-/// Imports the traits a candidate walk of the gate takes.
-use crate::gate::{CandidateCheck, CandidateVisit};
 /// Imports the matcher engine and the line-start match.
 use crate::build::line_start_match;
 /// Imports the engine type a group or a line-start rule holds.
 use crate::engine::Engine;
+/// Imports the traits a candidate walk of the gate takes.
+use crate::gate::{
+    CandidateCheck,
+    CandidateVisit,
+};
 
 /// A stack-only set of rule ids already fully checked on the current line.
 ///
@@ -70,7 +73,9 @@ impl CheckedFull {
     /// }
     /// ```
     pub(super) fn new() -> CheckedFull {
-        return CheckedFull { bits: [0; 4] }
+        return CheckedFull {
+            bits: [0; 4],
+        };
     }
 
     /// Reports whether `rule` is seen for the first time,
@@ -93,14 +98,17 @@ impl CheckedFull {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub(super) fn first_time(&mut self, rule: usize) -> bool {
+    pub(super) fn first_time(
+        &mut self,
+        rule: usize,
+    ) -> bool {
         if rule >= 256 {
             return true;
         }
         let (word, bit) = (rule / 64, 1u64 << (rule % 64));
         let fresh = self.bits[word] & bit == 0;
         self.bits[word] |= bit;
-        return fresh
+        return fresh;
     }
 }
 
@@ -118,8 +126,14 @@ pub(super) struct RuleCheck<'set> {
 /// Lets the gate stop at the first candidate whose rule matches.
 impl CandidateCheck for RuleCheck<'_> {
     /// Whether the line matches the rule whose seed starts at `pos`.
-    fn check(&mut self, rule: usize, pos: usize) -> bool {
-        return self.set.matches_rule(self.line, rule, pos, &mut self.checked);
+    fn check(
+        &mut self,
+        rule: usize,
+        pos: usize,
+    ) -> bool {
+        return self
+            .set
+            .matches_rule(self.line, rule, pos, &mut self.checked);
     }
 }
 
@@ -139,8 +153,15 @@ pub(super) struct RuleCollector<'set> {
 /// Lets the gate hand every candidate to the collector.
 impl CandidateVisit for RuleCollector<'_> {
     /// Records the rule when the line matches it.
-    fn visit(&mut self, rule: usize, pos: usize) {
-        if self.set.matches_rule(self.line, rule, pos, &mut self.checked) {
+    fn visit(
+        &mut self,
+        rule: usize,
+        pos: usize,
+    ) {
+        if self
+            .set
+            .matches_rule(self.line, rule, pos, &mut self.checked)
+        {
             self.hits.push(rule);
         }
     }
@@ -153,7 +174,11 @@ pub(super) struct RejectEveryCandidate;
 /// Lets the gate walk all its candidates without ever stopping.
 impl CandidateCheck for RejectEveryCandidate {
     /// Never matches.
-    fn check(&mut self, _rule: usize, _pos: usize) -> bool {
+    fn check(
+        &mut self,
+        _rule: usize,
+        _pos: usize,
+    ) -> bool {
         return false;
     }
 }
@@ -169,7 +194,11 @@ pub(super) struct AnchoredRuleCheck<'set> {
 /// Lets the gate stop at the first candidate whose anchored engine matches.
 impl CandidateCheck for AnchoredRuleCheck<'_> {
     /// Whether the anchored engine of the rule matches from `pos`.
-    fn check(&mut self, rule: usize, pos: usize) -> bool {
+    fn check(
+        &mut self,
+        rule: usize,
+        pos: usize,
+    ) -> bool {
         return match &self.set.anchored[rule] {
             Some(engine) => engine.is_match(&self.line[pos..]),
             None => false,
@@ -178,7 +207,10 @@ impl CandidateCheck for AnchoredRuleCheck<'_> {
 }
 
 /// Whether any line-start engine matches the line.
-pub(super) fn any_line_start_match(engines: &[Engine], line: &[u8]) -> bool {
+pub(super) fn any_line_start_match(
+    engines: &[Engine],
+    line: &[u8],
+) -> bool {
     for engine in engines {
         if line_start_match(engine, line) {
             return true;
@@ -188,7 +220,10 @@ pub(super) fn any_line_start_match(engines: &[Engine], line: &[u8]) -> bool {
 }
 
 /// Whether any seedless group matches the line.
-pub(super) fn any_group_matches(groups: &[Engine], line: &[u8]) -> bool {
+pub(super) fn any_group_matches(
+    groups: &[Engine],
+    line: &[u8],
+) -> bool {
     for group in groups {
         if group.is_match(line) {
             return true;
@@ -198,7 +233,10 @@ pub(super) fn any_group_matches(groups: &[Engine], line: &[u8]) -> bool {
 }
 
 /// Whether any attribution id is at or past the limit.
-pub(super) fn has_id_at_least<'ids>(ids: impl Iterator<Item = &'ids usize>, limit: usize) -> bool {
+pub(super) fn has_id_at_least<'ids>(
+    ids: impl Iterator<Item = &'ids usize>,
+    limit: usize,
+) -> bool {
     for &id in ids {
         if id >= limit {
             return true;

@@ -20,7 +20,10 @@ use crate::{
     run_lfs::LfsRepos,
     run_modes::SetupError,
     run_paths::language_of,
-    run_plan::{ConfigStore, Planned},
+    run_plan::{
+        ConfigStore,
+        Planned,
+    },
     run_workers::contained_source,
     rust_file_engine::RustFileEngine,
 };
@@ -145,7 +148,9 @@ pub(crate) fn lint_source_bytes(
     let mut notes: Vec<String> = Vec::<String>::new();
     let mut result: String = source.clone();
     match planned {
-        Planned::Lint { plan } => {
+        Planned::Lint {
+            plan,
+        } => {
             let lfs: LfsRepos = LfsRepos::new();
             let mut semantic: RustFileEngine = engine(debug);
             let outcome: SourceOutcome =

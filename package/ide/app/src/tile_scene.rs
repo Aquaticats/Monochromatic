@@ -25,18 +25,33 @@ mod split;
 mod underline;
 
 /// The palette that turns a syntax role into an ink.
-use crate::code_colors::{CodeColors, ink};
+use crate::code_colors::{
+    CodeColors,
+    ink,
+};
 /// Shaped rows and the frame they belong to,
 ///  the textures a tile is stacked from,
 ///  and the largest tile.
 use crate::shaped_text::{
-    ShapedView, stack_fits, stack_rows, texture_dimension, texture_fits, texture_heights,
+    ShapedView,
+    stack_fits,
+    stack_rows,
+    texture_dimension,
+    texture_fits,
+    texture_heights,
     tile_texture_rows,
 };
 /// Failures of the layout walk reach the caller.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// A shaped paragraph and its positioned runs.
-use parley::{Layout, PositionedLayoutItem, Run};
+use parley::{
+    Layout,
+    PositionedLayoutItem,
+    Run,
+};
 /// One positioned glyph of a run,
 /// in the layout's own pixel units.
 use vello::Glyph;
@@ -46,13 +61,22 @@ pub use encode::encode;
 /// The underline runs of a texture.
 use frame::underline_frame;
 /// The paint commands of a tile.
-pub use item::{GlyphItem, Item, StrokeItem, TileScene, TileStack};
+pub use item::{
+    GlyphItem,
+    Item,
+    StrokeItem,
+    TileScene,
+    TileStack,
+};
 /// A selection edge on whole pixels,
 /// and the change of ink at the edges of a selection.
 pub use split::snapped;
 /// The change of ink at the edges of a selection,
 ///  and where a drawing lies.
-use split::{Place, split};
+use split::{
+    Place,
+    split,
+};
 /// The rows of a tile one texture holds.
 use std::ops::Range;
 
@@ -83,7 +107,10 @@ const CULL_MARGIN: f32 = 32.0;
 /// ```ts
 /// function rowBand(top: number, bottom: number): [number, number];
 /// ```
-fn row_band(top: f32, bottom: f32) -> (f32, f32) {
+fn row_band(
+    top: f32,
+    bottom: f32,
+) -> (f32, f32) {
     let margin = bottom - top;
     return ((top - margin).floor(), (bottom + margin).ceil());
 }
@@ -180,7 +207,11 @@ fn run_items(
 /// ```ts
 /// function pushRun(items: Item[], run: GlyphItem, painted: Rgba): void;
 /// ```
-fn push_run(items: &mut Vec<Item>, run: &GlyphItem, painted: [u8; 4]) {
+fn push_run(
+    items: &mut Vec<Item>,
+    run: &GlyphItem,
+    painted: [u8; 4],
+) {
     items.push(Item::Glyphs(GlyphItem {
         ink: painted,
         ..run.clone()
@@ -321,7 +352,11 @@ fn selected_intervals(
 /// ```ts
 /// function tileItems(view: ShapedView, colors: CodeColors, horizontal: number): Item[];
 /// ```
-pub fn tile_items(view: &ShapedView, colors: CodeColors, horizontal: f32) -> Result<Vec<Item>> {
+pub fn tile_items(
+    view: &ShapedView,
+    colors: CodeColors,
+    horizontal: f32,
+) -> Result<Vec<Item>> {
     return tile_items_in(view, colors, horizontal, 0..view.height);
 }
 
@@ -411,7 +446,11 @@ pub fn tile_items_in(
 /// ```ts
 /// function paintTile(view: ShapedView, colors: CodeColors, horizontal: number): TileScene;
 /// ```
-pub fn paint_tile(view: &ShapedView, colors: CodeColors, horizontal: f32) -> Result<TileScene> {
+pub fn paint_tile(
+    view: &ShapedView,
+    colors: CodeColors,
+    horizontal: f32,
+) -> Result<TileScene> {
     if !texture_fits(u64::from(view.width), u64::from(view.height)) {
         bail!(
             "Source viewport {}x{} does not fit one texture ({} rows of this width, {} px on a side); paint it as a stack",
@@ -450,7 +489,11 @@ pub fn paint_tile(view: &ShapedView, colors: CodeColors, horizontal: f32) -> Res
 /// ```ts
 /// function paintStack(view: ShapedView, colors: CodeColors, horizontal: number): TileStack;
 /// ```
-pub fn paint_stack(view: &ShapedView, colors: CodeColors, horizontal: f32) -> Result<TileStack> {
+pub fn paint_stack(
+    view: &ShapedView,
+    colors: CodeColors,
+    horizontal: f32,
+) -> Result<TileStack> {
     // The window never asks for a view past the limit, because the shaper cuts a tile of a very tall line to a clip;
     // this guards a caller that did not, since the GPU would reject a texture past its size with a validation error.
     // The bin rule is what keeps every render inside Vello's coarse stage, and the 64 MiB byte rule it implies is what

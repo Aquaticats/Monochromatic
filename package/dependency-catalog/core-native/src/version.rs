@@ -89,7 +89,10 @@ pub struct VersionError {
 /// Implements `fmt::Display` for `VersionError`.
 impl fmt::Display for VersionError {
     /// Prints the reason.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(formatter, "{}", self.message);
     }
 }
@@ -161,7 +164,10 @@ fn is_numeric_identifier(identifier: &str) -> bool {
 /// ```ts
 /// function compareIdentifier(left: string, right: string): number
 /// ```
-fn compare_identifier(left: &str, right: &str) -> Ordering {
+fn compare_identifier(
+    left: &str,
+    right: &str,
+) -> Ordering {
     let left_numeric: bool = is_numeric_identifier(left);
     let right_numeric: bool = is_numeric_identifier(right);
     if left_numeric && right_numeric {
@@ -188,7 +194,10 @@ fn compare_identifier(left: &str, right: &str) -> Ordering {
 /// ```ts
 /// export function compareVersions(left: ParsedVersion, right: ParsedVersion): number
 /// ```
-pub fn compare_versions(left: &ParsedVersion, right: &ParsedVersion) -> Ordering {
+pub fn compare_versions(
+    left: &ParsedVersion,
+    right: &ParsedVersion,
+) -> Ordering {
     let pairs: [(i64, i64); 3] = [
         (left.major, right.major),
         (left.minor.max(0), right.minor.max(0)),
@@ -230,7 +239,12 @@ pub fn compare_versions(left: &ParsedVersion, right: &ParsedVersion) -> Ordering
 /// export function formatVersion(version: ParsedVersion): string
 /// ```
 pub fn format_version(version: &ParsedVersion) -> String {
-    let core: String = format!("{}.{}.{}", version.major, version.minor.max(0), version.patch.max(0));
+    let core: String = format!(
+        "{}.{}.{}",
+        version.major,
+        version.minor.max(0),
+        version.patch.max(0)
+    );
     if version.prerelease.is_empty() {
         return core;
     }

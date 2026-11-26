@@ -10,11 +10,14 @@
 // });
 // ```
 
-use super::{REPEAT_UNROLL_LIMIT, build_nfa};
+use super::{
+    REPEAT_UNROLL_LIMIT,
+    build_nfa,
+};
 use crate::parse::parse;
 
 fn node(pattern: &str) -> crate::ast::node::Node {
-    return parse(pattern).expect("test pattern parses")
+    return parse(pattern).expect("test pattern parses");
 }
 
 #[test]
@@ -75,9 +78,15 @@ fn group_repetition_unrolls_up_to_the_limit_and_declines_beyond() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     let allowed: String = format!("(?:ab){{1,{REPEAT_UNROLL_LIMIT}}}");
-    assert!(build_nfa(&node(allowed.as_str())).is_some(), "the unroll limit is allowed");
+    assert!(
+        build_nfa(&node(allowed.as_str())).is_some(),
+        "the unroll limit is allowed"
+    );
     let declined: String = format!("(?:ab){{1,{}}}", REPEAT_UNROLL_LIMIT + 1);
-    assert!(build_nfa(&node(declined.as_str())).is_none(), "one past the unroll limit is declined");
+    assert!(
+        build_nfa(&node(declined.as_str())).is_none(),
+        "one past the unroll limit is declined"
+    );
 }
 
 #[test]
@@ -94,7 +103,10 @@ fn a_nullable_alternation_branch_makes_the_alternation_skippable() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     let prog = build_nfa(&node("(?:(?:xy)?|z)w")).expect("expressible as an NFA");
-    assert!(prog.is_match(b"w"), "the nullable branch lets the alternation be skipped");
+    assert!(
+        prog.is_match(b"w"),
+        "the nullable branch lets the alternation be skipped"
+    );
     assert!(prog.is_match(b"xyw"));
     assert!(prog.is_match(b"zw"));
 }

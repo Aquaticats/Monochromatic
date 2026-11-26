@@ -35,7 +35,8 @@
   "version": "0.0.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/kv-store/core"
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/kv-store/core"
 }

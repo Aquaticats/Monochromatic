@@ -14,8 +14,14 @@
 use rustc_hir::def_id::DefId;
 /// Import the lint context that gives access to compiler queries.
 use rustc_lint::LateContext;
-/// Import clause kinds (the compiler's name for where-clauses and bounds) and type kinds.
-use rustc_middle::ty::{ClauseKind, Ty, TyKind};
+/// Import the caller-bounds iterator, the method that walks the accessor `caller_bounds` returns.
+/// Also import clause kinds (the compiler's name for where-clauses and bounds) and type kinds.
+use rustc_middle::ty::{
+    CallerBoundsIterator,
+    ClauseKind,
+    Ty,
+    TyKind,
+};
 
 /// What:
 ///  True when the declared parameter at `index` of `callee` must outlive `'static`.
@@ -71,7 +77,11 @@ pub fn parameter_requires_static(
 /// ```ts
 /// function typeRequiresStatic(callee: DefId, parameter: Type): boolean;
 /// ```
-fn type_requires_static<'tcx>(cx: &LateContext<'tcx>, callee: DefId, parameter: Ty<'tcx>) -> bool {
+fn type_requires_static<'tcx>(
+    cx: &LateContext<'tcx>,
+    callee: DefId,
+    parameter: Ty<'tcx>,
+) -> bool {
     match parameter.kind() {
         TyKind::Dynamic(_, region) => return region.is_static(),
         TyKind::Param(_) => return environment_requires_static(cx, callee, parameter),
@@ -102,7 +112,19 @@ fn environment_requires_static<'tcx>(
     parameter: Ty<'tcx>,
 ) -> bool {
     let environment = cx.tcx.param_env(callee);
-    for clause in environment.caller_bounds() {
+    // What: `caller_bounds()` no longer returns a list; it returns a caller-bounds accessor,
+    //       a chain of filters over the environment's clauses. `non_trait_clauses()` keeps the
+    //       clauses that are not trait obligations, and `iter()` (from the `CallerBoundsIterator`
+    //       trait) walks the clauses the filter kept.
+    // Why: The `TypeOutlives` clauses this function reads are non-trait clauses,
+    //      so the narrower filter names exactly the set inspected,
+    //      and a trait obligation never enters the loop.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const clause of environment.callerBounds().nonTraitClauses().iter()) { ... }
+    // ```
+    for clause in environment.caller_bounds().non_trait_clauses().iter() {
         let ClauseKind::TypeOutlives(outlives) = clause.kind().skip_binder() else {
             continue;
         };

@@ -14,7 +14,10 @@
 /// Import the construct names.
 use crate::shell_dialect::Construct;
 /// Import the hit record and the GitHub expression skipper.
-use crate::shell_scan::{Hit, expression_end};
+use crate::shell_scan::{
+    Hit,
+    expression_end,
+};
 
 /// What:
 ///  Whether the line that holds `index` is a comment up to that point:
@@ -27,7 +30,10 @@ use crate::shell_scan::{Hit, expression_end};
 /// ```ts
 /// function commentLineAt(text: string, index: number): boolean;
 /// ```
-fn comment_line_at(text: &str, index: usize) -> bool {
+fn comment_line_at(
+    text: &str,
+    index: usize,
+) -> bool {
     let bytes: &[u8] = text.as_bytes();
     let mut cursor: usize = index;
     while cursor > 0 && b" \t".contains(&bytes[cursor - 1]) {

@@ -55,7 +55,10 @@ use std::fs;
 /// ```ts
 /// import { Path, PathBuf } from 'std/path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};` imports `CatalogDocument`,
@@ -69,8 +72,21 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// import { CatalogDocument, parse_catalog } from 'monochromatic_dependency_catalog';
 /// ```
-use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};
+use monochromatic_dependency_catalog::{
+    CatalogDocument,
+    parse_catalog,
+};
 
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `read_catalog`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
 /// What:
 /// `use crate::cargo_run::CargoRunner;` imports `CargoRunner` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -93,7 +109,10 @@ use crate::cargo_run::CargoRunner;
 /// ```ts
 /// import { CATALOG_MARKER, LOCKFILE_NAME } from 'crate/constants';
 /// ```
-use crate::constants::{CATALOG_MARKER, LOCKFILE_NAME};
+use crate::constants::{
+    CATALOG_MARKER,
+    LOCKFILE_NAME,
+};
 /// What:
 /// `use crate::install::{InstallError, InstallReport, InstallRequest, LockBaseFactory, VERIFY_ARGS, arguments_for, install_rust_lockfiles, verification_cached};` imports `InstallError`,
 /// `InstallReport`,
@@ -113,7 +132,16 @@ use crate::constants::{CATALOG_MARKER, LOCKFILE_NAME};
 /// ```ts
 /// import { InstallError, InstallReport, InstallRequest, VERIFY_ARGS, arguments_for, install_rust_lockfiles } from 'crate/install';
 /// ```
-use crate::install::{InstallError, InstallReport, InstallRequest, LockBaseFactory, VERIFY_ARGS, arguments_for, install_rust_lockfiles, verification_cached};
+use crate::install::{
+    InstallError,
+    InstallReport,
+    InstallRequest,
+    LockBaseFactory,
+    VERIFY_ARGS,
+    arguments_for,
+    install_rust_lockfiles,
+    verification_cached,
+};
 /// What:
 /// `use crate::lockfile::LockedVersion;` imports `LockedVersion` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -150,7 +178,12 @@ use crate::registry::Registry;
 /// ```ts
 /// import { is_fresh, manifests_from_metadata, record, stamp_file } from 'crate/stamp';
 /// ```
-use crate::stamp::{is_fresh, manifests_from_metadata, record, stamp_file};
+use crate::stamp::{
+    is_fresh,
+    manifests_from_metadata,
+    record,
+    stamp_file,
+};
 /// What:
 /// `use crate::workspace::{find_cargo_root, find_catalog_root};` imports `find_cargo_root`,
 /// `find_catalog_root` from another module of this crate so this file can name them unqualified.
@@ -162,17 +195,10 @@ use crate::stamp::{is_fresh, manifests_from_metadata, record, stamp_file};
 /// ```ts
 /// import { find_cargo_root, find_catalog_root } from 'crate/workspace';
 /// ```
-use crate::workspace::{find_cargo_root, find_catalog_root};
-/// What:
-/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `text_of` is used by `read_catalog`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { text_of } from 'crate/adapt';
-/// ```
-use crate::adapt::text_of;
+use crate::workspace::{
+    find_cargo_root,
+    find_catalog_root,
+};
 
 /// What the install step did.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -267,7 +293,10 @@ pub struct StepRequest<'a> {
 /// The crate root relative to the repository,
 /// with forward slashes;
 /// `None` when it is not inside it.
-fn relative_crate_dir(catalog_root: &Path, cargo_root: &Path) -> Option<String> {
+fn relative_crate_dir(
+    catalog_root: &Path,
+    cargo_root: &Path,
+) -> Option<String> {
     // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
     // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
     // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
@@ -372,7 +401,11 @@ fn read_catalog(catalog_root: &Path) -> Result<CatalogDocument, String> {
 
 /// Records the stamp after a pass:
 /// one `cargo metadata` call lists the manifests the lockfile was resolved from.
-fn write_stamp(request: &StepRequest, catalog_root: &Path, crate_dir: &str) {
+fn write_stamp(
+    request: &StepRequest,
+    catalog_root: &Path,
+    crate_dir: &str,
+) {
     // Typed binding: `cargo_root: PathBuf`.
     let cargo_root: PathBuf = catalog_root.join(crate_dir);
     // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
@@ -383,7 +416,10 @@ fn write_stamp(request: &StepRequest, catalog_root: &Path, crate_dir: &str) {
     // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
     // ```
     // Borrow `&cargo_root`: lends the value without copying or giving it away.
-    let outcome = match request.runner.run(&cargo_root, &arguments_for(&VERIFY_ARGS, request.offline)) {
+    let outcome = match request
+        .runner
+        .run(&cargo_root, &arguments_for(&VERIFY_ARGS, request.offline))
+    {
         // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
         // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
         //
@@ -413,7 +449,11 @@ fn write_stamp(request: &StepRequest, catalog_root: &Path, crate_dir: &str) {
         return;
     }
     // Borrow `&stamp_file`: lends the value without copying or giving it away.
-    record(&stamp_file(catalog_root, crate_dir), &cargo_root.join(LOCKFILE_NAME), &manifests);
+    record(
+        &stamp_file(catalog_root, crate_dir),
+        &cargo_root.join(LOCKFILE_NAME),
+        &manifests,
+    );
 }
 
 /// What:
@@ -440,7 +480,11 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
         Some(found) => found,
         // `None`: the present or the absent value of an `Option`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        None => return StepOutcome::Skipped("no rust-catalog.toml above the working directory".to_string()),
+        None => {
+            return StepOutcome::Skipped(
+                "no rust-catalog.toml above the working directory".to_string(),
+            );
+        }
     };
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `cargo_root: PathBuf`.
@@ -449,7 +493,9 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
         Some(found) => found,
         // `None`: the present or the absent value of an `Option`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        None => return StepOutcome::Skipped("no Cargo.toml above the working directory".to_string()),
+        None => {
+            return StepOutcome::Skipped("no Cargo.toml above the working directory".to_string());
+        }
     };
     // `match`: picks the arm whose pattern fits the value.
     // Borrow `&catalog_root`: lends the value without copying or giving it away.
@@ -459,7 +505,11 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
         Some(found) => found,
         // `None`: the present or the absent value of an `Option`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        None => return StepOutcome::Skipped("the Cargo workspace is not below the catalog repository".to_string()),
+        None => {
+            return StepOutcome::Skipped(
+                "the Cargo workspace is not below the catalog repository".to_string(),
+            );
+        }
     };
     // Typed binding: `lock: PathBuf`.
     let lock: PathBuf = cargo_root.join(LOCKFILE_NAME);
@@ -488,7 +538,15 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
     // Macro `vec!`: builds or prints text (or a list) from a template.
     let crate_dirs_for_cache: Vec<String> = vec![crate_dir.clone()];
     // Borrow `&catalog_root`: lends the value without copying or giving it away.
-    if fresh && verification_cached(&catalog_root, &crate_dirs_for_cache, &document.settings, request.frozen, request.trust_base) {
+    if fresh
+        && verification_cached(
+            &catalog_root,
+            &crate_dirs_for_cache,
+            &document.settings,
+            request.frozen,
+            request.trust_base,
+        )
+    {
         // The fast path starts no transaction, so it announces the kept files itself (promised on every run past the count).
         crate::journal_transaction::announce_kept_files_for(&catalog_root, &crate_dirs_for_cache);
         return StepOutcome::FastPath;
@@ -531,7 +589,14 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // A refusal of the policy or a lockfile that could not be put back stops the command; no `--locked` fallback may build it.
-        Err(error @ (InstallError::Refused { .. } | InstallError::Unsettled { .. })) => return StepOutcome::Refused(error.to_string()),
+        Err(
+            error @ (InstallError::Refused {
+                ..
+            }
+            | InstallError::Unsettled {
+                ..
+            }),
+        ) => return StepOutcome::Refused(error.to_string()),
         Err(error) => return StepOutcome::Failed(error.to_string()),
     };
     if !finished.problems.is_empty() {
@@ -554,7 +619,10 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
             lines.push(format!("- {problem}"));
         }
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        lines.push("Settings live in rust-catalog.toml; see doc/decision/rust-dependency-catalog.md.".to_string());
+        lines.push(
+            "Settings live in rust-catalog.toml; see doc/decision/rust-dependency-catalog.md."
+                .to_string(),
+        );
         // Delegated pick (2026-11-03): a policy refusal stops the command on every path, frozen or local, as pnpm's frozen
         // install fails on a rejected lockfile entry before any fetch. A stale lockfile or an operational failure is not a
         // policy refusal and stays a warning plus `--locked`.
@@ -565,5 +633,8 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
     if finished.stale.is_empty() {
         return StepOutcome::Passed;
     }
-    return StepOutcome::Updated { crate_dir, added: finished.added };
+    return StepOutcome::Updated {
+        crate_dir,
+        added: finished.added,
+    };
 }

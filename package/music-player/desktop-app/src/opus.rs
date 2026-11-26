@@ -41,7 +41,10 @@ use symphonia::core::errors::Error;
 /// ```ts
 /// import { FormatReader, Track } from "symphonia/formats";
 /// ```
-use symphonia::core::formats::{FormatReader, Track};
+use symphonia::core::formats::{
+    FormatReader,
+    Track,
+};
 
 /// What:
 ///      `use crate::decode::{AudioSpec, Source, seek_format};` imports our spec
@@ -59,7 +62,11 @@ use symphonia::core::formats::{FormatReader, Track};
 /// ```ts
 /// import { AudioSpec, Source, seekFormat } from "./decode";
 /// ```
-use crate::decode::{AudioSpec, Source, seek_format};
+use crate::decode::{
+    AudioSpec,
+    Source,
+    seek_format,
+};
 
 /// What:
 ///      `use crate::error::PlayerError;` imports our app-wide error type.
@@ -278,7 +285,8 @@ impl OpusSource {
         // const audio = track.codecParams?.audio();
         // if (!audio) throw new PlayerError.Unsupported("opus: no audio codec parameters");
         // ```
-        let audio_params = crate::decode::audio_params_or_unsupported(&track, "opus: no audio codec parameters")?;
+        let audio_params =
+            crate::decode::audio_params_or_unsupported(&track, "opus: no audio codec parameters")?;
 
         // What:     `let channels = match &audio_params.channels { ... };`. Pattern-match
         //           the borrowed `&Option<Channels>` to a numeric count, erroring if
@@ -310,7 +318,7 @@ impl OpusSource {
             None => {
                 return Err(PlayerError::Unsupported(
                     "opus: unknown channel layout".to_string(),
-                ))
+                ));
             }
         };
 
@@ -354,7 +362,7 @@ impl OpusSource {
             other => {
                 return Err(PlayerError::Unsupported(format!(
                     "opus: {other} channels (only mono/stereo supported)"
-                )))
+                )));
             }
         };
 
@@ -453,7 +461,7 @@ impl OpusSource {
             spec,
             scratch,
             pre_skip,
-        })
+        });
     }
 }
 
@@ -488,7 +496,7 @@ impl Source for OpusSource {
         // ```ts
         // return this.spec;
         // ```
-        return self.spec
+        return self.spec;
     }
 
     /// What:
@@ -680,7 +688,10 @@ impl Source for OpusSource {
     /// ```ts
     /// seek(secs: number): void { ... }
     /// ```
-    fn seek(&mut self, secs: f64) -> Result<(), PlayerError> {
+    fn seek(
+        &mut self,
+        secs: f64,
+    ) -> Result<(), PlayerError> {
         // What:     `seek_format(self.format.as_mut(), self.track_id, secs)?`. Call the
         //           shared helper from `decode.rs`. `self.format` is a
         //           `Box<dyn FormatReader>` (an owned, heap Ogg demuxer); `.as_mut()`
@@ -726,6 +737,6 @@ impl Source for OpusSource {
         // ```ts
         // return;
         // ```
-        return Ok(())
+        return Ok(());
     }
 }

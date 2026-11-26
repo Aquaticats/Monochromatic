@@ -10,7 +10,15 @@
 //! ```
 
 /// Import the consumer helpers and atomic fix models shared by every processor test module.
-use super::{Edit, Fix, FixClass, ProcessorLanguage, VirtualSource, fixed, inputs};
+use super::{
+    Edit,
+    Fix,
+    FixClass,
+    ProcessorLanguage,
+    VirtualSource,
+    fixed,
+    inputs,
+};
 
 /// Extract the only Rustdoc input of a host and return its exact virtual Markdown.
 fn doc_text(host: &str) -> String {

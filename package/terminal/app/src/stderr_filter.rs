@@ -14,7 +14,13 @@
 use std::{
     ffi::c_int,
     fs::File,
-    io::{self, BufRead, BufReader, Read, Write},
+    io::{
+        self,
+        BufRead,
+        BufReader,
+        Read,
+        Write,
+    },
     thread,
 };
 
@@ -172,7 +178,10 @@ unsafe extern "C" {
     /// ```ts
     /// function dup2(oldFd: number, newFd: number): number; // newFd ok, -1 error
     /// ```
-    fn dup2(old_fd: c_int, new_fd: c_int) -> c_int;
+    fn dup2(
+        old_fd: c_int,
+        new_fd: c_int,
+    ) -> c_int;
     /// What:
     ///      `fn close(fd: c_int) -> c_int` declares libc's `close` syscall.
     ///  It
@@ -238,7 +247,7 @@ pub fn install_ghostty_stderr_filter() -> io::Result<()> {
     thread::spawn(move || forward_filtered_stderr(reader_file, writer_file));
     // What:     `Ok(())` returns success with no payload.
     // Why:      fd 2 now routes through the filter.
-    return Ok(())
+    return Ok(());
 }
 
 /// What:
@@ -277,7 +286,7 @@ fn create_pipe() -> io::Result<PipeFileDescriptors> {
     return Ok(PipeFileDescriptors {
         read_fd: pipe_fds[0],
         write_fd: pipe_fds[1],
-    })
+    });
 }
 
 /// What:
@@ -296,7 +305,7 @@ fn duplicate_fd(fd: c_int) -> io::Result<c_int> {
     }
     // What:     `Ok(result)` returns the duplicated fd number.
     // Why:      The caller owns that fd and must eventually close it.
-    return Ok(result)
+    return Ok(result);
 }
 
 /// What:
@@ -316,7 +325,7 @@ fn replace_stderr_with_pipe(write_fd: c_int) -> io::Result<()> {
     }
     // What:     `Ok(())` returns success with no payload.
     // Why:      stderr now points at the pipe write end.
-    return Ok(())
+    return Ok(());
 }
 
 /// What:
@@ -353,7 +362,10 @@ fn file_from_fd(fd: c_int) -> File {
 ///           named byte-stream traits.
 /// Why:
 ///       Only Ghostty's known noisy OSC debug line should disappear.
-fn forward_filtered_stderr<R: Read, W: Write>(reader_source: R, mut original_stderr: W) {
+fn forward_filtered_stderr<R: Read, W: Write>(
+    reader_source: R,
+    mut original_stderr: W,
+) {
     // What:     `BufReader::new(reader_source)` buffers reads from the pipe.
     // Why:      Line-oriented filtering should not make one syscall per byte.
     let mut reader = BufReader::new(reader_source);
@@ -427,8 +439,9 @@ fn should_suppress_stderr_line(line: &[u8]) -> bool {
     // What:     `.windows(...).any(is_suppressed_window)` scans overlapping byte windows
     //           with a named function. It is the byte-slice sibling of string `includes`.
     // Why:      This finds the marker without regex or UTF-8 assumptions.
-    return line.windows(SUPPRESSED_GHOSTTY_OSC_LOG.len())
-        .any(is_suppressed_window)
+    return line
+        .windows(SUPPRESSED_GHOSTTY_OSC_LOG.len())
+        .any(is_suppressed_window);
 }
 
 /// What:

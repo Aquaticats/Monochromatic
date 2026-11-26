@@ -15,7 +15,10 @@
 /// Import the construct names.
 use crate::shell_dialect::Construct;
 /// Import the hit record and the GitHub expression skipper.
-use crate::shell_scan::{Hit, expression_end};
+use crate::shell_scan::{
+    Hit,
+    expression_end,
+};
 
 /// Where the scanner is nested.
 enum Frame {
@@ -47,7 +50,11 @@ struct Scan<'a> {
 /// Movement and recording for the scan steps.
 impl Scan<'_> {
     /// Record a construct covering `length` bytes from the cursor.
-    fn record(&mut self, construct: Construct, length: usize) {
+    fn record(
+        &mut self,
+        construct: Construct,
+        length: usize,
+    ) {
         self.hits.push(Hit {
             construct,
             start: self.index,
@@ -57,7 +64,10 @@ impl Scan<'_> {
 
     /// The byte `offset` places ahead of the cursor,
     ///  or zero past the end.
-    fn ahead(&self, offset: usize) -> u8 {
+    fn ahead(
+        &self,
+        offset: usize,
+    ) -> u8 {
         return self.bytes.get(self.index + offset).copied().unwrap_or(0);
     }
 
@@ -77,7 +87,11 @@ impl Scan<'_> {
 
     /// Move past the next `quote` that is not doubled,
     ///  starting at `from`.
-    fn skip_quoted(&mut self, from: usize, quote: u8) {
+    fn skip_quoted(
+        &mut self,
+        from: usize,
+        quote: u8,
+    ) {
         let mut cursor: usize = from;
         while cursor < self.bytes.len() {
             if self.bytes[cursor] == quote {
@@ -95,7 +109,11 @@ impl Scan<'_> {
 
     /// Move past a here-string body that ends at a line starting with `closer`,
     ///  recording `$(` inside it when `live` is set.
-    fn skip_here_string(&mut self, closer: &str, live: bool) {
+    fn skip_here_string(
+        &mut self,
+        closer: &str,
+        live: bool,
+    ) {
         let body_start: usize = self.index + 2;
         let end: usize = match self.text[body_start..].find(closer) {
             Some(found) => body_start + found,
@@ -160,7 +178,9 @@ impl Scan<'_> {
             self.index += 1;
         } else if byte == b'$' && self.ahead(1) == b'(' {
             self.record(Construct::DollarParen, 2);
-            self.frames.push(Frame::Sub { depth: 1 });
+            self.frames.push(Frame::Sub {
+                depth: 1,
+            });
             self.index += 2;
         } else {
             self.index += 1;
@@ -211,7 +231,9 @@ impl Scan<'_> {
             }
             b'$' if self.ahead(1) == b'(' => {
                 self.record(Construct::DollarParen, 2);
-                self.frames.push(Frame::Sub { depth: 1 });
+                self.frames.push(Frame::Sub {
+                    depth: 1,
+                });
                 self.index += 2;
             }
             b'|' if self.ahead(1) == b'|' => {
@@ -230,14 +252,20 @@ impl Scan<'_> {
                 }
             }
             b'(' => {
-                if let Some(Frame::Sub { depth }) = self.frames.last_mut() {
+                if let Some(Frame::Sub {
+                    depth,
+                }) = self.frames.last_mut()
+                {
                     *depth += 1;
                 }
                 self.index += 1;
             }
             b')' => {
                 let mut finished: bool = false;
-                if let Some(Frame::Sub { depth }) = self.frames.last_mut() {
+                if let Some(Frame::Sub {
+                    depth,
+                }) = self.frames.last_mut()
+                {
                     *depth -= 1;
                     finished = *depth == 0;
                 }

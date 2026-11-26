@@ -25,13 +25,20 @@ use std::fs;
 /// Imports `ErrorKind` from `std::io`.
 use std::io::ErrorKind;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `OWN_CRATE_PREFIX` from `crate::constants`.
 use crate::constants::OWN_CRATE_PREFIX;
 
 /// Imports what this module uses from `super::cargo_record`.
-use super::cargo_record::{RecordedInstall, install_naming_bin, read_recorded_installs};
+use super::cargo_record::{
+    RecordedInstall,
+    install_naming_bin,
+    read_recorded_installs,
+};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `cargo_home_dir` from `super::layout`.
@@ -63,14 +70,35 @@ fn is_gone(path: &Path) -> bool {
 /// ```ts
 /// function uninstallBin(ctx: Context, plan: OldCopyPlan, cargoHome: string, install: RecordedInstall): string  // throws
 /// ```
-fn uninstall_bin(ctx: &Context, plan: &OldCopyPlan, cargo_home: &Path, install: &RecordedInstall) -> Result<String, String> {
+fn uninstall_bin(
+    ctx: &Context,
+    plan: &OldCopyPlan,
+    cargo_home: &Path,
+    install: &RecordedInstall,
+) -> Result<String, String> {
     let home_text: String = cargo_home.to_string_lossy().to_string();
-    let request = ctx.request("cargo", &["uninstall", "--root", &home_text, "--bin", &plan.bin, "--", &install.crate_name]);
+    let request = ctx.request(
+        "cargo",
+        &[
+            "uninstall",
+            "--root",
+            &home_text,
+            "--bin",
+            &plan.bin,
+            "--",
+            &install.crate_name,
+        ],
+    );
     let outcome = ctx.run(&request);
     if outcome.succeeded() {
-        return Ok(format!("`cargo uninstall` removed it from cargo's record of {} {}", install.crate_name, install.version));
+        return Ok(format!(
+            "`cargo uninstall` removed it from cargo's record of {} {}",
+            install.crate_name, install.version
+        ));
     }
-    if is_gone(&plan.path) && install_naming_bin(&read_recorded_installs(cargo_home), &plan.bin).is_none() {
+    if is_gone(&plan.path)
+        && install_naming_bin(&read_recorded_installs(cargo_home), &plan.bin).is_none()
+    {
         return Ok("another run had already removed it and its record".to_string());
     }
     return Err(format!(
@@ -97,7 +125,10 @@ fn uninstall_bin(ctx: &Context, plan: &OldCopyPlan, cargo_home: &Path, install: 
 /// ```ts
 /// export function removeCopy(ctx: Context, plan: OldCopyPlan): string  // throws
 /// ```
-pub fn remove_copy(ctx: &Context, plan: &OldCopyPlan) -> Result<String, String> {
+pub fn remove_copy(
+    ctx: &Context,
+    plan: &OldCopyPlan,
+) -> Result<String, String> {
     let cargo_home: PathBuf = cargo_home_dir(ctx.env, &ctx.scope.home);
     let installs: Vec<RecordedInstall> = read_recorded_installs(&cargo_home);
     let mut note: String = "cargo has no record of it".to_string();
@@ -116,7 +147,9 @@ pub fn remove_copy(ctx: &Context, plan: &OldCopyPlan) -> Result<String, String> 
         Ok(()) => {}
         // Cargo removes the file itself, so a file that is gone after `cargo uninstall` is the normal case.
         Err(error) if error.kind() == ErrorKind::NotFound && cargo_ran => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => note = "another run had already removed the file".to_string(),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            note = "another run had already removed the file".to_string()
+        }
         Err(error) => return Err(format!("cannot remove the file: {error}")),
     }
     return Ok(note);
@@ -135,7 +168,11 @@ pub fn remove_copy(ctx: &Context, plan: &OldCopyPlan) -> Result<String, String> 
 /// ```ts
 /// export function removeVersion(plan: LoserPlan, directory: string, version: string): void  // throws
 /// ```
-pub fn remove_version(plan: &LoserPlan, directory: &Path, version: &str) -> Result<(), String> {
+pub fn remove_version(
+    plan: &LoserPlan,
+    directory: &Path,
+    version: &str,
+) -> Result<(), String> {
     match fs::remove_dir_all(directory) {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {}

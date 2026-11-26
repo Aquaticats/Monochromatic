@@ -19,14 +19,21 @@ use crate::{
     edits::FixScope,
     run_command::run_command,
     run_output::RunOutput,
-    run_plan::{ConfigStore, FilePlan, Planned},
+    run_plan::{
+        ConfigStore,
+        FilePlan,
+        Planned,
+    },
 };
 /// Import the argument parser trait that provides `try_parse_from`.
 use clap::Parser;
 /// Import native argument and path storage.
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The configuration file name,
@@ -58,7 +65,11 @@ pub(crate) const ALL_RULES: &str = r#"[
 
 /// Write one file below a root,
 ///  creating its parent directories.
-pub(crate) fn write(root: &Path, relative: &str, contents: &str) -> PathBuf {
+pub(crate) fn write(
+    root: &Path,
+    relative: &str,
+    contents: &str,
+) -> PathBuf {
     let path: PathBuf = root.join(relative);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("fixture directories");
@@ -68,7 +79,10 @@ pub(crate) fn write(root: &Path, relative: &str, contents: &str) -> PathBuf {
 }
 
 /// Read one fixture file back as text.
-pub(crate) fn read(root: &Path, relative: &str) -> String {
+pub(crate) fn read(
+    root: &Path,
+    relative: &str,
+) -> String {
     return std::fs::read_to_string(root.join(relative)).expect("fixture file is readable text");
 }
 
@@ -83,7 +97,11 @@ pub(crate) fn options(arguments: &[&str]) -> CliOptions {
 }
 
 /// Run one invocation in a working directory with the given standard input.
-pub(crate) fn run(cwd: &Path, arguments: &[&str], stdin: &str) -> RunOutput {
+pub(crate) fn run(
+    cwd: &Path,
+    arguments: &[&str],
+    stdin: &str,
+) -> RunOutput {
     let parsed: CliOptions = options(arguments);
     let mut input: &[u8] = stdin.as_bytes();
     return run_command(&parsed, cwd, &mut input);
@@ -119,12 +137,17 @@ pub(crate) fn codes(text: &str) -> Vec<String> {
 ///  The plan may apply content fixes too:
 ///  the controls that use it test the fix machinery,
 ///  and the split between whitespace and content fixes is tested through the command line.
-pub(crate) fn plan(cwd: &Path, relative: &str) -> FilePlan {
+pub(crate) fn plan(
+    cwd: &Path,
+    relative: &str,
+) -> FilePlan {
     let mut store: ConfigStore = ConfigStore::new(cwd, None)
         .expect("store")
         .with_fix_scope(FixScope::WhitespaceAndContent);
     match store.plan(Path::new(relative)).expect("planning succeeds") {
-        Planned::Lint { plan: planned } => return *planned,
+        Planned::Lint {
+            plan: planned,
+        } => return *planned,
         Planned::Ignored => panic!("{relative} is ignored by the fixture configuration"),
         Planned::NoConfiguration => panic!("{relative} has no fixture configuration"),
         Planned::Unsupported => panic!("{relative} has an unsupported extension"),

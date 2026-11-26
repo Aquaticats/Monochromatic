@@ -22,7 +22,7 @@ fn paths(list: &[&str]) -> Vec<PathBuf> {
     //           by name is the closure shorthand); `.collect()` gathers them.
     //           Tail expression -> return.
     // Why:      Build the owned input vector.
-    return list.iter().map(PathBuf::from).collect()
+    return list.iter().map(PathBuf::from).collect();
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -56,10 +56,7 @@ fn single_track_keeps_only_filename() {
 fn distinct_albums_keep_relative_folders() {
     // What:     relativize two tracks in different artist folders.
     // Why:      Their common root is `/music`; the rest is the relative path.
-    let got = relative_display_paths(&paths(&[
-        "/music/A/Alb/01.flac",
-        "/music/B/Alb/01.flac",
-    ]));
+    let got = relative_display_paths(&paths(&["/music/A/Alb/01.flac", "/music/B/Alb/01.flac"]));
     // What:     `assert_eq!(got, vec!["A/Alb/01.flac", "B/Alb/01.flac"]);`.
     // Why:      Only `/music` is stripped; folders survive, order preserved.
     assert_eq!(got, vec!["A/Alb/01.flac", "B/Alb/01.flac"]);
@@ -71,10 +68,7 @@ fn distinct_albums_keep_relative_folders() {
 fn single_folder_yields_bare_filenames() {
     // What:     relativize two tracks sharing the same album folder.
     // Why:      The cap stops stripping one short of the filename, leaving names.
-    let got = relative_display_paths(&paths(&[
-        "/m/A/Alb/01.flac",
-        "/m/A/Alb/02.flac",
-    ]));
+    let got = relative_display_paths(&paths(&["/m/A/Alb/01.flac", "/m/A/Alb/02.flac"]));
     // What:     `assert_eq!(got, vec!["01.flac", "02.flac"]);`.
     // Why:      The whole `/m/A/Alb` chain is the common prefix.
     assert_eq!(got, vec!["01.flac", "02.flac"]);
@@ -112,9 +106,19 @@ fn assert_scope_matches_pagination(tracks: &[PathBuf]) {
     let pages = crate::pagination::paginate(&names);
     for anchor in 0..tracks.len() {
         let expected: Vec<usize> = crate::pagination::page_of_index(&pages, anchor)
-            .map(|page| return pages[page].entries.iter().map(|entry| return entry.index).collect())
+            .map(|page| {
+                return pages[page]
+                    .entries
+                    .iter()
+                    .map(|entry| return entry.index)
+                    .collect();
+            })
             .expect("every track is on a page");
-        assert_eq!(page_scope_for_anchor(tracks, anchor), Some(expected), "anchor {anchor} of {names:?}");
+        assert_eq!(
+            page_scope_for_anchor(tracks, anchor),
+            Some(expected),
+            "anchor {anchor} of {names:?}"
+        );
     }
     assert_eq!(page_scope_for_anchor(tracks, tracks.len()), None);
 }
@@ -140,7 +144,12 @@ fn page_scope_for_anchor_matches_paginate_on_a_mixed_queue() {
 // Why:      The display names then have no folder part, and every track is a root-level name.
 #[test]
 fn page_scope_for_anchor_matches_paginate_in_a_single_folder() {
-    assert_scope_matches_pagination(&paths(&["/lib/Only/a.mp3", "/lib/Only/b.mp3", "/lib/Only/1.mp3", "/lib/Only/A2.mp3"]));
+    assert_scope_matches_pagination(&paths(&[
+        "/lib/Only/a.mp3",
+        "/lib/Only/b.mp3",
+        "/lib/Only/1.mp3",
+        "/lib/Only/A2.mp3",
+    ]));
 }
 
 // What:     A single track.
@@ -154,10 +163,17 @@ fn page_scope_for_anchor_handles_a_single_track() {
 // Why:      LS1: the shared directory was stripped, so `Music/Artist/*.flac` looked like loose files and lost the folder.
 #[test]
 fn a_single_top_level_folder_keeps_its_name_relative_to_the_opened_folder() {
-    let tracks = paths(&["/lib/Music/Artist/01.flac", "/lib/Music/Artist/Disc 2/02.flac"]);
+    let tracks = paths(&[
+        "/lib/Music/Artist/01.flac",
+        "/lib/Music/Artist/Disc 2/02.flac",
+    ]);
     let got = relative_display_paths_in(&tracks, Some(Path::new("/lib/Music")));
     assert_eq!(got, vec!["Artist/01.flac", "Artist/Disc 2/02.flac"]);
-    assert_eq!(relative_display_paths(&tracks), vec!["01.flac", "Disc 2/02.flac"], "without a root the shared directory is stripped");
+    assert_eq!(
+        relative_display_paths(&tracks),
+        vec!["01.flac", "Disc 2/02.flac"],
+        "without a root the shared directory is stripped"
+    );
 }
 
 // What:     Loose files of the opened folder have no folder part, next to folder tracks.
@@ -165,7 +181,10 @@ fn a_single_top_level_folder_keeps_its_name_relative_to_the_opened_folder() {
 #[test]
 fn loose_files_have_bare_names_relative_to_the_opened_folder() {
     let tracks = paths(&["/lib/Music/loose.flac", "/lib/Music/A/x.flac"]);
-    assert_eq!(relative_display_paths_in(&tracks, Some(Path::new("/lib/Music"))), vec!["loose.flac", "A/x.flac"]);
+    assert_eq!(
+        relative_display_paths_in(&tracks, Some(Path::new("/lib/Music"))),
+        vec!["loose.flac", "A/x.flac"]
+    );
 }
 
 // What:     A track outside the opened folder, or an opened folder with no named component, falls back to the shared directory.
@@ -173,9 +192,15 @@ fn loose_files_have_bare_names_relative_to_the_opened_folder() {
 #[test]
 fn a_root_that_does_not_hold_every_track_falls_back_to_the_shared_directory() {
     let tracks = paths(&["/lib/Music/A/x.flac", "/elsewhere/y.flac"]);
-    assert_eq!(relative_display_paths_in(&tracks, Some(Path::new("/lib/Music"))), relative_display_paths(&tracks));
+    assert_eq!(
+        relative_display_paths_in(&tracks, Some(Path::new("/lib/Music"))),
+        relative_display_paths(&tracks)
+    );
     let one = paths(&["/a/b/c.flac"]);
-    assert_eq!(relative_display_paths_in(&one, Some(Path::new("/"))), relative_display_paths(&one));
+    assert_eq!(
+        relative_display_paths_in(&one, Some(Path::new("/"))),
+        relative_display_paths(&one)
+    );
 }
 
 // What:     A track equal to the root path itself is not under it, so the fallback applies.
@@ -183,7 +208,10 @@ fn a_root_that_does_not_hold_every_track_falls_back_to_the_shared_directory() {
 #[test]
 fn a_track_that_is_the_root_itself_falls_back() {
     let tracks = paths(&["/lib/Music"]);
-    assert_eq!(relative_display_paths_in(&tracks, Some(Path::new("/lib/Music"))), relative_display_paths(&tracks));
+    assert_eq!(
+        relative_display_paths_in(&tracks, Some(Path::new("/lib/Music"))),
+        relative_display_paths(&tracks)
+    );
 }
 
 // What:     The playback scope of an anchor equals the page of the grouping made from root-relative names.
@@ -202,9 +230,19 @@ fn page_scope_with_a_root_matches_paginate_of_the_root_relative_names() {
     let pages = crate::pagination::paginate(&names);
     for anchor in 0..tracks.len() {
         let expected: Vec<usize> = crate::pagination::page_of_index(&pages, anchor)
-            .map(|page| return pages[page].entries.iter().map(|entry| return entry.index).collect())
+            .map(|page| {
+                return pages[page]
+                    .entries
+                    .iter()
+                    .map(|entry| return entry.index)
+                    .collect();
+            })
             .expect("every track is on a page");
-        assert_eq!(page_scope_for_anchor_in(&tracks, anchor, root), Some(expected), "anchor {anchor} of {names:?}");
+        assert_eq!(
+            page_scope_for_anchor_in(&tracks, anchor, root),
+            Some(expected),
+            "anchor {anchor} of {names:?}"
+        );
     }
 }
 
@@ -212,8 +250,16 @@ fn page_scope_with_a_root_matches_paginate_of_the_root_relative_names() {
 // Why:      The finding's own example: one top-level folder plus loose tracks.
 #[test]
 fn a_folder_and_a_loose_file_scope_separately() {
-    let tracks = paths(&["/lib/Music/Artist/one.mp3", "/lib/Music/two.mp3", "/lib/Music/tango.mp3"]);
+    let tracks = paths(&[
+        "/lib/Music/Artist/one.mp3",
+        "/lib/Music/two.mp3",
+        "/lib/Music/tango.mp3",
+    ]);
     let root = Some(Path::new("/lib/Music"));
     assert_eq!(page_scope_for_anchor_in(&tracks, 0, root), Some(vec![0]));
-    assert_eq!(page_scope_for_anchor_in(&tracks, 1, root), Some(vec![1, 2]), "both start with T: one virtual folder");
+    assert_eq!(
+        page_scope_for_anchor_in(&tracks, 1, root),
+        Some(vec![1, 2]),
+        "both start with T: one virtual folder"
+    );
 }

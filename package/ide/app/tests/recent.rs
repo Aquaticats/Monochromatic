@@ -2,9 +2,15 @@
 
 /// Import production history and key decoding,
 ///  plus owned test paths.
-use ide_app::recent::{RecentFiles, shortcut_slot};
+use ide_app::recent::{
+    RecentFiles,
+    shortcut_slot,
+};
 /// PathBuf owns test names independently of temporary formatting strings.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Verify ten unique slots,
 ///  eviction,

@@ -11,13 +11,6 @@
 //! `doc/audit/file-manager-sticky-flow.md`.
 
 /// What:
-///  the shared-constants module (application id,
-///  geometry,
-///  env var names).
-/// Why:
-///  one source of truth for magic values used across the shell modules.
-mod constants;
-/// What:
 ///  the pure sticky-band math:
 ///  bands,
 ///  positions,
@@ -27,6 +20,19 @@ mod constants;
 ///  the whole layout policy,
 ///  public so it unit-tests and the audit doc can cite it.
 pub mod band;
+/// What:
+///  the shared-constants module (application id,
+///  geometry,
+///  env var names).
+/// Why:
+///  one source of truth for magic values used across the shell modules.
+mod constants;
+/// What:
+///  keyboard navigation for the strip.
+/// Why:
+///  Left/Right column focus and Backspace close,
+///  matching the Electron prototype.
+mod keys;
 /// What:
 ///  the stateless GTK layout adapter over the band math.
 /// Why:
@@ -41,21 +47,15 @@ mod layout;
 ///  no DnD).
 mod pane;
 /// What:
-///  the pane-strip controller over the shared model.
-/// Why:
-///  mutates spawn/dedup/close state and delegates GTK placement to `layout`.
-mod strip;
-/// What:
-///  keyboard navigation for the strip.
-/// Why:
-///  Left/Right column focus and Backspace close,
-///  matching the Electron prototype.
-mod keys;
-/// What:
 ///  observed-state output for boundary tests.
 /// Why:
 ///  mirrors the same shallow JSON schema the Electron prototype writes.
 mod state_out;
+/// What:
+///  the pane-strip controller over the shared model.
+/// Why:
+///  mutates spawn/dedup/close state and delegates GTK placement to `layout`.
+mod strip;
 /// What:
 ///  the application stylesheet (black background,
 ///  debug rails).
@@ -89,7 +89,10 @@ use gtk4::prelude::*;
 ///  timers).
 /// Why:
 ///  `run` constructs an `Application` and returns the `glib::ExitCode` GTK yields.
-use gtk4::{Application, glib};
+use gtk4::{
+    Application,
+    glib,
+};
 
 /// What:
 ///  imports the tracing subscriber's env-filter type.
@@ -103,7 +106,10 @@ use tracing_subscriber::EnvFilter;
 /// Why:
 ///  the `Application` is identified by `APP_ID`;
 ///  `FM_STICKY_QUIT_MS` drives unattended runs.
-use crate::constants::{APP_ID, QUIT_MS_ENV};
+use crate::constants::{
+    APP_ID,
+    QUIT_MS_ENV,
+};
 
 /// What:
 ///  install non-blocking tracing,
@@ -135,10 +141,12 @@ pub fn run() -> glib::ExitCode {
     let controllers = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
     app.connect_activate(move |activated| {
         style::install();
-        controllers.borrow_mut().push(window::build_window(activated));
+        controllers
+            .borrow_mut()
+            .push(window::build_window(activated));
         schedule_self_quit(activated);
     });
-    return app.run()
+    return app.run();
 }
 
 /// What:
@@ -147,7 +155,7 @@ pub fn run() -> glib::ExitCode {
 /// Why:
 ///  a named function lets `and_then` take it by path instead of through a closure.
 fn parse_milliseconds(value: &str) -> Option<u64> {
-    return value.parse::<u64>().ok()
+    return value.parse::<u64>().ok();
 }
 
 /// What:

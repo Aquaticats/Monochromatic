@@ -15,7 +15,12 @@
 /// ```ts
 /// import { parseXml, XmlDocument, XmlElementId, XmlElementSpec } from 'xml-edit';
 /// ```
-use monochromatic_xml_edit::{XmlDocument, XmlElementId, XmlElementSpec, parse_xml};
+use monochromatic_xml_edit::{
+    XmlDocument,
+    XmlElementId,
+    XmlElementSpec,
+    parse_xml,
+};
 
 /// What:
 /// Assert that `after` equals `before` outside the byte range `start..end` of `before`.
@@ -27,9 +32,20 @@ use monochromatic_xml_edit::{XmlDocument, XmlElementId, XmlElementSpec, parse_xm
 /// ```ts
 /// function assertOutsideUnchanged(before: string, after: string, start: number, end: number): void;
 /// ```
-pub fn assert_outside_unchanged(before: &str, after: &str, start: usize, end: usize) {
-    assert!(after.starts_with(&before[..start]), "bytes before the edited element changed");
-    assert!(after.ends_with(&before[end..]), "bytes after the edited element changed");
+pub fn assert_outside_unchanged(
+    before: &str,
+    after: &str,
+    start: usize,
+    end: usize,
+) {
+    assert!(
+        after.starts_with(&before[..start]),
+        "bytes before the edited element changed"
+    );
+    assert!(
+        after.ends_with(&before[end..]),
+        "bytes after the edited element changed"
+    );
 }
 
 /// What:
@@ -42,10 +58,13 @@ pub fn assert_outside_unchanged(before: &str, after: &str, start: usize, end: us
 /// function assertSelfConsistent(document: XmlDocument): void;
 /// ```
 pub fn assert_self_consistent(document: &XmlDocument) {
-    let again: XmlDocument = parse_xml(document.source()).expect("an accepted document must re-parse");
+    let again: XmlDocument =
+        parse_xml(document.source()).expect("an accepted document must re-parse");
     assert_eq!(&again, document, "re-parsing changed the document");
     for id in document.element_ids() {
-        let text: &str = document.element_source(id).expect("every issued handle has a span");
+        let text: &str = document
+            .element_source(id)
+            .expect("every issued handle has a span");
         parse_xml(text).expect("an element's own source is a well-formed document");
     }
 }
@@ -59,10 +78,25 @@ pub fn assert_self_consistent(document: &XmlDocument) {
 /// ```ts
 /// function assertUsableRejection(source: string, error: XmlParseError): void;
 /// ```
-pub fn assert_usable_rejection(source: &str, offset: usize, line: usize, column: usize, message: &str) {
-    assert!(!message.is_empty(), "rejection of {source:?} had no message");
-    assert!(offset <= source.len(), "offset {offset} is past the end of {source:?}");
-    assert!(line >= 1 && column >= 1, "line {line} column {column} is not one-based");
+pub fn assert_usable_rejection(
+    source: &str,
+    offset: usize,
+    line: usize,
+    column: usize,
+    message: &str,
+) {
+    assert!(
+        !message.is_empty(),
+        "rejection of {source:?} had no message"
+    );
+    assert!(
+        offset <= source.len(),
+        "offset {offset} is past the end of {source:?}"
+    );
+    assert!(
+        line >= 1 && column >= 1,
+        "line {line} column {column} is not one-based"
+    );
 }
 
 /// What:
@@ -83,7 +117,13 @@ pub fn assert_parse_or_reject(candidate: &str) -> Option<XmlDocument> {
             Some(document)
         }
         Err(error) => {
-            assert_usable_rejection(candidate, error.offset, error.line, error.column, &error.message);
+            assert_usable_rejection(
+                candidate,
+                error.offset,
+                error.line,
+                error.column,
+                &error.message,
+            );
             None
         }
     };
@@ -102,7 +142,8 @@ pub fn assert_parse_or_reject(candidate: &str) -> Option<XmlDocument> {
 pub fn has_unrepresentable(value: &str) -> bool {
     for character in value.chars() {
         let code: u32 = u32::from(character);
-        let control: bool = code < 0x20 && character != '\t' && character != '\n' && character != '\r';
+        let control: bool =
+            code < 0x20 && character != '\t' && character != '\n' && character != '\r';
         if control || character == '\u{FFFE}' || character == '\u{FFFF}' {
             return true;
         }
@@ -122,20 +163,37 @@ pub fn has_unrepresentable(value: &str) -> bool {
 /// ```ts
 /// function assertSetAttribute(document: XmlDocument, id: XmlElementId, name: string, value: string): void;
 /// ```
-pub fn assert_set_attribute(document: &XmlDocument, id: XmlElementId, name: &str, value: &str) {
-    let span = document.span(id).expect("the handle came from this document");
+pub fn assert_set_attribute(
+    document: &XmlDocument,
+    id: XmlElementId,
+    name: &str,
+    value: &str,
+) {
+    let span = document
+        .span(id)
+        .expect("the handle came from this document");
     match document.set_attribute(id, name, value) {
         Ok(edited) => {
             assert_outside_unchanged(document.source(), edited.source(), span.start, span.end);
-            assert_eq!(edited.attribute(id, name), Some(value), "value did not read back");
+            assert_eq!(
+                edited.attribute(id, name),
+                Some(value),
+                "value did not read back"
+            );
             assert_eq!(edited.element_count(), document.element_count());
-            assert_eq!(edited.source().matches("<!--").count(), document.source().matches("<!--").count());
+            assert_eq!(
+                edited.source().matches("<!--").count(),
+                document.source().matches("<!--").count()
+            );
             assert_self_consistent(&edited);
         }
         Err(error) => {
             let text: String = error.to_string();
             assert!(!text.is_empty());
-            assert!(has_unrepresentable(value), "a representable value {value:?} was refused: {error}");
+            assert!(
+                has_unrepresentable(value),
+                "a representable value {value:?} was refused: {error}"
+            );
         }
     }
 }
@@ -152,20 +210,31 @@ pub fn assert_set_attribute(document: &XmlDocument, id: XmlElementId, name: &str
 /// ```ts
 /// function assertAppendChild(document: XmlDocument, parent: XmlElementId): void;
 /// ```
-pub fn assert_append_child(document: &XmlDocument, parent: XmlElementId) {
-    let span = document.span(parent).expect("the handle came from this document");
+pub fn assert_append_child(
+    document: &XmlDocument,
+    parent: XmlElementId,
+) {
+    let span = document
+        .span(parent)
+        .expect("the handle came from this document");
     let spec: XmlElementSpec = XmlElementSpec::named("fuzz-child").with_attribute("k", "v\"&<>\n");
     match document.append_child(parent, &spec) {
         Ok(edited) => {
             assert_outside_unchanged(document.source(), edited.source(), span.start, span.end);
             assert_eq!(edited.element_count(), document.element_count() + 1);
-            let found = edited.children(parent).last().expect("the parent has a last child");
+            let found = edited
+                .children(parent)
+                .last()
+                .expect("the parent has a last child");
             assert_eq!(edited.name(*found), Some("fuzz-child"));
             assert_eq!(edited.attribute(*found, "k"), Some("v\"&<>\n"));
             assert_self_consistent(&edited);
         }
         Err(error) => {
-            assert!(error.to_string().contains("beside child elements"), "unexpected refusal: {error}");
+            assert!(
+                error.to_string().contains("beside child elements"),
+                "unexpected refusal: {error}"
+            );
         }
     }
 }
@@ -180,9 +249,16 @@ pub fn assert_append_child(document: &XmlDocument, parent: XmlElementId) {
 /// ```ts
 /// function assertRemoveElement(document: XmlDocument, id: XmlElementId): void;
 /// ```
-pub fn assert_remove_element(document: &XmlDocument, id: XmlElementId) {
-    let text: &str = document.element_source(id).expect("the handle came from this document");
-    let subtree: usize = parse_xml(text).expect("an element's own source parses").element_count();
+pub fn assert_remove_element(
+    document: &XmlDocument,
+    id: XmlElementId,
+) {
+    let text: &str = document
+        .element_source(id)
+        .expect("the handle came from this document");
+    let subtree: usize = parse_xml(text)
+        .expect("an element's own source parses")
+        .element_count();
     match document.remove_element(id) {
         Ok(edited) => {
             assert_eq!(edited.element_count() + subtree, document.element_count());

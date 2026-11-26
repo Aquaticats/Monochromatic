@@ -11,9 +11,23 @@
 //! ```
 
 /// Import the actual loop and its existing result models.
-use super::{FixStop, MAX_PASSES, SourceChecker, fix_source};
-use crate::diagnostic::{Diagnostic, Severity, Span};
-use crate::edits::{Edit, Fix, FixClass, FixError};
+use super::{
+    FixStop,
+    MAX_PASSES,
+    SourceChecker,
+    fix_source,
+};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+    Span,
+};
+use crate::edits::{
+    Edit,
+    Fix,
+    FixClass,
+    FixError,
+};
 
 /// Deterministic fixture behavior,
 ///  not executable repository configuration.
@@ -42,7 +56,10 @@ struct Checker {
 impl SourceChecker for Checker {
     /// Produce a fix derived from the current source,
     ///  never an offset cached from another pass.
-    fn check(&mut self, source: &str) -> Result<Vec<Diagnostic>, FixError> {
+    fn check(
+        &mut self,
+        source: &str,
+    ) -> Result<Vec<Diagnostic>, FixError> {
         self.seen.push(String::from(source));
         if self.fail_at == Some(self.seen.len()) {
             return Err(FixError {

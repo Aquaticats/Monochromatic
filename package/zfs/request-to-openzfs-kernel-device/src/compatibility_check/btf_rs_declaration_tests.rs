@@ -40,15 +40,25 @@
 //! ```
 
 /// The approved declaration and the changes it can carry.
-use super::approved_module_fixture::{Change, module_with};
+use super::approved_module_fixture::{
+    Change,
+    module_with,
+};
 /// The pair that types and names one member from a base file.
 use super::base_file_fixture::module_typed_and_named_from_a_base_file;
 /// The writer of the two files and the entry point's verdict.
-use super::blob_fixture::{Blob, check_pair, check_raw};
+use super::blob_fixture::{
+    Blob,
+    check_pair,
+    check_raw,
+};
 /// The step one refusal names.
 use super::refusal::Step;
 /// The verdict and the refusal value.
-use super::{Compatible, Refusal};
+use super::{
+    Compatible,
+    Refusal,
+};
 
 /// The 32-byte header every fixture file starts after.
 const HEADER_BYTES: usize = 32;
@@ -58,12 +68,18 @@ const UNREADABLE_NAME: u32 = 0x7fff_fff0;
 
 /// The gate's verdict for one change to the approved module,
 /// over the empty base file every writer here starts from.
-fn verdict(name: &str, change: Change) -> Result<Compatible, Refusal> {
+fn verdict(
+    name: &str,
+    change: Change,
+) -> Result<Compatible, Refusal> {
     return check_pair(name, &Blob::new(), &module_with(change));
 }
 
 /// The refusal one change to the approved module must get.
-fn refused(name: &str, change: Change) -> Refusal {
+fn refused(
+    name: &str,
+    change: Change,
+) -> Refusal {
     let answer: Result<Compatible, Refusal> = verdict(name, change);
     let Err(refusal): Result<Compatible, Refusal> = answer else {
         panic!("the {name} module passed the gate");
@@ -73,7 +89,10 @@ fn refused(name: &str, change: Change) -> Refusal {
 
 /// One module file that must pass the gate,
 /// naming what the fixture moved.
-fn passed(name: &str, module: &Blob) -> Compatible {
+fn passed(
+    name: &str,
+    module: &Blob,
+) -> Compatible {
     let answer: Result<Compatible, Refusal> = check_pair(name, &Blob::new(), module);
     let Ok(compatible): Result<Compatible, Refusal> = answer else {
         panic!("the {name} module refused: {}", answer.err().unwrap());
@@ -167,7 +186,10 @@ fn a_member_typed_and_named_from_the_base_file_reads_through_it() {
     let (base, module): (Blob, Blob) = module_typed_and_named_from_a_base_file();
     let answer: Result<Compatible, Refusal> = check_pair("adapter-base-member", &base, &module);
     let Ok(compatible): Result<Compatible, Refusal> = answer else {
-        panic!("the module over a base file refused: {}", answer.err().unwrap());
+        panic!(
+            "the module over a base file refused: {}",
+            answer.err().unwrap()
+        );
     };
     assert_eq!(compatible.module_bytes, module.bytes().len());
     assert_eq!(compatible.base_bytes, base.bytes().len());
@@ -188,8 +210,16 @@ fn a_base_file_the_reader_cannot_parse_refuses_at_the_base_file() {
         panic!("a base file with no readable type name passed");
     };
     assert_eq!(refusal.step, Step::BaseBtf);
-    assert!(refusal.detail.contains("btf-rs refused it"), "{}", refusal.detail);
-    assert!(refusal.to_string().contains("vmlinux"), "{}", refusal.to_string());
+    assert!(
+        refusal.detail.contains("btf-rs refused it"),
+        "{}",
+        refusal.detail
+    );
+    assert!(
+        refusal.to_string().contains("vmlinux"),
+        "{}",
+        refusal.to_string()
+    );
 }
 
 /// A negative enumerator is compared as the signed number the format states:
@@ -202,7 +232,11 @@ fn a_base_file_the_reader_cannot_parse_refuses_at_the_base_file() {
 fn a_negative_enumerator_is_compared_signed() {
     let refusal: Refusal = refused("adapter-negative-enumerator", Change::SignedEnumerator);
     assert_eq!(refusal.step, Step::Enum);
-    assert!(refusal.detail.contains("ZFS_IOC_OBJSET_STATS"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("ZFS_IOC_OBJSET_STATS"),
+        "{}",
+        refusal.detail
+    );
     assert!(refusal.detail.contains("is -2 "), "{}", refusal.detail);
 }
 
@@ -221,5 +255,9 @@ fn a_file_the_reader_cannot_parse_refuses_at_the_module_file() {
         panic!("a file with no readable type name passed");
     };
     assert_eq!(refusal.step, Step::ModuleBtf);
-    assert!(refusal.detail.contains("btf-rs refused it"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("btf-rs refused it"),
+        "{}",
+        refusal.detail
+    );
 }

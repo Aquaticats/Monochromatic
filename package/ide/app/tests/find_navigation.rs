@@ -7,12 +7,23 @@
 
 /// Production matches feed the navigation helpers,
 ///  so both are exercised together.
-use ide_app::find::{FindMatches, MAX_FIND_MATCHES, find_matches};
+use ide_app::find::{
+    FindMatches,
+    MAX_FIND_MATCHES,
+    find_matches,
+};
 /// The helpers under test are pure;
 ///  the native bar only applies their answers.
 use ide_app::find_navigation::{
-    FindResults, active, at_or_after, at_or_before, navigable_matches, paint_ranges,
-    positioned_matches, status, visible,
+    FindResults,
+    active,
+    at_or_after,
+    at_or_before,
+    navigable_matches,
+    paint_ranges,
+    positioned_matches,
+    status,
+    visible,
 };
 /// Accepted results are tagged exactly like worker replies.
 use ide_app::find_worker::FindIdentity;

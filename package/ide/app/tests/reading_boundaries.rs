@@ -20,14 +20,25 @@
 /// ```ts
 /// import { ensureGraphemeBoundaryNext, nextGraphemeBoundary } from 'helix-core/graphemes';
 /// ```
-use helix_core::graphemes::{ensure_grapheme_boundary_next, next_grapheme_boundary};
+use helix_core::graphemes::{
+    ensure_grapheme_boundary_next,
+    next_grapheme_boundary,
+};
 /// Canonical source,
 ///  line ends,
 ///  and the production shaped geometry.
 use ide_app::{
     caret_motion::line_end,
-    document::{Document, ReadingPosition},
-    shaped_text::{ShapedView, TERMINATOR_MARK, TextShaper, Viewport},
+    document::{
+        Document,
+        ReadingPosition,
+    },
+    shaped_text::{
+        ShapedView,
+        TERMINATOR_MARK,
+        TextShaper,
+        Viewport,
+    },
 };
 
 /// What:
@@ -87,7 +98,10 @@ fn shaped(source: &str) -> (Document, ShapedView) {
 /// ```ts
 /// function boundaries(document: Document, start: number): number[];
 /// ```
-fn boundaries(document: &Document, start: usize) -> Vec<usize> {
+fn boundaries(
+    document: &Document,
+    start: usize,
+) -> Vec<usize> {
     let text = document.text().slice(..);
     let end = line_end(text, start);
     let mut result = vec![start];

@@ -5,15 +5,32 @@
 use ide_app::{
     code_colors::CodeColors,
     document::Document,
-    font_asset::{CODE_ITALIC, CODE_ROMAN},
+    font_asset::{
+        CODE_ITALIC,
+        CODE_ROMAN,
+    },
     selection_ink::contrast,
-    shaped_text::{TextShaper, Viewport},
+    shaped_text::{
+        TextShaper,
+        Viewport,
+    },
     source_style::{
-        BOLD_ROLE, HEADING_ROLE, ITALIC_ROLE, LINK_ROLE, LINK_URL_ROLE, LIST_ROLE, QUOTE_ROLE,
-        RAW_INLINE_ROLE, STRIKETHROUGH_ROLE, StyleSpan,
+        BOLD_ROLE,
+        HEADING_ROLE,
+        ITALIC_ROLE,
+        LINK_ROLE,
+        LINK_URL_ROLE,
+        LIST_ROLE,
+        QUOTE_ROLE,
+        RAW_INLINE_ROLE,
+        STRIKETHROUGH_ROLE,
+        StyleSpan,
     },
     syntax::SCOPES,
-    tile_scene::{read::drawn_runs, tile_items},
+    tile_scene::{
+        read::drawn_runs,
+        tile_items,
+    },
 };
 /// Actual font runs expose the selected font bytes and normalized variation coordinates.
 use parley::PositionedLayoutItem;
@@ -48,7 +65,10 @@ fn weight_of(faces: &[(bool, i16)]) -> Option<i16> {
 }
 
 /// True when some channel of `color` is farther than four from the same channel of `hue`.
-fn is_off_hue(color: &[u8; 3], hue: [u8; 3]) -> bool {
+fn is_off_hue(
+    color: &[u8; 3],
+    hue: [u8; 3],
+) -> bool {
     for (drawn, wanted) in color.iter().zip(hue) {
         if drawn.abs_diff(wanted) > 4 {
             return true;
@@ -58,7 +78,11 @@ fn is_off_hue(color: &[u8; 3], hue: [u8; 3]) -> bool {
 }
 
 /// The character range of the first occurrence of `word` in `source`.
-fn span(source: &str, word: &str, style: u32) -> StyleSpan {
+fn span(
+    source: &str,
+    word: &str,
+    style: u32,
+) -> StyleSpan {
     let byte = source.find(word).expect("word is in the sample");
     let start = source[..byte].chars().count();
     return StyleSpan {
@@ -100,7 +124,10 @@ fn any_lighter_roman(faces: &[(bool, i16)]) -> bool {
 
 /// What font a run of the first row used,
 ///  as the font bytes' first and last values and the normalized weight coordinate.
-fn faces(source: &str, styles: &[StyleSpan]) -> Vec<(bool, i16)> {
+fn faces(
+    source: &str,
+    styles: &[StyleSpan],
+) -> Vec<(bool, i16)> {
     let document = Document::new(source);
     let view = TextShaper::new().prepare(&document, viewport(None), styles);
     let mut seen = Vec::new();
@@ -245,7 +272,10 @@ const HUES: [(u32, [u8; 3], [u8; 3]); 9] = [
 /// The ink of every glyph run a styled word draws,
 ///  as its straight color,
 ///  in the given scheme.
-fn ink_of(role: u32, dark: bool) -> Vec<[u8; 3]> {
+fn ink_of(
+    role: u32,
+    dark: bool,
+) -> Vec<[u8; 3]> {
     let source = "Markdown";
     let document = Document::new(source);
     let styles = [span(source, source, role)];

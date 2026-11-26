@@ -18,7 +18,10 @@ use std::fs;
 // What:     `use std::time::{SystemTime, UNIX_EPOCH};`. A clock reading and the
 //           1970 epoch reference point.
 // Why:      Build a unique temp-dir name so reruns do not collide.
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 // What:     `fn unique_temp_dir() -> PathBuf` test helper: make and return a
 //           fresh throwaway directory under the system temp dir.
@@ -45,7 +48,7 @@ fn unique_temp_dir() -> PathBuf {
     fs::create_dir_all(&dir).expect("fixture directory should be created");
     // What:     `dir`. Tail expression -> return the created path.
     // Why:      Hand the fixture root to the caller.
-    return dir
+    return dir;
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -210,7 +213,10 @@ fn expand_paths_keeps_only_audio_files_and_skips_junk() {
 //           floats sit within a tiny tolerance of each other.
 // Why:      Float math is not bit-exact, and a direct `==` on floats is both
 //           fragile and flagged by clippy; compare distances instead.
-fn approx_eq(a: f32, b: f32) -> bool {
+fn approx_eq(
+    a: f32,
+    b: f32,
+) -> bool {
     // What:     `const TOLERANCE: f32 = 1e-6;`. Largest allowed difference;
     //           `1e-6` is scientific notation for 0.000001.
     // Why:      Far below any audible difference, loose enough for f32 rounding.
@@ -218,7 +224,7 @@ fn approx_eq(a: f32, b: f32) -> bool {
     // What:     `(a - b).abs() < TOLERANCE`. Subtract, take the magnitude with
     //           `.abs()`, then compare with `<`. Tail expression -> return.
     // Why:      Distance-based equality avoids the float `==` trap.
-    return (a - b).abs() < TOLERANCE
+    return (a - b).abs() < TOLERANCE;
 }
 
 // What:     `#[test]` marks the next function as a test case.

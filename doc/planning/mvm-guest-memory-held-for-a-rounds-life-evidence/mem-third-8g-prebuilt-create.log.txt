@@ -1,0 +1,8 @@
+[info] [2026-11-26T03:56:49.676Z] [mvm] [create] creating VM mem-third-8g-prebuilt (image: ubuntu)
+[info] [2026-11-26T03:56:49.677Z] [mvm] [ensureTemplate] using cached template <home>/.local/share/mvm/images/template-ubuntu.qcow2
+[info] [2026-11-26T03:56:49.677Z] [mvm] [create] creating disk from template image...
+logger file sink: No ancestor node_modules directory was found; using fallback "<home>/.local/state/monochromatic/log"
+[info] [2026-11-26T03:56:49.784Z] [mvm] [createSeedIso] created seed ISO at <home>/.local/share/mvm/vms/mem-third-8g-prebuilt/seed.iso
+[info] [2026-11-26T03:56:49.991Z] [mvm] [waitForGuestAgent] waiting for guest agent on mem-third-8g-prebuilt...
+[info] [2026-11-26T03:56:59.176Z] [mvm] [waitForGuestAgent] guest agent on mem-third-8g-prebuilt is ready
+[info] [2026-11-26T03:56:59.176Z] [mvm] [create] VM mem-third-8g-prebuilt is ready. Connect with: mvm shell mem-third-8g-prebuilt

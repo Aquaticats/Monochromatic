@@ -16,7 +16,11 @@
 /// import { type Response } from "./protocol";
 /// ```
 use crate::{
-    appearance_portal::{AppearancePortal, ColorSchemePreference, SwitchOutcome},
+    appearance_portal::{
+        AppearancePortal,
+        ColorSchemePreference,
+        SwitchOutcome,
+    },
     protocol::Response,
 };
 
@@ -51,7 +55,10 @@ use crate::{
 /// switchColorScheme(portal, "light"); // => { ok: true, data: "unchanged" }
 /// switchColorScheme(undefined, "light"); // => { ok: false, error: "color-scheme needs ..." }
 /// ```
-pub fn switch(portal: Option<&AppearancePortal>, preference: ColorSchemePreference) -> Response {
+pub fn switch(
+    portal: Option<&AppearancePortal>,
+    preference: ColorSchemePreference,
+) -> Response {
     // What:     `let Some(active) = portal else { ... }` binds the present handle, or runs the
     //           `else` block, which must leave the function. `Response::Err(...)` builds the
     //           failure response; `.to_string()` copies the literal into an owned `String`.

@@ -2,7 +2,10 @@
 
 use std::ffi::OsString;
 
-use crate::update_plan::{UpdatePlan, plan_update};
+use crate::update_plan::{
+    UpdatePlan,
+    plan_update,
+};
 
 fn plan(words: &[&str]) -> Result<crate::update_plan::Planned, String> {
     let arguments: Vec<OsString> = words.iter().map(OsString::from).collect();
@@ -11,9 +14,26 @@ fn plan(words: &[&str]) -> Result<crate::update_plan::Planned, String> {
 
 #[test]
 fn no_names_is_pnpm_update_of_everything() {
-    assert_eq!(plan(&["update"]).expect("plans").plan, UpdatePlan::Full { dry_run: false });
-    assert_eq!(plan(&["+nightly", "update", "--dry-run"]).expect("plans").plan, UpdatePlan::Full { dry_run: true });
-    assert_eq!(plan(&["update", "-n"]).expect("plans").plan, UpdatePlan::Full { dry_run: true });
+    assert_eq!(
+        plan(&["update"]).expect("plans").plan,
+        UpdatePlan::Full {
+            dry_run: false
+        }
+    );
+    assert_eq!(
+        plan(&["+nightly", "update", "--dry-run"])
+            .expect("plans")
+            .plan,
+        UpdatePlan::Full {
+            dry_run: true
+        }
+    );
+    assert_eq!(
+        plan(&["update", "-n"]).expect("plans").plan,
+        UpdatePlan::Full {
+            dry_run: true
+        }
+    );
 }
 
 #[test]
@@ -24,7 +44,12 @@ fn a_named_package_is_pnpm_update_of_that_name_run_as_given() {
         planned.plan,
         UpdatePlan::Targeted {
             dry_run: false,
-            cargo_args: ["update", "serde", "-p", "tokio@1.2.3"].iter().map(|word| { return word.to_string(); }).collect(),
+            cargo_args: ["update", "serde", "-p", "tokio@1.2.3"]
+                .iter()
+                .map(|word| {
+                    return word.to_string();
+                })
+                .collect(),
             names: vec!["serde".to_string(), "tokio".to_string()],
             precise: false,
         }
@@ -35,9 +60,19 @@ fn a_named_package_is_pnpm_update_of_that_name_run_as_given() {
 fn precise_is_pnpm_update_name_at_version_and_needs_exactly_one_name() {
     let planned = plan(&["update", "serde", "--precise", "1.0.200"]).expect("plans");
     match planned.plan {
-        UpdatePlan::Targeted { precise, cargo_args, .. } => {
+        UpdatePlan::Targeted {
+            precise,
+            cargo_args,
+            ..
+        } => {
             assert!(precise);
-            assert!(cargo_args.iter().any(|word| { return word == "--precise"; }) && cargo_args.iter().any(|word| { return word == "1.0.200"; }));
+            assert!(
+                cargo_args.iter().any(|word| {
+                    return word == "--precise";
+                }) && cargo_args.iter().any(|word| {
+                    return word == "1.0.200";
+                })
+            );
         }
         other => panic!("expected targeted, got {other:?}"),
     }
@@ -48,34 +83,89 @@ fn precise_is_pnpm_update_name_at_version_and_needs_exactly_one_name() {
 #[test]
 fn breaking_is_pnpm_update_latest_and_runs_cargos_own_breaking_update() {
     match plan(&["update", "--breaking"]).expect("plans").plan {
-        UpdatePlan::Targeted { cargo_args, .. } => assert!(cargo_args.iter().any(|word| { return word == "--breaking"; })),
+        UpdatePlan::Targeted {
+            cargo_args,
+            ..
+        } => assert!(cargo_args.iter().any(|word| {
+            return word == "--breaking";
+        })),
         other => panic!("expected targeted, got {other:?}"),
     }
 }
 
 #[test]
 fn workspace_is_the_install_step_and_locked_or_frozen_is_the_frozen_check() {
-    assert_eq!(plan(&["update", "--workspace"]).expect("plans").plan, UpdatePlan::Install { dry_run: false });
-    assert_eq!(plan(&["update", "-w"]).expect("plans").plan, UpdatePlan::Install { dry_run: false });
-    assert_eq!(plan(&["update", "--locked"]).expect("plans").plan, UpdatePlan::FrozenCheck);
-    assert_eq!(plan(&["update", "serde", "--frozen"]).expect("plans").plan, UpdatePlan::FrozenCheck);
+    assert_eq!(
+        plan(&["update", "--workspace"]).expect("plans").plan,
+        UpdatePlan::Install {
+            dry_run: false
+        }
+    );
+    assert_eq!(
+        plan(&["update", "-w"]).expect("plans").plan,
+        UpdatePlan::Install {
+            dry_run: false
+        }
+    );
+    assert_eq!(
+        plan(&["update", "--locked"]).expect("plans").plan,
+        UpdatePlan::FrozenCheck
+    );
+    assert_eq!(
+        plan(&["update", "serde", "--frozen"]).expect("plans").plan,
+        UpdatePlan::FrozenCheck
+    );
 }
 
 #[test]
 fn generate_lockfile_is_pnpm_install_lockfile_only() {
-    assert_eq!(plan(&["generate-lockfile"]).expect("plans").plan, UpdatePlan::Install { dry_run: false });
+    assert_eq!(
+        plan(&["generate-lockfile"]).expect("plans").plan,
+        UpdatePlan::Install {
+            dry_run: false
+        }
+    );
 }
 
 #[test]
 fn cargo_only_options_are_forwarded_with_their_values_and_the_manifest_path_is_dropped() {
-    let planned = plan(&["update", "--offline", "--color", "never", "--config", "net.retry=1", "-Zunstable-options", "-m", "a/Cargo.toml", "-q"])
-        .expect("plans");
+    let planned = plan(&[
+        "update",
+        "--offline",
+        "--color",
+        "never",
+        "--config",
+        "net.retry=1",
+        "-Zunstable-options",
+        "-m",
+        "a/Cargo.toml",
+        "-q",
+    ])
+    .expect("plans");
 
     assert_eq!(
         planned.forward,
-        ["--offline", "--color", "never", "--config", "net.retry=1", "-Zunstable-options", "-q"].iter().map(|word| { return word.to_string(); }).collect::<Vec<String>>()
+        [
+            "--offline",
+            "--color",
+            "never",
+            "--config",
+            "net.retry=1",
+            "-Zunstable-options",
+            "-q"
+        ]
+        .iter()
+        .map(|word| {
+            return word.to_string();
+        })
+        .collect::<Vec<String>>()
     );
-    assert_eq!(planned.plan, UpdatePlan::Full { dry_run: false });
+    assert_eq!(
+        planned.plan,
+        UpdatePlan::Full {
+            dry_run: false
+        }
+    );
 }
 
 fn names_of(words: &[&str]) -> Vec<String> {
@@ -95,7 +185,10 @@ fn names_of(words: &[&str]) -> Vec<String> {
     // value ?? fallback
     // ```
     match plan(words).expect("plans").plan {
-        UpdatePlan::Targeted { names, .. } => return names,
+        UpdatePlan::Targeted {
+            names,
+            ..
+        } => return names,
         // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
         // Why:      Text building and printing are written as one call instead of string concatenation.
         //
@@ -138,11 +231,17 @@ fn the_attached_and_short_spellings_of_package_name_the_package() {
     // ```ts
     // // TS has one type for this: T[] / Set / Map / number
     // ```
-    assert_eq!(names_of(&["update", "--package=foo"]), vec!["foo".to_string()]);
+    assert_eq!(
+        names_of(&["update", "--package=foo"]),
+        vec!["foo".to_string()]
+    );
     // Borrow `&[`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(names_of(&["update", "--package=foo@1.2.3"]), vec!["foo".to_string()]);
+    assert_eq!(
+        names_of(&["update", "--package=foo@1.2.3"]),
+        vec!["foo".to_string()]
+    );
     // Borrow `&[`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
@@ -157,11 +256,19 @@ fn a_locked_or_frozen_before_the_verb_is_the_frozen_check() {
     // Borrow `&[`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(plan(&["--locked", "update"]).expect("plans").plan, UpdatePlan::FrozenCheck);
+    assert_eq!(
+        plan(&["--locked", "update"]).expect("plans").plan,
+        UpdatePlan::FrozenCheck
+    );
     // Borrow `&[`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(plan(&["+nightly", "--frozen", "update"]).expect("plans").plan, UpdatePlan::FrozenCheck);
+    assert_eq!(
+        plan(&["+nightly", "--frozen", "update"])
+            .expect("plans")
+            .plan,
+        UpdatePlan::FrozenCheck
+    );
 }
 
 /// Review finding:
@@ -174,7 +281,14 @@ fn cargo_only_options_before_the_verb_are_forwarded_too() {
 
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(planned.forward, vec!["--offline".to_string(), "--color".to_string(), "never".to_string()]);
+    assert_eq!(
+        planned.forward,
+        vec![
+            "--offline".to_string(),
+            "--color".to_string(),
+            "never".to_string()
+        ]
+    );
 }
 
 /// Review finding (reject,
@@ -197,7 +311,8 @@ fn an_option_the_shadow_cannot_answer_is_refused_by_name_and_not_dropped() {
     // ```ts
     // // TS has one type for this: string
     // ```
-    let message: String = plan(&["update", "--bogus"]).expect_err("an unknown option must be refused");
+    let message: String =
+        plan(&["update", "--bogus"]).expect_err("an unknown option must be refused");
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(message.contains("--bogus"), "{message}");
@@ -253,7 +368,12 @@ fn the_attached_short_manifest_path_is_understood() {
     // Borrow `&[`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(plan(&["update", "-m../b/Cargo.toml"]).expect("plans").plan, UpdatePlan::Full { dry_run: false });
+    assert_eq!(
+        plan(&["update", "-m../b/Cargo.toml"]).expect("plans").plan,
+        UpdatePlan::Full {
+            dry_run: false
+        }
+    );
 }
 
 /// Review finding (2c 10):
@@ -265,10 +385,18 @@ fn an_option_value_equal_to_the_verb_is_not_the_verb() {
     let planned = plan(&["--config", "update", "update"]).expect("plans");
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(planned.plan, UpdatePlan::Full { dry_run: false });
+    assert_eq!(
+        planned.plan,
+        UpdatePlan::Full {
+            dry_run: false
+        }
+    );
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(planned.forward, vec!["--config".to_string(), "update".to_string()]);
+    assert_eq!(
+        planned.forward,
+        vec!["--config".to_string(), "update".to_string()]
+    );
 }
 
 /// Review finding (3c 9):

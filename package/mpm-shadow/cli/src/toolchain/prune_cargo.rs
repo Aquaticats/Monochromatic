@@ -26,13 +26,19 @@
 //! ```
 
 /// Imports the sorted collections the rule works on.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `ErrorKind` from `std::io`.
 use std::io::ErrorKind;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `ArgMatches` from `clap`.
 use clap::ArgMatches;
@@ -47,21 +53,40 @@ use crate::version::compare_versions;
 /// Imports what this module uses from `super::cargo_installs`.
 use super::across_roots::other_root_forwards_to;
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME, current_link, point_current_at, recorded_version, running_version};
-/// Imports what this module uses from `super::published_archive`.
-use super::published_archive::{
-    NamedArchive, named_archives, plan_archive_prune, point_current_at_newest_archive, present_archive_versions,
+use super::cargo_installs::{
+    CARGO_NAMESPACE,
+    CURRENT_LINK_NAME,
+    current_link,
+    point_current_at,
+    recorded_version,
+    running_version,
 };
-/// Imports `tool_install_dir` from `super::layout`.
-use super::layout::tool_install_dir;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `tool_install_dir` from `super::layout`.
+use super::layout::tool_install_dir;
+/// Imports what this module uses from `super::published_archive`.
+use super::published_archive::{
+    NamedArchive,
+    named_archives,
+    plan_archive_prune,
+    point_current_at_newest_archive,
+    present_archive_versions,
+};
+/// Imports what this module uses from `super::runner`.
+use super::runner::{
+    ProcessRunner,
+    Runner,
+};
+/// Imports what this module uses from `super::scope`.
+use super::scope::{
+    EnvMap,
+    Scope,
+    ScopeKind,
+    resolve_scope,
+};
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
-/// Imports what this module uses from `super::runner`.
-use super::runner::{ProcessRunner, Runner};
-/// Imports what this module uses from `super::scope`.
-use super::scope::{EnvMap, Scope, ScopeKind, resolve_scope};
 
 /// One version directory found on disk.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -137,7 +162,10 @@ pub fn plan_prune(
 /// `packageId`,
 /// else the origin of a `cargo:<crate>@<range>` request,
 /// else the id without its `cargo:` prefix.
-fn crate_of_entry(id: &str, entry: &Value) -> String {
+fn crate_of_entry(
+    id: &str,
+    entry: &Value,
+) -> String {
     if let Some(package) = entry.get("packageId").and_then(Value::as_str) {
         return package.to_string();
     }
@@ -164,13 +192,22 @@ fn crate_of_entry(id: &str, entry: &Value) -> String {
 /// ```ts
 /// export function namedVersions(lockText: string): Map<string, Set<string>>  // throws when not a lock
 /// ```
-pub fn named_versions(lock_text: &str, origin: &str) -> Result<BTreeMap<String, BTreeSet<String>>, ToolchainError> {
+pub fn named_versions(
+    lock_text: &str,
+    origin: &str,
+) -> Result<BTreeMap<String, BTreeSet<String>>, ToolchainError> {
     let lock: Value = match serde_json::from_str(lock_text) {
         Ok(value) => value,
-        Err(error) => return Err(ToolchainError::failure(format!("{origin} is not JSON: {error}"))),
+        Err(error) => {
+            return Err(ToolchainError::failure(format!(
+                "{origin} is not JSON: {error}"
+            )));
+        }
     };
     let Some(tools) = lock.get("tools").and_then(Value::as_object) else {
-        return Err(ToolchainError::failure(format!("{origin} has no `tools` object")));
+        return Err(ToolchainError::failure(format!(
+            "{origin} has no `tools` object"
+        )));
     };
     let mut named: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for (id, entry) in tools {
@@ -184,7 +221,10 @@ pub fn named_versions(lock_text: &str, origin: &str) -> Result<BTreeMap<String, 
                 "{origin} names a cargo-binstall tool without a version, so nothing was deleted; tools.{id} has no `version` text"
             )));
         };
-        named.entry(crate_of_entry(id, entry)).or_default().insert(version.to_string());
+        named
+            .entry(crate_of_entry(id, entry))
+            .or_default()
+            .insert(version.to_string());
     }
     return Ok(named);
 }
@@ -203,10 +243,17 @@ pub fn named_versions(lock_text: &str, origin: &str) -> Result<BTreeMap<String, 
 pub(super) fn named_by_all(
     discovered: &[PathBuf],
     explicit: &[PathBuf],
-) -> Result<(BTreeMap<String, BTreeSet<String>>, BTreeMap<String, NamedArchive>), ToolchainError> {
+) -> Result<
+    (
+        BTreeMap<String, BTreeSet<String>>,
+        BTreeMap<String, NamedArchive>,
+    ),
+    ToolchainError,
+> {
     let mut named: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut archives: BTreeMap<String, NamedArchive> = BTreeMap::new();
-    let mut locks_to_read: Vec<(&PathBuf, bool)> = discovered.iter().map(|file| return (file, false)).collect();
+    let mut locks_to_read: Vec<(&PathBuf, bool)> =
+        discovered.iter().map(|file| return (file, false)).collect();
     locks_to_read.extend(explicit.iter().map(|file| return (file, true)));
     for (file, named_by_the_caller) in locks_to_read {
         let text: String = match fs::read_to_string(file) {
@@ -219,7 +266,10 @@ pub(super) fn named_by_all(
                 )));
             }
             Err(error) => {
-                return Err(ToolchainError::failure(format!("cannot read the lock {}: {error}; nothing was deleted", file.display())));
+                return Err(ToolchainError::failure(format!(
+                    "cannot read the lock {}: {error}; nothing was deleted",
+                    file.display()
+                )));
             }
         };
         for (crate_name, versions) in named_versions(&text, &file.display().to_string())? {
@@ -286,7 +336,9 @@ fn prune_archives(
 /// left out, it reads as "this crate holds nothing" and the whole crate directory goes,
 /// including a version a lock names.
 /// A crate directory that is gone holds nothing, so its absence is not a failed read.
-pub(super) fn present_versions(toolchain_root: &Path) -> Result<BTreeMap<String, Vec<PresentVersion>>, ToolchainError> {
+pub(super) fn present_versions(
+    toolchain_root: &Path
+) -> Result<BTreeMap<String, Vec<PresentVersion>>, ToolchainError> {
     let mut present: BTreeMap<String, Vec<PresentVersion>> = BTreeMap::new();
     let crates_dir: PathBuf = toolchain_root.join(CARGO_NAMESPACE);
     let crates = match fs::read_dir(&crates_dir) {
@@ -296,7 +348,8 @@ pub(super) fn present_versions(toolchain_root: &Path) -> Result<BTreeMap<String,
         Err(error) => return Err(cannot_walk(&crates_dir, &error)),
     };
     for listed_crate in crates {
-        let crate_entry: fs::DirEntry = listed_crate.map_err(|error| return cannot_walk(&crates_dir, &error))?;
+        let crate_entry: fs::DirEntry =
+            listed_crate.map_err(|error| return cannot_walk(&crates_dir, &error))?;
         let crate_name: String = crate_entry.file_name().to_string_lossy().to_string();
         let versions = match fs::read_dir(crate_entry.path()) {
             Ok(entries) => entries,
@@ -306,7 +359,8 @@ pub(super) fn present_versions(toolchain_root: &Path) -> Result<BTreeMap<String,
         };
         let mut found: Vec<PresentVersion> = Vec::new();
         for listed_version in versions {
-            let version_entry: fs::DirEntry = listed_version.map_err(|error| return cannot_walk(&crate_entry.path(), &error))?;
+            let version_entry: fs::DirEntry =
+                listed_version.map_err(|error| return cannot_walk(&crate_entry.path(), &error))?;
             let version: String = version_entry.file_name().to_string_lossy().to_string();
             let is_plain_directory: bool = version_entry
                 .file_type()
@@ -314,7 +368,10 @@ pub(super) fn present_versions(toolchain_root: &Path) -> Result<BTreeMap<String,
                 .is_dir();
             if is_plain_directory && !version.starts_with('.') && version != CURRENT_LINK_NAME {
                 let finished: bool = recorded_version(&version_entry.path(), &crate_name).is_some();
-                found.push(PresentVersion { version, finished });
+                found.push(PresentVersion {
+                    version,
+                    finished,
+                });
             }
         }
         present.insert(crate_name, found);
@@ -323,7 +380,10 @@ pub(super) fn present_versions(toolchain_root: &Path) -> Result<BTreeMap<String,
 }
 
 /// The refusal a scan raises for one directory whose contents it could not read.
-fn cannot_walk(directory: &Path, error: &std::io::Error) -> ToolchainError {
+fn cannot_walk(
+    directory: &Path,
+    error: &std::io::Error,
+) -> ToolchainError {
     return ToolchainError::failure(format!("cannot read {}: {error}", directory.display()));
 }
 
@@ -332,12 +392,25 @@ fn cannot_walk(directory: &Path, error: &std::io::Error) -> ToolchainError {
 /// Why:
 /// The report is the only place a person learns what a failed run deleted,
 /// so a failure after a removal must name what is gone and never say that nothing was deleted.
-pub(super) fn after_removing(error: ToolchainError, removed: &[PathBuf]) -> ToolchainError {
+pub(super) fn after_removing(
+    error: ToolchainError,
+    removed: &[PathBuf],
+) -> ToolchainError {
     if removed.is_empty() {
-        return ToolchainError { kind: error.kind, message: format!("{}; nothing was deleted", error.message) };
+        return ToolchainError {
+            kind: error.kind,
+            message: format!("{}; nothing was deleted", error.message),
+        };
     }
-    let message: String = format!("{}; already removed: {}", error.message, paths_named(removed));
-    return ToolchainError { kind: error.kind, message };
+    let message: String = format!(
+        "{}; already removed: {}",
+        error.message,
+        paths_named(removed)
+    );
+    return ToolchainError {
+        kind: error.kind,
+        message,
+    };
 }
 
 /// What:
@@ -348,8 +421,15 @@ pub(super) fn after_removing(error: ToolchainError, removed: &[PathBuf]) -> Tool
 /// and the directory never reaches the list of removed directories,
 /// so the report must name it and say that part of it may be gone,
 /// whatever that list holds.
-fn partly_removed(directory: &Path, error: &std::io::Error, removed: &[PathBuf]) -> ToolchainError {
-    let mut message: String = format!("cannot remove {}: {error}; part of it may be gone", directory.display());
+fn partly_removed(
+    directory: &Path,
+    error: &std::io::Error,
+    removed: &[PathBuf],
+) -> ToolchainError {
+    let mut message: String = format!(
+        "cannot remove {}: {error}; part of it may be gone",
+        directory.display()
+    );
     if !removed.is_empty() {
         message.push_str(&format!(", and already removed: {}", paths_named(removed)));
     }
@@ -358,7 +438,11 @@ fn partly_removed(directory: &Path, error: &std::io::Error, removed: &[PathBuf])
 
 /// The removed directories as one list of paths, for a report.
 fn paths_named(removed: &[PathBuf]) -> String {
-    return removed.iter().map(|path| return path.display().to_string()).collect::<Vec<String>>().join(", ");
+    return removed
+        .iter()
+        .map(|path| return path.display().to_string())
+        .collect::<Vec<String>>()
+        .join(", ");
 }
 
 /// What:
@@ -383,7 +467,8 @@ pub fn prune_toolchain(
     // What: the versions installed now are listed before any lock is read.
     // Why: a version that finishes installing after this point is not in this list, so this run cannot delete it.
     // Read after the locks, such a version would look like one no lock names, which is exactly what gets deleted.
-    let present = present_versions(&scope.toolchain_root).map_err(|error| return after_removing(error, &[]))?;
+    let present = present_versions(&scope.toolchain_root)
+        .map_err(|error| return after_removing(error, &[]))?;
     let mut lock_files: Vec<PathBuf> = vec![scope.lock_file.clone()];
     if scope.kind == ScopeKind::Repo {
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
@@ -393,9 +478,16 @@ pub fn prune_toolchain(
     // Why: the link decision below has to know which versions really stay, and that forward is one way one stays.
     let mut planned: Vec<(String, String, PathBuf)> = Vec::new();
     for (crate_name, version) in plan_prune(&present, &named) {
-        let directory: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(&crate_name).join(&version);
+        let directory: PathBuf = scope
+            .toolchain_root
+            .join(CARGO_NAMESPACE)
+            .join(&crate_name)
+            .join(&version);
         // A version the other toolchain root's `current` forwards to is the one that root runs: never pruned from here.
-        if other_root_forwards_to(&current_link(&scope.other_toolchain_root, &crate_name), &directory) {
+        if other_root_forwards_to(
+            &current_link(&scope.other_toolchain_root, &crate_name),
+            &directory,
+        ) {
             continue;
         }
         planned.push((crate_name, version, directory));
@@ -419,14 +511,18 @@ pub fn prune_toolchain(
             // Why: the newest installed one may be one this run deletes, because the other toolchain root forwards
             // to an older one instead (see `across_roots.rs`), and a prune that succeeds must not leave `current`
             // naming a directory it removed.
-            let kept: Vec<&PresentVersion> =
-                present[crate_name].iter().filter(|candidate| return stays(crate_name, candidate, &planned)).collect();
+            let kept: Vec<&PresentVersion> = present[crate_name]
+                .iter()
+                .filter(|candidate| return stays(crate_name, candidate, &planned))
+                .collect();
             // What: the versions of this crate the plan deletes, which the link must never be left on.
             // Why: a link naming one of them would dangle once the deletions run, so the guard that leaves a newer
             // link alone does not apply to them.
             let deleted_here: Vec<&str> = planned
                 .iter()
-                .filter(|(crate_of_removal, _version, _directory)| return crate_of_removal == crate_name)
+                .filter(|(crate_of_removal, _version, _directory)| {
+                    return crate_of_removal == crate_name;
+                })
                 .map(|(_crate, version, _directory)| return version.as_str())
                 .collect();
             match newest_finished(&kept) {
@@ -434,18 +530,26 @@ pub fn prune_toolchain(
                     // What: a repoint that fails is restated with the links this pass already removed.
                     // Why: the links are gone whether or not the new one lands, and the report is the only place a
                     // person learns it.
-                    let pointed: bool = point_current_at(&scope.toolchain_root, crate_name, &newest, &deleted_here)
-                        .map_err(|error| return after_removing(error, &unlinked))?;
+                    let pointed: bool =
+                        point_current_at(&scope.toolchain_root, crate_name, &newest, &deleted_here)
+                            .map_err(|error| return after_removing(error, &unlinked))?;
                     if !pointed {
                         // The version this run keeps is not there any more, so the link was left alone:
                         // it must then not go on naming a version this run deletes.
-                        remove_current_link(&scope.toolchain_root, crate_name, &planned, &mut unlinked)?;
+                        remove_current_link(
+                            &scope.toolchain_root,
+                            crate_name,
+                            &planned,
+                            &mut unlinked,
+                        )?;
                     }
                 }
                 // What: with no finished version that stays, the link is kept only when what it names stays too.
                 // Why: an unfinished install is not something `current` may name,
                 // and a link left naming a version this run deletes dangles once the deletions run.
-                None => remove_current_link(&scope.toolchain_root, crate_name, &planned, &mut unlinked)?,
+                None => {
+                    remove_current_link(&scope.toolchain_root, crate_name, &planned, &mut unlinked)?
+                }
             }
         }
     }
@@ -457,7 +561,8 @@ pub fn prune_toolchain(
         removed.push(directory);
     }
     if !dry_run {
-        let after = present_versions(&scope.toolchain_root).map_err(|error| return after_removing(error, &removed))?;
+        let after = present_versions(&scope.toolchain_root)
+            .map_err(|error| return after_removing(error, &removed))?;
         for crate_name in present.keys() {
             let crate_dir: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(crate_name);
             let remaining: bool = match after.get(crate_name) {
@@ -475,7 +580,8 @@ pub fn prune_toolchain(
             // `remove_dir` is what keeps a version installed after the scan above: an empty directory goes,
             // and a directory that is no longer empty stays with whatever another run put there.
             if !remaining && had_versions {
-                remove_crate_directory(&crate_dir).map_err(|error| return after_removing(error, &removed))?;
+                remove_crate_directory(&crate_dir)
+                    .map_err(|error| return after_removing(error, &removed))?;
             }
         }
     }
@@ -488,10 +594,16 @@ pub fn prune_toolchain(
 /// Why:
 /// The link decision counts only the versions that stay,
 /// and a removal carries the crate it belongs to.
-fn stays(crate_name: &str, candidate: &PresentVersion, removals: &[(String, String, PathBuf)]) -> bool {
-    return !removals.iter().any(|(crate_of_removal, version, _directory)| {
-        return crate_of_removal == crate_name && version == &candidate.version;
-    });
+fn stays(
+    crate_name: &str,
+    candidate: &PresentVersion,
+    removals: &[(String, String, PathBuf)],
+) -> bool {
+    return !removals
+        .iter()
+        .any(|(crate_of_removal, version, _directory)| {
+            return crate_of_removal == crate_name && version == &candidate.version;
+        });
 }
 
 /// What:
@@ -538,9 +650,11 @@ fn remove_current_link(
         // No link to read, or one whose name this run cannot take: nothing here is this run's to remove.
         None => return Ok(()),
     };
-    let going: bool = removals.iter().any(|(crate_of_removal, version, _directory)| {
-        return crate_of_removal == crate_name && version == &named;
-    });
+    let going: bool = removals
+        .iter()
+        .any(|(crate_of_removal, version, _directory)| {
+            return crate_of_removal == crate_name && version == &named;
+        });
     if !going && fs::metadata(&link).is_ok() {
         return Ok(());
     }
@@ -570,7 +684,10 @@ fn remove_crate_directory(crate_dir: &Path) -> Result<(), ToolchainError> {
         Err(error) if error.kind() == ErrorKind::DirectoryNotEmpty => Ok(()),
         // Already gone, so there is nothing left to remove.
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(ToolchainError::failure(format!("cannot remove {}: {error}", crate_dir.display()))),
+        Err(error) => Err(ToolchainError::failure(format!(
+            "cannot remove {}: {error}",
+            crate_dir.display()
+        ))),
     };
 }
 

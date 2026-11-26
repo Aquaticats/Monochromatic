@@ -68,11 +68,25 @@ mod no_self_invocation_tests;
 #[path = "no_test_changes_the_process_directory_tests.rs"]
 mod no_test_changes_the_process_directory_tests;
 
+/// The ban on a release file reading a test-only switch itself:
+/// every such value is taken through `foundation/test_only_switches.rs`,
+/// whose read a release build does not hold.
+#[cfg(test)]
+#[path = "no_release_read_of_a_test_only_switch_tests.rs"]
+mod no_release_read_of_a_test_only_switch_tests;
+
 /// Every record folder this program fills is read through `plain_file`:
 /// a named pipe at a record's name answers at once instead of holding every wrapped command.
 #[cfg(test)]
 #[path = "records_read_without_blocking_tests.rs"]
 mod records_read_without_blocking_tests;
+
+/// No release file outside the plain-file reader reads a file with a call that can wait,
+/// and the sites that stay are on a list that only shrinks,
+/// each entry naming the class whose reason keeps it.
+#[cfg(test)]
+#[path = "raw_file_reads_tests.rs"]
+mod raw_file_reads_tests;
 
 /// The owner's move to tokio needs its workers to await:
 /// no thread,

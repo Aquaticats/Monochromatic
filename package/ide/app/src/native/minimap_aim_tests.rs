@@ -17,7 +17,10 @@
 /// The window the tests drive.
 use super::AppWindow;
 /// The production setter of annotation snapshots and the stamp of the displayed text.
-use super::annotate::{displayed, set_annotations};
+use super::annotate::{
+    displayed,
+    set_annotations,
+};
 /// The scroll rule's quiet time passes in real time.
 use super::annotation_stability_tests::idle;
 /// The test hint.
@@ -25,9 +28,21 @@ use super::annotation_tests::hint;
 /// The reader fixture,
 ///  its key press,
 ///  and the external replacement of a file.
-use super::find_tests::{Reader, key, replace_file};
+use super::find_tests::{
+    Reader,
+    key,
+    replace_file,
+};
 /// Pointer helpers shared with the minimap tests.
-use super::minimap_tests::{calm, geometry, lift, offset, over, press, reading};
+use super::minimap_tests::{
+    calm,
+    geometry,
+    lift,
+    offset,
+    over,
+    press,
+    reading,
+};
 /// A scroll the toolkit reports to the change handler.
 use super::overscan_tile_tests::scroll_to;
 /// The rule that keeps the view still across new rows,
@@ -36,15 +51,22 @@ use super::rows;
 /// The bounded wait for an external change.
 use super::waiting_tests::Waiting;
 /// Opening a long plain text and waiting for its first layout.
-use super::wrap_tests::{open, settled};
+use super::wrap_tests::{
+    open,
+    settled,
+};
 /// Hint snapshots as the Language module builds them.
 use ide_app::language::hints::HintsSnapshot;
 /// The vertical mapping.
 use ide_app::row_map::RowMap;
 /// Toolkit events and sizes.
 use slint::{
-    ComponentHandle, LogicalSize,
-    platform::{Key, update_timers_and_animations},
+    ComponentHandle,
+    LogicalSize,
+    platform::{
+        Key,
+        update_timers_and_animations,
+    },
 };
 /// Shared snapshot pointers.
 use std::sync::Arc;
@@ -85,7 +107,10 @@ fn numbered() -> String {
 /// ```ts
 /// function hintFirst(reader: Reader, count: number): void;
 /// ```
-fn hint_first(reader: &Reader, count: usize) {
+fn hint_first(
+    reader: &Reader,
+    count: usize,
+) {
     hint_on(reader, 0..count);
 }
 
@@ -99,7 +124,10 @@ fn hint_first(reader: &Reader, count: usize) {
 /// ```ts
 /// function hintOn(reader: Reader, lines: Iterable<number>): void;
 /// ```
-fn hint_on(reader: &Reader, lines: impl Iterator<Item = usize>) {
+fn hint_on(
+    reader: &Reader,
+    lines: impl Iterator<Item = usize>,
+) {
     let (stamp, hints) = {
         let current = reader.source.borrow();
         let mut hints = Vec::new();
@@ -137,7 +165,11 @@ fn map(reader: &Reader) -> RowMap {
 /// ```ts
 /// function pressedAt(reader: Reader, y: number, share: number): [line: number, offset: number];
 /// ```
-fn pressed_at(reader: &Reader, y: f32, share: f32) -> (usize, f32) {
+fn pressed_at(
+    reader: &Reader,
+    y: f32,
+    share: f32,
+) -> (usize, f32) {
     let shape = geometry(reader);
     let current = reader.source.borrow();
     let found = shape.target(&current.row_map, y, share * shape.max_offset());
@@ -151,7 +183,11 @@ fn share(reader: &Reader) -> f32 {
 }
 
 /// The offset the rule that keeps the view still gives for a view at `at` when the layout changes from `before`.
-fn kept(reader: &Reader, before: &RowMap, at: f32) -> f32 {
+fn kept(
+    reader: &Reader,
+    before: &RowMap,
+    at: f32,
+) -> f32 {
     let current = reader.source.borrow();
     return rows::anchored(before, &current.row_map, at).min(rows::limit(
         &current.row_map,
@@ -170,7 +206,10 @@ fn caret_line(reader: &Reader) -> usize {
 
 /// A place on the minimap near `wanted` that is outside the viewport box,
 ///  where a press jumps instead of grabbing the box.
-fn outside_the_box(window: &AppWindow, wanted: f32) -> f32 {
+fn outside_the_box(
+    window: &AppWindow,
+    wanted: f32,
+) -> f32 {
     let top = window.get_minimap_box_top();
     let bottom = top + window.get_minimap_box_height();
     if wanted > top - 4.0 && wanted < bottom + 4.0 {
@@ -203,7 +242,10 @@ fn scene() -> (tempfile::TempDir, Reader) {
 
 /// Press at `y` and release;
 ///  the answer is the share of the scroll range the view stood at before the press.
-fn click(reader: &Reader, y: f32) -> f32 {
+fn click(
+    reader: &Reader,
+    y: f32,
+) -> f32 {
     let from = share(reader);
     press(reader, over(&reader.window, 10.0, y));
     lift(reader, over(&reader.window, 10.0, y));
@@ -237,7 +279,11 @@ fn high(reader: &Reader) -> f32 {
 /// ```ts
 /// function aimedOnce(reader: Reader, y: number, count: number): number;
 /// ```
-fn aimed_once(reader: &Reader, y: f32, count: usize) -> f32 {
+fn aimed_once(
+    reader: &Reader,
+    y: f32,
+    count: usize,
+) -> f32 {
     let from = click(reader, y);
     let at_press = offset(reader);
     let before = map(reader);
@@ -275,7 +321,12 @@ fn aimed_once(reader: &Reader, y: f32, count: usize) -> f32 {
 /// ```ts
 /// function staysKept(reader: Reader, from: number, y: number, count: number): void;
 /// ```
-fn stays_kept(reader: &Reader, from: f32, y: f32, count: usize) {
+fn stays_kept(
+    reader: &Reader,
+    from: f32,
+    y: f32,
+    count: usize,
+) {
     let at_input = offset(reader);
     let caret = reading(reader);
     let before = map(reader);

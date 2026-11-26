@@ -9,16 +9,28 @@
 //! ```
 
 /// Retain original physical lines and mapping records.
-use crate::processors_lines::{copy_line, physical_lines};
+use crate::processors_lines::{
+    copy_line,
+    physical_lines,
+};
 /// Keep extraction failures explicit and snapshots immutable.
-use crate::processors_model::{Guard, Mapping, ProcessorError, ProcessorLanguage};
+use crate::processors_model::{
+    Guard,
+    Mapping,
+    ProcessorError,
+    ProcessorLanguage,
+};
 /// Import the parsed Rust context and authored comment token interface.
 use crate::rust_source::RustSource;
 /// Comment classification distinguishes /// from //// and /** from /***.
 use ra_ap_syntax::ast::Comment;
 /// AstToken casts only real comment tokens,
 ///  not comment-looking strings.
-use ra_ap_syntax::{AstToken, NodeOrToken, SyntaxKind};
+use ra_ap_syntax::{
+    AstToken,
+    NodeOrToken,
+    SyntaxKind,
+};
 /// Share the parent snapshot between documented items.
 use std::sync::Arc;
 
@@ -63,7 +75,10 @@ fn tokens(parent: &Mapping) -> Vec<DocToken> {
 }
 
 /// Borrow the physical start containing a comment token.
-fn line_start(source: &str, offset: usize) -> usize {
+fn line_start(
+    source: &str,
+    offset: usize,
+) -> usize {
     // A backward search is bounded to the current physical line.
     if let Some(index) = source[..offset].rfind(['\r', '\n']) {
         return index + 1;
@@ -73,7 +88,12 @@ fn line_start(source: &str, offset: usize) -> usize {
 
 /// Copy a line-doc token,
 ///  excluding conventional spacing and its run's common margin.
-fn line_doc(child: &mut Mapping, source: &str, token: &DocToken, margin: usize) {
+fn line_doc(
+    child: &mut Mapping,
+    source: &str,
+    token: &DocToken,
+    margin: usize,
+) {
     let physical: usize = line_start(source, token.start);
     let mut payload: usize = token.start + 3;
     if source[payload..token.end].starts_with(' ') {
@@ -93,7 +113,10 @@ fn line_doc(child: &mut Mapping, source: &str, token: &DocToken, margin: usize) 
 }
 
 /// Compute the common indentation of nonempty authored line-doc bodies.
-fn run_margin(source: &str, comments: &[DocToken]) -> usize {
+fn run_margin(
+    source: &str,
+    comments: &[DocToken],
+) -> usize {
     let mut margin: usize = usize::MAX;
     for comment in comments {
         let mut body: &str = &source[comment.start + 3..comment.end];
@@ -135,7 +158,11 @@ fn block_margin(body: &str) -> (usize, bool) {
 }
 
 /// Copy a block-doc body while preserving delimiters outside editable envelopes.
-fn block_doc(child: &mut Mapping, source: &str, token: &DocToken) -> Result<(), ProcessorError> {
+fn block_doc(
+    child: &mut Mapping,
+    source: &str,
+    token: &DocToken,
+) -> Result<(), ProcessorError> {
     if !source[token.start..token.end].ends_with("*/") {
         return Err(child.error("Authored Rustdoc block is unterminated; its closing delimiter cannot be projected safely."));
     }
@@ -192,7 +219,11 @@ fn block_doc(child: &mut Mapping, source: &str, token: &DocToken) -> Result<(), 
 /// ```ts
 /// function joinsRun(source: string, previous: DocToken, next: DocToken): boolean;
 /// ```
-fn joins_run(source: &str, previous: &DocToken, next: &DocToken) -> bool {
+fn joins_run(
+    source: &str,
+    previous: &DocToken,
+    next: &DocToken,
+) -> bool {
     // A block's prefix starts with `/*`; equal prefixes then also rule out a block before a line comment.
     if next.prefix.starts_with("/*") || next.prefix != previous.prefix {
         return false;
@@ -227,7 +258,10 @@ fn joins_run(source: &str, previous: &DocToken, next: &DocToken) -> bool {
 /// ```ts
 /// function units(source: string, comments: DocToken[]): DocToken[][];
 /// ```
-fn units<'tokens>(source: &str, comments: &'tokens [DocToken]) -> Vec<&'tokens [DocToken]> {
+fn units<'tokens>(
+    source: &str,
+    comments: &'tokens [DocToken],
+) -> Vec<&'tokens [DocToken]> {
     // Owned list of borrowed slices; `&[DocToken]` is a view into `comments`, unlike an owned `Vec<DocToken>` copy.
     let mut result: Vec<&'tokens [DocToken]> = Vec::new();
     let mut unit_start: usize = 0;
@@ -265,7 +299,9 @@ pub(crate) fn docs(parent: &Arc<Mapping>) -> Result<Vec<Mapping>, ProcessorError
             parent,
             name,
             ProcessorLanguage::Markdown,
-            Guard::Docs { anchor },
+            Guard::Docs {
+                anchor,
+            },
             anchor,
         );
         if block {
@@ -293,7 +329,9 @@ pub(crate) fn doc_text(
 ) -> Result<Option<String>, ProcessorError> {
     for mapping in docs(parent)? {
         // The let-chain retains a matching variant only when its authored anchor also matches.
-        if let Guard::Docs { anchor: candidate } = mapping.guard
+        if let Guard::Docs {
+            anchor: candidate,
+        } = mapping.guard
             && candidate == anchor
         {
             return Ok(Some(mapping.text));

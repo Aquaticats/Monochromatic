@@ -63,38 +63,82 @@ use std::io::Write;
 use std::os::unix::process::ExitStatusExt;
 
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `Child` (a started program that can be waited for),
 /// `Command` (build and start a program) and `ExitStatus` (how a finished program ended).
-use std::process::{Child, Command, ExitStatus};
+use std::process::{
+    Child,
+    Command,
+    ExitStatus,
+};
 
 /// Imports `cargo_home` from `crate::cargo_home`.
 use crate::cargo_home::cargo_home;
+/// Imports the cleanup text and the variable that asks for the per-path list.
+use crate::cleanup_report::{
+    VERBOSE_ENV,
+    cleanup_lines,
+};
 /// Imports `EXEC_FAILED_EXIT_CODE`,
 /// `NOT_FOUND_EXIT_CODE`,
 /// `SHADOWED_NAME`,
 /// `SIGNAL_EXIT_CODE_OFFSET` from `crate::constants`.
-use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
+use crate::constants::{
+    EXEC_FAILED_EXIT_CODE,
+    NOT_FOUND_EXIT_CODE,
+    SHADOWED_NAME,
+    SIGNAL_EXIT_CODE_OFFSET,
+};
+/// Imports the depth guard.
+use crate::nesting::{
+    NESTING_ENV,
+    must_refuse,
+    nesting_depth,
+};
 /// Imports `prune_stale_own_crates` from `crate::prune`.
 use crate::prune::prune_stale_own_crates_reporting;
-/// Imports the cleanup text and the variable that asks for the per-path list.
-use crate::cleanup_report::{VERBOSE_ENV, cleanup_lines};
-/// Imports the depth guard.
-use crate::nesting::{NESTING_ENV, must_refuse, nesting_depth};
-/// Imports the retrying start.
-use crate::start_retry::{RetryReport, StartAttempt, retry_refused_start};
-/// Imports the messages for a start that did not happen.
-use crate::start_failure::{StartFailure, command_line, describe_nesting_refusal, describe_start_failure};
-/// Imports what this module uses from `crate::shadow_notice`.
-/// Imports the notice that follows the tool's version and help.
-use crate::shadow_notice::{TopLevelRequest, help_section, top_level_request, version_line};
-/// Imports the environment view and the toolchain roots (where `install` records version-keyed installs).
-use crate::toolchain::scope::{EnvMap, toolchain_roots};
 /// Imports `find_in_path` from `crate::real_binary`.
 use crate::real_binary::find_in_path;
 /// Imports the arrival marker rules and the check made on the open program just before its start.
-use crate::shadow_identity::{ARRIVAL_EXIT_CODE, StartMode, Vetted, arrival_at_this_process, arrival_line, mark_start, vet};
+use crate::shadow_identity::{
+    ARRIVAL_EXIT_CODE,
+    StartMode,
+    Vetted,
+    arrival_at_this_process,
+    arrival_line,
+    mark_start,
+    vet,
+};
+/// Imports what this module uses from `crate::shadow_notice`.
+/// Imports the notice that follows the tool's version and help.
+use crate::shadow_notice::{
+    TopLevelRequest,
+    help_section,
+    top_level_request,
+    version_line,
+};
+/// Imports the messages for a start that did not happen.
+use crate::start_failure::{
+    StartFailure,
+    command_line,
+    describe_nesting_refusal,
+    describe_start_failure,
+};
+/// Imports the retrying start.
+use crate::start_retry::{
+    RetryReport,
+    StartAttempt,
+    retry_refused_start,
+};
+/// Imports the environment view and the toolchain roots (where `install` records version-keyed installs).
+use crate::toolchain::scope::{
+    EnvMap,
+    toolchain_roots,
+};
 
 /// What:
 /// `pub fn exit_code_of(status: ExitStatus) -> i32` declares a public function turning a finished child's
@@ -133,10 +177,22 @@ pub fn exit_code_of(status: ExitStatus) -> i32 {
 /// ```ts
 /// export function runProgram(program: string, args: string[]): number  // throws when the spawn fails
 /// ```
-pub fn run_program(program: &Path, arguments: &[OsString]) -> std::io::Result<i32> {
+pub fn run_program(
+    program: &Path,
+    arguments: &[OsString],
+) -> std::io::Result<i32> {
     return match start_and_wait(program, arguments, 0) {
-        ProgramRun::Finished { code, .. } => Ok(code),
-        ProgramRun::NotStarted { error, .. } | ProgramRun::WaitFailed { error } => Err(error),
+        ProgramRun::Finished {
+            code,
+            ..
+        } => Ok(code),
+        ProgramRun::NotStarted {
+            error,
+            ..
+        }
+        | ProgramRun::WaitFailed {
+            error,
+        } => Err(error),
     };
 }
 
@@ -194,7 +250,9 @@ impl StartAttempt<Child> for VettedSpawn<'_> {
     /// Spawns the vetted program once.
     fn attempt(&mut self) -> std::io::Result<Child> {
         let mut command: Command = self.vetted.command();
-        command.args(self.arguments).env(NESTING_ENV, self.child_depth.to_string());
+        command
+            .args(self.arguments)
+            .env(NESTING_ENV, self.child_depth.to_string());
         mark_start(&mut command, StartMode::Spawn);
         return command.spawn();
     }
@@ -212,17 +270,35 @@ impl StartAttempt<Child> for VettedSpawn<'_> {
 /// ```ts
 /// export function startAndWait(program: string, args: Buffer[], childDepth: number): ProgramRun
 /// ```
-pub fn start_and_wait(program: &Path, arguments: &[OsString], child_depth: u32) -> ProgramRun {
+pub fn start_and_wait(
+    program: &Path,
+    arguments: &[OsString],
+    child_depth: u32,
+) -> ProgramRun {
     // The program is checked while open and started through that file, and the child carries the arrival marker (`shadow_identity.rs`).
     let vetted: Vetted = match vet(program) {
         Ok(checked) => checked,
-        Err(reason) => return ProgramRun::NotStarted { error: std::io::Error::other(reason), retry: RetryReport::default() },
+        Err(reason) => {
+            return ProgramRun::NotStarted {
+                error: std::io::Error::other(reason),
+                retry: RetryReport::default(),
+            };
+        }
     };
-    let mut attempt: VettedSpawn<'_> = VettedSpawn { vetted: &vetted, arguments, child_depth };
+    let mut attempt: VettedSpawn<'_> = VettedSpawn {
+        vetted: &vetted,
+        arguments,
+        child_depth,
+    };
     let (started, retry) = retry_refused_start(&mut attempt);
     let mut child = match started {
         Ok(child) => child,
-        Err(error) => return ProgramRun::NotStarted { error, retry },
+        Err(error) => {
+            return ProgramRun::NotStarted {
+                error,
+                retry,
+            };
+        }
     };
     if retry.refusals > 0 {
         eprintln!(
@@ -233,8 +309,13 @@ pub fn start_and_wait(program: &Path, arguments: &[OsString], child_depth: u32) 
         );
     }
     return match child.wait() {
-        Ok(status) => ProgramRun::Finished { code: exit_code_of(status), retry },
-        Err(error) => ProgramRun::WaitFailed { error },
+        Ok(status) => ProgramRun::Finished {
+            code: exit_code_of(status),
+            retry,
+        },
+        Err(error) => ProgramRun::WaitFailed {
+            error,
+        },
     };
 }
 
@@ -300,7 +381,10 @@ fn prune_after_run() {
 /// ```ts
 /// function printShadowNotice(request: 'version' | 'help' | 'other', realMpm: string): void
 /// ```
-fn print_shadow_notice(request: TopLevelRequest, real_mpm: &Path) {
+fn print_shadow_notice(
+    request: TopLevelRequest,
+    real_mpm: &Path,
+) {
     let text: String = match request {
         TopLevelRequest::Version => version_line(real_mpm),
         TopLevelRequest::Help => help_section(real_mpm),
@@ -378,7 +462,10 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
 
     let request: TopLevelRequest = top_level_request(&arguments);
     match start_and_wait(&program, &arguments, depth + 1) {
-        ProgramRun::Finished { code, .. } => {
+        ProgramRun::Finished {
+            code,
+            ..
+        } => {
             // Like hub after git's version, but only after a successful plain `--version` or `--help` of mpm itself.
             if code == 0 {
                 print_shadow_notice(request, &program);
@@ -386,12 +473,23 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
             prune_after_run();
             return code;
         }
-        ProgramRun::NotStarted { error, retry } => {
-            let failure = StartFailure { outer: &arguments, program: &program, error: &error, retry, depth };
+        ProgramRun::NotStarted {
+            error,
+            retry,
+        } => {
+            let failure = StartFailure {
+                outer: &arguments,
+                program: &program,
+                error: &error,
+                retry,
+                depth,
+            };
             eprintln!("{}", describe_start_failure(&failure));
             return EXEC_FAILED_EXIT_CODE;
         }
-        ProgramRun::WaitFailed { error } => {
+        ProgramRun::WaitFailed {
+            error,
+        } => {
             eprintln!(
                 "mpm-shadow: started {} for `{}` but waiting for it failed ({error}); whether the command finished is unknown, and the post-run cleanup did not run",
                 program.display(),

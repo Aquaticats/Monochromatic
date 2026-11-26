@@ -1435,6 +1435,50 @@ so agent work is counted in one place.
 It carried `MemoryHigh=30G` for about fifteen minutes;
 the owner removed it ("I paid for the whole machine, I'm going to use the whole machine"), and it has no ceiling now.
 
+### A stall at 20:12 was memory, with the writeback in its wake (2026-11-25T20:12-05:00 to 20:30-05:00)
+
+The owner saw the whole desktop stall and suspected writeback to the old NVMe.
+At 20:12 `MemAvailable` read 4444 MiB, the ARC sat at `c_min`, memory "full" avg60 was 26.94 and IO "full" avg60 25.98, load 107.
+Ordinary file writeback was not it: `Dirty` 16 MiB, `Writeback` 0.
+The largest user was the read-only btrfs check of the old NVMe's data partition,
+20479 MiB at its `MemoryMax` plus 15318 MiB in zram, `memory.max` reached 341460 times,
+and it caused 30759 of the host's 48119 swap-ins a second (its `workingset_refault_anon` against `/proc/vmstat` `pswpin`, over 5 s).
+Over the partition's life to 20:13 the zram backing partition had served 26746226 reads at a mean wait of 0.29 ms
+and 41804838 writes at 0.92 ms, and a 5 s sample outside a writeback run showed the old drive 8% busy.
+While the check thrashed, each writeback run took 17 to 43 s and wrote 1.8 to 3.1 GiB
+(`bd_stat` writes 41328082 at 20:08:43 to 41804838 at 20:13:19, and 821869 pages in the run before),
+and read back up to 1552772 pages between two runs.
+On the owner's answer the check was stopped at about 20:21; `MemAvailable` read 21918 MiB minutes later and memory "full" avg10 0.00,
+and the runs after it wrote 20759 and then 289 pages, each finishing within the second it started.
+So the stall was memory, and how much the heavy writeback runs added to it is not shown by these numbers:
+the means span hours and the 5 s sample fell between runs.
+A sampler records the minute after each run's start and a control minute 150 s later, for three hours from 20:31,
+in `~/temp/agent/zram-writeback-stall-sampling-2026-11-25/keep/writeback-runs-and-control-minutes.log`,
+so the next heavy runs real load brings are measured against their own control.
+By 21:09 it held seven runs, which wrote between 56 thousand and 1.4 million pages each (`bd_stat` writes 43211870 at 20:34:03 to 46312496 at 21:04:17).
+Over the 467 sampled seconds of run minutes, IO "full" avg10 averaged 1.89 against 0.50 over 420 seconds of control minutes, and memory "full" 1.11 against 0.43;
+the old drive was 45% busy against 15%, and 90 to 99% busy in the seconds a run wrote 47 to 68 MiB/s, when IO "full" read 2.2 to 2.4.
+The largest reading, IO "full" 42.16 at 21:03:52, fell inside the run that ended 21:04:17 but in a second when the partition wrote nothing and the old drive was 3% busy,
+so the drive's own writes do not explain it; what does is not measured (one reading: the writeback holding zram1 while swap-ins wait on it, which these counters cannot show).
+Control minutes peaked at 5.17.
+
+The sampler ended at 2026-11-25T23:32:05-05:00 with 36 run minutes,
+each followed by its control minute
+(2111 sampled seconds of run minutes and 2160 of control minutes;
+from 21:13:23 each line also holds the main drive's write rate and busy time).
+Over the whole span IO "full" avg10 averaged 1.16 in run minutes against 0.66 in control minutes,
+and memory "full" 1.35 against 1.17,
+while the seconds with memory "full" at 5 or more were 52 in run minutes and 87 in control minutes.
+Pair by pair,
+the run minute read the higher IO "full" in 21 of the 36 pairs and the higher memory "full" in 17,
+splits that chance alone gives this often
+(21 or more of 36 by chance is about one time in five),
+and the largest stalls of the span fell in both kinds of minute:
+memory "full" 32.80 in the run minute from 21:18:04 and 18.32 in the control minute from 21:13:04.
+So the writeback to the old drive's partition shows no stall these readings can tell from the minutes without it;
+the earlier seven-run difference was the spread of a short sample,
+and the machine's stalls come from memory pressure whichever minute they fall in.
+
 A misreading to avoid: `systemctl --user show <scope> --property=MemoryMax` prints `infinity` for a scope that has already
 ended, because it reports defaults for a unit it no longer has;
 read `memory.max` in the scope's cgroup instead.

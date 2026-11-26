@@ -10,7 +10,11 @@ use crate::application_watch_state::watch_log_path;
 /// Escaping,
 /// the non-panicking write,
 /// and the marker of a notice about the log.
-use crate::log_line::{sanitize, write_unchecked, LOG_NOTICE_MARKER};
+use crate::log_line::{
+    LOG_NOTICE_MARKER,
+    sanitize,
+    write_unchecked,
+};
 /// The marker of a loud report.
 use crate::update_report::POLICY_NOT_IN_FORCE_MARKER;
 /// Reading the log.
@@ -21,7 +25,10 @@ const MAX_RELAY_BYTES: u64 = 1_048_576;
 
 /// Reads at most `MAX_RELAY_BYTES` of the watcher log from byte `offset` on,
 /// so a long-lived log is never read whole.
-fn read_watch_log_since(key: &str, offset: u64) -> io::Result<String> {
+fn read_watch_log_since(
+    key: &str,
+    offset: u64,
+) -> io::Result<String> {
     let path = watch_log_path(key)?;
     let mut file = match std::fs::File::open(path) {
         Ok(file) => file,
@@ -37,7 +44,10 @@ fn read_watch_log_since(key: &str, offset: u64) -> io::Result<String> {
 /// The loud lines in the part of `log` that starts at byte `offset`,
 /// which is what the new watcher wrote since the start began.
 /// Earlier lines belong to earlier runs and are left out.
-pub fn failure_lines_since(log: &str, offset: u64) -> Vec<String> {
+pub fn failure_lines_since(
+    log: &str,
+    offset: u64,
+) -> Vec<String> {
     let start = usize::try_from(offset).unwrap_or(usize::MAX).min(log.len());
     let fresh = String::from_utf8_lossy(&log.as_bytes()[start..]).into_owned();
     let mut lines: Vec<String> = Vec::new();
@@ -58,7 +68,10 @@ const MAX_RELAYED_LINES: usize = 200;
 /// escaped,
 /// then one line saying how many more there are in the log,
 /// so a start with many findings never drops one without saying so.
-pub fn relayed_text(lines: &[String], log_path: &str) -> Vec<String> {
+pub fn relayed_text(
+    lines: &[String],
+    log_path: &str,
+) -> Vec<String> {
     let mut printed: Vec<String> = Vec::new();
     for line in lines.iter().take(MAX_RELAYED_LINES) {
         printed.push(sanitize(line));
@@ -74,7 +87,10 @@ pub fn relayed_text(lines: &[String], log_path: &str) -> Vec<String> {
 }
 
 /// Prints the relayed text to the terminal.
-fn relay_lines(lines: &[String], log_path: &str) {
+fn relay_lines(
+    lines: &[String],
+    log_path: &str,
+) {
     for line in relayed_text(lines, log_path) {
         write_unchecked(&line);
     }
@@ -83,8 +99,14 @@ fn relay_lines(lines: &[String], log_path: &str) {
 /// Prints the loud lines the new watcher wrote to its log since `offset`,
 /// so a failure at startup reaches the terminal that ran `up`.
 /// The log stays the full record.
-pub fn forward_startup_failures(key: &str, offset: u64) -> io::Result<()> {
+pub fn forward_startup_failures(
+    key: &str,
+    offset: u64,
+) -> io::Result<()> {
     let text = read_watch_log_since(key, offset)?;
-    relay_lines(&failure_lines_since(&text, 0), &watch_log_path(key)?.display().to_string());
+    relay_lines(
+        &failure_lines_since(&text, 0),
+        &watch_log_path(key)?.display().to_string(),
+    );
     return Ok(());
 }

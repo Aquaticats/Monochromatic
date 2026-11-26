@@ -72,7 +72,10 @@ use std::thread::Thread;
 /// ```ts
 /// import type { DeviceTrait, HostTrait } from "cpal";
 /// ```
-use cpal::traits::{DeviceTrait, HostTrait};
+use cpal::traits::{
+    DeviceTrait,
+    HostTrait,
+};
 
 /// What:
 ///      `use ringbuf::HeapProd;` imports the WRITE end of the lock-free ring buffer that carries samples to the
@@ -202,9 +205,9 @@ fn open_alsa(worker: Thread) -> Result<alsa_backend::Output, PlayerError> {
     // ```ts
     // try { device.defaultOutputConfig(); } catch (e) { throw new PlayerError(`the default ALSA device cannot be opened: ${e}`); }
     // ```
-    let _config = device
-        .default_output_config()
-        .map_err(|e| return PlayerError::Audio(format!("the default ALSA device cannot be opened: {e:?}")))?;
+    let _config = device.default_output_config().map_err(|e| {
+        return PlayerError::Audio(format!("the default ALSA device cannot be opened: {e:?}"));
+    })?;
     // What:     `return alsa_backend::Output::new(worker)` builds the real backend and returns its `Result` as is.
     // Why:      The probe passed, so create the output the controller will use.
     //
@@ -234,7 +237,10 @@ fn open_alsa(worker: Thread) -> Result<alsa_backend::Output, PlayerError> {
 ///   return `PipeWire: ${pipewireError}; ALSA: ${alsaError}`;
 /// }
 /// ```
-pub(crate) fn both_failed_message(pipewire_error: &PlayerError, alsa_error: &PlayerError) -> String {
+pub(crate) fn both_failed_message(
+    pipewire_error: &PlayerError,
+    alsa_error: &PlayerError,
+) -> String {
     // What:     `format!(...)` builds an owned `String` from a template, like a TS template literal. The `{name}`
     //           holes print each error's human-readable `Display` text. This line is the tail expression, so it is
     //           the return value.
@@ -375,7 +381,10 @@ impl Output {
                     // throw new PlayerError(`PipeWire: ${pipewireError}; ALSA: ${alsaError}`);
                     // ```
                     Err(alsa_error) => {
-                        return Err(PlayerError::Audio(both_failed_message(&pipewire_error, &alsa_error)));
+                        return Err(PlayerError::Audio(both_failed_message(
+                            &pipewire_error,
+                            &alsa_error,
+                        )));
                     }
                 }
             }
@@ -425,7 +434,10 @@ impl Output {
     /// ```ts
     /// setPlaying(on: boolean): void { this.inner.setPlaying(on); }
     /// ```
-    pub fn set_playing(&self, on: bool) {
+    pub fn set_playing(
+        &self,
+        on: bool,
+    ) {
         match self {
             Output::PipeWire(output) => output.set_playing(on),
             Output::Alsa(output) => output.set_playing(on),
@@ -441,7 +453,10 @@ impl Output {
     /// ```ts
     /// setDraining(on: boolean): void { this.inner.setDraining(on); }
     /// ```
-    pub fn set_draining(&self, on: bool) {
+    pub fn set_draining(
+        &self,
+        on: bool,
+    ) {
         match self {
             Output::PipeWire(output) => output.set_draining(on),
             Output::Alsa(output) => output.set_draining(on),

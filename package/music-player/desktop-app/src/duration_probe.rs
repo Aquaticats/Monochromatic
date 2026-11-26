@@ -20,7 +20,11 @@ use std::path::Path;
 use symphonia::core::formats::probe::Hint;
 /// Imports the format options,
 /// the reader trait and the track type that read the container header.
-use symphonia::core::formats::{FormatOptions, FormatReader, TrackType};
+use symphonia::core::formats::{
+    FormatOptions,
+    FormatReader,
+    TrackType,
+};
 /// Imports the media source stream that wraps the file for the probe.
 use symphonia::core::io::MediaSourceStream;
 /// Imports the metadata options that the probe is called with.
@@ -99,7 +103,10 @@ fn duration_of_first_audio_track(format: &dyn FormatReader) -> Option<f64> {
 /// ```ts
 /// const framesToSecs = (frames: number, rate: number) => (rate > 0 ? frames / rate : null);
 /// ```
-fn frames_to_secs(frames: u64, rate: u32) -> Option<f64> {
+fn frames_to_secs(
+    frames: u64,
+    rate: u32,
+) -> Option<f64> {
     if rate == 0 {
         return None;
     }

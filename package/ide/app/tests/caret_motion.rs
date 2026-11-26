@@ -16,7 +16,12 @@
 /// ```
 use helix_core::Rope;
 /// The movements under test.
-use ide_app::caret_motion::{Motion, line_range, moved, word_range};
+use ide_app::caret_motion::{
+    Motion,
+    line_range,
+    moved,
+    word_range,
+};
 
 /// What:
 ///  Apply one movement repeatedly and collect every position it visits;
@@ -30,7 +35,11 @@ use ide_app::caret_motion::{Motion, line_range, moved, word_range};
 /// ```ts
 /// function walk(source: string, start: number, motion: Motion): number[];
 /// ```
-fn walk(source: &str, start: usize, motion: Motion) -> Vec<usize> {
+fn walk(
+    source: &str,
+    start: usize,
+    motion: Motion,
+) -> Vec<usize> {
     // What: `Rope::from_str` copies the borrowed text into an owned rope; `slice(..)` lends all of it.
     // Why: Movement reads the same rope type the document owns.
     //
@@ -52,7 +61,11 @@ fn walk(source: &str, start: usize, motion: Motion) -> Vec<usize> {
 }
 
 /// One movement from one position.
-fn step(source: &str, head: usize, motion: Motion) -> usize {
+fn step(
+    source: &str,
+    head: usize,
+    motion: Motion,
+) -> usize {
     let rope = Rope::from_str(source);
     return moved(rope.slice(..), head, motion);
 }
@@ -144,7 +157,10 @@ fn word_steps_stop_at_word_and_punctuation_runs_across_lines() {
 }
 
 /// The unit a double click selects at a caret boundary.
-fn word(source: &str, position: usize) -> (usize, usize) {
+fn word(
+    source: &str,
+    position: usize,
+) -> (usize, usize) {
     let rope = Rope::from_str(source);
     return word_range(rope.slice(..), position);
 }
@@ -201,7 +217,10 @@ fn word_range_prefers_a_word_and_stays_on_its_line() {
 }
 
 /// The unit a triple click selects.
-fn line(source: &str, position: usize) -> (usize, usize) {
+fn line(
+    source: &str,
+    position: usize,
+) -> (usize, usize) {
     let rope = Rope::from_str(source);
     return line_range(rope.slice(..), position);
 }

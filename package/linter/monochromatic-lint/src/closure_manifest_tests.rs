@@ -10,7 +10,13 @@
 //! test.each(cases)('manifest %s', (source, expected) => expect(parsePrerequisites(source)).toEqual(expected));
 //! ```
 
-use super::{KINDS, PREREQUISITES_FILE, Prerequisite, parse_prerequisites, read_prerequisites};
+use super::{
+    KINDS,
+    PREREQUISITES_FILE,
+    Prerequisite,
+    parse_prerequisites,
+    read_prerequisites,
+};
 use crate::test_fs::Fixture;
 
 /// Every kind in one manifest,

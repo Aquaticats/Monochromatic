@@ -20,7 +20,10 @@
 //!  so a client can draw the new size before the next capture.
 
 /// Error text that is built only on failure.
-use crate::lazy_error_text::{failed_error, with_message};
+use crate::lazy_error_text::{
+    failed_error,
+    with_message,
+};
 /// What:
 ///      Grouped `use` of paths,
 ///  the free-standing directory creator,
@@ -35,7 +38,10 @@ use crate::lazy_error_text::{failed_error, with_message};
 use std::{
     fs::create_dir_all,
     path::PathBuf,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// What:
@@ -45,8 +51,11 @@ use std::{
 /// Why:
 ///       The recorder registers a rescheduling timer source and removes it on stop.
 use smithay::reexports::calloop::{
-    timer::{TimeoutAction, Timer},
     RegistrationToken,
+    timer::{
+        TimeoutAction,
+        Timer,
+    },
 };
 
 /// What:
@@ -61,7 +70,10 @@ use anyhow::Result;
 ///  Log macros.
 /// Why:
 ///       Report recording start/stop and per-frame readback failures.
-use tracing::{info, warn};
+use tracing::{
+    info,
+    warn,
+};
 
 /// What:
 ///      `use crate::{encoder::{EncoderPool, Format, Frame}, render, screenshot,
@@ -83,8 +95,13 @@ use tracing::{info, warn};
 /// import { EncoderPool, Format, Frame } from "./encoder"; import * as screenshot from "./screenshot";
 /// ```
 use crate::{
-    encoder::{EncoderPool, Format, Frame},
-    render, screenshot,
+    encoder::{
+        EncoderPool,
+        Format,
+        Frame,
+    },
+    render,
+    screenshot,
     state::Compositor,
 };
 
@@ -190,7 +207,12 @@ pub struct Recorder {
 /// ```ts
 /// function start(state, dir, fps, format): void { ... }
 /// ```
-pub fn start(state: &mut Compositor, dir: PathBuf, fps: f64, format: Format) -> Result<()> {
+pub fn start(
+    state: &mut Compositor,
+    dir: PathBuf,
+    fps: f64,
+    format: Format,
+) -> Result<()> {
     // What:     `if state.recorder.is_some() { anyhow::bail!(...); }`. Reject a second
     //           concurrent recording.
     // Why:      One recorder at a time keeps the model simple.
@@ -207,7 +229,10 @@ pub fn start(state: &mut Compositor, dir: PathBuf, fps: f64, format: Format) -> 
     // What:     `create_dir_all(&dir).with_context(...)?;`. Ensure the output directory
     //           exists (creating parents).
     // Why:      Workers write frame files into it.
-    with_message(create_dir_all(&dir), format_args!("creating capture directory {}", dir.display()))?;
+    with_message(
+        create_dir_all(&dir),
+        format_args!("creating capture directory {}", dir.display()),
+    )?;
 
     // What:     `let workers = worker_count();`. Choose the encoder thread count.
     // Why:      Size the pool to the machine, leaving cores for the app and render thread.
@@ -230,7 +255,9 @@ pub fn start(state: &mut Compositor, dir: PathBuf, fps: f64, format: Format) -> 
     //           |_, _, state| tick(state)).map_err(...)?;`. Register the rescheduling timer;
     //           the callback runs `tick` on the render thread.
     // Why:      The steady capture clock.
-    let inserted = state.loop_handle.insert_source(Timer::from_duration(period), on_capture_timer);
+    let inserted = state
+        .loop_handle
+        .insert_source(Timer::from_duration(period), on_capture_timer);
     let token = failed_error(inserted, "registering the capture timer failed")?;
 
     // What:     `let now = Instant::now();`. The schedule origin.
@@ -256,7 +283,7 @@ pub fn start(state: &mut Compositor, dir: PathBuf, fps: f64, format: Format) -> 
 
     // What:     `Ok(())`. Success.
     // Why:      Recording is live.
-    return Ok(())
+    return Ok(());
 }
 
 /// Stop recording:
@@ -306,7 +333,7 @@ pub fn stop(state: &mut Compositor) -> Option<RecordStats> {
         failures,
         seconds,
         fps,
-    })
+    });
 }
 
 /// The capture timer's callback:
@@ -318,8 +345,12 @@ pub fn stop(state: &mut Compositor) -> Option<RecordStats> {
 ///  which it leaves empty.
 /// Why:
 ///       A named function replaces the closure the timer source took.
-fn on_capture_timer(_deadline: Instant, _metadata: &mut (), event_state: &mut Compositor) -> TimeoutAction {
-    return tick(event_state)
+fn on_capture_timer(
+    _deadline: Instant,
+    _metadata: &mut (),
+    event_state: &mut Compositor,
+) -> TimeoutAction {
+    return tick(event_state);
 }
 
 /// One capture tick:
@@ -354,7 +385,7 @@ fn tick(state: &mut Compositor) -> TimeoutAction {
 
     // What:     `action`. The next-deadline instruction (tail expression).
     // Why:      Tell calloop when to fire again.
-    return action
+    return action;
 }
 
 /// Per-tick capture logic for the recorder.
@@ -378,7 +409,10 @@ impl Recorder {
     ///  so the readback can borrow `state` mutably.
     /// Why:
     ///       The body of a tick.
-    fn capture_and_reschedule(&mut self, state: &mut Compositor) -> TimeoutAction {
+    fn capture_and_reschedule(
+        &mut self,
+        state: &mut Compositor,
+    ) -> TimeoutAction {
         // What:     `match self.pool.take_buffer() { Some(buffer) => ..., None => ... }`.
         //           Take a free buffer; `None` means every buffer is in flight (encoders are
         //           behind).
@@ -415,7 +449,7 @@ impl Recorder {
         // What:     `TimeoutAction::ToInstant(self.next_tick)`. Fire again at the absolute
         //           next deadline (tail expression).
         // Why:      Hold the target rate precisely.
-        return TimeoutAction::ToInstant(self.next_tick)
+        return TimeoutAction::ToInstant(self.next_tick);
     }
 
     /// Read one frame into `buffer` and submit it to the encoder pool.
@@ -427,7 +461,11 @@ impl Recorder {
     ///           buffer to the pool and counts a drop.
     /// Why:
     ///       Keep the buffer accounting in one place.
-    fn capture_into(&mut self, state: &mut Compositor, buffer: &mut Vec<u8>) {
+    fn capture_into(
+        &mut self,
+        state: &mut Compositor,
+        buffer: &mut Vec<u8>,
+    ) {
         // What:     `match screenshot::read_frame(state, buffer) { Ok((w, h)) => ..., Err(err)
         //           => ... }`. Render + read back into the pooled buffer.
         // Why:      Fill the buffer or handle a readback failure.
@@ -493,5 +531,5 @@ fn worker_count() -> usize {
     // What:     `cores.saturating_sub(RESERVED_CORES).max(MIN_WORKERS)`. Reserve cores, then
     //           enforce the floor. `saturating_sub` avoids underflow on tiny machines.
     // Why:      Leave headroom while guaranteeing at least `MIN_WORKERS` encoders.
-    return cores.saturating_sub(RESERVED_CORES).max(MIN_WORKERS)
+    return cores.saturating_sub(RESERVED_CORES).max(MIN_WORKERS);
 }
