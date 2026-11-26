@@ -22,19 +22,15 @@
 //!  "Building later pieces ahead of the plan's order").
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
 //! - `origin_mark.rs`:
 //!   the mark's property,
 //!   its three states and the one read of it the origin-cleanup design assumes.
-//! - `removal_history.rs`:
-//!   the loss a plan already records and the one sentence a refusal prints from it.
 //! - `origin_refusals.rs`:
 //!   the fields a plan must carry,
 //!   the object each cause names,
 //!   the three message forms and what a refusal leaves.
-//! - `planned_origin.rs`:
-//!   the identities a removal planned, and the refusal of a plan that lacks one.
 //! - `origin_refusal.rs`:
 //!   each cause as a typed value,
 //!   with the fields its message names.
@@ -42,6 +38,12 @@
 //!   the part of a message that names the cause,
 //!   its object,
 //!   its field and the mark's two counts.
+//! - `planned_origin.rs`:
+//!   the identities a removal planned, and the refusal of a plan that lacks one.
+//! - `origin_verdict.rs`:
+//!   the check at both call sites, the look before the unmount, and the three reads.
+//! - `removal_history.rs`:
+//!   the loss a plan already records and the one sentence a refusal prints from it.
 //! - `origin_refusal_words.rs`:
 //!   the three forms of message and the ways forward.
 //! - `origin_refusal_answers.rs`:
@@ -50,8 +52,6 @@
 //!   record rule,
 //!   the clone and slot it names,
 //!   and its message.
-//! - `origin_verdict.rs`:
-//!   the check at both call sites, the look before the unmount, and the three reads.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
