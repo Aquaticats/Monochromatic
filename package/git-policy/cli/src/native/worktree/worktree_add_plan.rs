@@ -360,8 +360,10 @@ pub fn add_is_quiet(
 
 /// What:
 ///  The Git release whose `handle_options` the global option tables below copy:
-///  its major and minor numbers, one `u64` each.
-///  `u64` and not `u32` or `i64`, the siblings a reader might expect,
+///  its major and minor numbers,
+///  one `u64` each.
+///  `u64` and not `u32` or `i64`,
+///  the siblings a reader might expect,
 ///  because `parse_git_version` answers with `u64` numbers,
 ///  so the control compares like with like.
 /// Why:
@@ -372,14 +374,16 @@ pub fn add_is_quiet(
 ///  The control in `worktree_add_plan_tests.rs` refuses a Git newer than this release,
 ///  so these tables are compared with that Git's `handle_options` before this constant moves.
 ///  Only the major and minor numbers are compared:
-///  a later patch release is taken to add no global option, and these tables stand for it.
+///  a later patch release is taken to add no global option,
+///  and these tables stand for it.
 ///  It is `pub` because the release build never reads it:
-///  the tables below are used by `copy_start_directory`, and this release fact is read by the
-///  control and by anyone comparing the tables with a Git, so it is part of this module's API
-///  and not a private constant the release holds unused.
+///  the tables below are used by `copy_start_directory`,
+///  and this release fact is read by the control and by anyone comparing the tables with a Git,
+///  so it is part of this module's API and not a private constant the release holds unused.
 /// Source:
 ///  `git.c` at tag `v2.56.0` of `git/git`,
-///  `handle_options`, lines 157 to 370,
+///  `handle_options`,
+///  lines 157 to 370,
 ///  and the same arms in that file at `v2.56.1`.
 ///  The arm that ends its chain decides that Git accepts nothing else:
 ///  `} else {` /
@@ -399,8 +403,10 @@ pub fn add_is_quiet(
 ///  `-v` end the loop as the command word itself (lines 171 to 173),
 ///  so they name no global option either.
 ///  Two forms are read by `copy_start_directory` itself rather than by a table:
-///  `-C`, which moves the start,
-///  and `--exec-path=<path>`, which sets the path and lets the command run.
+///  `-C`,
+///  which moves the start,
+///  and `--exec-path=<path>`,
+///  which sets the path and lets the command run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

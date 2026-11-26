@@ -660,7 +660,8 @@ fn a_destination_below_missing_directories_is_read_without_them() {
 }
 
 /// What:
-///  The Git installed here, against the release whose global option table this reading holds.
+///  The Git installed here,
+///  against the release whose global option table this reading holds.
 /// Why:
 ///   A newer Git may accept a global option the copy does not list,
 ///  and the reading then cannot tell where that option's value ends,
