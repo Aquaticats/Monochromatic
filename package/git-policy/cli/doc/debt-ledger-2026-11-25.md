@@ -286,6 +286,58 @@ and three threaded-only failures are filed and open:
 6485 and
 6487.
 
+Round of 2026-11-26,
+issue 6496:
+the child guard of two `ran_in_child` controls was inverted
+(`subvolume::subvolume_index_files::parallel_tests`,
+`a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it`,
+and `subvolume::subvolume_index_refresh_of_every_worktree`,
+`an_index_rewrite_reported_as_never_started_does_not_run_afterwards`),
+so the process that started the child ran the body as well and lowered the whole run's `RLIMIT_NPROC` to one:
+three other controls of the module failed at their fixture's first Git start with `EAGAIN`,
+and the inverted control itself failed because that process's blocking pool already had a thread.
+Both now return in the process that started the child,
+and the setters refuse everywhere else and name the starter:
+`refuse_threads_again`,
+`let_threads_start_again`,
+and the syncs' count (`take_sync_counts`,
+mechanism 3a),
+whose readers now own a process each (the two of this module and the two of `lock::single_owner_claim`),
+as this item's fix asks;
+the control that holds the process's one place in this module owns a process too.
+`cargo test --locked --offline --lib --features test-only-switches
+subvolume::subvolume_index_files::parallel_tests -- --skip guest --skip _arm_tests`
+answered `test result: ok. 12 passed; 0 failed`,
+from 6 passed and 6 failed on `main` at `f9096f7531`,
+and `lock::single_owner_claim::tests` answered `ok. 16 passed; 0 failed`,
+from 15 passed and 1 failed.
+The `hold_the_only_place` sites of other modules stay as measured:
+`worktree::worktree_clean::tests` fails
+`the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool`
+in three of four threaded runs on `main` itself.
+
+Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6498-worktree-copy-control-turns-syncs-off-for-the-process`:
+issue 6498 is fixed,
+and mechanism 3a has no site left.
+The switch's last five callers in the tests
+(`worktree_copying/worktree_copy_lifecycle_tests.rs`) ran the control bodies that set it in the shared process,
+and `skip_the_durability_syncs_here` now refuses any process that is not a child of the control's own
+(`testing/process_wide_state_child_test_support.rs`),
+as the room and the bound do;
+the one control that is the refusal is `foundation::private_storage::tests::the_durability_switch_refuses_a_process_that_is_not_its_child`.
+Measured on this host,
+two controls of this item in one process with `--test-threads=1` and libtest's `-Z unstable-options --shuffle-seed`:
+`worktree_copying::worktree_copy::tests::a_refused_add_leaves_no_record_for_the_worktree_another_command_completed`
+beside `foundation::private_storage::tests::directory_sync_needs_the_directory`
+answered `1 passed; 1 failed` at seed 1 and at seed 3,
+where the second control's refused `sync_directory` of a missing folder answered `Ok`,
+and `2 passed; 0 failed` at seeds 0 and 2;
+after the change seeds 1 and 3 answer `2 passed; 0 failed`.
+`cargo test --locked --offline --lib --features test-only-switches foundation:: -- --skip guest --skip _arm_tests`
+answered `test result: ok. 395 passed; 0 failed; 8 ignored`,
+and `worktree_copying::worktree_copy::` answered `test result: ok. 47 passed; 0 failed; 0 ignored`.
+
 Round of 2026-11-26:
 issue 6497 is fixed,
 the three heartbeat controls of `service/service_server_connection_handling_tests.rs` that failed together in one
