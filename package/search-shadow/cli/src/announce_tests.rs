@@ -14,7 +14,13 @@
 //! ```
 
 /// Imports what is under test.
-use crate::announce::{Announcement, announced_flags, announcement_for, help_section, version_line};
+use crate::announce::{
+    Announcement,
+    announced_flags,
+    announcement_for,
+    help_section,
+    version_line,
+};
 
 /// Imports the list of shadowed names,
 /// to prove the flag table covers every one.
@@ -60,8 +66,14 @@ fn every_shadowed_name_has_flags_and_an_unshadowed_name_has_none() {
         let maybe_flags = announced_flags(name);
         assert!(maybe_flags.is_some(), "{name} has no announced flags");
         let flags = maybe_flags.expect("checked above");
-        assert!(flags.version.contains(&"--version"), "{name} must announce --version");
-        assert!(flags.help.contains(&"--help"), "{name} must announce --help");
+        assert!(
+            flags.version.contains(&"--version"),
+            "{name} must announce --version"
+        );
+        assert!(
+            flags.help.contains(&"--help"),
+            "{name} must announce --help"
+        );
     }
     assert!(announced_flags("search-shadow").is_none());
     assert!(announced_flags("cat").is_none());
@@ -108,19 +120,40 @@ fn each_tool_recognizes_exactly_its_own_lone_version_and_help_flags() {
     }
     for (name, version_flags, help_flags) in EXPECTED {
         for flag in *version_flags {
-            assert_eq!(announcement_for(name, &texts(&[flag])), Some(Announcement::Version), "{name} {flag}");
+            assert_eq!(
+                announcement_for(name, &texts(&[flag])),
+                Some(Announcement::Version),
+                "{name} {flag}"
+            );
         }
         for flag in *help_flags {
-            assert_eq!(announcement_for(name, &texts(&[flag])), Some(Announcement::Help), "{name} {flag}");
+            assert_eq!(
+                announcement_for(name, &texts(&[flag])),
+                Some(Announcement::Help),
+                "{name} {flag}"
+            );
         }
         // Spellings that look like a request but are not one for this tool.
-        for flag in ["-h", "-V", "-?", "-v", "-version", "-help", "--versions", "--HELP"] {
+        for flag in [
+            "-h",
+            "-V",
+            "-?",
+            "-v",
+            "-version",
+            "-help",
+            "--versions",
+            "--HELP",
+        ] {
             let expected_version = version_flags.contains(&flag);
             let expected_help = help_flags.contains(&flag);
             if expected_version || expected_help {
                 continue;
             }
-            assert_eq!(announcement_for(name, &texts(&[flag])), None, "{name} {flag} must pass through untouched");
+            assert_eq!(
+                announcement_for(name, &texts(&[flag])),
+                None,
+                "{name} {flag} must pass through untouched"
+            );
         }
     }
 }
@@ -148,18 +181,33 @@ fn short_flags_with_another_meaning_are_not_requests() {
 fn only_a_lone_flag_is_a_top_level_request() {
     assert_eq!(announcement_for("rg", &texts(&["--version", "foo"])), None);
     assert_eq!(announcement_for("rg", &texts(&["foo", "--version"])), None);
-    assert_eq!(announcement_for("rg", &texts(&["--no-config", "--help"])), None);
+    assert_eq!(
+        announcement_for("rg", &texts(&["--no-config", "--help"])),
+        None
+    );
     assert_eq!(announcement_for("rg", &texts(&["--"])), None);
     assert_eq!(announcement_for("rg", &[]), None);
-    assert_eq!(announcement_for("rg", &[OsString::from_vec(vec![0xff, 0x2d])]), None);
-    assert_eq!(announcement_for("search-shadow", &texts(&["--version"])), None);
+    assert_eq!(
+        announcement_for("rg", &[OsString::from_vec(vec![0xff, 0x2d])]),
+        None
+    );
+    assert_eq!(
+        announcement_for("search-shadow", &texts(&["--version"])),
+        None
+    );
 }
 
 /// The version line has the exact documented shape.
 #[test]
 fn the_version_line_names_the_shadow_its_version_the_tool_and_the_real_path() {
     let line = version_line("rg", Path::new("/usr/bin/rg"));
-    assert_eq!(line, format!("search-shadow {}, shadowing rg at /usr/bin/rg\n", env!("CARGO_PKG_VERSION")));
+    assert_eq!(
+        line,
+        format!(
+            "search-shadow {}, shadowing rg at /usr/bin/rg\n",
+            env!("CARGO_PKG_VERSION")
+        )
+    );
 }
 
 /// A relative real path is made absolute,
@@ -176,17 +224,32 @@ fn a_relative_real_path_is_printed_absolute() {
 #[test]
 fn the_help_section_starts_with_the_version_line_and_describes_the_tools_policy() {
     let rg = help_section("rg", Path::new("/usr/bin/rg"));
-    assert!(rg.starts_with(&format!("\n{}", version_line("rg", Path::new("/usr/bin/rg")))), "{rg}");
+    assert!(
+        rg.starts_with(&format!(
+            "\n{}",
+            version_line("rg", Path::new("/usr/bin/rg"))
+        )),
+        "{rg}"
+    );
     assert!(rg.ends_with('\n'));
-    assert!(rg.contains("-r") && rg.contains("--replace") && rg.contains("SEARCH_SHADOW_ALLOW_WIDE=1"), "{rg}");
+    assert!(
+        rg.contains("-r") && rg.contains("--replace") && rg.contains("SEARCH_SHADOW_ALLOW_WIDE=1"),
+        "{rg}"
+    );
 
     let grep = help_section("egrep", Path::new("/usr/bin/egrep"));
-    assert!(grep.contains("recursive search") && grep.contains("SEARCH_SHADOW_ALLOW_WIDE=1"), "{grep}");
+    assert!(
+        grep.contains("recursive search") && grep.contains("SEARCH_SHADOW_ALLOW_WIDE=1"),
+        "{grep}"
+    );
 
     let find = help_section("bfs", Path::new("/usr/bin/bfs"));
     assert!(find.contains("-maxdepth 3"), "{find}");
 
     let tree = help_section("tree", Path::new("/usr/bin/tree"));
     assert!(tree.contains("never refuses"), "{tree}");
-    assert!(!tree.contains("--replace") && !tree.contains("-maxdepth"), "{tree}");
+    assert!(
+        !tree.contains("--replace") && !tree.contains("-maxdepth"),
+        "{tree}"
+    );
 }
