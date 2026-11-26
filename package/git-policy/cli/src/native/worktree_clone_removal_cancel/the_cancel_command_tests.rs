@@ -22,26 +22,39 @@ use super::{
     cancel_the_removal,
 };
 use crate::testing::test_support::fixture;
-use crate::worktree_clone_binding_record::registration_home::plans_folder;
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    home_folder,
+    plans_folder,
+};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
     DatasetReader,
     ListedChild,
     ReadFailure,
 };
-use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
+use crate::worktree_clone_mount_protocol::clone_mount_intent::{
+    MountIntent,
+    MountOperation,
+};
 use crate::worktree_clone_removal_cancel::cancel_arguments::CancelRequest;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
 use crate::worktree_clone_removal_cancel::cancel_stand_ins::{
     NeverRead,
     RecordingMountRequest,
+    RewritingClaim,
     ScriptedClaim,
     ScriptedStaged,
+    TwoClones,
+    a_nonce,
     a_pool_carrying,
     a_repository_with_its_pointer,
+    an_intent_property,
     an_order,
     an_whole_answer,
     steps,
+    the_binding_naming_another_clone,
 };
+use crate::worktree_clone_removal_cancel::the_removal_claim::TheRemovalClaim;
 use crate::worktree_clone_removal_cancel::the_slot_mount::TheSlotMount;
 use crate::worktree_clone_removal_cancel::the_staged_state::StagedSettlement;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::{
@@ -51,19 +64,25 @@ use crate::worktree_clone_removal_proof_and_plan::plan_record::{
 use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     CLONE,
+    CLONE_CREATETXG,
     CLONE_GUID,
+    ORIGIN_SNAPSHOT,
     RemovalFixture,
     SLOT,
     ScriptedPool,
     guid,
+    the_stats,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_slot_state::slot_state_mounts::CloneMount;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasetInstance;
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
+use std::cell::Cell;
 use std::path::{
     Path,
     PathBuf,
 };
+use std::rc::Rc;
 
 /// What:
 ///  A mount table the control writes.
@@ -143,12 +162,12 @@ fn a_run<'a>(
     repository: &'a RemovalFixture,
     checkout: &'a Path,
     home: &'a Path,
-    pool: &'a ScriptedPool,
+    pool: &'a dyn RemovalPoolReads,
     table: &'a dyn TheSlotMount,
     absence: &'a dyn DatasetReader,
     request: &'a RecordingMountRequest,
     staged: &'a ScriptedStaged,
-    claim: &'a ScriptedClaim,
+    claim: &'a dyn TheRemovalClaim,
     slot: &'a CancelRequest,
 ) -> TheCancelCommand<'a> {
     return TheCancelCommand {
@@ -494,4 +513,133 @@ impl DatasetReader for TheCloneWasDestroyed {
     ) -> Result<Option<ListedChild>, String> {
         return Ok(None);
     }
+}
+
+/// The GUID the record under the claim names,
+/// which is another clone of the same origin at the same slot.
+const THE_SECOND_CLONES_GUID: u64 = 9_876_543_210_987_654_321;
+
+/// What:
+///  A binding rewritten between the records' proof and the one under the claim refuses with
+///  the GUID the claim was taken by and the one the records name now,
+///  and acts on nothing.
+/// Why:
+///  The claim was taken by the GUID the first proof read,
+///  so a record naming another clone under that claim is the disagreement the comparison
+///  exists for:
+///  a second act rewrote the slot's records while the first command's claim stood,
+///  and acting on them would reverse a removal the claim does not cover.
+///  Plant q04 of the alpha.47 release pass dropped that comparison and every test of
+///  `worktree_clone_removal_cancel::` stayed green,
+///  because no control rewrote the binding between the two proofs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = rewritingClaim(binding, anotherCloneGuid);
+/// expect(cancelTheRemoval(input)).rejects.toMatchObject({ kind: 'the-records-disagree', first: '12345678901234567890', second: other });
+/// ```
+#[test]
+fn a_binding_rewritten_under_the_claim_refuses_with_the_two_guids() {
+    let (repository, checkout): (RemovalFixture, PathBuf) =
+        a_repository_with_its_pointer("cancel-command-guid-under-the-claim");
+    let before: ScriptedPool = a_pool_carrying(&repository, MountOperation::Unmount);
+    // The clone a second act left at the same name:
+    // another GUID, the same origin and the same own request.
+    let after: ScriptedPool = before.copy().with(
+        CLONE,
+        DatasetIdentity {
+            stats: the_stats(
+                THE_SECOND_CLONES_GUID,
+                false,
+                CLONE_CREATETXG,
+                0,
+                ORIGIN_SNAPSHOT,
+            ),
+            properties: an_intent_property(&MountIntent {
+                operation: MountOperation::Unmount,
+                nonce: a_nonce(),
+            }),
+        },
+    );
+    let plan: DestructionPlan = a_plan_with_a_destroyed_snapshot(&repository);
+    let home: PathBuf = fixture("cancel-command-guid-under-the-claim-home");
+    let order = an_order();
+    let switched: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let request: RecordingMountRequest = RecordingMountRequest {
+        order: order.clone(),
+        answer: Ok(an_whole_answer(repository.slot_path.as_path(), 11)),
+    };
+    let staged: ScriptedStaged = ScriptedStaged {
+        order: order.clone(),
+        settlement: StagedSettlement::NoStagedFolder,
+    };
+    let claim: RewritingClaim = RewritingClaim {
+        order: order.clone(),
+        binding_path: home_folder(repository.common_dir.as_path()).join(binding_name(SLOT)),
+        lines: the_binding_naming_another_clone(
+            repository.common_dir.as_path(),
+            SLOT,
+            THE_SECOND_CLONES_GUID,
+        ),
+        switched: Rc::clone(&switched),
+    };
+    let slot: CancelRequest = CancelRequest {
+        slot: String::from(SLOT),
+    };
+    let table: ATable = at_its_slot();
+    let pool: TwoClones<'_> = TwoClones {
+        before: &before,
+        after: &after,
+        switched: Rc::clone(&switched),
+    };
+    let input: TheCancelCommand<'_> = a_run(
+        &repository,
+        checkout.as_path(),
+        home.as_path(),
+        &pool,
+        &table,
+        &NeverRead,
+        &request,
+        &staged,
+        &claim,
+        &slot,
+    );
+    let refusal: CancelRefusal = cancel_the_removal(&input)
+        .expect_err("a record rewritten under the claim is a disagreement, not an act");
+    match &refusal {
+        CancelRefusal::TheRecordsDisagree {
+            what,
+            first,
+            second,
+        } => {
+            assert!(
+                what.contains("rewritten between the records' proof and the one under the claim"),
+                "the sentence names what happened: {what}"
+            );
+            assert_eq!(
+                first,
+                &guid(CLONE_GUID).file_name(),
+                "the first GUID is the one the claim was taken by"
+            );
+            assert_eq!(
+                second,
+                &guid(THE_SECOND_CLONES_GUID).file_name(),
+                "the second is the one the records name under the claim"
+            );
+        }
+        other => {
+            panic!("a rewritten binding refuses as the two GUIDs' disagreement, not {other:?}")
+        }
+    }
+    assert_eq!(
+        steps(&order),
+        vec![format!("claim:{SLOT}")],
+        "nothing follows the claim: no request, no staging settlement"
+    );
+    assert!(
+        plans_folder(repository.common_dir.as_path())
+            .join(plan.facts.clone_guid.file_name())
+            .exists(),
+        "the plan the first proof read stands"
+    );
 }

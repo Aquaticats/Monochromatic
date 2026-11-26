@@ -19,6 +19,11 @@
 //!  and a host that answered anywhere else has that answer in the add's own
 //!  line,
 //!  so `doctor` neither repeats it nor predicts it.
+//!  Every sentence of it is about a managed ZFS add,
+//!  so `doctor` asks for it only where the checkout stands on a ZFS dataset,
+//!  and that decision is `invocation::management`'s
+//!  (`SPEC.md`,
+//!  the doctor's host section).
 //!  The remedies are the measured ones of
 //!  `doc/troubleshooting/ubuntu-apparmor-userns-restriction-refuses-the-zfs-account-companion.md`,
 //!  each checked in a throwaway Ubuntu 24.04 guest before it was written here.
@@ -176,6 +181,46 @@ pub fn report_of(
     };
 }
 
+/// The value the AppArmor restriction reads where the measured Ubuntu cause stands.
+/// Why:
+///  The cause and the remedy that turns it off are the troubleshooting record's
+///  measured ones for that setting,
+///  so both are printed only where the setting the report prints reads this.
+const RESTRICTION_ON: &str = "1";
+
+/// The cause a host whose restriction reads on prints.
+/// Why:
+///  It is the measured reading of Ubuntu 24.04's profile under that setting,
+///  so it is a fact about a host whose own line reads `1` and about no other.
+const THE_UBUNTU_CAUSE: &str = "the open asks the kernel for CAP_SYS_ADMIN inside the new user namespace, and Ubuntu 24.04's default AppArmor profile for unprivileged user namespaces (unprivileged_userns) denies every capability inside one, so the kernel refuses the open and the deny write is never reached.";
+
+/// The remedy a host whose restriction reads on prints.
+/// Why:
+///  It is the measured command that turns that setting off,
+///  and the shipped skip needs nothing,
+///  so a person reads both answers here rather than running an add to find out.
+const THE_UBUNTU_REMEDY: &str = "nothing needs doing, because every managed ZFS add goes ahead with this skip and prints this same call and number on its own line as it runs; or an administrator turns that restriction off for the whole machine with `sysctl --write kernel.apparmor_restrict_unprivileged_userns=0`, which lasts until the next boot, gives every unprivileged program on the machine the capabilities it asks for inside its own user namespace, and so removes a security default the distribution ships.";
+
+/// The first part of the cause a host whose restriction reads anything else prints.
+/// Why:
+///  Such a host's own second line contradicts the Ubuntu cause,
+///  so the cause names what the open asks for and the value this host answered
+///  instead.
+const ANOTHER_CAUSE: &str = "the open asks the kernel for CAP_SYS_ADMIN inside the new user namespace, and this host's `kernel.apparmor_restrict_unprivileged_userns` reads";
+
+/// The rest of that cause,
+/// after the value the setting answered.
+/// Why:
+///  A refusal with another cause is written by the kernel's own audit trail,
+///  so the report names where a person reads which profile and capability answered.
+const ANOTHER_CAUSE_TAIL: &str = ", so Ubuntu 24.04's AppArmor restriction is not the answer here; the kernel's audit log names the profile and the capability that refused it (`journalctl --kernel --grep apparmor`, or the audit log under `/var/log/audit` where the host keeps one).";
+
+/// The remedy a host whose restriction reads anything else prints.
+/// Why:
+///  The skip needs nothing on every host,
+///  and the command that turns a rule off is no remedy for a host that reads it off.
+const NOTHING_NEEDS_DOING: &str = "nothing needs doing, because every managed ZFS add goes ahead with this skip and prints this same call and number on its own line as it runs.";
+
 /// What:
 ///  The four lines a skipped group drop prints:
 ///  what happened,
@@ -186,10 +231,17 @@ pub fn report_of(
 ///  The remedies are the troubleshooting record's measured ones,
 ///  and the sentence about doing nothing is the shipped skip itself,
 ///  so both are facts and neither is a guess.
+///  The Ubuntu cause was measured on a host whose
+///  `kernel.apparmor_restrict_unprivileged_userns` reads `1`,
+///  which is the setting the report prints on its own second line,
+///  so the cause and the remedy that turns it off are printed only where that
+///  setting says the same
+///  (the alpha.47 release pass's Low 9).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `${PREFIX} this host skips the group drop: ...` + settings + why + remedies
+/// const cause = found === '1' ? THE_UBUNTU_CAUSE : `${ANOTHER_CAUSE} \`${found}\`${ANOTHER_CAUSE_TAIL}`;
+/// return `${PREFIX} this host skips ...\n${PREFIX} settings\n${PREFIX} ${cause}\n${PREFIX} ${remedy}\n`;
 /// ```
 fn skipped_report(
     errno: i32,
@@ -197,12 +249,26 @@ fn skipped_report(
 ) -> String {
     let name: &str = ProbeCall::OpenSetgroups.name();
     let word: &str = errno_word(errno);
+    let prefix: &str = GROUP_DROP_PREFIX;
+    let found: &str = settings.apparmor_restriction.as_str();
+    // What: the cause the setting decides.
+    // Why: a host whose setting reads anything else would read a cause its own line contradicts.
+    let cause: String = match found == RESTRICTION_ON {
+        true => String::from(THE_UBUNTU_CAUSE),
+        false => format!("{ANOTHER_CAUSE} `{found}`{ANOTHER_CAUSE_TAIL}"),
+    };
+    // What: the remedy the same setting decides.
+    // Why: the command that turns the restriction off describes no host that reads it off.
+    let remedy: &str = match found == RESTRICTION_ON {
+        true => THE_UBUNTU_REMEDY,
+        false => NOTHING_NEEDS_DOING,
+    };
     return format!(
         "{prefix} this host skips the account companion's group drop: {name} answered {word} (errno {errno}), so every managed ZFS add goes ahead unproved by that check.\n\
 {prefix} user.max_user_namespaces={max}, kernel.unprivileged_userns_clone={clone}, kernel.apparmor_restrict_unprivileged_userns={restriction}\n\
-{prefix} the open asks the kernel for CAP_SYS_ADMIN inside the new user namespace, and Ubuntu 24.04's default AppArmor profile for unprivileged user namespaces (unprivileged_userns) denies every capability inside one, so the kernel refuses the open and the deny write is never reached.\n\
-{prefix} nothing needs doing, because every managed ZFS add goes ahead with this skip and prints this same call and number on its own line as it runs; or an administrator turns that restriction off for the whole machine with `sysctl --write kernel.apparmor_restrict_unprivileged_userns=0`, which lasts until the next boot, gives every unprivileged program on the machine the capabilities it asks for inside its own user namespace, and so removes a security default the distribution ships.\n",
-        prefix = GROUP_DROP_PREFIX,
+{prefix} {cause}\n\
+{prefix} {remedy}\n",
+        prefix = prefix,
         max = settings.max_user_namespaces,
         clone = settings.unprivileged_userns_clone,
         restriction = settings.apparmor_restriction

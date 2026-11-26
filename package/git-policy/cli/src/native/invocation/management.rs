@@ -395,38 +395,50 @@ fn run_convert(
 /// its filesystem facts,
 /// its line about the repository's link to the 860 drive below the home the
 /// invocation names,
-/// and its report on the account companion's group drop.
+/// and its report on the account companion's group drop where the checkout stands
+/// on a ZFS dataset.
 #[cfg(target_os = "linux")]
 pub fn host_filesystem_section(viewpoint: &CheckoutViewpoint<'_>) -> String {
+    // What: whether this checkout is where the ZFS clone route can serve an add.
+    // Why: the group drop's report says every managed ZFS add goes ahead, so it is a sentence about such a host.
+    let the_route_applies: bool =
+        crate::doctor_filesystem::the_checkout_is_a_zfs_dataset(viewpoint.checkout);
     return host_section_with(
-        &crate::group_drop_report::group_drop_report_line::group_drop_report,
         viewpoint,
+        &crate::group_drop_report::group_drop_report_line::group_drop_report,
+        the_route_applies,
     );
 }
 
 /// What:
-///  The same section with the group drop's report given,
-///  which is empty on a host that wrote the `deny`.
+///  The same section with the group drop's report and that route verdict given,
+///  the report being empty on a host that wrote the `deny`.
 /// Why:
-///  The executable passes the report this host answers (`host_filesystem_section`),
+///  The executable passes the report this host answers and the verdict this
+///  checkout answers (`host_filesystem_section`),
 ///  and a control passes its own,
 ///  so the test that the report lands in the doctor's own words does not depend on
-///  the host it runs on.
+///  the host it runs on,
+///  and the test that it is left out where the route cannot apply does not depend
+///  on the file system the fixtures are made on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function hostSectionWith(report: () => string, viewpoint: CheckoutViewpoint): string;
+/// function hostSectionWith(viewpoint: CheckoutViewpoint, report: () => string, theRouteApplies: boolean): string;
 /// ```
 #[cfg(target_os = "linux")]
 pub fn host_section_with(
-    report: &dyn Fn() -> String,
     viewpoint: &CheckoutViewpoint<'_>,
+    report: &dyn Fn() -> String,
+    the_route_applies: bool,
 ) -> String {
-    return format!(
-        "{}{}",
-        filesystem_section_with_link_line(viewpoint),
-        report()
-    );
+    // What: the report, or nothing where the route cannot serve an add on this checkout.
+    // Why: a person on another file system would otherwise read four lines about every managed ZFS add.
+    let said: String = match the_route_applies {
+        true => report(),
+        false => String::new(),
+    };
+    return format!("{}{}", filesystem_section_with_link_line(viewpoint), said);
 }
 
 /// The doctor's filesystem section followed by its line about the repository's link to the 860 drive (plan item W15),
@@ -450,7 +462,6 @@ pub fn filesystem_section_with_link_line(viewpoint: &CheckoutViewpoint<'_>) -> S
 pub fn host_filesystem_section(_viewpoint: &CheckoutViewpoint<'_>) -> String {
     return String::new();
 }
-
 /// Run the migration command where the platform has btrfs subvolumes.
 #[cfg(target_os = "linux")]
 fn run_migrate(
