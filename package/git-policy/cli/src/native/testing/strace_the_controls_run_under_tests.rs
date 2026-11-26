@@ -149,8 +149,10 @@ fn the_absence_the_environment_states_decides_whether_a_control_fails() {
     assert!(unstated_said.contains(ABSENT_ACKNOWLEDGED_VARIABLE), "the failure names the variable that would pass it: {unstated_said}");
     assert!(unstated_said.contains("1 failed"), "the child ran the control and it failed: {unstated_said}");
     // The control of that arm: the same absent tracer, acknowledged, passes and says which control did not run.
-    let environment: [(&str, &OsStr); 3] = [(CHILD_VARIABLE, OsStr::new("1")), (ABSENT_ACKNOWLEDGED_VARIABLE, OsStr::new("1")), ("PATH", search.as_os_str())];
-    let acknowledged: std::process::Output = finished(ChildTest { exact_test: THIS_CONTROL, environment: environment.as_slice(), ..ChildTest::default() })
+    let acknowledged_environment: [(&str, &OsStr); 3] =
+        [(CHILD_VARIABLE, OsStr::new("1")), (ABSENT_ACKNOWLEDGED_VARIABLE, OsStr::new("1")), ("PATH", search.as_os_str())];
+    let acknowledged: std::process::Output =
+        finished(ChildTest { exact_test: THIS_CONTROL, environment: acknowledged_environment.as_slice(), ..ChildTest::default() })
         .expect("the child control ends within the deadline");
     let acknowledged_said: String = format!(
         "{}{}",

@@ -251,11 +251,11 @@ fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_n
         return;
     }
     let (root, _file) = record("durable-no-thread");
-    let environment: [(&str, &std::ffi::OsStr); 1] = [(HELPER_DIRECTORY, root.as_os_str())];
+    let helper_environment: [(&str, &std::ffi::OsStr); 1] = [(HELPER_DIRECTORY, root.as_os_str())];
     // The helper's pass is this control's assertion: it fails when a sync panics or cannot start its thread.
     let output: std::process::Output = crate::child_test_process::passed(crate::child_test_process::ChildTest {
         exact_test: "landing::service_durable::tests::durable_helper",
-        environment: environment.as_slice(),
+        environment: helper_environment.as_slice(),
         before_the_exec: Some(Box::new(move || { return apply_limit(); })),
         ..crate::child_test_process::ChildTest::default()
     });
