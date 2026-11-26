@@ -6,6 +6,8 @@
 //!  a checkout whose source the fill's own restore would refuse makes the
 //!  preflight decline, so the add takes the ladder and nothing of the route's is
 //!  written,
+//!  the clone container is refused before any write for each property the design
+//!  does not serve,
 //!  a source the route serves that names the person's own lock word is refused in
 //!  the route's own sentence,
 //!  a source the route declines that names one takes the ladder with its words,
@@ -37,7 +39,10 @@
 //!  (issue 6450: the add printed a Rust `Debug` value here).
 
 use super::preflight_the_add;
+use super::refuse_a_container_that_cannot_serve_clones;
 use super::OpenedDevice;
+use crate::doctor_zfs_route::route_test_facts::{self, CONTAINER_DATASET, DatasetBuilder};
+use crate::doctor_zfs_route::{DatasetFacts, DatasetRole, Reading};
 use crate::test_support::{fixture, git, git_context, remove, repository};
 use crate::worktree_clone_add_route::add_git_words::PERSON_LOCK_WORDS;
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
@@ -469,4 +474,91 @@ fn an_unfinished_merge_still_refuses_the_add() {
     assert!(refusal.message.contains("the main checkout cannot be the source of a clone"), "the refusal names the source check: {}", refusal.message);
     assert!(refusal.message.contains("MERGE_HEAD exists in"), "the refusal names the unfinished merge: {}", refusal.message);
     remove(root.as_path());
+}
+
+/// What:
+///  A container the design does not serve is refused in the preflight,
+///  for each of the four properties the design names,
+///  before any write.
+/// Why:
+///  A clone inherits the container's `mountpoint`, `setuid` and `devices`,
+///  so a container set wrongly gives every clone below it the same fault,
+///  and the design refuses it here rather than after the clone exists
+///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
+///  The sentence must name the container, the property and the value it needs,
+///  because that is the whole of what a person acts on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const wrong of [notLegacy, canmountOn, setuidOn, devicesOn]) expect(() => refuseContainer(wrong)).toThrow(/clone container/);
+/// ```
+#[test]
+fn a_container_the_design_does_not_serve_is_refused_before_any_write() {
+    let cases: [(crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts, &str, &str); 4] = [
+        (DatasetBuilder::container().mountpoint("/srv/elsewhere").build(), "`mountpoint` is `/srv/elsewhere`", "the clone container must be `legacy`"),
+        (DatasetBuilder::container().canmount(1).build(), "`canmount` is 1", "the container must be off"),
+        (DatasetBuilder::container().setuid(1).build(), "`setuid` is 1", "`setuid` must be off"),
+        (DatasetBuilder::container().devices(1).build(), "`devices` is 1", "`devices` must be off"),
+    ];
+    for (facts, found, required) in cases {
+        let container: DatasetFacts = route_test_facts::dataset(DatasetRole::Container, facts);
+        let refusal: StepRefusal = refuse_a_container_that_cannot_serve_clones(&container).expect_err("a container the design does not serve is refused");
+        assert!(refusal.message.contains(CONTAINER_DATASET), "the container is named: {}", refusal.message);
+        assert!(refusal.message.contains(found), "the property and its value are named: {}", refusal.message);
+        assert!(refusal.message.contains(required), "the value the design needs is named: {}", refusal.message);
+        assert!(refusal.message.contains("No claim, slot, Git registration, snapshot or clone was written"), "the sentence says where the refusal stands: {}", refusal.message);
+    }
+}
+
+/// What:
+///  The container the design serves passes the same check,
+///  which is what keeps the refusal from passing every container.
+/// Why:
+///  A check that refused everything would satisfy the control above,
+///  so the accepted shape is read here beside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(refuseContainer(healthyContainer)).toBeUndefined();
+/// ```
+#[test]
+fn a_container_the_design_serves_passes_the_check() {
+    let container: DatasetFacts = route_test_facts::dataset(DatasetRole::Container, DatasetBuilder::container().build());
+    assert!(refuse_a_container_that_cannot_serve_clones(&container).is_ok(), "the design's own container passes");
+    let unreadable: DatasetFacts = DatasetFacts { role: DatasetRole::Container, name: String::from(CONTAINER_DATASET), reading: Reading::Unreadable { why: String::from("permission denied") } };
+    let refusal: StepRefusal = refuse_a_container_that_cannot_serve_clones(&unreadable).expect_err("a container this account cannot read proves nothing and is refused");
+    assert!(refusal.message.contains("permission denied"), "the read's own answer is named: {}", refusal.message);
+}
+
+/// What:
+///  The preflight itself judges the container,
+///  inside its own function,
+///  before it reads the delegation.
+/// Why:
+///  The check is only worth its sentence if the preflight runs it,
+///  and the preflight opens the kernel's device to reach it,
+///  so the shape a release file must have is read from the source,
+///  as the grant read's control beside this one does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(source.match(/refuseAContainer/g)).toHaveLength(2); // the definition and one call
+/// expect(source.indexOf('refuseAContainer(')).toBeLessThan(source.indexOf('refuseWithoutTheDecidedGrants('));
+/// ```
+#[test]
+fn the_preflight_judges_the_container_before_it_reads_the_grants() {
+    let source: &str = include_str!("add_preflight.rs");
+    let code: Vec<&str> = source
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| return !line.starts_with("//"))
+        .collect();
+    let joined: String = code.join("\n");
+    assert_eq!(joined.matches("refuse_a_container_that_cannot_serve_clones(").count(), 2, "the container check is defined once and called once: {joined}");
+    let preflight_function: usize = joined.find("fn preflight_the_add(").expect("the preflight is a function of this file");
+    let call: usize = preflight_function + joined[preflight_function..].find("refuse_a_container_that_cannot_serve_clones(").expect("the call is in the preflight");
+    let container_read: usize = joined.find("facts_of(route.container_dataset.as_str())").expect("the preflight reads the container's facts");
+    assert!(container_read < call, "the check judges the reply the preflight read");
+    let grants: usize = joined.find("refuse_without_the_decided_grants(").expect("the grant read is in the preflight");
+    assert!(call < grants, "the container is judged before the delegation is read, so a wrong container is refused without a grant answer a person would have to read twice");
 }

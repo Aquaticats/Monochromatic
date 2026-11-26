@@ -35,9 +35,11 @@ use super::add_git_words::person_lock_word;
 use super::add_route_gate::RouteFacts;
 use super::add_route_steps::StepRefusal;
 use super::add_zfs::{ObjectIdentity, OpenedDevice};
+use crate::doctor_zfs_route::{CheckOutcome, DatasetFacts, DatasetRole, Reading, check_dataset};
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_binding_record::plan_folder_read::refuse_while_a_plan_names_the_clone;
+use crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessExpectation, ReadinessRecord};
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
@@ -156,22 +158,63 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
     let device: OpenedDevice = OpenedDevice::open().map_err(StepRefusal::refused)?;
     let checkout: ObjectIdentity = device.identity_of(route.checkout_dataset.as_str()).map_err(StepRefusal::refused)?;
     let pool: ObjectIdentity = device.identity_of(route.pool.as_str()).map_err(StepRefusal::refused)?;
-    device.identity_of(route.container_dataset.as_str()).map_err(|reason| {
+    let container_facts: CloneObjectFacts = device.facts_of(route.container_dataset.as_str()).map_err(|reason| {
         return StepRefusal::refused(format!(
             "{reason}; the clone container {} the design places beside the checkout does not answer, so the route's layout is half-made. Ways forward: mount the container's dataset as setup does, then run the add again",
             route.container_dataset
         ));
     })?;
+    let container: DatasetFacts = DatasetFacts { role: DatasetRole::Container, name: String::from(route.container_dataset.as_str()), reading: Reading::Read(container_facts) };
+    // What:
+    //  The container's own properties are judged here, before any write.
+    // Why:
+    //  A clone inherits them, so a container that is not `legacy`,
+    //  mounts automatically,
+    //  or carries set-user-ID or device nodes gives every clone below it the
+    //  same fault,
+    //  and the design refuses that before a claim, a slot, a registration, a
+    //  snapshot or a clone is written
+    //  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
+    refuse_a_container_that_cannot_serve_clones(&container)?;
     let warnings: Vec<String> = super::add_grants::refuse_without_the_decided_grants(&device, route)?;
     admit_the_handler(route)?;
     let _ = plan;
     return Ok(Some(Preflight { source, device, checkout_guid: checkout.guid, pool_guid: pool.guid, warnings }));
 }
 
+/// What:
+///  The refusal for a container whose properties the design does not serve for
+///  the clones below it.
+/// Why:
+///  `doctor` already judges a container against exactly these properties,
+///  and the add must judge the same container the same way rather than grow a
+///  second check that could disagree
+///  (`doc/planning/cli-git-zfs-clone-mountpoint-without-the-forbidden-grant.md`,
+///  Choice 2);
+///  the sentence names the container, the property and the value it needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = checkDataset({ role: 'container', name: container, reading: { kind: 'read', value: facts } });
+/// if (outcome.kind !== 'pass') throw new Error(outcome.detail + waysForward);
+/// ```
+fn refuse_a_container_that_cannot_serve_clones(facts: &DatasetFacts) -> Result<(), StepRefusal> {
+    let container: &str = facts.name.as_str();
+    let answer: CheckOutcome = check_dataset(facts);
+    return match answer {
+        CheckOutcome::Pass { .. } => Ok(()),
+        CheckOutcome::Finding { detail, .. } => Err(StepRefusal::refused(format!(
+            "the clone container cannot serve this add: {detail}. No claim, slot, Git registration, snapshot or clone was written. Ways forward: as root, set that property of `{container}` to the value the sentence names, then run the add again"
+        ))),
+        CheckOutcome::Unknown { reason } => Err(StepRefusal::refused(format!(
+            "the clone container `{container}` cannot be judged from this account: {reason}. No claim, slot, Git registration, snapshot or clone was written. Ways forward: as root, read the container's properties (`zfs get mountpoint,canmount,setuid,devices {container}`), then run the add again"
+        ))),
+    };
+}
+
 /// Verify the folder the slot goes in,
 /// when it stands.
-fn verify_the_slot_parent(route: &RouteFacts) -> Result<(), StepRefusal> {
-    let parent: PathBuf = route.worktrees_parent();
+fn verify_the_slot_parent(route: &RouteFacts) -> Result<(), StepRefusal> {    let parent: PathBuf = route.worktrees_parent();
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(parent.as_path()) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
