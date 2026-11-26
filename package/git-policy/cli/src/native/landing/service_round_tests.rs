@@ -1158,8 +1158,8 @@ fn a_job_that_outlasted_its_ceiling_does_not_hold_the_drains_next_storage_step()
                 let read = run_a_job_awaited_no_longer_than(
                     THE_STEPS_CEILING,
                     holds,
-                    |holds: std::sync::mpsc::Receiver<()>| {
-                        let _held = holds.recv();
+                    |waits: std::sync::mpsc::Receiver<()>| {
+                        let _held = waits.recv();
                     },
                 )
                 .await;
