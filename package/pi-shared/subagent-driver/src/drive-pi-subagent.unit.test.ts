@@ -2,7 +2,8 @@
  The driver's bin against a stand-in `pi`, one test for each way a run can go. Each test uses its own disposable folder. A test
  waits for what the feed or the stand-in's log shows instead of for a length of time, so a loaded host cannot change its outcome,
  and a driver a test leaves running is ended before its folder goes. The two tests whose subject is the run's own wall clock size
- that clock from what they start: a run of the same driver and stand-in, made first, says how long this host takes to start one.
+ that clock from what they start: a run of the same driver and stand-in, made first, says how long this host takes to reach the
+ state each of them is about, and the work one of them leaves behind lives longer than the clock that run was given.
 
  @module
  */
@@ -64,7 +65,6 @@ import {
   WITHOUT_MASKING_SCENARIO,
 } from './stand-in-pi-masking-fixture.ts';
 import { MESSAGE_BEFORE_SETTLE, } from './stand-in-pi-prompt-plays-fixture.ts';
-import { WORK_BEYOND_THE_RUN_MILLISECONDS, } from './stand-in-pi-work-plays-fixture.ts';
 import {
   REPORTED_PROCESS_ID,
 } from './stand-in-pi-scenario-plays-fixture.ts';
@@ -278,15 +278,17 @@ const FAILED_STATUS = 1;
 /** Seconds a test allows a driver beyond the run's own wall limit, so a stalled driver fails rather than hangs it. */
 const TEST_TEARDOWN_ALLOWANCE_SECONDS = 120;
 /**
- Milliseconds a wall clock leaves above the start-up the run itself measured, for the two subjects that need a state reached
- before the clock ends: a compaction under way, and work left running.
+ How much longer a wall clock is than the moment it was sized from.
 
- The clock has to outlast the start-up, which the suite's other files stretch by however busy they keep this machine, and it has
- to end while the work the run left behind still runs. This room is a quarter of that work's own life, so a clock of the
- measured start-up plus this room still ends well inside it, and a start-up may grow by this room between the run that measured
- it and the run the clock bounds.
+ The clock has to outlast that moment, and the suite's other files stretch a start-up by however busy they keep this machine, so
+ the clock leaves it room to take half again between the run that measured it and the run the clock bounds.
  */
-const WALL_CLOCK_ROOM_MILLISECONDS = WORK_BEYOND_THE_RUN_MILLISECONDS / 4;
+const WALL_CLOCK_ROOM_SHARE = 0.5;
+/**
+ How many times longer than the run's own wall clock the work a run leaves behind lives: the clock has to end the run while that
+ work still runs, whatever the clock was sized to on this host.
+ */
+const WORK_OUTLASTS_THE_CLOCK_TIMES = 2;
 /** Characters in a file name that leave no room for a prefix, which most file systems cap at 255 bytes. */
 const LONGEST_FILE_NAME_CHARACTERS = 250;
 /**
@@ -920,51 +922,44 @@ async function runDriver(
 }
 
 /**
- Milliseconds a run of this driver and its stand-in took to take its prompt, measured by a run the control makes for it.
-
- The feed counts from the driver's own start, which is the moment the run's deadline is counted from, so this figure is what a
- wall clock has to exceed before the run can reach any state of its own.
-
- @returns the milliseconds the run took to take its prompt
-
- @throws Error when that run took no prompt, which is a start that failed rather than the clock of the control's own run
- */
-async function millisecondsToTakeAPrompt(): Promise<number> {
-  const run = await runDriver({ scenario: 'normal', idleSeconds: 0, },);
-  /**
-   The feed's own record of the prompt Pi took.
-   */
-  const taken = run.feed.find((entry,) => (entry.kind === 'prompt_sent') && (entry.success === true),);
-  /**
-   When that prompt went, counted from the driver's start.
-   */
-  const at = taken?.t;
-  if ((typeof at) !== 'number') {
-    throw new Error(
-      `the run that was to measure a start-up took no prompt: it ended ${run.summary.endReason} with ${String(run.feed.length,)} lines on its feed`,
-    );
-  }
-  return at;
-}
-
-/**
- Seconds of wall clock a run whose subject is its own clock is given, sized from what this control starts rather than guessed.
+ Milliseconds of wall clock a run whose subject is its own clock is given, sized from what this control starts rather than
+ guessed.
 
  `--wall-seconds` bounds Pi's start-up as well as the watch (`README.md`: "It bounds Pi's start-up, every answer the driver waits
  for, and the watch"), so a run that has to reach a state before its clock ends needs a clock longer than this host gives that
- start-up. How long the start-up takes is whatever the suite's other files leave the machine to give, so the figure comes from a
- run of the same driver and stand-in, made moments before, and from the room above it.
+ state. How long it takes is whatever the suite's other files leave the machine to give, so the figure comes from a run of the
+ same driver and stand-in, made moments before, that reaches the same feed line and ends of its own accord.
 
- @returns the seconds to give the run as its `--wall-seconds`
+ @param scenario - the scenario of that run, which reaches the line and then ends
 
- @throws Error when the run that was to measure the start-up took no prompt
+ @param kind - the feed line the run under test has to reach before its clock ends
+
+ @returns the milliseconds to give that run as its wall clock
+
+ @throws Error when the run that was to size the clock never showed the line, which is a start that failed
  */
-async function wallClockSecondsForTheStartUp(): Promise<number> {
+async function wallClockMillisecondsToReach({
+  scenario,
+  kind,
+}: {
+  readonly scenario: string;
+  readonly kind: string;
+},): Promise<number> {
+  const measured = await runDriver({ scenario, idleSeconds: 0, },);
   /**
-   The milliseconds the same two programs took to take a prompt here.
+   The feed's own record of that line.
    */
-  const measured = await millisecondsToTakeAPrompt();
-  return (measured + WALL_CLOCK_ROOM_MILLISECONDS) / MILLISECONDS_PER_SECOND;
+  const shown = measured.feed.find((entry,) => entry.kind === kind,);
+  /**
+   When that line went, counted from the driver's start, which the clock of a run is counted from too.
+   */
+  const at = shown?.t;
+  if ((typeof at) !== 'number') {
+    throw new Error(
+      `the run that was to size a wall clock showed no ${kind}: it ended ${measured.summary.endReason} with ${String(measured.feed.length,)} lines on its feed`,
+    );
+  }
+  return at * (1 + WALL_CLOCK_ROOM_SHARE);
 }
 
 await describe({
@@ -1260,9 +1255,18 @@ await describe({
     it({
       name: 'ends a run at its wall clock while the build it left still runs, and says on the feed what it waited for',
       fn: async () => {
+        /**
+         Milliseconds of wall clock for this run, sized from a run that reached the wait for its own work on this host.
+         */
+        const clockMilliseconds = await wallClockMillisecondsToReach({
+          scenario: 'leaves-work-running',
+          kind: 'waiting',
+        },);
         const run = await runDriver({
           scenario: 'leaves-work-running-past-its-wall-clock',
-          wallSeconds: await wallClockSecondsForTheStartUp(),
+          wallSeconds: clockMilliseconds / MILLISECONDS_PER_SECOND,
+          // The work this run leaves behind outlasts the clock it was given, so only that clock can end the run.
+          environment: { STAND_IN_PI_WORK_MILLISECONDS: String(WORK_OUTLASTS_THE_CLOCK_TIMES * clockMilliseconds,), },
         },);
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('wall-clock',);
@@ -1290,7 +1294,11 @@ await describe({
     it({
       name: 'a Pi whose compaction outlives the run ends at the wall clock, and the summary and the message name the compaction',
       fn: async () => {
-        const run = await runDriver({ scenario: 'compaction-never-ends', wallSeconds: await wallClockSecondsForTheStartUp(), },);
+        const run = await runDriver({
+          scenario: 'compaction-never-ends',
+          wallSeconds: await wallClockMillisecondsToReach({ scenario: 'compaction-then-answer', kind: 'compaction_start', },)
+            / MILLISECONDS_PER_SECOND,
+        },);
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('wall-clock',);
         expect(run.feed.some((entry,) => entry.kind === 'compaction_start'),).toBe(true,);
