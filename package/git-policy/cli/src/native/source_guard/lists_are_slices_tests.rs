@@ -16,7 +16,7 @@
 //!  The scan reads code only, so the refused shape may be named in a comment.
 //!  It reads one declaration at a time, and a declaration written across lines is
 //!  still one piece: the mask keeps every byte in its place,
-//!  so a newline inside a declaration is a space to this reader.
+//!  so the scan steps over whitespace rather than expecting one space.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -148,7 +148,7 @@ fn hand_counted_text_lists(text: &str) -> Vec<usize> {
             continue;
         };
         let inner: &str = &after_colon[..inner_length];
-        if !after_colon[inner_length + 1..].starts_with(" = [") {
+        if !begins_a_list_initializer(&after_colon[inner_length + 1..]) {
             continue;
         }
         if names_a_text_type(inner) {
@@ -156,6 +156,28 @@ fn hand_counted_text_lists(text: &str) -> Vec<usize> {
         }
     }
     return found;
+}
+
+/// What:
+///  `fn begins_a_list_initializer(after_the_type: &str) -> bool` answers whether the text
+///  that follows an array's closing bracket writes `= [` next,
+///  with any amount of whitespace on either side of the `=`, a line break included.
+/// Why:
+///  A declaration written across lines, as `const NAMES: [&str; 2] =` and the list on the
+///  line below, is still one declaration whose length is a hand count,
+///  and the count of the one written on a single line is no different.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const beginsAListInitializer = (afterTheType: string): boolean =>
+///   /^\s*=\s*\[/.test(afterTheType)
+/// ```
+fn begins_a_list_initializer(after_the_type: &str) -> bool {
+    let after_the_equals: &str = after_the_type.trim_start();
+    let Some(after_the_equals) = after_the_equals.strip_prefix('=') else {
+        return false;
+    };
+    return after_the_equals.trim_start().starts_with('[');
 }
 
 /// What:
@@ -284,6 +306,8 @@ fn the_scan_reads_release_and_test_only_sources() {
 }
 
 /// The scan fires on a planted text list in release code and in a test sidecar,
+/// on the one whose list starts on the line below as much as on the one written in a
+/// single line,
 /// and never on a comment that names the shape or on a byte array whose length
 /// is the meaning.
 #[test]
@@ -291,6 +315,8 @@ fn the_scan_finds_a_planted_text_list() {
     let root: std::path::PathBuf = crate::test_support::fixture("source-guard-hand-counted-list");
     let release_text: &str = "// const NAMES: [&str; 2] = [\"a\", \"b\"]; names the refused shape.\n\
                               const NAMES: [&str; 2] = [\"a\", \"b\"];\n\
+                              const WORDS: [&str; 2] =\n\
+                                  [\"a\", \"b\"];\n\
                               const MAGIC: [u8; 4] = *b\"DIRC\";\n";
     let sidecar_text: &str = "const REPEATED: [&'static str; 1] = [\"a\"];\n\
                               const STAGES: [(u8, i32); 2] = [(1, 2), (3, 4)];\n";
@@ -311,6 +337,11 @@ fn the_scan_finds_a_planted_text_list() {
         .position(|line| return line.starts_with("const NAMES: ["))
         .expect("the planted release list")
         + 1;
+    let words_line: usize = release_text
+        .lines()
+        .position(|line| return line.starts_with("const WORDS: ["))
+        .expect("the planted release list written across lines")
+        + 1;
     let sidecar_line: usize = sidecar_text
         .lines()
         .position(|line| return line.starts_with("const REPEATED: ["))
@@ -321,6 +352,7 @@ fn the_scan_finds_a_planted_text_list() {
         vec![
             format!("planted_tests.rs:{sidecar_line}"),
             format!("release.rs:{release_line}"),
+            format!("release.rs:{words_line}"),
         ],
         "the planted text lists were not found, in the order the walk reads them"
     );
@@ -335,13 +367,11 @@ fn the_scan_passes_the_same_lists_written_as_slices() {
         crate::test_support::fixture("source-guard-hand-counted-list-slices");
     write_tree(
         root.as_path(),
-        &[
-            (
-                "lib.rs",
-                "const NAMES: &[&str] = &[\"a\", \"b\"];\n\
+        &[(
+            "lib.rs",
+            "const NAMES: &[&str] = &[\"a\", \"b\"];\n\
                  const STAGES: &[(u8, i32)] = &[(1, 2), (3, 4)];\n",
-            ),
-        ],
+        )],
     );
     let found: Vec<String> =
         findings_in(root.as_path(), &[release_root("lib.rs")]).expect("the fixture sources");
