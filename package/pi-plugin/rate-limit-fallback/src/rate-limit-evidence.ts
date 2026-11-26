@@ -12,6 +12,8 @@ import {
   HTTP_RATE_LIMIT_STATUS,
   isTransientStatus,
   leadingStatus,
+  NO_TRANSPORT_CODE,
+  transportFailureCode,
 } from './provider-wire-text.ts';
 
 //region Provider error and timestamp formats
@@ -96,6 +98,47 @@ export function isTransientRefusal({
    */
   const refusalStatus = status ?? leadingStatus(message.errorMessage ?? '',);
   return (refusalStatus !== 0) && isTransientStatus(refusalStatus,);
+}
+
+/**
+ Whether the failure is a member whose request never reached it, and which code says so.
+
+ A connect timeout, a refused or reset connection and a name that does not resolve all stop a request
+ before the member produced a response, so none of them carries an HTTP status. A member that did
+ answer carries one, in the response Pi's adapter exposed or in the status its refusal text opens
+ with, and its own status decides what that refusal is: a code its body happens to name is not a
+ member that could not be reached.
+
+ @param message - terminal assistant result, which never represents a successful reply here
+
+ @param status - actual HTTP status when Pi's adapter exposed it
+
+ @returns the transport code the failure names, or {@link NO_TRANSPORT_CODE} when it names none
+
+ @example
+ ```ts
+ unreachableCode({ message: { stopReason: 'error', errorMessage: 'Connection error.: read ECONNRESET' } }); // 'ECONNRESET'
+ ```
+ */
+export function unreachableCode({
+  message,
+  status,
+}: {
+  readonly message: FailureEvidence;
+  readonly status?: number;
+},): string {
+  if (message.stopReason !== 'error')
+    return NO_TRANSPORT_CODE;
+  // A refusal the member answered with is the member's answer, whatever its body names.
+  if ((status !== undefined) && (status >= HTTP_REFUSAL_START))
+    return NO_TRANSPORT_CODE;
+  /**
+   Refusal text as the adapter reported it.
+   */
+  const text = message.errorMessage ?? '';
+  if (leadingStatus(text,) !== 0)
+    return NO_TRANSPORT_CODE;
+  return transportFailureCode(text,);
 }
 
 /**
@@ -352,6 +395,23 @@ export function syntheticReset(quota: unknown,): number {
 //region Response header evidence
 
 /**
+ What one attempt's response told the pool.
+
+ A failed request that never reached the member leaves both fields as they started: no status was
+ exposed and no timing arrived.
+ */
+export type ResponseEvidence = {
+  /**
+   Provider-supplied deadline, or zero if unavailable.
+   */
+  resetAt: number;
+  /**
+   HTTP status exposed by the physical adapter, absent when it exposed none.
+   */
+  status?: number;
+};
+
+/**
  Milliseconds per minute in a reset duration.
  */
 const MINUTE_MS = 60_000;
@@ -437,13 +497,28 @@ function resetDuration(value: string,): number {
 
 /**
  Longest delay a refusal body may set.
-
  The provider's own documented retry strategies name at most 60 seconds
  (`max_delay_s: 60` on its uncached-TPM case, https://docs.neuralwatt.com/guides/rate-limits.md,
  "Uncached TPM Limits"), so a longer suggestion is a wrong or hostile number rather than a hint,
  and holding a member past that would hide one that had recovered.
  */
 const BODY_DELAY_CAP_MS = 60_000;
+
+/**
+ How long the pool holds a member whose request it could not deliver, before asking it again.
+
+ A request that never reached the member carries no status and names no time, so the pool sets this
+ hold itself. A minute is longer than the two bounds the failing request already paid or will pay:
+ the transport's own ten-second connect limit, which the live failure of 2026-11-26 reports
+ (`timeout: 10000ms`), and Pi's agent retry, which repeats after two seconds and doubles to eight
+ (`@earendil-works/pi-coding-agent` dist/core/settings-defaults.js `baseDelayMs` 2000 and
+ `maxRetries` 3, `@earendil-works/pi-ai` dist/utils/retry.js `retryDelayMs`). It is also the
+ longest delay a refusal body may name ({@link BODY_DELAY_CAP_MS}), so a hold this pool sets never
+ outlives one a provider could set. The hold is not a demotion: after it the member is asked again,
+ and while every member is held the pool asks them anyway rather than refusing a request none of
+ them answered.
+ */
+export const UNREACHABLE_MEMBER_HOLD_MS: number = BODY_DELAY_CAP_MS;
 
 /**
  Delay a refusal asks for in its own body.

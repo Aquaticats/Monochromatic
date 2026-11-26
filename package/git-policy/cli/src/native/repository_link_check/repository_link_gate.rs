@@ -190,12 +190,16 @@ fn gate_for_identity(
 
 /// What:
 ///  Tells the person the identity file could not be read,
-/// once,
-/// on standard error.
+/// on standard error,
+/// once at each gate that reads it.
 /// Why:
 ///  Without the identity the gate cannot name the repository,
 /// so the command goes on;
 /// saying so keeps the missing protection visible.
+///  The entry gate and the startup step each read the identity file and neither reads the other's answer,
+/// so a command that meets an unreadable one prints this line twice:
+/// measured on 2026-11-26,
+/// a `status` with `not json` in that file printed it twice and went on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

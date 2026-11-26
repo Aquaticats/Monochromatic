@@ -57,6 +57,9 @@
 //!   finishing a saved merge over the person's own edits.
 //! - `merge_isolation_recovery_capture_refs_tests.rs`:
 //!   the ref that keeps a capture alive while a saved merge is finished.
+//! - `merge_isolation_recovery_named_pipe_tests.rs`:
+//!   a named pipe at a record's name in the merge record folder,
+//!   which every read of that folder answers at once.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -123,3 +126,8 @@ mod carried_edits;
 /// The ref that keeps a capture alive while a saved merge is finished.
 #[path = "merge_isolation_recovery_capture_refs_tests.rs"]
 mod capture_refs;
+
+/// A named pipe at a record's name in the merge record folder:
+/// every read of that folder answers at once.
+#[path = "merge_isolation_recovery_named_pipe_tests.rs"]
+mod named_pipe;

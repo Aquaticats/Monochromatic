@@ -780,6 +780,72 @@ incomplete,
 unapproved and not final.
 
 Round of 2026-11-26,
+issue 6510:
+the control the note above left unfixed is fixed,
+`commit::commit_index::tests::interactive_selection_succeeds_without_changes`,
+and its sibling that starts the selection over a pathspec file that cannot be read:
+`prepare_interactive_selection` starts `git add --interactive` or `git add --patch`
+with the standard input of its own process on purpose,
+because the person's terminal answers the selection,
+and a threaded run's one process has the terminal the run was started from as its standard input,
+so the Git printed its menu and waited.
+Both controls run their body in a child of their own now
+(`testing/process_wide_state_child_test_support.rs`),
+whose standard input is the null device,
+and `source_guard/no_control_starts_an_interactive_git_on_the_run_s_input_tests.rs`
+refuses a control that names `prepare_interactive_selection(` without one,
+reading a test source through the scan it shares with the ledger bans
+(`source_guard/process_wide_fact_readers_tests.rs`).
+Nothing of the release changed:
+the selection's Git still reads the person's terminal.
+Measured on this host,
+with a terminal on the run's standard input:
+before,
+the issue's `index::` filter printed `What now>` from the Git the control started,
+the run's watchdog aborted the module after 120.1 s with no `test result` line,
+and the Git it left behind held the run's output pipe open until the capped scope ended it;
+with the body in the run's own process,
+the control alone printed the same menu and was aborted at 120.1 s,
+and its sibling that the selection fails for a pathspec file answered `ok. 1 passed` in 0.02 s,
+so that one never read the terminal even before.
+After the change,
+the same `index::` filter answered `test result: ok. 230 passed; 0 failed` in 13.47 s,
+the control alone `ok. 1 passed; 0 failed` in 0.04 s,
+and the two selection controls together `ok. 2 passed; 0 failed`.
+With the control's child starter taken out,
+the guard answered `FAILED. 2 passed; 1 failed`
+and named `commit/commit_index_tests.rs:977 (interactive_selection_succeeds_without_changes)`;
+the starter was restored.
+`commit::commit_index::` answered `test result: ok. 52 passed; 0 failed`,
+and `source_guard::` `ok. 144 passed; 0 failed`.
+After `main` renamed the helper to `run_the_body_in_a_child_of_its_own`
+(which takes the body as a closure),
+the controls follow the new name and main generalised the guards' shared scan
+(`source_guard/process_wide_fact_readers_tests.rs`),
+so this ban states a `Requirement` there and its own copy of the scan is gone;
+the runs were made again:
+the issue's `index::` filter with a terminal on the run's standard input answered
+`test result: ok. 230 passed; 0 failed` in 17.92 s,
+`commit::commit_index::` `ok. 52 passed; 0 failed`,
+`source_guard::` `ok. 157 passed; 0 failed`
+and `testing::process_wide_state_child_test_support` `ok. 2 passed; 0 failed`;
+the guarded control without its child answered `FAILED. 2 passed; 1 failed`
+naming `commit/commit_index_tests.rs:981`,
+and the starter was restored.
+The other controls that start a Git were audited for the same input:
+every step of `run_git` gives its Git the null device unless the request carries input,
+so the property control that asks Git about `--interactive` and `--patch` lines read no terminal
+(`ok. 1 passed; 0 failed` in 1.63 s with a terminal on the run's standard input,
+1.72 s with the null device),
+the fixture helpers and the binary harness give their Git an input of their own,
+and the wrapper's plain commit keeps the terminal for an editor or a signing program on purpose,
+as `SPEC.md` says,
+while every control that calls it passes a message.
+Status:
+incomplete,
+unapproved and not final.
+
+Round of 2026-11-26,
 branch `fix/git-policy-cli-issue-6511-push-child-watch-controls-own-their-clock`:
 issue 6511 is fixed,
 and it is a mechanism this item did not list:
@@ -1126,6 +1192,7 @@ Label: approximated count; confirm by running the linter once before the round.
 Note of 2026-11-26T12:50-05:00: the linter, run on `987635373a`, counts 281 files over 300 and the ledger's measure gives the same count on the largest file (1012).
 The difference is the reformat of 2026-11-26 (`00b6a940b4`), which grew the crate's code lines 1.472 times; `worktree/worktree_remove_hand_over.rs` went from 572 to 1012.
 19 files were over 300 before it and are split now; the 262 over only because of it wait for the owner's answer on the budget
+(answered on 2026-11-26: "Keep 300, split everything", `doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`)
 (`doc/handover/questions-for-the-owner.md`; the counts are in `~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/`).
 
 Note of 2026-11-26T14:09-05:00:

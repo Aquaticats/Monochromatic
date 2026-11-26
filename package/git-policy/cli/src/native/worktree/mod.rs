@@ -372,9 +372,29 @@
 //!   the record a killed pass leaves,
 //!   the continuation that record proves,
 //!   and the pass.
+//! - `worktree_remove_hand_over_records_beside_the_registration.rs`:
+//!   the records a removal writes beside a worktree's registration,
+//!   which say which worktree a record was written for.
+//! - `worktree_remove_hand_over_begun_record.rs`:
+//!   the record that says a removal of one worktree began,
+//!   so a command killed inside it is finished by the next one.
+//! - `worktree_remove_hand_over_service_git_and_pool.rs`:
+//!   the Git a service's own removal starts,
+//!   and the pool of the worktree it removes.
+//! - `worktree_remove_hand_over_kept_worktree_notice.rs`:
+//!   the words a person reads for a worktree a removal kept.
+//! - `worktree_remove_hand_over_queue_and_wake.rs`:
+//!   the record a removal queues for the commit service,
+//!   and the wake that makes the service of the repository read it.
+//! - `worktree_remove_hand_over_subvolume_delete.rs`:
+//!   the kernel's destroy of the subvolume one record names.
 //! - `worktree_remove_hand_over.rs`:
-//!   the removal of a worktree's subvolume handed to the commit service,
-//!   and the service's own delete of it.
+//!   the hand-over of a worktree's subvolume to the commit service,
+//!   the removal the service makes around a volume that is not its own,
+//!   and the names every caller already uses.
+//! - `worktree_remove_hand_over_service_removal.rs`:
+//!   the service's own removal of a whole worktree with Git,
+//!   and the choice of which destroy a record asks for.
 //! - `worktree_landed_removal_records.rs`:
 //!   what one landed sweep is asked with and answers with:
 //!   where it looks,
@@ -636,6 +656,13 @@ pub mod worktree_remove_notices;
 /// and the pass.
 pub mod worktree_remove_around;
 pub mod worktree_remove_hand_over;
+pub mod worktree_remove_hand_over_begun_record;
+pub mod worktree_remove_hand_over_kept_worktree_notice;
+pub mod worktree_remove_hand_over_queue_and_wake;
+pub mod worktree_remove_hand_over_records_beside_the_registration;
+pub mod worktree_remove_hand_over_service_git_and_pool;
+pub mod worktree_remove_hand_over_service_removal;
+pub mod worktree_remove_hand_over_subvolume_delete;
 
 pub mod worktree_remove_registry;
 

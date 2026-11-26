@@ -7914,6 +7914,9 @@ in order:
     and six wait for open rounds that touch them
     (four in `merge/` beside the record-folder pipes round, `commit/native_commit_waiting_notice.rs` and `invocation/entry.rs` beside the notices round).
     What happens to the 262 waits for the owner (`doc/handover/questions-for-the-owner.md`, the line budget after the reformat).
+    The owner answered on 2026-11-26 "Keep 300, split everything" (`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`),
+    so this round splits all of them;
+    a file whose split would add an allow-list line (`worktree/worktree_remove.rs`, the first met) waits for the loop break of round 3 that frees it.
 3.  `refactor/git-policy-cli-split-loop-breaks`:
     step 3,
     one commit per loop of the list above,

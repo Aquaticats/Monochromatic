@@ -938,16 +938,48 @@ so a finding is never reported twice.
   a use a folder loop already holds,
   which the loop checks report;
   and a use of an entry whose own code never reaches the group.
-  The index of every use is built once for the package,
-  and each walk back reads only the entries it reaches,
-  so the walk costs what reading the graph costs.
-  Measured on 2026-11-26 on a package of 250 groups reached from 250 folders,
-  each folder using one child folder of every group and each group's own file using one folder that reaches nothing:
-  alpha.13 took 3.0 and 3.3 seconds on two runs,
-  alpha.14 took 13.6 seconds,
-  and this release takes 3.2 and 3.7 seconds,
-  1.09 and 1.10 times alpha.13's time on the same tree,
-  with byte-identical output.
+  The entry graph of every use is built once for the package,
+  one pass over it groups the entries that reach each other in a loop,
+  and only a use whose two entries sit in one loop is walked at all,
+  so a package whose own files close no loop pays that one pass and no walk.
+  A walk starts at the entry the own file uses and stops at the group,
+  breadth first,
+  so the message spells the fewest uses that lead back.
+  Measured on 2026-11-26,
+  one process per binary per round in its own capped scope,
+  with only ratios a finding and every ratio taken between runs of one shape:
+  on a package of 250 groups reached from 250 folders,
+  each folder using one child folder of every group (62,500 uses,
+  every link written)
+  and each group's own file using one folder that reaches nothing,
+  alpha.14 took 13.3 seconds,
+  4.41 times alpha.13's time,
+  alpha.15 3.3 seconds,
+  1.02 to 1.08 times,
+  and this release 3.2 and 3.3 seconds,
+  0.97 to 1.06 times,
+  while the same graph with an empty own file took 3.0 and 3.1 seconds on alpha.13 and this release.
+  On a three-layer package that shape does not cover,
+  300 groups and 300 folders,
+  each folder using every later folder and a child folder of every group
+  (134,850 uses,
+  every link written),
+  alpha.14 took about 51 seconds,
+  8.1 to 8.8 times alpha.13's time,
+  alpha.15 13.2 to 14.4 seconds,
+  2.05 to 2.37 times,
+  and this release 6.5 to 7.8 seconds in four rounds,
+  1.00 to 1.19 times alpha.13's time and 0.49 to 0.54 times alpha.15's,
+  and every binary's output on both packages is byte-identical.
+  A dense loop a group's own file closes is written down in one run too:
+  on a package of 200 groups whose own files all use one folder,
+  which uses a child folder of every group,
+  beside 200 folders each using every later one (60,100 uses in the loop),
+  one `--debug` run prints 60,300 keys:
+  one `uses` line for each of the 59,900 uses inside the loop that are not written in an own file,
+  one `own-file-loop` line for each group's own use,
+  and one `group-file` line for each group's own file;
+  the second run with that 1,681,290-byte list reports nothing.
   Every such finding is keyed `own-file-loop <group> -> <used folder>`,
   where the group is the folder whose own file holds the use,
   so a tree that already holds one can record it on a list,
@@ -1073,8 +1105,8 @@ Findings:
   Uses inside a loop are not reported again here.
 
 The layout rules answer the line of each finding by reading the file once per run,
-up to two mebibytes.
-A file of exactly two mebibytes is read whole,
+up to eight mebibytes.
+A file of exactly eight mebibytes is read whole,
 so even an unterminated last line keeps its span.
 A longer file reports the file start for a line whose bytes the bound did not reach
 and for a line the bound cuts off,
@@ -1219,8 +1251,11 @@ or the working directory for one named by `--config`,
 which is also the base of that configuration's file patterns.
 A run whose list cannot be read fails with a `core/processing-failure` finding naming the list,
 because a rule checked without its list would report every finding it tolerates.
-A list is read only when it is a regular file of at most one mebibyte,
+A list is read only when it is a regular file of at most four mebibytes,
 so a mistyped path cannot block on a pipe or read a device.
+Four mebibytes is one line per use of a dense loop a group's own file closes:
+the largest such loop measured here needed 60,300 lines and 1,681,290 bytes (2026-11-26),
+and one mebibyte refused that very list.
 
 A line of a list is one of three shapes,
 and a line that reads as none of them fails the run:
@@ -1336,14 +1371,25 @@ Every key names exactly one finding:
   and the package folder itself is written `.`,
   so `no-top-doc .` and `missing-link . -> sub` name it,
   and no key ends in the space a list reader trims away,
-  and none holds a newline either:
-  a name that ends in a space, a tab or another character the reader trims,
+  and none holds a newline either,
+  because a list line is one line and ends at a newline.
+  A name that ends in a space,
+  a tab or another character the reader trims,
   or that holds a line break,
-  is refused before any check,
-  with one `core/processing-failure` that spells that character and names the file.
-  The refusal covers every file and folder the walk reads,
-  a crate root and a `src/bin` root included,
-  because a key about any of them would hold the name (`index-item`, `no-file-list`, `missing-entry`, `order`).
+  is therefore refused before any check,
+  with one `core/processing-failure` that spells that character and names the path.
+  The refusal is a rule about the tree's names,
+  not a condition on the findings one run reports:
+  it covers every file and folder the walk reads,
+  a crate root,
+  a `src/bin` root and every entry of a `uses` folder included,
+  whether or not this run has a finding to report about that name,
+  so a rename today can never put a key on the list that no line could hold tomorrow.
+  Two keys held a line break on alpha.15 although no name the walk read held one,
+  and both are gone:
+  the ABI string of an `extern` block is keyed with every run of whitespace squeezed to one space,
+  so `extern "C<line break>x"` keys `extern-block-"C x"`,
+  and an entry of a `uses` folder is refused like any other name.
   A top doc entry is read without the whitespace at the end of its backticks,
   so an entry written `x.rs ` names the file `x.rs` and no key carries that space.
   An entry whose backticks hold no name at all is keyed by its shape and index alone,
@@ -1398,12 +1444,20 @@ and the list's own record of today's findings is the only thing that does:
   so no round can record a new loop edge:
   the use is removed,
   or that loop is untangled first.
-- A line for a use written in a group's own file holds the loop its finding named:
-  the use itself and every step of the walk back the finding spells.
-  A use that joins that loop is a finding of the same kind,
-  carrying no key,
+- A loop that a use in a group's own file closes is held by one line per use inside it:
+  that use by its `own-file-loop` line,
+  and every other use inside the loop by a `uses` line.
+  The list holds folder pairs,
+  and a loop is made of uses,
+  so a `uses` line inside such a loop stays alive while its two folders still make that use;
+  a loop one of whose own-file findings the list does not hold is reported,
+  and every use inside it is printed as the line that records it,
+  so one run of the rule writes the whole loop down.
+  A use that joins the loop after that has no line,
+  and the finding for it carries no key,
   so the loop is untangled before new code can join it.
-- A loop finding of folders, entries or files carries no key,
+- A loop finding of folders,
+  entries or files carries no key,
   and neither does the use added inside a tolerated loop,
   so no entry can tolerate either.
   The one exception is a use written in a group's own file,
@@ -1570,7 +1624,8 @@ and every other line stays as it is.
   On a package of 2,000 folders whose one group's own file uses all of them,
   alpha.13 took about 20 seconds in each of three runs and this release about 1 second,
   while the same graph with an empty own file took about 1 second on both
-  (one run of each per round, 2026-11-26),
+  (one run of each per round,
+  2026-11-26),
   so the walk now costs what reading the graph costs.
 
 #### How a list written before alpha.15 maps
@@ -1578,7 +1633,8 @@ and every other line stays as it is.
 A tree that holds one of these shapes needs one regeneration,
 and every other line stays as it is.
 
-- A top doc entry whose backticks hold no name, or only whitespace,
+- A top doc entry whose backticks hold no name,
+  or only whitespace,
   is keyed `foreign-name <index file>` or `listed-twice <index file>` without a name,
   with `#2` for a second such entry,
   where alpha.14 ended the key in the space the list reader trims away,
@@ -1588,11 +1644,42 @@ and every other line stays as it is.
 - A use that joins a loop a listed `own-file-loop` line tolerates is a finding with no key,
   so a tree that holds one untangles that loop rather than recording the use;
   alpha.14 reported nothing there.
+  alpha.16 records such a loop one line per use,
+  so that reason to untangle is gone,
+  and only a use that joins the loop after the lines are written is still a finding.
 - A use written in the own file of a group nested in another group
   that closes a loop now carries the key `own-file-loop <nested group> -> <used folder>`;
   alpha.14 did not search a nested group's own file.
 - The walk back reads the uses once for the package rather than once for each group whose own file holds a use,
   which costs no list line.
+
+#### How a list written before alpha.16 maps
+
+A tree that holds one of these shapes needs one regeneration,
+and every other line stays as it is.
+
+- A loop that a use in a group's own file closes now needs one `uses` line per use inside it,
+  where alpha.15 held only the own-file line and the one shortest route its message spelled.
+  A tree whose own files close such a loop gains those lines from one `--debug` run,
+  and every one of them stays alive,
+  so the loop is recorded rather than untangled.
+- An entry of a `uses` folder whose name ends in a trimmed character or holds a line break
+  is refused with one `core/processing-failure`,
+  where alpha.15 printed a two-line key that no list line could hold,
+  so the entry is renamed rather than recorded.
+- An `extern` block's ABI string is keyed with every run of whitespace squeezed to one space,
+  so a string written over two lines gives one key on one line,
+  where alpha.15 split the key over two lines and both those lines tolerated nothing.
+- A list may hold four mebibytes,
+  where alpha.15 read one:
+  a dense loop a group's own file closes needs one line per use inside it,
+  and the 60,300 lines of one measured loop are 1,681,290 bytes.
+- No key of this repository's Rust packages changes shape,
+  so the lock bump regenerates both committed lists with no edit
+  (2,255 keys on `main` `c3b1b7efef`,
+  one run of each binary,
+  byte-identical streams,
+  2026-11-26).
 
 ### Known limits
 
@@ -1635,19 +1722,23 @@ and every other line stays as it is.
   and only for the space character itself:
   a tab or a no-break space inside a module file name is keyed as written,
   and no `file-uses` line can name that file either.
-  A root file, such as `src/bin/my tool.rs`, is no module file of a folder,
+  A root file,
+  such as `src/bin/my tool.rs`,
+  is no module file of a folder,
   so it gets no such finding,
-  and its own keys hold its name as written, which a line reads.
-  A name that ends in a space, a tab or another character the list reader trims is refused before any check,
+  and its own keys hold its name as written,
+  which a line reads.
+  A name that ends in a space,
+  a tab or another character the list reader trims is refused before any check,
   because no key could end in that character,
   and so is a name that holds a line break,
   because a list line ends at one.
 - A macro call's key holds its whole argument text,
   so a call written over 6,000 lines gave an 87,828-character key (measured 2026-11-26),
   and any edit inside the call changes that key.
-  A list file is read up to one mebibyte,
+  A list file is read up to four mebibytes,
   so a key longer than that cannot be written on any line:
-  a call whose arguments reach a mebibyte must move out of the index file,
+  a call whose arguments reach four mebibytes must move out of the index file,
   which is what the finding asks for anyway.
   Every other key's length follows the path and the names the finding holds.
 
@@ -1692,7 +1783,8 @@ and its `layout-git-policy-cli` block selects them for `package/git-policy/cli`
 with the crate's two lists,
 so both commands check the crate's per-file rules and its layout.
 The block came from branch `chore/git-policy-cli-layout-rules-on-with-a-shrinking-allow-list`,
-which merged on 2026-11-26 (`a1b9b1e850`, 2026-11-26T00:17:50-05:00).
+which merged on 2026-11-26 (`a1b9b1e850`,
+2026-11-26T00:17:50-05:00).
 The package's container gate (`native:test:container`) runs neither rule,
 because it runs Clippy and the test suite and never the repository linter,
 so a round that only runs the gate does not meet the layout rules;
