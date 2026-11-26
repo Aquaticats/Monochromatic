@@ -40,11 +40,16 @@
 //!   the paths one root-owned build serves,
 //!   the checkout record's path,
 //!   the words and the version line.
-//! - `handler_mode_arguments.rs`:
+//! - `handler_mode_words.rs`:
 //!   the mode words,
-//!   the adoption's three options,
-//!   the replacement a record admits,
-//!   the refusals and the usage.
+//!   the options each mode takes and the usage.
+//! - `handler_mode_argument_refusals.rs`:
+//!   why one invocation is not a mode,
+//!   and the words each cause answers.
+//! - `handler_mode_arguments.rs`:
+//!   what one invocation asks for,
+//!   the adoption's three options and the replacement a record admits,
+//!   and the parse that reads them.
 //! - `mode_awaiting_its_step.rs`:
 //!   the refusal of a mode whose plan step has not landed.
 //! - `root_mode_caller.rs`:
