@@ -6,7 +6,8 @@
 //! Why:
 //!  A worktree that Git creates (or a bare repository's) needs its ignored files from the source worktree,
 //!  and a copy a dead process left is recovered first by a command in the worktree it fills,
-//!  under a ceiling, and never by a command in another worktree.
+//!  under a ceiling,
+//!  and never by a command in another worktree.
 //!  The caller decides the bypass facts and supplies the runner;
 //!  this module never runs the commit refusal.
 //!  No lock stands around the command,

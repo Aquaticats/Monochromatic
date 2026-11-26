@@ -218,7 +218,8 @@
 //!   the repository directories every query of this route reads,
 //!   and the plain start of real Git that reports that ending.
 //! - `worktree_copy_forward_step_runner.rs`:
-//!   the runner that starts real Git, as a child, for each step the copy route runs:
+//!   the runner that starts real Git as a child,
+//!   for each step the copy route runs:
 //!   the person's own command with the checkout options it needs,
 //!   and the ladder's own steps under their ceilings.
 //! - `worktree_copy_forward_settled_run.rs`:
@@ -545,7 +546,8 @@ pub mod worktree_copy_settles_one_invocation;
 /// and the plain start of real Git that reports that ending.
 pub mod worktree_copy_forward_outcome;
 
-/// The runner that starts real Git, as a child, for each step the copy route runs:
+/// The runner that starts real Git as a child,
+/// for each step the copy route runs:
 /// the person's own command with the checkout options it needs,
 /// and the ladder's own steps under their ceilings.
 pub mod worktree_copy_forward_step_runner;
