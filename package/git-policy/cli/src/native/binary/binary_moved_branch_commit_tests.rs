@@ -32,9 +32,11 @@ use super::hold_at_prepare::{
     Hold,
     author_of,
     held_commit,
+    held_commit_whose_standard_error_is_a_full_pipe,
     marker_directory,
     parents,
     release,
+    released_within,
     wait_held,
     write,
 };
@@ -50,7 +52,14 @@ use super::support::{
     git,
     repository,
 };
+/// The full pipe nobody drains and the bytes it still holds.
+use super::support_a_full_standard_error::{
+    PipeNobodyDrains,
+    pending_bytes,
+};
 use std::ffi::OsStr;
+/// The descriptor whose waiting bytes a control counts.
+use std::os::fd::AsRawFd;
 use std::path::PathBuf;
 
 /// What:
@@ -676,6 +685,89 @@ fn a_reword_fixup_lands_on_a_branch_that_moved_with_the_branchs_own_tree() {
         ended.stderr
     );
     git(&fixture, &repo, &["fsck", "--strict", "--no-dangling"]);
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit whose branch moved under its build,
+///  whose standard error is a full pipe nobody drains,
+///  returns and lands on the branch as it is now.
+/// Why:
+///   A moved branch tells the person it is building the commit again,
+///  and once the commit lands it names the build that did not land:
+///  two notes of the commit path,
+///  written while the commit is still in its own hands,
+///  and both used to be written on the commit's own thread (issue 6421).
+///  They go to the thread that writes standard error,
+///  so a reader that stopped draining costs them and never the commit.
+///  The other session's commit in this window is what makes both notes unavoidable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('moved', () => { const [held, pipe] = heldCommitOnAFullPipe(...); await waitHeld(held); await otherSessionCommits(); expect(releasedWithin(held, 150s)).toBe(0); expect(head().parents).toEqual([moved]) })
+/// ```
+#[test]
+fn a_commit_rebuilt_on_a_moved_branch_holds_nobody_with_its_standard_error_full() {
+    let fixture: Fixture = fixture("moved-branch-stalled");
+    let repo: PathBuf = unborn_repository(&fixture);
+    write(&repo, "x.txt", "mine\n");
+    let name: String = format!("mbs-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let markers: PathBuf = marker_directory(&fixture);
+    let (mut held, pipe): (Held, PipeNobodyDrains) =
+        held_commit_whose_standard_error_is_a_full_pipe(
+            &fixture,
+            &repo,
+            name.as_str(),
+            markers.as_path(),
+            &Hold {
+                arguments: &["commit", "--message=first", "--", "x.txt"],
+                stdin: None,
+                environment: &[],
+            },
+        );
+    wait_held(&mut held);
+    write(&repo, "y.txt", "landed by another session\n");
+    let landed: std::process::Output = through_service(
+        &fixture,
+        &repo,
+        name.as_str(),
+        &["commit", "--message=unrelated", "--", "y.txt"],
+    );
+    assert_eq!(
+        landed.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
+    // The held commit's own bound is `HELD_BOUND_SECONDS` (600 s), and a `SIGKILL`ed command is reaped in
+    //  a grace past the bound the control gives it, so a control that reached it fails with what it waited for.
+    let code: Option<i32> = released_within(held, std::time::Duration::from_secs(650));
+    assert_eq!(
+        code,
+        Some(0),
+        "the commit built again on the branch as it is now returns and lands"
+    );
+    assert_eq!(
+        parents(&fixture, &repo),
+        vec![moved],
+        "the commit sits on the branch as it is now"
+    );
+    assert_eq!(
+        git_text(&fixture, &repo, &["show", "HEAD:x.txt"]),
+        "mine\n",
+        "the file this commit captured"
+    );
+    assert_eq!(
+        pending_bytes(pipe.read_end.as_raw_fd()),
+        pipe.capacity,
+        "the pipe was read by nobody, so every byte this control put in it is still there"
+    );
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);
