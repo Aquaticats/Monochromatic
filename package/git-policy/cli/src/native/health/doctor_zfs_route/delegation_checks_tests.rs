@@ -19,7 +19,8 @@
 //! expect(check_delegation(withGrant('rename', Inheritance.Local))).toMatchObject({ kind: 'finding', field: 'permission' });
 //! ```
 
-use super::{DelegationFacts, Grant, Inheritance, Who, check_delegation, grants_of};
+use super::check_delegation;
+use crate::health::doctor_zfs_route::delegation_reply::{DelegationFacts, Grant, Inheritance, Who, grants_of};
 use crate::health::doctor_zfs_route::route_test_facts::{ACCOUNT, ACCOUNT_GROUP, CHECKOUT_DATASET, CONTAINER_DATASET, grant, healthy_delegation, healthy_grants};
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 
