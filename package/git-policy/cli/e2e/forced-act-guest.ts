@@ -196,8 +196,9 @@ async function run(chosen: Options): Promise<void> {
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'push', chosen.name, tarball, '/root/subject.tar.gz'], log: 'guest-push.log', });
   const build = [
     'set -eu',
-    // `mvm push` lands the tarball on the shared folder, so the guest copies it where the build reads it.
-    'if test -f /root/subject.tar.gz; then :; else cp /mnt/shared/subject.tar.gz /root/subject.tar.gz; fi',
+    // `mvm push` lands the tarball on the shared folder, so the guest copies it where the build reads it, over whatever
+    // an earlier run left there: a kept copy from an earlier run is a stale tree, not this run's.
+    'cp --force /mnt/shared/subject.tar.gz /root/subject.tar.gz',
     `rm --recursive --force ${CRATE_DIR}`,
     `mkdir --parents ${CRATE_DIR}`,
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,

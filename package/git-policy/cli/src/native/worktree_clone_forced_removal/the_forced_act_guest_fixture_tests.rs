@@ -215,6 +215,7 @@ pub(crate) fn phase_line(phase: &str, fields: &[(&str, &str)]) -> String {
 ///  The child ends at once and never returns through the arm's frames,
 ///  and the parent waits for it on every path.
 pub(crate) fn in_a_private_namespace(phase: &str, body: &dyn Fn() -> String) -> String {
+    let started: std::time::Instant = std::time::Instant::now();
     let mut ends: [libc::c_int; 2] = [0; 2];
     // SAFETY: `ends` is a live two-element array the call fills with the two descriptors it makes.
     let piped: libc::c_int = unsafe { libc::pipe2(ends.as_mut_ptr(), libc::O_CLOEXEC) };
@@ -269,7 +270,9 @@ pub(crate) fn in_a_private_namespace(phase: &str, body: &dyn Fn() -> String) -> 
     let line: String = String::from_utf8_lossy(bytes.as_slice()).trim().to_string();
     assert!(libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0, "the phase `{phase}` ended with status {status} and wrote: {line}");
     assert!(!line.is_empty(), "the phase `{phase}` wrote no line");
-    return line;
+    // What the phase took, for the round's record: a measurement of this run and never a value the release ships.
+    let took: u128 = started.elapsed().as_millis();
+    return format!("{line} ms={took}");
 }
 
 /// What:
