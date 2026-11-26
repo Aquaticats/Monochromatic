@@ -2442,6 +2442,71 @@ fn layout_a_mutual_dependency_between_groups_closed_by_two_own_file_uses_is_repo
     }
 }
 
+/// The finding about a use written in a group's own file names that use in its key,
+///  so a tree that already holds one can record it on a list,
+///  and a use added later still cannot be recorded anywhere.
+#[test]
+fn layout_the_own_file_loop_finding_is_keyed_by_its_use() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("src/lib.rs", "//! Index.\npub mod a;\npub mod grp;\n");
+    fixture.write("src/a/mod.rs", "//! A.\nuse crate::grp::g2::X;\n");
+    fixture.write("src/grp/mod.rs", "//! Group.\npub mod own;\npub mod g2;\n");
+    fixture.write("src/grp/own.rs", "//! Own.\nuse crate::a::X;\n");
+    fixture.write("src/grp/g2/mod.rs", "//! G2.\npub struct X;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    // Every finding of the tree except the loop, which no `uses` line can record.
+    fixture.write(
+        "folder.txt",
+        "missing-link src/a -> src/grp/g2\ngroup-file src/grp own.rs\n",
+    );
+    let keyless: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(keyless.status, 1, "{}", keyless.stderr);
+    assert!(
+        keyless
+            .stdout
+            .contains("These entries use each other in a loop"),
+        "{}",
+        keyless.stdout
+    );
+    // The rule prints the key of every finding it keeps on the debug stream.
+    assert!(
+        keyless
+            .stderr
+            .contains("allow-list key: own-file-loop src/grp -> src/a"),
+        "{}",
+        keyless.stderr
+    );
+    // The line names that use, so the list holds every finding of this tree.
+    fixture.write(
+        "folder.txt",
+        "missing-link src/a -> src/grp/g2\ngroup-file src/grp own.rs\nown-file-loop src/grp -> src/a\n",
+    );
+    let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(
+        (listed.status, listed.stdout.as_str()),
+        (0, ""),
+        "{}",
+        listed.stderr
+    );
+    // The use is what the line records: without it the line tolerates nothing.
+    fixture.write("src/grp/own.rs", "//! Own.\n");
+    let dead: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(dead.status, 1, "{}", dead.stderr);
+    assert!(
+        dead.stdout
+            .contains("own-file-loop src/grp -> src/a` in folder.txt tolerates nothing any more"),
+        "{}",
+        dead.stdout
+    );
+}
+
 /// `--config` reads an allow path from the working directory,
 ///  which is also the base of that configuration's own file patterns,
 ///  so the list is found where the run was started and not beside the configuration file.

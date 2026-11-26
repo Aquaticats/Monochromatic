@@ -564,8 +564,10 @@ fn path_back(
 ///  A use the folder loop already holds is left to the loop checks,
 ///  which report it or the use added inside a tolerated loop.
 ///  A use of the group's own child folders joins no two entries and owes nothing.
-///  The finding carries no key:
-///  a loop is tolerated one use at a time and never as a whole.
+///  The finding is keyed by the use it reports, `own-file-loop <group> -> <used folder>`,
+///  so a tree that already holds one can record it on a list;
+///  a list of every finding never grows,
+///  so a use added later still has no line to hold it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -618,7 +620,11 @@ fn group_own_loop_uses(
                     shown(from, base),
                     shown(&target_entry, base)
                 )),
-                key: String::new(),
+                key: format!(
+                    "own-file-loop {} -> {}",
+                    key_path(from, base),
+                    key_path(to, base)
+                ),
             });
         }
     }
