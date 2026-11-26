@@ -31,19 +31,30 @@ use std::collections::HashMap;
 /// Imports the line-by-line side-file readers.
 use std::fs::File;
 /// Imports buffered reading so the side files stream.
-use std::io::{BufRead, BufReader};
+use std::io::{
+    BufRead,
+    BufReader,
+};
 /// Imports the borrowed path type for side-file locations.
 use std::path::Path;
 
 /// Imports `anyhow` helpers for application-level error returns.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 /// Imports serde's derive so side-file rows parse straight from each JSON line.
 use serde::Deserialize;
 /// Imports the shared dB conversion,
 ///  the policy,
 ///  the engine's bucket types,
 ///  and the production selection's grid.
-use truepeak_core::{BucketProbe, Policy, ProbeGrid, TrackProvenance};
+use truepeak_core::{
+    BucketProbe,
+    Policy,
+    ProbeGrid,
+    TrackProvenance,
+};
 
 /// One row of the embedded-tag sweep (analysis/tags-sweep.mjs output).
 #[derive(Deserialize)]
@@ -106,14 +117,27 @@ pub enum Bucket {
 ///  one source
 /// of truth;
 ///  the bench validates the engine's dials instead of carrying its own copy.
-fn bucket_probe(policy: &Policy, bucket: Bucket, bones_present: bool) -> BucketProbe {
+fn bucket_probe(
+    policy: &Policy,
+    bucket: Bucket,
+    bones_present: bool,
+) -> BucketProbe {
     let provenance = match bucket {
-        Bucket::Flac => TrackProvenance { lossless: true, ..TrackProvenance::unknown() },
-        Bucket::Store => TrackProvenance { store_tagged: true, ..TrackProvenance::unknown() },
-        Bucket::Purl => TrackProvenance { youtube_tagged: true, ..TrackProvenance::unknown() },
+        Bucket::Flac => TrackProvenance {
+            lossless: true,
+            ..TrackProvenance::unknown()
+        },
+        Bucket::Store => TrackProvenance {
+            store_tagged: true,
+            ..TrackProvenance::unknown()
+        },
+        Bucket::Purl => TrackProvenance {
+            youtube_tagged: true,
+            ..TrackProvenance::unknown()
+        },
         Bucket::Bare => TrackProvenance::unknown(),
     };
-    return provenance.select(&policy.buckets, bones_present)
+    return provenance.select(&policy.buckets, bones_present);
 }
 
 /// Read the tag sweep into a per-path bucket map;
@@ -148,15 +172,15 @@ pub fn load_buckets(path: &Path) -> Result<HashMap<String, Bucket>> {
         };
         map.insert(row.path, bucket);
     }
-    return Ok(map)
+    return Ok(map);
 }
 
 /// The extension-fallback bucket for tracks the tag sweep missed.
 fn bucket_from_extension(path: &str) -> Bucket {
     if path.ends_with(".flac") {
-        return Bucket::Flac
+        return Bucket::Flac;
     } else {
-        return Bucket::Bare
+        return Bucket::Bare;
     }
 }
 
@@ -168,7 +192,10 @@ fn bucket_from_extension(path: &str) -> Bucket {
 ///  Why:
 ///  the probe needs the slot indices,
 ///  not the raw profile.
-pub fn load_bones(path: &Path, top: usize) -> Result<HashMap<String, Vec<usize>>> {
+pub fn load_bones(
+    path: &Path,
+    top: usize,
+) -> Result<HashMap<String, Vec<usize>>> {
     // Stream rows, sort slot indices by byte count, keep the top few.
     let file = File::open(path)?;
     let reader = BufReader::new(file);
@@ -184,7 +211,7 @@ pub fn load_bones(path: &Path, top: usize) -> Result<HashMap<String, Vec<usize>>
         order.truncate(top);
         map.insert(row.path, order);
     }
-    return Ok(map)
+    return Ok(map);
 }
 
 /// The hybrid probe:
@@ -204,7 +231,12 @@ pub fn load_bones(path: &Path, top: usize) -> Result<HashMap<String, Vec<usize>>
 /// starts on the right hills at a fraction of the coverage,
 ///  and scoring it through the production
 /// selection is what keeps this evidence equal to playback's.
-fn hybrid_probe(track: &Track, coverage: f64, even_coverage: f64, bones: Option<&Vec<usize>>) -> (f64, f64) {
+fn hybrid_probe(
+    track: &Track,
+    coverage: f64,
+    even_coverage: f64,
+    bones: Option<&Vec<usize>>,
+) -> (f64, f64) {
     let bins = &track.bin_peaks;
     let selection = select_over_bin_peaks(
         ProbeGrid {
@@ -215,7 +247,10 @@ fn hybrid_probe(track: &Track, coverage: f64, even_coverage: f64, bones: Option<
         },
         bins,
     );
-    return (f64::from(selection.peak), selection.used_bins as f64 * track.bin_seconds)
+    return (
+        f64::from(selection.peak),
+        selection.used_bins as f64 * track.bin_seconds,
+    );
 }
 
 /// One probed long track under the composite:
@@ -257,10 +292,14 @@ pub fn report_buckets(
     args: &[String],
 ) -> Result<()> {
     // The side files are the non-flag arguments after the corpus path, in order.
-    let side: Vec<&String> = args.iter().skip(2).filter(|arg| return !arg.starts_with("--")).collect();
-    let tags_path = side
-        .first()
-        .context("usage: truepeak-core-bench <corpus> <tags-full.jsonl> [flac-profiles.jsonl] --buckets")?;
+    let side: Vec<&String> = args
+        .iter()
+        .skip(2)
+        .filter(|arg| return !arg.starts_with("--"))
+        .collect();
+    let tags_path = side.first().context(
+        "usage: truepeak-core-bench <corpus> <tags-full.jsonl> [flac-profiles.jsonl] --buckets",
+    )?;
     let buckets = load_buckets(Path::new(tags_path))?;
     let policy = truepeak_core::default_policy();
     let bones = match side.get(1) {
@@ -271,7 +310,10 @@ pub fn report_buckets(
     println!("\nbucket composite (the SHIPPED default_policy table; flac bones-guided):");
     for bucket in [Bucket::Flac, Bucket::Store, Bucket::Purl, Bucket::Bare] {
         let probe = bucket_probe(&policy, bucket, bucket == Bucket::Flac && !bones.is_empty());
-        let members = rows.iter().filter(|row| return row.bucket == bucket).count();
+        let members = rows
+            .iter()
+            .filter(|row| return row.bucket == bucket)
+            .count();
         println!(
             "  {bucket:?}: coverage={} margin={}dB long_tracks={members}",
             probe.coverage_fraction, probe.probe_margin_db
@@ -280,7 +322,11 @@ pub fn report_buckets(
     println!(
         "decoded={decoded:.0}s ({:.2}% of corpus) target={target_secs:.0}s {}",
         100.0 * decoded / full_secs,
-        if decoded <= target_secs { "IN BUDGET" } else { "OVER" }
+        if decoded <= target_secs {
+            "IN BUDGET"
+        } else {
+            "OVER"
+        }
     );
     // The letter's three measures over every track (shorts are exact, zero error).
     let mut clamps: HashMap<Bucket, usize> = HashMap::new();
@@ -310,7 +356,7 @@ pub fn report_buckets(
         worst_quiet,
         worst_over,
     );
-    return Ok(())
+    return Ok(());
 }
 
 /// Evaluate the shipped composite over the corpus.
@@ -345,7 +391,11 @@ pub fn evaluate_buckets(
             .get(&track.path)
             .copied()
             .unwrap_or_else(|| return bucket_from_extension(&track.path));
-        let track_bones = if bucket == Bucket::Flac { bones.get(&track.path) } else { None };
+        let track_bones = if bucket == Bucket::Flac {
+            bones.get(&track.path)
+        } else {
+            None
+        };
         let probe = bucket_probe(policy, bucket, track_bones.is_some());
         let even = if track_bones.is_some() {
             policy.bones_even_coverage_fraction
@@ -361,7 +411,7 @@ pub fn evaluate_buckets(
             bucket,
         });
     }
-    return (decoded, rows)
+    return (decoded, rows);
 }
 
 /// What:
