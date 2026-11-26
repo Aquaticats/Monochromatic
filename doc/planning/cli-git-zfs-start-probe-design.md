@@ -1259,9 +1259,11 @@ is what answers that check, so `unshare(CLONE_NEWUSER)` succeeds and the first m
 reading was wrong about the calls before it: a guest measured on 2026-11-25 answers `EACCES` at the open of
 `/proc/self/setgroups` for write, because `proc_setgroups_open` asks for that same capability, and the `deny` write
 is never reached
-(`doc/troubleshooting/ubuntu-apparmor-userns-restriction-refuses-the-zfs-account-companion.md`). The skip paragraph
-above names that answer, so the call a person sees on such a host is the open and not the first map write. A boundary at the first call would make it a failed arm, so every managed add on such a
-host would be refused and the probe's pass controls could not pass there either.
+(`doc/troubleshooting/ubuntu-apparmor-userns-restriction-refuses-the-zfs-account-companion.md`). That reading of
+mainline source is still a reading, and [M11](#m11-the-account-companion-per-add) now records the measured answer.
+The skip paragraph above names that answer, so the call a person sees on such a host is the open and not the first
+map write. A boundary at the first call would make it a failed arm, so every managed add on such a host would be
+refused and the probe's pass controls could not pass there either.
 
 The companion then prints one line naming the call, the errno and the settings it read
 (`/proc/sys/user/max_user_namespaces`, `/proc/sys/kernel/unprivileged_userns_clone` and, where the running kernel
