@@ -58,7 +58,7 @@ The same holds for what a test reads:
 `crate::run_progress::look` and `look_now` add up every task of this process,
 so a control that judges the run's own figures runs its reading in a helper process of the test's own
 (`testing/helper_process_test_support.rs`),
-as issue 6478's descriptor-room control and issue 6486's four `run_progress` controls do.
+as issue 6478's descriptor-room control and the `run_progress` controls of issue 6486 do.
 A threaded run moves those counters on other tests' threads,
 and the comparison then fails on a figure the control never named.
 The four share one comparison,

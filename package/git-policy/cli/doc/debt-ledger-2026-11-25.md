@@ -237,11 +237,14 @@ and five threaded-only failures are filed and open:
 
 Round of 2026-11-26:
 issue 6486 is fixed and merged,
-those four `run_progress` controls of the round above
+the `run_progress` controls of the round above
 (`673512f65d`,
+four the issue names,
+and `c75f87c23a` for `the_look_sees_this_process_and_the_processes_it_started` beside them,
+which the first threaded run after the merge failed with 21 members before its child and 21 after it),
 each one reading its figures in a helper process of its own through `testing/helper_process_test_support.rs`,
 as 6478's descriptor-room control does,
-with one shared comparison that refuses a look where a task which is not the control's own moved),
+with one shared comparison that refuses a look where a task which is not the control's own moved,
 and four threaded-only failures are filed and open:
 6483,
 6484,
