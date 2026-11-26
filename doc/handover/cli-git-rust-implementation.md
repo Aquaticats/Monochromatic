@@ -136,7 +136,7 @@ Rounds started earlier run on the pool they named.
   (`doc/handover/questions-for-the-owner.md`);
   it ran no `cargo fmt` because `~/temp/agent/rounds-common-rules-2026-11-25.md` still said the crate was unformatted,
   so the coordinator formatted its 28 files (`a715581524`) and corrected that rule;
-  its merge check compares any red module against `main` and merges only when no failure is the branch's own.
+  it merged as `3418cdaebc` (09:42) after its one branch-only red, the started-as-git control (6514), failed on `main` too in an alternating rerun.
   It filed, through the coordinator, 6512 (folder docs misspell the file-list marker, so the layout lint reads none of their lists),
   6513 (the linter reads a near-miss marker as no list, silently) and 6514 (the started-as-git record control can read the parent's record).
 - Issues 6509 (five more commit ledgers whose controls fill and empty each other in a threaded run)
