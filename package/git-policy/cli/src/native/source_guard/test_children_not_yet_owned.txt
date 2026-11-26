@@ -92,16 +92,6 @@ binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run,
 binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_unmount_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
-commit/commit_preparation_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/native_commit_waiting_notice_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/native_commit_waiting_notice_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/native_commit_waiting_notice_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
 landing/service_index_claim_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
 landing/service_index_lock_by_creation_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
 landing/service_index_lock_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
