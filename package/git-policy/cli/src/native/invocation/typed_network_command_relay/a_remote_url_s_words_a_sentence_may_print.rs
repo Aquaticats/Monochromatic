@@ -1,10 +1,14 @@
 //! What:
-//!  The words of a remote URL a sentence may print: where a URL's host ends, whether a number after it is a port, and the
-//!  one byte rule a host name and a user name each have to keep.
+//!  The words of a remote URL a sentence may print:
+//!  where a URL's host ends,
+//!  whether a number after it is a port,
+//!  and the one byte rule a host name and a user name each have to keep.
 //! Why:
 //!  The sentence after a refusal names the host the person's remote names and offers an `ssh` command built from it
-//!  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`, "Where the host comes from"),
-//!  and every one of these readings follows Git's own `connect.c` at v2.56.0, the release `MINIMUM_GIT_VERSION` pins,
+//!  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
+//!  "Where the host comes from"),
+//!  and every one of these readings follows Git's own `connect.c` at v2.56.0,
+//!  the release `MINIMUM_GIT_VERSION` pins,
 //!  so the command offered reaches the host and the port Git's own child reaches.
 //!
 //! In TS you'd write (pseudocode):
@@ -15,11 +19,14 @@
 //! ```
 
 /// What:
-///  The part of a scp-like URL that names its user and host, which ends at the colon that begins its path.
+///  The part of a scp-like URL that names its user and host,
+///  which ends at the colon that begins its path.
 /// Why:
-///   Git ends a scp-like URL's host at its first colon, so a number after that colon is the path's first segment and never a
-///   port, and an absolute path after it names no port at all.
-///   A bracketed address holds colons of its own, so the colon that ends the host is the first one after its `]`.
+///   Git ends a scp-like URL's host at its first colon,
+///   so a number after that colon is the path's first segment and never a port,
+///   and an absolute path after it names no port at all.
+///   A bracketed address holds colons of its own,
+///   so the colon that ends the host is the first one after its `]`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,10 +81,14 @@ pub(super) fn before_the_colon_that_begins_the_path(url: &str) -> &str {
 }
 
 /// What:
-///  Split the text after a URL's user into the host and a port written after it, unwrapping a bracketed address.
+///  Split the text after a URL's user into the host and a port written after it,
+///  unwrapping a bracketed address.
 /// Why:
-///   A port is written `host:port`, a bracketed address is written `[::1]`, and Git hands ssh the address without its
-///   brackets, so the sentence names and offers the address Git's child gets.
+///   A port is written `host:port`,
+///   a bracketed address is written `[::1]`,
+///   and Git hands ssh the address without its
+///   brackets,
+///   so the sentence names and offers the address Git's child gets.
 ///   A scp-like URL writes no port after its host at all.
 ///
 /// In TS you'd write (pseudocode):
@@ -153,9 +164,15 @@ pub(super) fn the_host_and_a_port(
 }
 
 /// What:
-///  The host name a person may be shown and a shell reads as one word, or nothing when it holds any other byte.
+///  The host name a person may be shown and a shell reads as one word,
+///  or nothing when it holds any other byte.
 /// Why:
-///  A host name holds letters, digits, dots, hyphens and, for an address, colons and percent signs;
+///  A host name holds letters,
+///  digits,
+///  dots,
+///  hyphens and,
+///  for an address,
+///  colons and percent signs;
 ///  any other byte means this is not a host a sentence may name,
 ///  and dropping it instead would print a different host than the remote named.
 ///
@@ -185,9 +202,11 @@ pub(super) fn printable_host(host: &str) -> Option<String> {
 }
 
 /// What:
-///  The user a URL may name, or nothing when it holds any byte a word of an `ssh` command cannot.
+///  The user a URL may name,
+///  or nothing when it holds any byte a word of an `ssh` command cannot.
 /// Why:
-///  A user is one word of that command, so the same rule keeps the sentence free of shell syntax.
+///  A user is one word of that command,
+///  so the same rule keeps the sentence free of shell syntax.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

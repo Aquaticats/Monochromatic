@@ -180,7 +180,8 @@ fn the_host_is_the_name_the_remote_gives() {
     );
 }
 
-/// A scp-like URL's host ends at its colon, so an absolute path after that colon is a path and never a port.
+/// A scp-like URL's host ends at its colon,
+/// so an absolute path after that colon is a path and never a port.
 #[test]
 fn a_slash_after_a_scp_like_colon_is_a_path_and_not_an_empty_port() {
     // What: `Target { .. }` is the host the sentence names and the words its `ssh` command needs, both as `String`.
@@ -199,7 +200,8 @@ fn a_slash_after_a_scp_like_colon_is_a_path_and_not_an_empty_port() {
     );
 }
 
-/// A number at the start of a scp-like URL's path is the path's own first segment, so no port is written for it.
+/// A number at the start of a scp-like URL's path is the path's own first segment,
+/// so no port is written for it.
 #[test]
 fn a_number_at_the_start_of_a_scp_like_path_is_not_a_port() {
     // Git cuts at the first colon and takes everything after it as the path, so this URL is port 22 with the path
@@ -229,7 +231,8 @@ fn a_number_at_the_start_of_a_scp_like_path_is_not_a_port() {
     );
 }
 
-/// A password a URL carries is not the host, and the user name before its colon is the user the sentence names.
+/// A password a URL carries is not the host,
+/// and the user name before its colon is the user the sentence names.
 #[test]
 fn a_password_in_the_url_is_not_the_host() {
     // Git hands ssh the whole `user:pw@host` as the destination, and ssh reads the last `@` as the user's end, so the host
@@ -252,7 +255,8 @@ fn a_password_in_the_url_is_not_the_host() {
     );
 }
 
-/// A bracketed address is a host the sentence may name, and its command carries the address without the brackets.
+/// A bracketed address is a host the sentence may name,
+/// and its command carries the address without the brackets.
 #[test]
 fn a_bracketed_address_is_a_host_the_sentence_may_name() {
     // Git unwraps a bracketed address before it hands ssh the destination, and ssh reads the bare address as a host

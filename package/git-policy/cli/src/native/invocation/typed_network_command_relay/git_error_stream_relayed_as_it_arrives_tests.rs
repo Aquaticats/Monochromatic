@@ -289,10 +289,12 @@ fn a_child_that_cannot_start_is_refused() {
 //region The shape a child gets is this process's own standard error's shape
 
 /// What:
-///  The libtest name of the body `name` in this file's own module: the module path after the crate's first segment,
+///  The libtest name of the body `name` in this file's own module:
+///  the module path after the crate's first segment,
 ///  then the function's name.
 /// Why:
-///  `--exact` matches this whole name, so a name built any other way runs no test and the `passed` check says so.
+///  `--exact` matches this whole name,
+///  so a name built any other way runs no test and the `passed` check says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -331,13 +333,16 @@ fn the_shape_in_a_child_whose_error_stream_is_a_pipe() {
 }
 
 /// What:
-///  The shape this process chooses for its child is the shape this process's own standard error has, read from that stream.
+///  The shape this process chooses for its child is the shape this process's own standard error has,
+///  read from that stream.
 /// Why:
 ///  K2 is one `isatty(2)` call and everything the relay connects follows that answer,
 ///  and a plant that made the answer "pipe" whatever the stream is left every control of the relay green,
 ///  because the end-to-end arms need a throwaway `sshd` that a host without one cannot start.
-///  A stream belongs to one process, so this control asks two children of its own:
-///  one whose standard error is a pseudo-terminal's slave, and one whose standard error is the default pipe.
+///  A stream belongs to one process,
+///  so this control asks two children of its own:
+///  one whose standard error is a pseudo-terminal's slave,
+///  and one whose standard error is the default pipe.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -191,7 +191,8 @@ pub struct RelayedStart {
 ///   (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`, "the child is published to the existing
 ///   signal relay"),
 ///   and the child's error stream must be the terminal or the pipe K2 chose before it starts.
-///   The command is taken here rather than borrowed, so this process's own handle on that stream is closed once the child
+///   The command is taken here rather than borrowed,
+///   so this process's own handle on that stream is closed once the child
 ///   is running:
 ///   a wrapper that kept the terminal's slave open held its master from ever reporting the child's end,
 ///   so the read noticed Git's exit only at its next `poll` slice,

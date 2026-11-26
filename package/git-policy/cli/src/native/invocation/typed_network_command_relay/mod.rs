@@ -48,7 +48,9 @@
 //! // relayWhenSshCarries(git, argv, env) : { outcome, code } | undefined  // undefined = keep today's process replacement
 //! ```
 
-/// Where a remote URL's host ends, whether a number after it is a port, and the bytes a host name or a user name may hold.
+/// Where a remote URL's host ends,
+/// whether a number after it is a port,
+/// and the bytes a host name or a user name may hold.
 pub mod a_remote_url_s_words_a_sentence_may_print;
 /// The host a remote names as the person typed it, and the words an `ssh` command needs to connect there.
 pub mod a_target_the_sentence_may_name;

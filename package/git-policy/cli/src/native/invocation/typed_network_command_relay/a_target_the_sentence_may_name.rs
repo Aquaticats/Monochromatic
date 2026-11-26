@@ -6,8 +6,12 @@
 //!  and every command it offers is built from bytes a host name and a user may hold, so nothing it prints can be read by a
 //!  shell as anything but a word
 //!  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`, "Where the host comes from").
-//!  Where a URL's host ends, whether a number after it is a port, and which bytes a host or a user may hold are read in
-//!  `a_remote_url_s_words_a_sentence_may_print.rs`, by Git's own `connect.c` at v2.56.0, and this file assembles its answers into the
+//!  Where a URL's host ends,
+//!  whether a number after it is a port,
+//!  and which bytes a host or a user may hold are read in
+//!  `a_remote_url_s_words_a_sentence_may_print.rs`,
+//!  by Git's own `connect.c` at v2.56.0,
+//!  and this file assembles its answers into the
 //!  one command a person can type.
 //!
 //! In TS you'd write (pseudocode):
