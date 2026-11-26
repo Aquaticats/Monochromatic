@@ -2157,6 +2157,85 @@ fn layout_an_undeclared_index_file_changes_nothing() {
     );
 }
 
+/// A module file in the package folder itself is keyed by `.`,
+///  the one spelling of the package folder that a list line can hold,
+///  so no key ends in the space the list reader trims away.
+#[test]
+fn layout_a_module_file_in_the_package_folder_has_a_matchable_key() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    // The package folder holds `x.rs` and no index of its own, so its keys are about the folder itself.
+    fixture.write("src/lib.rs", "#[path = \"../x.rs\"] pub mod x;\n");
+    fixture.write("x.rs", "pub struct X;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs", "x.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+    );
+    let found: Run = run(&fixture.path, &["--debug", "src/lib.rs", "x.rs"], b"");
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    for key in [
+        "rust/file-order-in-folder: allow-list key: no-top-doc .",
+        "rust/file-order-in-folder: allow-list key: missing-entry . x.rs",
+    ] {
+        assert!(
+            found.stderr.contains(key),
+            "{key} missing in {}",
+            found.stderr
+        );
+    }
+    // Both lines are copied from the keys, and the list then holds every finding.
+    fixture.write("folder.txt", "no-top-doc .\nmissing-entry . x.rs\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs", "x.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let listed: Run = run(&fixture.path, &["--debug", "src/lib.rs", "x.rs"], b"");
+    assert_eq!(
+        (listed.status, listed.stdout.as_str()),
+        (0, ""),
+        "{}",
+        listed.stderr
+    );
+    // A loop through the package folder itself is tolerated by lines that name it `.`.
+    let usage: Fixture = Fixture::new();
+    usage.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n\n[lib]\npath = \"lib.rs\"\n",
+    );
+    usage.write("lib.rs", "//! Index.\nmod a;\nmod sub;\n");
+    usage.write("a.rs", "pub struct X;\nuse crate::sub::Y;\n");
+    usage.write("sub/mod.rs", "//! Sub.\npub struct Y;\nuse crate::a::X;\n");
+    usage.write(
+        CONFIG,
+        r#"[{ "files": ["*.rs", "sub/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    // Without the list the loop is reported; both of its uses are then listed.
+    usage.write("folder.txt", "");
+    let looped: Run = run(&usage.path, &["--debug", "lib.rs", "a.rs"], b"");
+    assert_eq!(looped.status, 1, "{}", looped.stderr);
+    assert!(
+        looped
+            .stderr
+            .contains("allow-list key: missing-link . -> sub"),
+        "{}",
+        looped.stderr
+    );
+    usage.write(
+        "folder.txt",
+        "uses . -> sub\nuses sub -> .\nmissing-link . -> sub\nmissing-link sub -> .\n",
+    );
+    let linked: Run = run(&usage.path, &["--debug", "lib.rs", "a.rs"], b"");
+    assert_eq!(
+        (linked.status, linked.stdout.as_str()),
+        (0, ""),
+        "{}",
+        linked.stderr
+    );
+}
+
 /// A module file a `#[path]` names outside the package is keyed by the walk from the package folder,
 ///  never by an absolute path,
 ///  so the line that tolerates its finding reads the same in every checkout.
