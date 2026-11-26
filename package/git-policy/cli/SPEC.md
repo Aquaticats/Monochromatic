@@ -2286,6 +2286,11 @@ before and after the read,
 and the read is bounded at the limit plus one byte,
 so the bytes that were hashed are the bytes of
 the one file that was judged.
+That comparison sees a write whose stamps differ from the state read before it;
+the kernel stamps a file's times from the coarse clock,
+so a rewrite in place that keeps the size and lands in the same tick as the state compared changes no field it
+reads,
+and only a later look at the file sees it.
 The directories on the way are kept open from one tracked path to the next,
 at most 32 by `MOST_DIRECTORIES_HELD` in `src/native/subvolume/fs_beneath_directory_chain.rs`,
 and a path deeper than that is walked one directory at a time,
