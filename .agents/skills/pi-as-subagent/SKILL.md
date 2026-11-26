@@ -108,13 +108,18 @@ not that they have to."
 
 The owner on how many can run at once:
 "Pi doesn't have a limit to number of concurrent subagents."
-The practical limit is 20:
+Twenty is the first level of this machine's search,
+not a cap:
 the owner said
 "Try 20,
 and if it doesn't blow up (in terms of api rate limits),
 we're permanently raising the practical limit to 20,"
 and a trial at 20 agents on 2026-11-09 met no rate-limit error.
-On going higher the owner said:
+On the new drive the owner's later words make twenty a level to double from
+(`doc/handover/agents-at-once-on-this-machine.md`,
+"The cap now"),
+so count every agent and read that page before starting one.
+On going higher on the old drives the owner said:
 "no,
 that's definitely going to blow up."
 A run on another provider's account is outside it.
