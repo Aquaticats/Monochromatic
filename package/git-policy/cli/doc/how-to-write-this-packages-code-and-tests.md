@@ -88,6 +88,10 @@ Delete code nothing calls, with the text that describes it (`AGENTS.md`'s XSU; i
 A file over the linter's `rust/max-lines` splits into sibling modules by role, never by stripping docs (MXL).
 Name files, folders and functions by what they do (MKY, VGW), derive values from named constants (MGN),
 and take no lock where atomic rename, `O_EXCL` or one owner per item will do (NLK).
+A list of names, sites or words is a slice, `const NAMES: &[&str] = &[...]`, never `[&str; 47]`:
+a hand-counted length is a magic number every added entry has to edit
+(found 2026-11-25 in the raw-read guard's list, beside 277 such arrays crate-wide; ledger item 19).
+An array keeps a fixed length only where the length is the meaning, such as a header of a fixed byte width.
 
 ## Show that a guard works
 

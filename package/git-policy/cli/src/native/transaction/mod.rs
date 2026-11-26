@@ -27,6 +27,10 @@ pub mod transaction_git;
 /// Running real Git for a caller that is itself a task of the runtime.
 pub mod transaction_git_awaiting;
 
+/// One Git step of a transaction at the moment before it starts,
+/// and what the wrapper answers once it ended.
+pub mod transaction_git_step_about_to_start;
+
 /// The request,
 /// reply and failure types of the Git runner and the text of a command line.
 pub mod transaction_git_request_and_reply_types;
