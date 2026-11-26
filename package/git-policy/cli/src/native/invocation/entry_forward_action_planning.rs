@@ -42,23 +42,25 @@ use crate::repository_facts::{
 use crate::repository_location::RepositoryLocation;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::{
-    AddPlan,
     add_is_quiet,
     copy_start_directory,
     parse_add_plan,
     parse_copy_destination,
     start_directory,
 };
-use crate::worktree_copy_forward::{
+/// The facts a forward carries,
+/// and whether the copy applies to its words.
+use crate::worktree_command_facts::{
+    AddPlan,
     CopyFacts,
-    copy_applies_with,
+    RemovePlan,
 };
+use crate::worktree_copy_forward::copy_applies_with;
 use crate::worktree_identity::{
     WorktreeIdentity,
     common_directory,
 };
 use crate::worktree_remove_plan::{
-    RemovePlan,
     parse_removal_target,
     parse_remove_plan,
 };

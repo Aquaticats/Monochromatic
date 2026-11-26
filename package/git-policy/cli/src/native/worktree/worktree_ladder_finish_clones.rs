@@ -25,7 +25,6 @@ use crate::worktree_add_binding::{
     Bound,
     verify_association,
 };
-use crate::worktree_add_plan::AddPlan;
 #[cfg(feature = "measurement-routes")]
 use crate::worktree_clone::{
     Cloned,
@@ -41,6 +40,7 @@ use crate::worktree_clone_conversion_beside_the_clone::{
     install_beside_the_clone,
 };
 use crate::worktree_clone_index::PendingIndex;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_copy::{
     GitRunner,
     GitStatus,

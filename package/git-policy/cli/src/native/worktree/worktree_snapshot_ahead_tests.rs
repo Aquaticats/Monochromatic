@@ -22,7 +22,7 @@ use crate::work_item::{
     PENDING,
     state_directory,
 };
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::AddPlan;
 use crate::worktree_ladder_test_support::{
     commit_all,
     main_identity,

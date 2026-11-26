@@ -31,7 +31,7 @@ use crate::forwarding::{
 /// the person's command,
 /// or the ladder's own step.
 use crate::hooks_off::StartOwner;
-use crate::worktree_add_plan::AddPlan;
+use crate::worktree_command_facts::CopyFacts;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_stops_units::{
@@ -39,54 +39,12 @@ use crate::worktree_removal_stops_units::{
     before_removal,
     stop_units_of_removed_worktree,
 };
-use crate::worktree_remove_plan::RemovePlan;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{
     Path,
     PathBuf,
 };
-
-/// What:
-///  Everything the copy needs to know about one forwarded invocation,
-/// decided before Git starts.
-/// Why:
-///   The plan decides that the copy applies;
-/// the run performs it with real Git and the process environment.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CopyForward = { identity: GitWorktreeIdentity; command: ResolvedGitCommand; mainCheckoutPaths: string[] };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CopyFacts {
-    /// The repository shape the invocation selects.
-    pub identity: WorktreeIdentity,
-    /// Whether the command,
-    /// after alias resolution,
-    /// creates a worktree.
-    pub creates: bool,
-    /// The destination the creating command's line names,
-    /// in the form Git records it;
-    /// absent for every other command and for
-    ///  a form of `git worktree add` whose destination is not read.
-    pub destination: Option<PathBuf>,
-    /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves;
-    /// absent for every other
-    ///  command and every form the ladder does not know.
-    pub add_plan: Option<AddPlan>,
-    /// The directory of a `git worktree remove` in the plain form the wrapper may serve with a subvolume destroy;
-    ///  absent for every other command.
-    pub remove_plan: Option<RemovePlan>,
-    /// The directory of a `git worktree remove` in any form Git accepts,
-    /// which is what the clone route's refusal reads;
-    ///  absent for every other command, for a form that names no one directory, and for a directory that does not exist.
-    pub removal_target: Option<PathBuf>,
-    /// Whether the person asked a `git worktree add` for `--quiet`,
-    /// read from the words whether or not the ladder serves the form,
-    /// so a plainly run add prints no line a quiet one would suppress.
-    pub quiet: bool,
-}
 
 /// What:
 ///  The words of a step as one line for a message,

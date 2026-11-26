@@ -27,7 +27,7 @@
 //! ```
 
 use crate::diagnostic_log::warn;
-use crate::service_index_placement::rename_noreplace;
+use crate::private_storage::rename_noreplace;
 use crate::stale_ref_lock_found::{
     Found,
     Outcome,
