@@ -22,6 +22,10 @@ import type {
 export type Feed = {
   /**
    Writes one feed line, with how long the run has lasted.
+
+   The line goes to a write stream, so this returns before the line is in the file: a reader of the file sees it once the
+   stream has written it, and `close` is what waits for the last one. A reader that has to see every line of a run that is
+   still writing closes the feed first, as this package's own end of a run does.
    */
   readonly note: (entry: PiRecord,) => void;
 
