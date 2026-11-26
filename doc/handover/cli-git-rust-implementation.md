@@ -125,7 +125,7 @@ Rounds started earlier run on the pool they named.
   the last two that did (6494 and the setgroups skip) merged by 07:57,
   so its start (launcher `bol0het40`) rechecks the open branches and starts it on the virtual writer.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
-- Issue 6505 and the split's round 1, on the virtual writer.
+- The split's round 1, on the virtual writer.
 - Issues 6509 (five more commit ledgers whose controls fill and empty each other in a threaded run)
   and 6510 (the interactive selection control reads the run's terminal and never ends),
   both found by 6507's round, start on the virtual writer after its merge (starters `brvxjo7uf` and `bu9d1ahqg`).
@@ -137,7 +137,7 @@ Rounds started earlier run on the pool they named.
   which waits for the split's round 1 (6493, which edited that helper, merged at 08:53);
   and 6505 (the two queued-rewrite controls pass with the claim removed, because one blocking job drains one shard of tokio's pool),
   briefed in `~/temp/agent/issue-6505-queued-rewrite-controls-drain-every-shard-2026-11-26/prompt.md`,
-  running on the virtual writer since 6494 merged.
+  merged as `5bb5e7161f` (09:14): two claims guarded the one queued rewrite, each hiding the other; the bound's claim now decides.
 - One whole gate on `main` holding 6494's merge (runner `bmwf4d0b7`, unit `whole-gate-on-main-<tip>`).
 - Issue 6511 (twelve `push::child_watch::` controls fail on `main` under load, a different set each run),
   window `issue-6511-push-child-watch-controls-own-their-clock`, on the virtual writer since 09:04.
@@ -159,7 +159,7 @@ Rounds started earlier run on the pool they named.
   and one Medium regression: a listed own-file loop's uses on other routes are reported with no key,
   so printed keys written as the list exit 1 where alpha.14 exits 0 (48 of 104 such random trees); `main` holds no such key.
   It and the Lows go to the `alpha.16` fix round, window `monochromatic-lint-alpha-15-release-pass-fixes`,
-  which starts after 6511 once the virtual writer has a slot (starter `bqxsipe25`).
+  on the virtual writer since about 09:10.
   The fix round's 244 `rust/folder-uses-links` findings on `main` came from a tree whose 139 `uses` links all dangled;
   clean `git archive` exports of `main` give 0.
 
