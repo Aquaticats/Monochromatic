@@ -215,8 +215,10 @@ function sharedFile(name: string, file: string): string {
  */
 function lastLine(path: string): string {
   const text = readFileSync(path, 'utf8');
-  const lines = text.split('\n');
-  return (lines.at(-1) ?? '').trim();
+  // A log that ends with its own newline has an empty last element, which is
+  // not a line; the answer is the last line with any text in it.
+  const lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+  return lines.at(-1) ?? '';
 }
 
 /**
