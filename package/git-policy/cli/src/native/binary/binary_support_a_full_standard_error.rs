@@ -5,7 +5,8 @@
 //! Why:
 //!  A write to a pipe whose reader has stopped draining waits in the kernel until it resumes,
 //!  so this stream is what shows whether a note of a command is written on the command's own thread
-//!  (`foundation/standard_error_off_the_calling_thread.rs`, issue 6421).
+//!  (`foundation/standard_error_off_the_calling_thread.rs`;
+//!  issue 6421).
 //!  The shared reading of a command's output drains its pipes,
 //!  so a control that needs this stream hands the command one of its own and waits for it here.
 //!  One harness for every control that proves a note off the command's thread,
@@ -33,14 +34,16 @@ use std::process::{
 };
 use std::time::Duration;
 
-/// How long a command this harness ended may take to be reaped, in seconds' worth.
+/// How long a command this harness ended may take to be reaped,
+/// in seconds' worth.
 /// Why:
 ///  A command ended at its bound is reaped before the control reports,
 ///  so the ending it was killed with is not left to the test process's own cleanup.
 pub const REAPING: Duration = Duration::from_secs(5);
 
-/// The block one fill of a pipe writes, in bytes:
-///  the granularity of a pipe page,
+/// The block one fill of a pipe writes,
+/// in bytes.
+///  It is the granularity of a pipe page,
 ///  so a short write is the pipe's room running out and nothing else.
 const FILL_BLOCK: usize = 4096;
 
@@ -119,7 +122,8 @@ fn one_write(
     return usize::try_from(written).unwrap_or_default();
 }
 
-/// The pipe's own capacity, in bytes.
+/// The pipe's own capacity,
+/// in bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -150,8 +154,9 @@ pub fn pending_bytes(descriptor: RawFd) -> usize {
 }
 
 /// What:
-///  A pipe filled to its whole capacity, with the write end handed back for the command's standard
-///  error and the read end kept open and never read.
+///  A pipe filled to its whole capacity,
+///  with the write end handed back for the command's standard error,
+///  and the read end kept open and never read.
 /// Why:
 ///  A pipe full to its capacity refuses every later byte,
 ///  so a note written on the command's own thread waits for a reader that never comes,
@@ -199,8 +204,8 @@ pub fn a_full_pipe() -> (PipeNobodyDrains, OwnedFd) {
 ///  The shared bounded wait reads a command's output through two pipes it made,
 ///  and this harness hands the command a standard error of its own instead,
 ///  so only the status is read here.
-///  The group is the one `spawn_owned` made for this child, so the signal names only what the control
-///  started.
+///  The group is the one `spawn_owned` made for this child,
+///  so the signal names only what the control started.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

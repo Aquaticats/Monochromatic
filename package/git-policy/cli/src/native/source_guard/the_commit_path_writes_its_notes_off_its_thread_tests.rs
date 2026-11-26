@@ -4,8 +4,9 @@
 //! Why:
 //!  A write to a pipe whose reader stopped draining waits in the kernel until it resumes,
 //!  so a note written where the commit stands holds a commit that may already have landed
-//!  (`SPEC.md`, the passage that begins "That note, and every other note the commit path writes on
-//!  standard error"; issue 6421).
+//!  (`SPEC.md`;
+//!  the passage on the notes the commit path writes on standard error;
+//!  issue 6421).
 //!  The behavioural controls of `src/native/binary/` show one note at a time with a full pipe,
 //!  and two of the sites have no control that can run on every host:
 //!  a branch whose name is not text cannot be created on a file system that refuses such a name,
@@ -47,7 +48,8 @@ const NOTE_FILES: &[&str] = &[
 /// What:
 ///  The words a note file carries to hand a line to the thread that writes it.
 /// Why:
-///  A file that says notes names no stream of its own, so it names this one;
+///  A file that says notes names no stream of its own,
+///  so it names this one;
 ///  a file that lost the name is a file whose lines went back to the shared handle.
 ///
 /// In TS you'd write (pseudocode):
@@ -62,7 +64,8 @@ const THE_HAND_OVER: &str = "StandardErrorOffTheCallingThread";
 ///  A note written through the shared handle waits for the reader where the command stands,
 ///  and it is also one lock for the whole process;
 ///  `std::io::Stderr` is the type a file names when it keeps the handle in a value (the counted
-///  stream a measured write is made through), so both shapes are the same mistake.
+///  stream a measured write is made through),
+///  so both shapes are the same mistake.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,7 +116,8 @@ fn code_only(text: &str) -> String {
 ///  and nothing when it hands its lines over and writes no stream of its own.
 /// Why:
 ///  The check is a function of the text so a control can plant a note file that asks for the shared
-///  handle and read the finding, which is what proves the check can fail at all.
+///  handle and read the finding,
+///  which is what proves the check can fail at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -150,7 +154,8 @@ fn findings_of_a_note_file(
 /// What:
 ///  Every finding of every note file of this crate.
 /// Why:
-///  One call for the whole class, so a new note file joins the guard by being named once.
+///  One call for the whole class,
+///  so a new note file joins the guard by being named once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -168,7 +173,8 @@ fn findings_of_the_notes(files: &[(String, String)]) -> Vec<String> {
 ///  The note files of this crate,
 ///  each read as its `/`-separated identity and its text.
 /// Why:
-///   The guard reads the sources that ship, not a list of remembered lines.
+///   The guard reads the sources that ship,
+///   not a list of remembered lines.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
