@@ -1837,7 +1837,6 @@ fn layout_group_folders_run_in_the_built_executable() {
 ///  so a new use from the group's own file to another entry is no finding
 ///  even while a listed entry loop joins the two entries,
 ///  and no `uses` line is owed for it.
-#[cfg(unix)]
 #[test]
 fn layout_a_groups_own_file_use_is_no_finding_in_the_built_executable() {
     let fixture: Fixture = Fixture::new();
