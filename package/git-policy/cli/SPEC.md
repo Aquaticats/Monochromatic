@@ -904,6 +904,21 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   the directory above the common Git directory is a metadata directory when the Git directory lives elsewhere.
   The conversion command it prints follows the layout Git reports:
   `migrate-to-subvolume` in the repository's main worktree and `convert-worktree-to-subvolume` in a linked one.
+- It reports on the account companion's group drop at the end of that host section,
+  as "The account companion before each managed add" states it.
+  A host whose group drop is skipped gets four lines:
+  the open of `/proc/self/setgroups` and the number it answered,
+  the three user-namespace settings this host read,
+  why Ubuntu 24.04's AppArmor restriction on unprivileged user namespaces answers there,
+  and what a person can do about it,
+  which is nothing (every managed add goes ahead with the skip) or
+  `sysctl --write kernel.apparmor_restrict_unprivileged_userns=0` for the whole machine until its next boot.
+  A host that wrote the `deny` gets no line,
+  and so does one whose companion answered elsewhere,
+  because the add's own line names that answer;
+  a probe that cannot be read gets one line saying so.
+  The report is read under a bound of its own,
+  the command writes nothing, and the exit status never depends on it.
 
 ## Lifecycle
 
@@ -4837,15 +4852,27 @@ What its answers mean for a person:
   `unshare(CLONE_NEWUSER)` answering `ENOSPC`,
   `EPERM` or `EACCES`,
   or `EINVAL` where `/proc/self/ns/user` does not exist;
-  the first mapping write answering `EPERM`,
-  which is what Ubuntu 24.04's default AppArmor profile gives;
+  the open of `/proc/self/setgroups` for write answering `EACCES`,
+  which is what Ubuntu 24.04's default AppArmor profile gives,
+  because that open asks for `CAP_SYS_ADMIN` inside the new user namespace
+  and the profile denies every capability inside one;
+  the first mapping write answering `EPERM`;
   `unshare(CLONE_NEWNS)` answering `EPERM`;
   the private propagation answering `EPERM`,
   or `EACCES` where that propagation was made with `mount`;
   and the scratch tmpfs's `mount` answering `EPERM` or `EACCES`.
+  No other answer of the `deny` write is a skip,
+  and neither is any other answer of that open.
   A skip is not a pass:
   nothing was proved about the account's namespaces,
   and the person sees that in the line.
+  `doctor` reports the same skip without running an add:
+  the call,
+  the number it answered,
+  the three settings,
+  the reason the kernel answers there,
+  and what the person can do about it
+  (`src/native/group_drop_report/`).
 - Every other answer refuses that add's managed attach and prints one line:
   `managed add refused: the account companion's <step> failed: <what failed>;
   this slot takes the reflink or ordinary Git route.`

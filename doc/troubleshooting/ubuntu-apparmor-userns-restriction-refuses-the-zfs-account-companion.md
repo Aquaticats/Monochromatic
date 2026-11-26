@@ -220,6 +220,14 @@ their control,
 or the managed route stays off on Ubuntu 24.04,
 and the ladder serves every add there.
 
+The owner took the first on 2026-11-26T00:05-05:00,
+answering "Add the skip and make the doctor tell user what to do."
+(`doc/decision/cli-git-zfs-start-probe.md`,
+"The account companion's group drop on Ubuntu 24.04"):
+the open's `EACCES` is a skip that prints its line and lets the add go ahead,
+and `doctor` reports the skip,
+its reason and the remedies above without running an add.
+
 ## What does not work
 
 - Expecting the first mapping write to be the first refusal.
