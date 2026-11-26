@@ -538,14 +538,15 @@ fn command(program: &str, arguments: &[&str], directory: &Path, environment: &[(
 }
 
 /// What:
-///  Copy one whole folder tree, keeping each entry's kind.
+///  Copy one folder tree's files and folders, leaving the `uses/` links out.
 /// Why:
 ///  Every source folder in this crate holds a `uses/` folder of links to the
 ///  folders its code uses,
 ///  and a copy that followed them walked the same subtree again and again:
 ///  the first run's workload read 133,102 files from 3,327,
 ///  filled a pool with 758 MiB, and made the route's capture exceed its bound.
-///  A symlink is recreated as a symlink, never followed.
+///  A link is not fill work, so it is skipped rather than recreated, and the
+///  workload is the tree's own files.
 fn copy_tree(from: &Path, to: &Path) {
     std::fs::create_dir_all(to).expect("the copy's folder");
     for entry in std::fs::read_dir(from).expect("the tree reads").flatten() {
@@ -553,9 +554,9 @@ fn copy_tree(from: &Path, to: &Path) {
         let target: PathBuf = to.join(entry.file_name());
         let kind: std::fs::FileType = entry.file_type().expect("the entry's kind");
         if kind.is_symlink() {
-            let link: PathBuf = std::fs::read_link(path.as_path()).expect("the link reads");
-            std::os::unix::fs::symlink(link, target.as_path()).expect("the link is recreated");
-        } else if kind.is_dir() {
+            continue;
+        }
+        if kind.is_dir() {
             copy_tree(path.as_path(), target.as_path());
         } else {
             std::fs::copy(path.as_path(), target.as_path()).expect("the file copies");
