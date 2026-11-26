@@ -25,7 +25,7 @@ use crate::worktree_clone_add_route::add_preflight::Preflight;
 use crate::worktree_clone_add_route::add_route_gate::RouteFacts;
 use crate::worktree_clone_add_route::add_route_steps::StepRefusal;
 use crate::worktree_clone_add_route::add_zfs::OpenedDevice;
-use crate::worktree_clone_binding_record::plan_folder_read::{PLAN_HEADER, PlanStop, refuse_while_a_plan_names_the_clone};
+use crate::worktree_clone_binding_record::plan_folder_read::PLAN_HEADER;
 use crate::worktree_clone_binding_record::registration_home::{home_folder, plans_folder};
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use crate::worktree_copy_forward::CopyFacts;
@@ -72,19 +72,33 @@ fn a_command_with_no_plan_is_never_the_route_s() {
 
 /// What:
 ///  A plan that still names the clone stops the record's first write,
-///  and the words the person reads are that stop's own sentence,
-///  never a Rust `Debug` rendering of it.
+///  and the words the person reads are the stop's own sentence,
+///  with the one command that ends the plan and the cancel command beside it.
 /// Why:
-///   The refusal is the whole of what the person gets,
-///  so a `Debug` value there names types instead of the removal that ends the plan
-///  (issue 6450).
+///  The command the person reads follows from the plan's head word and the clone
+///  the pool can find
+///  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
+///  choice 2C),
+///  and this is the add's second of two plan reads,
+///  so it must print what the preflight's read prints for the same state.
+///  The device is a file this control opens because a host control may not open
+///  `/dev/zfs`:
+///  every pool read through it refuses,
+///  which is the absence no pool could prove,
+///  and a `present` head beside it is the settling command's state.
+///  The plan holds no attempt line,
+///  so it witnesses nothing destroyed,
+///  and the cancel command is named beside the removal.
+///  No Rust `Debug` rendering of the stop may reach the person (issue 6450).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(freshTheRecord(standingPlan).message).toBe(stop.sentence());
+/// const refusal = freshTheRecord(standingPlan);
+/// expect(refusal.message).toContain('settle-worktree-clone-record');
+/// expect(refusal.message).toContain('cancel-worktree-removal');
 /// ```
 #[test]
-fn a_standing_plan_refuses_the_record_in_the_plans_own_sentence() {
+fn a_standing_plan_stops_the_record_with_the_commands_that_end_and_cancel_it() {
     let root: PathBuf = fixture("route-a2-plan-sentence");
     let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "checkout")).expect("the checkout's path");
     let route: RouteFacts = RouteFacts {
@@ -99,16 +113,13 @@ fn a_standing_plan_refuses_the_record_in_the_plans_own_sentence() {
     };
     let folder: PathBuf = plans_folder(route.common_dir.as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the plan folder");
-    let plan_text: String = format!("{PLAN_HEADER}\ncloneDataset={}\n", route.clone_dataset());
-    std::fs::write(folder.join(THE_PLANS_KEY), plan_text.as_bytes()).expect("the standing plan");
+    let plan_text: String = format!("{PLAN_HEADER}\ncloneDataset={}\ncloneGuid={THE_PLANS_KEY}\nhead=present\nattempts=0\n", route.clone_dataset());
+    let plan_path: PathBuf = folder.join(THE_PLANS_KEY);
+    std::fs::write(plan_path.as_path(), plan_text.as_bytes()).expect("the standing plan");
     let plan: AddPlan = AddPlan { destination: route.destination.clone(), insert_at: 2, quiet: false, target: Some(OsString::from("main")), checks_out_a_branch: true };
-    let stop: PlanStop = refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, route.clone_dataset().as_str()).expect_err("the standing plan stops the read");
-    let sentence: &str = stop.sentence();
     let source: SnapshotSource = common_source(&git_context(), &main_identity(route.source_root.as_path())).expect("a clean source");
-    // The record's first statement reads the plans, so the device and the home are never asked anything:
-    // any file this process can open stands in for both.
     let device_file: PathBuf = root.join("a-file-opened-as-the-device");
-    std::fs::write(device_file.as_path(), b"no request reaches this file").expect("the device file");
+    std::fs::write(device_file.as_path(), b"every request through this file refuses").expect("the device file");
     let preflight: Preflight = Preflight {
         source,
         device: OpenedDevice { device: ZfsDevice::open_at(device_file.as_path()).expect("the device file opens") },
@@ -125,8 +136,12 @@ fn a_standing_plan_refuses_the_record_in_the_plans_own_sentence() {
         Err(refusal) => refusal,
     };
     let message: &str = refusal.message.as_str();
-    assert_eq!(message, sentence, "the add prints the plan stop's own sentence: {message}");
-    assert!(!message.contains("NamesTheClone") && !message.contains("PlanNamesTheClone"), "no `Debug` rendering of the stop reaches the person: {message}");
+    assert!(message.contains(plan_path.display().to_string().as_str()), "the plan's own path is named: {message}");
+    assert!(message.contains("settle-worktree-clone-record"), "a `present` head the pool cannot answer for names the settling command: {message}");
+    assert!(message.contains("cancel-worktree-removal"), "a plan witnessing nothing destroyed names the cancel command beside it: {message}");
+    for leak in ["APlanThatNamesTheClone", "PlanUnreadable", "ClonePresence", "{:?}"] {
+        assert!(!message.contains(leak), "no `Debug` rendering of a stop reaches the person (`{leak}`): {message}");
+    }
     remove(root.as_path());
 }
 

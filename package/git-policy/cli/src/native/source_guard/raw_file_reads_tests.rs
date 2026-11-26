@@ -152,7 +152,7 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("worktree/worktree_snapshot_source.rs", 1, "git-directory"),
     ("worktree/worktree_trash_exclude_line.rs", 1, "git-directory"),
     ("worktree_clone_add_route/add_preflight.rs", 1, "system"),
-    ("worktree_clone_add_route/add_route_steps.rs", 1, "git-directory"),
+    ("worktree_clone_add_route/add_route_steps_snapshot_and_capture.rs", 1, "git-directory"),
     ("worktree_clone_binding_record/plan_folder_read.rs", 1, "own-record"),
     ("worktree_clone_forced_removal/process_session_record.rs", 1, "system"),
     ("worktree_clone_mount/attached_mount_identity.rs", 1, "system"),

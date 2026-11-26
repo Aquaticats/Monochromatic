@@ -411,6 +411,34 @@ because that gate's journal is not kept.
 Cause N holds the evidence,
 the fix and the controls for the second.
 
+### The removal of a worktree read another process as a holder (issue 6475)
+
+`worktree::worktree_remove_hand_over::tests::the_service_leaves_a_worktree_git_would_keep_and_says_whose_sentence_refused_it`
+failed in the gate on `main` at `132843d9d1` with the holder scan's sentence where it expects Git's own:
+"process 155499 belongs to this account, works elsewhere, and the files it holds open could not be read".
+The service's own removal reads every process of the account to see whether one works in the worktree
+(`worktree_process_inside.rs`),
+so a process another test of the same container started after this fixture's worktree was made keeps that worktree,
+and the control's verdict was decided by whatever ran beside it.
+The release scan is not the defect:
+keeping the worktree while a young process of this account cannot be read is its documented rule
+(`doc/planning/git-policy-cli-cleans-up-after-its-own-worktrees.md`,
+"A process can hide its working folder from its own account",
+and `SPEC.md`,
+"The removal guard leaves out the command's own chain of parents").
+
+The failure was reproduced on this host on 2026-11-25 by starting one process that hides its working folder
+(`PR_SET_DUMPABLE` 0 and no exec after it) at the moment a fixture worktree appears,
+which the scan refuses in the same way;
+the sentence then names the working folder,
+because the kernel refuses `/proc/<pid>/cwd` and `/proc/<pid>/fd` with the same check
+(`fs/proc/base.c`, `call_proc_get_link`).
+The control now hands the service's call a process table of its own fixture
+(`delete_subvolume_of_with`,
+`test_support::an_empty_process_table`),
+and the landed sweep's own service call does the same,
+while `delete_subvolume_of` keeps reading this machine's `/proc`.
+
 ## Cause H: the two standing failures
 
 `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`

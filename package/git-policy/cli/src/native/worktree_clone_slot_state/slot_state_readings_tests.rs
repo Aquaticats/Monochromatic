@@ -76,10 +76,10 @@ fn a_plan_under_the_clone_guid_names_it() {
     std::fs::write(
         plans.join(guid.file_name()),
         format!(
-            "{}\ncloneGuid={}\ncloneDataset={}\n",
+            "{}\ncloneDataset={}\ncloneGuid={}\nhead=present\nattempts=0\n",
             crate::worktree_clone_binding_record::plan_folder_read::PLAN_HEADER,
-            guid.file_name(),
-            crate::worktree_clone_slot_state::slot_state_test_records::CLONE_DATASET
+            crate::worktree_clone_slot_state::slot_state_test_records::CLONE_DATASET,
+            guid.file_name()
         ),
     )
     .expect("the fixture plan writes");

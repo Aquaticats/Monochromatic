@@ -25,6 +25,7 @@ pub use crate::support_first_physical_extent::*;
 pub use crate::support_reflink_controls::*;
 pub use crate::support_zfs_controls::*;
 pub use crate::support_fixture_directories::*;
+pub use crate::support_process_group_members::*;
 pub use crate::support_fixture_service::*;
 pub use crate::support_fixture_service_log::*;
 pub use crate::support_native_git_command::*;

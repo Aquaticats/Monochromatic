@@ -50,7 +50,7 @@ fn every_check_appears_exactly_once() {
         names,
         vec![
             "abi", "backup-coverage", "binding-record", "blocked-removal", "boot-protection", "cancel-command", "checkout-dataset", "checkout-mount", "checkout-propagation", "checkout-snapdir", "clone-origin", "clone-properties",
-            "clone-retention", "clone-snapshots", "clone-state", "container-dataset", "container-snapdir", "delegation", "device", "handler-configuration", "handler-folders", "handler-installation", "holders", "key",
+            "clone-retention", "clone-snapshots", "clone-state", "container-dataset", "container-snapdir", "delegation", "device", "handler-configuration", "handler-folders", "handler-installation", "holders", "key", "managed-lock",
             "nested-reachability", "parent-identity", "pool", "readiness", "registration", "removal-plan", "root-modes", "sanoid", "service-unit", "staging-bind-propagation", "staging-folder", "staging-forms", "store-entries",
             "unknown-dot-entry", "unresolved-requests", "zed-wiring",
         ]
@@ -136,7 +136,7 @@ fn the_three_groups_of_the_step_all_appear() {
     let names: Vec<&'static str> = reports.iter().map(|report| return report.check.name()).collect();
     for expected in [
         "device", "abi", "pool", "checkout-dataset", "container-dataset", "checkout-snapdir", "container-snapdir", "key", "clone-properties", "parent-identity", "store-entries", "staging-forms", "unknown-dot-entry", "delegation",
-        "handler-installation", "zed-wiring", "readiness", "unresolved-requests", "staging-folder", "staging-bind-propagation", "clone-state", "registration", "binding-record", "removal-plan", "clone-snapshots", "clone-origin",
+        "handler-installation", "zed-wiring", "readiness", "unresolved-requests", "staging-folder", "staging-bind-propagation", "clone-state", "registration", "managed-lock", "binding-record", "removal-plan", "clone-snapshots", "clone-origin",
         "clone-retention", "blocked-removal", "holders",
     ] {
         assert!(names.contains(&expected), "{expected} is in the report's names: {names:?}");
@@ -154,7 +154,7 @@ fn each_clone_adds_its_own_group() {
     second.holders.clone = String::from("zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/two");
     facts.clones.push(second);
     let reports: Vec<CheckReport> = route_checks(&facts);
-    for check in ["clone-state", "registration", "binding-record", "removal-plan", "clone-snapshots", "clone-origin", "clone-retention", "blocked-removal", "holders"] {
+    for check in ["clone-state", "registration", "managed-lock", "binding-record", "removal-plan", "clone-snapshots", "clone-origin", "clone-retention", "blocked-removal", "holders"] {
         let count: usize = reports.iter().filter(|report| return report.check.name() == check).count();
         assert_eq!(count, 2, "{check} appears {count} times");
     }

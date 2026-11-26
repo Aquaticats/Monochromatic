@@ -68,7 +68,7 @@ binary/binary_stale_ref_lock_tests.rs | the binary folder is not moved yet; a la
 binary/binary_supervisor_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
 binary/binary_supervisor_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
 binary/binary_support.rs | the binary folder is not moved yet; a later round takes it folder by folder
-binary/binary_support_fixture_service.rs | the binary folder is not moved yet; a later round takes it folder by folder
+binary/binary_support_fixture_service_start.rs | the binary folder is not moved yet; a later round takes it folder by folder
 binary/binary_support_observation.rs | the binary folder is not moved yet; a later round takes it folder by folder
 binary/binary_support_observation_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
 binary/binary_support_observation_tests.rs | the binary folder is not moved yet; a later round takes it folder by folder
@@ -120,8 +120,8 @@ landing/service_land_tests.rs | the landing folder is not moved yet; a later rou
 landing/service_land_witness_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
 landing/service_land_witness_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
 merge/merge_isolation_changes_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_recovery_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_recovery_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
+merge/merge_isolation_recovery_saved_merge_finish_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
+merge/merge_isolation_recovery_saved_merge_finish_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
 merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
 merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
 process/child_awaited_through_a_pidfd_descriptor_limit_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
