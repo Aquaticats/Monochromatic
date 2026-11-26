@@ -9,7 +9,7 @@
 //! that the look sees the processes the run started,
 //! that no reader's own readings are judged as the run's work,
 //! and that a stuck run ends its process.
-//! The controls that judge the run's own figures run their reading in a helper process of the test's own,
+//! The controls that judge this process's own tasks run their reading in a helper process of the test's own,
 //! because a look adds up every task of this process and a threaded run shares it (issue 6486).
 
 use super::*;
@@ -748,29 +748,82 @@ fn the_ending_names_the_quiet_stretch_and_the_signs_it_read() {
     );
 }
 
+/// The variable that makes a run of the started-process control its helper,
+/// where the figures it reads are one test's own.
+const STARTED_PROCESS_CHILD: &str = "CLI_GIT_RUN_PROGRESS_STARTED_PROCESS_CHILD";
+
 /// The look counts this process and the processes it started,
 /// and this system can be read.
 #[test]
 fn the_look_sees_this_process_and_the_processes_it_started() {
-    let Some(reader): Option<i32> = current_thread_id() else {
+    if current_thread_id().is_none() {
         eprintln!("skipped: this system numbers no thread, so nothing is measured");
         return;
+    }
+    if let Some(directory) = helper_directory(STARTED_PROCESS_CHILD) {
+        std::process::exit(verdict_in_a_helper(
+            directory.as_path(),
+            the_started_process_verdict(),
+        ));
+    }
+    let failures: Vec<String> = in_a_helper_of_its_own(
+        STARTED_PROCESS_CHILD,
+        "run-progress-started-process",
+        "the_look_sees_this_process_and_the_processes_it_started",
+    );
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+/// What:
+///  The sentences the helper of the started-process control failed with:
+///  a child the body starts appears in the look's members.
+/// Why:
+///  The helper reports every check as one sentence and ends with them,
+///  so the control reads what failed although nobody reads the helper's own output,
+///  and the child it starts is the only one the two looks can count:
+///  in a threaded run one task of another test ended between them, which took the added task away again
+///  (measured 2026-11-26: 21 members before the child and 21 after it).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theStartedProcessVerdict(): string[];
+/// ```
+fn the_started_process_verdict() -> Vec<String> {
+    let Some(reader): Option<i32> = current_thread_id() else {
+        return vec![String::from(
+            "this system numbers no thread, so nothing is measured",
+        )];
     };
     let Some(before): Option<Look> = look(reader) else {
-        eprintln!("skipped: this system counts no task's work, so nothing is measured");
-        return;
+        return vec![String::from(
+            "this system counts no task's work, so nothing is measured",
+        )];
     };
     let mut child: std::process::Child =
-        spawn_owned(std::process::Command::new("sleep").arg("60")).expect("sleep starts");
-    let after: Look = look(reader).expect("still readable");
-    child.kill().expect("the child is killed");
-    child.wait().expect("the child is reaped");
-    assert!(
-        after.members > before.members,
-        "the child's task is counted too: {} members became {}",
-        before.members,
-        after.members
-    );
+        match spawn_owned(std::process::Command::new("sleep").arg("60")) {
+            Ok(child) => child,
+            Err(error) => return vec![format!("a child of this process starts: {error}")],
+        };
+    let looked: Option<Look> = look(reader);
+    let killed: std::io::Result<()> = child.kill();
+    let reaped: std::io::Result<std::process::ExitStatus> = child.wait();
+    let mut failures: Vec<String> = Vec::new();
+    if let Err(error) = killed {
+        failures.push(format!("the child is killed: {error}"));
+    }
+    if let Err(error) = reaped {
+        failures.push(format!("the child is reaped: {error}"));
+    }
+    let Some(after): Option<Look> = looked else {
+        return vec![String::from("still readable")];
+    };
+    if after.members <= before.members {
+        failures.push(format!(
+            "the child's task is counted too: {} members became {}",
+            before.members, after.members
+        ));
+    }
+    return failures;
 }
 
 /// How long a child a watcher must end is given before the control counts it as a run that never ended.
