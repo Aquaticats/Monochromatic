@@ -1343,7 +1343,7 @@ Every key names exactly one finding:
   with one `core/processing-failure` that spells that character and names the file.
   The refusal covers every file and folder the walk reads,
   a crate root and a `src/bin` root included,
-  because a key names each of them (`index-item`, `no-file-list`, `missing-entry`, `order`).
+  because a key about any of them would hold the name (`index-item`, `no-file-list`, `missing-entry`, `order`).
   A top doc entry is read without the whitespace at the end of its backticks,
   so an entry written `x.rs ` names the file `x.rs` and no key carries that space.
   An entry whose backticks hold no name at all is keyed by its shape and index alone,
