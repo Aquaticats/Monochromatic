@@ -9,8 +9,15 @@
 //! that the look sees the processes the run started,
 //! that no reader's own readings are judged as the run's work,
 //! and that a stuck run ends its process.
+//! The controls that judge this process's own tasks run their reading in a helper process of the test's own,
+//! because a look adds up every task of this process and a threaded run shares it (issue 6486).
 
 use super::*;
+use crate::helper_process_test_support::{
+    helper_directory,
+    in_a_helper,
+    verdict_in_a_helper,
+};
 use crate::test_support::{
     arm_watchdog,
     fixture,
@@ -311,6 +318,220 @@ const ITS_SUCCESSOR_USED_THIS_MUCH_LESS: u64 = 100;
 /// How many fewer ticks each task of the control above used than the one it replaced.
 const ITS_SUCCESSOR_USED_LESS_EACH_LOOK: u64 = 10;
 
+/// What:
+///  The path this file's child test `name` has when the test binary is run directly.
+/// Why:
+///   A test binary names its tests from the module path without the crate name,
+/// and a name that matches no test runs
+///  nothing and succeeds,
+/// which the controls below rule out by reading what the child said.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const path = `${module_path.split('::').slice(1).join('::')}::${name}`;
+/// ```
+fn child_path(name: &str) -> String {
+    let module: &str = module_path!();
+    let without_crate: &str = module.split_once("::").map_or(module, |(_, rest)| {
+        return rest;
+    });
+    return format!("{without_crate}::{name}");
+}
+
+/// What:
+///  The sentences the body of the control `name` failed with,
+///  run in a helper process of this test binary,
+///  whose fixture `fixture_name` names.
+/// Why:
+///   A look adds up every task of this process and of the processes it started,
+/// so the figures it judges are one test's own only where the process holds that test alone (issue 6486);
+/// a helper process runs the one test and ends with it,
+/// and this is the one call each control of the run's own figures makes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function inAHelperOfItsOwn(variable: string, fixtureName: string, name: string): string[];
+/// ```
+fn in_a_helper_of_its_own(
+    variable: &str,
+    fixture_name: &str,
+    name: &str,
+) -> Vec<String> {
+    let path: String = child_path(name);
+    return in_a_helper(variable, fixture_name, path.as_str());
+}
+
+/// What:
+///  The sentences a control's body failed with when the figures of the run it read moved between two of its looks,
+///  or when a task that is not the control's own moved them,
+///  and nothing when neither happened.
+/// Why:
+///   A look adds up every task of this process and of the processes it started,
+/// so a task that is not this control's own is another test of a threaded run at work,
+/// and its figures are not this test's to judge.
+/// This names that run and the helper process that keeps the body alone,
+/// where a figure no test of this crate controls would only fail the comparison (issue 6486).
+/// A control's own figure moving is the fault these controls exist for:
+/// a reader's readings counted as the run's work,
+/// so a run that only reads it looks busy at every look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theFiguresDidNotMove(before: Look, after: Look, reader: number, what: string): string[];
+/// ```
+fn the_figures_did_not_move(
+    before: &Look,
+    after: &Look,
+    reader: i32,
+    what: &str,
+) -> Vec<String> {
+    let process: i32 = i32::try_from(std::process::id()).unwrap_or(i32::MAX);
+    let own: u64 = task_number(process, reader);
+    let mut moved_elsewhere: Vec<u64> = Vec::new();
+    for task in before.tasks.iter().chain(after.tasks.iter()) {
+        if task.task == own || moved_elsewhere.contains(&task.task) {
+            continue;
+        }
+        if bytes_a_task_showed(before, task.task) != bytes_a_task_showed(after, task.task) {
+            moved_elsewhere.push(task.task);
+        }
+    }
+    if !moved_elsewhere.is_empty() {
+        return vec![format!(
+            "{} task(s) of this process that are not this control's own moved between the two looks, so these \
+             figures are another test's work: run the body in a helper process of its own \
+             (`crate::helper_process_test_support::in_a_helper`)",
+            moved_elsewhere.len()
+        )];
+    }
+    if before.bytes == after.bytes {
+        return Vec::new();
+    }
+    return vec![format!(
+        "{what}: the figures judged moved from {} to {} bytes though the run showed nothing",
+        before.bytes, after.bytes
+    )];
+}
+
+/// What:
+///  Every byte the task `task` had moved when the look `look` saw it,
+///  or nothing where that look did not read the task.
+/// Why:
+///   A task a look found and the look before it did not has started,
+/// and one the look before found and this look did not has ended,
+/// and both say the run's tasks changed like a figure that grew:
+/// `the_figures_did_not_move` reads them through this one answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function bytesATaskShowed(look: Look, task: number): number | undefined;
+/// ```
+fn bytes_a_task_showed(
+    look: &Look,
+    task: u64,
+) -> Option<u64> {
+    return look
+        .tasks
+        .iter()
+        .find(|each: &&TaskFigures| {
+            return each.task == task;
+        })
+        .map(|each: &TaskFigures| {
+            return each.bytes;
+        });
+}
+
+/// How much the task that is not a control's own moves between the two looks of the guard's controls.
+const ANOTHER_TASK_MOVED: u64 = 4_096;
+
+/// What:
+///  A look of two tasks:
+///  the one numbered `other` had moved the bytes in `other_task`,
+///  and this control's own the bytes in `own_task`,
+///  each pair being a task's number and the bytes that task had moved.
+/// Why:
+///  The guard compares the figures of the tasks a look found,
+///  and a look made here states them exactly,
+///  where one read from this process would carry whatever another test of a threaded run did meanwhile.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function twoTasks(otherTask: [number, number], ownTask: [number, number]): Look;
+/// ```
+fn two_tasks(
+    other_task: (u64, u64),
+    own_task: (u64, u64),
+) -> Look {
+    let (other, other_bytes): (u64, u64) = other_task;
+    let (own, own_bytes): (u64, u64) = own_task;
+    return Look {
+        bytes: other_bytes.saturating_add(own_bytes),
+        ticks: 0,
+        working: false,
+        members: 2,
+        tasks: vec![
+            TaskFigures {
+                task: other,
+                bytes: other_bytes,
+                ticks: 0,
+            },
+            TaskFigures {
+                task: own,
+                bytes: own_bytes,
+                ticks: 0,
+            },
+        ],
+    };
+}
+
+/// A task that is not this control's own moved between its two looks is refused:
+/// the figures are another test's work,
+/// so the body belongs in a helper process of its own.
+/// This is the face the controls of the run's own figures met in a threaded run (issue 6486).
+#[test]
+fn another_tests_task_moving_between_the_looks_is_refused() {
+    let process: i32 = i32::try_from(std::process::id()).unwrap_or(i32::MAX);
+    let own: u64 = task_number(process, 1);
+    let another: u64 = task_number(process, 2);
+    let before: Look = two_tasks((another, 0), (own, 0));
+    let after: Look = two_tasks((another, ANOTHER_TASK_MOVED), (own, 0));
+    let failures: Vec<String> =
+        the_figures_did_not_move(&before, &after, 1, "the reader's own figure did not move");
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert!(
+        failures[0].contains("not this control's own"),
+        "{failures:?}"
+    );
+}
+
+/// A control's own figure moving between its two looks is the fault these controls exist for:
+/// it is a reader's readings counted as the run's work,
+/// so a run that only reads it looks busy at every look.
+#[test]
+fn the_readers_own_figure_moving_is_the_fault_these_controls_judge() {
+    let process: i32 = i32::try_from(std::process::id()).unwrap_or(i32::MAX);
+    let own: u64 = task_number(process, 1);
+    let another: u64 = task_number(process, 2);
+    let before: Look = two_tasks((another, 0), (own, 0));
+    let after: Look = two_tasks((another, 0), (own, ANOTHER_TASK_MOVED));
+    let failures: Vec<String> = the_figures_did_not_move(
+        &before,
+        &after,
+        1,
+        "the readings the look before took are the run's work",
+    );
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert!(
+        failures[0].starts_with("the readings the look before took are the run's work")
+            && failures[0].contains(format!("0 to {ANOTHER_TASK_MOVED} bytes").as_str()),
+        "{failures:?}"
+    );
+}
+
+/// The variable that makes a run of the two-waits control its helper,
+/// where the figures it reads are one test's own.
+const TWO_WAITS_CHILD: &str = "CLI_GIT_RUN_PROGRESS_TWO_WAITS_CHILD";
+
 /// A thread inside two waits at once is one reader of the run:
 /// its readings are taken off once,
 /// not left over as the run's work at every look.
@@ -322,19 +543,75 @@ fn a_thread_inside_two_waits_is_left_out_of_the_run_once() {
         eprintln!("skipped: this system numbers no thread, so nothing is measured");
         return;
     }
+    // What:     `helper_directory` answers the fixture's path in the process `in_a_helper_of_its_own` started, and
+    //           nothing in the process that started it. `Option<PathBuf>` is "a path or nothing" (sibling:
+    //           `PathBuf`, which cannot say "none").
+    // Why:      the helper body is this same test function, so the variable is what tells the two apart, and a
+    //           threaded run shares the figures of this process with every other test of it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const root = helperDirectory(VARIABLE); // string | undefined
+    // if (root !== undefined) { process.exit(verdictInAHelper(root, theTwoWaitsVerdict())); }
+    // ```
+    if let Some(directory) = helper_directory(TWO_WAITS_CHILD) {
+        std::process::exit(verdict_in_a_helper(
+            directory.as_path(),
+            the_two_waits_verdict(),
+        ));
+    }
+    let failures: Vec<String> = in_a_helper_of_its_own(
+        TWO_WAITS_CHILD,
+        "run-progress-two-waits",
+        "a_thread_inside_two_waits_is_left_out_of_the_run_once",
+    );
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+/// What:
+///  The sentences the helper of the two-waits control failed with:
+///  a thread inside two waits has its readings taken off once,
+///  so an idle run stays still however many waits it is inside.
+/// Why:
+///  The helper reports every check as one sentence and ends with them,
+///  so the control reads what failed although nobody reads the helper's own output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theTwoWaitsVerdict(): string[];
+/// ```
+fn the_two_waits_verdict() -> Vec<String> {
+    let Some(reader): Option<i32> = current_thread_id() else {
+        return vec![String::from(
+            "this system numbers no thread, so nothing is measured",
+        )];
+    };
     // Two waits of one thread, as a wait whose event another wait reports.
     let _outer: Option<Reading> = Reading::begin();
     let _inner: Option<Reading> = Reading::begin();
     // A fresh registration has read nothing yet, so the first look counts the thread's whole counter; the two looks
     //  compared here come after it.
-    let _primed: Look = look_now().expect("this system counts its tasks' work");
-    let before: Look = look_now().expect("still readable");
-    let after: Look = look_now().expect("still readable");
-    assert_eq!(
-        after.bytes, before.bytes,
-        "a thread's own readings are not the run's work, however many waits it is inside"
+    let Some(_primed): Option<Look> = look_now() else {
+        return vec![String::from("this system counts its tasks' work")];
+    };
+    let Some(before): Option<Look> = look_now() else {
+        return vec![String::from("this system still counts its tasks' work")];
+    };
+    let Some(after): Option<Look> = look_now() else {
+        return vec![String::from("this system still counts its tasks' work")];
+    };
+    return the_figures_did_not_move(
+        &before,
+        &after,
+        reader,
+        "a thread's own readings are not the run's work, however many waits it is inside",
     );
 }
+
+/// The variable that makes a run of the look-without-a-registration control its helper,
+/// where the figures it reads are one test's own.
+const LOOK_WITHOUT_A_REGISTRATION_CHILD: &str =
+    "CLI_GIT_RUN_PROGRESS_LOOK_WITHOUT_A_REGISTRATION_CHILD";
 
 /// What:
 ///  A look this thread takes without keeping a registration of its own does not count its own readings
@@ -351,32 +628,70 @@ fn a_look_without_a_registration_does_not_count_its_own_readings_as_work() {
         eprintln!("skipped: this system numbers no thread, so nothing is measured");
         return;
     }
+    if let Some(directory) = helper_directory(LOOK_WITHOUT_A_REGISTRATION_CHILD) {
+        std::process::exit(verdict_in_a_helper(
+            directory.as_path(),
+            the_look_without_a_registration_verdict(),
+        ));
+    }
+    let failures: Vec<String> = in_a_helper_of_its_own(
+        LOOK_WITHOUT_A_REGISTRATION_CHILD,
+        "run-progress-look-without-a-registration",
+        "a_look_without_a_registration_does_not_count_its_own_readings_as_work",
+    );
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+/// What:
+///  The sentences the helper of the look-without-a-registration control failed with:
+///  an idle run that is only read is quiet after its window,
+///  and the figures judged do not move.
+/// Why:
+///  The helper reports every check as one sentence and ends with them,
+///  so the control reads what failed although nobody reads the helper's own output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theLookWithoutARegistrationVerdict(): string[];
+/// ```
+fn the_look_without_a_registration_verdict() -> Vec<String> {
+    let Some(reader): Option<i32> = current_thread_id() else {
+        return vec![String::from(
+            "this system numbers no thread, so nothing is measured",
+        )];
+    };
     // The first look counts this thread's whole counter, because no look of this thread came before it.
-    let _primed: Look = look_now().expect("this system counts its tasks' work");
-    let before: Look = look_now().expect("still readable");
-    let after: Look = look_now().expect("still readable");
-    assert_eq!(
-        after.bytes, before.bytes,
-        "the readings the look before took are the run's work, so an idle thread looks busy at every look"
+    let Some(_primed): Option<Look> = look_now() else {
+        return vec![String::from("this system counts its tasks' work")];
+    };
+    let Some(before): Option<Look> = look_now() else {
+        return vec![String::from("this system still counts its tasks' work")];
+    };
+    let Some(after): Option<Look> = look_now() else {
+        return vec![String::from("this system still counts its tasks' work")];
+    };
+    let mut failures: Vec<String> = the_figures_did_not_move(
+        &before,
+        &after,
+        reader,
+        "the readings the look before took are the run's work, so an idle thread looks busy at every look",
     );
     // The judge on the same evidence: an idle run that is only read is quiet after its window.
     let window: Duration = Duration::from_secs(1);
     let mut judge: Judge = Judge::new(window);
-    assert_eq!(
-        judge.observe(Duration::ZERO, look_now()),
-        None,
-        "the first look moved"
-    );
-    assert_eq!(
-        judge.observe(Duration::from_millis(500), look_now()),
-        None,
-        "the window has not passed"
-    );
-    assert_eq!(
-        judge.observe(window, look_now()),
-        Some(Ending::Quiet(window)),
-        "a run that only reads it showed no sign of work for the window"
-    );
+    if let Some(ending) = judge.observe(Duration::ZERO, look_now()) {
+        failures.push(format!("the first look moved: {ending}"));
+    }
+    if let Some(ending) = judge.observe(Duration::from_millis(500), look_now()) {
+        failures.push(format!("the window has not passed: {ending}"));
+    }
+    let ended: Option<Ending> = judge.observe(window, look_now());
+    if ended != Some(Ending::Quiet(window)) {
+        failures.push(format!(
+            "a run that only reads it showed no sign of work for the window: {ended:?}"
+        ));
+    }
+    return failures;
 }
 
 /// Where this system counts no task's work the window is a fixed deadline,
@@ -433,49 +748,84 @@ fn the_ending_names_the_quiet_stretch_and_the_signs_it_read() {
     );
 }
 
+/// The variable that makes a run of the started-process control its helper,
+/// where the figures it reads are one test's own.
+const STARTED_PROCESS_CHILD: &str = "CLI_GIT_RUN_PROGRESS_STARTED_PROCESS_CHILD";
+
 /// The look counts this process and the processes it started,
 /// and this system can be read.
 #[test]
 fn the_look_sees_this_process_and_the_processes_it_started() {
-    let Some(reader): Option<i32> = current_thread_id() else {
+    if current_thread_id().is_none() {
         eprintln!("skipped: this system numbers no thread, so nothing is measured");
         return;
-    };
-    let Some(before): Option<Look> = look(reader) else {
-        eprintln!("skipped: this system counts no task's work, so nothing is measured");
-        return;
-    };
-    let mut child: std::process::Child =
-        spawn_owned(std::process::Command::new("sleep").arg("60")).expect("sleep starts");
-    let after: Look = look(reader).expect("still readable");
-    child.kill().expect("the child is killed");
-    child.wait().expect("the child is reaped");
-    assert!(
-        after.members > before.members,
-        "the child's task is counted too: {} members became {}",
-        before.members,
-        after.members
+    }
+    if let Some(directory) = helper_directory(STARTED_PROCESS_CHILD) {
+        std::process::exit(verdict_in_a_helper(
+            directory.as_path(),
+            the_started_process_verdict(),
+        ));
+    }
+    let failures: Vec<String> = in_a_helper_of_its_own(
+        STARTED_PROCESS_CHILD,
+        "run-progress-started-process",
+        "the_look_sees_this_process_and_the_processes_it_started",
     );
+    assert!(failures.is_empty(), "{failures:?}");
 }
 
 /// What:
-///  The path this file's child test `name` has when the test binary is run directly.
+///  The sentences the helper of the started-process control failed with:
+///  a child the body starts appears in the look's members.
 /// Why:
-///   A test binary names its tests from the module path without the crate name,
-/// and a name that matches no test runs
-///  nothing and succeeds,
-/// which the controls below rule out by reading what the child said.
+///  The helper reports every check as one sentence and ends with them,
+///  so the control reads what failed although nobody reads the helper's own output,
+///  and the child it starts is the only one the two looks can count.
+///  A threaded run ended a task of another test between them,
+///  which took the added task away again:
+///  measured 2026-11-26,
+///  21 members before the child and 21 after it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const path = `${module_path.split('::').slice(1).join('::')}::${name}`;
+/// function theStartedProcessVerdict(): string[];
 /// ```
-fn child_path(name: &str) -> String {
-    let module: &str = module_path!();
-    let without_crate: &str = module.split_once("::").map_or(module, |(_, rest)| {
-        return rest;
-    });
-    return format!("{without_crate}::{name}");
+fn the_started_process_verdict() -> Vec<String> {
+    let Some(reader): Option<i32> = current_thread_id() else {
+        return vec![String::from(
+            "this system numbers no thread, so nothing is measured",
+        )];
+    };
+    let Some(before): Option<Look> = look(reader) else {
+        return vec![String::from(
+            "this system counts no task's work, so nothing is measured",
+        )];
+    };
+    let mut child: std::process::Child =
+        match spawn_owned(std::process::Command::new("sleep").arg("60")) {
+            Ok(child) => child,
+            Err(error) => return vec![format!("a child of this process starts: {error}")],
+        };
+    let looked: Option<Look> = look(reader);
+    let killed: std::io::Result<()> = child.kill();
+    let reaped: std::io::Result<std::process::ExitStatus> = child.wait();
+    let mut failures: Vec<String> = Vec::new();
+    if let Err(error) = killed {
+        failures.push(format!("the child is killed: {error}"));
+    }
+    if let Err(error) = reaped {
+        failures.push(format!("the child is reaped: {error}"));
+    }
+    let Some(after): Option<Look> = looked else {
+        return vec![String::from("still readable")];
+    };
+    if after.members <= before.members {
+        failures.push(format!(
+            "the child's task is counted too: {} members became {}",
+            before.members, after.members
+        ));
+    }
+    return failures;
 }
 
 /// How long a child a watcher must end is given before the control counts it as a run that never ended.
@@ -763,6 +1113,10 @@ fn rename_this_thread(name: &[u8]) -> bool {
     return renamed == 0;
 }
 
+/// The variable that makes a run of the own-stat-line control its helper,
+/// where the figures it reads are one test's own.
+const OWN_STAT_LINE_CHILD: &str = "CLI_GIT_RUN_PROGRESS_OWN_STAT_LINE_CHILD";
+
 /// A reader's own stat file is not the run's work.
 ///
 /// The figures a look judges are the run's work.
@@ -777,37 +1131,85 @@ fn rename_this_thread(name: &[u8]) -> bool {
 /// so the counter that moves here is known to be the reading's rather than the run's.
 #[test]
 fn a_readers_own_stat_line_is_not_the_runs_work() {
-    let Some(reader): Option<i32> = current_thread_id() else {
+    if current_thread_id().is_none() {
         eprintln!("skipped: this system numbers no thread, so nothing is measured");
         return;
+    }
+    if let Some(directory) = helper_directory(OWN_STAT_LINE_CHILD) {
+        std::process::exit(verdict_in_a_helper(
+            directory.as_path(),
+            the_own_stat_line_verdict(),
+        ));
+    }
+    let failures: Vec<String> = in_a_helper_of_its_own(
+        OWN_STAT_LINE_CHILD,
+        "run-progress-own-stat-line",
+        "a_readers_own_stat_line_is_not_the_runs_work",
+    );
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+/// What:
+///  The sentences the helper of the own-stat-line control failed with:
+///  a thread renamed to a shorter name shows a shorter stat line and no work,
+///  and the figures judged do not move.
+/// Why:
+///  The helper reports every check as one sentence and ends with them,
+///  so the control reads what failed although nobody reads the helper's own output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theOwnStatLineVerdict(): string[];
+/// ```
+fn the_own_stat_line_verdict() -> Vec<String> {
+    let Some(reader): Option<i32> = current_thread_id() else {
+        return vec![String::from(
+            "this system numbers no thread, so nothing is measured",
+        )];
     };
     // This thread is a reader, as a watcher or a control's wait is: its own readings are left out of the figures.
     let _reading: Option<Reading> = Reading::begin();
     let stat_path: String = format!("/proc/self/task/{reader}/stat");
     // Read before the first look, so what that read costs is in the baseline both looks share; the read after the
     //  second look is taken off the look after it, and never judged here.
-    let before_length: usize = std::fs::read_to_string(stat_path.as_str())
-        .expect("this system has a stat line")
-        .len();
-    let before: Look = look(reader).expect("this system counts work");
+    let before_length: usize = match std::fs::read_to_string(stat_path.as_str()) {
+        Ok(stat) => stat.len(),
+        Err(error) => return vec![format!("this system has a stat line: {error}")],
+    };
+    let Some(before): Option<Look> = look(reader) else {
+        return vec![String::from("this system counts work")];
+    };
     let renamed: bool = rename_this_thread(b"g\0");
-    let after: Look = look(reader).expect("still readable");
-    let after_length: usize = std::fs::read_to_string(stat_path.as_str())
-        .expect("this system has a stat line")
-        .len();
-    assert!(
-        renamed && after_length < before_length,
-        "the name change shrinks this thread's stat line, so the length moved: {before_length} bytes became {after_length} (renamed: {renamed})"
-    );
-    assert_eq!(
-        after.bytes, before.bytes,
-        "the reader's own stat line shrank from {before_length} to {after_length} bytes between the two looks and the run showed nothing, so the figures judged must not move"
-    );
-    assert_eq!(
-        after.members, before.members,
-        "no task of the run started or ended"
-    );
+    let Some(after): Option<Look> = look(reader) else {
+        return vec![String::from("still readable")];
+    };
+    let after_length: usize = match std::fs::read_to_string(stat_path.as_str()) {
+        Ok(stat) => stat.len(),
+        Err(error) => return vec![format!("this system has a stat line: {error}")],
+    };
+    let mut failures: Vec<String> = Vec::new();
+    if !(renamed && after_length < before_length) {
+        failures.push(format!(
+            "the name change shrinks this thread's stat line, so the length moved: {before_length} bytes became \
+             {after_length} (renamed: {renamed})"
+        ));
+    }
+    failures.extend(the_figures_did_not_move(
+        &before,
+        &after,
+        reader,
+        format!(
+            "the reader's own stat line shrank from {before_length} to {after_length} bytes between the two looks and \
+             the run showed nothing, so the figures judged must not move"
+        )
+        .as_str(),
+    ));
+    return failures;
 }
+
+/// The variable that makes a run of the undecodable-name control its helper,
+/// where the figures it reads are one test's own.
+const NOT_UTF8_NAME_CHILD: &str = "CLI_GIT_RUN_PROGRESS_NOT_UTF8_NAME_CHILD";
 
 /// A reader's own stat file is not the run's work,
 /// and neither is a stat file whose text cannot be decoded.
@@ -819,9 +1221,41 @@ fn a_readers_own_stat_line_is_not_the_runs_work() {
 ///  look's own readings in the figures.
 #[test]
 fn a_task_name_that_is_not_utf8_is_still_the_readers_own_reading() {
-    let Some(reader): Option<i32> = current_thread_id() else {
+    if current_thread_id().is_none() {
         eprintln!("skipped: this system numbers no thread, so nothing is measured");
         return;
+    }
+    if let Some(directory) = helper_directory(NOT_UTF8_NAME_CHILD) {
+        std::process::exit(verdict_in_a_helper(
+            directory.as_path(),
+            the_not_utf8_name_verdict(),
+        ));
+    }
+    let failures: Vec<String> = in_a_helper_of_its_own(
+        NOT_UTF8_NAME_CHILD,
+        "run-progress-task-name-not-utf8",
+        "a_task_name_that_is_not_utf8_is_still_the_readers_own_reading",
+    );
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+/// What:
+///  The sentences the helper of the undecodable-name control failed with:
+///  a name that is not UTF-8 is still a stat line this system answers,
+///  and two looks of it show no work.
+/// Why:
+///  The helper reports every check as one sentence and ends with them,
+///  so the control reads what failed although nobody reads the helper's own output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theNotUtf8NameVerdict(): string[];
+/// ```
+fn the_not_utf8_name_verdict() -> Vec<String> {
+    let Some(reader): Option<i32> = current_thread_id() else {
+        return vec![String::from(
+            "this system numbers no thread, so nothing is measured",
+        )];
     };
     let _reading: Option<Reading> = Reading::begin();
     // A byte no UTF-8 sequence holds, in the name the kernel reports in this thread's own stat line.
@@ -829,17 +1263,25 @@ fn a_task_name_that_is_not_utf8_is_still_the_readers_own_reading() {
     let first: Option<Look> = look(reader);
     let second: Option<Look> = look(reader);
     let renamed_back: bool = rename_this_thread(b"progress-probe\0");
-    assert!(
-        named && renamed_back,
-        "the kernel takes a name holding a byte that is not UTF-8, and gives the readable one back"
-    );
-    let before: Look =
-        first.expect("a name that is not UTF-8 is still a stat line this system answers");
-    let after: Look = second.expect("the second look reads the same stat line");
-    assert_eq!(
-        after.bytes, before.bytes,
-        "both looks read the same undecodable stat line and the run showed nothing, so the figures judged must not move"
-    );
+    let mut failures: Vec<String> = Vec::new();
+    if !(named && renamed_back) {
+        failures.push(String::from(
+            "the kernel takes a name holding a byte that is not UTF-8, and gives the readable one back",
+        ));
+    }
+    let (Some(before), Some(after)): (Option<Look>, Option<Look>) = (first, second) else {
+        failures.push(String::from(
+            "a name that is not UTF-8 is still a stat line this system answers, and both looks read it",
+        ));
+        return failures;
+    };
+    failures.extend(the_figures_did_not_move(
+        &before,
+        &after,
+        reader,
+        "both looks read the same undecodable stat line and the run showed nothing, so the figures judged must not move",
+    ));
+    return failures;
 }
 
 /// A run that keeps moving past its window is not ended,

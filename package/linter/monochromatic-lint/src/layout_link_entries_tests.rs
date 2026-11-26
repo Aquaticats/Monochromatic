@@ -146,6 +146,10 @@ fn uses_must_be_a_real_folder() {
             "{}",
             read.findings[0].message
         );
+        assert_eq!(
+            read.findings[0].key,
+            format!("link {folder}/uses uses-is-not-a-folder")
+        );
         assert!(read.links.is_empty());
     }
 }
@@ -174,6 +178,61 @@ fn layout_a_uses_path_that_cannot_be_read_is_reported_and_not_skipped() {
     let found: Vec<String> = messages(&read, &fixture.path);
     assert_eq!(found.len(), 1, "{found:?}");
     assert!(found[0].contains("cannot be read"), "{}", found[0]);
+    // The fault is part of the key, so a line records which fault the path had.
+    assert_eq!(read.findings[0].key, "link plain.txt/uses uses-unreadable");
+}
+
+/// An entry that cannot be read at all is reported as unreadable,
+///  and its key names that fault,
+///  so a line for a broken link does not tolerate it.
+#[test]
+fn an_entry_that_cannot_be_read_is_reported() {
+    let fixture = package_with(&[("src/a/mod.rs", "")]);
+    let missing: PathBuf = fixture.path.join("src/a/uses/gone");
+    let found = super::check_entry(
+        &missing,
+        &fixture.path.join("src/a"),
+        &BTreeMap::<PathBuf, PathBuf>::new(),
+        &fixture.path,
+    )
+    .expect_err("a path that is not there is no link");
+    assert_eq!(found.key, "link src/a/uses/gone unreadable");
+    assert!(
+        found.message.contains("cannot be read"),
+        "{}",
+        found.message
+    );
+}
+
+/// A `uses` folder that cannot be listed is reported, and its key names that fault.
+///  A run as the superuser can list any folder, so it exercises nothing and returns.
+#[cfg(unix)]
+#[test]
+fn layout_a_uses_folder_that_cannot_be_listed_is_reported() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = package_with(&[("src/a/mod.rs", "")]);
+    let uses: PathBuf = fixture.path.join("src/a/uses");
+    std::fs::create_dir_all(&uses).expect("uses folder");
+    std::fs::set_permissions(&uses, std::fs::Permissions::from_mode(0o000))
+        .expect("fixture permissions");
+    // The superuser lists any folder, so a run as root exercises nothing here.
+    if std::fs::read_dir(&uses).is_ok() {
+        std::fs::set_permissions(&uses, std::fs::Permissions::from_mode(0o700))
+            .expect("restore fixture permissions");
+        return;
+    }
+    let read: LinkRead = read_links(
+        &fixture.path.join("src/a"),
+        &BTreeMap::<PathBuf, PathBuf>::new(),
+        &fixture.path,
+    );
+    // The fixture removes its own tree, which needs to read the folder again,
+    // so the mode is restored before any assertion can unwind through it.
+    std::fs::set_permissions(&uses, std::fs::Permissions::from_mode(0o700))
+        .expect("restore fixture permissions");
+    assert_eq!(read.findings.len(), 1, "{:?}", read.findings);
+    assert_eq!(read.findings[0].key, "link src/a/uses uses-unlistable");
+    assert!(read.links.is_empty());
 }
 
 /// Each kind of wrong entry writes its own fault into its key,
@@ -186,6 +245,7 @@ fn every_kind_of_wrong_entry_names_its_fault_in_its_key() {
         ("src/b/mod.rs", ""),
         ("src/a/uses/readme.txt", "words"),
         ("src/a/file_target.rs", ""),
+        ("src/plain/mod.rs", ""),
     ]);
     crate::layout_test_support::link(&fixture.path, "src/a/uses/broken", "../../missing");
     crate::layout_test_support::link(
@@ -195,6 +255,7 @@ fn every_kind_of_wrong_entry_names_its_fault_in_its_key() {
     );
     crate::layout_test_support::link(&fixture.path, "src/a/uses/a", "..");
     crate::layout_test_support::link(&fixture.path, "src/a/uses/wrong_name", "../../b");
+    crate::layout_test_support::link(&fixture.path, "src/a/uses/plain", "../../plain");
     let sources = sources_of(&fixture.path, &["src/a", "src/b"]);
     let read: LinkRead = read_links(&fixture.path.join("src/a"), &sources, &fixture.path);
     let mut keys: Vec<String> = read
@@ -209,6 +270,7 @@ fn every_kind_of_wrong_entry_names_its_fault_in_its_key() {
             "link src/a/uses/a points-to-its-own-folder",
             "link src/a/uses/broken broken",
             "link src/a/uses/file_target.rs points-to-a-file",
+            "link src/a/uses/plain not-a-source-folder",
             "link src/a/uses/readme.txt not-a-symbolic-link",
             "link src/a/uses/wrong_name named-after-another-folder",
         ]

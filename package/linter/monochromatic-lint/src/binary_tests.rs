@@ -1718,6 +1718,72 @@ fn layout_rules_run_in_the_built_executable_and_do_not_follow_links() {
     );
 }
 
+/// A module file that two `mod` declarations reach is one module,
+///  so one glob re-export in it is one finding with one key,
+///  while two globs written on one line stay two findings.
+#[test]
+fn layout_a_module_file_reached_twice_reports_each_glob_once() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    // The library and the executable both declare the same three modules,
+    // which is what a package whose two roots share its module tree looks like.
+    fixture.write(
+        "src/lib.rs",
+        "//! Index.\npub mod a;\npub mod b;\npub mod shared;\n",
+    );
+    fixture.write(
+        "src/main.rs",
+        "//! Entry.\nfn main() {}\npub mod a;\npub mod b;\npub mod shared;\n",
+    );
+    fixture.write("src/a.rs", "pub struct X;\n");
+    fixture.write("src/b.rs", "pub struct Y;\n");
+    fixture.write("src/shared.rs", "pub use crate::a::*;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error" } } }]"#,
+    );
+    // One source line, reached through both declarations, is one finding.
+    let found: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    assert_eq!(
+        located(found.stdout.as_str()),
+        [String::from("src/shared.rs rust/folder-uses-links 1 1")],
+        "{}",
+        found.stdout
+    );
+    assert_eq!(
+        found
+            .stderr
+            .lines()
+            .filter(|line| return line.contains("allow-list key:"))
+            .collect::<Vec<&str>>(),
+        [
+            "monochromatic-lint: debug: rust/folder-uses-links: allow-list key: glob src/shared.rs crate::a"
+        ],
+        "{}",
+        found.stderr
+    );
+    // Two globs on that one line stay two findings, each with its own key, once each.
+    fixture.write("src/shared.rs", "pub use crate::{a::*, b::*};\n");
+    let two: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(two.status, 1, "{}", two.stderr);
+    assert_eq!(
+        two.stderr
+            .lines()
+            .filter(|line| return line.contains("allow-list key:"))
+            .collect::<Vec<&str>>(),
+        [
+            "monochromatic-lint: debug: rust/folder-uses-links: allow-list key: glob src/shared.rs crate::a",
+            "monochromatic-lint: debug: rust/folder-uses-links: allow-list key: glob src/shared.rs crate::b",
+        ],
+        "{}",
+        two.stderr
+    );
+}
+
 /// Two glob re-exports written on one line are two findings with two keys,
 ///  so a list line recorded for the first never tolerates the second,
 ///  and that line stays alive while its own glob exists.
@@ -1832,13 +1898,12 @@ fn layout_group_folders_run_in_the_built_executable() {
     );
 }
 
-/// A use by a group's own file reaches no entry loop,
+/// A use by a group's own file reaches no entry edge,
 ///  because the shelf rule reports that file and a group's summary is what its child folders use,
-///  so a new use from the group's own file to another entry is no finding
-///  even while a listed entry loop joins the two entries,
-///  and no `uses` line is owed for it.
+///  so the loop it closes is reported by the group-own check,
+///  and no `uses` line records that use.
 #[test]
-fn layout_a_groups_own_file_use_is_no_finding_in_the_built_executable() {
+fn layout_a_groups_own_file_use_inside_a_tolerated_loop_is_reported() {
     let fixture: Fixture = Fixture::new();
     fixture.write(
         "Cargo.toml",
@@ -1870,17 +1935,19 @@ fn layout_a_groups_own_file_use_is_no_finding_in_the_built_executable() {
         r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
     );
     let clean: Run = run(&fixture.path, &["--debug", "src"], b"");
-    assert_eq!(
-        (
-            clean.status,
-            clean.stdout.as_str(),
-            clean.stderr.contains("both sit inside one loop")
-        ),
-        (0, "", false),
-        "{}",
-        clean.stderr
-    );
-    // The use is no finding and owes no `uses` line: a line naming it is the dead line below.
+    assert_eq!(clean.status, 1, "{}", clean.stderr);
+    // The use closes a loop the entry graph cannot see, and the finding carries no key.
+    for part in [
+        "These entries use each other in a loop",
+        "src/grp uses src/a",
+    ] {
+        assert!(
+            clean.stdout.contains(part),
+            "{part} missing in {}",
+            clean.stdout
+        );
+    }
+    // No `uses` line records that use: a line naming it is the dead line below.
     fixture.write(
         "folder.txt",
         "missing-link src/a -> src/grp/g2\n\
@@ -1896,6 +1963,12 @@ fn layout_a_groups_own_file_use_is_no_finding_in_the_built_executable() {
     assert!(
         dead.stdout
             .contains("uses src/grp -> src/a` in folder.txt tolerates nothing any more"),
+        "{}",
+        dead.stdout
+    );
+    assert!(
+        dead.stdout
+            .contains("These entries use each other in a loop"),
         "{}",
         dead.stdout
     );
@@ -1958,8 +2031,9 @@ fn layout_an_unreadable_index_reports_every_file_it_cannot_list() {
     }
 }
 
-/// A module file whose name holds a space is refused by a finding that names the folder in its key,
-///  because a key separates its words by spaces and no line could name that file unambiguously.
+/// A module file whose name holds a space is reported by a finding whose key names the file,
+///  so the line that tolerates it never passes to a file renamed later,
+///  and the file still owes its folder a list entry.
 #[test]
 fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
     let fixture: Fixture = Fixture::new();
@@ -1980,7 +2054,10 @@ fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
     assert_eq!(found.status, 1, "{}", found.stderr);
     assert_eq!(
         located(found.stdout.as_str()),
-        [String::from("src/a b.rs rust/file-order-in-folder 1 1")],
+        [
+            String::from("src/a b.rs rust/file-order-in-folder 1 1"),
+            String::from("src/lib.rs rust/file-order-in-folder 1 1"),
+        ],
         "{}",
         found.stdout
     );
@@ -1991,7 +2068,7 @@ fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
         "{}",
         found.stdout
     );
-    // The key names the folder and never the file, so no list line is ambiguous either.
+    // Both lines name the file, so neither passes to another name.
     let key_lines: Vec<&str> = found
         .stderr
         .lines()
@@ -2000,8 +2077,400 @@ fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
     assert_eq!(
         key_lines,
         [
-            "monochromatic-lint: debug: rust/file-order-in-folder: allow-list key: space-in-file-name src"
+            "monochromatic-lint: debug: rust/file-order-in-folder: allow-list key: space-in-file-name src a b.rs",
+            "monochromatic-lint: debug: rust/file-order-in-folder: allow-list key: missing-entry src/lib.rs a b.rs",
         ],
+        "{}",
+        found.stderr
+    );
+}
+
+/// A `mod.rs` that no `mod` line declares is not its folder's index:
+///  the layout rules read the module tree, so a leftover file moves no key,
+///  hides no code check of the folder's real index, and makes no group.
+#[test]
+fn layout_an_undeclared_index_file_changes_nothing() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    // The index holds code and lists no file, and no `mod` line reaches the stray file below.
+    fixture.write("src/lib.rs", "pub fn code_in_index() {}\nmod a;\n");
+    fixture.write("src/a.rs", "\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": {
+      "rust/folder-uses-links": { "severity": "error" },
+      "rust/file-order-in-folder": { "severity": "error" }
+    } }]"#,
+    );
+    let without: Run = run(&fixture.path, &["--debug", "src/lib.rs", "src/a.rs"], b"");
+    assert_eq!(without.status, 1, "{}", without.stderr);
+    fixture.write("src/mod.rs", "//! Stray.\n");
+    // The stray file is not part of the package, so every finding stays keyed to the real index.
+    let stray: Run = run(
+        &fixture.path,
+        &["--debug", "src/lib.rs", "src/a.rs", "src/mod.rs"],
+        b"",
+    );
+    assert_eq!(stray.status, 1, "{}", stray.stderr);
+    assert_eq!(
+        located(stray.stdout.as_str()),
+        located(without.stdout.as_str()),
+        "{}\n{}",
+        without.stdout,
+        stray.stdout
+    );
+    for key in [
+        "rust/file-order-in-folder: allow-list key: index-item src/lib.rs function-code_in_index",
+        "rust/file-order-in-folder: allow-list key: no-file-list src/lib.rs",
+        "rust/file-order-in-folder: allow-list key: missing-entry src/lib.rs a.rs",
+    ] {
+        assert!(
+            stray.stderr.contains(key),
+            "{key} missing in {}",
+            stray.stderr
+        );
+    }
+    // The same file beside two child folders makes no group of the folder it sits in.
+    let group: Fixture = Fixture::new();
+    group.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    group.write("src/lib.rs", "//! Index.\nmod a;\nmod b;\n");
+    group.write("src/a/mod.rs", "//! A.\nmod x;\npub use x::X;\n");
+    group.write("src/a/x.rs", "pub struct X;\n");
+    group.write("src/b/mod.rs", "//! B.\nmod y;\n");
+    group.write("src/b/y.rs", "use crate::a::X;\n");
+    group.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": {
+      "rust/folder-uses-links": { "severity": "error" }
+    } }]"#,
+    );
+    std::fs::create_dir_all(group.path.join("src/b/uses")).expect("uses folder");
+    std::os::unix::fs::symlink("../../a", group.path.join("src/b/uses/a")).expect("link");
+    let shelf: Run = run(&group.path, &["src"], b"");
+    assert_eq!(
+        (shelf.status, shelf.stdout.as_str()),
+        (0, ""),
+        "{}",
+        shelf.stderr
+    );
+    group.write("src/mod.rs", "//! Stray.\n");
+    let stray_group: Run = run(&group.path, &["src"], b"");
+    assert_eq!(
+        (stray_group.status, stray_group.stdout.as_str()),
+        (0, ""),
+        "{}",
+        stray_group.stderr
+    );
+}
+
+/// A module file in the package folder itself is keyed by `.`,
+///  the one spelling of the package folder that a list line can hold,
+///  so no key ends in the space the list reader trims away.
+#[test]
+fn layout_a_module_file_in_the_package_folder_has_a_matchable_key() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    // The package folder holds `x.rs` and no index of its own, so its keys are about the folder itself.
+    fixture.write("src/lib.rs", "#[path = \"../x.rs\"] pub mod x;\n");
+    fixture.write("x.rs", "pub struct X;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs", "x.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+    );
+    let found: Run = run(&fixture.path, &["--debug", "src/lib.rs", "x.rs"], b"");
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    for key in [
+        "rust/file-order-in-folder: allow-list key: no-top-doc .",
+        "rust/file-order-in-folder: allow-list key: missing-entry . x.rs",
+    ] {
+        assert!(
+            found.stderr.contains(key),
+            "{key} missing in {}",
+            found.stderr
+        );
+    }
+    // Both lines are copied from the keys, and the list then holds every finding.
+    fixture.write("folder.txt", "no-top-doc .\nmissing-entry . x.rs\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs", "x.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let listed: Run = run(&fixture.path, &["--debug", "src/lib.rs", "x.rs"], b"");
+    assert_eq!(
+        (listed.status, listed.stdout.as_str()),
+        (0, ""),
+        "{}",
+        listed.stderr
+    );
+    // A loop through the package folder itself is tolerated by lines that name it `.`.
+    let usage: Fixture = Fixture::new();
+    usage.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n\n[lib]\npath = \"lib.rs\"\n",
+    );
+    usage.write("lib.rs", "//! Index.\nmod a;\nmod sub;\n");
+    usage.write("a.rs", "pub struct X;\nuse crate::sub::Y;\n");
+    usage.write("sub/mod.rs", "//! Sub.\npub struct Y;\nuse crate::a::X;\n");
+    usage.write(
+        CONFIG,
+        r#"[{ "files": ["*.rs", "sub/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    // Without the list the loop is reported; both of its uses are then listed.
+    usage.write("folder.txt", "");
+    let looped: Run = run(&usage.path, &["--debug", "lib.rs", "a.rs"], b"");
+    assert_eq!(looped.status, 1, "{}", looped.stderr);
+    assert!(
+        looped
+            .stderr
+            .contains("allow-list key: missing-link . -> sub"),
+        "{}",
+        looped.stderr
+    );
+    usage.write(
+        "folder.txt",
+        "uses . -> sub\nuses sub -> .\nmissing-link . -> sub\nmissing-link sub -> .\n",
+    );
+    let linked: Run = run(&usage.path, &["--debug", "lib.rs", "a.rs"], b"");
+    assert_eq!(
+        (linked.status, linked.stdout.as_str()),
+        (0, ""),
+        "{}",
+        linked.stderr
+    );
+}
+
+/// A module file whose name holds a space stays in the list, loop and order checks:
+///  a loop through it is reported,
+///  and its key names the file, so a list line never tolerates a rename.
+#[test]
+fn layout_a_file_name_holding_a_space_stays_in_every_check() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("src/lib.rs", "//! Index.\nmod m;\nmod n;\n");
+    // The spaced file is declared by `#[path]`, which is the one way a module file can carry a space.
+    fixture.write(
+        "src/m/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//! - `p.rs`: the p.\n//! - `q.rs`: the q.\n//! - `p q.rs`: the spaced one.\n#[path = \"p q.rs\"] mod pq;\nmod p;\nmod q;\n",
+    );
+    fixture.write("src/m/p.rs", "pub struct X;\nuse super::pq::Y;\n");
+    fixture.write("src/m/q.rs", "pub struct Q;\n");
+    fixture.write("src/m/p q.rs", "pub struct Y;\nuse super::p::X;\n");
+    // A folder whose one spaced file no other file uses, so only its own key is in play.
+    fixture.write(
+        "src/n/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//! - `p.rs`: the p.\n//! - `p q.rs`: the spaced one.\n#[path = \"p q.rs\"] mod pq;\nmod p;\n",
+    );
+    fixture.write("src/n/p.rs", "pub struct X;\n");
+    fixture.write("src/n/p q.rs", "pub struct Y;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+    );
+    // The loop through the spaced file is reported, and its own line names the file.
+    let looped: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(looped.status, 1, "{}", looped.stderr);
+    assert!(
+        looped.stdout.contains("use each other in a loop"),
+        "{}",
+        looped.stdout
+    );
+    for part in ["p q.rs uses p.rs", "p.rs uses p q.rs"] {
+        assert!(
+            looped.stdout.contains(part),
+            "{part} missing in {}",
+            looped.stdout
+        );
+    }
+    assert!(
+        looped
+            .stderr
+            .contains("allow-list key: space-in-file-name src/m p q.rs"),
+        "{}",
+        looped.stderr
+    );
+    // A line for the spaced file tolerates its own finding and never the loop.
+    std::fs::write(
+        fixture.path.join("folder.txt"),
+        "space-in-file-name src/m p q.rs\n",
+    )
+    .expect("fixture list");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let tolerated: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(tolerated.status, 1, "{}", tolerated.stderr);
+    assert!(
+        tolerated.stdout.contains("use each other in a loop"),
+        "{}",
+        tolerated.stdout
+    );
+    // The other folder's line holds, and a rename makes it dead instead of letting it pass.
+    std::fs::write(
+        fixture.path.join("folder.txt"),
+        "space-in-file-name src/n p q.rs\n",
+    )
+    .expect("fixture list");
+    let clean: Run = run(&fixture.path, &["--debug", "src"], b"");
+    // The line holds: no finding of that folder is left, and the other folder's loop is still reported.
+    assert_eq!(clean.status, 1, "{}", clean.stderr);
+    assert!(
+        !clean.stdout.contains("\"filename\":\"src/n"),
+        "{}",
+        clean.stdout
+    );
+    std::fs::remove_file(fixture.path.join("src/n/p q.rs")).expect("remove the spaced file");
+    fixture.write("src/n/x y.rs", "pub struct Y;\n");
+    fixture.write(
+        "src/n/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//! - `p.rs`: the p.\n//! - `x y.rs`: the spaced one.\n#[path = \"x y.rs\"] mod pq;\nmod p;\n",
+    );
+    let renamed: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(renamed.status, 1, "{}", renamed.stderr);
+    assert!(
+        renamed
+            .stdout
+            .contains("space-in-file-name src/n p q.rs` in folder.txt tolerates nothing any more"),
+        "{}",
+        renamed.stdout
+    );
+}
+
+/// A use written in a group's own file that closes a mutual dependency between its group and another entry is reported,
+///  with no key,
+///  because a group's own code makes no edge of the entry graph
+///  and the allow list promises that new code cannot add a loop.
+#[test]
+fn layout_a_groups_own_file_use_that_closes_a_loop_is_reported() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("src/lib.rs", "//! Index.\npub mod a;\npub mod grp;\n");
+    // `a` uses the group's second folder, so the group already uses `a` once the own file joins in.
+    fixture.write("src/a/mod.rs", "//! A.\nmod one;\n");
+    fixture.write("src/a/one.rs", "pub struct Z;\nuse crate::grp::g2::Y;\n");
+    fixture.write(
+        "src/grp/mod.rs",
+        "//! Group.\npub mod g1;\npub mod g2;\npub mod own;\n",
+    );
+    fixture.write("src/grp/own.rs", "//! Own.\nuse crate::a::one::Z;\n");
+    fixture.write("src/grp/g1/mod.rs", "//! G1.\n");
+    fixture.write("src/grp/g2/mod.rs", "//! G2.\npub struct Y;\n");
+    // Every other finding of this tree is on the list, so only the loop is left to report.
+    fixture.write(
+        "folder.txt",
+        "group-file src/grp own.rs\nmissing-link src/a -> src/grp/g2\n",
+    );
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/folder-uses-links": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let looped: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(looped.status, 1, "{}", looped.stderr);
+    for part in [
+        "use each other in a loop",
+        "src/grp uses src/a",
+        "src/a uses src/grp",
+    ] {
+        assert!(
+            looped.stdout.contains(part),
+            "{part} missing in {}",
+            looped.stdout
+        );
+    }
+    // The use is what closes the loop: without it the same list holds every finding.
+    fixture.write("src/grp/own.rs", "//! Own.\n");
+    let quiet: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(
+        (quiet.status, quiet.stdout.as_str()),
+        (0, ""),
+        "{}",
+        quiet.stderr
+    );
+}
+
+/// `--config` reads an allow path from the working directory,
+///  which is also the base of that configuration's own file patterns,
+///  so the list is found where the run was started and not beside the configuration file.
+#[test]
+fn layout_a_config_allow_path_is_read_from_the_working_directory() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "pkg/Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("pkg/src/lib.rs", "pub fn code_in_index() {}\nmod a;\n");
+    fixture.write("pkg/src/a.rs", "\n");
+    // The list at the working directory holds every finding this run makes.
+    fixture.write(
+        "folder.txt",
+        "index-item src/lib.rs function-code_in_index\nno-file-list src/lib.rs\nmissing-entry src/lib.rs a.rs\n",
+    );
+    // A list beside the configuration holds a line that tolerates nothing,
+    // so reading that one would fail the run.
+    fixture.write("nested/folder.txt", "no-top-doc src\n");
+    fixture.write(
+        "nested/config.jsonc",
+        r#"[{ "files": ["pkg/src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let found: Run = run(
+        &fixture.path,
+        &["--config", "nested/config.jsonc", "--debug", "pkg/src"],
+        b"",
+    );
+    assert_eq!(
+        (found.status, found.stdout.as_str()),
+        (0, ""),
+        "{}",
+        found.stderr
+    );
+}
+
+/// A `file-uses` file word is read as written, backslash and all,
+///  because a file name is not a path and a key keeps its backslash too.
+#[cfg(unix)]
+#[test]
+fn layout_a_file_uses_line_names_a_file_with_a_backslash() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "pkg/Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("pkg/src/lib.rs", "//! Index.\nmod a;\n");
+    // The attribute's source spells the backslash twice, and the file name holds it once.
+    fixture.write(
+        "pkg/src/a/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//! - `p.rs`: the p.\n//! - `x\\y.rs`: the backslash one.\n#[path = \"x\\\\y.rs\"] mod xy;\nmod p;\n",
+    );
+    fixture.write("pkg/src/a/p.rs", "pub struct X;\nuse super::xy::Y;\n");
+    fixture.write("pkg/src/a/x\\y.rs", "pub struct Y;\nuse super::p::X;\n");
+    fixture.write(
+        "pkg/monochromatic-lint.config.jsonc",
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    // Both uses of the loop are listed, and each line names the backslash file as written.
+    fixture.write(
+        "pkg/folder.txt",
+        "file-uses src/a p.rs -> x\\y.rs\nfile-uses src/a x\\y.rs -> p.rs\n",
+    );
+    let found: Run = run(&fixture.path.join("pkg"), &["--debug", "src"], b"");
+    assert_eq!(
+        (found.status, found.stdout.as_str()),
+        (0, ""),
         "{}",
         found.stderr
     );

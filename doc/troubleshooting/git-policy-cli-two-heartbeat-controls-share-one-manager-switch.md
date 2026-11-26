@@ -56,5 +56,42 @@ command's own request, or a lock that only one control of the file holds while i
 controls' sleeps are also witnesses of the absence of an ending, which a shared switch defeats
 (`doc/planning/cli-git-tests-that-pass-without-their-race.md`).
 
-This page records the defect and the measurement only. The fix belongs to a round that owns
-`binary/binary_service_heartbeat_tests.rs`; no round has landed it as of 2026-11-25.
+This page records the defect and the measurement,
+and the round of 2026-11-26 that owns `binary/binary_service_heartbeat_tests.rs` landed the fix below.
+
+## The fix that landed (2026-11-26)
+
+Commit `822055daef` removed all four statics.
+A `ManagerWatch` hands each of its functions the path it names as the session bus
+(`service/service_client_settings_and_watches.rs`),
+and no stand-in of this file asks a bus,
+so that path is now the folder one control owns:
+a `the-start-failed` or `the-unit-is-inactive` file in it is the word the stand-in answers,
+and a start leaves `asked-to-start` there.
+Each control takes its folder from the harness (`super::support::fixture`),
+which removes it however the test ends,
+so two controls cannot reach one answer,
+and the resets went with the statics.
+
+The same filter before and after the change,
+on this host:
+
+```console
+$ cargo test --locked --offline --features test-only-switches --test native_binary service -- --skip guest --skip _arm_tests
+test result: FAILED. 254 passed; 1 failed; 2 ignored; 0 measured; 1103 filtered out; finished in 104.85s
+test result: FAILED. 254 passed; 1 failed; 2 ignored; 0 measured; 1103 filtered out; finished in 94.97s
+test result: ok. 255 passed; 0 failed; 2 ignored; 0 measured; 1103 filtered out; finished in 94.03s
+test result: ok. 255 passed; 0 failed; 2 ignored; 0 measured; 1103 filtered out; finished in 94.26s
+```
+
+The two failing runs are before the change,
+and both name `a_service_that_starts_late_is_waited_for_while_the_manager_does_not_say_failed`.
+The two passing runs are after it.
+The module threaded (`service_heartbeat::`) reported 27 passed after the change,
+and each of the five controls that read the fake manager passed alone by `--exact` before and after.
+
+Commit `330f7e8a85` added the guard,
+`source_guard/heartbeat_controls_own_their_manager_switch_tests.rs`:
+it fails on any `static` the file declares and names the line.
+Its own control plants one in a fixture tree,
+and with a `static` added back to the file it reports `binary/binary_service_heartbeat_tests.rs:745`.
