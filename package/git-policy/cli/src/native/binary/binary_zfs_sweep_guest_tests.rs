@@ -608,14 +608,14 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
         nonce: second_nonce.clone(),
         boot: carried,
     };
-    let receipt: CloneMountReceipt = run_on_runtime(wait_for_answer(&command_folder, &request, Duration::from_secs(5)))
+    let answered_receipt: CloneMountReceipt = run_on_runtime(wait_for_answer(&command_folder, &request, Duration::from_secs(5)))
         .expect("the command's wait runs")
         .expect("the second request's answer is filed");
-    assert_eq!(receipt.outcome, ReceiptOutcome::Done, "the second request is answered done");
-    assert_eq!(receipt.nonce, second_nonce, "the answer carries the second request's nonce");
+    assert_eq!(answered_receipt.outcome, ReceiptOutcome::Done, "the second request is answered done");
+    assert_eq!(answered_receipt.nonce, second_nonce, "the answer carries the second request's nonce");
     let expected: ExpectedMount =
         ExpectedMount { clone_guid: request.dataset, clone_dataset: clone.clone(), slot_path: slot_folder.clone(), nonce: second_nonce.clone() };
-    let proof = verify_the_mount_answer(&MountAnswer::of_receipt(&receipt), &expected).expect("the cancel command's own verification accepts the answer");
+    let proof = verify_the_mount_answer(&MountAnswer::of_receipt(&answered_receipt), &expected).expect("the cancel command's own verification accepts the answer");
     assert_eq!(Some(proof.mount.mount_id), mount_id_of(&std::fs::File::open(slot_folder.as_path()).expect("the slot opens")).ok(), "the verified answer names the mount the kernel shows at the slot");
     println!("SWEEP second-request nonce={second_digits} answered=done mounts=1 mount={}", proof.mount.mount_id);
 
