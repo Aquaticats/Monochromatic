@@ -125,6 +125,78 @@ fn the_skip_prints_the_call_the_settings_the_reason_and_the_remedies() {
     );
 }
 
+/// The value a host whose AppArmor restriction is off reads.
+const RESTRICTION_OFF: &str = "0";
+
+/// What:
+///  A skip whose own setting line reads anything but `1` prints no Ubuntu cause and no
+///  command that turns that restriction off,
+///  and says instead what the open asks for and where the kernel wrote its own answer.
+/// Why:
+///  The third line named Ubuntu 24.04's AppArmor restriction for every `EACCES` of the
+///  open,
+///  and the second line printed the setting that decides it (the alpha.47 release
+///  pass's Low 9):
+///  a host whose setting reads `0` or `absent` read a cause its own report
+///  contradicted,
+///  and a remedy for a rule that host does not have.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const found of ['0', 'absent']) {
+///   const lines = reportOf({ kind: 'skipped', errno: 13 }, { ...settings, apparmorRestriction: found }).split('\n');
+///   expect(lines[2]).not.toContain("Ubuntu 24.04's default AppArmor profile");
+///   expect(lines[2]).toContain(found);
+///   expect(lines[3]).not.toContain('sysctl --write kernel.apparmor_restrict_unprivileged_userns=0');
+/// }
+/// ```
+#[test]
+fn a_skip_whose_setting_reads_off_names_no_ubuntu_cause() {
+    for found in [RESTRICTION_OFF, ABSENT] {
+        let mut other: HostSettings = settings();
+        other.apparmor_restriction = String::from(found);
+        let report: String = report_of(
+            GroupDrop::Skipped {
+                errno: libc::EACCES,
+            },
+            &other,
+        );
+        let lines: Vec<&str> = report.lines().collect();
+        assert_eq!(lines.len(), 4, "{report}");
+        assert!(
+            lines[1]
+                .contains(format!("kernel.apparmor_restrict_unprivileged_userns={found}").as_str()),
+            "the settings line prints what this host read: {}",
+            lines[1]
+        );
+        assert!(
+            !lines[2].contains("Ubuntu 24.04's default AppArmor profile"),
+            "the Ubuntu cause is not named where its own setting reads {found}: {}",
+            lines[2]
+        );
+        assert!(
+            lines[2].contains(format!("reads `{found}`").as_str()),
+            "the cause names the value this host read: {}",
+            lines[2]
+        );
+        assert!(
+            lines[2].contains("audit log"),
+            "the cause names where the kernel wrote which profile answered: {}",
+            lines[2]
+        );
+        assert!(
+            !lines[3].contains("sysctl --write kernel.apparmor_restrict_unprivileged_userns=0"),
+            "no remedy turns off a rule this host reads {found}: {}",
+            lines[3]
+        );
+        assert!(
+            lines[3].contains("nothing needs doing"),
+            "the shipped skip needs nothing: {}",
+            lines[3]
+        );
+    }
+}
+
 /// What:
 ///  A probe that could not be run or read prints one line with its reason,
 ///  so a section that silently said nothing never passes for a passing host.

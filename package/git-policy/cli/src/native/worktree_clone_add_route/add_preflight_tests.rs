@@ -19,6 +19,10 @@
 //! Why the source's answers are driven on fixtures:
 //!  the source check and the slot's parent stand before the device is opened,
 //!  so a fixture decides every answer they give and no control needs a pool.
+//!  The device itself comes from the source a control hands in,
+//!  so a control reads every answer behind it without opening this machine's
+//!  `/dev/zfs`,
+//!  and the sentence it answers is how a control names the step.
 //!  The plan's stop stands after the device,
 //!  so its sentence is controlled in `add_plan_stop_tests.rs`,
 //!  and what only the preflight can show is the source read below.
@@ -28,8 +32,9 @@
 //!  calls.
 //!
 //! Why a source scan for the delegation read:
-//!  the preflight opens the kernel's device and reads a live pool,
-//!  so no host control can drive it that far,
+//!  the delegation is a raw pool request,
+//!  so a control drives the preflight no further than the device source it hands
+//!  in,
 //!  and this crate's own idiom for the shape a release file must have is
 //!  `source_guard`.
 //!  The arm fails when the read is dropped from the preflight,
@@ -38,17 +43,19 @@
 //! Why the plan's stop is driven on fixtures and read in the source:
 //!  the command a person reads beside a standing plan needs the clone the pool can
 //!  find,
-//!  which is a request through the device the preflight opens
+//!  which is a request through the device the caller's source opens
 //!  (`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
 //!  choice 2C),
-//!  so a host control cannot reach the preflight's plan stop at all.
+//!  so no control of this file reaches the preflight's plan stop:
+//!  the device source here answers a refusal instead of a device.
 //!  The sentence's own controls stand in `add_plan_stop_tests.rs`,
 //!  and this file controls what only the preflight's code can show:
-//!  the stop sits after the device opens,
+//!  the stop sits after the device is asked for,
 //!  and what the add hands over is the stop's sentence rather than a Rust
 //!  `Debug` value (issue 6450).
 
 use super::OpenedDevice;
+use super::TheDeviceOpened;
 use super::preflight_the_add;
 use super::refuse_a_container_that_cannot_serve_clones;
 use crate::doctor_zfs_route::route_test_facts::{
@@ -178,11 +185,11 @@ fn the_preflight_refuses_through_the_grant_read() {
 ///  never a Rust `Debug` rendering of it.
 /// Why:
 ///  The command the person reads beside a plan needs the clone the pool can find,
-///  so the read stands after `OpenedDevice::open`
+///  so the read stands after the device the caller's source is asked for
 ///  (`doc/planning/cli-git-zfs-step-10-open-choices.md`,
 ///  "What 2C costs"),
-///  and no host control can drive the preflight that far:
-///  the device is the real `/dev/zfs`.
+///  and no control on this file drives the preflight that far:
+///  the device source here opens nothing.
 ///  The refusal is the whole of what the person gets,
 ///  so a `Debug` value there would name types instead of the removal that ends
 ///  the plan (issue 6450),
@@ -191,7 +198,7 @@ fn the_preflight_refuses_through_the_grant_read() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(source.indexOf('OpenedDevice::open(')).toBeLessThan(source.indexOf('refuseWhileAPlanStands('));
+/// expect(source.indexOf('devices.open(')).toBeLessThan(source.indexOf('refuseWhileAPlanStands('));
 /// expect(source).not.toContain('{stop:?}');
 /// ```
 #[test]
@@ -204,8 +211,8 @@ fn the_preflight_reads_the_plan_after_the_device_opens_with_the_stops_sentence()
         .collect();
     let joined: String = code.join("\n");
     let device_opened: usize = joined
-        .find("OpenedDevice::open(")
-        .expect("the preflight opens the device");
+        .find("devices.open(")
+        .expect("the preflight asks the device source it was given");
     let plan_stop: usize = joined
         .find("refuse_while_a_plan_stands(")
         .expect("the preflight calls the plan's stop");
@@ -234,39 +241,132 @@ fn the_preflight_reads_the_plan_after_the_device_opens_with_the_stops_sentence()
 }
 
 /// What:
-///  Every sentence the device step answers for this fixture's own dataset names on
-///  this machine.
+///  The preflight opens the device through the source it was handed,
+///  and the refusal is that source's own sentence.
 /// Why:
-///  The preflight's first request after the source check is the device's own:
-///  it runs the start-time gate and reads the checkout's and the pool's identities,
-///  so a machine whose `/dev/zfs` does not open answers with the gate's sentence
-///  and one where it does answers with the missing dataset's.
-///  The fixture's pool name is one no machine holds, so every one of those reads
-///  refuses there and the sentence the preflight ends with is one of these,
-///  whichever read the preflight makes first.
-///  The clone container's read is left out because it stands behind them and its
-///  refusal carries words of its own.
-fn the_devices_answers_for_the_fixture(route: &RouteFacts) -> Vec<String> {
-    let mut answers: Vec<String> = Vec::new();
-    let device: OpenedDevice = match OpenedDevice::open() {
-        Ok(device) => device,
-        Err(message) => {
-            answers.push(message);
-            return answers;
-        }
+///  This is the seam's control:
+///  the preflight's own file names no `/dev/zfs` opener,
+///  so a host control of it reaches every step behind the device by answering the
+///  open itself,
+///  and a build that opened the device again would answer the gate's or the pool's
+///  sentence and fail here (the alpha.47 release pass's Low 4,
+///  fixed for the removal refusal by `b2ee59cff6`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = preflightTheAdd(route, plan, context, words, noDevice);
+/// expect(refusal.message).toBe(NO_DEVICE);
+/// ```
+#[test]
+fn the_preflight_opens_the_device_source_it_was_given() {
+    let (root, route, plan): (PathBuf, RouteFacts, AddPlan) =
+        a_checkout_the_route_serves("preflight-device-seam");
+    let refusal: StepRefusal = match preflight_the_add(
+        &route,
+        &plan,
+        &git_context(),
+        the_adds_words(&route).as_slice(),
+        &no_device(),
+    ) {
+        Ok(_) => panic!(
+            "this control's device source answers no device, so the route cannot serve the add"
+        ),
+        Err(refusal) => refusal,
     };
-    for name in [route.checkout_dataset.as_str(), route.pool.as_str()] {
-        if let Err(message) = device.identity_of(name) {
-            answers.push(message);
-        }
+    assert_eq!(
+        refusal.message, NO_DEVICE,
+        "the preflight's refusal is the sentence of the source it was given, and it opened no device of its own"
+    );
+    assert!(
+        !home_folder(route.common_dir.as_path()).exists(),
+        "no claim, and no record, stands for a refused preflight"
+    );
+    assert!(!route.destination.exists(), "the slot stays empty");
+    remove(root.as_path());
+}
+
+/// What:
+///  The preflight's own file names no opener of the kernel's ZFS device:
+///  the device is the caller's answer,
+///  and nothing else.
+/// Why:
+///  The stand-in's sentence is half the guard.
+///  A preflight that opened this machine's device beside asking the seam would pass
+///  every behavioural control here and open `/dev/zfs` on each host,
+///  which is the defect the seam removes,
+///  so the file itself is read for an opener it may not hold.
+///  The names are the three ways this crate opens the device:
+///  the add's own opener,
+///  the device's,
+///  and the start-time gate that stands in
+///  front of both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const code = readFileSync('add_preflight.rs', 'utf8').split('\n').filter((line) => !line.trimStart().startsWith('//')).join('\n');
+/// for (const banned of ['OpenedDevice::open(', 'ZfsDevice::open', 'LiveGate']) expect(code).not.toContain(banned);
+/// ```
+#[test]
+fn the_preflights_own_file_opens_no_device() {
+    let source: &str = include_str!("add_preflight.rs");
+    let code: Vec<&str> = source
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| return !line.starts_with("//"))
+        .collect();
+    let joined: String = code.join("\n");
+    for banned in ["OpenedDevice::open(", "ZfsDevice::open", "LiveGate"] {
+        assert!(
+            !joined.contains(banned),
+            "the preflight asks the device source its caller hands in, and holds no opener of its own: `{banned}` stands in its code"
+        );
     }
-    return answers;
+    assert!(
+        joined.contains("devices.open("),
+        "the preflight asks the device source it was given: {joined}"
+    );
+}
+
+/// The sentence a control's device source answers.
+/// Why:
+///  It is written here and nowhere else in the crate,
+///  so a refusal carrying it can only be the preflight's own read of the seam a
+///  control handed it.
+const NO_DEVICE: &str =
+    "this control opens no ZFS device, so this sentence is the whole answer the preflight got";
+
+/// What:
+///  A device source that opens nothing and answers the control's own sentence.
+/// Why:
+///  Every host control of the preflight reached `OpenedDevice::open` and opened this
+///  machine's `/dev/zfs` (the alpha.47 release pass's Low 4),
+///  which is what the seam removes:
+///  the preflight asks this value instead,
+///  and a build that reached the device again would answer with the gate's or the
+///  pool's sentence and fail the controls below.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noDevice: TheDeviceOpened = { open: () => { throw new Error('this control opens no ZFS device, so this sentence is the whole answer the preflight got') } };
+/// ```
+struct NoDevice;
+
+impl TheDeviceOpened for NoDevice {
+    fn open(&self) -> Result<OpenedDevice, String> {
+        return Err(String::from(NO_DEVICE));
+    }
+}
+
+/// The device source every control of this file answers with,
+/// which opens nothing.
+fn no_device() -> NoDevice {
+    return NoDevice;
 }
 
 /// What:
 ///  A main checkout with one uncommitted file is a source the preflight serves:
 ///  the source check records the changes instead of refusing them,
-///  the refusal the preflight ends with is the device step's own,
+///  the refusal the preflight ends with is the device source's own,
 ///  which stands after the source check,
 ///  and nothing of the route's own was written.
 /// Why:
@@ -274,23 +374,20 @@ fn the_devices_answers_for_the_fixture(route: &RouteFacts) -> Vec<String> {
 ///  verified dirty restore landed, an add from a dirty main checkout took rung 3
 ///  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, lines 1858 to
 ///  1862), and the route now restores the copy instead of declining it.
-///  The fixture names a pool no machine holds, so the device step is where this
-///  add stops on both kinds of machine:
-///  the start-time compatibility gate's sentence where `/dev/zfs` does not open
-///  (the gate's container),
-///  and the missing dataset's where it does (a ZFS host).
-///  `StepRefusal` carries the person's words and an exit status, and no step of
-///  its own, so the control names the step by asking the device layer the same
-///  questions the preflight asks and reading the preflight's sentence among the
-///  answers:
-///  every one of them is this machine's, written down nowhere,
-///  and no refusal of the source check can be one of them.
+///  The refusal is the seam's own sentence rather than this machine's,
+///  so the control holds the same answer on a host whose `/dev/zfs` opens and on the
+///  gate's container,
+///  and a build that opened the device itself would answer with the gate's or the
+///  pool's sentence and fail here.
+///  `StepRefusal` carries the person's words and an exit status and no step of its
+///  own,
+///  so the sentence the seam wrote is how the control names the step.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const source = sourceOrDirty(context, identity); expect(source.dirty).toBeDefined();
 /// expect(preflight(dirtyCheckout).message).not.toContain('cannot be the source of a clone');
-/// expect(deviceAnswersFor(fixturePool)).toContain(preflight(dirtyCheckout).message);
+/// expect(preflight(dirtyCheckout).message).toBe(NO_DEVICE);
 /// ```
 #[test]
 fn an_uncommitted_file_is_a_source_the_preflight_serves() {
@@ -317,6 +414,7 @@ fn an_uncommitted_file_is_a_source_the_preflight_serves() {
         &plan,
         &git_context(),
         the_adds_words(&route).as_slice(),
+        &no_device(),
     ) {
         Ok(_) => panic!("this fixture has no pool, so the preflight cannot prove the datasets"),
         Err(refusal) => refusal,
@@ -326,10 +424,9 @@ fn an_uncommitted_file_is_a_source_the_preflight_serves() {
         "the source check served the dirty checkout, and the preflight refused it for another reason: {}",
         refusal.message
     );
-    let devices_own: Vec<String> = the_devices_answers_for_the_fixture(&route);
-    assert!(
-        devices_own.contains(&refusal.message),
-        "the preflight's refusal is the device step's own, which stands after the source check; the device answers {devices_own:#?}"
+    assert_eq!(
+        refusal.message, NO_DEVICE,
+        "the preflight's refusal is the device source's own sentence, which stands after the source check"
     );
     assert!(
         !home_folder(route.common_dir.as_path()).exists(),
@@ -375,7 +472,13 @@ fn a_lock_word_from_a_declined_source_takes_the_ladder() {
         std::fs::write(nested.join("inside.txt"), b"inside\n").expect("the repository's own file");
         let mut words: Vec<OsString> = the_adds_words(&route);
         words.insert(2, OsString::from(given));
-        match preflight_the_add(&route, &plan, &git_context(), words.as_slice()) {
+        match preflight_the_add(
+            &route,
+            &plan,
+            &git_context(),
+            words.as_slice(),
+            &no_device(),
+        ) {
             Ok(None) => {}
             Ok(Some(_)) => panic!(
                 "this fixture has no pool, so a served source would have been stopped by the pool's read, and `{given}` was not the reason"
@@ -422,6 +525,7 @@ fn a_lock_word_from_a_served_source_keeps_the_routes_own_sentence() {
         &plan,
         &git_context(),
         words.as_slice(),
+        &no_device(),
     ) {
         Ok(_) => panic!(
             "the route takes the managed lock itself, so an add it serves and that names `--lock` is refused before the claim"
@@ -478,6 +582,7 @@ fn an_untracked_repository_declines_the_preflight() {
         &plan,
         &git_context(),
         the_adds_words(&route).as_slice(),
+        &no_device(),
     ) {
         Ok(None) => {}
         Ok(Some(_)) => panic!(
@@ -531,6 +636,7 @@ fn a_directory_where_the_index_records_a_file_declines_the_preflight() {
         &plan,
         &git_context(),
         the_adds_words(&route).as_slice(),
+        &no_device(),
     ) {
         Ok(None) => {}
         Ok(Some(_)) => panic!(
@@ -577,6 +683,7 @@ fn a_sparse_checkout_still_refuses_the_add() {
         &plan,
         &git_context(),
         the_adds_words(&route).as_slice(),
+        &no_device(),
     ) {
         Ok(_) => panic!("a sparse checkout is no source of a copy, so the route refuses it"),
         Err(refusal) => refusal,
@@ -622,6 +729,7 @@ fn a_worktree_scope_configuration_still_refuses_the_add() {
         &plan,
         &git_context(),
         the_adds_words(&route).as_slice(),
+        &no_device(),
     ) {
         Ok(_) => {
             panic!("a worktree-scope configuration is no source of a copy, so the route refuses it")
@@ -666,6 +774,7 @@ fn an_unfinished_merge_still_refuses_the_add() {
         &plan,
         &git_context(),
         the_adds_words(&route).as_slice(),
+        &no_device(),
     ) {
         Ok(_) => panic!("an operation in progress is not dirt, so the route refuses the source"),
         Err(refusal) => refusal,
@@ -758,6 +867,78 @@ fn a_container_the_design_does_not_serve_is_refused_before_any_write() {
             refusal.message
         );
     }
+}
+
+/// The ancestor a control's container inherits `legacy` from,
+/// which is the shape a pool whose home dataset set it passes down.
+const THE_ANCESTOR_DATASET: &str = "preflightfixturepool/home";
+
+/// What:
+///  A container that inherits `mountpoint=legacy` from an ancestor is refused in the
+///  preflight,
+///  and the clone it would hand a clone is refused by the read after the clone request,
+///  so the route's two checks of the same container agree and the refusal stands before
+///  any write.
+/// Why:
+///  A clone inherits the value from its own parent and OpenZFS names the nearest dataset
+///  that set it,
+///  so this container gives every clone `inherited from <the ancestor>` and the
+///  post-clone read refuses it after the claim,
+///  the slot,
+///  the Git registration,
+///  the snapshot and the clone were written
+///  (the alpha.47 release pass's Low 6,
+///  probe e13).
+///  The preflight judges the container by value alone before this,
+///  so it passed the one container the second check refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const container = DatasetBuilder.container().inheritsMountpointFrom(ANCESTOR).build();
+/// expect(refuseContainer(container).message).toContain('must set `legacy` on itself');
+/// const clone = DatasetBuilder.clone().inheritsMountpointFrom(ANCESTOR).build();
+/// expect(theClonesMountpointFailure(clone, CONTAINER_DATASET)).toContain(`inherited from \`${ANCESTOR}\``);
+/// ```
+#[test]
+fn a_container_that_inherits_legacy_is_refused_before_any_write() {
+    let facts: crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts =
+        DatasetBuilder::container()
+            .inherits_mountpoint_from(THE_ANCESTOR_DATASET)
+            .build();
+    let container: DatasetFacts = route_test_facts::dataset(DatasetRole::Container, facts);
+    let refusal: StepRefusal = refuse_a_container_that_cannot_serve_clones(&container).expect_err(
+        "a container that inherits `legacy` gives each clone the ancestor's name as its source",
+    );
+    assert!(
+        refusal.message.contains(THE_ANCESTOR_DATASET),
+        "the sentence names the dataset the value comes from: {}",
+        refusal.message
+    );
+    assert!(
+        refusal.message.contains("must set `legacy` on itself"),
+        "the sentence names the value the container must set itself: {}",
+        refusal.message
+    );
+    assert!(
+        refusal
+            .message
+            .contains("No claim, slot, Git registration, snapshot or clone was written"),
+        "the sentence says where the refusal stands: {}",
+        refusal.message
+    );
+    let clone: crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts =
+        DatasetBuilder::clone()
+            .inherits_mountpoint_from(THE_ANCESTOR_DATASET)
+            .build();
+    let after: String = crate::worktree_clone_add_route::add_zfs::the_clones_mountpoint_failure(
+        &clone,
+        CONTAINER_DATASET,
+    )
+    .expect("the read after the clone request refuses the clone this container gives");
+    assert!(
+        after.contains(THE_ANCESTOR_DATASET),
+        "the post-clone read names the same ancestor: {after}"
+    );
 }
 
 /// What:

@@ -166,6 +166,9 @@ pub(crate) struct DatasetBuilder {
     name: String,
     /// The `mountpoint` property's value.
     mountpoint: String,
+    /// The dataset the `mountpoint` value is inherited from,
+    /// or nothing when the dataset set it itself.
+    mountpoint_source: Option<String>,
     /// The `canmount` index value,
     /// where the role reads it.
     canmount: Option<u64>,
@@ -195,6 +198,7 @@ impl DatasetBuilder {
         return DatasetBuilder {
             name: String::from(name),
             mountpoint: String::from(mountpoint),
+            mountpoint_source: None,
             canmount: None,
             setuid: 0,
             devices: 0,
@@ -231,6 +235,16 @@ impl DatasetBuilder {
         mountpoint: &str,
     ) -> Self {
         self.mountpoint = String::from(mountpoint);
+        return self;
+    }
+
+    /// The dataset this one inherits its `mountpoint` from,
+    /// which is the shape of a container whose `legacy` comes from an ancestor.
+    pub(crate) fn inherits_mountpoint_from(
+        mut self,
+        from: &str,
+    ) -> Self {
+        self.mountpoint_source = Some(String::from(from));
         return self;
     }
 
@@ -298,14 +312,26 @@ impl DatasetBuilder {
     /// with the properties the checks read beside the fields.
     pub(crate) fn build(self) -> CloneObjectFacts {
         let mut properties: NvList = NvList::new();
-        add_property(&mut properties, "mountpoint", &self.mountpoint);
+        // A value the dataset set itself names the dataset as its source,
+        // which is what OpenZFS answers; an inherited one names the ancestor that set it.
+        let mountpoint_source: String = match &self.mountpoint_source {
+            Some(from) => from.clone(),
+            None => self.name.clone(),
+        };
+        add_property(
+            &mut properties,
+            "mountpoint",
+            mountpoint_source.as_str(),
+            &self.mountpoint,
+        );
         if let Some(canmount) = self.canmount {
-            add_number_property(&mut properties, "canmount", canmount);
+            add_number_property(&mut properties, "canmount", self.name.as_str(), canmount);
         }
         if let Some(snapdir) = self.snapdir {
             add_number_property(
                 &mut properties,
                 crate::health::doctor_zfs_route::snapshot_directory_checks::SNAPDIR_PROPERTY,
+                self.name.as_str(),
                 snapdir,
             );
         }
@@ -330,27 +356,42 @@ impl DatasetBuilder {
     }
 }
 
-/// One property in the shape OpenZFS returns it.
+/// What:
+///  One property in the shape OpenZFS returns it:
+///  a nested list with the value and the source the kernel names.
+/// Why:
+///  The source is the dataset that set the value,
+///  which is the dataset itself for a local value and the nearest ancestor for an
+///  inherited one,
+///  so a control can read the difference the route's two checks judge.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// properties[name] = { value: text, source: source };
+/// ```
 fn add_property(
     properties: &mut NvList,
     name: &str,
+    source: &str,
     text: &str,
 ) {
     let mut pair: NvList = NvList::new();
     pair.add_str("value", text);
-    pair.add_str("source", "local");
+    pair.add_str("source", source);
     properties.add_nvlist(name, pair);
 }
 
-/// One number property in the shape OpenZFS returns it.
+/// One number property in the shape OpenZFS returns it,
+/// whose source is the dataset itself.
 fn add_number_property(
     properties: &mut NvList,
     name: &str,
+    dataset: &str,
     number: u64,
 ) {
     let mut pair: NvList = NvList::new();
     pair.add_u64("value", number);
-    pair.add_str("source", "local");
+    pair.add_str("source", dataset);
     properties.add_nvlist(name, pair);
 }
 
