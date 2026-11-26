@@ -415,8 +415,8 @@ fn zfs_doctor_removal_lines_guest() {
     let healthy: super::route_checks::CloneFacts = clone_facts(common.as_path(), slot_path.as_path(), cache.as_path());
     assert_passes(&healthy);
     println!("DOCTOR-GUEST-REMOVAL healthy-lines-pass");
-    let lost: super::route_checks::CloneFacts = loses_the_lock(&built, common.as_path(), slot_path.as_path(), cache.as_path());
-    assert_the_lost_lock(&lost);
+    let unlocked: super::route_checks::CloneFacts = loses_the_lock(&built, common.as_path(), slot_path.as_path(), cache.as_path());
+    assert_the_lost_lock(&unlocked);
     println!("DOCTOR-GUEST-REMOVAL lost-lock-is-a-finding");
     let restored: super::route_checks::CloneFacts = writes_the_lock_again(&built, common.as_path(), slot_path.as_path(), cache.as_path());
     assert_the_written_lock(&restored, &built);

@@ -54,9 +54,8 @@ use crate::worktree_clone_slot_state::slot_state_mounts::{MountRows, SlotMount};
 use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, IntentFacts, PlanReading, SlotReadings};
 use crate::worktree_clone_slot_state::slot_state_test_records::record_at;
 use crate::worktree_removal_deferred_origin_check::origin_mark::OriginMark;
-use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasetInstance;
-use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
-use std::path::PathBuf;
+use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasetInstance;use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
+use std::path::{Path, PathBuf};
 
 /// The checkout the design names.
 pub(crate) const CHECKOUT: &str = "/home/user/Monochromatic";
@@ -447,9 +446,9 @@ pub(crate) fn accounting(object: &str, used: u64) -> AccountingFacts {
 /// ```ts
 /// const classification = healthyClassification(registration); // { state: { kind: 'managed', nonce }, pointer: { kind: 'bytes' } }
 /// ```
-fn healthy_classification(registration: &PathBuf) -> Classification {
+fn healthy_classification(registration: &Path) -> Classification {
     return Classification {
-        state: ManagedLockState::Managed { nonce: RequestNonce::parse(LOCK_NONCE).expect("the fixture nonce reads"), registration: registration.clone() },
+        state: ManagedLockState::Managed { nonce: RequestNonce::parse(LOCK_NONCE).expect("the fixture nonce reads"), registration: registration.to_path_buf() },
         pointer: crate::worktree_clone_managed_lock::Reading::Bytes(Vec::from(format!("gitdir: {}\n", registration.display()).into_bytes())),
     };
 }
