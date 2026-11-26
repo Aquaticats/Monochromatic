@@ -129,7 +129,7 @@ Rounds started earlier run on the pool they named.
   window `issue-6504-driver-suite-controls-fail-together-and-pass-alone`, the first round on the virtual writer.
 - Issue 6494, the no-threads child helper read the wrong way,
   window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
-- Issues 6493 and 6495 (flex),
+- Issue 6493 (flex),
   one window each, `issue-<number>-<words>`.
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
   briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
@@ -166,7 +166,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   6498 as `ed9766ffad`,
   6496 as `03212a32ff`,
   6497 as `ad67562f20`,
-  6499 as `2f5b9c87bd` and
+  6499 as `2f5b9c87bd`,
+  6495 as `2024335d64` and
   6489 as `6b67efe5ef` (its control waited on a pipe no read waits on since `98f943d61a`).
 - 6502 (the live gate arm reads the header the module declares) as `bd180d7de9`, proved in CachyOS 7.3.5 and Ubuntu 6.8 guests.
 - ZFS plan step 23, the host-kernel qualification run, as `0c4064831d`:
@@ -258,11 +259,11 @@ Of those filed tonight,
 6498,
 6496,
 6497,
-6499 and
-6489 are merged (`### Merged tonight`),
-and 6493,
-6494 and
-6495 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
+6499,
+6489 and
+6495 are merged (`### Merged tonight`),
+and 6493 and
+6494 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
 They are debt ledger item 3's.
 
 A `panicked at` line from a thread named `git-policy-worker` in a combined run is not a failure:
