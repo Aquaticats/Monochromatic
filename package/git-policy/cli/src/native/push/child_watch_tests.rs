@@ -813,8 +813,19 @@ fn a_step_whose_standard_error_is_held_open_returns_its_answer() {
 /// finding 8).
 /// The fixture would outlive the control's own bound if the ceiling were not carried,
 /// so a wait that outlasts the step shows.
+///  The stand-in that refuses every task belongs to this whole process,
+/// so this control's body runs in a child of its own
+///  (`crate::process_wide_state_child_test_support`),
+/// where no other control's watcher is refused with it
+/// (issue 6511).
 #[test]
 fn a_step_whose_watch_had_no_task_ends_at_its_ceiling_and_says_so() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_step_whose_watch_had_no_task_ends_at_its_ceiling_and_says_so",
+    ) {
+        return;
+    }
     let refused: crate::lazy_runtime::RefusalForTheControl =
         crate::lazy_runtime::a_control_refuses_every_task();
     let sink: SharedSink = SharedSink::default();
@@ -1645,8 +1656,19 @@ fn a_member_in_uninterruptible_io_cannot_hold_the_stop_past_its_ceiling() {
 ///  that drain,
 /// and no watch runs,
 /// so the state the review describes is the one this step is in.
+///  The stand-in that refuses every task belongs to this whole process,
+/// so this control's body runs in a child of its own
+///  (`crate::process_wide_state_child_test_support`),
+/// where no other control's watcher is refused with it
+/// (issue 6511).
 #[test]
 fn a_step_that_finishes_inside_its_ceiling_is_answered() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_step_that_finishes_inside_its_ceiling_is_answered",
+    ) {
+        return;
+    }
     let refused: crate::lazy_runtime::RefusalForTheControl =
         crate::lazy_runtime::a_control_refuses_every_task();
     let sink: SharedSink = SharedSink::default();
@@ -1948,9 +1970,20 @@ fn a_watcher_whose_child_has_ended_waits_for_a_mark_instead_of_taking_its_ceilin
 ///  The step's own shell waits for a helper that outlives every control here,
 /// so a helper still alive at the end of
 ///  this control shows that nothing reached it.
+///  The stand-in that refuses every task belongs to this whole process,
+/// so this control's body runs in a child of its own
+///  (`crate::process_wide_state_child_test_support`),
+/// where no other control's watcher is refused with it
+/// (issue 6511).
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_ended_at_the_ceiling_its_wait_carried_takes_the_processes_it_started_with_it() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_step_ended_at_the_ceiling_its_wait_carried_takes_the_processes_it_started_with_it",
+    ) {
+        return;
+    }
     let refused: crate::lazy_runtime::RefusalForTheControl =
         crate::lazy_runtime::a_control_refuses_every_task();
     let directory: PathBuf = crate::test_support::fixture("child-watch-tree-at-the-ceiling");

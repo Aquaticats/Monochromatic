@@ -137,8 +137,19 @@ fn a_step_that_is_never_ended_is_awaited_to_its_own_end() {
 /// A run leaves the descriptors of this process as it found them:
 /// a write end of a pipe kept open here would keep the reader from ever seeing
 ///  the end of the output.
+///  The table `/proc/self/fd` lists is every thread's,
+/// so this control's body runs in a child of its own
+///  (`crate::process_wide_state_child_test_support`),
+/// where no other control's thread opens or closes a descriptor beside the count
+/// (issue 6511).
 #[test]
 fn a_step_awaited_on_the_runtime_leaves_no_descriptor_open() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_step_awaited_on_the_runtime_leaves_no_descriptor_open",
+    ) {
+        return;
+    }
     let bound: StepBound = StepBound::EndAt(crate::wait_ceilings::OBJECT_STEP_CEILING);
     // The first run builds the runtime and its reactor, whose own descriptors stay for the life of the process.
     crate::lazy_runtime::run_on_runtime(async {
@@ -307,9 +318,20 @@ async fn a_step_left_running_released_and_collected(
 /// whether a task can run now,
 /// which a late build answers yes to
 ///  (`a_control_stands_in_for_a_late_runtime`).
+///  The stand-in that makes `built_flavor` answer a late build belongs to this whole process,
+/// so this control's body runs in a child of its own
+///  (`crate::process_wide_state_child_test_support`),
+/// where no other control reads the flavour it stands in for
+/// (issue 6511).
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtime_was_late() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtime_was_late",
+    ) {
+        return;
+    }
     let late: crate::lazy_runtime::LateRuntimeForTheControl =
         crate::lazy_runtime::a_control_stands_in_for_a_late_runtime();
     assert!(
@@ -353,9 +375,20 @@ fn a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtim
 /// which the reaper list exists to prevent
 ///  (the fifth review's finding 4,
 /// at the branch this control takes).
+///  The stand-in that refuses every task belongs to this whole process,
+/// so this control's body runs in a child of its own
+///  (`crate::process_wide_state_child_test_support`),
+/// where no other control's watcher is refused with it
+/// (issue 6511).
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_left_running_where_no_task_can_run_is_collected_by_a_reaper() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_step_left_running_where_no_task_can_run_is_collected_by_a_reaper",
+    ) {
+        return;
+    }
     let refused: crate::lazy_runtime::RefusalForTheControl =
         crate::lazy_runtime::a_control_refuses_every_task();
     assert!(

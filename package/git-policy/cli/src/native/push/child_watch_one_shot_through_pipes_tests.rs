@@ -106,8 +106,19 @@ fn a_call_from_inside_the_runtime_is_refused_and_starts_no_child() {
 /// leaves the descriptors of this process as it found them:
 /// a write end of a pipe kept
 ///  open here would keep the reader from ever seeing the end of the output.
+///  The table `/proc/self/fd` lists is every thread's,
+/// so this control's body runs in a child of its own
+///  (`crate::process_wide_state_child_test_support`),
+/// where no other control's thread opens or closes a descriptor beside the count
+/// (issue 6511).
 #[test]
 fn a_run_leaves_no_descriptor_open() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_run_leaves_no_descriptor_open",
+    ) {
+        return;
+    }
     // The first run builds the runtime and its reactor, whose own descriptors stay for the life of the process.
     output_watched(&mut shell("exit 0"), "the warm-up", long_window_terms())
         .expect("the warm-up ran");
