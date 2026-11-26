@@ -63,6 +63,15 @@
 //!   the saved copy of each file a command replaces.
 //! - `discarded_nested_repository.rs`:
 //!   the move of the nested Git repositories a clean would delete beside the audit log.
+//! - `discarded_prune_listing.rs`:
+//!   the folder of saved copies read as it stands:
+//!   every directory named like the wrapper's own,
+//!   oldest first,
+//!   with its size and identity and what could not be read.
+//! - `discarded_prune_removal.rs`:
+//!   removing one directory a pass chose,
+//!   and the audit line that says what went,
+//!   with the outcome a pass reports.
 //! - `discarded_prune.rs`:
 //!   the bound on the folder of saved copies of conflicted files:
 //!   age,
@@ -125,6 +134,16 @@ pub mod discard_audit_pins;
 
 /// The `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`.
 pub mod config_discarded;
+
+/// The folder of saved copies read as it stands:
+/// every directory named like the wrapper's own,
+/// oldest first,
+/// with its size and identity and what could not be read.
+pub mod discarded_prune_listing;
+
+/// Removing one directory a pass chose,
+/// and the audit line that says what went.
+pub mod discarded_prune_removal;
 
 /// The bound on the folder of saved copies of conflicted files:
 /// age,
