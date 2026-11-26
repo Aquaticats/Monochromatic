@@ -562,6 +562,75 @@ fn live_file_use_entries(
 }
 
 /// What:
+///  Why a folder's files cannot be read as a list.
+/// Why:
+///  The folder owes its reader a list either way,
+///  and the two cases have to say different things.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Unreadable = 'no-top-doc' | 'unreadable-index';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Unreadable {
+    /// The folder holds module files and no `mod.rs` that could list them.
+    NoTopDoc,
+    /// The folder's index file exists and cannot be read.
+    Index,
+}
+
+/// What:
+///  One finding per file of a folder whose top doc could not show the list.
+/// Why:
+///  A `no-top-doc` or `unreadable-index` entry tolerates that one finding,
+///  so a list that stopped there would tolerate every file the folder gained afterwards.
+///  Each file is therefore a finding of its own,
+///  keyed like every other unlisted file,
+///  and a file added later is reported until the folder's top doc lists it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unlistedFiles(doc: Path, reason: Unreadable, listed: Path[], base: Path): LayoutFinding[];
+/// ```
+fn unlisted_files(
+    doc: &Path,
+    reason: Unreadable,
+    listed: &[PathBuf],
+    base: &Path,
+) -> Vec<LayoutFinding> {
+    let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
+    for file in listed {
+        let name: String = file_name(file);
+        let message: String = match reason {
+            Unreadable::NoTopDoc => format!(
+                "The folder {} holds module files but no mod.rs to list them in, so the file `{name}` is not listed in any top doc.",
+                shown(doc, base)
+            ),
+            Unreadable::Index => format!(
+                "The top doc of {} cannot be read, so the file `{name}` is not listed in it.",
+                shown(doc, base)
+            ),
+        };
+        let help: String = match reason {
+            Unreadable::NoTopDoc => format!(
+                "Add a mod.rs that declares this folder's modules and holds a top doc, then one line `//! - `{name}`: what it does` after the files it uses."
+            ),
+            Unreadable::Index => format!(
+                "Make the top doc readable, then list `{name}` in it after the files it uses."
+            ),
+        };
+        findings.push(LayoutFinding {
+            file: file.clone(),
+            line: 0,
+            message,
+            help: Some(help),
+            key: format!("missing-entry {} {name}", key_path(doc, base)),
+        });
+    }
+    return findings;
+}
+
+/// What:
 ///  Check the file rule over a package.
 /// Why:
 ///  The index file of every folder is checked for code first,
@@ -653,6 +722,13 @@ pub fn check_file_order(
                 help: Some(String::from("Add a mod.rs that declares the modules and carries the top doc.")),
                 key: format!("no-top-doc {}", key_path(folder, base)),
             });
+            // A folder with no top doc lists none of its files, so each file is a finding of its own.
+            findings.extend(unlisted_files(
+                folder,
+                Unreadable::NoTopDoc,
+                listed.as_slice(),
+                base,
+            ));
             continue;
         };
         let text: String = match std::fs::read_to_string(&index_path) {
@@ -665,6 +741,13 @@ pub fn check_file_order(
                     help: None,
                     key: format!("unreadable-index {}", key_path(&index_path, base)),
                 });
+                // A top doc that cannot be read lists nothing, so each file is a finding of its own too.
+                findings.extend(unlisted_files(
+                    &index_path,
+                    Unreadable::Index,
+                    listed.as_slice(),
+                    base,
+                ));
                 continue;
             }
         };

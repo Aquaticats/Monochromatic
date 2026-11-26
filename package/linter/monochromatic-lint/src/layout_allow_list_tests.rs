@@ -19,7 +19,10 @@ use crate::{
     run_test_support::write,
     test_fs::Fixture,
 };
-use std::path::Path;
+use std::{
+    io::Read,
+    path::Path,
+};
 
 /// Read a list from text,
 /// as the file it would be.
@@ -197,4 +200,23 @@ fn a_dot_segment_and_a_trailing_separator_name_the_folder_findings_show() {
     assert!(list.covers_use(Path::new("src/a"), Path::new("src/b")));
     let error: String = error_of("uses src/a -> src/b\nuses ./src/a/ -> src/b\n");
     assert!(error.contains("repeats the entry"), "{error}");
+}
+
+/// A reader that yields more than the cap is refused whatever its file's measured length was,
+///  so a file that grows after that measurement is refused rather than read whole.
+#[test]
+fn a_reader_longer_than_the_cap_is_refused() {
+    let path: &Path = Path::new("package/allow-list.txt");
+    // What: an endless stream of one byte, cut one byte past the cap.
+    // Why: it stands in for a file that grew after its length was measured, and it is over the cap without being on disk.
+    let at_cap: std::io::Take<std::io::Repeat> = std::io::repeat(b'x').take(super::MAX_BYTES + 1);
+    let error: String = super::read_at_most(at_cap, path).expect_err("one byte over the cap");
+    assert!(error.contains("is longer than"), "{error}");
+    assert!(error.contains("allow-list.txt"), "{error}");
+    // The control: a reader under the cap is read whole, so the check above refuses only what is over.
+    let under: &[u8] = b"uses src/a -> src/b\n";
+    assert_eq!(
+        super::read_at_most(under, path).expect("under the cap"),
+        under
+    );
 }

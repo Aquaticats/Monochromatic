@@ -38,13 +38,17 @@ fn layout_the_package_folder_itself_is_shown_whole() {
 }
 
 /// A key writes every path with `/`,
-///  so a list written on one platform matches on another.
+///  so a list written on one platform matches on another,
+///  including a path that arrives with the other platform's separator in it.
 #[test]
 fn a_key_path_uses_forward_slashes_at_every_boundary() {
     let base: std::path::PathBuf = std::path::PathBuf::from("pkg");
     let key: String = key_path(&base.join("src/native/mod.rs"), base.as_path());
     assert_eq!(key, "src/native/mod.rs");
     assert!(!key.contains('\\'), "{key}");
+    // A path written with backslashes, as a Windows caller names it, writes `/` and keeps no backslash.
+    let windows: String = key_path(&base.join("src\\native\\mod.rs"), base.as_path());
+    assert_eq!(windows, "src/native/mod.rs");
     // A folder outside the package keeps the path it has, still with `/` between its parts.
     let outside: String = key_path(std::path::Path::new("/elsewhere/a/b"), base.as_path());
     assert!(outside.ends_with("a/b"), "{outside}");

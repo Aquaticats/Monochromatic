@@ -220,7 +220,7 @@ fn an_unreadable_file_makes_no_finding() {
 }
 
 /// The keys of the items an index may not hold name one item each:
-///  an `impl` block by what it implements,
+///  an `impl` block by what it implements and the members it declares,
 ///  a `use` by its tree,
 ///  a macro call by its path and its own arguments,
 ///  and an `extern` line by its own words.
@@ -237,8 +237,8 @@ fn every_key_of_an_index_item_names_that_item() {
     assert_eq!(
         keys,
         [
-            "index-item src/a/mod.rs impl-Holder",
-            "index-item src/a/mod.rs impl-Holder#2",
+            "index-item src/a/mod.rs impl-Holder one",
+            "index-item src/a/mod.rs impl-Holder two",
             "index-item src/a/mod.rs impl-Display for Holder",
             "index-item src/a/mod.rs private-use-std::fmt",
             "index-item src/a/mod.rs private-use-std::io",

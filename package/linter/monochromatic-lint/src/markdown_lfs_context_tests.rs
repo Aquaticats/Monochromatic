@@ -28,6 +28,7 @@ use crate::markdown_lfs_patterns::{
     PathPatterns,
     lfs_tracked_patterns,
 };
+use crate::markdown_rule_settings::DEFAULT_MAX_IMAGE_BYTES;
 use crate::markdown_source::MarkdownSource;
 use crate::test_fs::Fixture;
 use std::collections::BTreeMap;
@@ -71,7 +72,7 @@ fn repository(root: &Path) -> LfsImageRepo {
         repo_root: root.to_path_buf(),
         object_base: String::from(BASE),
         tracked: PathPatterns::new(patterns.as_slice()).expect("patterns compile"),
-        resolved: Mutex::new(BTreeMap::<String, LfsImageTarget>::new()),
+        resolved: Mutex::new(BTreeMap::<(String, u64), LfsImageTarget>::new()),
     };
 }
 
@@ -227,13 +228,17 @@ fn discovery_reads_the_base_and_tracked_patterns_from_the_root() {
     assert_eq!(found.repo_root, fixture.path);
     assert_eq!(found.object_base, BASE);
     assert_eq!(
-        found.resolve_target("pkg/asset/shot.png").expect("tracked"),
+        found
+            .resolve_target("pkg/asset/shot.png", DEFAULT_MAX_IMAGE_BYTES)
+            .expect("tracked"),
         LfsImageTarget::Lfs {
             oid: String::from(IMAGE_OID)
         }
     );
     assert_eq!(
-        found.resolve_target("pkg/README.md").expect("plain"),
+        found
+            .resolve_target("pkg/README.md", DEFAULT_MAX_IMAGE_BYTES)
+            .expect("plain"),
         LfsImageTarget::Plain
     );
     // An endpoint outside the supported form fails discovery instead of leaving the rule inert.
@@ -299,6 +304,7 @@ fn targets_resolve_to_lfs_plain_and_missing() {
         &document(
             "![a](asset/shot.png)\n![b](asset/plain.svg)\n![c](asset/gone.png)\n![d](asset)\n",
         ),
+        DEFAULT_MAX_IMAGE_BYTES,
     )
     .expect("context");
     assert_eq!(context.file_path, file);
@@ -329,7 +335,9 @@ fn targets_resolve_to_lfs_plain_and_missing() {
     for spelled in ["pkg/asset/shot.png/", "pkg/./asset/shot.png/."] {
         let fresh: LfsImageRepo = repository(&fixture.path);
         assert_eq!(
-            fresh.resolve_target(spelled).expect("resolved from disk"),
+            fresh
+                .resolve_target(spelled, DEFAULT_MAX_IMAGE_BYTES)
+                .expect("resolved from disk"),
             LfsImageTarget::Lfs {
                 oid: String::from(IMAGE_OID)
             },
@@ -353,6 +361,7 @@ fn candidates_come_from_images_and_definitions() {
         &repo,
         &fixture.path.join("pkg/README.md"),
         &document(source.as_str()),
+        DEFAULT_MAX_IMAGE_BYTES,
     )
     .expect("context");
     let keys: Vec<&String> = context.targets.keys().collect::<Vec<&String>>();
@@ -386,28 +395,30 @@ fn pointers_are_read_and_traversal_stays_inside_the_repository() {
     std::fs::write(fixture.path.join("outside.png"), IMAGE_BYTES).expect("outside file");
     let repo: LfsImageRepo = repository(&root);
     assert_eq!(
-        repo.resolve_target("pkg/asset/pointer.png")
+        repo.resolve_target("pkg/asset/pointer.png", DEFAULT_MAX_IMAGE_BYTES)
             .expect("pointer"),
         LfsImageTarget::Lfs {
             oid: String::from(declared)
         }
     );
     assert_eq!(
-        repo.resolve_target("../outside.png").expect("escape"),
+        repo.resolve_target("../outside.png", DEFAULT_MAX_IMAGE_BYTES)
+            .expect("escape"),
         LfsImageTarget::Missing
     );
     assert_eq!(
-        repo.resolve_target("pkg/../../outside.png")
+        repo.resolve_target("pkg/../../outside.png", DEFAULT_MAX_IMAGE_BYTES)
             .expect("nested escape"),
         LfsImageTarget::Missing
     );
     assert_eq!(
-        repo.resolve_target("").expect("root itself"),
+        repo.resolve_target("", DEFAULT_MAX_IMAGE_BYTES)
+            .expect("root itself"),
         LfsImageTarget::Missing
     );
     // Redundant segments name the same file as their normalized form.
     assert_eq!(
-        repo.resolve_target("pkg/./asset//../asset/shot.png")
+        repo.resolve_target("pkg/./asset//../asset/shot.png", DEFAULT_MAX_IMAGE_BYTES)
             .expect("normalized"),
         LfsImageTarget::Lfs {
             oid: String::from(IMAGE_OID)
@@ -415,7 +426,7 @@ fn pointers_are_read_and_traversal_stays_inside_the_repository() {
     );
     // A path through a regular file does not exist.
     assert_eq!(
-        repo.resolve_target("pkg/README.md/shot.png")
+        repo.resolve_target("pkg/README.md/shot.png", DEFAULT_MAX_IMAGE_BYTES)
             .expect("through a file"),
         LfsImageTarget::Missing
     );
@@ -428,15 +439,16 @@ fn resolved_targets_are_cached_per_repository() {
     write_tree(&fixture.path);
     let repo: LfsImageRepo = repository(&fixture.path);
     let first: LfsImageTarget = repo
-        .resolve_target("pkg/asset/shot.png")
+        .resolve_target("pkg/asset/shot.png", DEFAULT_MAX_IMAGE_BYTES)
         .expect("first read");
     std::fs::write(fixture.path.join("pkg/asset/shot.png"), b"changed").expect("rewrite");
     assert_eq!(
-        repo.resolve_target("pkg/asset/shot.png").expect("cached"),
+        repo.resolve_target("pkg/asset/shot.png", DEFAULT_MAX_IMAGE_BYTES)
+            .expect("cached"),
         first
     );
     assert_eq!(
-        repo.resolve_target("pkg/./asset/shot.png")
+        repo.resolve_target("pkg/./asset/shot.png", DEFAULT_MAX_IMAGE_BYTES)
             .expect("cached by normalized path"),
         first
     );
@@ -444,7 +456,7 @@ fn resolved_targets_are_cached_per_repository() {
     let fresh: LfsImageRepo = repository(&fixture.path);
     assert_ne!(
         fresh
-            .resolve_target("pkg/asset/shot.png")
+            .resolve_target("pkg/asset/shot.png", DEFAULT_MAX_IMAGE_BYTES)
             .expect("fresh read"),
         first
     );
@@ -458,15 +470,15 @@ fn an_image_over_the_bound_is_refused() {
     write_tree(fixture.path.as_path());
     let image: PathBuf = fixture.path.join("pkg/asset/huge.png");
     let file: std::fs::File = std::fs::File::create(&image).expect("fixture image");
-    file.set_len(super::MAX_LFS_TARGET_BYTES + 1)
+    file.set_len(DEFAULT_MAX_IMAGE_BYTES + 1)
         .expect("sparse image one byte over the bound");
     let repo: LfsImageRepo = repository(fixture.path.as_path());
     let error = repo
-        .resolve_target("pkg/asset/huge.png")
+        .resolve_target("pkg/asset/huge.png", DEFAULT_MAX_IMAGE_BYTES)
         .expect_err("an image over the bound is refused");
     assert!(error.message.contains("huge.png"), "{}", error.message);
     assert!(
-        error.message.contains("MAX_LFS_TARGET_BYTES"),
+        error.message.contains("max-image-bytes"),
         "{}",
         error.message
     );
