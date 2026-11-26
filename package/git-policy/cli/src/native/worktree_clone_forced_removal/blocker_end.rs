@@ -126,6 +126,28 @@ pub enum EndResult {
     Unproven,
 }
 
+impl EndResult {
+    /// What:
+    ///  The word a journal line carries for what became of one blocker.
+    /// Why:
+    ///  The record of who a removal ended is the handler's journal alone,
+    ///  so each answer needs one stable spelling a reader can search for.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const word = result; // 'exited-after-the-ask'
+    /// ```
+    pub fn word(self) -> &'static str {
+        return match self {
+            EndResult::ExitedAfterTheAsk => "exited-after-the-ask",
+            EndResult::Killed => "killed",
+            EndResult::Survived => "survived",
+            EndResult::Gone => "gone",
+            EndResult::Unproven => "unproven",
+        };
+    }
+}
+
 /// What:
 ///  What the stage came to.
 /// Why:
