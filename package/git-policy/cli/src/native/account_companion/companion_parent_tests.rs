@@ -267,7 +267,9 @@ fn a_setgroups_open_that_answered_eacces_skips_and_its_other_answers_refuse() {
         skip,
     } = &skipped
     else {
-        panic!("an open of setgroups that answered EACCES is the owner's skip, and it answered {skipped:?}")
+        panic!(
+            "an open of setgroups that answered EACCES is the owner's skip, and it answered {skipped:?}"
+        )
     };
     assert_eq!(skip.call.name(), "open /proc/self/setgroups");
     assert_eq!(skip.errno, libc::EACCES);
