@@ -112,6 +112,52 @@ pub struct OpenedDevice {
     pub device: ZfsDevice,
 }
 
+/// What:
+///  Where the preflight's device comes from:
+///  one call that answers the opened device or the sentence saying why it did not,
+///  taken as a value so a control answers it without this machine's `/dev/zfs`.
+/// Why:
+///  Every host control of the preflight reached the real device and opened it
+///  (the alpha.47 release pass's Low 4),
+///  and the removal refusal's own controls stopped doing that when the reader
+///  became a parameter (`b2ee59cff6`),
+///  so this is the same seam for the second raw request the add makes.
+///  A build of this crate without the test-only switches reads only the live answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface TheDeviceOpened { open(): OpenedDevice }  // throws the refusal's sentence
+/// ```
+pub trait TheDeviceOpened {
+    /// Run the start-time gate, then open the kernel's device,
+    /// or answer the sentence saying which of the two refused.
+    ///
+    /// # Throws
+    /// The gate's refusal,
+    /// or the device's own.
+    fn open(&self) -> Result<OpenedDevice, String>;
+}
+
+/// What:
+///  The release's own answer to `TheDeviceOpened`:
+///  the compatibility gate, then the kernel's device.
+/// Why:
+///  The route's run hands this in,
+///  and a control hands in an answer of its own,
+///  so the release opens the device exactly where it always did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theLiveDevice: TheDeviceOpened = { open: () => OpenedDevice.open() };
+/// ```
+pub struct TheLiveDevice;
+
+impl TheDeviceOpened for TheLiveDevice {
+    fn open(&self) -> Result<OpenedDevice, String> {
+        return OpenedDevice::open();
+    }
+}
+
 impl OpenedDevice {
     /// Run the start-time gate, then open the kernel's device.
     ///
