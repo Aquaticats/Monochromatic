@@ -60,6 +60,35 @@ pub(crate) fn file_name(file: &Path) -> String {
 }
 
 /// What:
+///  Whether a name ends in a character the allow-list reader trims away,
+///  and that name with the character written as an escape.
+/// Why:
+///  A list line is read without the spaces and tabs around it,
+///  so a key that ends in one can never be written on a line;
+///  a module file named `x.rs ` or `x.rs<TAB>` would key findings no line could hold.
+///  The escape spells the character a reader cannot see, so the message names the file exactly.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nameEndingInTrimmedWhitespace(name: string): string | undefined;
+/// ```
+pub(crate) fn name_ending_in_trimmed_whitespace(name: &str) -> Option<String> {
+    // What: the name's last character, or nothing when the name is empty.
+    // Why: only the last character can be the one the reader trims away.
+    let last: char = name.chars().next_back()?;
+    if !last.is_whitespace() {
+        return None;
+    }
+    // What: the name with its last character spelled `\u{20}`, `\u{9}` or `\u{a0}`.
+    // Why: the character itself is invisible in a terminal, so the message would not name the file.
+    return Some(format!(
+        "{}\\u{{{:x}}}",
+        &name[..name.len() - last.len_utf8()],
+        last as u32
+    ));
+}
+
+/// What:
 ///  The files of each folder,
 ///  and the files that are roots of a crate.
 /// Why:
@@ -180,7 +209,7 @@ pub(crate) fn space_finding(
         file: file.to_path_buf(),
         line: 0,
         message: format!(
-            "{} in the folder {} holds a space, so no `file-uses` line can name it: a use between two files is written as three words.",
+            "{} in the folder {} holds a space, so no `file-uses` line can name it: a use between two files is written as five words.",
             file_name(file),
             shown(folder, base)
         ),
