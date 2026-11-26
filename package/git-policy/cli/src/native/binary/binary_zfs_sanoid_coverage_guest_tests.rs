@@ -45,11 +45,9 @@ use std::process::Command;
 /// The variable the guest driver sets.
 const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_SANOID_GUEST";
 
-/// The variable the guest driver sets for the pool's name.
-const POOL_VARIABLE: &str = "CLI_GIT_ZFS_SANOID_POOL";
-
-/// Where the arm builds everything it reads.
-const FIXTURE: &str = "/home/sanoid-step-20-fixture";
+/// Where the arm builds everything it reads,
+/// under one name of its own so two runs in one guest share nothing.
+const FIXTURE_BASE: &str = "/home/sanoid-step-20-fixture";
 
 /// The pool image's size.
 const IMAGE_SIZE: &str = "1G";
@@ -137,24 +135,27 @@ fn create(pool: &Pool, dataset: &str, properties: &[String]) {
 
 /// The pool and its image.
 struct Pool {
-    /// The pool's name.
+    /// The pool's name,
+    /// which carries the process's number so a second run cannot reach it.
     name: String,
+    /// The folder this run's fixtures live in.
+    fixture: String,
 }
 
 impl Pool {
     /// A file-backed pool, so no device of the guest is touched.
-    /// A pool an earlier run left is destroyed first,
-    /// so the arm can be repeated in one guest.
-    fn create(name: &str) -> Pool {
-        fs::create_dir_all(FIXTURE).expect("the fixture folder");
-        let listed = Command::new("zpool").args([ "list", "-H", "-o", "name", name ]).output().expect("zpool runs");
-        if listed.status.success() {
-            run("zpool", &[ "destroy", name ]);
-        }
-        let image: String = format!("{FIXTURE}/pool.img");
+    /// Nothing is destroyed first:
+    /// the pool's name and the fixture folder carry the process's number,
+    /// so a repeat run in one guest shares no dataset and no configuration.
+    fn create() -> Pool {
+        let number: u32 = std::process::id();
+        let fixture: String = format!("{FIXTURE_BASE}-{number}");
+        fs::create_dir_all(fixture.as_str()).expect("the fixture folder");
+        let image: String = format!("{fixture}/pool.img");
         run("truncate", &[ "--size", IMAGE_SIZE, image.as_str() ]);
-        run("zpool", &[ "create", "-f", name, image.as_str() ]);
-        return Pool { name: String::from(name) };
+        let name: String = format!("sanoidstep20x{number}");
+        run("zpool", &[ "create", "-f", name.as_str(), image.as_str() ]);
+        return Pool { name, fixture };
     }
 
     /// One dataset of one subtree.
@@ -204,7 +205,7 @@ fn decision_for(pool: &Pool, subtree: &str, with_scratch: bool) -> CoverageDecis
 
 /// One subtree's datasets and markers.
 fn build_subtree(pool: &Pool, subtree: &str, with_scratch: bool) -> CoverageDecision {
-    let root: String = format!("{FIXTURE}/{subtree}");
+    let root: String = format!("{}/{subtree}", pool.fixture);
     fs::create_dir_all(root.as_str()).expect("the subtree folder");
     let decision: CoverageDecision = decision_for(pool, subtree, with_scratch);
     create(pool, &pool.dataset(subtree, "ROOT/cos/home"), &[ format!("mountpoint={root}/home"), ]);
@@ -272,7 +273,7 @@ fn gather_tree(pool: &Pool, subtree: &str) -> MeasuredTree {
 
 /// The facts of one subtree with one configuration text.
 fn facts(pool: &Pool, subtree: &str, decision: &CoverageDecision, text: &str, name: &str) -> CoverageFacts {
-    let root: String = format!("{FIXTURE}/{subtree}");
+    let root: String = format!("{}/{subtree}", pool.fixture);
     let directory: String = format!("{root}/{name}");
     fs::create_dir_all(directory.as_str()).expect("the configuration folder");
     let path: String = format!("{directory}/sanoid.conf");
@@ -325,6 +326,9 @@ fn run_sanoid(program: &str, defaults: &str, root: &str, name: &str, text: &str,
         cache,
         String::from("--run-dir"),
         run_directory,
+        // The fixture folder outlives one run of the arm, so a cached snapshot list would describe a pool that no
+        // longer exists and sanoid would take no snapshot at all.
+        String::from("--force-update"),
         String::from("--verbose"),
     ];
     for phase in phases {
@@ -352,6 +356,18 @@ fn snapshots(pool: &Pool, subtree: &str) -> Vec<String> {
 fn has_autosnap(snapshots: &[String], dataset: &str) -> bool {
     let prefix: String = format!("{dataset}@");
     return snapshots.iter().any(|name| return name.strip_prefix(prefix.as_str()).is_some_and(|rest| return rest.starts_with(AUTOSNAP)));
+}
+
+/// Whether one dataset holds an hourly snapshot Sanoid took,
+/// which is the one period a zero hourly retention reaches.
+fn has_hourly(snapshots: &[String], dataset: &str) -> bool {
+    let prefix: String = format!("{dataset}@");
+    return snapshots.iter().any(|name| {
+        let Some(rest) = name.strip_prefix(prefix.as_str()) else {
+            return false;
+        };
+        return rest.starts_with(AUTOSNAP) && rest.ends_with("_hourly");
+    });
 }
 
 /// The decided text with the child dataset's section written before the
@@ -393,7 +409,7 @@ fn coverage_passes(pool: &Pool) {
 /// and none of the nine exclusions.
 fn measured_covers_home_only(pool: &Pool) {
     let decision: CoverageDecision = decision_for(pool, "decided", false);
-    let root: String = format!("{FIXTURE}/decided");
+    let root: String = format!("{}/decided", pool.fixture);
     run_sanoid(SANOID_MEASURED, DEFAULTS_MEASURED, root.as_str(), "measured-run", generated_text(&decision).as_str(), &[ "--take-snapshots" ]);
     let taken: Vec<String> = snapshots(pool, "decided");
     assert!(has_autosnap(&taken, decision.recursive_root.as_str()), "the ancestor is covered: {taken:?}");
@@ -408,7 +424,7 @@ fn measured_covers_home_only(pool: &Pool) {
 /// and snapshots the same child when the section stands before it.
 fn measured_order_captures_the_exclusion(pool: &Pool) {
     let ordered: CoverageDecision = decision_for(pool, "order-ok", true);
-    let ordered_root: String = format!("{FIXTURE}/order-ok");
+    let ordered_root: String = format!("{}/order-ok", pool.fixture);
     run_sanoid(SANOID_MEASURED, DEFAULTS_MEASURED, ordered_root.as_str(), "ordered-run", generated_text(&ordered).as_str(), &[ "--take-snapshots" ]);
     let scratch: String = pool.dataset("order-ok", SCRATCH);
     assert!(!has_autosnap(&snapshots(pool, "order-ok"), scratch.as_str()), "the exclusion written after its ancestor is honoured");
@@ -416,7 +432,7 @@ fn measured_order_captures_the_exclusion(pool: &Pool) {
     let text: String = misordered_text(&misordered);
     let answer: CoverageAnswer = check_coverage(&facts(pool, "order-bad", &misordered, text.as_str(), "misordered-config"));
     assert!(fields(&answer).contains(&FIELD_SECTION_ORDER), "the check names the order: {:?}", fields(&answer));
-    let misordered_root: String = format!("{FIXTURE}/order-bad");
+    let misordered_root: String = format!("{}/order-bad", pool.fixture);
     run_sanoid(SANOID_MEASURED, DEFAULTS_MEASURED, misordered_root.as_str(), "misordered-run", text.as_str(), &[ "--take-snapshots" ]);
     let captured: String = pool.dataset("order-bad", SCRATCH);
     assert!(has_autosnap(&snapshots(pool, "order-bad"), captured.as_str()), "the exclusion written before its ancestor is snapshotted");
@@ -430,7 +446,7 @@ fn measured_zfs_recursion_captures_the_exclusion(pool: &Pool) {
     let text: String = generated_text(&decision).replace("recursive = yes", "recursive = zfs");
     let answer: CoverageAnswer = check_coverage(&facts(pool, "zfs", &decision, text.as_str(), "zfs-config"));
     assert!(fields(&answer).contains(&FIELD_RECURSION), "the check names the recursion: {:?}", fields(&answer));
-    let root: String = format!("{FIXTURE}/zfs");
+    let root: String = format!("{}/zfs", pool.fixture);
     run_sanoid(SANOID_MEASURED, DEFAULTS_MEASURED, root.as_str(), "zfs-run", text.as_str(), &[ "--take-snapshots" ]);
     let scratch: String = pool.dataset("zfs", SCRATCH);
     assert!(has_autosnap(&snapshots(pool, "zfs"), scratch.as_str()), "one recursive snapshot includes the exclusion");
@@ -440,7 +456,7 @@ fn measured_zfs_recursion_captures_the_exclusion(pool: &Pool) {
 /// The Ubuntu package's Sanoid 2.2.0 gives the same coverage result.
 fn control_covers_home_only(pool: &Pool) {
     let decision: CoverageDecision = decision_for(pool, "control-ok", true);
-    let root: String = format!("{FIXTURE}/control-ok");
+    let root: String = format!("{}/control-ok", pool.fixture);
     run_sanoid(SANOID_CONTROL, DEFAULTS_CONTROL, root.as_str(), "ordered-run", generated_text(&decision).as_str(), &[ "--take-snapshots" ]);
     let taken: Vec<String> = snapshots(pool, "control-ok");
     assert!(has_autosnap(&taken, decision.recursive_root.as_str()), "the control release covers the ancestor: {taken:?}");
@@ -453,7 +469,7 @@ fn control_covers_home_only(pool: &Pool) {
 fn control_order_captures_the_exclusion(pool: &Pool) {
     let decision: CoverageDecision = decision_for(pool, "control-bad", true);
     let text: String = misordered_text(&decision);
-    let root: String = format!("{FIXTURE}/control-bad");
+    let root: String = format!("{}/control-bad", pool.fixture);
     run_sanoid(SANOID_CONTROL, DEFAULTS_CONTROL, root.as_str(), "misordered-run", text.as_str(), &[ "--take-snapshots" ]);
     let scratch: String = pool.dataset("control-bad", SCRATCH);
     assert!(has_autosnap(&snapshots(pool, "control-bad"), scratch.as_str()), "the control release snapshots the misordered exclusion");
@@ -470,13 +486,14 @@ fn prune_keeps_the_pinned_origin(pool: &Pool) {
     zfs(&[ "snapshot", format!("{home}@manual-hold").as_str() ]);
     zfs(&[ "snapshot", format!("{worktrees}@{ORIGIN}{ORIGIN_NONCE}").as_str() ]);
     let before: Vec<String> = snapshots(pool, "decided");
-    assert!(has_autosnap(&before, home.as_str()), "the prune has an hourlie to find: {before:?}");
+    assert!(has_hourly(&before, home.as_str()), "the prune has an hourlie to find: {before:?}");
     let text: String = format!("{}\n[template_home]\n  autosnap = yes\n  autoprune = yes\n  hourly = 0\n", generated_text(&decision));
-    let root: String = format!("{FIXTURE}/decided");
+    let root: String = format!("{}/decided", pool.fixture);
     run_sanoid(SANOID_MEASURED, DEFAULTS_MEASURED, root.as_str(), "prune-run", text.as_str(), &[ "--prune-snapshots" ]);
     let left: Vec<String> = snapshots(pool, "decided");
-    assert!(!has_autosnap(&left, home.as_str()), "the hourlies are pruned: {left:?}");
-    assert!(!has_autosnap(&left, worktrees.as_str()), "the child's hourlies are pruned: {left:?}");
+    assert!(!has_hourly(&left, home.as_str()), "the hourlies are pruned: {left:?}");
+    assert!(!has_hourly(&left, worktrees.as_str()), "the child's hourlies are pruned: {left:?}");
+    assert!(has_autosnap(&left, home.as_str()), "the daily and monthly snapshots outlive an hourly expiry: {left:?}");
     assert!(left.contains(&format!("{home}@{ORIGIN}{ORIGIN_NONCE}")), "the pinned origin stays: {left:?}");
     assert!(left.contains(&format!("{home}@manual-hold")), "a snapshot Sanoid did not name stays: {left:?}");
     assert!(left.contains(&format!("{worktrees}@{ORIGIN}{ORIGIN_NONCE}")), "the child's pinned origin stays: {left:?}");
@@ -519,7 +536,7 @@ fn recursion_finding_and_correction(pool: &Pool) {
     let text: String = generated_text(&decision).replace("recursive = yes", "recursive = zfs");
     let answer: CoverageAnswer = check_coverage(&facts(pool, "zfs", &decision, text.as_str(), "recursion-config"));
     let correction: String = finding_of(&answer, FIELD_RECURSION).correction.clone().expect("the recursion carries a correction");
-    assert_eq!(correction, format!("in the [{}] section of {FIXTURE}/zfs/recursion-config/sanoid.conf, change `recursive = zfs` to `recursive = yes`", decision.recursive_root));
+    assert_eq!(correction, format!("in the [{}] section of {}/zfs/recursion-config/sanoid.conf, change `recursive = zfs` to `recursive = yes`", decision.recursive_root, pool.fixture));
     let healed: CoverageAnswer = check_coverage(&facts(pool, "zfs", &decision, text.replace("recursive = zfs", "recursive = yes").as_str(), "recursion-config"));
     assert!(matches!(healed.outcome, CheckOutcome::Pass { .. }), "{:?}", healed.outcome);
     claim("recursion-finding-and-correction-apply");
@@ -530,7 +547,7 @@ fn store_finding(pool: &Pool) {
     let decision: CoverageDecision = decision_for(pool, "decided", false);
     let text: String = generated_text(&decision);
     let mut facts_of_the_store: CoverageFacts = facts(pool, "decided", &decision, text.as_str(), "store-config");
-    facts_of_the_store.store_path = format!("{FIXTURE}/decided/home/.npm/pnpm-store");
+    facts_of_the_store.store_path = format!("{}/decided/home/.npm/pnpm-store", pool.fixture);
     let answer: CoverageAnswer = check_coverage(&facts_of_the_store);
     let finding: &CoverageFinding = finding_of(&answer, FIELD_STORE_COVERAGE);
     assert_eq!(finding.correction, None);
@@ -563,10 +580,10 @@ fn zfs_sanoid_coverage_guest() {
         println!("SKIP {GUEST_VARIABLE} is empty");
         return;
     }
-    let pool_name: String = std::env::var(POOL_VARIABLE).expect("the pool's name");
+    let pool: Pool = Pool::create();
+    println!("SANOID-GUEST pool {}", pool.name);
     println!("SANOID-GUEST measured sanoid {}", version_of(SANOID_MEASURED).trim());
     println!("SANOID-GUEST control sanoid {}", version_of(SANOID_CONTROL).trim());
-    let pool: Pool = Pool::create(pool_name.as_str());
     build_layout(&pool);
     claim("layout-built");
     coverage_passes(&pool);
