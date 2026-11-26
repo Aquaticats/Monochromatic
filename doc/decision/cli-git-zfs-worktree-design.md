@@ -88,10 +88,13 @@ the deferred-destroy refusal is shown, by plan step 15's guest arm on a file-bac
 at the check before the first snapshot delete with nothing sent,
 and at the check before the head destroy with the batch's snapshots named),
 so that sentence no longer waits on a measurement;
-forcing the removal of a held clone is still owed:
+forcing the removal of a held clone is measured for the holder kinds a guest could show
+(the forced arm round's guest arm, an extension of VM items 15 and 4,
+`~/temp/agent/zfs-step-17-forced-removal-arm-2026-11-25/keep/results-forced-arm.md`),
+and the kinds it could not show are refused, under the plan's "once the owed measurement shows it works";
 its decision half is built and unwired (`64a71a4c9b`),
-the half that ends holders and unmounts is not,
-and the wait's length stays unset until it is measured
+the half that ends holders and unmounts (the kernel calls) is not,
+and its waits stay unset until plan step 22 sizes them
 (`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`).
 
 [owed]: ../planning/cli-git-zfs-worktree-design-proposal.md#forced-removal-and-deferred-origins
