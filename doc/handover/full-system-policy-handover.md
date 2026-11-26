@@ -201,6 +201,8 @@ Unprofiled development processes remain a residual risk.
   the socket the IVPN daemon leaks into its children;
   `local/firefox` and a new `local/firefox-crashreporter` cover Firefox ESR in `/opt/firefox-esr`;
   `local/aa-install` reads `cpu.max` under the user manager's `app.slice`.
+  On the owner's "Grant tor", `local/torbrowser-tor` lets `lyrebird` open `inet` and `inet6` datagram
+  and `inet6` stream sockets, and `local/torbrowser` may lock its shader cache.
   `local/apparmor_parser` gained DAC capabilities and read access to `~/temp/agent` for drafts.
   See `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`, "Thirteenth batch".
 - Separately on 2026-11-26, an AppArmor test-created `~/.mozilla/firefox` directory made all three

@@ -2234,11 +2234,36 @@ the `apparmor` package's unconfined-flag stub that `/etc/apparmor.d/disable/fire
 so the stub would have replaced the enforcing `firefox` profile.
 Afterwards both profiles were still enforcing and both reads succeeded with no denial.
 
-Seen in the same window and not granted, since they did not come from IVPN
-(Tor Browser was not started through the split tunnel):
-`torbrowser-tor` denied `lyrebird` creating `inet` and `inet6` sockets,
-`torbrowser` denied locks on its Mesa shader cache under `~/.local/share/torbrowser`,
-and `zfs` denied `/sys/module/zfs/version`.
+### Tor Browser's pluggable transport and shader cache
+
+Seen in the same window, from Tor Browser started on its own (not through the split tunnel).
+Between 06:55 and 07:02 UTC `torbrowser-tor` denied `lyrebird`,
+the pluggable transport `tor` runs inside that profile,
+362 `inet` and 144 `inet6` datagram sockets, two `inet6` stream sockets and its own `/proc/<pid>/cgroup`;
+the stock profile allows only `network inet stream`,
+so datagram transports could not run.
+`torbrowser` denied 59 locks on `.cache/mesa_shader_cache/<xx>/<hash>.tmp`,
+where its rule grants `rw` but not `k`.
+The owner then said "Grant tor."
+Applied with `append-a-batch-of-local-rules-and-load.ts` (label `tor-browser-lyrebird-and-shader-cache-2026-11-26`):
+
+```text
+# /etc/apparmor.d/local/torbrowser-tor (new)
+network inet dgram,
+network inet6 dgram,
+network inet6 stream,
+owner @{PROC}/@{pid}/cgroup r,
+# /etc/apparmor.d/local/torbrowser (new)
+owner @{lib_dirs}/.cache/{,**} k,
+```
+
+The 90 seconds before loading held 289 Tor Browser denials;
+the 90 seconds after held none,
+with `lyrebird` still running and both profiles still enforcing.
+These are apparmor.d's `torbrowser` and `torbrowser-tor`,
+not the `apparmor` package's `torbrowser.Browser.firefox` and `torbrowser.Tor.tor`,
+whose empty local files were left alone.
+`zfs` denying `/sys/module/zfs/version` once was seen and not granted.
 
 ### apparmor_parser on drafts in the scratch folder
 
