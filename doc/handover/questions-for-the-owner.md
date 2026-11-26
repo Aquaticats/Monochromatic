@@ -105,6 +105,13 @@ the round each point holds is named beside it.
   Holds round 9.
 - Whether `repairs_the_service_runs_for_a_new_worktree` stays a program folder.
   Holds round 7.
+- Which file owns the clone-and-settle copy path once `copy_file_exclusive` leaves `worktree_copying/worktree_copy_stage_leaf_copying.rs`:
+  the plan sends it to `saving_private_files` (`foundation/private_storage.rs` today),
+  but its body reads `worktree_copying`'s file stamps and `subvolume`'s clone,
+  and `private_storage` may use neither without new allow-list lines, which the list may not gain.
+  Split round 1 (2026-11-26T09:10-05:00) stopped that one move and recorded the point under step 2
+  of `doc/planning/cli-git-source-layout-target-tree.md`.
+  Holds the rest of step 2.
 
 ## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
 

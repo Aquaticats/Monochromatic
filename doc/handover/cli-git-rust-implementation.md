@@ -125,9 +125,13 @@ Rounds started earlier run on the pool they named.
   the last two that did (6494 and the setgroups skip) merged by 07:57,
   so its start (launcher `bol0het40`) rechecks the open branches and starts it on the virtual writer.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
-- Issue 6508 (the compaction silence control has 10 ms of scheduling slack, found by 6506's round),
-  window `issue-6508-compaction-silence-control-owns-its-clock`, on the virtual writer.
-- Issue 6505 and the split's round 1, on the virtual writer.
+- The split's round 1 ended at 09:14 with four of step 2's five items moved and `copy_file_exclusive` stopped on an open point
+  (`doc/handover/questions-for-the-owner.md`);
+  it ran no `cargo fmt` because `~/temp/agent/rounds-common-rules-2026-11-25.md` still said the crate was unformatted,
+  so the coordinator formatted its 28 files (`a715581524`) and corrected that rule;
+  its merge check compares any red module against `main` and merges only when no failure is the branch's own.
+  It filed, through the coordinator, 6512 (folder docs misspell the file-list marker, so the layout lint reads none of their lists),
+  6513 (the linter reads a near-miss marker as no list, silently) and 6514 (the started-as-git record control can read the parent's record).
 - Issues 6509 (five more commit ledgers whose controls fill and empty each other in a threaded run)
   and 6510 (the interactive selection control reads the run's terminal and never ends),
   both found by 6507's round, start on the virtual writer after its merge (starters `brvxjo7uf` and `bu9d1ahqg`).
@@ -139,10 +143,10 @@ Rounds started earlier run on the pool they named.
   which waits for the split's round 1 (6493, which edited that helper, merged at 08:53);
   and 6505 (the two queued-rewrite controls pass with the claim removed, because one blocking job drains one shard of tokio's pool),
   briefed in `~/temp/agent/issue-6505-queued-rewrite-controls-drain-every-shard-2026-11-26/prompt.md`,
-  running on the virtual writer since 6494 merged.
+  merged as `5bb5e7161f` (09:14): two claims guarded the one queued rewrite, each hiding the other; the bound's claim now decides.
 - One whole gate on `main` holding 6494's merge (runner `bmwf4d0b7`, unit `whole-gate-on-main-<tip>`).
 - Issue 6511 (twelve `push::child_watch::` controls fail on `main` under load, a different set each run),
-  window `issue-6511-push-child-watch-controls-own-their-clock`, starts when the virtual writer has a free slot (starter `b335agb1n`).
+  window `issue-6511-push-child-watch-controls-own-their-clock`, on the virtual writer since 09:04.
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
   briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
   starts when the split's round 1 merges, because both edit `landing/` and the split comes first in the owner's order.
@@ -157,8 +161,11 @@ Rounds started earlier run on the pool they named.
   its two Mediums (a listed `own-file-loop` line lets the loop grow with no finding; a nested group's own-file use is never searched)
   and its Lows were fixed by the `alpha.15` round, merged as `6976fefd42`, released from `464773a972`, locked as `34181a0b2a`
   (no allow-list key shape changed, so no list was regenerated).
-  Its Sonnet release pass runs on the detached worktree `monochromatic-lint-alpha-15-release-review`
-  (`~/temp/agent/monochromatic-lint-alpha-15-release-review-2026-11-26/keep/review.md`).
+  Its Sonnet release pass (`~/temp/agent/monochromatic-lint-alpha-15-release-review-2026-11-26/keep/review.md`) found no High
+  and one Medium regression: a listed own-file loop's uses on other routes are reported with no key,
+  so printed keys written as the list exit 1 where alpha.14 exits 0 (48 of 104 such random trees); `main` holds no such key.
+  It and the Lows go to the `alpha.16` fix round, window `monochromatic-lint-alpha-15-release-pass-fixes`,
+  on the virtual writer since about 09:10.
   The fix round's 244 `rust/folder-uses-links` findings on `main` came from a tree whose 139 `uses` links all dangled;
   clean `git archive` exports of `main` give 0.
 
@@ -188,6 +195,7 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- 6508 as `b9eb433b0a`: the compaction silence control owns its clock; the measured loss was a stall between arming the bound and registering the sleep.
 - 6493 as `65b27b84cc`: 22 size-read controls run in children of their own,
   and the holds they arm refuse a body outside a child; its `push::child_watch::` reds fail on `main` too (issue 6511).
 - 6507 as `3d11fc0526`: the five controls that drain the preparation-span ledger run in children of their own,
