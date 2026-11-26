@@ -286,6 +286,16 @@ Not adopted yet.
   compare its `~/Plain` with the bucket read-only first,
   then the owner decides on a `--resync`.
 
+## Names the watcher would skip by default (2026-11-25T19:51:58-05:00)
+
+directory-watcher excludes names starting with `.` or `_` unless re-included
+(vet record GW-19, `docs/guide/configuration.md` at `v3.2.1`).
+`find ~/Plain -mindepth 1 \( -name '.*' -o -name '_*' \)` counted 168 such entries,
+among them app data folders whose edits matter (a notes app's settings folder, an e-reader's position folder).
+Round 1's answer "every folder, including folders created later" decides it:
+the watcher config re-includes these names.
+Adopted unless the owner vetoes.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
