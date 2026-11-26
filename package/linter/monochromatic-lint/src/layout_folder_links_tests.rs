@@ -367,6 +367,100 @@ fn a_loop_that_two_group_own_file_uses_close_is_reported() {
     }
 }
 
+/// A use of a group's own child folders joins no two entries,
+///  so the group's own file makes no loop finding for it.
+#[test]
+fn a_group_own_file_that_uses_only_its_own_child_folders_makes_no_loop_finding() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod g;\n"),
+        ("src/g/mod.rs", "pub mod own;\npub mod c1;\n"),
+        ("src/g/own.rs", "use crate::g::c1::X;\n"),
+        ("src/g/c1/mod.rs", "pub struct X;\n"),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    assert!(
+        found
+            .iter()
+            .all(|text| return !text.contains("use each other in a loop")),
+        "{found:#?}"
+    );
+}
+
+/// A folder loop already reports the use a group's own file makes inside it,
+///  so that use is reported once, by the loop of folders,
+///  and not again by the entries it would join.
+#[test]
+fn a_group_own_file_use_that_a_folder_loop_holds_is_reported_once() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod grp;\n"),
+        ("src/a/mod.rs", "use crate::grp::X;\n"),
+        ("src/grp/mod.rs", "pub mod own;\npub mod g2;\n"),
+        ("src/grp/own.rs", "use crate::a::X;\n"),
+        ("src/grp/g2/mod.rs", "pub struct X;\n"),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    let loops: Vec<&String> = found
+        .iter()
+        .filter(|text| return text.contains("use each other in a loop"))
+        .collect::<Vec<&String>>();
+    assert_eq!(loops.len(), 1, "{found:#?}");
+    assert!(
+        loops[0].contains("These folders use each other in a loop"),
+        "{loops:#?}"
+    );
+}
+
+/// The walk back starts at the entry the used folder belongs to,
+///  so a group whose own file uses a folder of another group gets its loop finding
+///  even when the two ends are child folders of the two groups.
+#[test]
+fn a_group_own_file_use_of_another_groups_child_folder_is_reported() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod g1;\nmod g2;\n"),
+        ("src/g1/mod.rs", "pub mod own;\npub mod c1;\n"),
+        ("src/g1/own.rs", "use crate::g2::c2::X;\n"),
+        ("src/g1/c1/mod.rs", "pub struct Y;\n"),
+        ("src/g2/mod.rs", "pub mod c2;\n"),
+        ("src/g2/c2/mod.rs", "use crate::g1::c1::Y;\npub struct X;\n"),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    assert!(
+        found.iter().any(|text| return text
+            == "src/g1/own.rs:1 These entries use each other in a loop: src/g1 uses src/g2/c2 (`crate::g2::c2::X`); src/g2 uses src/g1 (`crate::g1::c1::Y` at src/g2/c2/mod.rs:1)."),
+        "{found:#?}"
+    );
+}
+
+/// A glob re-export inside an inline module of a file is a finding of its own,
+///  so the rule reads one module node per file and set of reference offsets,
+///  never one node per file.
+#[test]
+fn a_glob_inside_an_inline_module_is_a_finding_of_its_own() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod b;\nmod s;\n"),
+        ("src/a/mod.rs", "pub mod one;\n"),
+        ("src/a/one.rs", ""),
+        ("src/b/mod.rs", "pub mod two;\n"),
+        ("src/b/two.rs", ""),
+        (
+            "src/s.rs",
+            "pub use crate::a::*;\npub mod inner { pub use crate::b::*; }\n",
+        ),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    let globs: Vec<&String> = found
+        .iter()
+        .filter(|text| return text.contains("re-exports every item"))
+        .collect::<Vec<&String>>();
+    assert_eq!(globs.len(), 2, "{found:#?}");
+    for part in ["src/s.rs:1", "src/s.rs:2"] {
+        assert!(
+            globs.iter().any(|text| return text.starts_with(part)),
+            "{part} missing in {globs:#?}"
+        );
+    }
+}
+
 /// Run the rule with an allow list and render each finding as `file:line message`,
 ///  with the fixture folder removed.
 fn findings_with(
