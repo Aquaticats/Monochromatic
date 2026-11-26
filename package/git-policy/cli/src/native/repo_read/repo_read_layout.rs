@@ -307,11 +307,14 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
     if !owners_ok {
         return None;
     }
-    let common_dir: PathBuf = match small_file(git_dir.join("commondir").as_path()) {
+    let common_dir: PathBuf = match crate::common_directory_of_a_git_directory::bytes_named(git_dir.as_path()) {
         // Git strips every trailing carriage return and line feed here too (`get_common_dir_noenv` in `path.c`).
-        Some(text) => std::fs::canonicalize(git_dir.join(text.trim_end_matches(['\r', '\n']))).ok()?,
-        None if git_dir.join("commondir").exists() => return None,
-        None => git_dir.clone(),
+        Ok(Some(bytes)) => std::fs::canonicalize(git_dir.join(String::from_utf8(bytes).ok()?.trim_end_matches(['\r', '\n']))).ok()?,
+        // No `commondir` file leaves the Git directory its own common directory.
+        Ok(None) => git_dir.clone(),
+        // The name holds something this command cannot read as a plain file, so nothing here decides what the repository is
+        //  and the caller asks Git.
+        Err(_refused) => return None,
     };
     if git_dir.join("reftable").exists() || common_dir.join("reftable").exists() || !has_git_directory_entries_split(&git_dir, &common_dir) {
         return None;
