@@ -256,11 +256,15 @@ so every `git worktree remove` warns and keeps the removed worktree's service jo
 because it "holds rules-repository, a file this release does not know";
 `package/git-policy/cli/SPEC.md`'s sweep on `main` removes that file with the journal.
 The kept journals are harmless and sit in `~/.local/state/monochromatic-git-policy-cli/service/`.
-After this batch's whole gate on `main`,
-the wrapper's next alpha (alphas of everything are covered,
-with the Sonnet release pass) carries the fix,
-and the session wrapper moves to it;
-the newer build's `service stop-units-of-removed-worktrees` then sweeps the kept journals.
+The fix shipped in `0.6.1-alpha.46` already;
+`0.6.1-alpha.47` (release commit `68af165851`, 2026-11-26T08:26:34-05:00, after the green gate at `196b8d0c87`)
+is unpacked at `.cache/wrapper-release-0.6.1-alpha.47/`, its sha256 matching the release's digest,
+and its sweep, run by absolute path, removed 201 kept journals at 08:50
+(`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`, "The wrapper link a toolchain install repoints").
+The session link stays on the reviewed build:
+the AppArmor rules name that exact path, and pointing them at a newer build takes the fresh review the records ask for,
+which waits in `doc/handover/questions-for-the-owner.md`.
+Until then, run alpha.47's sweep by absolute path after each batch.
 
 ### Threaded-only test failures
 
