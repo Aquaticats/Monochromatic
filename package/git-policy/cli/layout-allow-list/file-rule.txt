@@ -458,7 +458,6 @@ file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_registry
 file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_stage_claim.rs
 file-uses src/native/worktree_copying worktree_copy.rs -> worktree_copy_synchronize.rs
 file-uses src/native/worktree_copying worktree_copy_after_lock.rs -> worktree_copy.rs
-file-uses src/native/worktree_copying worktree_copy_forward.rs -> worktree_removal_of_a_bound_clone.rs
 file-uses src/native/worktree_copying worktree_copy_install_log.rs -> worktree_copy_journal.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim_pointer_presence.rs
@@ -560,7 +559,6 @@ file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> wor
 file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_stage_made_object.rs
 file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_unfilled_record.rs
 file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_unreadable_record_aside.rs
-file-uses src/native/worktree_copying worktree_removal_of_a_bound_clone.rs -> worktree_copy_forward.rs
 file-uses src/native/worktree_removal_deferred_origin_check origin_refusal.rs -> planned_origin.rs
 file-uses src/native/worktree_removal_deferred_origin_check planned_origin.rs -> origin_refusal.rs
 file-uses src/native/zfs_mounted_dataset mounted_dataset_refusal.rs -> the_designs_datasets_in_the_mount_table.rs
