@@ -44,6 +44,7 @@ use crate::{
     },
     layout_folder_links::check_folder_links,
     layout_line_spans::LineSpans,
+    layout_link_entries::USES_FOLDER,
     layout_module_tree::{
         ModuleTree,
         build_module_tree,
@@ -51,6 +52,7 @@ use crate::{
     layout_module_uses::{
         ModuleUse,
         collect_uses,
+        folder_of,
     },
     layout_path_resolution::link_glob_targets,
     markdown_lfs_target::lexical_normal,
@@ -70,7 +72,10 @@ use crate::{
 };
 /// Import an ordered map and native paths.
 use std::{
-    collections::BTreeMap,
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     path::{
         Path,
         PathBuf,
@@ -274,28 +279,27 @@ fn note_keys(
 }
 
 /// What:
-///  The first module file of a package whose path below the package holds a name
-///  that no list line could hold,
+///  The first path whose name no list line could hold,
 ///  with that path and the name written with the character escaped.
 /// Why:
-///  Every key about that file or that folder holds the name,
+///  Every key about such a path holds the name,
 ///  and a line that ends in a trimmed character reads as if the character were not there,
 ///  while a line ends at a newline,
-///  so no finding about such a file could be written down;
+///  so no finding about it could be written down;
 ///  a run over such a tree would report findings no list can hold.
-///  The walk uses the key spelling of the path,
-///  so the parts checked are exactly the parts the keys are built from.
+///  The caller passes the paths the keys are built from,
+///  so the parts checked are exactly those parts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unlistableName(tree: ModuleTree, base: Path): [Path, string, UnlistableName] | undefined;
+/// function unlistablePath(paths: Path[], base: Path): [Path, string, UnlistableName] | undefined;
 /// ```
-fn unlistable_name(
-    tree: &ModuleTree,
+fn unlistable_path(
+    paths: &[PathBuf],
     base: &Path,
 ) -> Option<(PathBuf, String, UnlistableName)> {
-    for module in &tree.modules {
-        let written: String = key_path(&module.file, base);
+    for path in paths {
+        let written: String = key_path(path, base);
         let mut parts: Vec<String> = Vec::<String>::new();
         let mut unlistable: Option<UnlistableName> = None;
         for part in written.split('/') {
@@ -316,10 +320,63 @@ fn unlistable_name(
             }
         }
         if let Some(reason) = unlistable {
-            return Some((module.file.clone(), parts.join("/"), reason));
+            return Some((path.clone(), parts.join("/"), reason));
         }
     }
     return None;
+}
+
+/// What:
+///  The first module file of a package whose name no list line could hold.
+/// Why:
+///  The walk of the module tree names the files and folders every key is built from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unlistableName(tree: ModuleTree, base: Path): [Path, string, UnlistableName] | undefined;
+/// ```
+fn unlistable_name(
+    tree: &ModuleTree,
+    base: &Path,
+) -> Option<(PathBuf, String, UnlistableName)> {
+    let mut paths: Vec<PathBuf> = Vec::<PathBuf>::new();
+    for module in &tree.modules {
+        paths.push(module.file.clone());
+    }
+    return unlistable_path(paths.as_slice(), base);
+}
+
+/// What:
+///  The first entry of a `uses` folder of the package whose name no list line could hold.
+/// Why:
+///  A link's key holds the entry's own name,
+///  so an entry named with a trailing space or a line break keys a finding no line could hold,
+///  although no module file of the package carries that name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unlistableLinkName(tree: ModuleTree, base: Path): [Path, string, UnlistableName] | undefined;
+/// ```
+fn unlistable_link_name(
+    tree: &ModuleTree,
+    base: &Path,
+) -> Option<(PathBuf, String, UnlistableName)> {
+    let mut folders: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
+    for index in 0..tree.modules.len() {
+        folders.insert(folder_of(tree, index));
+    }
+    let mut paths: Vec<PathBuf> = Vec::<PathBuf>::new();
+    for folder in &folders {
+        let uses: PathBuf = folder.join(USES_FOLDER);
+        let Ok(listing) = std::fs::read_dir(&uses) else {
+            continue;
+        };
+        for entry in listing.flatten() {
+            paths.push(entry.path());
+        }
+    }
+    paths.sort();
+    return unlistable_path(paths.as_slice(), base);
 }
 
 /// What:
@@ -375,8 +432,11 @@ fn check_package(
         return;
     }
     // What: the first name of the package the list reader could never read back.
-    // Why: the rules cannot answer for a tree whose findings no line could hold.
-    if let Some((file, written, reason)) = unlistable_name(&tree, package) {
+    // Why: the rules cannot answer for a tree whose findings no line could hold,
+    // and an entry of a `uses` folder is such a name as much as a module file is.
+    let unlistable: Option<(PathBuf, String, UnlistableName)> =
+        unlistable_name(&tree, package).or_else(|| return unlistable_link_name(&tree, package));
+    if let Some((file, written, reason)) = unlistable {
         // What: the reason, and what renaming the file must give, in the words of the refusal.
         // Why: a name fails for one of two causes, and the reader must know which one to fix.
         let (why, fix): (&str, &str) = match reason {

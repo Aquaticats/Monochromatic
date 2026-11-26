@@ -254,8 +254,8 @@ fn a_hand_over_waits_the_greeting_bound_and_never_the_commits_start_wait() {
             include_str!("../worktree/worktree_trash_hand_over.rs"),
         ),
         (
-            "../worktree/worktree_remove_hand_over.rs",
-            include_str!("../worktree/worktree_remove_hand_over.rs"),
+            "../worktree/worktree_remove_hand_over_queue_and_wake.rs",
+            include_str!("../worktree/worktree_remove_hand_over_queue_and_wake.rs"),
         ),
         (
             "../repair/package_repair_relink.rs",
