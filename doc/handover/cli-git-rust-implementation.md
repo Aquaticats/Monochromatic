@@ -139,6 +139,21 @@ Rounds started earlier run on the pool they named.
   across 106 call sites; its merge of `main` met issue 6514's new call to the old starter, which the coordinator moved to the new one (`18ce8792ee`).
   It merged as `75fbf8d59b` (11:15). Any round still open that adds a call to the old starter (6509, 6510, 6511 and the alpha.47 rounds may) no longer builds after merging `main`:
   its merge check then fails at `cargo check`, and the call is moved the same way, the body handed to the starter as a closure.
+- 6509's run 2 met exactly that:
+  its 28 guards now hand their body to `run_the_body_in_a_child_of_its_own` (`81b2f37109`),
+  and the merged tree answered `commit::` `test result: ok. 474 passed; 0 failed` in both runs,
+  `source_guard::` `ok. 151 passed`,
+  and every one of the 34 controls `1 passed` alone with `--exact`.
+- The crate split's round 2, the files over the 300-line budget, reads the linter after the reformat:
+  281 files are over on `987635373a`, 19 of them over before `00b6a940b4` and 262 only because of it (code lines grew 1.472 times).
+  13 of the 19 run in five branches queued behind the small Lows round, one starting after the other
+  (`~/temp/agent/split-*-files-over-the-line-budget-2026-11-26/prompt.md`: the removal hand-over pair, the copy pair, the service and supervisor three,
+  the landing replanning handlers with the ZFS route test facts, then four more `worktree/` files).
+  The other six wait for the rounds beside them: four `merge/isolation` files for the record-folder pipes round,
+  `commit/native_commit_waiting_notice.rs` and `invocation/entry.rs` for the notices round.
+  The 262 wait for the owner's answer on the budget (`doc/handover/questions-for-the-owner.md`), since splitting them answers only the layout.
+- 6519 (filed 12:40): the notice sink control fails in a threaded `commit::` run, three of three, and passes alone and in its module; it is queued after the notices round, which works beside it.
+- One whole gate on `main` for the batch from 6512 to 6509 started about 12:45 (unit `whole-gate-on-main-<tip>`, background task of this session).
 - Queued behind split round 1's merge, in this order, each three minutes after the one before it starts and only while fewer than five drivers run on the virtual writer
   (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/start-a-round-in-turn-after-split-round-1.ts`):
   the alpha.47 ZFS pass's High (the removal and move refusals skip global options before `worktree`, `-C <git dir>` and `--git-dir`),
@@ -219,6 +234,8 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 - 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
   (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
 - 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
+- 6509 as `09a3e73ab5`: six process-wide commit ledgers' controls run in children of their own; `commit::` on `main` failed 11 and 13 of 474 in two runs, the branch 1,
+  `native_commit_waiting_notice::tests::a_notice_whose_sink_stopped_reading_does_not_hold_the_commit`, which fails on `main` too (its two-second bound at line 862) and has no issue yet.
 - The alpha.47 ZFS pass's High as `6aeba4328d`: the slot removal and move refusals read Git's whole global option table,
   a command run in the Git directory runs the slot endings, and a same-leaf plain worktree no longer opens the pool.
   Its one open point (a global option a newer Git adds) waits for the owner in `doc/handover/questions-for-the-owner.md`.
