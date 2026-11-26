@@ -138,8 +138,12 @@ function isReadTooSoon(capacity: Readonly<{ lastReadAt: number }>,): boolean {
  Paired with a same-host listing each round, the read's median ratio was 1.32 on Synthetic (range 1.01
  to 1.80) and 1.45 on NeuralWatt (range 0.35 to 5.12); the ratio is not what the value rests on, because
  the listings return bodies tens of times larger and NeuralWatt's host noise spans that whole range.
+ Exported for the live deadline verifier (`src/verify-live-quota-deadline.ts`), which must run the shipped
+ bound rather than a copy of its number.
+
+ @internal
  */
-const QUOTA_READ_TIMEOUT_MS = 2_000;
+export const QUOTA_READ_TIMEOUT_MS = 2_000;
 
 /**
  Bound the optional quota read independently of inference and below any valid model timeout.
@@ -180,11 +184,15 @@ function quotaSignal(options?: SimpleStreamOptions,): AbortSignal {
  Stop waiting even if credential resolution or an injected transport does not observe the quota signal.
  The signal still reaches the quota operations so cooperative transports can cancel their work.
 
+ Exported for the live deadline verifier, which runs this shipped bound against live endpoints.
+
+ @internal
+
  @param request - quota lookup and its independent deadline
 
  @returns evidence only when lookup completes before cancellation
  */
-async function readQuotaWithinDeadline(request: Parameters<typeof probeQuota>[0] & { readonly signal: AbortSignal; },): Promise<QuotaEvidence | typeof QUOTA_UNAVAILABLE> {
+export async function readQuotaWithinDeadline(request: Parameters<typeof probeQuota>[0] & { readonly signal: AbortSignal; },): Promise<QuotaEvidence | typeof QUOTA_UNAVAILABLE> {
   /**
    Deadline combined with the owning request's cancellation.
    */

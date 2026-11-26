@@ -95,10 +95,11 @@ await describe({
   name: 'the pool a run that names no provider takes',
   children: [
     it({
-      name: 'takes the first pool of the owner\'s order with room, skipping the pools that take only a run naming their own model',
+      name: 'takes the first pool of the owner\'s order with room, which is the qwen plan\'s DeepSeek pool since the owner put it first for writers on 2026-11-26, skipping the pools that take only a run naming their own model',
       fn: async () => {
         /**
-         The table at its own limits, where the qwen plan's DeepSeek pool is open and stands before every other pool.
+         The table at its own limits, where the three pools a default run may take are open and the qwen plan's DeepSeek pool stands
+         before every other pool.
          */
         const pools = PROVIDER_POOLS;
         /**
@@ -112,12 +113,12 @@ await describe({
             pools,
           },),
         },);
-        // The qwen plan's DeepSeek pool stands first in the table and is open, and this run may not take it: only a run naming that
-        // model does.
+        // `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order": the owner answered
+        // "Qwen, opencode-go, flex (Recommended)", so this pool takes a run that names no model of its own, and it comes first.
         expect(taken.took,).toBe('a-pool',);
-        expect(taken.took === 'a-pool' ? taken.pool.name : '',).toBe(OPENCODE_GO.name,);
+        expect(taken.took === 'a-pool' ? taken.pool.name : '',).toBe(QWEN_PLAN_DEEPSEEK.name,);
         expect(taken.took === 'a-pool' ? taken.movesTheRun : false,).toBe(true,);
-        expect(taken.took === 'a-pool' ? taken.pool.name : '',).not.toBe(QWEN_PLAN_DEEPSEEK.name,);
+        // The pool one model alone takes is never a default run's.
         expect(taken.took === 'a-pool' ? taken.pool.name : '',).not.toBe(QWEN_PLAN_QWEN4_MAX_PREVIEW.name,);
         expect(QWEN_PLAN_DEEPSEEK.limit,).toBeGreaterThan(0,);
       },
@@ -126,9 +127,9 @@ await describe({
       name: 'takes the next pool of the order when the first is full, and the pool after a closed one',
       fn: async () => {
         /**
-         The table with `opencode-go` taking one run, which one run already holds.
+         The table with the qwen plan's DeepSeek pool taking one run, which one run already holds.
          */
-        const fullFirst = poolsAt(new Map([[OPENCODE_GO.name, 1],]),);
+        const fullFirst = poolsAt(new Map([[QWEN_PLAN_DEEPSEEK.name, 1],]),);
         /**
          What the run takes when the first pool is full.
          */
@@ -136,15 +137,15 @@ await describe({
           requested: aRunNamingNone(),
           resumes: false,
           tallies: talliesOf({
-            runs: [aRun('another', OPENCODE_GO,),],
+            runs: [aRun('another', QWEN_PLAN_DEEPSEEK,),],
             pools: fullFirst,
           },),
         },);
-        expect(whenFull.took === 'a-pool' ? whenFull.pool.name : '',).toBe(NEURALWATT_DEEPSEEK_FLEX.name,);
+        expect(whenFull.took === 'a-pool' ? whenFull.pool.name : '',).toBe(OPENCODE_GO.name,);
         /**
-         The table with `opencode-go` closed for one command.
+         The table with the qwen plan's DeepSeek pool closed for one command.
          */
-        const closedFirst = poolsAt(new Map([[OPENCODE_GO.name, 0],]),);
+        const closedFirst = poolsAt(new Map([[QWEN_PLAN_DEEPSEEK.name, 0],]),);
         /**
          What the run takes when the first pool is closed.
          */
@@ -156,7 +157,29 @@ await describe({
             pools: closedFirst,
           },),
         },);
-        expect(whenClosed.took === 'a-pool' ? whenClosed.pool.name : '',).toBe(NEURALWATT_DEEPSEEK_FLEX.name,);
+        expect(whenClosed.took === 'a-pool' ? whenClosed.pool.name : '',).toBe(OPENCODE_GO.name,);
+        /**
+         The table with the first two pools full, which leaves the last of the owner's order.
+         */
+        const twoFull = talliesOf({
+          runs: [
+            aRun('another', QWEN_PLAN_DEEPSEEK,),
+            aRun('another-review', OPENCODE_GO,),
+          ],
+          pools: poolsAt(new Map([
+            [QWEN_PLAN_DEEPSEEK.name, 1,],
+            [OPENCODE_GO.name, 1,],
+          ],),),
+        },);
+        expect(poolOfARunNamingNoProvider({
+          requested: aRunNamingNone(),
+          resumes: false,
+          tallies: twoFull,
+        },),).toEqual({
+          took: 'a-pool',
+          pool: NEURALWATT_DEEPSEEK_FLEX,
+          movesTheRun: true,
+        },);
       },
     },),
     it({
@@ -183,9 +206,10 @@ await describe({
       name: 'refuses a run no pool has room for, naming every pool it may take with why that pool takes no run now',
       fn: async () => {
         /**
-         The table with both open pools a run naming no provider may take closed by the caller.
+         The table with every pool a run naming no provider may take closed by the caller.
          */
         const pools = poolsAt(new Map([
+          [QWEN_PLAN_DEEPSEEK.name, 0,],
           [OPENCODE_GO.name, 0,],
           [NEURALWATT_DEEPSEEK_FLEX.name, 0,],
         ],),);
@@ -209,12 +233,12 @@ await describe({
          */
         const replaced = NEURALWATT_STANDARD.closed?.reason ?? '';
         expect(replaced.length,).toBeGreaterThan(0,);
-        // The owner's reason reaches the reader, and so does the caller's own zero for the two pools it closed.
+        // The owner's reason reaches the reader, and so does the caller's own zero for the three pools it closed.
         expect(taken.refusal,).toContain(`  ${NEURALWATT_STANDARD.name}: takes no new run: ${replaced}`,);
+        expect(taken.refusal,).toContain(`  ${QWEN_PLAN_DEEPSEEK.name}: takes no new run: ${POOL_LIMITS_VARIABLE} set its limit to zero`,);
         expect(taken.refusal,).toContain(`  ${OPENCODE_GO.name}: takes no new run: ${POOL_LIMITS_VARIABLE} set its limit to zero`,);
         expect(taken.refusal,).toContain(`  ${NEURALWATT_DEEPSEEK_FLEX.name}: takes no new run: ${POOL_LIMITS_VARIABLE} set its limit to zero`,);
-        // No pool a run naming no provider may not take is named: the qwen plan's two pools are open here and are not the run's.
-        expect(taken.refusal,).not.toContain(QWEN_PLAN_DEEPSEEK.name,);
+        // A pool a run naming no provider may not take is not named: the qwen plan's preview pool is open here and is not the run's.
         expect(taken.refusal,).not.toContain(QWEN_PLAN_QWEN4_MAX_PREVIEW.name,);
         expect(taken.refusal,).toContain(POOL_LIMITS_VARIABLE,);
       },
@@ -223,9 +247,10 @@ await describe({
       name: 'refuses a run every pool of the order is full for, naming each pool with the count it was read at',
       fn: async () => {
         /**
-         The table with both open pools a run naming no provider may take taking one run each.
+         The table with every pool a run naming no provider may take taking one run each.
          */
         const pools = poolsAt(new Map([
+          [QWEN_PLAN_DEEPSEEK.name, 1,],
           [OPENCODE_GO.name, 1,],
           [NEURALWATT_DEEPSEEK_FLEX.name, 1,],
         ],),);
@@ -237,6 +262,7 @@ await describe({
           resumes: false,
           tallies: talliesOf({
             runs: [
+              aRun('another', QWEN_PLAN_DEEPSEEK,),
               aRun('another-song', OPENCODE_GO,),
               aRun('another-review', NEURALWATT_DEEPSEEK_FLEX,),
             ],
@@ -246,6 +272,7 @@ await describe({
         if (taken.took !== 'no-pool') {
           throw new Error(`expected no pool to take the run, and ${taken.pool.name} did`,);
         }
+        expect(taken.refusal,).toContain(`  ${QWEN_PLAN_DEEPSEEK.name}: full: 1 going of the 1 it takes`,);
         expect(taken.refusal,).toContain(`  ${OPENCODE_GO.name}: full: 1 going of the 1 it takes`,);
         expect(taken.refusal,).toContain(`  ${NEURALWATT_DEEPSEEK_FLEX.name}: full: 1 going of the 1 it takes`,);
       },

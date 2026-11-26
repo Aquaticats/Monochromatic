@@ -14,6 +14,7 @@ import {
   type SimpleStreamOptions,
   type TranscriptContext,
 } from '@earendil-works/pi-ai';
+import { WRITER_TARGETS, } from './member-order-fixture.ts';
 
 //region Behaviour the session chooses
 
@@ -113,19 +114,22 @@ const UNREACHABLE_REFUSAL = `${UNREACHABLE_STATUS}: Error ${UNREACHABLE_STATUS}:
 //region Stand-in members
 
 /**
- Provider id the pool asks, whose real extension this stand-in replaces for the check.
+ The writer members this stand-in plays, in the pool's order: the head refuses or overflows, and the
+ member after it answers whatever the head does.
  */
-const MEMBER_PROVIDER = 'neuralwatt';
+const [HEAD_TARGET, SECOND_TARGET,] = WRITER_TARGETS;
 
 /**
- Head member of the writer pool, the one that refuses or overflows.
+ The head member's label, which is what says a dispatched member is the one that refuses.
  */
-const HEAD_MEMBER = 'deepseek-v4.1-flash';
+const HEAD_LABEL = `${HEAD_TARGET.provider}/${HEAD_TARGET.id}`;
 
 /**
- Second writer member, which answers whatever the head does.
+ Every provider the writer pool asks, each of which this stand-in answers for in one registration.
  */
-const SECOND_MEMBER = 'deepseek-v4.1-flash-flex';
+const MEMBER_PROVIDERS: readonly string[] = [...new Set(WRITER_TARGETS.map(function providerOf(target: MemberIdentity,) {
+  return target.provider;
+},)),];
 
 /**
  Window both members declare: large enough that Pi's threshold compaction leaves the padded turns
@@ -378,21 +382,21 @@ function selectedBehaviour(): string {
 /**
  Catalog entry for one stand-in member.
 
- @param id - member id the pool asks for
+ @param target - the member the pool asks for, as the fixture names it
 
  @returns chat model the pool resolves through Pi's registry
 
  @example
  ```ts
- standInModel(SECOND_MEMBER);
+ standInModel(SECOND_TARGET);
  ```
  */
-function standInModel(id: string,): Model<Api> {
+function standInModel(target: MemberIdentity,): Model<Api> {
   return {
-    id,
-    name: `Stand-in member: ${id}`,
+    id: target.id,
+    name: `Stand-in member: ${target.id}`,
     api: 'openai-completions',
-    provider: MEMBER_PROVIDER,
+    provider: target.provider,
     baseUrl: STAND_IN_ORIGIN,
     input: ['text',],
     reasoning: false,
@@ -465,7 +469,7 @@ function overflowRefusal({
 
  @example
  ```ts
- play({ model: standInModel(HEAD_MEMBER), context: { messages: [] }, behaviour: OVERFLOWING });
+ play({ model: standInModel(HEAD_TARGET), context: { messages: [] }, behaviour: OVERFLOWING });
  ```
  */
 function play({
@@ -484,7 +488,7 @@ function play({
   /**
    Whether this member is the pool's head, which refuses under a refusal behaviour.
    */
-  const isHead = model.id === HEAD_MEMBER;
+  const isHead = `${model.provider}/${model.id}` === HEAD_LABEL;
   /**
    Refusal the selected behaviour gives this member, or empty text when it answers.
    */
@@ -588,47 +592,54 @@ export default function standInMemberExtension(pi: StandInHost,): void {
         .write(`[stand-in-selection] ${provider}/${id}\n`,);
     },
   );
-  /**
-   Members the pool asks, in its order.
-   */
-  const members = [
-    HEAD_MEMBER,
-    SECOND_MEMBER,
-  ].map(function model(id,) {
-    return standInModel(id,);
-  },);
-  /**
-   Provider object registered with the host.
-   */
-  const provider: Provider = {
-    id: MEMBER_PROVIDER,
-    name: 'Stand-in writer members',
-    auth: {
-      apiKey: {
-        name: 'Stand-in members',
-        resolve() {
-          return Promise.resolve({
-            auth: {},
-            source: MEMBER_PROVIDER,
-          },);
+  // A Pi provider holds only the models that carry its own id, so each provider the order asks is
+  // registered on its own, with that provider's own members.
+  for (const memberProvider of MEMBER_PROVIDERS) {
+    /**
+     The members of this provider the pool asks, in its order.
+     */
+    const members = [
+      HEAD_TARGET,
+      SECOND_TARGET,
+    ].filter(function isOfThisProvider(target: MemberIdentity,) {
+      return target.provider === memberProvider;
+    },)
+      .map(function model(target: MemberIdentity,) {
+        return standInModel(target,);
+      },);
+    /**
+     Provider object registered with the host.
+     */
+    const provider: Provider = {
+      id: memberProvider,
+      name: `Stand-in writer members of ${memberProvider}`,
+      auth: {
+        apiKey: {
+          name: 'Stand-in members',
+          resolve() {
+            return Promise.resolve({
+              auth: {},
+              source: memberProvider,
+            },);
+          },
         },
       },
-    },
-    getModels() {
-      return members;
-    },
-    stream: streamUnsupported,
-    streamSimple(
-      model: MemberIdentity,
-      context: TranscriptContext,
-      _options?: SimpleStreamOptions,
-    ): AssistantMessageEventStream {
-      return play({
-        model,
-        context,
-        behaviour,
-      },);
-    },
-  };
-  pi.registerProvider(provider,);
+      getModels() {
+        return members;
+      },
+      stream: streamUnsupported,
+      streamSimple(
+        model: MemberIdentity,
+        context: TranscriptContext,
+        _options?: SimpleStreamOptions,
+      ): AssistantMessageEventStream {
+        return play({
+          model,
+          context,
+          behaviour,
+        },);
+      },
+    };
+    pi.registerProvider(provider,);
+  }
 }

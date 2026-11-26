@@ -24,7 +24,7 @@ import {
   type PoolMembership,
   PROVIDER_OF_A_RUN_NAMING_NONE,
   type ProviderPool,
-  poolNamed,
+  membershipOfSelection,
   poolOfThatNameIn,
   poolTakesNoNewRun,
 } from './pool-limits.ts';
@@ -38,6 +38,7 @@ import {
   NO_POOL_HAS_ROOM,
   firstDefaultPoolWithRoom,
   poolHasRoom,
+  poolsWithoutRoom,
   summaryTextOf,
 } from './pool-tallies.ts';
 
@@ -53,7 +54,8 @@ export const NO_SLOT_EXIT_STATUS = 3;
 export const ALREADY_RUNNING_EXIT_STATUS = 4;
 
 /**
- What a run's pool choice is: the pool it goes on, its own provider when no pool holds it, or the fact that none has room.
+ What a run's pool choice is: the pool it goes on, the pools a virtual selection's router may send it to, its own provider when no
+ pool holds it, or the fact that none has room.
  */
 export type PoolChoice =
   | {
@@ -61,6 +63,23 @@ export type PoolChoice =
     readonly pool: ProviderPool;
     readonly movesTheRun: boolean;
   }
+    | {
+    /**
+     A virtual selection whose every pool has room, which keeps the provider and model the run named and takes its router's order.
+     */
+      readonly destination: 'a-virtual-pool';
+
+    /**
+     The pools that selection's router may send the run to, with the limits a caller set.
+     */
+      readonly pools: readonly ProviderPool[];
+
+    /**
+     How much longer the run may last: the largest wall factor of those pools, because the run keeps one wall clock wherever its
+     router lands.
+     */
+      readonly wallFactor: number;
+    }
     | { readonly destination: 'its-own-provider' }
     | { readonly destination: 'no-room' };
 
@@ -94,6 +113,48 @@ export function poolChoiceFor({
   readonly tallies: PoolTallies;
   readonly resumes: boolean;
 },): PoolChoice {
+  // A run on a virtual selection keeps the provider and model it named, because that pair is what lets its router move the
+  // request on: rewriting it into one member's pair would pin the run to that member. It holds a slot in every pool its router may
+  // send it to, so it may start only while every one of them has room.
+  if (requested.holds === 'some-pools') {
+    /**
+     The pools the selection's router may take, as the table being counted holds them, so a limit a caller set applies here too.
+     */
+    const members = requested.pools
+      .map(function asTheCountedTableHoldsIt(pool,) {
+        return poolOfThatNameIn({
+          pool,
+          pools: tallies.pools,
+        },);
+      },);
+    if (poolsWithoutRoom({
+      tallies,
+      membership: {
+        holds: 'some-pools',
+        pools: members,
+      },
+    },)
+      .length
+      > 0) {
+      return { destination: 'no-room', };
+    }
+    return {
+      destination: 'a-virtual-pool',
+      pools: members,
+      wallFactor: members.reduce(
+        function largestFactor(
+          largest,
+          member,
+        ) {
+          return Math.max(
+            largest,
+            member.wallFactor,
+          );
+        },
+        1,
+      ),
+    };
+  }
   if (requested.holds !== 'a-pool') {
     return { destination: 'its-own-provider', };
   }
@@ -129,6 +190,50 @@ export function poolChoiceFor({
       movesTheRun: false,
     }
     : { destination: 'no-room', };
+}
+
+/**
+ Says where a run goes, as the gate's line puts it: one pool's name, the selection a router reads with every pool it may take, or
+ the run's own provider.
+
+ @param choice - which pool or selection the run may take
+
+ @param provider - the provider the run named, or the one a run naming none gets
+
+ @param model - the model the run named, or the one a run naming none gets
+
+ @returns the words the line puts after "goes on"
+
+ @example
+ ```ts
+ const words = goesOnTextOf({ choice, provider: 'neuralwatt', model: 'deepseek-v4.1-flash', },);
+ ```
+ */
+function goesOnTextOf({
+  choice,
+  provider,
+  model,
+}: {
+  readonly choice: PoolChoice;
+  readonly provider: string;
+  readonly model: string;
+},): string {
+  if (choice.destination === 'a-pool') {
+    return choice.pool
+      .name;
+  }
+  if (choice.destination === 'a-virtual-pool') {
+    /**
+     The names of the pools that selection's router may take.
+     */
+    const names = choice.pools
+      .map(function nameOf(pool,) {
+        return pool.name;
+      },)
+      .join(', ',);
+    return `${provider}/${model}, whose router may take ${names}`;
+  }
+  return 'its own provider';
 }
 
 /**
@@ -224,7 +329,10 @@ export async function gateOutcomeOf({
   /**
    The pool the run's own options name, or that it names none.
    */
-  const requested = poolNamed({
+  /**
+   The pool the run's own options name, the pools a virtual selection's router may send it to, or the fact that it names none.
+   */
+  const requested = membershipOfSelection({
     provider: options.provider ?? PROVIDER_OF_A_RUN_NAMING_NONE,
     model: options.model ?? MODEL_OF_A_RUN_NAMING_NONE,
   },);
@@ -260,15 +368,23 @@ export async function gateOutcomeOf({
   const sessionFile = (options.sessionOfRunFolder === undefined)
     ? undefined
     : await sessionFileOf(options.sessionOfRunFolder,);
+  /**
+   Where the run goes, as the line says it: one pool's name, the selection a router reads, or the run's own provider.
+   */
+  const goesOn = goesOnTextOf({
+    choice,
+    provider: options.provider ?? PROVIDER_OF_A_RUN_NAMING_NONE,
+    model: options.model ?? MODEL_OF_A_RUN_NAMING_NONE,
+  },);
   return {
     action: 'start',
     status: 0,
-    lines: [`slot free: ${summary}; ${runName} goes on ${(choice.destination === 'a-pool') ? choice.pool
-      .name : 'its own provider'}`,],
+    lines: [`slot free: ${summary}; ${runName} goes on ${goesOn}`,],
     arguments: launcherArgumentsOf({
       commandLine: options.commandLine,
       movesTheRun: (choice.destination === 'a-pool') && choice.movesTheRun,
       ...((choice.destination === 'a-pool') ? { pool: choice.pool, } : {}),
+      ...((choice.destination === 'a-virtual-pool') ? { wallFactor: choice.wallFactor, } : {}),
       ...(options.wallSeconds === undefined ? {} : { wallSeconds: options.wallSeconds, }),
       ...(sessionFile === undefined ? {} : { sessionFile, }),
       runsFolder: options.runsFolder,
