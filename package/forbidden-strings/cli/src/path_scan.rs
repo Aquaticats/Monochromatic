@@ -9,17 +9,28 @@
 //! display path,
 //!  including content and read-error findings made by the caller.
 
+/// Imports the unwind boundary that keeps a matcher panic from passing a scan.
+use std::panic::{
+    AssertUnwindSafe,
+    catch_unwind,
+};
 /// Imports the filesystem path type for repository-root-relative names.
 use std::path::Path;
-/// Imports the unwind boundary that keeps a matcher panic from passing a scan.
-use std::panic::{catch_unwind, AssertUnwindSafe};
 
-/// Imports loaded matcher sets and their shared rule-identity formatter.
-use crate::{frx_load::LoadedRules, frx_scan::rule_token};
+/// Native path bytes are matched before any display encoding occurs.
+use crate::path_name_bytes::{
+    is_slash,
+    normalized_path,
+    prefix_parts,
+    safe_component,
+};
 /// Import structured results so pathname matching has only one canonical finding model.
 use crate::scan_finding::ScanFinding;
-/// Native path bytes are matched before any display encoding occurs.
-use crate::path_name_bytes::{is_slash, normalized_path, prefix_parts, safe_component};
+/// Imports loaded matcher sets and their shared rule-identity formatter.
+use crate::{
+    frx_load::LoadedRules,
+    frx_scan::rule_token,
+};
 
 /// Mask substituted for a pathname component that matches any active rule.
 const REDACTED: &str = "[REDACTED]";
@@ -67,7 +78,10 @@ pub(crate) fn repository_root() -> Option<std::path::PathBuf> {
 ///  the selected link name,
 ///  not its target,
 ///  must be scanned.
-pub(crate) fn logical_path(path: &str, root: Option<&Path>) -> String {
+pub(crate) fn logical_path(
+    path: &str,
+    root: Option<&Path>,
+) -> String {
     let Some(repository) = root else {
         return path.to_string();
     };
@@ -89,9 +103,10 @@ pub(crate) fn logical_path(path: &str, root: Option<&Path>) -> String {
         }
     }
     if let Ok(relative) = normalized.strip_prefix(repository)
-        && let Some(name) = relative.to_str() {
-            return name.to_string();
-        }
+        && let Some(name) = relative.to_str()
+    {
+        return name.to_string();
+    }
     return path.to_string();
 }
 
@@ -103,7 +118,10 @@ pub(crate) fn logical_path(path: &str, root: Option<&Path>) -> String {
 /// would change anchor semantics for a filename.
 ///  Callers fail closed on those
 /// pathname bytes instead of misrepresenting an incomplete name as a match.
-fn matching_rules(component: &[u8], loaded: &LoadedRules) -> Result<Vec<String>, ()> {
+fn matching_rules(
+    component: &[u8],
+    loaded: &LoadedRules,
+) -> Result<Vec<String>, ()> {
     let mut rules: Vec<String> = Vec::new();
     for set in loaded.iter_sets() {
         #[cfg_attr(
@@ -134,7 +152,10 @@ fn matching_rules(component: &[u8], loaded: &LoadedRules) -> Result<Vec<String>,
 ///  which are not directory names.
 ///  A matcher
 /// panic masks the entire path and returns an engine-error finding instead of printing unsafe input.
-pub(crate) fn scan_path_records(path: &Path, loaded: &LoadedRules) -> PathScanRecords {
+pub(crate) fn scan_path_records(
+    path: &Path,
+    loaded: &LoadedRules,
+) -> PathScanRecords {
     // Retain every non-separator native byte, including invalid UTF-8, until the matcher has inspected it.
     let normalized: Vec<u8> = normalized_path(path);
     return scan_normalized_records(&normalized, prefix_parts(path), loaded);
@@ -147,7 +168,11 @@ pub(crate) fn scan_path_records(path: &Path, loaded: &LoadedRules) -> PathScanRe
 /// so the skip agrees by construction with `count_prefix_parts`,
 ///  which counts non-empty separator-delimited runs.
 /// Every later non-empty component other than `.` or `..` is a name.
-fn scan_normalized_records(normalized: &[u8], prefix_count: usize, loaded: &LoadedRules) -> PathScanRecords {
+fn scan_normalized_records(
+    normalized: &[u8],
+    prefix_count: usize,
+    loaded: &LoadedRules,
+) -> PathScanRecords {
     // usize counts native prefix components, not bytes; the caller has already identified their boundary.
     let mut remaining_prefix: usize = prefix_count;
     let mut displayed: Vec<String> = Vec::<String>::new();
@@ -195,21 +220,33 @@ fn scan_normalized_records(normalized: &[u8], prefix_count: usize, loaded: &Load
     let mut findings: Vec<ScanFinding> = Vec::<ScanFinding>::new();
     for (segment, rules) in matches {
         for rule in rules {
-            findings.push(ScanFinding::Name { component: segment, rule });
+            findings.push(ScanFinding::Name {
+                component: segment,
+                rule,
+            });
         }
     }
-    return PathScanRecords { display, findings };
+    return PathScanRecords {
+        display,
+        findings,
+    };
 }
 
 /// Render canonical pathname records for the existing standalone and fuzz text consumers.
-pub(crate) fn scan_path(path: &str, loaded: &LoadedRules) -> PathScan {
+pub(crate) fn scan_path(
+    path: &str,
+    loaded: &LoadedRules,
+) -> PathScan {
     // Borrow the rules once; all matching and redaction remains inside the canonical scan.
     let records: PathScanRecords = scan_path_records(Path::new(path), loaded);
     let mut findings: Vec<String> = Vec::<String>::new();
     for finding in records.findings {
         findings.push(finding.render(records.display.as_str()));
     }
-    return PathScan { display: records.display, findings };
+    return PathScan {
+        display: records.display,
+        findings,
+    };
 }
 
 /// Unit tests keep the name-matching and masking contract beside its owner.

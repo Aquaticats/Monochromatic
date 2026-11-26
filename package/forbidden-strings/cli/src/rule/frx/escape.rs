@@ -42,8 +42,24 @@ fn needs_escape(ch: char) -> bool {
     // of which the engine accepts as a literal byte when backslash-escaped.
     return matches!(
         ch,
-        '.' | '[' | ']' | '(' | ')' | '{' | '}' | '?' | '|' | '&' | '~' | '^' | '$' | '\\' | '#'
-            | '-' | '/' | '*' | '+'
+        '.' | '['
+            | ']'
+            | '('
+            | ')'
+            | '{'
+            | '}'
+            | '?'
+            | '|'
+            | '&'
+            | '~'
+            | '^'
+            | '$'
+            | '\\'
+            | '#'
+            | '-'
+            | '/'
+            | '*'
+            | '+'
     );
 }
 

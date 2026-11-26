@@ -1,7 +1,10 @@
 // Tests for the tail-format sectioned parser: header grammar, body classification,
 // autodetection, and the fail-closed near-header/duplicate/empty/pre-header rules.
 
-use super::{detect_tail_format, parse_sections};
+use super::{
+    detect_tail_format,
+    parse_sections,
+};
 use crate::rule::frx::LoadError;
 use forbidden_regex::RegexSet;
 
@@ -43,8 +46,16 @@ fn multi_line_section_with_first_column_comments_compiles_and_matches() {
     assert_eq!(rules.len(), 1);
     assert_eq!(rules[0].name.as_deref(), Some("qqq-multi"));
     // The comments survive verbatim in the handed-over pattern.
-    assert!(rules[0].pattern.contains("# the alpha marker"), "{}", rules[0].pattern);
-    assert!(rules[0].pattern.contains("# then a trailing digit"), "{}", rules[0].pattern);
+    assert!(
+        rules[0].pattern.contains("# the alpha marker"),
+        "{}",
+        rules[0].pattern
+    );
+    assert!(
+        rules[0].pattern.contains("# then a trailing digit"),
+        "{}",
+        rules[0].pattern
+    );
     let set = RegexSet::new(std::slice::from_ref(&rules[0].pattern)).expect("compile multi-line");
     assert!(set.is_match(b"see alpha5 here"));
     assert!(!set.is_match(b"see alpha here"));
@@ -66,8 +77,16 @@ fn reshape_convention_matches_header_text_through_regexset() {
     let rules = parse_sections(text).expect("reshape section");
     assert_eq!(rules.len(), 1);
     let set = RegexSet::new(std::slice::from_ref(&rules[0].pattern)).expect("compile reshape");
-    assert!(set.is_match(b"prefix ==>foo7 suffix"), "{}", rules[0].pattern);
-    assert!(!set.is_match(b"prefix ==>foobar suffix"), "{}", rules[0].pattern);
+    assert!(
+        set.is_match(b"prefix ==>foo7 suffix"),
+        "{}",
+        rules[0].pattern
+    );
+    assert!(
+        !set.is_match(b"prefix ==>foobar suffix"),
+        "{}",
+        rules[0].pattern
+    );
 }
 
 #[test]
@@ -77,10 +96,20 @@ fn out_of_alphabet_arrow_lines_fail_closed_as_near_headers() {
     // middles (uppercase, a slash) an earlier draft absorbed as content.
     let upper = parse_sections("==> qqq-carve <==\ncontent-a\n==> Upper9 <==\n")
         .expect_err("uppercase middle is a near-header");
-    assert_eq!(upper, LoadError::NearHeader { line: 3 });
+    assert_eq!(
+        upper,
+        LoadError::NearHeader {
+            line: 3
+        }
+    );
     let slash = parse_sections("==> qqq-carve <==\ncontent-a\n==> path/seg <==\n")
         .expect_err("slash middle is a near-header");
-    assert_eq!(slash, LoadError::NearHeader { line: 3 });
+    assert_eq!(
+        slash,
+        LoadError::NearHeader {
+            line: 3
+        }
+    );
 }
 
 #[test]
@@ -89,7 +118,12 @@ fn indented_exact_header_fails_closed_as_near_header() {
     // header behind indentation is a near-header, never body content.
     let err = parse_sections("==> qqq-outer <==\nbody-line\n  ==> qqq-inner <==\nx\n")
         .expect_err("indented header");
-    assert_eq!(err, LoadError::NearHeader { line: 3 });
+    assert_eq!(
+        err,
+        LoadError::NearHeader {
+            line: 3
+        }
+    );
 }
 
 #[test]
@@ -98,7 +132,12 @@ fn arrow_without_space_fails_closed_as_near_header() {
     // genuine arrow content the author forgot to reshape) fails closed.
     let err = parse_sections("==> qqq-outer <==\nbody-line\n==>not-a-header\n")
         .expect_err("no-space arrow");
-    assert_eq!(err, LoadError::NearHeader { line: 3 });
+    assert_eq!(
+        err,
+        LoadError::NearHeader {
+            line: 3
+        }
+    );
 }
 
 #[test]
@@ -123,17 +162,29 @@ fn reshape_bytes_in_bare_literal_stay_literal() {
     let rules = parse_sections("==> qqq-lit <==\n[=]=> marker\n").expect("literal rule");
     assert_eq!(rules.len(), 1);
     let set = RegexSet::new(std::slice::from_ref(&rules[0].pattern)).expect("compile literal");
-    assert!(set.is_match(b"see [=]=> marker here"), "{}", rules[0].pattern);
-    assert!(!set.is_match(b"see ==> marker here"), "{}", rules[0].pattern);
+    assert!(
+        set.is_match(b"see [=]=> marker here"),
+        "{}",
+        rules[0].pattern
+    );
+    assert!(
+        !set.is_match(b"see ==> marker here"),
+        "{}",
+        rules[0].pattern
+    );
 }
 
 #[test]
 fn near_header_fails_closed_with_line_number() {
     // A within-alphabet name that fails the strict grammar (leading dash) is a
     // mistyped header, reported by line number only, never absorbed as body.
-    let err = parse_sections("==> qqq-ok <==\nabcdefgh\n==> -bad <==\nx")
-        .expect_err("near header");
-    assert_eq!(err, LoadError::NearHeader { line: 3 });
+    let err = parse_sections("==> qqq-ok <==\nabcdefgh\n==> -bad <==\nx").expect_err("near header");
+    assert_eq!(
+        err,
+        LoadError::NearHeader {
+            line: 3
+        }
+    );
 }
 
 #[test]
@@ -142,7 +193,13 @@ fn duplicate_name_fails_closed_with_both_lines() {
     // unique; both declaring line numbers are reported.
     let err = parse_sections("==> qqq-dup <==\naaaa\n==> qqq-dup <==\nbbbb\n")
         .expect_err("duplicate name");
-    assert_eq!(err, LoadError::DuplicateName { first_line: 1, line: 3 });
+    assert_eq!(
+        err,
+        LoadError::DuplicateName {
+            first_line: 1,
+            line: 3
+        }
+    );
 }
 
 #[test]
@@ -151,16 +208,26 @@ fn empty_section_fails_closed_with_header_line() {
     // rather than silently dropping the section.
     let err = parse_sections("==> qqq-empty <==\n\n# only a comment\n\n==> qqq-next <==\nzzzz\n")
         .expect_err("empty section");
-    assert_eq!(err, LoadError::EmptySection { line: 1 });
+    assert_eq!(
+        err,
+        LoadError::EmptySection {
+            line: 1
+        }
+    );
 }
 
 #[test]
 fn pre_header_content_fails_closed_with_line_number() {
     // Significant content before the first header cannot escape into a section, so
     // the tail parser fails closed on it defensively.
-    let err = parse_sections("stray content\n==> qqq-late <==\nbody\n")
-        .expect_err("pre-header content");
-    assert_eq!(err, LoadError::PreHeaderContent { line: 1 });
+    let err =
+        parse_sections("stray content\n==> qqq-late <==\nbody\n").expect_err("pre-header content");
+    assert_eq!(
+        err,
+        LoadError::PreHeaderContent {
+            line: 1
+        }
+    );
 }
 
 #[test]
@@ -176,8 +243,8 @@ fn blanks_and_comments_before_first_header_are_ignored() {
 fn trailing_blank_lines_are_insignificant() {
     // Trailing blank lines of a section do not change its single-significant-line
     // classification.
-    let rules = parse_sections("==> qqq-trail <==\n/foo[0-9]/\n\n\n")
-        .expect("trailing blanks trimmed");
+    let rules =
+        parse_sections("==> qqq-trail <==\n/foo[0-9]/\n\n\n").expect("trailing blanks trimmed");
     assert_eq!(rules.len(), 1);
     assert_eq!(rules[0].pattern, "foo[0-9]");
 }
@@ -187,7 +254,10 @@ fn section_order_is_file_order_with_deterministic_indices() {
     // Rule order follows file order, so indices are deterministic.
     let rules = parse_sections("==> qqq-a <==\naaaa\n==> qqq-b <==\nbbbb\n==> qqq-c <==\ncccc\n")
         .expect("three sections");
-    let names: Vec<Option<&str>> = rules.iter().map(|rule| return rule.name.as_deref()).collect();
+    let names: Vec<Option<&str>> = rules
+        .iter()
+        .map(|rule| return rule.name.as_deref())
+        .collect();
     assert_eq!(names, vec![Some("qqq-a"), Some("qqq-b"), Some("qqq-c")]);
 }
 
