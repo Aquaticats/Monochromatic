@@ -49,6 +49,10 @@ and the copy leaves them out.
 
 The wrapper is the branch tip built inside the guest from commit `7e6a51baad`'s tree,
 by `cargo build --release --tests --locked` with one job.
+Two later commits changed the arm alone.
+One renamed a local that Clippy refused,
+and one broke a comment at its punctuation.
+Neither changes a timed path.
 Every arm starts that build's own executable:
 the add as `git` through a link named `git`,
 the sweep under the installed ZED history event's name,
