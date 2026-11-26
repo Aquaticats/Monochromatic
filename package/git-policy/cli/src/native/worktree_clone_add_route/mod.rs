@@ -34,6 +34,9 @@
 //! - `add_mount.rs`: the wait for the mount and its verification in this namespace.
 //! - `add_exchange.rs`: the pointer's exchange with the copied Git administration.
 //! - `add_fill.rs`: the proof, the leave-outs, the index, the exchange and the check in order.
+//! - `add_route_steps_facts_and_refusal.rs`: the facts every step is given, the refusal a step stops with, and the one record write.
+//! - `add_route_steps_slot_and_registration.rs`: the empty slot's identity and Git's registration with the scan that settles it.
+//! - `add_route_steps_snapshot_and_capture.rs`: the frozen capture and the checkout snapshot it precedes.
 //! - `add_route_steps.rs`: one step per phase, each reading what a kill left.
 //! - `add_source_the_restore_cannot_prove.rs`: the source shapes the fill's restore would refuse.
 //! - `add_preflight.rs`: what A0 proves before the claim writes anything.
