@@ -87,6 +87,13 @@ so a control that sets it runs its body in a child,
 and without that a control that proves a sync was refused fails by which test ran first
 (issue 6498,
 `foundation/private_storage_syncs_test_support.rs`).
+The preparation's named steps are one ledger of the whole process too
+(`commit/prepare_work_spans.rs`):
+every preparation notes into it and every timing record empties it,
+so a control that counts them runs its body in a child of its own,
+and a control that names the ledger without one fails
+`source_guard/no_control_reads_the_preparation_steps_in_the_run_tests.rs`
+(issue 6507).
 A child makes its own fixtures;
 nothing here counts this process's descriptors.
 A threaded run moves those counters on other tests' threads,

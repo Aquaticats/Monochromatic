@@ -230,13 +230,26 @@ fn a_staging_that_lands_after_the_read_reaches_neither_private_copy() {
 ///  An index commit takes the real index as it is and decides no seed,
 ///  so only an explicit-path preparation walks the bytes for one.
 ///  Each copy is stated as it was before.
+///  The ledger the steps are noted in is one value of the whole process,
+///  so this control runs its body in a child of its own
+///  (`testing/process_wide_state_child_test_support.rs`):
+///  in the run's own process another test's preparation noted its steps inside these drains,
+///  and the second `index read` failed this control in a threaded run
+///  (issue 6507).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// if (startedWithinAChildOfItsOwn(import.meta.url, 'every_selection_mode_states_its_one_read_and_its_seed_walk')) return;
 /// expect(callsOf('index read')).toBe(1); expect(callsOf('index seed')).toBe(mode === 'index' ? undefined : 1); expect(callsOf('index copy')).toBe(2);
 /// ```
 #[test]
 fn every_selection_mode_states_its_one_read_and_its_seed_walk() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "every_selection_mode_states_its_one_read_and_its_seed_walk",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("commit-index-one-read-spans");
     let (repo, indexes, base) = committed_repository(root.as_path());
     std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
