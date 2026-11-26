@@ -128,7 +128,10 @@ Rounds started earlier run on the pool they named.
 - Queued behind split round 1's merge, in this order, each three minutes after the one before it starts and only while fewer than five drivers run on the virtual writer
   (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/start-a-round-in-turn-after-split-round-1.ts`):
   the alpha.47 ZFS pass's High (the removal and move refusals skip global options before `worktree`, `-C <git dir>` and `--git-dir`),
-  6500, 6501, 6514, 6503, the alpha.47 ZFS pass's words round, its guards round, and 6512.
+  6500, 6501, 6514, 6503, the alpha.47 ZFS pass's words round, its guards round, 6512,
+  then the other alpha.47 pass's four rounds (`~/temp/agent/wrapper-alpha-47-release-review-the-rest-2026-11-26/keep/review.md`: no High;
+  a named pipe in a record folder holds every command, pre-command notices write on the command's thread so a stalled terminal holds a commit,
+  the host-key sentence is wrong for common URL shapes, and small Lows).
   Briefs in `~/temp/agent/<round>-2026-11-26/prompt.md`.
   The ZFS pass (`~/temp/agent/wrapper-alpha-47-release-review-zfs-route-2026-11-26/keep/review.md`) found one High, two Mediums and nine Lows;
   its finding 12 is decided text and waits in `doc/handover/questions-for-the-owner.md`.
