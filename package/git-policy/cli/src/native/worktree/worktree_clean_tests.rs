@@ -810,11 +810,6 @@ fn the_cursor_answers_like_a_lookup_of_each_path_alone() {
     remove(root.as_path());
 }
 
-/// The marker that tells the helper of `the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool`
-/// that it is the helper,
-/// and where its fixture is.
-const THE_ONLY_PLACE_CHILD: &str = "CLI_GIT_CLEAN_ONLY_PLACE_CHILD";
-
 /// What:
 ///  The tracked files are proven as a job of the process's blocking pool,
 /// beside the untracked scan.
@@ -830,71 +825,44 @@ const THE_ONLY_PLACE_CHILD: &str = "CLI_GIT_CLEAN_ONLY_PLACE_CHILD";
 /// never resized
 /// (`foundation/blocking_jobs_within_the_budget.rs`),
 /// and so is the count of jobs waiting for a place,
-/// so the body runs in a helper process of its own:
+/// so the body runs in a child process of its own
+/// (`testing/process_wide_state_child_test_support.rs`):
 /// in a threaded run another test has already made the bound with the CPUs' places,
 /// and another test's job waiting for one answers this control's question (issue 6495).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // in the parent:
-/// const failures = inAHelper(THE_ONLY_PLACE_CHILD, 'clean-a-place-of-the-bound', EXACT_TEST); expect(failures).toEqual([]);
-/// // in the helper:
+/// if (startedWithinAChildOfItsOwn(import.meta.url, 'the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool')) return;
 /// holdTheOnlyPlace(); expect(budgetedBlockingJobs()).toBe(1); expect(cleaned.isOk()).toBe(true); expect(asked).toBe(true);
 /// ```
 #[test]
 fn the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool() {
-    if let Some(directory) =
-        crate::helper_process_test_support::helper_directory(THE_ONLY_PLACE_CHILD)
-    {
-        std::process::exit(crate::helper_process_test_support::verdict_in_a_helper(
-            directory.as_path(),
-            the_tracked_files_are_proven_as_a_job_verdict(directory.as_path()),
-        ));
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool",
+    ) {
+        return;
     }
-    let failures: Vec<String> = crate::helper_process_test_support::in_a_helper(
-        THE_ONLY_PLACE_CHILD,
-        "clean-a-place-of-the-bound",
-        "worktree::worktree_clean::tests::the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool",
-    );
-    assert!(failures.is_empty(), "{failures:?}");
-}
-
-/// What:
-///  The sentences the helper of `the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool` failed with:
-/// a clean worktree was refused,
-/// or the proof never asked for a place of this process's bound on blocking jobs.
-/// Why:
-///   A helper reports every check instead of panicking,
-/// so its verdict always exists and the parent never waits for a file a panic kept from being written.
-///  The bound is read before any of the work runs,
-/// because a process whose bound has more than one place cannot show that the work waited for one:
-/// the control holds one place of several,
-/// and the work under test takes another and starts at once.
-fn the_tracked_files_are_proven_as_a_job_verdict(root: &Path) -> Vec<String> {
-    let mut failures: Vec<String> = Vec::new();
-    let repo: PathBuf = aged_repository(root);
+    let root: PathBuf = fixture("clean-a-place-of-the-bound");
+    let repo: PathBuf = aged_repository(root.as_path());
     let (_given_back, finished) = hold_the_only_place();
-    let allowed: usize = crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs();
-    if allowed != ONE_PLACE {
-        failures.push(format!(
-            "this process's bound on blocking jobs has {allowed} places, and the control holds one of them, so a job of the work under test starts at once: the control needs a process of its own, whose bound is the one place it holds"
-        ));
-        return failures;
-    }
-    match check(repo.as_path()) {
-        Ok(_clean) => {}
-        Err(refusal) => failures.push(format!("a clean worktree was refused: {refusal:?}")),
-    }
-    match finished.recv_timeout(PATIENCE) {
-        Ok(true) => {}
-        Ok(false) => failures.push(String::from(
-            "the tracked files were proven without asking for a place of the process's bound on blocking jobs",
-        )),
-        Err(_) => failures.push(String::from(
-            "the job that holds the only place never returned",
-        )),
-    }
-    return failures;
+    // What:     the number of places this child's bound on blocking jobs has, read before the work under test runs.
+    // Why:      a process whose bound has more than one place cannot show that the work waited for one: the control
+    //           holds one place of several, and the work under test takes another and starts at once.
+    assert_eq!(
+        crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
+        ONE_PLACE,
+        "this control is the first to ask for this child's places, so its bound is the one place it holds; in a process where another test's jobs asked first the bound keeps that process's number of places, and the work under test then starts at once"
+    );
+    let clean: Result<CleanSource, CleanRefusal> = check(repo.as_path());
+    assert!(clean.is_ok(), "{:?}", clean.err());
+    assert!(
+        finished
+            .recv_timeout(PATIENCE)
+            .expect("the job that holds the only place never returned"),
+        "the tracked files were proven without asking for a place of the process's bound on blocking jobs"
+    );
+    remove(root.as_path());
 }
 
 /// What:
