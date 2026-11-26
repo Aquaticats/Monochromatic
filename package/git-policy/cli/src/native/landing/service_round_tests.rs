@@ -1138,10 +1138,20 @@ fn a_common_directory_that_is_a_named_pipe_gives_no_answer_and_holds_no_worker()
 /// so a pipe left there answers at once (issue 6489).
 /// The place is the process's only one,
 /// so the step's answer can only come from the bound the step itself keeps.
+/// That bound belongs to the whole process,
+/// so this control runs its body in a child of its own
+/// (`process_wide_state_child_test_support.rs`,
+/// issue 6487).
 #[test]
 fn a_job_that_outlasted_its_ceiling_does_not_hold_the_drains_next_storage_step() {
     use crate::parallel_test_support::ONE_PLACE;
-    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_job_that_outlasted_its_ceiling_does_not_hold_the_drains_next_storage_step",
+    ) {
+        return;
+    }
+    crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(ONE_PLACE);
     let root: PathBuf = fixture("round-place-held-past-its-ceiling");
     let work_dir: PathBuf = root.join("work");
     let measured: PathBuf = root.clone();
