@@ -287,6 +287,21 @@ mod toml_ops;
 mod json_compare;
 
 /// What:
+///  `json_walk` finds a value of a parsed JSON document by its key path,
+/// walking the parse tree so no node holds a copied path;
+/// it is private.
+/// Why:
+///  Only the `json-keys` kind reads through it,
+/// and the walk is the part whose memory the release pass measured,
+/// so it changes without an API change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // private module: type JsonNode; function locate(value, spans, cursor, wanted)
+/// ```
+mod json_walk;
+
+/// What:
 ///  `json_ops` edits JSON text by splicing the bytes of one member,
 /// keeping member order,
 /// indentation and unowned members;

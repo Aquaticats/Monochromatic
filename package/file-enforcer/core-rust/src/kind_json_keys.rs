@@ -25,14 +25,12 @@ use crate::json_compare::{
     token_text,
     value_matches,
 };
+/// Imports `JsonText` from `crate::json_ops`.
+use crate::json_ops::JsonText;
 /// Imports `parse_json_text` from `crate::json_ops`.
 use crate::json_ops::parse_json_text;
-/// Imports `JsonNode`,
-/// `JsonText` from `crate::json_ops`.
-use crate::json_ops::{
-    JsonNode,
-    JsonText,
-};
+/// Imports `JsonNode` from `crate::json_walk`.
+use crate::json_walk::JsonNode;
 /// Imports `parent_directory` from `crate::path_text`.
 use crate::path_text::parent_directory;
 /// Imports `EntryKind` from `crate::real_fs`.
