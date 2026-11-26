@@ -12,6 +12,26 @@
 //! }
 //! ```
 #![feature(rustc_private)]
+// What:
+//  `#![feature(default_field_values)]` turns on the nightly compiler feature that lets a struct
+//  literal leave a field out when the struct declares a default value for it, spelled `..` at the
+//  end of the literal with no base expression after it.
+// Why:
+//  The `declare_late_lint!` macro in `src/declaration.rs` expands to rustc's own `declare_lint!`,
+//  which builds the compiler's `Lint` record exactly that way,
+//  and that macro carries no permission to use the feature on the crate that expands it,
+//  so this crate must enable the feature itself
+//  (rustc's error lists the same attribute under "help").
+// Gotcha:
+//  This is a compiler feature gate and not a dependency feature:
+//  it compiles only on a nightly toolchain, which is what every Dylint library needs anyway.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// // No 1:1 equivalent: TypeScript object literals always allow omitted optional members, so
+// // `{ name: 'avoidable_closure', defaultLevel: 'warn', desc: '...' }` needs no opt-in.
+// ```
+#![feature(default_field_values)]
 
 /// Link the compiler's diagnostic-building crate.
 extern crate rustc_errors;
