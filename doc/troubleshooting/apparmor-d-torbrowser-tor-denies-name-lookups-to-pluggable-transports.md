@@ -315,3 +315,25 @@ the stub-listener sentence of `systemd-resolved.service(8)` (freedesktop.org, sy
 and the `golang` and `ssl_certs` abstractions, which AppArmor itself ships
 (this host: `pacman -Qo` names `apparmor 4.1.8-2.1`),
 linked through Debian's source browser at `4.1.8-3` because AppArmor's GitLab serves headless browsers a challenge page.
+
+## Filed (2026-11-26T08:09:10Z)
+
+On the owner's go-ahead ("I've read everything. Good enough. Do it."),
+the draft went out under the owner's account as
+[issue #1328](https://github.com/roddhjav/apparmor.d/issues/1328) at `2026-11-26T08:09:10Z`,
+with [pull request #1329](https://github.com/roddhjav/apparmor.d/pull/1329) at `2026-11-26T08:09:34Z`,
+which closes it.
+The pull request is one commit, `7963e3ab47` on `Aquaticat/apparmor.d` branch `fix/torbrowser-tor-pluggable-transports`,
+authored as `Aquaticat` with the account's noreply address,
+and applies the same patch as the reproduction repository to `4c4fec7`.
+
+Same-day checks before posting:
+`gh search issues --include-prs` for torbrowser, snowflake, lyrebird, "pluggable transport" and obfs4 found no duplicate
+(#1117, closed, is about `torbrowser_firefox` reading `stub-resolv.conf`, not the transports);
+the open-pull-request filter's only hits, #1308 and #1310, matched "tor" inside "qbittorrent" and "stores" and touch no Tor profile;
+`main` was still `4c4fec7`, and the profile's last change was `8bba967187` (2026-07-26, abi 5);
+`.github` still holds only `FUNDING.yml` and `workflows/main.yml`,
+and `docs/development/index.md` asks only for a branch and a pull request.
+
+The risk stays the owner's: both posts carry the owner's GitHub account.
+What happens next is the maintainer's call; follow-ups are the owner's decision.
