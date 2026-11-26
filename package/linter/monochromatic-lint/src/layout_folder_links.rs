@@ -669,7 +669,8 @@ fn group_own_loop_uses(
                 continue;
             }
             // One strongly connected set means the used entry reaches the group back, so the use closes a loop.
-            if own_loops.get(&source).is_none() || own_loops.get(&source) != own_loops.get(&target_entry)
+            if own_loops.get(&source).is_none()
+                || own_loops.get(&source) != own_loops.get(&target_entry)
             {
                 continue;
             }
