@@ -15,6 +15,7 @@
 
 use super::*;
 use crate::fs_beneath_directory_chain::MOST_DIRECTORIES_HELD;
+use crate::helper_process_test_support::{helper_directory, in_a_helper, verdict_in_a_helper};
 use crate::parallel_test_support::{PATIENCE, hold_the_only_place};
 use crate::subvolume_index::StatFields;
 use crate::test_support::{age, fixture, git, git_context, git_text, open_descriptors, remove, repository, restore_limit, set_soft_limit};
@@ -63,19 +64,65 @@ fn deepest_of_nested_directories(root: &Path, top: &str, depth: usize) -> PathBu
     return deepest;
 }
 
-/// A tracked file one directory past the chain's bound is proven clean,
-/// at a descriptor limit that fits the walk alone,
-/// when the tracked file at the bound was walked first.
+/// The variable that turns a run of the descriptor-room control into the helper process that owns the walk's room.
+const DESCRIPTOR_ROOM_CHILD: &str = "CLI_GIT_WORKTREE_CLEAN_DESCRIPTOR_ROOM_CHILD";
+
+/// A tracked file one directory past the chain's bound is proven clean
+/// with only the descriptors the walk itself needs,
+/// in a helper process of this test's own.
 ///
 /// Why:
-/// the paths of an index come in order;
-/// a deeper path walked while the chain still holds the directories of the path before it spends descriptors,
-/// its own root's clone and its first directory among them,
-/// and a file that is there is refused as missing.
+/// the room the walk is given is the count of the descriptors a process holds plus what filling the chain and the walk
+///  past it need,
+/// and a descriptor any thread opens between that count and the walk takes one of the room's places,
+/// which left the walk one short in the container gate (issue 6478);
+/// a helper process runs one test and holds nothing of the process that started it,
+/// so the count is the walk's own,
+/// and the descriptor this test's own process holds across the whole walk reaches nothing the helper measured.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // the helper: its own count, its own limit, its own walk
+/// const before = setSoftLimit(openDescriptors() + room); const verdict = walk(); setSoftLimit(before); report(verdict);
+/// // the parent: hold one descriptor, start the helper, read what it failed with
+/// const held = openFile('/dev/null'); expect(inAHelper(VARIABLE, 'clean-past-chain-bound', name)).toEqual([]);
+/// ```
 #[test]
 fn a_tracked_file_past_the_chain_bound_is_clean_at_the_walk_s_own_descriptor_room() {
-    let root: PathBuf = fixture("clean-past-chain-bound");
-    let repo: PathBuf = repository(root.as_path(), "repo");
+    // What:     `helper_directory` answers the fixture's path in the process `in_a_helper` started and nothing in the
+    //           process that started it. `Option<PathBuf>` is "a path or nothing" (sibling: `PathBuf`, which cannot
+    //           say "none").
+    // Why:      the helper body is this same test function, so the variable is what tells the two apart.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const root = helperDirectory(VARIABLE); // string | undefined
+    // if (root !== undefined) { process.exit(verdictInAHelper(root, theDeepWalkVerdict(root))); }
+    // ```
+    if let Some(root) = helper_directory(DESCRIPTOR_ROOM_CHILD) {
+        std::process::exit(verdict_in_a_helper(root.as_path(), the_deep_walk_verdict(root.as_path())));
+    }
+    // The descriptor this process holds until the walk has ended, which the helper's count never sees.
+    let _held: std::fs::File = std::fs::File::open("/dev/null").expect("a descriptor of this process");
+    let failures: Vec<String> = in_a_helper(DESCRIPTOR_ROOM_CHILD, "clean-past-chain-bound", "worktree::worktree_clean::tests::a_tracked_file_past_the_chain_bound_is_clean_at_the_walk_s_own_descriptor_room");
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+/// The sentences the helper of the descriptor-room control failed with:
+/// a worktree whose deepest tracked directory is one directory past the chain's bound is clean
+/// when the walk has only the descriptors the chain and the walk need.
+///
+/// Why:
+/// the helper reports every check as one sentence and ends with them,
+/// so the parent reads what failed although nobody reads the helper's own output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theDeepWalkVerdict(root: string): string[]
+/// ```
+fn the_deep_walk_verdict(root: &Path) -> Vec<String> {
+    let mut failures: Vec<String> = Vec::new();
+    let repo: PathBuf = repository(root, "repo");
     // The tracked file at the bound and the one past it, so the walk fills the chain and then asks for the deeper
     //  parent.
     let at_bound: PathBuf = deepest_of_nested_directories(repo.as_path(), "a", MOST_DIRECTORIES_HELD);
@@ -88,18 +135,24 @@ fn a_tracked_file_past_the_chain_bound_is_clean_at_the_walk_s_own_descriptor_roo
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=deep paths"]);
     let git_dir: PathBuf = repo.join(".git");
-    // A walk before this one, so whatever the reading of the index and the object database keeps open is open at the
-    //  moment the limit is measured, and the room left is the walk's own.
-    check_clean_tracked(repo.as_path(), git_dir.as_path(), git_dir.as_path()).expect("a clean worktree at the ordinary limit");
-    // The room the walk gets beyond what it already holds: filling the chain takes one descriptor per kept directory,
-    //  and the walk past the bound then needs two, its root's clone and the directory it is opening.
+    // A walk before the measured one, so whatever the reading of the index and the object database keeps open is open
+    //  at the moment the limit is measured, and the room left is the walk's own.
+    if let Err(reason) = check_clean_tracked(repo.as_path(), git_dir.as_path(), git_dir.as_path()) {
+        failures.push(format!("the worktree is clean at the ordinary limit: {reason}"));
+    }
+    // The room the walk gets beyond what this process already holds: filling the chain takes one descriptor per kept
+    //  directory, and the walk past the bound then needs two, its root's clone and the directory it is opening.
+    //  The limit is this helper's own: it runs one test, so no other control's threads hold or open a descriptor here.
     let room: u64 = u64::try_from(MOST_DIRECTORIES_HELD + 1).expect("a count of descriptors");
     let before = set_soft_limit(u64::try_from(open_descriptors()).expect("a count of descriptors") + room);
     let verdict = check_clean_tracked(repo.as_path(), git_dir.as_path(), git_dir.as_path());
     restore_limit(before);
-    let clean: CleanSource = verdict.expect("a clean worktree whose deepest tracked directory is past the chain's bound");
-    assert_eq!(clean.tracked, 2, "both tracked files are proven, the one at the bound and the one past it");
-    remove(root.as_path());
+    match verdict {
+        Ok(clean) if clean.tracked != 2 => failures.push(format!("both tracked files are proven, the one at the bound and the one past it: {}", clean.tracked)),
+        Ok(_) => {}
+        Err(reason) => failures.push(format!("a clean worktree whose deepest tracked directory is past the chain's bound: \"{reason}\"")),
+    }
+    return failures;
 }
 
 /// A clean,
