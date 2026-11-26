@@ -275,6 +275,7 @@ fn names_another_path(
         .slot_path()
         .is_some_and(|recorded| return recorded.as_path() != slot_path);
 }
+
 /// Controls stay out of the release executable.
 #[cfg(test)]
 #[path = "slot_state_live_read_tests.rs"]
