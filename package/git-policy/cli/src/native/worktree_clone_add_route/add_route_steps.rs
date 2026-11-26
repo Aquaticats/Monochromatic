@@ -21,11 +21,12 @@
 //! ```
 
 use super::add_mount::{MountedHere, the_mount_at, wait_for_the_mount};
-use super::add_zfs::ObjectIdentity;
+use super::add_zfs::{CloneMade, ObjectIdentity};
 use crate::worktree_clone_binding_record::binding_inventory::InventoryKind;
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_binding_record::record_publication::{RecordRefusalAtTheFile, publish_inventory, read_inventory};
+use crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts;
 
 /// The fixed facts one add's steps share,
 /// the refusal a step stops with and the one write that persists a phase.
@@ -48,30 +49,33 @@ pub use super::add_route_steps_snapshot_and_capture::step_snapshot;
 ///  A successful clone does not imply a mount, and the request is what the
 ///  handler sweeps for.
 pub fn step_clone(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<(), StepRefusal> {
-    let identity: ObjectIdentity = match record.clone_guid {
+    let (identity, facts): (ObjectIdentity, CloneObjectFacts) = match record.clone_guid {
         Some(guid) => {
             let live: ObjectIdentity = steps.device.identity_of(record.clone_dataset.as_str()).map_err(StepRefusal::refused)?;
             if live.guid != guid {
                 return Err(StepRefusal::refused(format!("the clone {} answers GUID {}, and the record names {}; Ways forward: inspect the dataset, then run the add again", record.clone_dataset, live.guid.file_name(), guid.file_name())));
             }
-            live
+            let read: CloneObjectFacts = steps.device.facts_of(record.clone_dataset.as_str()).map_err(StepRefusal::refused)?;
+            (live, read)
         }
         None => match steps.device.identity_of(record.clone_dataset.as_str()) {
             Ok(found) => {
                 if !the_clone_came_from(found, steps, record)? {
                     return Err(StepRefusal::refused(format!("the dataset {} already stands and does not come from {}, so nothing proves it is this add's; Ways forward: remove or rename it, then run the add again", record.clone_dataset, record.origin_snapshot)));
                 }
-                found
+                let read: CloneObjectFacts = steps.device.facts_of(record.clone_dataset.as_str()).map_err(StepRefusal::refused)?;
+                (found, read)
             }
             Err(_absent) => {
-                let made: ObjectIdentity = steps.device.clone_the_origin(record.clone_dataset.as_str(), record.origin_snapshot.as_str()).map_err(StepRefusal::refused)?;
-                record.clone_guid = Some(made.guid);
-                record.clone_createtxg = Some(made.createtxg);
+                let made: CloneMade = steps.device.clone_the_origin(record.clone_dataset.as_str(), record.origin_snapshot.as_str()).map_err(StepRefusal::refused)?;
+                record.clone_guid = Some(made.identity.guid);
+                record.clone_createtxg = Some(made.identity.createtxg);
                 steps.stops.after("clone");
-                made
+                (made.identity, made.facts)
             }
         },
     };
+    refuse_a_clone_that_is_not_legacy_from_the_container(steps, &facts)?;
     record.clone_guid = Some(identity.guid);
     record.clone_createtxg = Some(identity.createtxg);
     let inventory = steps.device.clone_inventory(record.clone_dataset.as_str(), steps.pool_guid, identity).map_err(StepRefusal::refused)?;
@@ -103,6 +107,34 @@ fn the_clone_came_from(found: ObjectIdentity, steps: &Steps<'_>, record: &Bindin
     let _identity: ObjectIdentity = found;
     let origin: Option<String> = steps.device.origin_of(record.clone_dataset.as_str()).map_err(StepRefusal::refused)?;
     return Ok(origin.as_deref() == Some(record.origin_snapshot.as_str()));
+}
+
+/// What:
+///  Report a clone whose `mountpoint` is not `legacy` inherited from the
+///  container,
+///  and say what the add left.
+/// Why:
+///  A container root changed in the interval between the preflight and the
+///  clone request reaches the clone,
+///  so the add learns it from the clone's own reply rather than from a mount
+///  wait that would time out
+///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
+///  The add destroys nothing: a wrong clone stands until the removal's settle
+///  step, plan step 14.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const failure = theClonesMountpointFailure(facts, container);
+/// if (failure) throw new Error(`${failure}. ${whatTheAddLeft}`);
+/// ```
+fn refuse_a_clone_that_is_not_legacy_from_the_container(steps: &Steps<'_>, facts: &CloneObjectFacts) -> Result<(), StepRefusal> {
+    let Some(failure) = super::add_zfs::the_clones_mountpoint_failure(facts, steps.route.container_dataset.as_str()) else {
+        return Ok(());
+    };
+    return Err(StepRefusal::refused(format!(
+        "{failure}. What the add left stays as it stands: the claim, the slot, the Git registration, the origin snapshot and the clone at {}. Nothing was destroyed, and a clone this add cannot use is the removal's to settle (plan step 14). Ways forward: as root, read the container's own `mountpoint` (`zfs get mountpoint {}`) and set it to `legacy` as the design's setup does, then put the clone back under it (`zfs inherit mountpoint {}`), then run the add again",
+        facts.name, steps.route.container_dataset, facts.name
+    )));
 }
 
 /// What:

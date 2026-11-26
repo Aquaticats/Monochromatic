@@ -79,6 +79,8 @@ binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, s
 binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_add_grants_guest_tests.rs | the whole-add arm runs as the delegated account inside the throwaway guest, and a host run skips it, so only a guest run can prove its move
+binary/binary_zfs_add_grants_guest_tests.rs | the arm removes the ladder's plain worktree as the account that made it, and a host run skips the arm
 binary/binary_zfs_holder_scan_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_holder_scan_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_holder_scan_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move

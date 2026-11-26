@@ -5033,8 +5033,15 @@ and every step reads the state a kill at the step before it leaves:
   published,
   and the phase becomes `snapshotted`.
 - The origin snapshot is cloned as
-  `<container>/<slot>` with `mountpoint=legacy` and no `canmount` property:
-  a clone inherits the origin's mountpoint,
+  `<container>/<slot>` with no property at all:
+  a clone inherits its parent's `mountpoint`,
+  which is the clone container and not the origin,
+  so the clone reads `mountpoint=legacy` inherited from the container.
+  `mountpoint` is also a delegation the design forbids the account,
+  so a request that carried it is refused for the account the add runs as
+  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`,
+  2026-11-25).
+  No `canmount` property is sent either:
   a legacy dataset is never mounted by itself whatever `canmount` says,
   and the kernel refused `canmount=off` at creation in the build's guest.
   The design's own mount is therefore the only one the clone gets.
