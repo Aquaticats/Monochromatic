@@ -914,14 +914,29 @@ so a finding is never reported twice.
 - A group's own code owes its group no summary and makes no edge of the entry graph:
   the finding above reports the file that holds it,
   and a group's summary is what its child folders use.
-  A `uses` line naming a use written in a group's own file therefore tolerates nothing.
-  A use from that file is still reported as a loop whenever it closes one:
-  the loop of folders reports it while the two folders sit in one folder loop
-  (a use added inside a loop the list already tolerates is reported the same way),
-  and the entries are searched back from the folder it uses,
-  so a use that makes the group and another entry use each other is reported
-  even when no folder loop holds the two.
-  That last finding carries no key,
+  A `uses` line naming a use written in a group's own file is dead,
+  unless a loop of folders holds that use:
+  a `uses` line keeps its use alive through a loop of entries,
+  and such a use makes no entry edge.
+  A use from that file is reported as a loop whenever it closes one.
+  The loop of folders reports it while the two folders sit in one folder loop
+  (a use added inside a loop the list already tolerates is reported the same way).
+  The loop checks of the entries cannot see it,
+  so the entries are searched back from the entry the own file uses,
+  over every use between two entries and every use written in a group's own file.
+  The shapes that reports are:
+  one own-file use that closes a loop with the entry it uses,
+  a mutual dependency that two groups' own files close,
+  which is one finding for each of the two uses,
+  and a ring of entries that any number of own-file uses close.
+  The shapes it does not report are:
+  a use of the group's own child folders,
+  which joins no two entries;
+  a use a folder loop already holds,
+  which the loop checks report;
+  and a use of an entry whose own code never reaches the group.
+  Every such finding is keyed `own-file-loop <group> -> <used folder>`,
+  so a tree that already holds one can record it on a list,
   and no `uses` link is owed for any of these uses.
 - A group's `uses` folder holds one link for every other entry that a folder inside the group uses,
   and no other link.
